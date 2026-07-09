@@ -79,6 +79,18 @@ struct RuntimeTruthDisplay {
     let notionalDistributionUsd: [Double]
     let coinglassStatus: String?
     let moralisStatus: String?
+    let providerTensorConsumption: Bool?
+    let providerRiskConsumption: Bool?
+    let providerAllocatorConsumption: Bool?
+    let providerPaperConsumption: Bool?
+    let providerLiveDryrunConsumption: Bool?
+    let providerFeedbackAttribution: Bool?
+    let ppoProviderFeatureCount: Int?
+    let masaProviderFeatureCount: Int?
+    let confluenceTradeBlockScore: Double?
+    let confluenceReduceSizeScore: Double?
+    let confluenceHedgeRequiredScore: Double?
+    let altdataSingleProviderCanApprove: Bool?
     let preemptivePreventedCount: Int?
     let positiveEdgeProbationSupplyState: String?
     let positiveEdgeProbationCandidates: Int?
@@ -143,6 +155,18 @@ struct RuntimeTruthDisplay {
                 actual: summary.provider_readiness?.moralis_actual_payload_present,
                 status: summary.provider_readiness?.moralis_status
             ),
+            providerTensorConsumption: summary.provider_readiness?.provider_tensor_consumption,
+            providerRiskConsumption: summary.provider_readiness?.provider_risk_consumption,
+            providerAllocatorConsumption: summary.provider_readiness?.provider_allocator_consumption,
+            providerPaperConsumption: summary.provider_readiness?.provider_paper_consumption,
+            providerLiveDryrunConsumption: summary.provider_readiness?.provider_live_dryrun_consumption,
+            providerFeedbackAttribution: summary.provider_readiness?.provider_feedback_attribution,
+            ppoProviderFeatureCount: summary.provider_readiness?.ppo_provider_feature_count,
+            masaProviderFeatureCount: summary.provider_readiness?.masa_provider_feature_count,
+            confluenceTradeBlockScore: summary.provider_readiness?.confluence_trade_block_score,
+            confluenceReduceSizeScore: summary.provider_readiness?.confluence_reduce_size_score,
+            confluenceHedgeRequiredScore: summary.provider_readiness?.confluence_hedge_required_score,
+            altdataSingleProviderCanApprove: summary.provider_readiness?.altdata_single_provider_can_approve,
             preemptivePreventedCount: summary.preemptive_edge_control?.preventedCount,
             positiveEdgeProbationSupplyState: summary.preemptive_edge_control?.positive_edge_probation_supply_state,
             positiveEdgeProbationCandidates: summary.preemptive_edge_control?.positive_edge_probation_candidates,
@@ -209,6 +233,18 @@ struct RuntimeTruthDisplay {
                 actual: paper.provider_readiness?.moralis_actual_payload_present,
                 status: paper.provider_readiness?.moralis_status
             ),
+            providerTensorConsumption: paper.provider_readiness?.provider_tensor_consumption,
+            providerRiskConsumption: paper.provider_readiness?.provider_risk_consumption,
+            providerAllocatorConsumption: paper.provider_readiness?.provider_allocator_consumption,
+            providerPaperConsumption: paper.provider_readiness?.provider_paper_consumption,
+            providerLiveDryrunConsumption: paper.provider_readiness?.provider_live_dryrun_consumption,
+            providerFeedbackAttribution: paper.provider_readiness?.provider_feedback_attribution,
+            ppoProviderFeatureCount: paper.provider_readiness?.ppo_provider_feature_count,
+            masaProviderFeatureCount: paper.provider_readiness?.masa_provider_feature_count,
+            confluenceTradeBlockScore: paper.provider_readiness?.confluence_trade_block_score,
+            confluenceReduceSizeScore: paper.provider_readiness?.confluence_reduce_size_score,
+            confluenceHedgeRequiredScore: paper.provider_readiness?.confluence_hedge_required_score,
+            altdataSingleProviderCanApprove: paper.provider_readiness?.altdata_single_provider_can_approve,
             preemptivePreventedCount: paper.preemptive_edge_control?.preventedCount,
             positiveEdgeProbationSupplyState: paper.preemptive_edge_control?.positive_edge_probation_supply_state,
             positiveEdgeProbationCandidates: paper.preemptive_edge_control?.positive_edge_probation_candidates,
@@ -275,6 +311,18 @@ struct RuntimeTruthDisplay {
                 actual: risk.provider_readiness?.moralis_actual_payload_present,
                 status: risk.provider_readiness?.moralis_status
             ),
+            providerTensorConsumption: risk.provider_readiness?.provider_tensor_consumption,
+            providerRiskConsumption: risk.provider_readiness?.provider_risk_consumption,
+            providerAllocatorConsumption: risk.provider_readiness?.provider_allocator_consumption,
+            providerPaperConsumption: risk.provider_readiness?.provider_paper_consumption,
+            providerLiveDryrunConsumption: risk.provider_readiness?.provider_live_dryrun_consumption,
+            providerFeedbackAttribution: risk.provider_readiness?.provider_feedback_attribution,
+            ppoProviderFeatureCount: risk.provider_readiness?.ppo_provider_feature_count,
+            masaProviderFeatureCount: risk.provider_readiness?.masa_provider_feature_count,
+            confluenceTradeBlockScore: risk.provider_readiness?.confluence_trade_block_score,
+            confluenceReduceSizeScore: risk.provider_readiness?.confluence_reduce_size_score,
+            confluenceHedgeRequiredScore: risk.provider_readiness?.confluence_hedge_required_score,
+            altdataSingleProviderCanApprove: risk.provider_readiness?.altdata_single_provider_can_approve,
             preemptivePreventedCount: risk.preemptive_edge_control?.preventedCount,
             positiveEdgeProbationSupplyState: risk.preemptive_edge_control?.positive_edge_probation_supply_state,
             positiveEdgeProbationCandidates: risk.preemptive_edge_control?.positive_edge_probation_candidates,
@@ -397,6 +445,12 @@ struct RuntimeTruthCard: View {
             DataRow(
                 label: "Provider actual data",
                 value: "CoinGlass \(runtimeText(truth.coinglassStatus)) · Moralis \(runtimeText(truth.moralisStatus))",
+                mono: true
+            )
+            DataRow(
+                label: "Provider consumer proof",
+                value: "tensor \(runtimeBool(truth.providerTensorConsumption, trueText: "yes", falseText: "no")) · risk \(runtimeBool(truth.providerRiskConsumption, trueText: "yes", falseText: "no")) · allocator \(runtimeBool(truth.providerAllocatorConsumption, trueText: "yes", falseText: "no")) · paper \(runtimeBool(truth.providerPaperConsumption, trueText: "yes", falseText: "no")) · live dry-run \(runtimeBool(truth.providerLiveDryrunConsumption, trueText: "yes", falseText: "no")) · block \(runtimeNumber(truth.confluenceTradeBlockScore, digits: 3)) reduce \(runtimeNumber(truth.confluenceReduceSizeScore, digits: 3)) hedge \(runtimeNumber(truth.confluenceHedgeRequiredScore, digits: 3))",
+                valueColor: truth.altdataSingleProviderCanApprove == true ? NerVyx.sell : NerVyx.textSecondary,
                 mono: true
             )
             DataRow(

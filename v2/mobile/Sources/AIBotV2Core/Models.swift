@@ -191,6 +191,28 @@ public struct MobileProviderReadiness: Decodable, Sendable {
     public let moralis_actual_payload_present: Bool?
     public let coinglass_heartbeat_only: Bool?
     public let moralis_heartbeat_only: Bool?
+    public let moralis_feature_bridge_ready: Bool?
+    public let moralis_feature_count: Int?
+    public let moralis_required_feature_count: Int?
+    public let moralis_missing_feature_flags: [String]?
+    public let moralis_stale_feature_flags: [String]?
+    public let moralis_missing_mask_true: Bool?
+    public let moralis_stale_mask_true: Bool?
+    public let moralis_token_map_count: Int?
+    public let moralis_wallet_watchlist_count: Int?
+    public let provider_tensor_consumption: Bool?
+    public let provider_risk_consumption: Bool?
+    public let provider_orchestrator_consumption: Bool?
+    public let provider_allocator_consumption: Bool?
+    public let provider_paper_consumption: Bool?
+    public let provider_live_dryrun_consumption: Bool?
+    public let provider_feedback_attribution: Bool?
+    public let ppo_provider_feature_count: Int?
+    public let masa_provider_feature_count: Int?
+    public let confluence_trade_block_score: Double?
+    public let confluence_reduce_size_score: Double?
+    public let confluence_hedge_required_score: Double?
+    public let altdata_single_provider_can_approve: Bool?
     public let heartbeat_only_green_allowed: Bool?
     public let raw_keys_exposed: Bool?
     public let invalid_subscription_blocks_core_system: Bool?
@@ -638,3 +660,152 @@ public struct AdminPaper: Decodable, Sendable {
     public let intents_accepted, intents_blocked: Int
 }
 public struct AdminRisk: Decodable, Sendable { public let state: String; public let kill_switch_active: Bool }
+
+// MARK: - Enterprise Realtime / UI Snapshots
+
+public enum JSONValue: Decodable, Sendable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case object([String: JSONValue])
+    case array([JSONValue])
+    case null
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([String: JSONValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([JSONValue].self) {
+            self = .array(value)
+        } else {
+            self = .null
+        }
+    }
+}
+
+public struct CanonicalPnL: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_utc: String?
+    public let display_time_et: String?
+    public let source_timezone: String?
+    public let display_timezone: String?
+    public let paper_session_id: String?
+    public let account_scope: String
+    public let equity_usd: Double?
+    public let starting_equity_usd: Double?
+    public let realized_net_pnl_usd: Double?
+    public let unrealized_pnl_usd: Double?
+    public let fees_usd: Double?
+    public let slippage_usd: Double?
+    public let funding_usd: Double?
+    public let gross_pnl_usd: Double?
+    public let net_pnl_usd: Double?
+    public let closed_trade_count: Int?
+    public let source: String?
+    public let source_lag_seconds: Double?
+    public let reconciliation_status: String
+    public let reconciliation_delta_usd: Double?
+    public let missing_fields: [String]?
+    public let warnings: [String]?
+    public let paper_only: Bool
+    public let routes_to_live: Bool
+    public let places_real_order: Bool
+}
+
+public struct EnterpriseProviderCard: Decodable, Sendable, Equatable {
+    public let provider: String
+    public let display_name: String?
+    public let status: String?
+    public let dashboard_color: String?
+    public let dashboard_color_reason: String?
+    public let actual_payload_count: Int?
+    public let last_success_utc: String?
+    public let last_error_utc: String?
+    public let source_lag_seconds: Double?
+    public let keys_published: [String]?
+    public let feature_count: Int?
+    public let consumer_count: Int?
+    public let heartbeat_only: Bool?
+    public let actual_payload_present: Bool?
+    public let raw_key_exposed: Bool?
+    public let routes_to_live: Bool?
+    public let places_real_order: Bool?
+    public let watchlist_count: Int?
+    public let token_map_count: Int?
+    public let metric_count: Int?
+}
+
+public struct EnterpriseProviderCards: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let providers: [EnterpriseProviderCard]
+    public let provider_count: Int?
+    public let heartbeat_only_green_count: Int?
+    public let live_gate: String?
+    public let paper_only: Bool?
+    public let routes_to_live: Bool?
+    public let places_real_order: Bool?
+}
+
+public struct EnterpriseUiSnapshot: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let resource: String
+    public let generated_utc: String
+    public let display_time_et: String?
+    public let source_timezone: String?
+    public let display_timezone: String?
+    public let source: String
+    public let source_type: String
+    public let source_keys: [String]
+    public let staleness_seconds: Double?
+    public let data_quality: String
+    public let missing_sections: [String]
+    public let error_sections: [String]
+    public let last_good_payload_used: Bool
+    public let payload: JSONValue?
+    public let live_gate: String?
+    public let paper_only: Bool?
+    public let routes_to_live: Bool
+    public let places_real_order: Bool
+}
+
+public struct EnterpriseRealtimeBootstrap: Decodable, Sendable, Equatable {
+    public let schema_version: String
+    public let generated_utc: String
+    public let display_time_et: String?
+    public let display_timezone: String?
+    public let source: String?
+    public let auth: [String: JSONValue]?
+    public let portfolio: JSONValue?
+    public let paper: JSONValue?
+    public let risk: JSONValue?
+    public let trainer: JSONValue?
+    public let signals: JSONValue?
+    public let providers: JSONValue?
+    public let ingestors: JSONValue?
+    public let markets: JSONValue?
+    public let live_canary: JSONValue?
+    public let alerts: JSONValue?
+    public let ui_hints: [String: JSONValue]?
+    public let resources: [String: EnterpriseUiSnapshot]
+    public let live_gate: String?
+    public let paper_only: Bool?
+    public let routes_to_live: Bool
+    public let places_real_order: Bool
+}
+
+public struct EnterpriseRealtimeFrame: Decodable, Sendable, Equatable {
+    public let type: String
+    public let resource: String?
+    public let sequence: Int
+    public let generated_utc: String
+    public let display_time_et: String?
+    public let payload: JSONValue?
+}

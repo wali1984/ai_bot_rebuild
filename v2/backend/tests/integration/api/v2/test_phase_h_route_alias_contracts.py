@@ -80,6 +80,9 @@ def _fake_redis() -> FakeRedis:
                 "generated_utc": ts,
                 "paper_session_id": "phase-h-session",
                 "paper_session_state_source": "test",
+                "starting_equity_usd": 9999.0,
+                "realized_pnl_usd": -999.0,
+                "unrealized_pnl_usd": -111.0,
                 "new_entries_allowed": False,
                 "paper_new_entries_halted": True,
                 "paper_effective_entry_gate_status": "HALTED",
@@ -93,6 +96,18 @@ def _fake_redis() -> FakeRedis:
                 "generated_utc": ts,
                 "paper_session_id": "phase-h-session",
                 "equity": 2999.0,
+                "initial_capital": 3000.0,
+                "realized_net_pnl_usd": 1.25,
+                "realized_gross_pnl_usd": 2.5,
+                "unrealized_pnl_usd": 0.75,
+                "total_pnl_usd": 2.0,
+                "closed_ledger_net_pnl_usd": 1.25,
+                "portfolio_realized_matches_closed_ledger": True,
+                "equity_reconciles_within_1_cent": True,
+                "pnl_source_key": "v2:portfolio:state",
+                "pnl_source_route": "/api/v2/portfolio",
+                "pnl_source_type": "CANONICAL_CURRENT_SESSION_RUNTIME",
+                "pnl_conflict_detected": False,
             },
             "v2:paper:trade_management:status": {"generated_utc": ts},
             "v2:orchestrator:heartbeat": {
@@ -193,6 +208,8 @@ def test_phase_h_required_routes_return_json_not_spa_html(monkeypatch) -> None:
     client = TestClient(create_app())
     required_paths = [
         "/api/v2/portfolio",
+        "/api/v2/paper/status",
+        "/api/v2/paper/activity",
         "/api/v2/paper/runtime-status",
         "/api/v2/trainer/status",
         "/api/v2/signals",
@@ -263,4 +280,37 @@ def test_phase_h_required_routes_return_json_not_spa_html(monkeypatch) -> None:
         "places_real_order": False,
     }
     assert client.get("/api/v2/system/health").json()["data"]["places_real_order"] is False
-    assert client.get("/api/v1/paper-trades").json()["data"]["paper_session_id"] == "phase-h-session"
+    paper_trades = client.get("/api/v1/paper-trades").json()
+    assert paper_trades["data"]["paper_session_id"] == "phase-h-session"
+    assert paper_trades["data"]["starting_equity_usd"] == 3000.0
+    assert paper_trades["data"]["realized_pnl_usd"] == 1.25
+    assert paper_trades["data"]["realized_net_pnl_usd"] == 1.25
+    assert paper_trades["data"]["realized_gross_pnl_usd"] == 2.5
+    assert paper_trades["data"]["unrealized_pnl_usd"] == 0.75
+    assert paper_trades["data"]["total_pnl_usd"] == 2.0
+    assert paper_trades["data"]["pnl_source_key"] == "v2:portfolio:state"
+    assert paper_trades["data"]["pnl_source_route"] == "/api/v2/portfolio"
+    assert paper_trades["data"]["pnl_source_type"] == "CANONICAL_CURRENT_SESSION_RUNTIME"
+    assert paper_trades["data"]["pnl_conflict_detected"] is False
+
+    paper_status = client.get("/api/v2/paper/status").json()
+    paper_summary = paper_status["data"]["summary"]
+    assert paper_summary["realized_pnl_usd"] == 1.25
+    assert paper_summary["realized_net_pnl_usd"] == 1.25
+    assert paper_summary["unrealized_pnl_usd"] == 0.75
+    assert paper_summary["total_pnl_usd"] == 2.0
+    assert paper_summary["pnl_source_key"] == "v2:portfolio:state"
+    assert paper_summary["pnl_source_route"] == "/api/v2/portfolio"
+    assert paper_summary["pnl_source_type"] == "CANONICAL_CURRENT_SESSION_RUNTIME"
+    assert paper_summary["pnl_conflict_detected"] is False
+
+    paper_activity = client.get("/api/v2/paper/activity").json()
+    activity_summary = paper_activity["data"]["summary"]
+    assert activity_summary["realized_pnl_usd"] == 1.25
+    assert activity_summary["realized_net_pnl_usd"] == 1.25
+    assert activity_summary["unrealized_pnl_usd"] == 0.75
+    assert activity_summary["total_pnl_usd"] == 2.0
+    assert activity_summary["pnl_source_key"] == "v2:portfolio:state"
+    assert activity_summary["pnl_source_route"] == "/api/v2/portfolio"
+    assert activity_summary["pnl_source_type"] == "CANONICAL_CURRENT_SESSION_RUNTIME"
+    assert activity_summary["pnl_conflict_detected"] is False

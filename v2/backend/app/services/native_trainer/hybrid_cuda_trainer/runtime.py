@@ -33,6 +33,7 @@ from .publisher import (
 )
 from .rewards import reward_stack_status
 from .safety import V2OnlyJsonIO, safety_scoreboard
+from .tensor_builder import FEATURE_SPEC
 from v2.backend.app.services.native_trainer.learning_readiness import build_learning_readiness
 
 
@@ -40,6 +41,15 @@ def _utc_iso() -> str:
     from datetime import datetime, timezone
 
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _provider_feature_names() -> list[str]:
+    names: list[str] = []
+    for name, source in FEATURE_SPEC:
+        text = f"{name}:{source}".lower()
+        if any(token in text for token in ("altdata", "moralis", "coinglass", "santiment")):
+            names.append(name)
+    return names
 
 
 @dataclass(frozen=True)
@@ -424,7 +434,20 @@ def run_hybrid_trainer_cycle(
         "replay_buffer_enabled": replay_buffer is not None,
         "replay_buffer_size": len(replay_buffer) if replay_buffer is not None else 0,
         "replay_buffer_limit": getattr(replay_buffer, "maxlen", None) if replay_buffer is not None else None,
+        "feature_dim": len(FEATURE_SPEC),
         "input_dim": input_dim,
+        "expected_input_dim": len(FEATURE_SPEC) * 4,
+        "feature_schema_status": (
+            "ALIGNED"
+            if input_dim == len(FEATURE_SPEC) * 4
+            else "INPUT_DIM_MISMATCH"
+        ),
+        "checkpoint_guard_active": True,
+        "stale_checkpoints_rejected": True,
+        "checkpoint_shape_guard": "latest_manifest(input_dim=runtime_input_dim)",
+        "ppo_provider_feature_mask_count": len(_provider_feature_names()),
+        "masa_provider_feature_mask_count": len(_provider_feature_names()),
+        "provider_feature_names": _provider_feature_names(),
         "cuda_active": model.cuda_active,
         "model_device": model.device,
         "model_tensors_device_verified": model.model_tensors_device_verified(),

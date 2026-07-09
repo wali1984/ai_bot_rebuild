@@ -36,13 +36,19 @@ interface PortfolioStatePayload {
   equity?: number | null;
   cash_balance?: number | null;
   realized_pnl_usd?: number | null;
+  realized_net_pnl_usd?: number | null;
+  clean_session_valid_realized_pnl_usd?: number | null;
   unrealized_pnl_usd?: number | null;
+  clean_session_valid_unrealized_pnl_usd?: number | null;
   net_unrealized_pnl?: number | null;
   total_pnl_usd?: number | null;
   total_notional?: number | null;
   open_position_notional?: number | null;
   open_positions_count?: number | null;
   closed_positions_count?: number | null;
+  pnl_source_key?: string | null;
+  pnl_source_route?: string | null;
+  pnl_source_type?: string | null;
   paper_equity_source?: string | null;
   paper_equity_reason?: string | null;
 }
@@ -209,11 +215,19 @@ export function resolveTypedPortfolioAccount(
       portfolio.endpoint,
     );
   }
-  const realizedPnl = finite(data.realized_pnl);
-  const unrealizedPnl = finite(data.unrealized_pnl);
-  const totalPnl = realizedPnl !== null && unrealizedPnl !== null
-    ? realizedPnl + unrealizedPnl
-    : null;
+  const realizedPnl = firstNumber(
+    data.realized_net_pnl_usd,
+    data.clean_session_valid_realized_pnl_usd,
+    data.realized_pnl_usd,
+    data.realized_pnl,
+  );
+  const unrealizedPnl = firstNumber(
+    data.unrealized_pnl_usd,
+    data.clean_session_valid_unrealized_pnl_usd,
+    data.unrealized_pnl,
+  );
+  const summedPnl = realizedPnl !== null && unrealizedPnl !== null ? realizedPnl + unrealizedPnl : null;
+  const totalPnl = firstNumber(data.total_pnl_usd, summedPnl);
   return {
     equity: finite(data.equity),
     totalPnl,
@@ -225,7 +239,7 @@ export function resolveTypedPortfolioAccount(
     closedPositions: null,
     currency: 'USDT',
     accountMode: data.mode,
-    source: traderFacingSource(portfolio.source),
+    source: traderFacingSource(firstText(data.pnl_source_key, data.pnl_source_route, data.pnl_source_type, portfolio.source)),
     reason: portfolio.missing_fields.length
       ? 'Trader-specific account data incomplete'
       : traderFacingReason(portfolio.warnings?.[0]),
@@ -238,13 +252,23 @@ export function resolvePaperAccountTruth(
   runtimePages: RuntimePagesPayload | null,
   portfolio: PortfolioStatePayload | null,
 ): PaperAccountTruth {
-  const realizedPnl = firstNumber(portfolio?.realized_pnl_usd, truth?.paper_realized_pnl_usd);
-  const unrealizedPnl = firstNumber(portfolio?.unrealized_pnl_usd, portfolio?.net_unrealized_pnl, truth?.paper_unrealized_pnl_usd);
+  const realizedPnl = firstNumber(
+    portfolio?.realized_net_pnl_usd,
+    portfolio?.clean_session_valid_realized_pnl_usd,
+    portfolio?.realized_pnl_usd,
+    truth?.paper_realized_pnl_usd,
+  );
+  const unrealizedPnl = firstNumber(
+    portfolio?.unrealized_pnl_usd,
+    portfolio?.clean_session_valid_unrealized_pnl_usd,
+    portfolio?.net_unrealized_pnl,
+    truth?.paper_unrealized_pnl_usd,
+  );
   const summedPnl = realizedPnl !== null && unrealizedPnl !== null ? realizedPnl + unrealizedPnl : null;
   const totalPnl = firstNumber(portfolio?.total_pnl_usd, runtimePages?.paper_current_session_pnl, truth?.paper_pnl, summedPnl);
 
   return {
-    equity: firstNumber(runtimePages?.paper_current_session_equity, truth?.paper_equity, portfolio?.equity),
+    equity: firstNumber(portfolio?.equity, runtimePages?.paper_current_session_equity, truth?.paper_equity),
     totalPnl,
     realizedPnl,
     unrealizedPnl,
@@ -254,7 +278,15 @@ export function resolvePaperAccountTruth(
     closedPositions: firstNumber(portfolio?.closed_positions_count, truth?.paper_closed_positions_count),
     currency: 'USDT',
     accountMode: firstText(portfolio?.account_mode) ?? 'paper',
-    source: traderFacingSource(firstText(portfolio?.paper_equity_source, truth?.paper_equity_source) ?? 'Trader account source'),
+    source: traderFacingSource(
+      firstText(
+        portfolio?.pnl_source_key,
+        portfolio?.pnl_source_route,
+        portfolio?.pnl_source_type,
+        portfolio?.paper_equity_source,
+        truth?.paper_equity_source,
+      ) ?? 'Trader account source',
+    ),
     reason: traderFacingReason(firstText(portfolio?.paper_equity_reason)),
     generatedAt: firstText(runtimePages?.generated_utc, runtimePages?.generated_est, truth?.generated_utc, truth?.generated_at, portfolio?.generated_utc),
   };

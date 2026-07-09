@@ -67,13 +67,17 @@ def run_once(
     scheduler_state: dict[str, float] | None = None,
     force: bool = True,
     now_monotonic: float | None = None,
+    disabled_endpoints: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     plan = coinglass_scheduler_plan(symbols)
     results: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    disabled = disabled_endpoints if disabled_endpoints is not None else _disabled_endpoints_from_env()
     now_value = time.monotonic() if now_monotonic is None else float(now_monotonic)
     for spec in coinglass_endpoint_registry():
         if spec.group == "exchange_metadata":
+            continue
+        if spec.endpoint_id in disabled:
             continue
         for symbol in symbols[: _max_symbols_for_endpoint(spec, symbols)]:
             cadence_seconds = _cadence_seconds_for_symbol(spec, symbols=symbols, symbol=symbol)
@@ -119,6 +123,7 @@ def run_once(
         "schedule_plan": plan,
         "result_count": len(results),
         "request_count": len(results),
+        "disabled_endpoints": sorted(disabled),
         "skipped_not_due_count": len(skipped),
         "skipped_not_due": skipped[:50],
         "actual_payload_results": sum(1 for row in results if row.get("actual_payload_present")),
@@ -192,6 +197,11 @@ def _redis_client(redis_url: str) -> Any:
     import redis  # type: ignore[import-not-found]
 
     return redis.Redis.from_url(redis_url, decode_responses=True)
+
+
+def _disabled_endpoints_from_env() -> frozenset[str]:
+    raw = os.environ.get("COINGLASS_DISABLED_ENDPOINTS", "")
+    return frozenset(item.strip() for item in raw.split(",") if item.strip())
 
 
 def _symbols(raw: str) -> list[str]:

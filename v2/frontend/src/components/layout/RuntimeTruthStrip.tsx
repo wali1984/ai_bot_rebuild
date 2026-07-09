@@ -1,4 +1,5 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useEnterpriseRealtimeResource } from '../../lib/realtime/RealtimeProvider';
 
 interface RuntimePerformance {
   profit_factor?: number | null;
@@ -172,6 +173,28 @@ interface RuntimeProviderReadiness {
   moralis_actual_payload_present?: boolean | null;
   coinglass_heartbeat_only?: boolean | null;
   moralis_heartbeat_only?: boolean | null;
+  moralis_feature_bridge_ready?: boolean | null;
+  moralis_feature_count?: number | null;
+  moralis_required_feature_count?: number | null;
+  moralis_missing_feature_flags?: string[] | null;
+  moralis_stale_feature_flags?: string[] | null;
+  moralis_missing_mask_true?: boolean | null;
+  moralis_stale_mask_true?: boolean | null;
+  moralis_token_map_count?: number | null;
+  moralis_wallet_watchlist_count?: number | null;
+  provider_tensor_consumption?: boolean | null;
+  provider_risk_consumption?: boolean | null;
+  provider_orchestrator_consumption?: boolean | null;
+  provider_allocator_consumption?: boolean | null;
+  provider_paper_consumption?: boolean | null;
+  provider_live_dryrun_consumption?: boolean | null;
+  provider_feedback_attribution?: boolean | null;
+  ppo_provider_feature_count?: number | null;
+  masa_provider_feature_count?: number | null;
+  confluence_trade_block_score?: number | null;
+  confluence_reduce_size_score?: number | null;
+  confluence_hedge_required_score?: number | null;
+  altdata_single_provider_can_approve?: boolean | null;
   heartbeat_only_green_allowed?: boolean | null;
   raw_keys_exposed?: boolean | null;
   invalid_subscription_blocks_core_system?: boolean | null;
@@ -202,8 +225,12 @@ interface PaperRuntimeStatus {
 interface PortfolioRuntimeTruth {
   paper_session_id?: string | null;
   equity?: number | null;
+  equity_usd?: number | null;
   paper_equity?: number | null;
   paper_balance?: number | null;
+  net_pnl_usd?: number | null;
+  realized_net_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
   open_position_count?: number | null;
   closed_trade_count?: number | null;
   portfolio_source?: string | null;
@@ -325,15 +352,7 @@ export function RuntimeTruthStrip({ surface = 'trader' }: { surface?: RuntimeTru
     mode: 'paper',
   }).envelope.data;
 
-  const portfolio = useRealtimeResource<PortfolioRuntimeTruth>({
-    url: '/api/v2/portfolio',
-    source: '/api/v2/portfolio',
-    pollIntervalMs: 30_000,
-    staleThresholdMs: 90_000,
-    initialFetch: true,
-    httpFallback: true,
-    mode: 'paper',
-  }).envelope.data;
+  const portfolio = useEnterpriseRealtimeResource<PortfolioRuntimeTruth>('portfolio')?.payload ?? null;
 
   const performance = runtime?.performance;
   const entryFreeze = runtime?.entry_freeze;
@@ -356,7 +375,7 @@ export function RuntimeTruthStrip({ surface = 'trader' }: { surface?: RuntimeTru
   );
 
   const sessionId = text(portfolio?.paper_session_id, 'paper_session_id not reported');
-  const equity = portfolio?.paper_equity ?? portfolio?.equity ?? portfolio?.paper_balance;
+  const equity = portfolio?.paper_equity ?? portfolio?.equity ?? portfolio?.paper_balance ?? portfolio?.equity_usd;
   const newEntriesAllowed = entryFreeze?.new_entries_allowed;
   const liveReady = readiness?.live_ready;
   const liveGate = text(readiness?.live_gate, 'blocked_human_only');
@@ -517,6 +536,23 @@ export function RuntimeTruthStrip({ surface = 'trader' }: { surface?: RuntimeTru
         label="Provider actual data"
         value={`CG ${text(providers?.coinglass_dashboard_color, text(providers?.coinglass_status))}/${boolState(providers?.coinglass_actual_payload_present, 'actual', 'no actual')} · Moralis ${text(providers?.moralis_dashboard_color, text(providers?.moralis_status))}/${boolState(providers?.moralis_actual_payload_present, 'actual', 'no actual')}`}
         tone={providers?.raw_keys_exposed || providers?.invalid_subscription_blocks_core_system ? 'bad' : 'neutral'}
+      />
+      <Item
+        label="Provider consumer proof"
+        value={`tensor ${boolState(providers?.provider_tensor_consumption, 'yes', 'no')} · risk ${boolState(providers?.provider_risk_consumption, 'yes', 'no')} · alloc ${boolState(providers?.provider_allocator_consumption, 'yes', 'no')} · paper ${boolState(providers?.provider_paper_consumption, 'yes', 'no')} · live dry-run ${boolState(providers?.provider_live_dryrun_consumption, 'yes', 'no')}`}
+        tone={
+          providers?.provider_tensor_consumption &&
+          providers?.provider_risk_consumption &&
+          providers?.provider_allocator_consumption &&
+          providers?.provider_paper_consumption
+            ? 'neutral'
+            : 'warn'
+        }
+      />
+      <Item
+        label="Alt-data confluence"
+        value={`PPO ${fixed(providers?.ppo_provider_feature_count, 0)} · MASA ${fixed(providers?.masa_provider_feature_count, 0)} · block ${fixed(providers?.confluence_trade_block_score, 3)} · reduce ${fixed(providers?.confluence_reduce_size_score, 3)} · hedge ${fixed(providers?.confluence_hedge_required_score, 3)} · standalone ${boolState(providers?.altdata_single_provider_can_approve, 'allowed', 'blocked')}`}
+        tone={providers?.altdata_single_provider_can_approve ? 'bad' : 'neutral'}
       />
       <Item
         label="Why trade was prevented"

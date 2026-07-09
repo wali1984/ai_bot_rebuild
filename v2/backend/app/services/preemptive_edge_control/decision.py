@@ -129,6 +129,7 @@ def evaluate_candidate(
     bucket_quarantine_status: dict[str, Any] | None = None,
     allow_positive_edge_probation: bool = False,
     allow_reduce_or_close: bool = False,
+    altdata_confluence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a complete pre-entry decision object.
 
@@ -231,6 +232,47 @@ def evaluate_candidate(
     if guardian_halted:
         reasons.append("GUARDIAN_HALTED_OR_MISSING")
 
+    # Alt-data confluence (CoinGlass+Santiment+Moralis fusion) is fail-safe
+    # only: it can block, demote to reduce-size, or require a hedge. It can
+    # never promote a decision toward ALLOW, and its absence never blocks.
+    altdata_features = (
+        altdata_confluence.get("features")
+        if isinstance(altdata_confluence, dict)
+        and isinstance(altdata_confluence.get("features"), dict)
+        else {}
+    )
+    altdata_present = bool(altdata_features) and bool(
+        (altdata_confluence or {}).get("actual_payload_present")
+    )
+    altdata_block = _f(altdata_features.get("altdata_trade_block_score"))
+    altdata_reduce = _f(altdata_features.get("altdata_reduce_size_score"))
+    altdata_hedge = _f(altdata_features.get("altdata_hedge_required_score"))
+    altdata_distribution = _f(altdata_features.get("altdata_wallet_distribution_score"))
+    altdata_sweep = _f(altdata_features.get("altdata_liquidation_sweep_risk_score"))
+    altdata_euphoria = _f(altdata_features.get("altdata_social_euphoria_risk_score"))
+    candidate_side = _normalized_side(candidate)
+    altdata_block_hit = altdata_present and altdata_block is not None and altdata_block >= 0.70
+    altdata_reduce_hit = altdata_present and altdata_reduce is not None and altdata_reduce >= 0.50
+    altdata_hedge_required = altdata_present and altdata_hedge is not None and altdata_hedge >= 0.50
+    altdata_distribution_conflict = (
+        altdata_present
+        and candidate_side == "long"
+        and altdata_distribution is not None
+        and altdata_distribution >= 0.60
+    )
+    if altdata_block_hit:
+        reasons.append("ALTDATA_TRADE_BLOCK_SCORE_HIGH")
+    if altdata_reduce_hit:
+        reasons.append("ALTDATA_REDUCE_SIZE_SCORE_ELEVATED")
+    if altdata_hedge_required:
+        reasons.append("ALTDATA_HEDGE_REQUIRED")
+    if altdata_distribution_conflict:
+        reasons.append("ALTDATA_WALLET_DISTRIBUTION_CONFLICTS_LONG")
+    if altdata_present and altdata_sweep is not None and altdata_sweep >= 0.70:
+        reasons.append("ALTDATA_LIQUIDATION_SWEEP_RISK_HIGH")
+    if altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70:
+        reasons.append("ALTDATA_SOCIAL_EUPHORIA_RISK_HIGH")
+
     loss_probability = _f(loss.get("pre_trade_loss_probability")) or 1.0
     confidence_risk = _f(confidence.get("confidence_overstatement_risk")) or 0.0
     exit_score = _f(exit_plan.get("exit_feasibility_score")) or 0.0
@@ -289,6 +331,13 @@ def evaluate_candidate(
     else:
         decision = "ALLOW"
 
+    # Alt-data demotions run AFTER the base decision so they can only make
+    # the outcome safer (ALLOW -> REDUCE -> NO_TRADE); they never promote.
+    if altdata_block_hit and decision in {"ALLOW", "REDUCE_SIZE_PAPER_ONLY", "POSITIVE_EDGE_PROBATION_PAPER"}:
+        decision = "NO_TRADE"
+    elif (altdata_reduce_hit or altdata_distribution_conflict) and decision == "ALLOW":
+        decision = "REDUCE_SIZE_PAPER_ONLY"
+
     if decision == "NO_TRADE":
         portfolio["target_notional_usd"] = 0.0
         portfolio["allocated_margin_usd"] = 0.0
@@ -304,6 +353,17 @@ def evaluate_candidate(
         "pre_trade_loss_probability": loss.get("pre_trade_loss_probability"),
         "confidence_overstatement_risk": confidence.get("confidence_overstatement_risk"),
         "expected_edge_after_cost_bps": cost.get("expected_edge_after_cost_bps"),
+        "altdata_confluence_present": altdata_present,
+        "altdata_trade_block_score": altdata_block,
+        "altdata_reduce_size_score": altdata_reduce,
+        "altdata_hedge_required_score": altdata_hedge,
+        "altdata_hedge_required": altdata_hedge_required,
+        "altdata_wallet_distribution_score": altdata_distribution,
+        "altdata_liquidation_sweep_risk_score": altdata_sweep,
+        "altdata_social_euphoria_risk_score": altdata_euphoria,
+        "altdata_feature_cutoff": (altdata_confluence or {}).get("feature_cutoff"),
+        "altdata_providers_present": (altdata_confluence or {}).get("providers_present"),
+        "altdata_can_approve_alone": False,
         "notional_weighted_bucket_expectancy": bucket.get("notional_weighted_bucket_expectancy"),
         "bucket_profit_factor": bucket.get("bucket_profit_factor"),
         "recent_high_confidence_loss_rate": bucket.get("recent_high_confidence_loss_rate"),

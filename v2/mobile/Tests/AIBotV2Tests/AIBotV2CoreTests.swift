@@ -244,6 +244,22 @@ final class AIBotV2CoreTests: XCTestCase {
             "total_usd": 32.5,
             "win_rate_pct": 66.7
           },
+          "provider_readiness": {
+            "moralis_status": "CONFIGURED_NO_WATCHLIST",
+            "moralis_dashboard_color": "GRAY",
+            "moralis_actual_payload_present": false,
+            "moralis_heartbeat_only": true,
+            "moralis_feature_bridge_ready": false,
+            "moralis_feature_count": 0,
+            "moralis_required_feature_count": 15,
+            "moralis_missing_feature_flags": ["moralis_whale_buy_usd"],
+            "moralis_stale_feature_flags": [],
+            "moralis_missing_mask_true": true,
+            "moralis_stale_mask_true": false,
+            "moralis_token_map_count": 9,
+            "moralis_wallet_watchlist_count": 0,
+            "heartbeat_only_green_allowed": false
+          },
           "trainer_feedback": {
             "outcome_labels": 3,
             "consumable_rows": 2,
@@ -268,6 +284,12 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(summary.loop.paper_only, true)
         XCTAssertEqual(summary.loop.routes_to_live, false)
         XCTAssertEqual(summary.loop.places_real_order, false)
+        XCTAssertEqual(summary.provider_readiness?.moralis_feature_bridge_ready, false)
+        XCTAssertEqual(summary.provider_readiness?.moralis_feature_count, 0)
+        XCTAssertEqual(summary.provider_readiness?.moralis_required_feature_count, 15)
+        XCTAssertEqual(summary.provider_readiness?.moralis_missing_feature_flags?.first, "moralis_whale_buy_usd")
+        XCTAssertEqual(summary.provider_readiness?.moralis_missing_mask_true, true)
+        XCTAssertEqual(summary.provider_readiness?.moralis_wallet_watchlist_count, 0)
     }
 
     func testIOSViewModelsUseResourceWebSocketStreams() throws {
@@ -426,6 +448,140 @@ final class AIBotV2CoreTests: XCTestCase {
             text.contains("URLQueryItem(name: \"path\", value: target.string ?? path)"),
             "iPhone resource streams must preserve the API path and query string inside the WebSocket resource wrapper"
         )
+    }
+
+    func testEnterpriseRealtimeEndpointsAndModelsDecode() throws {
+        XCTAssertEqual(APIEndpoints.realtimeBootstrap, "/api/v2/realtime/bootstrap")
+        XCTAssertEqual(APIEndpoints.realtimeResources, "/api/v2/realtime/resources")
+        XCTAssertEqual(APIEndpoints.realtimeHealth, "/api/v2/realtime/health")
+        XCTAssertEqual(APIEndpoints.wsRealtime, "/api/v2/realtime/ws")
+        XCTAssertTrue(
+            APIEndpoints.wsRealtimeURL(baseURL: "https://dashboard.example", resources: ["dashboard", "providers"])?
+                .contains("/api/v2/realtime/ws") == true
+        )
+
+        let bootstrapJSON = """
+        {
+          "schema_version": "enterprise_realtime_bootstrap_v1",
+          "generated_utc": "2026-07-09T00:00:00Z",
+          "display_time_et": "2026-07-08T20:00:00-04:00",
+          "display_timezone": "America/New_York",
+          "source": "redis_materialized_or_compact_fallback",
+          "auth": {"required_for_controls": true},
+          "portfolio": {"schema_version": "canonical_pnl_v1"},
+          "paper": {},
+          "risk": {},
+          "trainer": {},
+          "signals": {},
+          "providers": {},
+          "ingestors": {},
+          "markets": {},
+          "live_canary": {},
+          "alerts": {},
+          "ui_hints": {"default_pnl_display": "usd_and_percent"},
+          "resources": {
+            "portfolio": {
+              "schema_version": "enterprise_ui_snapshot_v1",
+              "resource": "portfolio",
+              "generated_utc": "2026-07-09T00:00:00Z",
+              "display_time_et": "2026-07-08T20:00:00-04:00",
+              "source_timezone": "UTC",
+              "display_timezone": "America/New_York",
+              "source": "v2:ui:snapshot:portfolio",
+              "source_type": "redis_materialized",
+              "source_keys": ["v2:ui:snapshot:portfolio"],
+              "staleness_seconds": 1.0,
+              "data_quality": "valid",
+              "missing_sections": [],
+              "error_sections": [],
+              "last_good_payload_used": false,
+              "payload": {"schema_version": "canonical_pnl_v1", "equity_usd": 3000.68},
+              "live_gate": "blocked_human_only",
+              "paper_only": true,
+              "routes_to_live": false,
+              "places_real_order": false
+            }
+          },
+          "live_gate": "blocked_human_only",
+          "paper_only": true,
+          "routes_to_live": false,
+          "places_real_order": false
+        }
+        """.data(using: .utf8)!
+        let bootstrap = try JSONDecoder().decode(EnterpriseRealtimeBootstrap.self, from: bootstrapJSON)
+        XCTAssertEqual(bootstrap.schema_version, "enterprise_realtime_bootstrap_v1")
+        XCTAssertEqual(bootstrap.resources["portfolio"]?.resource, "portfolio")
+        XCTAssertFalse(bootstrap.routes_to_live)
+        XCTAssertFalse(bootstrap.places_real_order)
+
+        let pnlJSON = """
+        {
+          "schema_version": "canonical_pnl_v1",
+          "generated_utc": "2026-07-09T00:00:00Z",
+          "display_time_et": "2026-07-08T20:00:00-04:00",
+          "source_timezone": "UTC",
+          "display_timezone": "America/New_York",
+          "paper_session_id": "session-a",
+          "account_scope": "paper",
+          "equity_usd": 3000.68,
+          "starting_equity_usd": 3000.0,
+          "realized_net_pnl_usd": 0.68,
+          "unrealized_pnl_usd": 0.0,
+          "fees_usd": 0.0,
+          "slippage_usd": 0.0,
+          "funding_usd": 0.0,
+          "gross_pnl_usd": 0.68,
+          "net_pnl_usd": 0.68,
+          "closed_trade_count": 1,
+          "source": "v2:portfolio:state",
+          "source_lag_seconds": 1.0,
+          "reconciliation_status": "PASS",
+          "reconciliation_delta_usd": 0.0,
+          "missing_fields": [],
+          "warnings": [],
+          "paper_only": true,
+          "routes_to_live": false,
+          "places_real_order": false
+        }
+        """.data(using: .utf8)!
+        let pnl = try JSONDecoder().decode(CanonicalPnL.self, from: pnlJSON)
+        XCTAssertEqual(pnl.equity_usd, 3000.68)
+        XCTAssertEqual(pnl.reconciliation_status, "PASS")
+        XCTAssertFalse(pnl.places_real_order)
+
+        let providersJSON = """
+        {
+          "schema_version": "enterprise_provider_cards_v1",
+          "providers": [
+            {
+              "provider": "coinglass",
+              "display_name": "CoinGlass",
+              "status": "PARTIAL",
+              "dashboard_color": "yellow",
+              "dashboard_color_reason": "feature_bridge_partial",
+              "actual_payload_count": 3,
+              "keys_published": ["v2:provider:coinglass:health"],
+              "feature_count": 10,
+              "consumer_count": 4,
+              "heartbeat_only": false,
+              "actual_payload_present": true,
+              "raw_key_exposed": false,
+              "routes_to_live": false,
+              "places_real_order": false
+            }
+          ],
+          "provider_count": 1,
+          "heartbeat_only_green_count": 0,
+          "live_gate": "blocked_human_only",
+          "paper_only": true,
+          "routes_to_live": false,
+          "places_real_order": false
+        }
+        """.data(using: .utf8)!
+        let providers = try JSONDecoder().decode(EnterpriseProviderCards.self, from: providersJSON)
+        XCTAssertEqual(providers.providers.first?.provider, "coinglass")
+        XCTAssertEqual(providers.providers.first?.dashboard_color, "yellow")
+        XCTAssertFalse(providers.providers.first?.raw_key_exposed ?? true)
     }
 
     func testIOSWatchCompanionReceivesLiveResourceState() throws {

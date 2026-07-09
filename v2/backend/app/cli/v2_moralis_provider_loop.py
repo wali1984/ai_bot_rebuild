@@ -18,6 +18,7 @@ from app.services.smart_money_wallets.endpoint_registry import (
 from app.services.smart_money_wallets.publisher import publish_moralis_result
 from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
 from app.services.smart_money_wallets.health import build_moralis_health
+from app.services.smart_money_wallets.moralis_feature_bridge import publish_moralis_feature_payload
 from app.services.smart_money_wallets.token_contract_mapper import (
     read_pollable_tokens,
 )
@@ -153,6 +154,8 @@ def run_once(
                 budget_status=client.limiter.as_dict(),
                 error_class=response.error_class,
                 timeframe=timeframe,
+                token_map_count=int(bootstrap.get("token_map_count") or 0),
+                wallet_watchlist_count=int(bootstrap.get("wallet_watchlist_count") or 0),
             )
             results.append(result)
     status = {
@@ -334,6 +337,35 @@ def _no_watchlist_status(
         "core_system_blocked": False,
     }
     if redis_client is not None:
+        bridge_payload = publish_moralis_feature_payload(
+            redis_client,
+            symbol=symbol,
+            timeframe=timeframe,
+            features={},
+            token_map_count=int(bootstrap.get("token_map_count") or 0),
+            wallet_watchlist_count=int(bootstrap.get("wallet_watchlist_count") or 0),
+            actual_payload_present=False,
+            ttl_seconds=3600,
+            stale_after=3600,
+            compute_unit_status=usage,
+        )
+        health.update(
+            {
+                "feature_bridge_ready": bridge_payload.get("feature_bridge_ready"),
+                "feature_count": bridge_payload.get("feature_count"),
+                "required_feature_count": bridge_payload.get("required_feature_count"),
+                "missing_feature_flags": bridge_payload.get("missing_feature_flags"),
+                "stale_feature_flags": bridge_payload.get("stale_feature_flags"),
+                "missing_mask": bridge_payload.get("missing_mask"),
+                "missing_mask_true": bridge_payload.get("missing_mask_true"),
+                "stale_mask": bridge_payload.get("stale_mask"),
+                "stale_mask_true": bridge_payload.get("stale_mask_true"),
+                "actual_payload_present": bridge_payload.get("actual_payload_present"),
+                "heartbeat_only": bridge_payload.get("heartbeat_only"),
+                "heartbeat_only_green_allowed": False,
+                "decision_time_safe": bridge_payload.get("decision_time_safe"),
+            }
+        )
         redis_client.set("v2:provider:moralis:health", json.dumps(health, sort_keys=True, default=str), ex=3600)
         redis_client.set("v2:provider:moralis:usage", json.dumps(usage, sort_keys=True, default=str), ex=3600)
         redis_client.set("v2:provider:moralis:endpoint_status", json.dumps(endpoint_status, sort_keys=True, default=str), ex=3600)

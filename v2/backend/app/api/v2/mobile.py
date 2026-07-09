@@ -135,9 +135,66 @@ def _mobile_provider_readiness(r: Any | None) -> dict[str, Any]:
         symbol=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper(),
         timeframe=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m")),
     )
+    santiment_status = (_redis_get_json(r, "v2:altdata:santiment:status") if r else None) or {}
+    santiment_rate = _as_object(santiment_status.get("rate_limit_state"))
+    confluence_sample = (
+        _redis_get_json(
+            r,
+            "v2:altdata:confluence:"
+            + str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper()
+            + ":"
+            + str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m")),
+        )
+        if r
+        else None
+    ) or {}
+    consumption_status = (
+        _redis_get_json(r, "v2:altdata:provider_consumption_status") if r else None
+    ) or {}
     return {
         "schema_version": "v2_mobile_provider_readiness_v1",
         "status": "PROVIDER_READINESS_ACTIVE",
+        "santiment_status": santiment_status.get("go_no_go"),
+        "santiment_symbol_count": santiment_status.get("symbol_count"),
+        "santiment_rate_limit_remaining_month": santiment_rate.get("remaining_month"),
+        "santiment_rate_limit_month_limit": santiment_rate.get("month_limit"),
+        "santiment_regime_only": True,
+        "santiment_data_lag_note": "sanbase_pro_31d_lag_regime_layer_only",
+        "altdata_confluence_active": bool(confluence_sample.get("actual_payload_present")),
+        "altdata_confluence_providers_present": confluence_sample.get("providers_present"),
+        "altdata_confluence_feature_cutoff": confluence_sample.get("feature_cutoff"),
+        "altdata_trade_block_score": _as_object(confluence_sample.get("features")).get(
+            "altdata_trade_block_score"
+        ),
+        "altdata_reduce_size_score": _as_object(confluence_sample.get("features")).get(
+            "altdata_reduce_size_score"
+        ),
+        "altdata_hedge_required_score": _as_object(confluence_sample.get("features")).get(
+            "altdata_hedge_required_score"
+        ),
+        "altdata_provider_consumption_status": consumption_status,
+        "altdata_single_provider_can_approve": False,
+        "provider_tensor_consumption": consumption_status.get("provider_tensor_consumption"),
+        "provider_risk_consumption": consumption_status.get("provider_risk_consumption"),
+        "provider_orchestrator_consumption": consumption_status.get("provider_orchestrator_consumption"),
+        "provider_allocator_consumption": consumption_status.get("provider_allocator_consumption"),
+        "provider_paper_consumption": consumption_status.get("provider_paper_consumption"),
+        "provider_live_dryrun_consumption": consumption_status.get("provider_live_dryrun_consumption"),
+        "provider_feedback_attribution": consumption_status.get("provider_feedback_attribution"),
+        "ppo_provider_feature_count": consumption_status.get("ppo_provider_feature_count"),
+        "masa_provider_feature_count": consumption_status.get("masa_provider_feature_count"),
+        "confluence_trade_block_score": consumption_status.get(
+            "confluence_trade_block_score",
+            _as_object(confluence_sample.get("features")).get("altdata_trade_block_score"),
+        ),
+        "confluence_reduce_size_score": consumption_status.get(
+            "confluence_reduce_size_score",
+            _as_object(confluence_sample.get("features")).get("altdata_reduce_size_score"),
+        ),
+        "confluence_hedge_required_score": consumption_status.get(
+            "confluence_hedge_required_score",
+            _as_object(confluence_sample.get("features")).get("altdata_hedge_required_score"),
+        ),
         "coinglass_status": coinglass.get("status"),
         "moralis_status": moralis.get("status"),
         "coinglass_dashboard_color": provider_actual_data.get("coinglass", {}).get("dashboard_color"),
@@ -146,6 +203,15 @@ def _mobile_provider_readiness(r: Any | None) -> dict[str, Any]:
         "moralis_actual_payload_present": provider_actual_data.get("moralis", {}).get("actual_payload_present"),
         "coinglass_heartbeat_only": provider_actual_data.get("coinglass", {}).get("heartbeat_only"),
         "moralis_heartbeat_only": provider_actual_data.get("moralis", {}).get("heartbeat_only"),
+        "moralis_feature_bridge_ready": moralis.get("feature_bridge_ready"),
+        "moralis_feature_count": moralis.get("feature_count"),
+        "moralis_required_feature_count": moralis.get("required_feature_count"),
+        "moralis_missing_feature_flags": moralis.get("missing_feature_flags"),
+        "moralis_stale_feature_flags": moralis.get("stale_feature_flags"),
+        "moralis_missing_mask_true": moralis.get("missing_mask_true"),
+        "moralis_stale_mask_true": moralis.get("stale_mask_true"),
+        "moralis_token_map_count": moralis.get("token_map_count"),
+        "moralis_wallet_watchlist_count": moralis.get("wallet_watchlist_count"),
         "coinglass_usage": coinglass_usage,
         "moralis_usage": moralis_usage,
         "coinglass_endpoint_status": coinglass_endpoint_status,
@@ -1008,6 +1074,7 @@ def _paper_account_session_fields(
     source_type: str,
 ) -> dict[str, Any]:
     portfolio = (_redis_get_json(r, "v2:portfolio:state") if r else None) or {}
+    portfolio_present = bool(portfolio)
     session = (_redis_get_json(r, "v2:paper:session") if r else None) or {}
     ledger = (_redis_get_json(r, "v2:paper:ledger") if r else None) or {}
     def _first_float(*values: Any) -> float | None:
@@ -1038,21 +1105,47 @@ def _paper_account_session_fields(
     if equity is None:
         equity = (
             initial_capital
-            + (_first_float(portfolio.get("realized_pnl_usd")) or 0.0)
+            + (
+                _first_float(
+                    portfolio.get("realized_net_pnl_usd"),
+                    portfolio.get("clean_session_valid_realized_pnl_usd"),
+                    portfolio.get("realized_pnl_usd"),
+                )
+                or 0.0
+            )
             + (_first_float(portfolio.get("unrealized_pnl_usd")) or 0.0)
             if initial_capital is not None
             else None
         )
-    realized_pnl = _first_float(
-        portfolio.get("realized_pnl_usd"),
-        ledger.get("realized_pnl_usd"),
-        hb.get("realized_pnl_usd"),
-    )
-    unrealized_pnl = _first_float(
-        portfolio.get("unrealized_pnl_usd"),
-        ledger.get("unrealized_pnl_usd"),
-        hb.get("unrealized_pnl_usd"),
-    )
+    if portfolio_present:
+        realized_pnl = _first_float(
+            portfolio.get("realized_net_pnl_usd"),
+            portfolio.get("clean_session_valid_realized_pnl_usd"),
+            portfolio.get("realized_pnl_usd"),
+        )
+        unrealized_pnl = _first_float(portfolio.get("unrealized_pnl_usd"))
+        total_pnl = _first_float(
+            portfolio.get("total_pnl_usd"),
+            (realized_pnl + unrealized_pnl)
+            if realized_pnl is not None and unrealized_pnl is not None
+            else None,
+        )
+        account_source = "redis:v2:portfolio:state"
+    else:
+        realized_pnl = _first_float(
+            ledger.get("realized_pnl_usd"),
+            hb.get("realized_pnl_usd"),
+        )
+        unrealized_pnl = _first_float(
+            ledger.get("unrealized_pnl_usd"),
+            hb.get("unrealized_pnl_usd"),
+        )
+        total_pnl = (
+            realized_pnl + unrealized_pnl
+            if realized_pnl is not None and unrealized_pnl is not None
+            else None
+        )
+        account_source = "fallback:v2:paper:ledger+v2:paper:heartbeat"
     paper_session_id = (
         session.get("paper_session_id")
         or portfolio.get("paper_session_id")
@@ -1078,21 +1171,38 @@ def _paper_account_session_fields(
         "paper_initial_capital": initial_capital,
         "realized_pnl": realized_pnl,
         "realized_pnl_usd": realized_pnl,
+        "realized_net_pnl_usd": realized_pnl,
+        "realized_gross_pnl_usd": _first_float(portfolio.get("realized_gross_pnl_usd")),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pnl_usd": unrealized_pnl,
+        "total_pnl_usd": total_pnl,
         "open_position_count": _first_int_or_none(
             portfolio.get("open_positions_count"),
-            ledger.get("open_position_count"),
-            hb.get("open_position_count"),
-            hb.get("accepted_position_count"),
+            None if portfolio_present else ledger.get("open_position_count"),
+            None if portfolio_present else hb.get("open_position_count"),
+            None if portfolio_present else hb.get("accepted_position_count"),
         ),
         "closed_trade_count": _first_int_or_none(
             portfolio.get("closed_trade_count"),
             portfolio.get("closed_positions_count"),
-            ledger.get("closed_trade_count"),
-            hb.get("closed_trade_count"),
+            None if portfolio_present else ledger.get("closed_trade_count"),
+            None if portfolio_present else hb.get("closed_trade_count"),
         ),
-        "account_source": "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger",
+        "account_source": account_source,
+        "pnl_source_key": portfolio.get("pnl_source_key", "v2:portfolio:state" if portfolio_present else None),
+        "pnl_source_route": portfolio.get("pnl_source_route", "/api/v2/portfolio" if portfolio_present else None),
+        "pnl_source_type": portfolio.get(
+            "pnl_source_type",
+            "CANONICAL_CURRENT_SESSION_RUNTIME" if portfolio_present else "FALLBACK_LEGACY_PAPER_RUNTIME",
+        ),
+        "pnl_conflict_detected": portfolio.get("pnl_conflict_detected", False if portfolio_present else True),
+        "pnl_conflict_reason": portfolio.get("pnl_conflict_reason"),
+        "pnl_conflict_sources": portfolio.get("pnl_conflict_sources", []),
+        "closed_ledger_net_pnl_usd": portfolio.get("closed_ledger_net_pnl_usd"),
+        "portfolio_realized_matches_closed_ledger": portfolio.get("portfolio_realized_matches_closed_ledger"),
+        "equity_reconciles_within_1_cent": portfolio.get("equity_reconciles_within_1_cent"),
+        "source_generated_utc": portfolio.get("generated_utc") or portfolio.get("generated_at"),
+        "freshness_seconds": portfolio.get("freshness_seconds"),
         "source_type": source_type,
     }
 
@@ -1469,13 +1579,20 @@ async def get_mobile_positions(
         source_type="paper_mobile_positions",
         contains_quarantined_positions=contains_quarantined,
     )
-    realized_pnl = _safe_float(hb.get("realized_pnl_usd"))
-    unrealized_pnl = (
-        _safe_float(position_pricing.get("unrealized_pnl_usd"))
-        if isinstance(position_pricing, dict)
-        else _safe_float(hb.get("unrealized_pnl_usd"))
+    account_fields = _paper_account_session_fields(
+        r,
+        hb,
+        source_type="paper_mobile_positions",
     )
-    total_pnl = realized_pnl + unrealized_pnl
+    realized_pnl = _safe_float(account_fields.get("realized_pnl_usd"))
+    account_unrealized = _safe_float(account_fields.get("unrealized_pnl_usd"))
+    enriched_unrealized = (
+        _optional_float(position_pricing.get("unrealized_pnl_usd"))
+        if isinstance(position_pricing, dict)
+        else None
+    )
+    unrealized_pnl = account_unrealized if account_unrealized is not None else _safe_float(enriched_unrealized)
+    total_pnl = _safe_float(account_fields.get("total_pnl_usd"), realized_pnl + unrealized_pnl)
 
     return {
         "generated_utc": _utc_now(),
@@ -1489,12 +1606,18 @@ async def get_mobile_positions(
             "closed_count": _safe_int(hb.get("closed_trade_count") or len(closed_positions)),
             "total_pnl_usd": total_pnl,
             "realized_pnl_usd": realized_pnl,
+            "realized_net_pnl_usd": realized_pnl,
             "unrealized_pnl_usd": unrealized_pnl,
+            "pnl_source_key": account_fields.get("pnl_source_key"),
+            "pnl_source_route": account_fields.get("pnl_source_route"),
+            "pnl_source_type": account_fields.get("pnl_source_type"),
+            "pnl_conflict_detected": account_fields.get("pnl_conflict_detected"),
             **truth_fields,
         },
         "mode": "paper",
         "live_gate": "blocked_human_only",
         "places_real_order": False,
+        **account_fields,
         **truth_fields,
     }
 
@@ -1747,11 +1870,18 @@ async def get_mobile_paper_summary(
         "pnl": {
             "realized_usd": realized_pnl,
             "unrealized_usd": unrealized_pnl,
-            "total_usd": realized_pnl + unrealized_pnl,
+            "total_usd": _safe_float(
+                account_fields.get("total_pnl_usd"),
+                realized_pnl + unrealized_pnl,
+            ),
             "win_rate_pct": win_rate,
             "equity_trusted": truth_fields["equity_trusted"],
             "pnl_trusted": truth_fields["pnl_trusted"],
             "reason_if_untrusted": truth_fields["reason_if_untrusted"],
+            "pnl_source_key": account_fields.get("pnl_source_key"),
+            "pnl_source_route": account_fields.get("pnl_source_route"),
+            "pnl_source_type": account_fields.get("pnl_source_type"),
+            "pnl_conflict_detected": account_fields.get("pnl_conflict_detected"),
         },
         "trainer_feedback": {
             "outcome_labels": outcome_labels,

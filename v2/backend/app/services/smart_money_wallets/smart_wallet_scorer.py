@@ -11,7 +11,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.address_classifier import SMART_BLOCKING_CATEGORIES
+from app.services.smart_money_wallets.address_classifier import SMART_BLOCKING_CATEGORIES
 
 
 SMART_WALLET_CANDIDATES_KEY = "v2:moralis:smart_wallet_candidates"

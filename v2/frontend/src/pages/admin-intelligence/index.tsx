@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useEnterpriseRealtimeResource } from '../../lib/realtime/RealtimeProvider';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
 
@@ -111,6 +112,29 @@ interface PaperRuntimePayload {
   blockers?: Array<{ id?: string; detail?: string; severity?: string }> | null;
 }
 
+interface EnterpriseAiPageContract {
+  ppo_tensor_provider_features?: boolean;
+  masa_tensor_provider_features?: boolean;
+  provider_feature_count_by_provider?: Record<string, number>;
+  provider_features_in_tensor?: unknown;
+  provider_contribution_last_50?: { status?: string; sample_count?: number } | Record<string, unknown>;
+  altdata_actionability?: {
+    blocked?: number | null;
+    reduced?: number | null;
+    hedged?: number | null;
+  };
+  next_replay_or_backtest?: string;
+  live_gate?: string;
+  routes_to_live?: boolean;
+  places_real_order?: boolean;
+}
+
+interface EnterpriseAiBrainSnapshot {
+  ai_page_contract?: EnterpriseAiPageContract;
+  provider_feature_counts?: Record<string, number>;
+  provider_confluence_available?: boolean;
+}
+
 const TABS = ['Model', 'Predictions', 'Signals', 'Risk Checks'] as const;
 type Tab = typeof TABS[number];
 
@@ -126,6 +150,7 @@ export default function AdminIntelligencePage(): JSX.Element {
     staleThresholdMs: 45_000,
     mode: 'paper',
   });
+  const enterpriseAiSnapshot = useEnterpriseRealtimeResource<EnterpriseAiBrainSnapshot>('ai_brain');
 
   const t = te.data;
   const r = re.data?.data;
@@ -140,6 +165,14 @@ export default function AdminIntelligencePage(): JSX.Element {
     || trainerQuality?.quality_metrics_current != null,
   );
   const latestDecision = r?.latest_gateway_result;
+  const enterpriseAiPayload = enterpriseAiSnapshot?.payload;
+  const aiPageContract = enterpriseAiPayload?.ai_page_contract;
+  const aiProviderCounts = aiPageContract?.provider_feature_count_by_provider
+    ?? enterpriseAiPayload?.provider_feature_counts
+    ?? {};
+  const aiContractReady = Boolean(aiPageContract)
+    && aiPageContract?.routes_to_live === false
+    && aiPageContract?.places_real_order === false;
 
   const trainerOk = t?.state?.includes('ACTIVE');
   const stateColor = sColor(t?.state ?? trainerQuality?.status);
@@ -203,6 +236,27 @@ export default function AdminIntelligencePage(): JSX.Element {
             <span style={{ fontSize: 16, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
         ))}
+      </div>
+
+      <div id="enterprise-ai-data-plane" style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Enterprise AI Data Plane</div>
+          <Chip label={aiContractReady ? 'READY' : 'PARTIAL'} color={aiContractReady ? SC.ok : SC.warn} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0 18px' }}>
+          <Field label="PPO tensor" value={aiPageContract?.ppo_tensor_provider_features ? 'provider features visible' : 'pending'} mono />
+          <Field label="MASA tensor" value={aiPageContract?.masa_tensor_provider_features ? 'provider features visible' : 'pending'} mono />
+          <Field label="Confluence" value={enterpriseAiPayload?.provider_confluence_available ? 'available' : 'pending'} mono />
+          <Field label="Last 50 contribution" value={String((aiPageContract?.provider_contribution_last_50 as { status?: string } | undefined)?.status ?? 'not available')} mono />
+          <Field label="Blocked / reduced / hedged" value={`${aiPageContract?.altdata_actionability?.blocked ?? 0} / ${aiPageContract?.altdata_actionability?.reduced ?? 0} / ${aiPageContract?.altdata_actionability?.hedged ?? 0}`} mono />
+          <Field label="Replay" value={runtimeSourceText(aiPageContract?.next_replay_or_backtest, 'pending')} mono />
+          <Field label="Live gate" value={runtimeSourceText(aiPageContract?.live_gate ?? 'blocked_human_only', 'blocked_human_only')} mono />
+          <Field label="Routes to live" value={flagText(aiPageContract?.routes_to_live)} mono />
+          <Field label="CoinGlass features" value={numText(aiProviderCounts.coinglass)} mono />
+          <Field label="Santiment features" value={numText(aiProviderCounts.santiment)} mono />
+          <Field label="Moralis features" value={numText(aiProviderCounts.moralis)} mono />
+          <Field label="Tensor channel" value={aiPageContract?.provider_features_in_tensor ? 'present' : 'pending'} mono />
+        </div>
       </div>
 
       {/* Tabs */}

@@ -30,6 +30,13 @@ Registry of canonical V2 Redis keys used by paper, trainer, risk, live readiness
 - Redis: v2:microstructure:trust_score:*
 - Redis: v2:prediction:*
 - Redis: v2:paper:ledger
+- Redis: v2:portfolio:state
+- Redis: v2:provider:moralis:health
+- Redis: v2:provider:moralis:feature_bridge_status
+- Redis: v2:features:moralis:{symbol}:{timeframe}
+- Redis: v2:features:provider:moralis:{symbol}:{timeframe}
+- Redis: v2:smart_money:signals:{symbol}
+- Redis: v2:provider:moralis:symbol_score:{symbol}
 - Redis: v2:live_canary:status
 - Redis: v2:live_order_transport:status
 
@@ -46,11 +53,15 @@ Registry of canonical V2 Redis keys used by paper, trainer, risk, live readiness
 - Live readiness shown without signed-read and pre-submit dry-run proof.
 - Santiment or another paid data source expected for symbol selection but unused.
 - Feature freshness or lineage missing around `available_at`, `feature_cutoff`, `decision_time`, or `execution_time`.
+- Paper PnL, equity, or performance surfaces reading `v2:paper:ledger` as the account headline instead of canonical `v2:portfolio:state`.
+- Moralis shown green while `feature_bridge_ready=false`, required features are missing, or heartbeat-only payloads are present.
 
 ## Debug Commands
 - `systemctl --user list-units --type=service --all | rg "ai-bot-v2|paper|trainer"`
 - `redis-cli GET v2:paper:performance_governor_status | python3 -m json.tool`
 - `redis-cli GET v2:paper:new_entry_emergency_halt_status | python3 -m json.tool`
+- `redis-cli GET v2:portfolio:state | python3 -m json.tool`
+- `redis-cli GET v2:provider:moralis:feature_bridge_status | python3 -m json.tool`
 - `redis-cli GET v2:monitor:runtime_drift | python3 -m json.tool`
 - `redis-cli --scan --pattern "v2:altdata:santiment:symbol:*" | wc -l`
 
@@ -74,3 +85,5 @@ Registry of canonical V2 Redis keys used by paper, trainer, risk, live readiness
 - Live state: `blocked_human_only`; dry-run packets must not submit or mutate exchange state.
 - Runtime drift: Phase K monitor reports `services_stale=0` after V2 restarts and the legacy comparator stop.
 - Santiment: `v2:altdata:santiment:symbol:*` has runtime symbol-selection evidence and the paid-ingestor-unused alert is passing.
+- Canonical paper account headline: `v2:portfolio:state` with `pnl_source_type=CANONICAL_CURRENT_SESSION_RUNTIME`; ledger rows remain execution/trade evidence, not the account headline.
+- Moralis: health and feature bridge status must expose `feature_bridge_ready`, missing/stale masks, token map count, wallet watchlist count, `raw_key_exposed=false`, and `core_system_blocked=false`.

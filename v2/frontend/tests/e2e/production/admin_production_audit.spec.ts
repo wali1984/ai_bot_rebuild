@@ -22,14 +22,17 @@
  */
 
 import { test, expect, type BrowserContext } from '@playwright/test';
-import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? '';
 const ADMIN_SESSION = process.env.PRODUCTION_ADMIN_SESSION ?? '';
 const SUPERADMIN_SESSION = process.env.PRODUCTION_SUPERADMIN_SESSION ?? '';
 const TRADER_SESSION = process.env.PRODUCTION_TRADER_SESSION ?? '';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const ARTIFACT_DIR = path.join(__dirname, '../../../artifacts/production-audit');
 
 const ADMIN_ROUTES = [
@@ -83,13 +86,9 @@ async function setSession(context: BrowserContext, session: string): Promise<voi
 // ── Preflight ──────────────────────────────────────────────────────────────
 
 test.describe('Admin Production Audit [PRODUCTION_E2E]', () => {
+  test.skip(!BASE_URL || !ADMIN_SESSION, 'Production audit requires PLAYWRIGHT_BASE_URL and PRODUCTION_ADMIN_SESSION');
+
   test.beforeAll(() => {
-    if (!BASE_URL) {
-      throw new Error('PLAYWRIGHT_BASE_URL must be set to the production frontend URL');
-    }
-    if (!ADMIN_SESSION) {
-      throw new Error('PRODUCTION_ADMIN_SESSION must be set — no mockAuth in production audit');
-    }
     ensureArtifactDir();
   });
 

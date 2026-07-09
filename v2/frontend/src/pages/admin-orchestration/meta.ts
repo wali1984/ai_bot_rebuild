@@ -7,6 +7,6 @@ const meta: PageMeta = {
   navCategory: 'orchestration',
   navLabel: 'Orchestration',
   navOrder: 40,
-  dangerousControlIds: [],
+  dangerousControlIds: ['enable_hedge_dca'],
 };
 export default meta;

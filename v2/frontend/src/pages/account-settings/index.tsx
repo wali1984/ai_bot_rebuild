@@ -6,6 +6,7 @@ import { updateMyWatchlist } from '../../api/auth';
 import { Panel, Metric } from '../cockpitComponents';
 import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { selectAccountMetric } from '../../selectors/accountSelectors';
+import { normalizeWatchlistInput } from '../../lib/traderPageHelpers';
 import type { ExchangeAccount } from '../../api/auth';
 import meta from './meta';
 import rbac from './rbac';
@@ -14,14 +15,7 @@ import route from './route';
 const SUPPORTED_EXCHANGES = ['binance', 'kucoin', 'bybit'] as const;
 type Exchange = (typeof SUPPORTED_EXCHANGES)[number];
 
-export function normalizeWatchlistInput(value: string): string[] {
-  return [...new Set(
-    value
-      .split(/[\s,]+/)
-      .map((symbol) => symbol.trim().toUpperCase())
-      .filter((symbol) => /^[A-Z0-9]{3,32}$/.test(symbol)),
-  )].slice(0, 100);
-}
+export { normalizeWatchlistInput };
 
 function friendlyAccountError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');

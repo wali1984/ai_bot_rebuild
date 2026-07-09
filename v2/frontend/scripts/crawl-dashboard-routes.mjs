@@ -2,6 +2,7 @@
 import { chromium } from '@playwright/test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { buildWebsiteCrawlRoutes } from './route-inventory.mjs';
 
 const frontendRoot = resolve(import.meta.dirname, '..');
 const repoRoot = resolve(frontendRoot, '..', '..');
@@ -18,40 +19,7 @@ const phase = process.env.DASHBOARD_CRAWL_PHASE ?? 'before';
 const screenshotDir = resolve(finalDir, 'screenshots', phase);
 const nowIso = new Date().toISOString();
 
-const routes = [
-  '/',
-  '/landing',
-  '/admin',
-  '/admin/mission-control?role=admin',
-  '/admin/monitor-center?role=admin',
-  '/admin/coverage-system-atlas?role=admin',
-  '/admin/script-registry?role=admin',
-  '/admin/trainer-prediction-monitor?role=admin',
-  '/admin/signal-explainability?role=admin',
-  '/admin/symbols?role=admin',
-  '/admin/signals?role=admin',
-  '/admin/executions?role=admin',
-  '/admin/positions?role=admin',
-  '/admin/risk-control?role=admin',
-  '/admin/exchange-manager?role=admin',
-  '/admin/external-manual-position-quarantine?role=admin',
-  '/admin/config-admin?role=admin',
-  '/admin/strategy-admin?role=admin',
-  '/admin/trainer-admin?role=admin',
-  '/admin/orchestrator-admin?role=admin',
-  '/admin/execution-admin?role=admin',
-  '/admin/paper-trading?role=admin',
-  '/admin/replay?role=admin',
-  '/admin/audit-ledger?role=admin',
-  '/admin/system-health?role=admin',
-  '/admin/live-readiness?role=admin',
-  '/admin/claude-admin-ai?role=admin',
-  '/admin/ollama-local-assistant?role=admin',
-  '/admin/codex-review-center?role=admin',
-  '/admin/build-validation-status?role=admin',
-  '/admin/operator-proof-dashboard?role=admin',
-  '/admin/mobile-iphone-readiness?role=admin',
-];
+const routes = buildWebsiteCrawlRoutes();
 
 function ensureDir(path) {
   mkdirSync(path, { recursive: true });

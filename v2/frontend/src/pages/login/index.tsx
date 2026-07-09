@@ -20,6 +20,8 @@ export default function LoginPage(): JSX.Element {
     try {
       await login({ email, password });
       navigate(returnTo.startsWith('/') ? returnTo : '/dashboard', { replace: true });
+    } catch {
+      // useAuth owns the displayed error state; keep the submit event handled.
     } finally {
       setSubmitting(false);
     }
@@ -36,6 +38,8 @@ export default function LoginPage(): JSX.Element {
         justifyContent: 'center',
         background: 'var(--bg-base)',
         padding: '24px 16px',
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
     >
       {/* Background grid pattern */}
@@ -52,7 +56,7 @@ export default function LoginPage(): JSX.Element {
         }}
       />
 
-      <div style={{ position: 'relative', width: '100%', maxWidth: 440 }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 440, boxSizing: 'border-box' }}>
         {/* Brand header */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <img
@@ -92,6 +96,7 @@ export default function LoginPage(): JSX.Element {
             borderRadius: 'var(--radius-md)',
             padding: '28px 32px 32px',
             boxShadow: 'var(--shadow-strong)',
+            boxSizing: 'border-box',
           }}
         >
           <h2
@@ -156,6 +161,7 @@ export default function LoginPage(): JSX.Element {
                     fontSize: 14,
                     fontFamily: 'var(--font-sans)',
                     outline: 'none',
+                    boxSizing: 'border-box',
                   }}
                 />
               </div>
@@ -210,6 +216,7 @@ export default function LoginPage(): JSX.Element {
                     fontSize: 14,
                     fontFamily: 'var(--font-sans)',
                     outline: 'none',
+                    boxSizing: 'border-box',
                   }}
                 />
                 <button
@@ -273,6 +280,7 @@ export default function LoginPage(): JSX.Element {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 8,
+                boxSizing: 'border-box',
               }}
             >
               {submitting ? (

@@ -1486,10 +1486,16 @@ def test_public_portfolio_prefers_live_redis_portfolio_state(tmp_path: Path, mon
             {
                 "generated_utc": "2026-06-29T01:35:00Z",
                 "equity": 10025.5,
+                "realized_net_pnl_usd": 29.75,
+                "realized_gross_pnl_usd": 31.25,
                 "realized_pnl_usd": 31.25,
                 "unrealized_pnl_usd": -5.75,
+                "total_pnl_usd": 24.0,
                 "open_positions_count": 1,
                 "closed_positions_count": 12,
+                "closed_ledger_net_pnl_usd": 29.75,
+                "portfolio_realized_matches_closed_ledger": True,
+                "equity_reconciles_within_1_cent": True,
                 "open_position_notional": 250.0,
                 "open_positions": [
                     {
@@ -1516,8 +1522,14 @@ def test_public_portfolio_prefers_live_redis_portfolio_state(tmp_path: Path, mon
     assert payload["data"]["portfolio_source_type"] == "redis_live"
     assert payload["data"]["fallback_used"] is False
     assert payload["data"]["equity"] == 10025.5
-    assert payload["data"]["realized_pnl"] == 31.25
+    assert payload["data"]["realized_pnl"] == 29.75
+    assert payload["data"]["realized_net_pnl_usd"] == 29.75
+    assert payload["data"]["realized_gross_pnl_usd"] == 31.25
     assert payload["data"]["unrealized_pnl"] == -5.75
+    assert payload["data"]["total_pnl_usd"] == 24.0
+    assert payload["data"]["closed_ledger_net_pnl_usd"] == 29.75
+    assert payload["data"]["portfolio_realized_matches_closed_ledger"] is True
+    assert payload["data"]["equity_reconciles_within_1_cent"] is True
     assert payload["data"]["open_position_count"] == 1
     assert payload["data"]["closed_trade_count"] == 12
     assert payload["data"]["total_open_notional"] == 250.0

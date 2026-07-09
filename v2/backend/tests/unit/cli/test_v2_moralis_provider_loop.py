@@ -81,6 +81,18 @@ def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypa
     assert health["status"] == "CONFIGURED_NO_WATCHLIST"
     assert health["dashboard_color"] == "GRAY"
     assert health["core_system_blocked"] is False
+    assert health["feature_bridge_ready"] is False
+    assert health["actual_payload_present"] is False
+    assert health["heartbeat_only"] is True
+    assert health["missing_mask_true"] is True
+    feature_payload = json.loads(redis_client.data["v2:features:moralis:BTCUSDT:1m"])
+    assert feature_payload["schema_version"] == "moralis_feature_bridge_v1"
+    assert feature_payload["heartbeat_only"] is True
+    assert feature_payload["dashboard_color"] == "GRAY"
+    assert feature_payload["missing_feature_flags"]
+    feature_status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
+    assert feature_status["token_map_count"] == 0
+    assert feature_status["wallet_watchlist_count"] == 0
 
 
 def test_moralis_loop_operator_lists_still_schedule_without_every_symbol_minute() -> None:

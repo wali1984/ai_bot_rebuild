@@ -575,6 +575,7 @@ def build_symbol_score_payload(
     """
     now = generated_utc or utc_iso()
     symbol = symbol.upper()
+    moralis_bridge = _extract_moralis_feature_bridge(feature_payloads)
     nansen = _extract_nansen(nansen_payload)
     lunar = _extract_lunar(lunarcrush_payload)
     coingecko = _extract_coingecko(coingecko_payload)
@@ -1205,7 +1206,27 @@ def build_symbol_score_payload(
             "santiment": isinstance(santiment_payload, Mapping),
             "market": bool(market_payloads),
             "features": bool(feature_payloads),
+            "moralis_feature_bridge": bool(moralis_bridge),
         },
+        "moralis_feature_bridge": moralis_bridge,
+        "moralis_feature_bridge_ready": moralis_bridge.get("feature_bridge_ready"),
+        "moralis_feature_bridge_status": moralis_bridge.get("status"),
+        "moralis_dashboard_color": moralis_bridge.get("dashboard_color"),
+        "moralis_feature_count": moralis_bridge.get("feature_count"),
+        "moralis_required_feature_count": moralis_bridge.get("required_feature_count"),
+        "moralis_missing_feature_flags": moralis_bridge.get("missing_feature_flags", []),
+        "moralis_stale_feature_flags": moralis_bridge.get("stale_feature_flags", []),
+        "moralis_missing_mask_true": moralis_bridge.get("missing_mask_true"),
+        "moralis_stale_mask_true": moralis_bridge.get("stale_mask_true"),
+        "moralis_actual_payload_present": moralis_bridge.get("actual_payload_present"),
+        "moralis_heartbeat_only": moralis_bridge.get("heartbeat_only"),
+        "moralis_token_map_count": moralis_bridge.get("token_map_count"),
+        "moralis_wallet_watchlist_count": moralis_bridge.get("wallet_watchlist_count"),
+        "moralis_feature_available_at": moralis_bridge.get("available_at"),
+        "moralis_feature_cutoff": moralis_bridge.get("feature_cutoff"),
+        "moralis_decision_time_safe": moralis_bridge.get("decision_time_safe"),
+        "moralis_raw_key_exposed": moralis_bridge.get("raw_key_exposed", False),
+        "moralis_core_system_blocked": moralis_bridge.get("core_system_blocked", False),
         "network_call_attempted": False,
         "paper_shadow_only": True,
         "may_not_override_strict_paper_fill_gate": True,
@@ -1221,6 +1242,39 @@ def build_symbol_score_payload(
         "approves_redis_trim": False,
         "writes_old_redis": False,
         "exchange_mutation": False,
+    }
+
+
+def _extract_moralis_feature_bridge(feature_payloads: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(feature_payloads, Mapping):
+        return {}
+    payload = feature_payloads.get("moralis")
+    if not isinstance(payload, Mapping):
+        return {}
+    return {
+        "schema_version": payload.get("schema_version"),
+        "provider": payload.get("provider"),
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "generated_at": payload.get("generated_at"),
+        "available_at": payload.get("available_at"),
+        "feature_cutoff": payload.get("feature_cutoff"),
+        "decision_time_safe": payload.get("decision_time_safe"),
+        "status": payload.get("status"),
+        "dashboard_color": payload.get("dashboard_color"),
+        "feature_bridge_ready": payload.get("feature_bridge_ready"),
+        "feature_count": payload.get("feature_count"),
+        "required_feature_count": payload.get("required_feature_count"),
+        "missing_feature_flags": list(payload.get("missing_feature_flags") or []),
+        "stale_feature_flags": list(payload.get("stale_feature_flags") or []),
+        "missing_mask_true": payload.get("missing_mask_true"),
+        "stale_mask_true": payload.get("stale_mask_true"),
+        "actual_payload_present": payload.get("actual_payload_present"),
+        "heartbeat_only": payload.get("heartbeat_only"),
+        "token_map_count": payload.get("token_map_count"),
+        "wallet_watchlist_count": payload.get("wallet_watchlist_count"),
+        "raw_key_exposed": bool(payload.get("raw_key_exposed", False)),
+        "core_system_blocked": bool(payload.get("core_system_blocked", False)),
     }
 
 

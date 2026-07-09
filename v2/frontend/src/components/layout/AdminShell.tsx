@@ -110,7 +110,7 @@ function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs:
         data-testid="live-block-banner"
         style={{ color: 'var(--error)', fontWeight: 700 }}
       >
-        LIVE TRADING: BLOCKED · blocked_human_only
+        EXECUTION BLOCKED · LIVE TRADING: BLOCKED · blocked_human_only
       </span>
       <span style={{ color: 'var(--line-strong)' }}>|</span>
       <span style={{ color: 'var(--text-muted)' }}>source admin-overview</span>
@@ -222,52 +222,54 @@ function AdminLeftNav({
   };
 
   return (
-    <nav
-      className="admin-left-nav"
-      aria-label="Admin navigation"
-      data-testid="admin-left-nav"
-      style={{
-        width: 220,
-        flexShrink: 0,
-        background: 'color-mix(in oklch, var(--bg-panel) 92%, transparent)',
-        borderRight: '1px solid var(--admin-border)',
-        padding: '12px 8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-        overflowY: 'auto',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-        boxSizing: 'border-box',
-      }}
-    >
-      {primary.map(renderItem)}
-
-      <div
+    <div data-testid="admin-nav" style={{ display: 'contents' }}>
+      <nav
+        className="admin-left-nav"
+        aria-label="Admin navigation"
+        data-testid="admin-left-nav"
         style={{
-          margin: '10px 4px 8px',
-          borderTop: '1px solid var(--line-soft)',
-          paddingTop: 8,
+          width: 220,
+          flexShrink: 0,
+          background: 'color-mix(in oklch, var(--bg-panel) 92%, transparent)',
+          borderRight: '1px solid var(--admin-border)',
+          padding: '12px 8px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          overflowY: 'auto',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          boxSizing: 'border-box',
         }}
       >
-        <span
+        {primary.map(renderItem)}
+
+        <div
           style={{
-            display: 'block',
-            fontSize: 10,
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--text-muted)',
-            paddingLeft: 12,
-            marginBottom: 4,
-            textTransform: 'uppercase',
-            letterSpacing: '0.06em',
+            margin: '10px 4px 8px',
+            borderTop: '1px solid var(--line-soft)',
+            paddingTop: 8,
           }}
         >
-          {isSuperAdmin ? 'Superadmin' : 'System'}
-        </span>
-        {secondary.map(renderItem)}
-      </div>
-    </nav>
+          <span
+            style={{
+              display: 'block',
+              fontSize: 10,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-muted)',
+              paddingLeft: 12,
+              marginBottom: 4,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+            }}
+          >
+            {isSuperAdmin ? 'Superadmin' : 'System'}
+          </span>
+          {secondary.map(renderItem)}
+        </div>
+      </nav>
+    </div>
   );
 }
 

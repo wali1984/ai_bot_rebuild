@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.endpoint_registry import moralis_endpoint_registry
-from v2.backend.app.services.smart_money_wallets.normalizer import normalize_moralis_payload
+from app.services.smart_money_wallets.endpoint_registry import moralis_endpoint_registry
+from app.services.smart_money_wallets.normalizer import normalize_moralis_payload
 
 
 def normalize_stream_webhook(payload: Mapping[str, Any]) -> dict[str, Any]:

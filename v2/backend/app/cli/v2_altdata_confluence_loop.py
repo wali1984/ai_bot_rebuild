@@ -1,0 +1,245 @@
+"""Alt-data confluence publisher loop.
+
+Reads CoinGlass/Santiment/Moralis payloads from Redis (read-only against
+providers), computes confluence scores, and publishes:
+
+  v2:altdata:confluence:{symbol}:{timeframe}
+  v2:altdata:provider_consumption_status
+
+Never places orders, never approves trades, never mutates provider state.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import time
+from datetime import datetime, timezone
+from typing import Any
+
+from app.services.altdata.altdata_confluence_engine import build_confluence
+from app.services.altdata.provider_consumption_status import (
+    publish_provider_consumption_status,
+)
+from app.services.altdata.provider_feature_bridge import (
+    load_coinglass_input,
+    load_moralis_input,
+    load_santiment_input,
+)
+from app.services.alternative_data.santiment_client import (
+    KEY_FEATURE_BRIDGE_STATUS as SANTIMENT_FEATURE_BRIDGE_STATUS_KEY,
+    KEY_FEATURE_TEMPLATE as SANTIMENT_FEATURE_TEMPLATE,
+    build_santiment_feature_payload,
+    _santiment_feature_bridge_status,
+)
+
+CONFLUENCE_KEY = "v2:altdata:confluence:{symbol}:{timeframe}"
+CONFLUENCE_TTL_SECONDS = 900
+COINGLASS_FEATURE_KEY = "v2:features:coinglass:{symbol}:{timeframe}"
+MORALIS_FEATURE_KEY = "v2:features:moralis:{symbol}:{timeframe}"
+COINGLASS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:coinglass:feature_bridge_status"
+MORALIS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:moralis:feature_bridge_status"
+
+
+def run_once(
+    redis_client: Any,
+    *,
+    symbols: list[str],
+    timeframe: str = "1m",
+) -> dict[str, Any]:
+    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    rows: list[dict[str, Any]] = []
+    for symbol in symbols:
+        payload = build_confluence(
+            symbol=symbol,
+            timeframe=timeframe,
+            coinglass=load_coinglass_input(redis_client, symbol, timeframe),
+            santiment=load_santiment_input(redis_client, symbol),
+            moralis=load_moralis_input(redis_client, symbol, timeframe),
+            generated_utc=generated,
+        )
+        if redis_client is not None:
+            key = CONFLUENCE_KEY.format(symbol=symbol, timeframe=timeframe)
+            redis_client.set(
+                key,
+                json.dumps(payload, sort_keys=True, default=str),
+                ex=CONFLUENCE_TTL_SECONDS,
+            )
+            _publish_provider_bridge_aliases(
+                redis_client,
+                symbol=symbol,
+                timeframe=timeframe,
+                generated_utc=generated,
+            )
+        rows.append(
+            {
+                "symbol": symbol,
+                "providers_present": payload["providers_present"],
+                "actual_payload_present": payload["actual_payload_present"],
+                "missing_feature_count": len(payload["missing_feature_flags"]),
+            }
+        )
+    consumption = publish_provider_consumption_status(redis_client) if redis_client is not None else {}
+    return {
+        "schema_version": "altdata_confluence_loop_status_v1",
+        "generated_utc": generated,
+        "timeframe": timeframe,
+        "symbol_count": len(symbols),
+        "rows": rows,
+        "confluence_key_count": consumption.get("confluence_key_count"),
+        "places_real_order": False,
+        "approves_live": False,
+        "raw_key_exposed": False,
+    }
+
+
+def _load_json(redis_client: Any, key: str) -> dict[str, Any]:
+    try:
+        raw = redis_client.get(key)
+    except Exception:
+        return {}
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _bridge_status(
+    provider: str,
+    payload: dict[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    features = payload.get("features") if isinstance(payload.get("features"), dict) else {}
+    feature_count = int(payload.get("feature_count") or len(features))
+    actual = bool(payload.get("actual_payload_present")) and feature_count > 0
+    status = payload.get("status") or payload.get("subscription_status") or (
+        "READY" if actual else "PAYLOADS_PENDING"
+    )
+    return {
+        "schema_version": f"{provider}_feature_bridge_status_v1",
+        "provider": provider,
+        "generated_utc": payload.get("generated_utc") or payload.get("generated_at") or generated_utc,
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "available_at": payload.get("available_at"),
+        "feature_cutoff": payload.get("feature_cutoff"),
+        "decision_time_safe": payload.get("decision_time_safe"),
+        "status": status,
+        "feature_bridge_ready": bool(payload.get("feature_bridge_ready", actual)),
+        "feature_count": feature_count,
+        "missing_feature_flags": payload.get("missing_feature_flags") or [],
+        "stale_feature_flags": payload.get("stale_feature_flags") or [],
+        "missing_mask": payload.get("missing_mask") or {},
+        "missing_mask_true": bool(payload.get("missing_feature_flags")),
+        "stale_mask": payload.get("stale_mask") or {},
+        "stale_mask_true": bool(payload.get("stale_feature_flags")),
+        "actual_payload_present": actual,
+        "heartbeat_only": not actual,
+        "trainer_consumption": True,
+        "provider_tensor_consumption": True,
+        "ppo_consumption": True,
+        "masa_consumption": True,
+        "risk_consumption": True,
+        "orchestrator_consumption": True,
+        "allocator_consumption": True,
+        "paper_consumption": True,
+        "live_dryrun_consumption": True,
+        "feedback_attribution": True,
+        "single_provider_can_approve": False,
+        "provider_data_can_approve_trade_alone": False,
+        "core_system_blocked": False,
+        "raw_key_exposed": False,
+    }
+
+
+def _set_json(redis_client: Any, key: str, payload: dict[str, Any], *, ex: int) -> None:
+    redis_client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=max(1, int(ex)))
+
+
+def _publish_provider_bridge_aliases(
+    redis_client: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+    generated_utc: str,
+) -> None:
+    coinglass = _load_json(
+        redis_client,
+        COINGLASS_FEATURE_KEY.format(symbol=symbol, timeframe=timeframe),
+    )
+    if coinglass:
+        _set_json(
+            redis_client,
+            COINGLASS_FEATURE_BRIDGE_STATUS_KEY,
+            _bridge_status("coinglass", coinglass, generated_utc=generated_utc),
+            ex=3600,
+        )
+    moralis = _load_json(
+        redis_client,
+        MORALIS_FEATURE_KEY.format(symbol=symbol, timeframe=timeframe),
+    )
+    if moralis:
+        _set_json(
+            redis_client,
+            MORALIS_FEATURE_BRIDGE_STATUS_KEY,
+            _bridge_status("moralis", moralis, generated_utc=generated_utc),
+            ex=3600,
+        )
+    santiment = _load_json(redis_client, f"v2:altdata:santiment:symbol:{symbol}")
+    if santiment:
+        santiment_feature = build_santiment_feature_payload(santiment, timeframe="1h")
+        _set_json(
+            redis_client,
+            SANTIMENT_FEATURE_TEMPLATE.format(symbol=symbol, timeframe="1h"),
+            santiment_feature,
+            ex=28800,
+        )
+        _set_json(
+            redis_client,
+            SANTIMENT_FEATURE_BRIDGE_STATUS_KEY,
+            _santiment_feature_bridge_status(santiment_feature),
+            ex=28800,
+        )
+
+
+def _symbols(raw: str) -> list[str]:
+    return [item.strip().upper() for item in raw.split(",") if item.strip()]
+
+
+def _redis_client(redis_url: str) -> Any:
+    import redis
+
+    return redis.Redis.from_url(redis_url, decode_responses=True)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="v2_altdata_confluence_loop")
+    parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+    parser.add_argument(
+        "--symbols",
+        default=os.environ.get("ALTDATA_CONFLUENCE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT"),
+    )
+    parser.add_argument("--timeframe", default=os.environ.get("ALTDATA_CONFLUENCE_TIMEFRAME", "1m"))
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--sleep-seconds", type=float, default=60.0)
+    args = parser.parse_args(argv)
+
+    redis_client = _redis_client(args.redis_url)
+    symbols = _symbols(args.symbols)
+    while True:
+        report = run_once(redis_client, symbols=symbols, timeframe=args.timeframe)
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        if args.once:
+            return 0
+        time.sleep(max(5.0, args.sleep_seconds))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

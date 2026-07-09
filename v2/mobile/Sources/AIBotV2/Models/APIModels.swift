@@ -217,6 +217,28 @@ public struct MobileProviderReadiness: Decodable, Equatable {
     public let moralis_actual_payload_present: Bool?
     public let coinglass_heartbeat_only: Bool?
     public let moralis_heartbeat_only: Bool?
+    public let moralis_feature_bridge_ready: Bool?
+    public let moralis_feature_count: Int?
+    public let moralis_required_feature_count: Int?
+    public let moralis_missing_feature_flags: [String]?
+    public let moralis_stale_feature_flags: [String]?
+    public let moralis_missing_mask_true: Bool?
+    public let moralis_stale_mask_true: Bool?
+    public let moralis_token_map_count: Int?
+    public let moralis_wallet_watchlist_count: Int?
+    public let provider_tensor_consumption: Bool?
+    public let provider_risk_consumption: Bool?
+    public let provider_orchestrator_consumption: Bool?
+    public let provider_allocator_consumption: Bool?
+    public let provider_paper_consumption: Bool?
+    public let provider_live_dryrun_consumption: Bool?
+    public let provider_feedback_attribution: Bool?
+    public let ppo_provider_feature_count: Int?
+    public let masa_provider_feature_count: Int?
+    public let confluence_trade_block_score: Double?
+    public let confluence_reduce_size_score: Double?
+    public let confluence_hedge_required_score: Double?
+    public let altdata_single_provider_can_approve: Bool?
     public let heartbeat_only_green_allowed: Bool?
     public let raw_keys_exposed: Bool?
     public let invalid_subscription_blocks_core_system: Bool?

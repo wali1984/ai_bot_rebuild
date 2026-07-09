@@ -372,7 +372,7 @@ import marketBrainMeta from './market-brain/meta';
 import marketBrainRbac from './market-brain/rbac';
 import marketBrainRoute from './market-brain/route';
 
-// config (config-admin-alias) omitted: /admin/config is owned by admin-config canonical page
+// config-admin-alias removed: /admin/config is owned by admin-config canonical page
 
 const RAW_PAGES: ReadonlyArray<PageModule> = [
   // ── Canonical admin pages (10 primary + 3 secondary) ─────────────────────

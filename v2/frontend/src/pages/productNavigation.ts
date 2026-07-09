@@ -83,8 +83,8 @@ export const SYSTEM_NAV_SUPERADMIN_ONLY = new Set<string>(['audit', 'tools']);
 // Maps page-module id → canonical route/surface/nav placement.
 // New consolidated pages (admin-overview, admin-data, etc.) are registered as
 // first-class page modules in registry.ts — they own the canonical paths.
-// Old absorbed pages are remapped to their legacy paths and hidden from nav;
-// MERGED_LEGACY_PATHS handles the redirects to canonical routes.
+// Hidden specialist pages remain deep-linkable for operator evidence and tests;
+// MERGED_LEGACY_PATHS only handles old aliases that do not own a page module.
 export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
 
   // ── Trader app pages ────────────────────────────────────────────────────────
@@ -92,10 +92,11 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     title: 'Dashboard',
     navLabel: 'Dashboard',
     description: 'Trader home for market state, active signals, portfolio risk, and readiness.',
-    surface: 'app',
+    surface: 'system',
     navCategory: 'dashboard',
     navOrder: 10,
-    path: '/dashboard',
+    hideFromNav: true,
+    path: '/admin/mission-control',
   },
   markets: {
     title: 'Markets',
@@ -259,11 +260,11 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
   // The canonical pages at /admin, /admin/data, etc. are new page modules registered in registry.ts.
 
   'system-health': {
-    title: 'System Overview',
-    surface: 'system',
-    navCategory: 'overview',
+    title: 'System Health',
+    surface: 'app',
+    navCategory: 'dashboard',
     hideFromNav: true,
-    path: '/admin/system',
+    path: '/system-health',
   },
   'admin-war-room': {
     title: 'Ops Center',
@@ -291,7 +292,7 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     surface: 'system',
     navCategory: 'intelligence',
     hideFromNav: true,
-    path: '/admin/trainer',
+    path: '/admin/trainer-admin',
   },
   'trainer-prediction-monitor': {
     title: 'Trainer Prediction Monitor',
@@ -378,13 +379,6 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     navCategory: 'config',
     hideFromNav: true,
     path: '/admin/config-admin',
-  },
-  'config-admin-alias': {
-    title: 'Configuration',
-    surface: 'admin',
-    navCategory: 'config',
-    hideFromNav: true,
-    path: '/admin/config',
   },
   'user-status': {
     title: 'Simple Status',
@@ -489,16 +483,12 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/admin/system-health': '/admin',
 
   // Data consolidation
-  '/admin/monitor-center': '/admin/data',
   '/admin/ingestors': '/admin/data',
 
   // Intelligence consolidation
   '/admin/trainer': '/admin/intelligence',
-  '/admin/trainer-admin': '/admin/intelligence',
-  '/admin/trainer-prediction-monitor': '/admin/intelligence',
   '/admin/model-state': '/admin/intelligence',
   '/admin/ai-brain': '/admin/intelligence',
-  '/admin/signal-explainability': '/admin/intelligence',
 
   // Orchestration consolidation
   '/admin/orchestrator': '/admin/orchestration',
@@ -512,7 +502,6 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/admin/live-readiness': '/admin/risk',
   '/admin/readiness/mobile': '/admin/risk',
   '/admin/mobile-iphone-readiness': '/admin/risk',
-  '/admin/external-manual-position-quarantine': '/admin/risk',
 
   // Execution — canonical rename
   '/admin/execution-admin': '/admin/execution',
@@ -525,9 +514,7 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
 
   // Reports consolidation
   '/admin/report-center': '/admin/reports',
-  '/admin/executive-status': '/admin/reports',
-  '/admin/evidence': '/admin/reports',
-  '/admin/operator-proof-dashboard': '/admin/reports',
+  '/admin/operator-proof-dashboard': '/admin/evidence',
 
   // Logs — canonical rename
   '/admin/logs-errors': '/admin/logs',
@@ -547,14 +534,13 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/admin/ai-tools': '/admin/tools',
   '/admin/claude-admin-ai': '/admin/tools',
   '/admin/ollama-local-assistant': '/admin/tools',
-  '/admin/codex-review-center': '/admin/tools',
 
   // /system/* legacy namespace
   '/system': '/admin',
   '/system/control-center': '/admin',
   '/system/health': '/admin',
-  '/system/executive-summary': '/admin/reports',
-  '/system/build-code-review': '/admin/tools',
+  '/system/executive-summary': '/admin/executive-status',
+  '/system/build-code-review': '/admin/codex-review-center',
   '/system/risk-controllers': '/admin/risk',
   '/system/exchanges': '/admin/exchanges',
   '/system/position-quarantine': '/admin/risk',

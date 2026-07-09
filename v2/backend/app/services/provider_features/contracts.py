@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from v2.backend.app.services.coinglass_provider.endpoint_registry import (
+from app.services.coinglass_provider.endpoint_registry import (
     coinglass_endpoint_registry,
 )
-from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
+from app.services.smart_money_wallets.endpoint_registry import (
     moralis_endpoint_registry,
 )
 
@@ -37,6 +37,7 @@ MORALIS_REDIS_KEY_CONTRACT: dict[str, str] = {
     "swaps": "v2:moralis:swaps:{chain}:{token}",
     "smart_money_signals": "v2:smart_money:signals:{symbol}",
     "features": "v2:features:moralis:{symbol}:{timeframe}",
+    "symbol_score": "v2:provider:moralis:symbol_score:{symbol}",
 }
 
 CONSUMER_ROLES: tuple[str, ...] = (
@@ -78,10 +79,10 @@ MORALIS_CANONICAL_FEATURE_MAP: dict[str, str] = {
     "moralis_dex_buy_pressure_usd": "dex_buy_pressure_usd",
     "moralis_dex_sell_pressure_usd": "dex_sell_pressure_usd",
     "moralis_dex_flow_imbalance_usd": "dex_flow_imbalance_usd",
-    "moralis_holder_concentration_change": "token_holder_concentration_change",
-    "moralis_token_holder_delta": "token_holder_delta",
+    "moralis_top_holder_concentration": "token_holder_top_concentration",
+    "moralis_holder_count": "token_holder_count",
+    "moralis_holder_delta": "token_holder_delta",
     "moralis_onchain_risk_score": "onchain_risk_score",
-    "moralis_contract_risk_penalty": "contract_risk_penalty",
 }
 
 

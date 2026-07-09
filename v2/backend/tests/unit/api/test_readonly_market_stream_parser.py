@@ -1075,8 +1075,11 @@ async def test_paper_runtime_status_uses_canonical_3000_portfolio_state(
             "initial_capital": 3000.0,
             "starting_equity_usd": 3000.0,
             "equity": 3000.0,
-            "realized_pnl_usd": 0.0,
+            "realized_net_pnl_usd": 0.0,
+            "realized_gross_pnl_usd": 88.0,
+            "realized_pnl_usd": 88.0,
             "unrealized_pnl_usd": 0.0,
+            "total_pnl_usd": 0.0,
             "open_positions_count": 0,
             "open_position_notional": 0.0,
             "closed_trade_count": 0,
@@ -1124,8 +1127,11 @@ async def test_portfolio_uses_clean_session_initial_capital_from_redis(
             "initial_capital": 3000.0,
             "starting_equity_usd": 3000.0,
             "equity": 3000.0,
-            "realized_pnl_usd": 0.0,
+            "realized_net_pnl_usd": 0.0,
+            "realized_gross_pnl_usd": 88.0,
+            "realized_pnl_usd": 88.0,
             "unrealized_pnl_usd": 0.0,
+            "total_pnl_usd": 0.0,
             "open_positions_count": 0,
             "open_position_notional": 0.0,
             "closed_trade_count": 0,
@@ -1155,6 +1161,9 @@ async def test_portfolio_uses_clean_session_initial_capital_from_redis(
     assert data["initial_capital"] == 3000.0
     assert data["starting_equity_usd"] == 3000.0
     assert data["realized_pnl"] == 0.0
+    assert data["realized_net_pnl_usd"] == 0.0
+    assert data["realized_gross_pnl_usd"] == 88.0
+    assert data["total_pnl_usd"] == 0.0
     assert data["unrealized_pnl"] == 0.0
     assert data["total_open_notional"] == 0.0
     assert data["open_position_count"] == 0

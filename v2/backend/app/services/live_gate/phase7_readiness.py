@@ -57,6 +57,12 @@ def _float(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _usd_from_bps(*, notional: float | None, bps: float | None) -> float | None:
+    if notional is None or bps is None:
+        return None
+    return round(abs(notional) * abs(bps) / 10000.0, 8)
+
+
 def _epoch_ms(value: Any) -> float | None:
     if value in (None, ""):
         return None
@@ -127,7 +133,58 @@ def _candidate_summary(allocation_payload: Mapping[str, Any] | None, candidate_s
             signal.get("notional"),
         )
     )
+    max_loss_usd = _float(
+        _first_present(
+            allocation.get("max_loss_usd"),
+            allocation.get("max_loss_if_stop_hit"),
+            allocation.get("pre_trade_max_loss_usd"),
+            signal.get("max_loss_usd"),
+            signal.get("pre_trade_max_loss_usd"),
+        )
+    )
+    max_loss_source = "missing"
+    if allocation.get("max_loss_usd") is not None:
+        max_loss_source = "allocation.max_loss_usd"
+    elif allocation.get("max_loss_if_stop_hit") is not None:
+        max_loss_source = "allocation.max_loss_if_stop_hit"
+    elif allocation.get("pre_trade_max_loss_usd") is not None:
+        max_loss_source = "allocation.pre_trade_max_loss_usd"
+    elif signal.get("max_loss_usd") is not None:
+        max_loss_source = "candidate_signal.max_loss_usd"
+    elif signal.get("pre_trade_max_loss_usd") is not None:
+        max_loss_source = "candidate_signal.pre_trade_max_loss_usd"
+    liquidation_buffer_bps = _float(
+        _first_present(
+            allocation.get("liquidation_buffer_bps"),
+            allocation.get("liquidation_buffer"),
+            signal.get("liquidation_buffer_bps"),
+        )
+    )
+    liquidation_buffer_usd = _float(
+        _first_present(
+            allocation.get("liquidation_buffer_usd"),
+            allocation.get("portfolio_liquidation_buffer_usd"),
+            allocation.get("liquidation_distance_usd"),
+            signal.get("liquidation_buffer_usd"),
+        )
+    )
+    liquidation_buffer_source = "missing"
+    if allocation.get("liquidation_buffer_usd") is not None:
+        liquidation_buffer_source = "allocation.liquidation_buffer_usd"
+    elif allocation.get("portfolio_liquidation_buffer_usd") is not None:
+        liquidation_buffer_source = "allocation.portfolio_liquidation_buffer_usd"
+    elif allocation.get("liquidation_distance_usd") is not None:
+        liquidation_buffer_source = "allocation.liquidation_distance_usd"
+    elif signal.get("liquidation_buffer_usd") is not None:
+        liquidation_buffer_source = "candidate_signal.liquidation_buffer_usd"
+    elif liquidation_buffer_bps is not None and notional is not None:
+        liquidation_buffer_usd = _usd_from_bps(notional=notional, bps=liquidation_buffer_bps)
+        liquidation_buffer_source = "derived_from_liquidation_buffer_bps_and_notional"
     return {
+        "allocator_decision_id": _first_present(
+            allocation.get("allocator_decision_id"),
+            signal.get("allocator_decision_id"),
+        ),
         "symbol": symbol,
         "side": _canonical_side(_first_present(allocation.get("side"), signal.get("side"), action)),
         "action": action,
@@ -137,13 +194,77 @@ def _candidate_summary(allocation_payload: Mapping[str, Any] | None, candidate_s
         "leverage_recommendation": _float(allocation.get("recommended_leverage")),
         "margin_mode_recommendation": _first_present(allocation.get("recommended_margin_mode"), signal.get("margin_mode")),
         "stop_distance_bps": _float(allocation.get("stop_distance_bps")),
-        "max_loss": _float(allocation.get("max_loss_if_stop_hit")),
-        "liquidation_buffer_bps": _float(allocation.get("liquidation_buffer_bps")),
+        "max_loss": max_loss_usd,
+        "max_loss_usd": max_loss_usd,
+        "max_loss_source": max_loss_source,
+        "liquidation_buffer_bps": liquidation_buffer_bps,
+        "liquidation_buffer_usd": liquidation_buffer_usd,
+        "liquidation_buffer_source": liquidation_buffer_source,
+        "liquidation_buffer_pct": _float(_first_present(allocation.get("liquidation_buffer_pct"), signal.get("liquidation_buffer_pct"))),
+        "maintenance_margin_usd": _float(_first_present(allocation.get("maintenance_margin_usd"), signal.get("maintenance_margin_usd"))),
+        "estimated_liquidation_price": _float(
+            _first_present(
+                allocation.get("estimated_liquidation_price"),
+                allocation.get("liquidation_price_estimate"),
+                signal.get("estimated_liquidation_price"),
+            )
+        ),
+        "distance_to_liquidation_usd": _float(
+            _first_present(
+                allocation.get("distance_to_liquidation_usd"),
+                allocation.get("liquidation_distance_usd"),
+                signal.get("distance_to_liquidation_usd"),
+            )
+        ),
         "risk_reward": _float(allocation.get("risk_reward")),
         "risk_of_ruin_contribution": _float(allocation.get("risk_of_ruin_contribution")),
         "expected_net_pnl_usd": _float(allocation.get("expected_net_pnl_usd")),
         "allocator_decision": _first_present(allocation.get("allocator_decision"), allocation.get("decision")),
+        "allocator_block_reasons": _as_list(
+            _first_present(
+                allocation.get("allocator_block_reasons"),
+                allocation.get("block_reasons"),
+                signal.get("allocator_block_reasons"),
+            )
+        ),
         "lineage_ids": _as_dict(allocation.get("lineage_ids")),
+        "recommended_leverage_source": _first_present(
+            allocation.get("recommended_leverage_source"),
+            signal.get("recommended_leverage_source"),
+        ),
+        "recommended_leverage_reason": _first_present(
+            allocation.get("recommended_leverage_reason"),
+            allocation.get("capital_allocation_reason"),
+            allocation.get("final_size_reason"),
+        ),
+        "recommended_margin_mode_source": _first_present(
+            allocation.get("recommended_margin_mode_source"),
+            signal.get("recommended_margin_mode_source"),
+        ),
+        "recommended_margin_mode_reason": _first_present(
+            allocation.get("recommended_margin_mode_reason"),
+            allocation.get("why_cross_margin_or_isolated"),
+        ),
+        "hedge_required": _bool(allocation.get("hedge_required")),
+        "hedge_plan": _as_dict(
+            _first_present(
+                allocation.get("hedge_plan"),
+                allocation.get("hedge_exit_plan"),
+                {
+                    "hedge_required": _bool(allocation.get("hedge_required")),
+                    "hedge_action": allocation.get("hedge_action"),
+                    "hedge_symbol": allocation.get("hedge_symbol"),
+                    "hedge_side": allocation.get("hedge_side"),
+                    "hedge_notional_usd": allocation.get("hedge_notional_usd"),
+                },
+            )
+        ),
+        "exit_plan": _as_dict(
+            _first_present(
+                allocation.get("exit_plan"),
+                signal.get("exit_plan"),
+            )
+        ),
     }
 
 
@@ -530,6 +651,61 @@ def build_live_pre_submit_dry_run_status(
     non_operator_blockers = [item for item in unique if item not in OPERATOR_GATE_BLOCKERS]
     would_submit_if_operator_approved = not non_operator_blockers
     submit_allowed = not unique
+    signed_read_ok = _bool(_first_present(account.get("signed_account_read_ok"), account.get("ok")))
+    signed_account_read_status = (
+        "PASS"
+        if signed_read_ok and "SIGNED_READ_STALE" not in unique
+        else "BLOCKED_SIGNED_READ_STALE"
+        if signed_read_ok
+        else "BLOCKED_OPERATOR_KEY_REQUIRED"
+    )
+    account_open_orders = _as_list(
+        _first_present(
+            account.get("open_orders"),
+            _as_dict(account.get("open_orders_snapshot")).get("open_orders"),
+            runtime.get("open_orders"),
+        )
+    )
+    account_positions = _as_list(
+        _first_present(
+            account.get("current_positions"),
+            account.get("positions"),
+            runtime.get("current_positions"),
+            runtime.get("positions"),
+        )
+    )
+    open_orders_count = _first_present(
+        account.get("open_orders_count"),
+        _as_dict(account.get("open_orders_snapshot")).get("open_orders_count"),
+        len(account_open_orders) if signed_read_ok or account_open_orders else None,
+    )
+    open_positions_count = _first_present(
+        account.get("open_positions_count"),
+        runtime.get("open_positions_count"),
+        len(account_positions) if signed_read_ok or account_positions else None,
+    )
+    available_balance_usd = _float(
+        _first_present(
+            account.get("available_balance_usd"),
+            account.get("available_balance"),
+            account.get("wallet_balance"),
+        )
+    )
+    symbol_lot_size_status = (
+        "PASS"
+        if filters.get("min_qty") and filters.get("step_size")
+        else "BLOCKED_LOT_SIZE_FILTER_MISSING"
+    )
+    symbol_price_filter_status = "PASS" if filters.get("tick_size") else "BLOCKED_PRICE_FILTER_MISSING"
+    reduce_only_emergency_path = "reduce_only_close_or_cancel_path_before_transport"
+    exit_plan = _as_dict(candidate.get("exit_plan"))
+    if not exit_plan:
+        exit_plan = {
+            "stop_distance_bps": candidate.get("stop_distance_bps"),
+            "dynamic_exit_required": True,
+            "static_stop_final_output_allowed": False,
+            "static_take_profit_final_output_allowed": False,
+        }
     pass_conditions = {
         "dry_run_only": True,
         "live_gate_enabled": live_gate == LIVE_GATE_ENABLED,
@@ -596,6 +772,29 @@ def build_live_pre_submit_dry_run_status(
             "expected_edge_after_cost_bps"
         ),
         "symbol_filter_status": filters,
+        "reduce_only_supported": True,
+        "reduce_only_emergency_path": reduce_only_emergency_path,
+        "symbol_min_notional": filters.get("min_notional"),
+        "symbol_step_size": filters.get("step_size"),
+        "symbol_tick_size": filters.get("tick_size"),
+        "symbol_lot_size_status": symbol_lot_size_status,
+        "symbol_price_filter_status": symbol_price_filter_status,
+        "signed_account_read_status": signed_account_read_status,
+        "available_balance_usd": available_balance_usd,
+        "open_orders_count": open_orders_count,
+        "open_positions_count": open_positions_count,
+        "recommended_leverage": candidate.get("leverage_recommendation"),
+        "recommended_leverage_source": candidate.get("recommended_leverage_source"),
+        "recommended_leverage_reason": candidate.get("recommended_leverage_reason"),
+        "recommended_margin_mode": candidate.get("margin_mode_recommendation"),
+        "recommended_margin_mode_source": candidate.get("recommended_margin_mode_source"),
+        "recommended_margin_mode_reason": candidate.get("recommended_margin_mode_reason"),
+        "allocator_decision_id": candidate.get("allocator_decision_id"),
+        "allocator_decision": candidate.get("allocator_decision"),
+        "allocator_block_reasons": candidate.get("allocator_block_reasons"),
+        "hedge_required": candidate.get("hedge_required"),
+        "hedge_plan": candidate.get("hedge_plan"),
+        "exit_plan": exit_plan,
         "kill_switch_status": kill_switch,
         "position_reconciliation_status": position_status,
         "position_transition": transition.to_dict(),
@@ -633,6 +832,24 @@ def build_first_live_canary_operator_packet(
     ]
     if pre_submit.get("operator_review_ready") is True:
         allowed_reasons.append("all_non_operator_pre_submit_checks_pass")
+    signed_account_read_status = _first_present(
+        pre_submit.get("signed_account_read_status"),
+        "BLOCKED_OPERATOR_KEY_REQUIRED",
+    )
+    live_ready = (
+        pre_submit.get("operator_review_ready") is True
+        and signed_account_read_status == "PASS"
+        and pre_submit.get("submit_allowed") is True
+    )
+    symbol_filter_status = _as_dict(pre_submit.get("symbol_filter_status"))
+    exit_plan = _as_dict(pre_submit.get("exit_plan"))
+    if not exit_plan:
+        exit_plan = {
+            "stop_distance_bps": candidate.get("stop_distance_bps"),
+            "dynamic_exit_required": True,
+            "static_stop_final_output_allowed": False,
+            "static_take_profit_final_output_allowed": False,
+        }
     return {
         "schema_version": f"{SCHEMA_VERSION}_first_live_canary_operator_packet",
         "generated_utc": generated_utc or _utc_now(),
@@ -646,10 +863,23 @@ def build_first_live_canary_operator_packet(
         "qty": candidate.get("quantity"),
         "notional": candidate.get("notional"),
         "margin": candidate.get("margin"),
+        "allocator_decision_id": candidate.get("allocator_decision_id"),
+        "allocator_decision": candidate.get("allocator_decision"),
+        "allocator_block_reasons": candidate.get("allocator_block_reasons"),
         "leverage_recommendation": candidate.get("leverage_recommendation"),
         "recommended_leverage": candidate.get("leverage_recommendation"),
+        "recommended_leverage_source": candidate.get("recommended_leverage_source"),
+        "recommended_leverage_reason": _first_present(
+            candidate.get("recommended_leverage_reason"),
+            pre_submit.get("recommended_leverage_reason"),
+        ),
         "margin_mode_recommendation": candidate.get("margin_mode_recommendation"),
         "recommended_margin_mode": candidate.get("margin_mode_recommendation"),
+        "recommended_margin_mode_source": candidate.get("recommended_margin_mode_source"),
+        "recommended_margin_mode_reason": _first_present(
+            candidate.get("recommended_margin_mode_reason"),
+            pre_submit.get("recommended_margin_mode_reason"),
+        ),
         "preemptive_decision": preemptive.get("preemptive_decision"),
         "preemptive_decision_id": preemptive.get("preemptive_decision_id"),
         "preemptive_action": preemptive.get("preemptive_action"),
@@ -724,12 +954,37 @@ def build_first_live_canary_operator_packet(
             "static_take_profit_final_output_allowed": False,
         },
         "max_loss": candidate.get("max_loss"),
+        "max_loss_usd": candidate.get("max_loss_usd"),
+        "max_loss_source": candidate.get("max_loss_source"),
         "liquidation_buffer": candidate.get("liquidation_buffer_bps"),
+        "liquidation_buffer_usd": candidate.get("liquidation_buffer_usd"),
+        "liquidation_buffer_source": candidate.get("liquidation_buffer_source"),
+        "liquidation_buffer_pct": candidate.get("liquidation_buffer_pct"),
+        "maintenance_margin_usd": candidate.get("maintenance_margin_usd"),
+        "estimated_liquidation_price": candidate.get("estimated_liquidation_price"),
+        "distance_to_liquidation_usd": candidate.get("distance_to_liquidation_usd"),
         "reduce_only_plan": {
             "reduce_only_required_for_closes": True,
             "candidate_reduce_only": _bool(_first_present(candidate_signal and candidate_signal.get("reduce_only"), False)),
             "close_only_capability_required": True,
         },
+        "reduce_only_supported": pre_submit.get("reduce_only_supported"),
+        "reduce_only_emergency_path": pre_submit.get("reduce_only_emergency_path"),
+        "symbol_filter_status": symbol_filter_status,
+        "symbol_min_notional": pre_submit.get("symbol_min_notional"),
+        "symbol_step_size": pre_submit.get("symbol_step_size"),
+        "symbol_tick_size": pre_submit.get("symbol_tick_size"),
+        "symbol_lot_size_status": pre_submit.get("symbol_lot_size_status"),
+        "symbol_price_filter_status": pre_submit.get("symbol_price_filter_status"),
+        "signed_account_read_status": signed_account_read_status,
+        "available_balance_usd": pre_submit.get("available_balance_usd"),
+        "open_orders_count": pre_submit.get("open_orders_count"),
+        "open_positions_count": pre_submit.get("open_positions_count"),
+        "hedge_required": _first_present(candidate.get("hedge_required"), pre_submit.get("hedge_required")),
+        "hedge_plan": _as_dict(_first_present(candidate.get("hedge_plan"), pre_submit.get("hedge_plan"), {})),
+        "exit_plan": exit_plan,
+        "kill_switch_status": pre_submit.get("kill_switch_status"),
+        "live_ready": live_ready,
         "why_allowed": allowed_reasons,
         "why_not_allowed": blockers,
         "pre_submit_status": {

@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
-from v2.backend.app.services.provider_rate_limits import BackoffPolicy, ProviderBackoff, TokenBucket
+from app.services.provider_rate_limits import BackoffPolicy, ProviderBackoff, TokenBucket
 
 COINGLASS_PLAN = os.getenv("COINGLASS_PLAN", "standard")
 COINGLASS_PUBLIC_LIMIT_PER_MINUTE = int(os.getenv("COINGLASS_PUBLIC_LIMIT_PER_MINUTE", "300"))

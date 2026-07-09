@@ -740,7 +740,12 @@ class EventTimeAligner:
                 if cutoff_dt > decision_dt:
                     future_leak = True
                     reject_reasons.append(f"future_timeframe_cutoff:{timeframe}")
-                if cutoff_dt != expected_cutoff:
+                # Exchange candles stamp closeTime as boundary-1ms
+                # (e.g. 05:03:59.999 for the candle closing at 05:04:00).
+                # Accept that convention as the same last-closed cutoff;
+                # anything else (earlier candle / future) still rejects.
+                cutoff_gap_seconds = (expected_cutoff - cutoff_dt).total_seconds()
+                if cutoff_dt != expected_cutoff and not (0.0 < cutoff_gap_seconds <= 1.0):
                     cutoff_mismatch = True
                     reject_reasons.append(f"mixed_timeframe_cutoff:{timeframe}")
         if masa_feature_cutoff is not None:

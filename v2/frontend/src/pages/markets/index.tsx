@@ -5,17 +5,9 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
+import { marketFavoriteSymbolSet } from '../../lib/traderPageHelpers';
 
-const DEFAULT_FAVORITES = new Set(['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']);
-
-/** Normalize and deduplicate a list of symbol strings into a valid Set, falling back to defaults if empty. */
-export function marketFavoriteSymbolSet(symbols: string[]): Set<string> {
-  const valid = symbols
-    .map((s) => s.toUpperCase().trim())
-    .filter((s) => /^[A-Z0-9]{3,20}$/.test(s));
-  const deduplicated = [...new Set(valid)];
-  return deduplicated.length > 0 ? new Set(deduplicated) : new Set(DEFAULT_FAVORITES);
-}
+export { marketFavoriteSymbolSet };
 
 interface TickerRow {
   symbol: string;
@@ -118,7 +110,7 @@ export default function MarketsPage(): JSX.Element {
   const [sortKey, setSortKey] = useState<SortKey>('turnover_24h');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [tab, setTab] = useState<TabId>('overview');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(DEFAULT_FAVORITES));
+  const [favorites, setFavorites] = useState<Set<string>>(() => marketFavoriteSymbolSet([]));
 
   function handleSort(key: SortKey): void {
     if (sortKey === key) {

@@ -401,6 +401,22 @@ def _sum_closed_realized(rows: list[dict[str, Any]]) -> float:
     return total
 
 
+def _sum_closed_gross_realized(rows: list[dict[str, Any]]) -> float:
+    total = 0.0
+    for row in rows:
+        total += _safe_float(
+            row.get("realized_gross_pnl_usd")
+            or row.get("realized_gross_pnl")
+            or row.get("gross_pnl_usd")
+            or row.get("realized_pnl_usd")
+            or row.get("realized_pnl_usdt")
+            or row.get("realized_pnl")
+            or row.get("pnl_usd"),
+            0.0,
+        )
+    return total
+
+
 def _mark_price_blockers(positions_by_symbol: list[dict[str, Any]]) -> list[dict[str, Any]]:
     blockers: list[dict[str, Any]] = []
     for position in positions_by_symbol:
@@ -740,6 +756,9 @@ def run_once(write_redis: bool = True) -> dict:
     open_positions = [p for p in positions if p.get("open_position") is True]
     closed_position_count = len(closed_rows)
     realized_pnl_usd = _safe_float(accounting.get("realized_pnl"), _sum_closed_realized(closed_rows))
+    realized_gross_pnl_usd = _sum_closed_gross_realized(
+        standalone_closed_rows if standalone_closed_rows else closed_rows
+    )
     cash_balance = session_initial_capital + realized_pnl_usd
     equity = cash_balance + unrealized_pnl_usd
     total_pnl_usd = realized_pnl_usd + unrealized_pnl_usd
@@ -847,6 +866,14 @@ def run_once(write_redis: bool = True) -> dict:
         "contains_simulated_positions": True,
         "contains_live_positions": False,
         "contains_quarantined_positions": contains_quarantined_positions,
+        # Canonical PnL source contract (Phase 1 implementation)
+        "pnl_source_key": "v2:portfolio:state",
+        "pnl_source_route": "/api/v2/portfolio",
+        "pnl_source_type": "CANONICAL_CURRENT_SESSION_RUNTIME",
+        "freshness_seconds": 0,
+        "pnl_conflict_detected": False,
+        "pnl_conflict_reason": None,
+        "pnl_conflict_sources": [],
         "equity_trusted": not bool(portfolio_pnl_blockers),
         "pnl_trusted": not bool(portfolio_pnl_blockers),
         "reason_if_untrusted": (
@@ -930,9 +957,14 @@ def run_once(write_redis: bool = True) -> dict:
         "closed_positions_raw_count": raw_closed_position_count,
         "order_counters": order_counters,
         "order_counters_source": "v2:paper:ledger + v2:paper:closed_trades",
-        "realized_pnl_usd": round(realized_pnl_usd, 8),
+        # Primary: Net PnL (Phase 1 canonical contract)
+        "realized_net_pnl_usd": round(realized_pnl_usd, 8),
+        # Diagnostic only: gross legacy/alias PnL before explicit net fields.
+        "realized_gross_pnl_usd": round(realized_gross_pnl_usd, 8),
         "unrealized_pnl_usd": round(unrealized_pnl_usd, 8),
         "total_pnl_usd": round(total_pnl_usd, 8),
+        # Legacy: Gross PnL alias (for backwards compatibility, not used for equity)
+        "realized_pnl_usd": round(realized_pnl_usd, 8),
         "cash_balance": round(cash_balance, 8),
         "open_position_notional": round(open_position_notional, 8),
         "equity": round(equity, 8),

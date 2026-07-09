@@ -613,12 +613,21 @@ export function useTradeTerminal() {
   const spreadPct = spreadAbs !== null && lastPrice ? spreadAbs / lastPrice : null;
   const accountEquity = finite(typedPortfolioData?.equity) ?? paperAccountTruth.account.equity;
   const availablePaperBalance = accountEquity;
+  const portfolioAccount = record(typedPortfolioData);
   const paperActivitySummary = record(paperActivity.data.summary);
   const streamRealizedPnl = finite(paperActivitySummary.realized_pnl_usd);
   const streamUnrealizedPnl = finite(paperActivitySummary.unrealized_pnl_usd);
   const streamOpenNotional = finite(paperActivitySummary.total_open_notional);
-  const accountRealizedPnl = streamRealizedPnl ?? typedPortfolioData?.realized_pnl ?? null;
-  const accountUnrealizedPnl = streamUnrealizedPnl ?? typedPortfolioData?.unrealized_pnl ?? null;
+  const portfolioRealizedPnl =
+    finite(portfolioAccount.realized_net_pnl_usd)
+    ?? finite(portfolioAccount.clean_session_valid_realized_pnl_usd)
+    ?? finite(typedPortfolioData?.realized_pnl);
+  const portfolioUnrealizedPnl =
+    finite(portfolioAccount.unrealized_pnl_usd)
+    ?? finite(portfolioAccount.clean_session_valid_unrealized_pnl_usd)
+    ?? finite(typedPortfolioData?.unrealized_pnl);
+  const accountRealizedPnl = portfolioRealizedPnl ?? streamRealizedPnl ?? null;
+  const accountUnrealizedPnl = portfolioUnrealizedPnl ?? streamUnrealizedPnl ?? null;
   const accountTotalPnl = accountRealizedPnl != null && accountUnrealizedPnl != null
     ? accountRealizedPnl + accountUnrealizedPnl
     : null;

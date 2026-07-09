@@ -29,6 +29,7 @@ Define backend API contracts consumed by the website and iOS app, including pape
 - API: /api/v2/mobile/paper-summary
 - Artifact: v2/frontend/public/operator_runtime/v2_runtime_drift/latest/status.json
 - API: /api/v2/portfolio
+- API: /api/v1/paper-trades
 - API: /api/v2/signals
 - API: /api/v2/markets
 - API: /api/v2/derivatives
@@ -49,6 +50,8 @@ Define backend API contracts consumed by the website and iOS app, including pape
 - Live readiness shown without signed-read and pre-submit dry-run proof.
 - Santiment or another paid data source expected for symbol selection but unused.
 - Feature freshness or lineage missing around `available_at`, `feature_cutoff`, `decision_time`, or `execution_time`.
+- `/api/v2/portfolio`, `/api/v2/mobile/paper-summary`, and `/api/v1/paper-trades` disagree on current-session PnL/equity source.
+- Provider readiness showing Moralis green from health alone without `v2:provider:moralis:feature_bridge_status.feature_bridge_ready=true`.
 
 ## Debug Commands
 - `systemctl --user list-units --type=service --all | rg "ai-bot-v2|paper|trainer"`
@@ -77,3 +80,5 @@ Define backend API contracts consumed by the website and iOS app, including pape
 - Live state: `blocked_human_only`; dry-run packets must not submit or mutate exchange state.
 - Runtime drift: Phase K monitor reports `services_stale=0` after V2 restarts and the legacy comparator stop.
 - Santiment: `v2:altdata:santiment:symbol:*` has runtime symbol-selection evidence and the paid-ingestor-unused alert is passing.
+- Portfolio/PnL contract: current-session paper equity and PnL headline fields come from `v2:portfolio:state` and expose `pnl_source_key=v2:portfolio:state`, `pnl_source_route=/api/v2/portfolio`, and `pnl_source_type=CANONICAL_CURRENT_SESSION_RUNTIME`.
+- Moralis contract: `/api/v2/provider-readiness` and mobile readiness fields consume `v2:provider:moralis:health`, which must be consistent with `v2:provider:moralis:feature_bridge_status`; heartbeat-only or required-feature-missing payloads are not green.

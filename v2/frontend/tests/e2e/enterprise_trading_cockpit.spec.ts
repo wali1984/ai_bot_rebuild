@@ -25,8 +25,8 @@ test.describe('enterprise trading cockpit', () => {
     await expect(page.getByTestId('page-monitor-center')).toContainText('Realtime stream health');
 
     await gotoAs(page, '/admin/trainer-prediction-monitor');
-    await expect(page).toHaveURL(/\/ai-predictions$/);
-    await expect(page.getByTestId('page-ai-predictions')).toContainText('AI Predictions');
+    await expect(page).toHaveURL(/\/admin\/trainer-prediction-monitor$/);
+    await expect(page.getByTestId('page-trainer-prediction-monitor')).toContainText('AI Predictions');
     await expect(page.getByTestId('adaptive-capital-telemetry-panel')).toContainText('Prediction Accuracy');
 
     await gotoAs(page, '/admin/signal-explainability');
@@ -35,13 +35,15 @@ test.describe('enterprise trading cockpit', () => {
 
     await gotoAs(page, '/admin/exchange-manager');
     await expect(page).toHaveURL(/\/admin\/exchanges$/);
-    await expect(page.getByTestId('page-exchange-manager')).toContainText('KuCoin');
-    await expect(page.getByTestId('page-exchange-manager')).toContainText('Order capability');
+    await expect(page.getByTestId('admin-exchanges-page')).toContainText('Exchanges');
+    await expect(page.getByTestId('admin-exchanges-page')).toContainText('Exchange connectivity');
 
     await gotoAs(page, '/admin/config-admin');
     await expect(page).toHaveURL(/\/admin\/config$/);
-    await expect(page.getByTestId('page-config-admin')).toContainText('Enable live trading');
-    await expect(page.getByTestId('page-config-admin')).toContainText('Requires L5 approval');
+    await expect(page.getByTestId('admin-config-page')).toContainText('Configuration');
+    await page.getByRole('button', { name: 'Locks' }).click();
+    await expect(page.getByTestId('admin-config-page')).toContainText('Enable Live Trading');
+    await expect(page.getByTestId('admin-config-page')).toContainText('L5');
 
     await gotoAs(page, '/admin/external-manual-position-quarantine');
     await expect(page.getByTestId('page-external-manual-position-quarantine')).toContainText('External / Manual Position Quarantine');

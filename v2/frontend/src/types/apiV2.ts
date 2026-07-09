@@ -270,7 +270,16 @@ export interface AlertsData {
 export interface PortfolioData extends AccountTruthFields {
   equity: number | null;
   realized_pnl: number | null;
+  realized_pnl_usd?: number | null;
+  realized_net_pnl_usd?: number | null;
+  clean_session_valid_realized_pnl_usd?: number | null;
   unrealized_pnl: number | null;
+  unrealized_pnl_usd?: number | null;
+  clean_session_valid_unrealized_pnl_usd?: number | null;
+  total_pnl_usd?: number | null;
+  pnl_source_key?: string | null;
+  pnl_source_route?: string | null;
+  pnl_source_type?: string | null;
   positions: unknown[];
   mode: 'paper';
   trader_id?: string | null;

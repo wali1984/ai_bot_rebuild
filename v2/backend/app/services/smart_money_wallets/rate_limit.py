@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
-from v2.backend.app.services.provider_rate_limits import (
+from app.services.provider_rate_limits import (
     BackoffPolicy,
     ComputeUnitBudget,
     ProviderBackoff,

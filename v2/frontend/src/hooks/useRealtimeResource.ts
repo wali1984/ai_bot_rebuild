@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useOptionalEnterpriseRealtime } from '../lib/realtime/RealtimeProvider';
 import type { ValidatedDataEnvelope, SourceType, DataQualityStatus } from '../types/dataContract';
 import { makeEmptyEnvelope } from '../types/dataContract';
 
@@ -155,21 +156,12 @@ function fetchTimeoutMs(pollIntervalMs: number): number {
   return Math.min(4_500, Math.max(3_000, Math.floor(pollIntervalMs * 0.8)));
 }
 
-function websocketResourceUrls(url: string, intervalMs: number): string[] {
-  if (typeof window === 'undefined') return [];
+function canUseReadonlyResourceStream(url: string): boolean {
+  if (typeof window === 'undefined') return false;
   const path = url.split('?')[0] ?? url;
   const isApiResource = path.startsWith('/api/v2/') || path.startsWith('/api/v1/');
   const isStaticJsonResource = path.endsWith('.json') && READONLY_STATIC_JSON_PREFIXES.some((prefix) => path.startsWith(prefix));
-  if (!isApiResource && !isStaticJsonResource) return [];
-  const origin = window.location.origin;
-  const protocol = origin.startsWith('https:') ? 'wss:' : 'ws:';
-  return ['/api/v2/ws/resource', '/ws/resource'].map((path) => {
-    const target = new URL(path, origin);
-    target.protocol = protocol;
-    target.searchParams.set('path', url);
-    target.searchParams.set('interval_ms', String(intervalMs));
-    return target.toString();
-  });
+  return isApiResource || isStaticJsonResource;
 }
 
 function computeFreshness(receivedAt: number, staleThresholdMs: number): ValidatedDataEnvelope<unknown>['freshness_status'] {
@@ -219,6 +211,8 @@ export function useRealtimeResource<T>(
     mode = 'read_only',
     unwrapEnvelopeData = true,
   } = opts;
+  const sharedRealtime = useOptionalEnterpriseRealtime();
+  const subscribeResourcePath = sharedRealtime?.subscribeResourcePath;
 
   const [envelope, setEnvelope] = useState<ValidatedDataEnvelope<T>>(
     () => cachedEnvelope<T>(url, mode) ?? makeEmptyEnvelope<T>(source, { source_type, mode }),
@@ -226,7 +220,6 @@ export function useRealtimeResource<T>(
   const [loading, setLoading] = useState(() => !cachedEnvelope<T>(url, mode));
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const socketRef = useRef<WebSocket | null>(null);
 
   const applyRawEnvelope = useCallback((raw: Record<string, unknown>, receivedAt: number, lagMs: number, deliveredSourceType?: SourceType) => {
     const innerData = shouldUnwrapEnvelopeData(raw, unwrapEnvelopeData) ? raw.data as T : raw as unknown as T;
@@ -325,9 +318,8 @@ export function useRealtimeResource<T>(
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
-    let fallbackTimer: ReturnType<typeof setInterval> | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    const urls = websocketResourceUrls(url, pollIntervalMs);
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    const streamable = canUseReadonlyResourceStream(url);
 
     if (initialFetch) {
       void fetchData();
@@ -348,66 +340,56 @@ export function useRealtimeResource<T>(
       }));
     };
 
-    const startFallback = () => {
+    const clearFallback = () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
+
+    const startFallback = (delayMs = 0) => {
       if (!httpFallback) {
         markWebSocketUnavailable('resource_websocket_unavailable');
         return;
       }
-      if (fallbackTimer) clearInterval(fallbackTimer);
-      void fetchData();
-      if (pollIntervalMs) {
-        fallbackTimer = setInterval(() => void fetchData(), pollIntervalMs);
-      }
+      clearFallback();
+      const run = () => {
+        if (cancelled) return;
+        void fetchData().finally(() => {
+          if (!cancelled && pollIntervalMs) {
+            fallbackTimer = setTimeout(run, pollIntervalMs);
+          }
+        });
+      };
+      fallbackTimer = setTimeout(run, delayMs);
     };
 
-    const connect = (index = 0) => {
-      if (cancelled) return;
-      if (!urls.length || index >= urls.length) {
-        startFallback();
-        return;
-      }
-      setLoading(true);
-      try {
-        socketRef.current = new WebSocket(urls[index]);
-      } catch {
-        connect(index + 1);
-        return;
-      }
-      const socket = socketRef.current;
-      socket.onmessage = (event) => {
+    if (streamable && subscribeResourcePath) {
+      const unsubscribe = subscribeResourcePath(url, (raw) => {
         if (cancelled) return;
         try {
-          const raw = JSON.parse(event.data) as Record<string, unknown>;
           applyRawEnvelope(raw, Date.now(), 0, 'websocket');
           setLoading(false);
         } catch (err) {
           setError((err as Error).message);
           setLoading(false);
         }
+      });
+      return () => {
+        cancelled = true;
+        unsubscribe();
+        clearFallback();
+        abortRef.current?.abort();
       };
-      socket.onerror = () => {
-        if (!cancelled) setError('resource_websocket_error');
-      };
-      socket.onclose = () => {
-        if (cancelled) return;
-        if (index + 1 < urls.length) {
-          connect(index + 1);
-          return;
-        }
-        startFallback();
-        reconnectTimer = setTimeout(() => connect(0), Math.max(5000, pollIntervalMs));
-      };
-    };
+    }
 
-    connect();
+    startFallback();
     return () => {
       cancelled = true;
-      socketRef.current?.close();
-      if (fallbackTimer) clearInterval(fallbackTimer);
-      if (reconnectTimer) clearTimeout(reconnectTimer);
+      clearFallback();
       abortRef.current?.abort();
     };
-  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, pollIntervalMs, url]);
+  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, pollIntervalMs, subscribeResourcePath, url]);
 
   return { envelope, loading, error, refetch: fetchData };
 }

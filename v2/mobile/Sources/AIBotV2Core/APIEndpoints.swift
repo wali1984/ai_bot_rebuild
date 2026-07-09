@@ -25,10 +25,36 @@ public enum APIEndpoints {
     public static let paperActivity      = "/api/v2/paper/activity"
     public static let signalMatrix       = "/api/v2/signals/matrix"
 
+    public static let realtimeBootstrap  = "/api/v2/realtime/bootstrap"
+    public static let realtimeResources  = "/api/v2/realtime/resources"
+    public static let realtimeHealth     = "/api/v2/realtime/health"
+
+    public static let wsResource         = "/api/v2/ws/resource"
+    public static let wsRealtime         = "/api/v2/realtime/ws"
     public static let wsMarketData       = "/ws/market-data"
     public static let wsPaperActivity    = "/ws/paper-activity"
 
     public static func pushUnregister(token: String) -> String {
         "/api/v2/mobile/push/\(token)"
+    }
+
+    public static func wsRealtimeURL(
+        baseURL: String,
+        resources: [String] = [],
+        intervalMs: Int = 2_000
+    ) -> String? {
+        var baseWS = baseURL
+            .replacingOccurrences(of: "http://", with: "ws://")
+            .replacingOccurrences(of: "https://", with: "wss://")
+        if baseWS.hasSuffix("/") {
+            baseWS.removeLast()
+        }
+        var components = URLComponents(string: baseWS + wsRealtime)
+        var items = [URLQueryItem(name: "interval_ms", value: String(intervalMs))]
+        if !resources.isEmpty {
+            items.append(URLQueryItem(name: "resources", value: resources.joined(separator: ",")))
+        }
+        components?.queryItems = items
+        return components?.string
     }
 }

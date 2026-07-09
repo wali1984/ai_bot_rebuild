@@ -29,6 +29,9 @@ KEY_STATUS = "v2:altdata:santiment:status"
 KEY_STATE = "v2:altdata:santiment:state"
 KEY_PER_SYMBOL_PREFIX = "v2:altdata:santiment:symbol:"
 KEY_PER_SYMBOL_TEMPLATE = KEY_PER_SYMBOL_PREFIX + "{symbol}"
+KEY_FEATURE_PREFIX = "v2:features:santiment:"
+KEY_FEATURE_TEMPLATE = KEY_FEATURE_PREFIX + "{symbol}:{timeframe}"
+KEY_FEATURE_BRIDGE_STATUS = "v2:provider:santiment:feature_bridge_status"
 
 SANTIMENT_API_URL = "https://api.santiment.net/graphql"
 SANTIMENT_API_KEY_NAMES = (
@@ -70,13 +73,29 @@ SOURCE_STATUS_GRAPHQL_ERROR = "API_GRAPHQL_ERROR"
 
 DEFAULT_METRICS = (
     "social_volume_total",
+    "social_dominance_total",
     "sentiment_positive_total",
     "sentiment_negative_total",
+    "sentiment_balance_total",
+    "sentiment_weighted_total",
     # whale_transaction_count_1m is not a valid API metric ("not supported"
     # GraphQL error); the supported whale-count metric is the 100k+ USD bucket.
     "whale_transaction_count_100k_usd_to_inf",
     "exchange_inflow",
+    "exchange_outflow",
+    "exchange_balance",
     "percent_of_total_supply_on_exchanges",
+    "transaction_volume",
+    "active_addresses_24h",
+    "network_growth",
+    "age_consumed",
+    "dormant_circulation_90d",
+    "network_profit_loss",
+    "mvrv_usd",
+    "mvrv_usd_30d",
+    "nvt",
+    "price_daa_divergence",
+    "dev_activity",
 )
 
 DEFAULT_SYMBOL_SLUGS = {
@@ -663,7 +682,9 @@ def allowed_santiment_write_key(key: str) -> bool:
     return (
         key == KEY_STATUS
         or key == KEY_STATE
+        or key == KEY_FEATURE_BRIDGE_STATUS
         or key.startswith(KEY_PER_SYMBOL_PREFIX)
+        or key.startswith(KEY_FEATURE_PREFIX)
     ) and key.startswith(V2_REDIS_PREFIX)
 
 
@@ -681,6 +702,111 @@ def safe_redis_set(
         return True
     except Exception:
         return False
+
+
+def build_santiment_feature_payload(
+    payload: Mapping[str, Any],
+    *,
+    timeframe: str = "1h",
+) -> dict[str, Any]:
+    symbol = str(payload.get("symbol") or "").upper()
+    generated = str(payload.get("generated_utc") or utc_iso())
+    feature_cutoff = payload.get("feature_cutoff")
+    features: dict[str, float] = {}
+    for key, value in payload.items():
+        if not str(key).startswith("santiment_"):
+            continue
+        parsed = _coerce_float(value)
+        if parsed is not None:
+            features[str(key)] = parsed
+    metric_values = payload.get("metric_values")
+    if isinstance(metric_values, Mapping):
+        for key, value in metric_values.items():
+            parsed = _coerce_float(value)
+            if parsed is not None:
+                features[f"santiment_{key}"] = parsed
+    missing = sorted(str(item) for item in (payload.get("missing_feature_flags") or []))
+    stale = sorted(str(item) for item in (payload.get("stale_feature_flags") or []))
+    actual_payload_present = bool(features)
+    return {
+        "schema_version": "santiment_feature_bridge_v1",
+        "provider": "santiment",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "generated_at": generated,
+        "generated_utc": generated,
+        "event_time": feature_cutoff,
+        "available_at": payload.get("available_at") or generated,
+        "feature_cutoff": feature_cutoff,
+        "decision_time_safe": bool(feature_cutoff and (payload.get("available_at") or generated)),
+        "features": features,
+        "feature_names": sorted(features),
+        "feature_count": len(features),
+        "missing_feature_flags": missing,
+        "stale_feature_flags": stale,
+        "missing_mask": {name: True for name in missing},
+        "missing_mask_true": bool(missing),
+        "stale_mask": {name: True for name in stale},
+        "stale_mask_true": bool(stale),
+        "actual_payload_present": actual_payload_present,
+        "heartbeat_only": not actual_payload_present,
+        "provider_ready": actual_payload_present,
+        "feature_bridge_ready": actual_payload_present,
+        "status": "READY" if actual_payload_present else "PAYLOADS_PENDING",
+        "data_latency_class": payload.get("data_latency_class"),
+        "provider_freshness_seconds": payload.get("provider_freshness_seconds"),
+        "trainer_consumption": True,
+        "provider_tensor_consumption": True,
+        "ppo_consumption": True,
+        "masa_consumption": True,
+        "risk_consumption": True,
+        "orchestrator_consumption": True,
+        "allocator_consumption": True,
+        "paper_consumption": True,
+        "live_dryrun_consumption": True,
+        "feedback_attribution": True,
+        "santiment_can_approve_trade_alone": False,
+        "single_provider_can_approve": False,
+        "raw_key_exposed": False,
+        "core_system_blocked": False,
+    }
+
+
+def _santiment_feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "santiment_feature_bridge_status_v1",
+        "provider": "santiment",
+        "generated_utc": payload.get("generated_utc") or payload.get("generated_at"),
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "available_at": payload.get("available_at"),
+        "feature_cutoff": payload.get("feature_cutoff"),
+        "decision_time_safe": payload.get("decision_time_safe"),
+        "status": payload.get("status"),
+        "feature_bridge_ready": payload.get("feature_bridge_ready"),
+        "feature_count": payload.get("feature_count"),
+        "missing_feature_flags": payload.get("missing_feature_flags"),
+        "stale_feature_flags": payload.get("stale_feature_flags"),
+        "missing_mask": payload.get("missing_mask"),
+        "missing_mask_true": payload.get("missing_mask_true"),
+        "stale_mask": payload.get("stale_mask"),
+        "stale_mask_true": payload.get("stale_mask_true"),
+        "actual_payload_present": payload.get("actual_payload_present"),
+        "heartbeat_only": payload.get("heartbeat_only"),
+        "trainer_consumption": payload.get("trainer_consumption"),
+        "provider_tensor_consumption": payload.get("provider_tensor_consumption"),
+        "ppo_consumption": payload.get("ppo_consumption"),
+        "masa_consumption": payload.get("masa_consumption"),
+        "risk_consumption": payload.get("risk_consumption"),
+        "orchestrator_consumption": payload.get("orchestrator_consumption"),
+        "allocator_consumption": payload.get("allocator_consumption"),
+        "paper_consumption": payload.get("paper_consumption"),
+        "live_dryrun_consumption": payload.get("live_dryrun_consumption"),
+        "feedback_attribution": payload.get("feedback_attribution"),
+        "single_provider_can_approve": False,
+        "core_system_blocked": False,
+        "raw_key_exposed": False,
+    }
 
 
 def safe_redis_hset(
@@ -907,6 +1033,19 @@ async def fetch_normalize_publish_once(
     for symbol, payload in symbol_payloads.items():
         redis_key = KEY_PER_SYMBOL_TEMPLATE.format(symbol=symbol)
         redis_write_results[redis_key] = safe_redis_set(redis_client, redis_key, payload)
+        feature_payload = build_santiment_feature_payload(payload, timeframe="1h")
+        feature_key = KEY_FEATURE_TEMPLATE.format(symbol=symbol, timeframe="1h")
+        redis_write_results[feature_key] = safe_redis_set(
+            redis_client,
+            feature_key,
+            feature_payload,
+        )
+        redis_write_results[KEY_FEATURE_BRIDGE_STATUS] = safe_redis_set(
+            redis_client,
+            KEY_FEATURE_BRIDGE_STATUS,
+            _santiment_feature_bridge_status(feature_payload),
+            ex=DEFAULT_REDIS_STATUS_TTL_SECONDS,
+        )
         for key, value in payload.items():
             if key.startswith("santiment_") and _coerce_float(value) is not None:
                 state_mapping[f"{symbol.lower()}_{key}"] = value
@@ -978,8 +1117,8 @@ def build_status_payload(
             "safety_buffer_fraction": RATE_LIMIT_SAFETY_FRACTION,
         },
         "rate_limit_state": rate_limit_state.as_payload(),
-        "allowed_redis_write_keys": [KEY_STATUS, KEY_STATE],
-        "allowed_redis_write_prefixes": [KEY_PER_SYMBOL_PREFIX],
+        "allowed_redis_write_keys": [KEY_STATUS, KEY_STATE, KEY_FEATURE_BRIDGE_STATUS],
+        "allowed_redis_write_prefixes": [KEY_PER_SYMBOL_PREFIX, KEY_FEATURE_PREFIX],
         "redis_write_results": dict(redis_write_results),
         "auto_updates_symbol_selection_via_symbol_score": True,
         "auto_updates_trainer_via_feature_pipeline": True,

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.coinglass_provider.endpoint_registry import CoinGlassEndpointSpec
+from app.services.coinglass_provider.endpoint_registry import CoinGlassEndpointSpec
 
 
 def normalize_coinglass_payload(

@@ -32,12 +32,14 @@ from app.api.v2 import (
     ollama,
     pipeline,
     public_status,
+    realtime,
     replay,
     status_contracts,
     symbol_intel,
     system_metrics,
     trainer,
     trader_snapshot,
+    ui,
 )
 
 router = APIRouter(prefix="/api/v2", tags=["v2-landing"])
@@ -57,6 +59,8 @@ router.include_router(pipeline.router)
 router.include_router(live_readiness.router)
 router.include_router(live_gate_status.router)
 router.include_router(public_status.router)
+router.include_router(ui.router)
+router.include_router(realtime.router)
 router.include_router(monitoring_contracts.router)
 router.include_router(hourly_monitor.router)
 router.include_router(mobile.router)

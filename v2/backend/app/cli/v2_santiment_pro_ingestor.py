@@ -200,6 +200,27 @@ def run_once(
     )
 
 
+# Tier policy (operator alt-data directive): majors + active trade symbols get
+# the full expanded metric set; the long tail keeps the core-6 so the expanded
+# set cannot exhaust the month budget. The header-based throttle in the client
+# remains the hard governor either way.
+TIER_A_SYMBOLS = ("BTC", "ETH", "SOL", "BNB", "XRP", "LINK", "UNI", "AAVE")
+CORE_METRICS = (
+    "social_volume_total",
+    "sentiment_positive_total",
+    "sentiment_negative_total",
+    "whale_transaction_count_100k_usd_to_inf",
+    "exchange_inflow",
+    "percent_of_total_supply_on_exchanges",
+)
+
+
+def split_symbols_by_tier(symbols: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    tier_a = tuple(s for s in symbols if s.upper() in TIER_A_SYMBOLS)
+    tier_b = tuple(s for s in symbols if s.upper() not in TIER_A_SYMBOLS)
+    return tier_a, tier_b
+
+
 async def run_loop_async(
     *,
     symbols: tuple[str, ...],
@@ -210,16 +231,27 @@ async def run_loop_async(
     to_expr: str,
     execution_interval_seconds: int,
 ) -> None:
+    tier_a, tier_b = split_symbols_by_tier(symbols)
     while True:
         started = asyncio.get_running_loop().time()
-        await run_once_async(
-            symbols=symbols,
-            metrics=metrics,
-            redis_client=redis_client,
-            interval=interval,
-            from_expr=from_expr,
-            to_expr=to_expr,
-        )
+        if tier_a:
+            await run_once_async(
+                symbols=tier_a,
+                metrics=metrics,
+                redis_client=redis_client,
+                interval=interval,
+                from_expr=from_expr,
+                to_expr=to_expr,
+            )
+        if tier_b:
+            await run_once_async(
+                symbols=tier_b,
+                metrics=CORE_METRICS,
+                redis_client=redis_client,
+                interval=interval,
+                from_expr=from_expr,
+                to_expr=to_expr,
+            )
         elapsed = asyncio.get_running_loop().time() - started
         await asyncio.sleep(max(0.0, float(execution_interval_seconds) - elapsed))
 

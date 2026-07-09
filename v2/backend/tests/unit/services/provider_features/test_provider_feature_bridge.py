@@ -80,6 +80,51 @@ def test_bridge_maps_actual_coinglass_payload_to_tensor_features() -> None:
     assert context["payloads_for_tensor"]["open_interest"]["open_interest"] == 1000000
 
 
+def test_bridge_maps_required_moralis_feature_names_to_tensor_context() -> None:
+    r = FakeRedis()
+    r.set(
+        "v2:features:moralis:BTCUSDT:1m",
+        json.dumps(
+            {
+                "schema_version": "moralis_feature_bridge_v1",
+                "status": "READY",
+                "dashboard_color": "GREEN",
+                "feature_bridge_ready": True,
+                "actual_payload_present": True,
+                "heartbeat_only": False,
+                "available_at": "2026-07-08T12:00:00Z",
+                "feature_cutoff": "2026-07-08T11:59:00Z",
+                "features": {
+                    "moralis_whale_net_flow_usd": 1200,
+                    "moralis_net_exchange_flow_usd": -700,
+                    "moralis_dex_flow_imbalance_usd": 250,
+                    "moralis_top_holder_concentration": 0.42,
+                    "moralis_holder_count": 12345,
+                    "moralis_holder_delta": 12,
+                    "moralis_onchain_risk_score": 0.08,
+                },
+            }
+        ),
+        ex=300,
+    )
+
+    context = build_provider_consumer_context(
+        r,
+        role="trainer",
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time="2026-07-08T12:01:00Z",
+    )
+
+    assert context["core_system_blocked"] is False
+    assert context["provider_features"]["smart_money_whale_net_flow_usd"] == 1200
+    assert context["provider_features"]["token_holder_top_concentration"] == 0.42
+    assert context["provider_features"]["token_holder_count"] == 12345
+    assert context["provider_features"]["token_holder_delta"] == 12
+    assert context["provider_features"]["onchain_risk_score"] == 0.08
+    assert context["payloads_for_tensor"]["smart_money"]["onchain_risk_score"] == 0.08
+
+
 def test_bridge_excludes_future_leaking_provider_features() -> None:
     r = FakeRedis()
     r.set(

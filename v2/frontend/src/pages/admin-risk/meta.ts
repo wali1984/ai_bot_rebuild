@@ -7,6 +7,12 @@ const meta: PageMeta = {
   navCategory: 'risk',
   navLabel: 'Risk & Readiness',
   navOrder: 50,
-  dangerousControlIds: ['enable_live_trading', 'increase_leverage', 'disable_kill_switch', 'disable_mandatory_stop'],
+  dangerousControlIds: [
+    'enable_live_trading',
+    'increase_leverage',
+    'disable_kill_switch',
+    'disable_mandatory_stop',
+    'increase_daily_loss_limit',
+  ],
 };
 export default meta;

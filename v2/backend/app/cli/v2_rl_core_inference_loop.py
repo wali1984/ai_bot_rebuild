@@ -198,11 +198,21 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
             )
             if _safe_write(r, sidecar_key, json.dumps(prediction), ex=600):
                 keys_written.append(sidecar_key)
-    classification = (
-        "V2_NATIVE_RL_CORE_PRODUCTION_INFERENCE_OK"
-        if predictions else
-        ("BLOCKED_BY_REDIS_UNAVAILABLE" if r is None else "BLOCKED_BY_MISSING_FEATURE_SNAPSHOT")
-    )
+    if predictions:
+        classification = "V2_NATIVE_RL_CORE_PRODUCTION_INFERENCE_OK"
+    elif r is None:
+        classification = "BLOCKED_BY_REDIS_UNAVAILABLE"
+    else:
+        # Name the true dominant blocker; a trust-gate rejection must never
+        # masquerade as a missing feature snapshot (snapshots can be CURRENT).
+        trust_blocked = sum(1 for item in blocked if ":TRUST_GATE_REJECTED" in item)
+        snapshot_blocked = sum(1 for item in blocked if ":MISSING_FEATURE_SNAPSHOT" in item)
+        if trust_blocked and trust_blocked >= snapshot_blocked:
+            classification = "BLOCKED_BY_MARKET_STATE_TRUST_GATE"
+        elif snapshot_blocked:
+            classification = "BLOCKED_BY_MISSING_FEATURE_SNAPSHOT"
+        else:
+            classification = "BLOCKED_NO_PREDICTIONS"
     status = {
         "worker_id": "v2_rl_core_inference_loop",
         "schema_version": "v2_rl_core_live_v1",

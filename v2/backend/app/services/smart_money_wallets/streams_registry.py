@@ -11,8 +11,8 @@ import os
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.token_contract_mapper import read_pollable_tokens
-from v2.backend.app.services.smart_money_wallets.wallet_watchlist import read_wallet_watchlist
+from app.services.smart_money_wallets.token_contract_mapper import read_pollable_tokens
+from app.services.smart_money_wallets.wallet_watchlist import read_wallet_watchlist
 
 
 STREAMS_STATUS_KEY = "v2:provider:moralis:streams_status"

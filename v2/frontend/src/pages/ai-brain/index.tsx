@@ -10,6 +10,7 @@ import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis
 import { ProfitTargetMonitorPanel } from '../../components/trading/ProfitTargetMonitorPanel';
 import { MajorMoveReplayStatusPanel } from '../../components/trading/MajorMoveReplayStatusPanel';
 import { RuntimeAlphaDynamicReadinessPanel } from '../../components/trading/RuntimeAlphaDynamicReadinessPanel';
+import { useEnterpriseRealtimeResource } from '../../lib/realtime/RealtimeProvider';
 import {
   CUDA_TRAINER_ACTIONABILITY_PATH,
   CUDA_TRAINER_LIVE_GATE_PATH,
@@ -265,6 +266,32 @@ interface TrainerPayload {
     disabled_reason?: string;
     backend_live_enable_callable?: boolean;
   };
+}
+
+interface EnterpriseAiPageContract {
+  ppo_tensor_provider_features?: boolean;
+  masa_tensor_provider_features?: boolean;
+  provider_feature_count_by_provider?: Record<string, number>;
+  provider_features_in_tensor?: unknown;
+  provider_contribution_last_50?: { status?: string; sample_count?: number } | Record<string, unknown>;
+  altdata_actionability?: {
+    blocked?: number | null;
+    reduced?: number | null;
+    hedged?: number | null;
+    trade_block_score?: number | null;
+    reduce_size_score?: number | null;
+    hedge_required_score?: number | null;
+  };
+  next_replay_or_backtest?: string;
+  live_gate?: string;
+  routes_to_live?: boolean;
+  places_real_order?: boolean;
+}
+
+interface EnterpriseAiBrainSnapshot {
+  ai_page_contract?: EnterpriseAiPageContract;
+  provider_feature_counts?: Record<string, number>;
+  provider_confluence_available?: boolean;
 }
 
 function pct(value?: number | null): string {
@@ -673,7 +700,20 @@ export default function AiBrainPage(): JSX.Element {
   } = usePayloadFile<RuntimeAlphaSoakPayload>(RUNTIME_ALPHA_SOAK_PATH, 30_000);
   const { data: liveGateRuntime } = usePayloadFile<LiveGateRuntimePayload>(LIVE_GATE_RUNTIME_PATH, 8_000);
   const { account: paperAccount } = usePaperAccountTruth(8_000, { requireTraderScope: true });
+  const enterpriseAiSnapshot = useEnterpriseRealtimeResource<EnterpriseAiBrainSnapshot>('ai_brain');
   const payload = gatePayload ?? sourcePayload;
+  const enterpriseAiPayload = enterpriseAiSnapshot?.payload;
+  const aiPageContract = enterpriseAiPayload?.ai_page_contract;
+  const aiProviderCounts = aiPageContract?.provider_feature_count_by_provider
+    ?? enterpriseAiPayload?.provider_feature_counts
+    ?? {};
+  const aiProviderRows = ['coinglass', 'santiment', 'moralis'].map((provider) => ({
+    provider,
+    count: aiProviderCounts[provider] ?? 0,
+  }));
+  const aiPageContractReady = Boolean(aiPageContract)
+    && aiPageContract?.routes_to_live === false
+    && aiPageContract?.places_real_order === false;
   const ageSeconds = gatePayload ? gateAge : sourceAge;
   const error = gateError && !sourcePayload ? gateError : sourceError && !gatePayload ? sourceError : null;
   const trainer = payload?.trainer;
@@ -740,6 +780,38 @@ export default function AiBrainPage(): JSX.Element {
         <>
       <RealtimeSignalVisibilityPanel surface="ai-brain" variant="admin" />
       <PredictionSignalExplanationPanel surface="ai-brain" />
+      <Panel
+        id="enterprise-ai-data-plane"
+        title="Enterprise AI Data Plane"
+        right={<span className={aiPageContractReady ? 'chip solid-ok' : 'chip solid-warn'}>{aiPageContractReady ? 'READY' : 'PARTIAL'}</span>}
+      >
+        <div className="cockpit-analytics-grid">
+          <Metric label="PPO tensor" value={aiPageContract?.ppo_tensor_provider_features ? 'provider features visible' : 'pending'} />
+          <Metric label="MASA tensor" value={aiPageContract?.masa_tensor_provider_features ? 'provider features visible' : 'pending'} />
+          <Metric label="Confluence" value={enterpriseAiPayload?.provider_confluence_available ? 'available' : 'pending'} />
+          <Metric label="Last 50 contribution" value={String((aiPageContract?.provider_contribution_last_50 as { status?: string } | undefined)?.status ?? 'not available')} />
+          <Metric label="Blocked / reduced / hedged" value={`${aiPageContract?.altdata_actionability?.blocked ?? 0} / ${aiPageContract?.altdata_actionability?.reduced ?? 0} / ${aiPageContract?.altdata_actionability?.hedged ?? 0}`} />
+          <Metric label="Replay" value={runtimeLabel(aiPageContract?.next_replay_or_backtest)} />
+          <Metric label="Live gate" value={runtimeLabel(aiPageContract?.live_gate ?? 'blocked_human_only')} />
+          <Metric label="Routes to live" value={String(aiPageContract?.routes_to_live === true)} />
+        </div>
+        <div className="trainer-prediction-scroll-window trainer-prediction-scroll-window--compact" role="region" aria-label="Scrollable provider tensor feature counts" style={{ marginTop: '1rem' }}>
+          <div className="signal-stream-table" role="table">
+            <div className="signal-stream-row signal-stream-row--head" role="row">
+              <span>Provider</span>
+              <span>Feature count</span>
+              <span>Tensor channel</span>
+            </div>
+            {aiProviderRows.map((row) => (
+              <div className="signal-stream-row" role="row" key={`ai-provider-${row.provider}`}>
+                <span><strong>{row.provider}</strong></span>
+                <span>{row.count}</span>
+                <span>{aiPageContract?.provider_features_in_tensor ? 'present' : 'pending'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Panel>
       <TrainerPredictionIntelligencePanel summary={predictionSummary} />
 
       <Panel

@@ -6,10 +6,14 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
-from v2.backend.app.services.smart_money_wallets.health import build_moralis_health
-from v2.backend.app.services.smart_money_wallets.normalizer import normalize_moralis_payload
-from v2.backend.app.services.smart_money_wallets.rate_limit import classify_status
+from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
+from app.services.smart_money_wallets.health import build_moralis_health
+from app.services.smart_money_wallets.moralis_feature_bridge import (
+    build_moralis_feature_payload,
+    publish_moralis_feature_payload,
+)
+from app.services.smart_money_wallets.normalizer import normalize_moralis_payload
+from app.services.smart_money_wallets.rate_limit import classify_status
 
 
 def publish_moralis_result(
@@ -26,6 +30,8 @@ def publish_moralis_result(
     budget_status: Mapping[str, Any],
     error_class: str | None = None,
     timeframe: str = "1m",
+    token_map_count: int = 0,
+    wallet_watchlist_count: int = 0,
 ) -> dict[str, Any]:
     normalized = normalize_moralis_payload(
         spec=spec,
@@ -59,21 +65,43 @@ def publish_moralis_result(
             _set_json(redis_client, key, envelope, ex=spec.ttl_seconds)
             keys_written.append(key)
         if symbol:
-            feature_key = f"v2:features:moralis:{symbol}:{timeframe}"
+            # The rolling per-endpoint aggregate lives on an INTERNAL key; the
+            # canonical masked contract on v2:features:moralis:* is owned by
+            # the feature bridge alone. Writing the raw aggregate to the
+            # public feature key clobbered the bridge payload (masks, feature
+            # counts, honesty flags) on every endpoint publish.
+            aggregate_key = f"v2:moralis:feature_aggregate:{symbol}:{timeframe}"
             feature_payload, feature_ttl = _merge_feature_payload(
                 redis_client,
-                feature_key,
+                aggregate_key,
                 envelope=envelope,
                 spec=spec,
                 status=status,
                 actual=actual,
                 now=now,
+                token_map_count=token_map_count,
+                wallet_watchlist_count=wallet_watchlist_count,
+                budget_status=budget_status,
             )
-            _set_json(redis_client, feature_key, feature_payload, ex=feature_ttl)
-            keys_written.append(feature_key)
-            signal_key = f"v2:smart_money:signals:{symbol}"
-            _set_json(redis_client, signal_key, feature_payload, ex=max(900, min(feature_ttl, 21600)))
-            keys_written.append(signal_key)
+            _set_json(redis_client, aggregate_key, feature_payload, ex=feature_ttl)
+            keys_written.append(aggregate_key)
+            bridge_payload = publish_moralis_feature_payload(
+                redis_client,
+                symbol=symbol,
+                timeframe=timeframe,
+                features=feature_payload.get("features") if isinstance(feature_payload.get("features"), Mapping) else {},
+                token_map_count=token_map_count,
+                wallet_watchlist_count=wallet_watchlist_count,
+                actual_payload_present=feature_payload.get("actual_payload_present") is True,
+                event_time=feature_payload.get("event_time"),
+                available_at=feature_payload.get("available_at"),
+                ttl_seconds=feature_ttl,
+                stale_after=feature_payload.get("stale_after"),
+                compute_unit_status=budget_status,
+            )
+            for key in bridge_payload.get("keys_written") or []:
+                if key not in keys_written:
+                    keys_written.append(str(key))
         _set_json(redis_client, "v2:provider:moralis:usage", budget_status, ex=3600)
         endpoint_row = {
             "schema_version": "moralis_endpoint_status_v1",
@@ -97,7 +125,22 @@ def publish_moralis_result(
         )
         _set_json(redis_client, "v2:provider:moralis:endpoint_status", endpoint_status, ex=3600)
         endpoint_actual_count = int(endpoint_status.get("actual_payload_endpoint_count") or 0)
-        health_status = "READY" if endpoint_actual_count > 0 else status
+        feature_bridge_ready = False
+        feature_bridge_color = "GRAY"
+        bridge_status_payload: dict[str, Any] = {}
+        try:
+            bridge_raw = redis_client.get("v2:provider:moralis:feature_bridge_status")
+            if bridge_raw:
+                if isinstance(bridge_raw, bytes):
+                    bridge_raw = bridge_raw.decode("utf-8", errors="replace")
+                bridge_status_payload = json.loads(str(bridge_raw))
+                feature_bridge_ready = bridge_status_payload.get("feature_bridge_ready") is True
+                feature_bridge_color = str(bridge_status_payload.get("dashboard_color") or "GRAY")
+        except Exception:
+            feature_bridge_ready = False
+            feature_bridge_color = "GRAY"
+            bridge_status_payload = {}
+        health_status = "READY" if feature_bridge_ready else (status if endpoint_actual_count <= 0 else "PARTIAL_REQUIRED_FEATURES_MISSING")
         health = build_moralis_health(env, last_http_status=http_status, last_error=error_class)
         health.update(
             {
@@ -111,7 +154,22 @@ def publish_moralis_result(
                 "actual_payload_count_1h": endpoint_actual_count,
                 "last_success_at": now if endpoint_actual_count > 0 else None,
                 "last_error_at": now if not actual and http_status is not None else None,
-                "dashboard_color": _dashboard_color(status=health_status, actual=endpoint_actual_count > 0),
+                "dashboard_color": "GREEN" if feature_bridge_ready else feature_bridge_color,
+                "feature_bridge_ready": feature_bridge_ready,
+                "feature_count": bridge_status_payload.get("feature_count"),
+                "required_feature_count": bridge_status_payload.get("required_feature_count"),
+                "missing_feature_flags": bridge_status_payload.get("missing_feature_flags"),
+                "stale_feature_flags": bridge_status_payload.get("stale_feature_flags"),
+                "missing_mask": bridge_status_payload.get("missing_mask"),
+                "missing_mask_true": bridge_status_payload.get("missing_mask_true"),
+                "stale_mask": bridge_status_payload.get("stale_mask"),
+                "stale_mask_true": bridge_status_payload.get("stale_mask_true"),
+                "token_map_count": bridge_status_payload.get("token_map_count"),
+                "wallet_watchlist_count": bridge_status_payload.get("wallet_watchlist_count"),
+                "actual_payload_present": bridge_status_payload.get("actual_payload_present"),
+                "heartbeat_only": bridge_status_payload.get("heartbeat_only"),
+                "heartbeat_only_green_allowed": False,
+                "decision_time_safe": bridge_status_payload.get("decision_time_safe"),
                 "core_system_blocked": False,
             }
         )
@@ -181,6 +239,9 @@ def _merge_feature_payload(
     status: str,
     actual: bool,
     now: str,
+    token_map_count: int = 0,
+    wallet_watchlist_count: int = 0,
+    budget_status: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int]:
     endpoint_payloads: dict[str, dict[str, Any]] = {}
     now_dt = _parse_utc(now) or datetime.now(timezone.utc)
@@ -241,24 +302,51 @@ def _merge_feature_payload(
     if active_expires:
         ttl = max(1, int((min(active_expires) - now_dt).total_seconds()))
     aggregate_status = "READY" if aggregate_actual else status
-    payload = {
-        **dict(envelope),
-        "schema_version": "moralis_aggregated_feature_payload_v1",
-        "endpoint_id": "moralis_aggregate",
-        "feature_family": "moralis_aggregate",
-        "event_time": max(event_times) if event_times else envelope.get("event_time"),
-        "available_at": max(available_times) if available_times else envelope.get("available_at"),
-        "feature_cutoff": max(event_times) if event_times else envelope.get("event_time") or envelope.get("available_at"),
-        "features": merged_features,
-        "endpoint_payloads": endpoint_payloads,
-        "actual_payload_endpoint_count": len(endpoint_payloads),
-        "actual_payload_present": aggregate_actual,
-        "heartbeat_only": not aggregate_actual,
-        "provider_ready": aggregate_actual,
-        "subscription_status": aggregate_status,
-        "auth_status": aggregate_status,
-        "dashboard_color": _dashboard_color(status=aggregate_status, actual=aggregate_actual),
-    }
+    event_time = max(event_times) if event_times else envelope.get("event_time")
+    available_at = max(available_times) if available_times else envelope.get("available_at")
+    payload = build_moralis_feature_payload(
+        symbol=str(envelope.get("symbol") or ""),
+        timeframe=str(envelope.get("timeframe") or "1m"),
+        features=merged_features,
+        token_map_count=token_map_count,
+        wallet_watchlist_count=wallet_watchlist_count,
+        actual_payload_present=aggregate_actual,
+        event_time=event_time,
+        available_at=available_at,
+        ttl_seconds=ttl,
+        stale_after=ttl,
+        compute_unit_status=budget_status or envelope.get("compute_budget_status") or {},
+    )
+    bridge_status = payload.get("status")
+    bridge_dashboard_color = payload.get("dashboard_color")
+    bridge_provider_ready = payload.get("provider_ready")
+    bridge_feature_ready = payload.get("feature_bridge_ready")
+    bridge_missing = payload.get("missing_feature_flags")
+    bridge_stale = payload.get("stale_feature_flags")
+    payload.update(
+        {
+            **dict(envelope),
+            "schema_version": "moralis_feature_bridge_v1",
+            "endpoint_id": "moralis_aggregate",
+            "feature_family": "moralis_aggregate",
+            "event_time": event_time,
+            "available_at": available_at,
+            "feature_cutoff": event_time or available_at,
+            "features": payload.get("features", {}),
+            "endpoint_payloads": endpoint_payloads,
+            "actual_payload_endpoint_count": len(endpoint_payloads),
+            "actual_payload_present": aggregate_actual,
+            "heartbeat_only": not aggregate_actual,
+            "subscription_status": aggregate_status,
+            "auth_status": aggregate_status,
+            "status": bridge_status,
+            "dashboard_color": bridge_dashboard_color,
+            "provider_ready": bridge_provider_ready,
+            "feature_bridge_ready": bridge_feature_ready,
+            "missing_feature_flags": bridge_missing,
+            "stale_feature_flags": bridge_stale,
+        }
+    )
     return payload, ttl
 
 

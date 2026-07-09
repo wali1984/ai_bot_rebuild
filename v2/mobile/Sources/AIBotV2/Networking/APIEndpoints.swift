@@ -52,6 +52,10 @@ public enum APIEndpoints {
     // MARK: - Signals / predictions / explainability
     public static let signalMatrix = "/api/v2/signals/matrix"
     public static let predictionMatrix = "/api/v2/predictions/matrix"
+    public static let realtimeBootstrap = "/api/v2/realtime/bootstrap"
+    public static let realtimeResources = "/api/v2/realtime/resources"
+    public static let realtimeHealth = "/api/v2/realtime/health"
+    public static let wsRealtime = "/api/v2/realtime/ws"
 
     // MARK: - Helpers
     public static func pushUnregister(token: String) -> String {
@@ -84,6 +88,26 @@ public enum APIEndpoints {
             URLQueryItem(name: "path", value: target.string ?? path),
             URLQueryItem(name: "interval_ms", value: String(intervalMs)),
         ]
+        return components?.string
+    }
+
+    public static func wsRealtimeURL(
+        baseURL: String,
+        resources: [String] = [],
+        intervalMs: Int = 2_000
+    ) -> String? {
+        var baseWS = baseURL
+            .replacingOccurrences(of: "http://", with: "ws://")
+            .replacingOccurrences(of: "https://", with: "wss://")
+        if baseWS.hasSuffix("/") {
+            baseWS.removeLast()
+        }
+        var components = URLComponents(string: baseWS + wsRealtime)
+        var items = [URLQueryItem(name: "interval_ms", value: String(intervalMs))]
+        if !resources.isEmpty {
+            items.append(URLQueryItem(name: "resources", value: resources.joined(separator: ",")))
+        }
+        components?.queryItems = items
         return components?.string
     }
 }

@@ -356,6 +356,9 @@ def test_p0019_portfolio_equity_uses_net_closed_pnl_when_gross_alias_exists(
     result = publisher.run_once(write_redis=False)
 
     assert result["realized_pnl_usd"] == -0.25
+    assert result["realized_net_pnl_usd"] == -0.25
+    assert result["realized_gross_pnl_usd"] == 0.5
+    assert result["total_pnl_usd"] == -0.25
     assert result["closed_ledger_net_pnl_usd"] == -0.25
     assert result["portfolio_realized_matches_closed_ledger"] is True
     assert result["equity"] == 2999.75

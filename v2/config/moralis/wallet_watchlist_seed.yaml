@@ -6,5 +6,4689 @@
     "t1_max_wallets": 250,
     "unknown_wallet_is_smart_money": false
   },
-  "wallets": []
+  "wallets": [
+    {
+      "address": "0xf977814e90da44bfa03b6295a0616a897441acec",
+      "chain": "optimism",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=3;top_holder:1000PEPEUSDT:rank=1;top_holder:UNIUSDT:rank=3;top_holder:AUCTIONUSDT:rank=2;top_holder:LINKUSDT:rank=1;top_holder:CRVUSDT:rank=13",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "ARBUSDT",
+        "AUCTIONUSDT",
+        "CRVUSDT",
+        "LINKUSDT",
+        "OPUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 1,
+      "holder_usd_hint": 420703458.90178245,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x69f2eb0040c2b854ad4f19591413c7398feee3eb",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=1",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 1,
+      "holder_usd_hint": 7101367.862030462,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5a52e96bacdabb82fd05763e25335261b270efcb",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance 28",
+      "source": "top_holder:1000PEPEUSDT:rank=2;top_holder:UNIUSDT:rank=5;top_holder:LINKUSDT:rank=18;top_holder:CRVUSDT:rank=2;top_holder:AAVEUSDT:rank=6",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "CRVUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 2,
+      "holder_usd_hint": 85205762.5835266,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1d48963dd8fada6ab5c2c7b92eba81ecc5030270",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=3;top_holder:1000FLOKIUSDT:rank=11;top_holder:UNIUSDT:rank=11;top_holder:LINKUSDT:rank=12;top_holder:ARBUSDT:rank=14;top_holder:AAVEUSDT:rank=9",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "ARBUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 3,
+      "holder_usd_hint": 89227995.06230107,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf7f468b184a48f6ca37eeffe12733ee1c16b6e26",
+      "chain": "arbitrum",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Upbit: Cold",
+      "source": "top_holder:ARBUSDT:rank=3",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 3,
+      "holder_usd_hint": 37488485.2930916,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x76ec5a0d3632b2133d9f1980903305b62678fbd3",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=8;top_holder:1000FLOKIUSDT:rank=3;top_holder:ARBUSDT:rank=13",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 3,
+      "holder_usd_hint": 21283350.54882483,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x300d1a01b2c8fc34d5d15071b2611560d7ab9d61",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=3",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 3,
+      "holder_usd_hint": 13111081.601474425,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x61cb39bece033c5bda281747db1c15cced2096eb",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=4",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 4,
+      "holder_usd_hint": 76072171.19246197,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3f9a8345729ea842708e080e238c92731e5699b8",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=4",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 4,
+      "holder_usd_hint": 38561509.60524868,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x677aa5f635c42ee556a8bb207d1d9ed4ee8a6cca",
+      "chain": "optimism",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=4",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 4,
+      "holder_usd_hint": 19902877.518578433,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7cd7db9d5f402e5a27774bee9d61ab8f21cc51fd",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=4",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 4,
+      "holder_usd_hint": 13086106.936733097,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc882b111a75c0c657fc507c04fbfcd2cc984f071",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Gate.io 5",
+      "source": "top_holder:1000FLOKIUSDT:rank=4",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": 4,
+      "holder_usd_hint": 4477671.009664925,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x611f7bf868a6212f871e89f7e44684045ddfb09d",
+      "chain": "optimism",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=7;top_holder:1000PEPEUSDT:rank=5;top_holder:UNIUSDT:rank=6;top_holder:CRVUSDT:rank=8",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "CRVUSDT",
+        "OPUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 5,
+      "holder_usd_hint": 63513756.105418086,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x43684d03d81d3a4c70da68febdd61029d426f042",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=14;top_holder:1000FLOKIUSDT:rank=5;top_holder:ARBUSDT:rank=11",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 5,
+      "holder_usd_hint": 14111867.19976235,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x72402ce4d16619e88ceff669634997c360b0f0ad",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=5",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 5,
+      "holder_usd_hint": 13086106.936733097,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa68cb7397fdec008f8aa6f2fc7084f1b2875da8d",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=5",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 5,
+      "holder_usd_hint": 1194166.4019209833,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc671b05671a7cd3080c6ceae79d284bdde0ef271",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Bithumb: Hot Wallet",
+      "source": "top_holder:1000PEPEUSDT:rank=6",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 6,
+      "holder_usd_hint": 24256575.972404607,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc3681709ee476308b45812eabe0eb22f3b816880",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=16;top_holder:1000FLOKIUSDT:rank=6",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 6,
+      "holder_usd_hint": 12871187.979680512,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbe7be7023902f09cc28f0101a3e6e313bf2bc626",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=6",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 6,
+      "holder_usd_hint": 8622999.61245575,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x91d40e4818f4d4c57b4578d9eca6afc92ac8debe",
+      "chain": "eth",
+      "tier": "T0",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;top_holder:AUCTIONUSDT:rank=6;transfer_participant:AUCTIONUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "AUCTIONUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 6,
+      "holder_usd_hint": 1101537.567361192,
+      "transfer_hits": 16,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x47ac0fb4f2d84898e4d9e7b4dab3c24507a6d503",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance: Binance-Peg Tokens",
+      "source": "top_holder:LINKUSDT:rank=14;top_holder:AAVEUSDT:rank=7",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 7,
+      "holder_usd_hint": 68842384.19625083,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd2dd7b597fd2435b6db61ddf48544fd931e6869f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=18;top_holder:LINKUSDT:rank=17;top_holder:CRVUSDT:rank=7;top_holder:AAVEUSDT:rank=15",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "CRVUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 7,
+      "holder_usd_hint": 64334356.28506238,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5069a64bc6616dec1584ee0500b7813a9b680f7e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=7",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 7,
+      "holder_usd_hint": 49031892.13147072,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x15da7556d5ed888306839bed06f868aeaedcb0d7",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=7;top_holder:1000FLOKIUSDT:rank=12;top_holder:ARBUSDT:rank=19",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 7,
+      "holder_usd_hint": 23791829.681043584,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe4abede9a1898b3ad860630bb98abb05677927d2",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=7",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 7,
+      "holder_usd_hint": 851743.3465960625,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x36ca0abdf3852f00aee7798c7dfb5ead5d3fec2a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=8",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 8,
+      "holder_usd_hint": 41625866.97087106,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x07455344be8db742627ae4514c1071e43a154ddb",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=8",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 8,
+      "holder_usd_hint": 9095521.060670994,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xae56aaa3f1d511225d740eda7eb70907626556be",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=8",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 8,
+      "holder_usd_hint": 4254163.061389639,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa023f08c70a23abc7edfc5b6b5e171d78dfc947e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=10;top_holder:1000FLOKIUSDT:rank=9",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 9,
+      "holder_usd_hint": 15665644.127752755,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1190cea3e2c8727218768bfb990c3228aa06dfa9",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=9",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 9,
+      "holder_usd_hint": 8775370.54016424,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe94ffce5c34b14a434363002b5ef9843d664887b",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=9",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 9,
+      "holder_usd_hint": 3081296.0789029193,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6e2f08cd56f4c7c60535f81fc05fdc06eb2ca417",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=9",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 9,
+      "holder_usd_hint": 628892.2499269461,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6d278351f4a973d1349ef1e54ed37daed0799e19",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=10",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 33950890.2251495,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x28c6c06298d514db089934071355e5743bf21d60",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance: Hot Wallet",
+      "source": "top_holder:1000PEPEUSDT:rank=19;transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT;transfer_participant:UNIUSDT;transfer_participant:AUCTIONUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "AUCTIONUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 20071154.17564187,
+      "transfer_hits": 17,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf5acf47847963bd0ae2b8e080729bf508b2482df",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=10",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 7204044.945606574,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8fa129f87b8a11ee1ca35abd46674f8b66984d4a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=10",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 6194145.285184577,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xacd03d601e5bb1b275bb94076ff46ed9d753435a",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance: Hot Wallet",
+      "source": "top_holder:OPUSDT:rank=10",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 2783308.282208703,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa6e2839e73e623ef3853a6bd28d6f02a127a4307",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=10",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 2333713.3213556213,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6c432978708d2606287d9a042bc0f3c4a1b15c01",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=10",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 10,
+      "holder_usd_hint": 574160.4450064563,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0757e27ac1631beeb37eed3270cc6301dd3d57d4",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:LINKUSDT:rank=11",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 150760417.19030395,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7dafba1d69f6c01ae7567ffd7b046ca03b706f83",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:LINKUSDT:rank=19;top_holder:CRVUSDT:rank=11",
+      "watch_tokens": [
+        "CRVUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 47584531.596569404,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5a801a9418d036fd453078c3adcb761fdc5ae695",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=11",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 19516094.10018214,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc93e48d89f2d6dbc1672908aa68ce7c24d0413b4",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=11",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 14937578.058916284,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb7206fa64287f6dc5070de25bbf9b85bf40df1ed",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=11",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 2197068.526217155,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4845eab96cf8ec10cf431b9be98b14326523e684",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=11",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 11,
+      "holder_usd_hint": 482792.4750936047,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x19d373d0f95f00d368a8d57605af746c4ea9b1d0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=12",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 12,
+      "holder_usd_hint": 30681293.39596656,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x45292a0eafa4d1625c06902f359c5ee819afb026",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=12",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 12,
+      "holder_usd_hint": 18950403.681923367,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x262190cce7b2515fc32aba9569e8c1cbee031ccc",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=12",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 12,
+      "holder_usd_hint": 14477898.97504153,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xee5b5b923ffce93a870b3104b7ca09c3db80047a",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=12",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 12,
+      "holder_usd_hint": 6839560.103972994,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x77fb357f55bef5a70d30663955f8c9f35794df0e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=12",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 12,
+      "holder_usd_hint": 5143487.101216205,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x177df24addc9a216f927d2a894ab0b6eec59eb09",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=13",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 29706047.059882242,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0e240e9a7b40ad11fdd69f952ba3bbd29a238bbd",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=13",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 16646818.974974638,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x59779b3aa3540f45b3e7255b4b5b25a8764be686",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=13",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 14426967.290731294,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb76a33b0fe54400a96d22839fafedc27eb45d429",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=13",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 2008183.9998261952,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xcffad3200574698b78f32232aa9d63eabd290703",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Crypto.com: Hot Wallet",
+      "source": "top_holder:1000FLOKIUSDT:rank=13;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 1800603.593349519,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x98adef6f2ac8572ec48965509d69a8dd5e8bba9d",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=13",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 13,
+      "holder_usd_hint": 376338.98238489893,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x030d6830dc8ff125850390da620fa3e12decd437",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=14",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 29706047.059882242,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6e9ddc0143cf07d21ea51b6406755e2da9be0f58",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=14",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 16054535.656873474,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5dc61282cdcf58a27f7a5c9612aea3d2330964be",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=14",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 4214282.048342285,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0a5952a41da1b16d61532a9e019b79855f5afce2",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=14",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 2008183.9998261952,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc80afd311c9626528de66d86814770361fe92416",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;top_holder:1000FLOKIUSDT:rank=14",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 1690589.7535430826,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x78807fd6848329b681ae9ae9fb2135d3ce1e7cb6",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=14",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 14,
+      "holder_usd_hint": 247084.03594010836,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x40b38765696e3d5d8d9d834d8aad4bb6e418e489",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=15;top_holder:LINKUSDT:rank=16",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 64346376.154433414,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xaba63748c4b4def4a3319c3a29fe4829029d926f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=15",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 29706043.89864453,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x361ad597f6a0cf86f8ab14234ca17a5739a67458",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=15",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 5436264.314623319,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x841ed663f2636863d40be4ee76243377dff13a34",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=15;transfer_participant:1000FLOKIUSDT;top_holder:CRVUSDT:rank=17",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 2872517.050412167,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc0e17ad342afabd36b3971f8305ff147006962ae",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=15",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 2007291.198784436,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9b0c45d46d386cedd98873168c36efd0dcba8d46",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=15",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 15,
+      "holder_usd_hint": 216896.15886393606,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7d325a9c8f10758188641fe91cfd902499edc782",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=16",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 26405375.565535817,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x46e946468f747d0e563527bd069d4ded731f33a4",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=16",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 13918328.361878945,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x88a1493366d48225fc3cefbdae9ebb23e323ade3",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=20;top_holder:CRVUSDT:rank=16",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 3029818.1945062364,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf89d7b9c864f589bbf53a82105107622b35eaa40",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=16",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 2006128.5883869983,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0529ea5885702715e83923c59746ae8734c553b7",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=16",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 1568152.2240429285,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0d0707963952f2fba59dd06f2b425ace40b492fe",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Gate.io: Hot Wallet",
+      "source": "transfer_participant:1000FLOKIUSDT;top_holder:AUCTIONUSDT:rank=16;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 16,
+      "holder_usd_hint": 159288.17733731953,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1c1f02f1640e52b313f2d504b3c0c7ee8ad61108",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=17",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 26405375.164376445,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0b8fe2a0dbf47038da4bb6c6dd5af1aef1ebb1f4",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=17",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 13136992.228414305,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd4bb423838a66347f5d6860437cef53e540b5f13",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000PEPEUSDT:rank=17",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 11294984.111776683,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa0acdf9fa38b293f0bbdd01ca6bf3e7ed8291dd4",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=17",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 4663336.816072723,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6d37817d118f72f362cf01e64d9454bdd8e8e92f",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=17",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 2003926.4968080996,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xeda2a65102351bcc259194b89086896dcd82d991",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=17",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 1512981.7426140108,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x36b81fc2a24859e9f9a8848e654c9fa195ffebdc",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=17;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 17,
+      "holder_usd_hint": 159185.6590905066,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5f246d7d19aa612d6718d27c1da1ee66859586b0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=18",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 24094904.837522388,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0277331db7d134b205c5c920395e510da0dad2a5",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=18",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 11691594.716110906,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x46658a4395fa8847b97aa0db19a65e1f36bfb23f",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=18",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 4476377.657264657,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xcfe1a29deb1f3729072cad4e57f8b6e00487d500",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:CRVUSDT:rank=18",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 2785285.9389318638,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb18fe4b95b7d633c83689b5ed3ac4ad0a857a2a7",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=18",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 1973131.565373946,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6a5fbb3ef87a9191d84f8ba5048bbed7533f06b8",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=18;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 18,
+      "holder_usd_hint": 155947.19570786494,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3b93892aceb2d2745ddb041354339239f6211d0a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=19",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 19,
+      "holder_usd_hint": 23929871.2427471,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x118bc4c55700db03ea29a0d920d22221dc1a9620",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=19",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 19,
+      "holder_usd_hint": 11620332.992980285,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x47d838e66ba7b22f778e8559a3dc5658cdc94693",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=19",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 19,
+      "holder_usd_hint": 1916142.734878797,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xda1cfa96deb19c561fa48222f0a0d38fc16fa54d",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:1000FLOKIUSDT:rank=19",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": 19,
+      "holder_usd_hint": 1342728.9290531722,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x2fb635ac9369953e785a27fa252dad1d5bb60b8a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AUCTIONUSDT:rank=19;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 19,
+      "holder_usd_hint": 153883.05264263132,
+      "transfer_hits": 10,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf197c6f2ac14d25ee2789a73e4847732c7f16bc9",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:LINKUSDT:rank=20",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 39417074.96000345,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9d939a9bd16c1e66f37df5ad07a11b31dd63a139",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:UNIUSDT:rank=20",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 23104703.268870648,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf21f6a09e488a7177c59e8e2d362adec661e7689",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:AAVEUSDT:rank=20",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 11585170.33423506,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf897337778c99ec1e9e08444f075844f9c582f59",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:ARBUSDT:rank=20",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 3619771.860088507,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x17642539791414d36d511e6d2aa2c73f0a5aafc9",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "top_holder:OPUSDT:rank=20",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 1916142.734878797,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x167a9333bf582556f35bd4d16a7e80e191aa6476",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Coinone",
+      "source": "top_holder:AUCTIONUSDT:rank=20",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": 20,
+      "holder_usd_hint": 137947.535244828,
+      "transfer_hits": 0,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x51c72848c68a965f66fa7a88855f9f7784502a7f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Wintermute: Market Maker",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:UNIUSDT;transfer_participant:LINKUSDT;transfer_participant:CRVUSDT;transfer_participant:ARBUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AAVEUSDT",
+        "ARBUSDT",
+        "CRVUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 49,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x278d858f05b94576c1e6f73285886876ff6ef8d2",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:LINKUSDT;transfer_participant:ARBUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "ARBUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 31,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbdb3ba9ffe392549e1f8658dd2630c141fdf47b6",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:LINKUSDT;transfer_participant:CRVUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "CRVUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 17,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x21a31ee1afc51d94c2efccaa2092ad1028285549",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance: Hot Wallet",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT;transfer_participant:UNIUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf0bc8fddb1f358cef470d63f96ae65b1d7914953",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Korbit 8",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:AUCTIONUSDT;transfer_participant:LINKUSDT;transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AUCTIONUSDT",
+        "CRVUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5eb9dbbe5eead510a9764eb31b1ebaae92bd58a6",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:AUCTIONUSDT;transfer_participant:LINKUSDT;transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AUCTIONUSDT",
+        "CRVUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x000000000004444c5dc75cb358380d2e3de08a90",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap v4",
+      "source": "transfer_participant:UNIUSDT;transfer_participant:LINKUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 20,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Coinbase: Hot Wallet",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:UNIUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xdfd5293d8e347dfe59e90efd55b2956a1343963d",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Binance: Hot Wallet",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7f604d597c15b2e2f60dc645844f68b1d781b752",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT;transfer_participant:LINKUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "AAVEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x67336cec42645f55059eff241cb02ea5cc52ff86",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:LINKUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7f54f05635d15cde17a49502fedb9d1803a3be8a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 10,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa58bdd0ab5ebbb8dc425090fea8fd0ba969c1668",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 8,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x74de5d4fcbf63e00296fd95d33236b9794016631",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "MetaMask: Spender",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbee3211ab312a8d065c4fef0247448e17a8da000",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd4b5568c52e1e5c809195a87486109d189c2fbd9",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe8736af1926e9d8f5a6602fbbb0893b26436d710",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9008d19f58aabd9ed0d60971565aa8510560ab41",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "CoW Protocol: Settlement",
+      "source": "transfer_participant:UNIUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5bdf85216ec1e38d6458c870992a69e38e03f7ef",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Bitget: Hot Wallet",
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8f10b468b06c6fd214b65f87778827f7d113f996",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT;transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "OPUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x905184c521129d4f201964a493d1bbd644cbd3e3",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x93228d328c9c74c2bfe9f97638bbb5ef322f2bd5",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0b60c1ee6d01c3d5704eeae6c12552c7a63beead",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT;transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xba12222222228d8ba445958a75a0704d566bf2c8",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Balancer: Vault",
+      "source": "transfer_participant:ARBUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x46340b20830761efd32832a74d7169b29feb9758",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Crypto.com: Hot Wallet",
+      "source": "transfer_participant:1000FLOKIUSDT;transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfc9161b99a3b0691477e12737163d007600ac262",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT;transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT",
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x57483d84305357f22e293a55bb7ddc2798352d40",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x14243ea6bb3d64c8d54a1f47b077e23394d6528a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: LINK-AAVE",
+      "source": "transfer_participant:LINKUSDT;transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT",
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xaba503836de3be071c92be7ff872c74eaed4fe9e",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 18,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4674abc5796e1334b5075326b39b748bee9eaa34",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 18,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb8fc6bf89e16e66b5fa9aa44b8393a588cf1e77c",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 17,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4ebdf703948ddcea3b11f675b4d1fba9d2414a14",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Curve.fi: TriCRV (crvUSDETHCRV)",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 13,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xca7c2771d248dcbe09eabe0ce57a62e18da178c0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V2 Pool",
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 12,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbc530bfa3fca1a731149248afc7f750c18360de1",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 12,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf403c135812408bfbe8713b5a23a04b3d48aae31",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Convex Finance: Booster",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 12,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfaa318479b7755b2dbfdd34dc306cb28b420ad12",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 11,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x069c637cc3dc68aab4cd785df4da7137c717cf3f",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 8,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3470447f3cecffac709d3e783a307790b0208d60",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe51635ae8136abac44906a8f230c2d235e9c195f",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Camelot: Algebra Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 7,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd2676a9e4f594ec7c3423d5c39f6dea71428008b",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfae2ae0a9f87fd35b5b0e24b47bac796a7eefea1",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Camelot: Algebra Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 6,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x84a67cd00eb244edca2288346add251a783243c8",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: CL Pool",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x429e690b0b436146943480d4a21dd2849490ebbf",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5d4f3c6fa16908609bac31ff148bd002aa6b8c83",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xcda53b1f66614552f834ceef361a8d12a0b8dad8",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x58095979b412a366687ca05cbe85ff56241be21f",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 5,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x06fd4ba7973a0d39a91734bbc35bc2bcaa99e3b0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "LiFi: LiFi Diamond",
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf33368d19b095242f287b1264e97f51e29333301",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x93c30e6e09f698cfea99b09b5166ed90cfaedd17",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfe9529b753b412941127fea1981e5ce0a85c101e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x73d5dff3fe6846b53dd4e275c565c338309002bb",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xdd95d5acc5225520f82023446669a214a422f698",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0000830df56616d58976a12d19d283b40e25beef",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8d6ce71ab8c98299c1956247ca9aaec080dd2df3",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x38930eea3767ced8a7bd765f67469f66e35fc8d0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x989aeb4d175e16225e39e87d0d97a3360524ad80",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Convex Finance: Voter Proxy",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7a186984ac827fb7ad274ebac333b45c20be9def",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x24f074da357516549f7bda3f1e01cc5c1f5273bf",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 4,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9a13f98cb987694c9f086b1f5eb990eea8264ec3",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: PoolManager",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe8633ce5d216ebfdddf6875067dfb8397dedcaf3",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb7131fc8cdc43060a6210257f537dba5fcae6aed",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xefef30bd1cca520619306c95091ab18473febc5c",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb46a0f71fded6ceb00b1c9278e0ac7e22c242df5",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6522b7f9d481eceb96557f44753a4b893f837e90",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x663dc15d3c1ac63ff12e45ab68fea3f0a883c251",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "DLN Trade: CrosschainForwarder (Proxy)",
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9938ee74ba7a5c1abcd157272a18fcfc9ec9e8d5",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa113ad3ff6e200f8a85bf6b57a6b31ede7ec4354",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x89d52ecf8816ca551c77d2c5f06802a27997b5b8",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x41fbba5cb38d22b2d80606406944cedd7c97f6f9",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xac5a2c404ebba22a869998089ac7893ff4e1f0a7",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf993aef0fe2018d01ec10cbdffeb1836de9c196e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3fe65692bfcd0e6cf84cb1e7d24108e434a7587e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Convex Finance: cvxCRV Rewards",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xaebdca1bc8d89177ebe2308d62af5e74885dccc3",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 3,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4dc22588ade05c40338a9d95a6da9dcee68bcd60",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: CL Pool",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x43c3f2d0aa0ebc433d654bb6ebf67f0c03f8d8d9",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: OP-DAI",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8ab78c7ffecdb357a1c5062c85d48d4d3ab00c4e",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0d05a7d3448512b78fa8a9e46c4872c88c4a0d05",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xebd5311bea1948e1441333976eadcfe5fbda777c",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: CL Pool",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3b749be6ca33f27e2837138ede69f8c6c53f9207",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf2d42c46528116362aca448837a0236459b53c63",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x443055d94d119c46b6d74cd68a04c933f17b6a78",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x31074ff71ce53897194028316a355f98f2043d88",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc56b2bef865893da71dd95150313dbadf659f4f3",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc4d50263c1e89b65b63c830ff93fadc957064fa4",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8ae990228e3fb6b7a888b09c304d8d255c3e0fd1",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x818570b628809140c3d1fdde811ef3b91dfd4482",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbc97d93eab4958045f58d1c04c69f038c705ec75",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x69427344382602a5bae42e11a4dbbd38e5b78122",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x700e0841ce0892969d2f9cf523c6298b3ef056a6",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Kraken: Hot Wallet",
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x75db0ef5cbbc6bfd5b9e927f92e3763badba2abe",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfed2399b20011af1fc985d5354f12cbc57ed48f9",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc6fe52b09dd87ce2b4f45d3659de6bae9df3d94c",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000PEPEUSDT",
+      "watch_tokens": [
+        "1000PEPEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x18a3a7fbee2c00d29eb80ebc536b0c4e0714a50f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xee845948e6806d12e966137caa07d49bbe632fe3",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbfe3ad86d000ec4b1b6fd8a9f44db2f64bfd4cf2",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe49c889e17d3cc604a3aab2e0d433da0b8f0f5c0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1ff7dba42b582220948b104688cb1b6aee629dab",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1f96affffa07642c70a7a8562980e4054ab6f61f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:1000FLOKIUSDT",
+      "watch_tokens": [
+        "1000FLOKIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5e91bf626857f69f746a0a1920b4309cc230a505",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x8672a3a1c258d3a6601be83d9505365ef715afd6",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe6d9922db32692f5df216bdedc7e4ff1bc2e6033",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe8e1f50392bd61d0f8f48e8e7af51d3b8a52090a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:UNIUSDT",
+      "watch_tokens": [
+        "UNIUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5b150b4b662343113e1215586539a9cfcaaf7d42",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x708e7bad92dcd97e0ff875864c90e7b63fc1f457",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf30ca446b32d4c7f40d1d44ce3d66d626425005b",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfe95d74ff663bf0072b61605ed1dc643b998101e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x89d5416134a8516d303661c6d72981bd9df2b5b8",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x429ecf6a29751ba16e35741e12dd269438dcebbf",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x2fb6dd061892a8bb1877f1b635f8efcce97f0b8a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x15f46551f5d736c9b8861c1d1358e29183f7a6c7",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5ec8669ed760383eb5ed2ff7a6533dbf7d86336c",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AUCTIONUSDT",
+      "watch_tokens": [
+        "AUCTIONUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x940b6927a6c9a1555415a6dd8e7a34ef37aeb17e",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x82ddbb4f20ee3feda070704b4a944976e56061ad",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x66e1d4944fcf82bf49744156e7662b06522c5d30",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x90b857f88ed2abeee92a00fda92f56ef6a40d317",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfad57d2039c21811c8f2b5d5b65308aa99d31559",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: LINK-USDC",
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xcefcd54daf77728cd2b797f9c5d1713932e11240",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa5f91e598668040055dc861a7316e677a5b730b0",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x61578373902e58a645bbfa4e472181da2f53d723",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc6240dbc3594ca0281149f09e06c3a7488920e74",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4a110e4bc24856c3f31a20a5458b32ec01b8425a",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf3dd734a1abc39c4fc7dcb3f09c6738d274fab36",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:LINKUSDT",
+      "watch_tokens": [
+        "LINKUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x367a0970ba47ea29c97bbe354c964b829686b92f",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x971add32ea87f10bd192671630be3be8a11b8623",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Curve.fi: Metapool",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x919fa96e88d67499339577fa202345436bcdaf79",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: CRV",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x786cc545da33da2cdff816e52f6f18b2ab356125",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xf189a4a1e845fd62944f93de497409798523b397",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xcf50b810e57ac33b91dcf525c6ddd9881b139332",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Convex Finance: CVX Rewards",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1389388d01708118b497f59521f6943be2541bb7",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Convex Finance: Treasury Vault",
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x99f5acc8ec2da2bc0771c32814eff52b712de1e5",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0000000095310137125f82f37fbe5d2f99279947",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x6f0538001f90d0a5f0000060d01d34c002030900",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x5da0437e89eef1fb67b7199875d241024ece8efa",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd876fb6c915a6eb6ba2eb007819edd8103d60fc3",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7b150d56695baeea971e87b193a1a84902d57f27",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:CRVUSDT",
+      "watch_tokens": [
+        "CRVUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x861363b9720be548f0bede1fbd37b51a098f8f55",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x9ffca51d23ac7f7df82da414865ef1055e5afcc3",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "PancakeSwap: V3 Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x97bca422ec0ee4851f2110ea743c1cd0a14835a1",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x30028bfdf263a944d40e6db9e7ae5849c08255f4",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xe4769865d73ecc15a8e3d7d4e4c5b449682eaac1",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x09ad820aac5779683b481c4674208a4e1b024afa",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc34c7082cbcb33c72548a4372265b9b6c2590f2e",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x93e6d42aaff10036803e839d6004a5d61e04028e",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xc6f780497a95e246eb9449f5e4770916dcd6396a",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd0f50ca9ef8ca2c6e5f47c2d9fe8bfd467c896ab",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0a2854fbbd9b3ef66f17d47284e7f899b9509330",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "MetaMask: Spender",
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x48daab9f7ed6e3184c26d9ddaccc356d52d6237f",
+      "chain": "arbitrum",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:ARBUSDT",
+      "watch_tokens": [
+        "ARBUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x3d7954643247bf5b5a5ba9233a284bfb2d554732",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x2c0552e5dcb79b064fd23e358a86810bc5994244",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x06cff7088619c7178f5e14f0b119458d08d2f5ef",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x59c38b6775ded821f010dbd30ecabdcf84e04756",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xa5f15a29c650d2567191a3553e4512e752ca94de",
+      "chain": "eth",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:AAVEUSDT",
+      "watch_tokens": [
+        "AAVEUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 2,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1d751bc1a723accf1942122ca9aa82d49d08d2ae",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0c3a7aa27a6e14b7a92e09456b0970ab71cc0598",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xd8dd9a8b2aca88e68c46af9008259d0ec04b7751",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Curve.fi: TriCRV-OPTIMISM (3CRV-OP)",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xfc1f3296458f9b2a27a0b91dd7681c4020e09d05",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: OP-WETH",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb2ac2e5a3684411254d58b1c5a542212b782114d",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x1c3140ab59d6caf9fa7459c6f83d4b52ba881d36",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: USDC-OP",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x47029bc8f5cbe3b464004e87ef9c9419a48018cd",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: OP-USDC",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0df083de449f75691fc5a36477a6f3284c269108",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: VolatileV2 AMM - OP/USDC (VAMMV2-OP/USDC)",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x7178f61694ba9109205b8d6f686282307625e62d",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: VolatileV2 AMM - wstETH/OP (VAMMV2-WSTETH/OP)",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xefe139aa71b674168f5823360a824b3714f2718d",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: VolatileV2 AMM - OP/agEUR (VAMMV2-OP/AGEUR)",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xffd74ef185989bff8752c818a53a47fc45388f08",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: VELO-OP",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb533c12fb4e7b53b5524eab9b47d93ff6c7a456f",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Uniswap: V3 Pool",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x67f56ac099f11ad5f65e2ec804f75f2cea6ab8c5",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": "Velodrome Finance: VolatileV2 AMM - USDC/OP (vAMMV2-USDC/OP)",
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0xb359dc035832add753993654ceb584a7257c5a14",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x4d8b739114309e4dae98362c447099b671d12eca",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x2f4f25f5065c1409c443777cce5d488255925731",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x00000000e4932e89d3a6a10a09b3319ce28652fc",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    },
+    {
+      "address": "0x0df9a8932b1ccacfcad3f1409431ebf8800f42e8",
+      "chain": "optimism",
+      "tier": "T1",
+      "classification": "CANDIDATE_SMART_WALLET",
+      "verified_smart_wallet": false,
+      "label": null,
+      "source": "transfer_participant:OPUSDT",
+      "watch_tokens": [
+        "OPUSDT"
+      ],
+      "holder_best_rank": null,
+      "holder_usd_hint": 0.0,
+      "transfer_hits": 1,
+      "added_utc": "2026-07-09T02:10:34Z",
+      "added_by": "v2_moralis_wallet_watchlist_bootstrap"
+    }
+  ],
+  "bootstrap_generated_utc": "2026-07-09T02:10:34Z"
 }

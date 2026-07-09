@@ -14,6 +14,8 @@
     "crawl:dashboard": "node scripts/crawl-dashboard-routes.mjs",
     "crawl:production-website": "node scripts/crawl-production-website-routes.mjs",
     "crawl:tonight": "node scripts/crawl-tonight-routes.mjs",
+    "soak:realtime": "node scripts/realtime-soak-check.mjs",
+    "audit:public-ready": "node scripts/public-ready-audit.mjs",
     "sync:proof-artifacts": "node scripts/sync-proof-artifacts.mjs",
     "typecheck": "tsc -b --noEmit",
     "test:e2e": "playwright test",

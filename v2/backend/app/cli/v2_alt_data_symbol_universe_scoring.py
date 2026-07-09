@@ -99,6 +99,7 @@ def _load_inputs_for_symbol(redis_client: Any, symbol: str) -> dict[str, Any]:
     - ``v2:altdata:santiment:symbol:{symbol}``
     - ``v2:market:*`` (prices, funding, open_interest)
     - ``v2:features:latest:{symbol}:{timeframe}``
+    - ``v2:features:moralis:{symbol}:{timeframe}``
 
     The CLI MUST NOT read ``v2:paper:*`` or ``v2:risk:*`` keys.
     Codex regression `SCORING_INPUT_BOUNDARY_INCLUDES_V2_PAPER_AND_RISK_CONTEXT`
@@ -145,7 +146,10 @@ def _load_inputs_for_symbol(redis_client: Any, symbol: str) -> dict[str, Any]:
         "feature_payloads": {
             "latest": _redis_get_json(
                 redis_client, f"v2:features:latest:{symbol}:{timeframe}"
-            )
+            ),
+            "moralis": _redis_get_json(
+                redis_client, f"v2:features:moralis:{symbol}:{timeframe}"
+            ),
         },
     }
 
@@ -174,7 +178,7 @@ def _write_report(payload: dict[str, Any]) -> None:
         "",
         "## Scope",
         "",
-        "The scorer reads ONLY ``v2:altdata:nansen:*``, ``v2:altdata:lunarcrush:*``, ``v2:altdata:coingecko:*``, ``v2:altdata:surf:*``, ``v2:altdata:coinglass:*``, ``v2:altdata:public_intel:*``, ``v2:altdata:aicoin:*``, ``v2:altdata:whale_walls:*``, ``v2:altdata:santiment:*``, ``v2:market:*``, and ``v2:features:latest:{symbol}:{timeframe}``. It does NOT read ``v2:paper:*`` or ``v2:risk:*``; any paper/risk overlay belongs to a separately reviewed lane.",
+        "The scorer reads ONLY ``v2:altdata:nansen:*``, ``v2:altdata:lunarcrush:*``, ``v2:altdata:coingecko:*``, ``v2:altdata:surf:*``, ``v2:altdata:coinglass:*``, ``v2:altdata:public_intel:*``, ``v2:altdata:aicoin:*``, ``v2:altdata:whale_walls:*``, ``v2:altdata:santiment:*``, ``v2:market:*``, ``v2:features:latest:{symbol}:{timeframe}``, and ``v2:features:moralis:{symbol}:{timeframe}``. It does NOT read ``v2:paper:*`` or ``v2:risk:*``; any paper/risk overlay belongs to a separately reviewed lane.",
         "",
         "## Candidate Ranking",
         "",
@@ -303,6 +307,7 @@ def run_once(
             "v2:market:funding:{symbol}",
             "v2:market:open_interest:{symbol}",
             "v2:features:latest:{symbol}:{timeframe}",
+            "v2:features:moralis:{symbol}:{timeframe}",
         ],
         "forbidden_input_namespaces_for_alt_data_scoring": [
             "v2:paper:*",

@@ -2,9 +2,11 @@ import { expect, test, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
 import { LEGACY_REDIRECTS, PUBLIC_PAGE_PATHS } from './helpers/routeContracts';
 import { mockAuth as mockBackendAuth, type TestAuthRole } from './helpers/auth';
-import { marketFavoriteSymbolSet } from '../../src/pages/markets';
-import { normalizeWatchlistInput } from '../../src/pages/account-settings';
-import { sourceText as portfolioSourceText } from '../../src/pages/positions';
+import {
+  marketFavoriteSymbolSet,
+  normalizeWatchlistInput,
+  sourceText as portfolioSourceText,
+} from '../../src/lib/traderPageHelpers';
 import { MERGED_LEGACY_PATHS } from '../../src/pages/productNavigation';
 
 const FORBIDDEN_NAV = [

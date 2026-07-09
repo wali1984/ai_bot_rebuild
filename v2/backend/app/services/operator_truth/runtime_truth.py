@@ -157,7 +157,13 @@ def build_operator_runtime_truth() -> dict[str, Any]:
     paper_unrealized_pnl = portfolio.get("unrealized_pnl_usd") if portfolio else None
     paper_open_positions = portfolio.get("open_positions_count", 0) if portfolio else 0
     paper_closed_positions = portfolio.get("closed_positions_count", 0) if portfolio else 0
-    paper_equity_source = portfolio.get("paper_equity_source", "MISSING") if portfolio else "MISSING"
+    paper_equity_source = (
+        portfolio.get("pnl_source_key")
+        or portfolio.get("paper_equity_source")
+        or "v2:portfolio:state"
+        if portfolio
+        else "MISSING"
+    )
 
     # --- Canary / live gate check ---
     canary_go_no_go = canary.get("go_no_go", "MISSING") if canary else "MISSING"

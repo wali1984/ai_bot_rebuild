@@ -21,7 +21,7 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
-from v2.backend.app.services.smart_money_wallets.cu_budget import MoralisCuBudget
+from app.services.smart_money_wallets.cu_budget import MoralisCuBudget
 
 BASE = "https://deep-index.moralis.io/api/v2.2"
 USER_AGENT = "aibot-v2-moralis-client/1.0 (+python-urllib)"

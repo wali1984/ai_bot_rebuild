@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "bypassPermissions",
     "allow": [
       "Bash(python3 -c ' *)",
       "Bash(python3 -m py_compile v2/backend/app/services/native_trainer/hybrid_cuda_trainer/config.py v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py v2/backend/app/cli/v2_native_cuda_trainer_persistent_loop.py)",

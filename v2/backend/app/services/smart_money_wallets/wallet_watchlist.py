@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
+from app.services.smart_money_wallets.address_classifier import classify_address
 
 
 WALLET_WATCHLIST_KEY = "v2:moralis:wallet_watchlist"

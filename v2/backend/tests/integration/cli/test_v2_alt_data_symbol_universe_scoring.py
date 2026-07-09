@@ -73,6 +73,34 @@ def _lunar(symbol: str = "BTCUSDT") -> dict:
     }
 
 
+def _moralis_bridge(symbol: str = "BTCUSDT") -> dict:
+    return {
+        "schema_version": "moralis_feature_bridge_v1",
+        "provider": "moralis",
+        "symbol": symbol,
+        "timeframe": "1m",
+        "generated_at": "2026-07-09T01:00:00Z",
+        "available_at": "2026-07-09T01:00:00Z",
+        "feature_cutoff": "2026-07-09T01:00:00Z",
+        "decision_time_safe": True,
+        "status": "CONFIGURED_NO_WATCHLIST",
+        "dashboard_color": "GRAY",
+        "feature_bridge_ready": False,
+        "feature_count": 0,
+        "required_feature_count": 15,
+        "missing_feature_flags": ["moralis_whale_buy_usd"],
+        "stale_feature_flags": [],
+        "missing_mask_true": True,
+        "stale_mask_true": False,
+        "actual_payload_present": False,
+        "heartbeat_only": True,
+        "token_map_count": 9,
+        "wallet_watchlist_count": 0,
+        "raw_key_exposed": False,
+        "core_system_blocked": False,
+    }
+
+
 def _coingecko(symbol: str = "BONKUSDT") -> dict:
     return {
         "schema_version": "v2_altdata_coingecko_symbol_discovery_v1",
@@ -220,6 +248,34 @@ def test_symbol_score_combines_nansen_and_lunar_without_gate_override() -> None:
     assert payload["approves_live"] is False
     assert payload["checkpoint_compatibility_claimed"] is False
     assert payload["policy_architecture_parity_claimed"] is False
+
+
+def test_symbol_score_embeds_moralis_bridge_without_changing_score() -> None:
+    svc = _svc()
+    baseline = svc.build_symbol_score_payload(
+        "BTCUSDT",
+        nansen_payload=_nansen(),
+        lunarcrush_payload=_lunar(),
+        generated_utc="2026-05-18T05:05:00Z",
+    )
+    payload = svc.build_symbol_score_payload(
+        "BTCUSDT",
+        nansen_payload=_nansen(),
+        lunarcrush_payload=_lunar(),
+        feature_payloads={"moralis": _moralis_bridge()},
+        generated_utc="2026-05-18T05:05:00Z",
+    )
+
+    assert payload["altdata_symbol_score"] == baseline["altdata_symbol_score"]
+    assert payload["missing_provider_flags"] == baseline["missing_provider_flags"]
+    assert payload["stale_provider_flags"] == baseline["stale_provider_flags"]
+    assert payload["input_presence"]["moralis_feature_bridge"] is True
+    assert payload["moralis_feature_bridge_status"] == "CONFIGURED_NO_WATCHLIST"
+    assert payload["moralis_missing_feature_flags"] == ["moralis_whale_buy_usd"]
+    assert payload["moralis_token_map_count"] == 9
+    assert payload["moralis_wallet_watchlist_count"] == 0
+    assert payload["moralis_decision_time_safe"] is True
+    assert payload["moralis_raw_key_exposed"] is False
 
 
 def test_missing_provider_payloads_remain_explicit_and_do_not_fabricate_score() -> None:
@@ -755,6 +811,7 @@ def test_run_once_status_payload_does_not_advertise_v2_paper_or_v2_risk_inputs()
     assert "v2:risk:*" in forbidden
     assert "v2:altdata:aicoin:symbol:{symbol}" in advertised
     assert "v2:altdata:whale_walls:symbol:{symbol}" in advertised
+    assert "v2:features:moralis:{symbol}:{timeframe}" in advertised
     assert payload["scoring_input_boundary_remediated"] is True
 
 

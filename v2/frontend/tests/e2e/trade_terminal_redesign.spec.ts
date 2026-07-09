@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { gotoAs } from './_shared';
 import { selectPrimaryExchangeAccount } from '../../src/hooks/useTraderContext';
 import { tradeAccountScopeKey, tradeTerminalTestHooks } from '../../src/hooks/useTradeTerminal';
-import { resolveTypedPortfolioAccount, typedPortfolioMatchesCurrentScope } from '../../src/hooks/usePaperAccountTruth';
+import { resolvePaperAccountTruth, resolveTypedPortfolioAccount, typedPortfolioMatchesCurrentScope } from '../../src/hooks/usePaperAccountTruth';
 import { paperPreviewMatchesTraderScope } from '../../src/components/trade/PaperOrderTicket';
 import { openOrdersTableTestHooks } from '../../src/components/trade/OpenOrdersTable';
 import { safeOrderEnvelopeSymbol } from '../../src/api/v2Orders';
@@ -313,7 +313,14 @@ test('requires typed paper-account truth to match the active trader and paper ac
     data: {
       equity: 1000,
       realized_pnl: 12,
+      realized_net_pnl_usd: 2,
+      realized_pnl_usd: 12,
       unrealized_pnl: -3,
+      unrealized_pnl_usd: -1,
+      total_pnl_usd: 1,
+      pnl_source_key: 'v2:portfolio:state',
+      pnl_source_route: '/api/v2/portfolio',
+      pnl_source_type: 'CANONICAL_CURRENT_SESSION_RUNTIME',
       positions: [],
       mode: 'paper' as const,
       trader_id: 'trader-wajidali1984',
@@ -367,6 +374,10 @@ test('requires typed paper-account truth to match the active trader and paper ac
     'paper-wajidali1984',
   )).toBe(false);
   expect(resolveTypedPortfolioAccount(portfolio, 'trader-wajidali1984', 'paper-wajidali1984').equity).toBe(1000);
+  expect(resolveTypedPortfolioAccount(portfolio, 'trader-wajidali1984', 'paper-wajidali1984').realizedPnl).toBe(2);
+  expect(resolveTypedPortfolioAccount(portfolio, 'trader-wajidali1984', 'paper-wajidali1984').unrealizedPnl).toBe(-1);
+  expect(resolveTypedPortfolioAccount(portfolio, 'trader-wajidali1984', 'paper-wajidali1984').totalPnl).toBe(1);
+  expect(resolveTypedPortfolioAccount(portfolio, 'trader-wajidali1984', 'paper-wajidali1984').source).toBe('v2:portfolio:state');
   expect(resolveTypedPortfolioAccount(portfolio, 'trader-other', 'paper-wajidali1984').equity).toBeNull();
     expect(resolveTypedPortfolioAccount(
       {
@@ -386,6 +397,35 @@ test('requires typed paper-account truth to match the active trader and paper ac
     'trader-wajidali1984',
     'paper-wajidali1984',
   ).totalPnl).toBeNull();
+});
+
+test('unscoped paper-account truth prefers canonical portfolio PnL source fields', () => {
+  const account = resolvePaperAccountTruth(
+    { paper_equity: 9999, paper_pnl: 110, paper_realized_pnl_usd: 77, paper_unrealized_pnl_usd: 33 },
+    { paper_current_session_equity: 9999, paper_current_session_pnl: 110 },
+    {
+      generated_utc: '2026-07-09T02:30:00Z',
+      account_mode: 'paper',
+      equity: 3000,
+      cash_balance: 3000,
+      realized_net_pnl_usd: 0,
+      realized_pnl_usd: 77,
+      unrealized_pnl_usd: 0,
+      total_pnl_usd: 0,
+      open_positions_count: 0,
+      closed_positions_count: 0,
+      pnl_source_key: 'v2:portfolio:state',
+      pnl_source_route: '/api/v2/portfolio',
+      pnl_source_type: 'CANONICAL_CURRENT_SESSION_RUNTIME',
+      paper_equity_source: 'legacy-paper-equity',
+    },
+  );
+
+  expect(account.equity).toBe(3000);
+  expect(account.realizedPnl).toBe(0);
+  expect(account.unrealizedPnl).toBe(0);
+  expect(account.totalPnl).toBe(0);
+  expect(account.source).toBe('v2:portfolio:state');
 });
 
 test('requires paper preview scope to match the active trader and paper account', () => {

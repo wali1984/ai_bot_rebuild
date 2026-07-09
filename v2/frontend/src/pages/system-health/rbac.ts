@@ -1,3 +1,3 @@
 import type { PageRbac } from '../../types/page';
-const rbac: PageRbac = { minRole: 'admin' };
+const rbac: PageRbac = { minRole: 'reviewer' };
 export default rbac;

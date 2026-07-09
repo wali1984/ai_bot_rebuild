@@ -14,6 +14,7 @@ import { formatMoney, formatPrice } from '../../lib/tradeFormatters';
 import { selectAccountMetric, selectSectionMetric } from '../../selectors/accountSelectors';
 import { selectPositionMetric, selectPositions } from '../../selectors/positionSelectors';
 import { selectRiskStatus } from '../../selectors/riskSelectors';
+import { sourceText } from '../../lib/traderPageHelpers';
 import type { TraderRealtimeState } from '../../stores/traderRealtimeStore';
 import meta from './meta';
 import rbac from './rbac';
@@ -22,11 +23,7 @@ import route from './route';
 export { default as meta } from './meta';
 export { default as rbac } from './rbac';
 export { default as route } from './route';
-
-const SOURCE_URL_LABELS: Record<string, string> = {
-  '/api/v2/portfolio': 'Trader account source',
-  'unavailable': 'Data source unavailable',
-};
+export { sourceText };
 
 type PositionTab = 'open' | 'closed' | 'historical';
 
@@ -37,10 +34,6 @@ interface RuntimePositionEvidence {
     open_position_count?: number | null;
     closed_trade_count?: number | null;
   };
-}
-
-export function sourceText(input: string): string {
-  return SOURCE_URL_LABELS[input] ?? input;
 }
 
 function KV({ label, value, color }: { label: string; value: ReactNode; color?: string }): JSX.Element {

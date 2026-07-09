@@ -2066,6 +2066,45 @@ def _read_json_key(r, key: str) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _altdata_feature_hash(payload: Any) -> str | None:
+    features = payload.get("features") if isinstance(payload, Mapping) else None
+    if not isinstance(features, Mapping) or not features:
+        return None
+    canonical = json.dumps(features, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
+
+
+def _altdata_provider_lineage(
+    r,
+    *,
+    symbol: str,
+    timeframe: str,
+    confluence: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    symbol = str(symbol or "").upper()
+    timeframe = str(timeframe or "1m")
+    confluence_payload = dict(confluence) if isinstance(confluence, Mapping) else {}
+    features = confluence_payload.get("features")
+    feature_map = features if isinstance(features, Mapping) else {}
+    coinglass = _read_json_key(r, f"{V2_REDIS_PREFIX}features:coinglass:{symbol}:{timeframe}")
+    moralis = _read_json_key(r, f"{V2_REDIS_PREFIX}features:moralis:{symbol}:{timeframe}")
+    santiment = _read_json_key(r, f"{V2_REDIS_PREFIX}features:santiment:{symbol}:1h")
+    return {
+        "provider_features_used": sorted(
+            name for name, value in feature_map.items() if value is not None
+        ),
+        "provider_features_missing": sorted(
+            name for name, value in feature_map.items() if value is None
+        ),
+        "coinglass_feature_hash": _altdata_feature_hash(coinglass),
+        "moralis_feature_hash": _altdata_feature_hash(moralis),
+        "santiment_feature_hash": _altdata_feature_hash(santiment),
+        "altdata_confluence_hash": _altdata_feature_hash(confluence_payload),
+        "altdata_available_at": confluence_payload.get("generated_utc"),
+        "altdata_provider_hash_source": "v2_feature_aliases",
+    }
+
+
 def _read_paper_entry_freeze(r) -> dict[str, Any]:
     payload = _read_json_key(r, PAPER_ENTRY_FREEZE_REDIS_KEY)
     portfolio = _read_json_key(r, f"{V2_REDIS_PREFIX}portfolio:state")
@@ -9852,6 +9891,24 @@ def _paper_source_tier_guardian_context(classification: dict[str, Any]) -> dict[
 
 
 PREEMPTIVE_DECISION_CONTEXT_FIELDS = (
+    "altdata_confluence_present",
+    "altdata_trade_block_score",
+    "altdata_reduce_size_score",
+    "altdata_hedge_required_score",
+    "altdata_hedge_required",
+    "altdata_wallet_distribution_score",
+    "altdata_liquidation_sweep_risk_score",
+    "altdata_social_euphoria_risk_score",
+    "altdata_feature_cutoff",
+    "altdata_available_at",
+    "altdata_providers_present",
+    "provider_features_used",
+    "provider_features_missing",
+    "coinglass_feature_hash",
+    "santiment_feature_hash",
+    "moralis_feature_hash",
+    "altdata_confluence_hash",
+    "altdata_provider_hash_source",
     "preemptive_decision_id",
     "preemptive_decision_version",
     "preemptive_decision_time",
@@ -19731,6 +19788,9 @@ def run_once() -> dict:
     runtime_now = datetime.now(timezone.utc)
     paper_active_runtime_owner_status = _paper_active_runtime_owner_status()
     r = _connect_redis()
+    # Per-cycle cache of alt-data confluence payloads (CoinGlass+Santiment+
+    # Moralis fusion) consumed by preemptive edge control; read-only.
+    _altdata_confluence_cache: dict[tuple[str, str], dict[str, Any]] = {}
     _write_paper_runtime_heartbeat(
         r,
         started_at=started,
@@ -20511,12 +20571,30 @@ def run_once() -> dict:
                 pre_cycle_paper_performance_circuit_breaker_status
             ),
         )
+        _conf_symbol = str(intent.get("symbol") or "").upper()
+        _conf_timeframe = str(
+            intent.get("timeframe") or intent.get("thesis_timeframe") or "1m"
+        )
+        _conf_cache_key = (_conf_symbol, _conf_timeframe)
+        if _conf_cache_key not in _altdata_confluence_cache:
+            _altdata_confluence_cache[_conf_cache_key] = _read_json_key(
+                r, f"v2:altdata:confluence:{_conf_symbol}:{_conf_timeframe}"
+            )
         preemptive_decision = evaluate_preemptive_candidate(
             intent,
             bucket_health=pre_cycle_preemptive_bucket_health,
             continuous_edge_guardian_gate=continuous_edge_guardian_gate,
             bucket_quarantine_status=pre_cycle_bucket_quarantine_status,
             allow_positive_edge_probation=True,
+            altdata_confluence=_altdata_confluence_cache[_conf_cache_key] or None,
+        )
+        preemptive_decision.update(
+            _altdata_provider_lineage(
+                r,
+                symbol=_conf_symbol,
+                timeframe=_conf_timeframe,
+                confluence=_altdata_confluence_cache[_conf_cache_key],
+            )
         )
         _apply_preemptive_decision_context(
             intent=intent,
@@ -21269,6 +21347,24 @@ def run_once() -> dict:
                     "preemptive_shadow_only",
                     "preemptive_counts_as_a_plus",
                     "preemptive_counts_as_live_ready",
+                    "altdata_confluence_present",
+                    "altdata_trade_block_score",
+                    "altdata_reduce_size_score",
+                    "altdata_hedge_required_score",
+                    "altdata_hedge_required",
+                    "altdata_wallet_distribution_score",
+                    "altdata_liquidation_sweep_risk_score",
+                    "altdata_social_euphoria_risk_score",
+                    "altdata_feature_cutoff",
+                    "altdata_available_at",
+                    "altdata_providers_present",
+                    "provider_features_used",
+                    "provider_features_missing",
+                    "coinglass_feature_hash",
+                    "santiment_feature_hash",
+                    "moralis_feature_hash",
+                    "altdata_confluence_hash",
+                    "altdata_provider_hash_source",
                     "routes_to_live",
                     "places_real_order",
                     "candidate_id",

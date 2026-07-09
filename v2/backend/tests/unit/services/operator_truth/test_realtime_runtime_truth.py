@@ -52,6 +52,42 @@ def test_minus_49_from_old_paper_online_is_not_current_session(tmp_path: Path, m
     assert result["fills_fabricated"] is False
 
 
+def test_paper_pnl_source_of_truth_uses_canonical_portfolio_state(monkeypatch, tmp_path: Path) -> None:
+    public = tmp_path / "v2/frontend/public"
+    public.mkdir(parents=True)
+    monkeypatch.setattr(rt, "PUBLIC_ROOT", public)
+    monkeypatch.setattr(rt, "REPO_ROOT", tmp_path)
+    fake = FakeRedis()
+    portfolio = json.loads(fake.store["v2:portfolio:state"])
+    portfolio.update({
+        "equity": 3000.25,
+        "realized_net_pnl_usd": 1.25,
+        "clean_session_valid_realized_pnl_usd": 1.25,
+        "realized_pnl_usd": -999.0,
+        "unrealized_pnl_usd": 0.75,
+        "total_pnl_usd": 2.0,
+        "pnl_source_key": "v2:portfolio:state",
+        "pnl_source_route": "/api/v2/portfolio",
+        "pnl_source_type": "CANONICAL_CURRENT_SESSION_RUNTIME",
+    })
+    fake.store["v2:portfolio:state"] = json.dumps(portfolio)
+    ledger = json.loads(fake.store["v2:paper:ledger"])
+    ledger.update({"realized_pnl_usd": -999.0, "accepted": []})
+    fake.store["v2:paper:ledger"] = json.dumps(ledger)
+
+    result = rt.build_paper_pnl_source_of_truth(fake)
+
+    assert result["current_session_pnl"] == 2.0
+    assert result["current_session_equity"] == 3000.25
+    assert result["realized_pnl"] == 1.25
+    assert result["unrealized_pnl"] == 0.75
+    assert result["pnl_source_redis_keys"] == ["v2:portfolio:state"]
+    assert result["pnl_source_key"] == "v2:portfolio:state"
+    assert result["pnl_source_route"] == "/api/v2/portfolio"
+    assert result["pnl_source_type"] == "CANONICAL_CURRENT_SESSION_RUNTIME"
+    assert result["pnl_lineage_context_redis_keys"] == ["v2:paper:ledger"]
+
+
 def test_live_gate_display_state_never_enables_submit() -> None:
     result = rt.build_live_gate_runtime_display_state(
         runtime_truth={

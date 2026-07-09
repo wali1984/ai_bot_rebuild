@@ -571,9 +571,15 @@ def build_paper_pnl_source_of_truth(client: Any = None) -> dict[str, Any]:
     accepted = [row for row in ledger.get("accepted", []) if isinstance(row, dict)] if isinstance(ledger, dict) else []
     held = [row for row in ledger.get("held_by_paper_fill_gate", []) if isinstance(row, dict)] if isinstance(ledger, dict) else []
     shadow = [row for row in ledger.get("shadow_observations", []) if isinstance(row, dict)] if isinstance(ledger, dict) else []
-    current_session_pnl = float((portfolio or {}).get("total_pnl_usd") or 0.0)
-    if not accepted:
-        current_session_pnl = 0.0
+    current_session_pnl = float(
+        (portfolio or {}).get("total_pnl_usd")
+        if (portfolio or {}).get("total_pnl_usd") is not None
+        else (portfolio or {}).get("realized_net_pnl_usd")
+        if (portfolio or {}).get("realized_net_pnl_usd") is not None
+        else (portfolio or {}).get("clean_session_valid_realized_pnl_usd")
+        if (portfolio or {}).get("clean_session_valid_realized_pnl_usd") is not None
+        else (portfolio or {}).get("realized_pnl_usd") or 0.0
+    )
     current_session_equity = float((portfolio or {}).get("equity") or 10_000.0)
     paper_session_id = (
         (portfolio or {}).get("paper_session_id")
@@ -599,7 +605,7 @@ def build_paper_pnl_source_of_truth(client: Any = None) -> dict[str, Any]:
             else "HISTORICAL_PAPER_ONLINE_PNL_SEPARATE_FROM_CURRENT_LEDGER"
         )
     if accepted and round(current_session_pnl, 2) == -49.35:
-        minus_49_classification = "CURRENT_ACTIVE_V2_PAPER_LEDGER_PNL"
+        minus_49_classification = "CURRENT_ACTIVE_CANONICAL_PORTFOLIO_PNL"
     return {
         "schema_version": "paper_pnl_source_of_truth_status_v1",
         "generated_est": _est_now(),
@@ -613,7 +619,13 @@ def build_paper_pnl_source_of_truth(client: Any = None) -> dict[str, Any]:
         "rolling_24h_paper_pnl": current_session_pnl,
         "initial_capital": (portfolio or {}).get("initial_capital", 10_000.0),
         "current_cash": (portfolio or {}).get("cash_balance", 10_000.0),
-        "realized_pnl": (portfolio or {}).get("realized_pnl_usd", 0.0),
+        "realized_pnl": (
+            (portfolio or {}).get("realized_net_pnl_usd")
+            if (portfolio or {}).get("realized_net_pnl_usd") is not None
+            else (portfolio or {}).get("clean_session_valid_realized_pnl_usd")
+            if (portfolio or {}).get("clean_session_valid_realized_pnl_usd") is not None
+            else (portfolio or {}).get("realized_pnl_usd", 0.0)
+        ),
         "unrealized_pnl": (portfolio or {}).get("unrealized_pnl_usd", 0.0),
         "open_positions": (portfolio or {}).get("open_positions_count", 0),
         "accepted_fill_count": len(accepted),
@@ -622,14 +634,18 @@ def build_paper_pnl_source_of_truth(client: Any = None) -> dict[str, Any]:
         "last_fill_est": (portfolio or {}).get("last_fill_est"),
         "last_equity_update_est": (portfolio or {}).get("last_equity_update_est"),
         "pnl_source_payload": "operator_runtime/v2_portfolio_state/latest/v2_portfolio_state.json",
-        "pnl_source_redis_keys": ["v2:paper:ledger", "v2:portfolio:state"],
+        "pnl_source_redis_keys": ["v2:portfolio:state"],
+        "pnl_source_key": (portfolio or {}).get("pnl_source_key") or "v2:portfolio:state",
+        "pnl_source_route": (portfolio or {}).get("pnl_source_route") or "/api/v2/portfolio",
+        "pnl_source_type": (portfolio or {}).get("pnl_source_type") or "CANONICAL_CURRENT_SESSION_RUNTIME",
+        "pnl_lineage_context_redis_keys": ["v2:paper:ledger"],
         "stale_source_detected": stale_detected,
         "stale_source_path_if_any": str(paper_online_path.relative_to(REPO_ROOT)) if stale_detected else None,
         "paper_minus_49_classification": minus_49_classification,
         "current_active_session_reason": (
-            "NO_ACCEPTED_PAPER_FILL_IN_CURRENT_V2_LEDGER"
+            "CURRENT_SESSION_PNL_FROM_CANONICAL_V2_PORTFOLIO_STATE_NO_ACCEPTED_LEDGER_FILL"
             if not accepted
-            else "CURRENT_SESSION_PNL_RECOMPUTED_FROM_CURRENT_V2_LEDGER"
+            else "CURRENT_SESSION_PNL_FROM_CANONICAL_V2_PORTFOLIO_STATE"
         ),
         "current_loss_fill_rows": accepted if round(current_session_pnl, 2) == -49.35 else [],
         "old_june_5_fills_reused": False,

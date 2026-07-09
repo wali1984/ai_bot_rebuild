@@ -593,10 +593,16 @@ class TestPriceSourceSelection:
                 "initial_capital": 3000.0,
                 "starting_equity_usd": 3000.0,
                 "equity": 3000.0,
-                "realized_pnl_usd": 0.0,
+                "realized_net_pnl_usd": 0.0,
+                "realized_gross_pnl_usd": 77.0,
+                "realized_pnl_usd": 77.0,
                 "unrealized_pnl_usd": 0.0,
+                "total_pnl_usd": 0.0,
                 "open_positions_count": 0,
                 "closed_trade_count": 0,
+                "closed_ledger_net_pnl_usd": 0.0,
+                "portfolio_realized_matches_closed_ledger": True,
+                "equity_reconciles_within_1_cent": True,
                 "equity_trusted": True,
                 "pnl_trusted": True,
             },
@@ -618,12 +624,80 @@ class TestPriceSourceSelection:
         assert payload["equity"] == 3000.0
         assert payload["paper_initial_capital"] == 3000.0
         assert payload["realized_pnl_usd"] == 0.0
+        assert payload["realized_net_pnl_usd"] == 0.0
+        assert payload["realized_gross_pnl_usd"] == 77.0
         assert payload["unrealized_pnl_usd"] == 0.0
+        assert payload["total_pnl_usd"] == 0.0
+        assert payload["pnl"]["total_usd"] == 0.0
+        assert payload["pnl"]["pnl_source_key"] == "v2:portfolio:state"
+        assert payload["pnl"]["pnl_source_route"] == "/api/v2/portfolio"
+        assert payload["account_source"] == "redis:v2:portfolio:state"
         assert payload["open_position_count"] == 0
         assert payload["closed_trade_count"] == 0
         assert payload["positions"]["open_count"] == 0
         assert payload["positions"]["closed_count"] == 0
         assert "10000.0" not in json.dumps(payload)
+
+    @pytest.mark.asyncio
+    async def test_mobile_positions_summary_uses_clean_session_portfolio_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import app.api.v2.mobile as mobile
+
+        fake = _MobilePaperSummaryFakeRedis({
+            "v2:paper:heartbeat": {
+                "closed_trade_count": 12,
+                "realized_pnl_usd": 77.0,
+                "unrealized_pnl_usd": 33.0,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            "v2:paper:session": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "starting_equity_usd": 3000.0,
+            },
+            "v2:portfolio:state": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "equity": 3000.0,
+                "realized_net_pnl_usd": 0.0,
+                "realized_gross_pnl_usd": 77.0,
+                "realized_pnl_usd": 77.0,
+                "unrealized_pnl_usd": 0.0,
+                "total_pnl_usd": 0.0,
+                "open_positions_count": 0,
+                "closed_trade_count": 0,
+                "pnl_source_key": "v2:portfolio:state",
+                "pnl_source_route": "/api/v2/portfolio",
+                "pnl_source_type": "CANONICAL_CURRENT_SESSION_RUNTIME",
+                "pnl_conflict_detected": False,
+            },
+            "v2:paper:ledger": {
+                "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+                "initial_capital": 3000.0,
+                "starting_equity_usd": 3000.0,
+                "open_position_count": 0,
+                "closed_trade_count": 0,
+            },
+            "v2:paper:positions": [],
+            "v2:paper:closed_trades": [],
+        })
+        monkeypatch.setattr(mobile, "get_redis", lambda: fake)
+
+        payload = await mobile.get_mobile_positions()
+
+        assert payload["summary"]["total_pnl_usd"] == 0.0
+        assert payload["summary"]["realized_pnl_usd"] == 0.0
+        assert payload["summary"]["realized_net_pnl_usd"] == 0.0
+        assert payload["summary"]["unrealized_pnl_usd"] == 0.0
+        assert payload["summary"]["pnl_source_key"] == "v2:portfolio:state"
+        assert payload["summary"]["pnl_source_route"] == "/api/v2/portfolio"
+        assert payload["summary"]["pnl_source_type"] == "CANONICAL_CURRENT_SESSION_RUNTIME"
+        assert payload["summary"]["pnl_conflict_detected"] is False
+        assert payload["account_source"] == "redis:v2:portfolio:state"
+        assert payload["open_position_count"] == 0
+        assert payload["closed_trade_count"] == 0
+        assert "77.0" not in json.dumps(payload["summary"])
 
 
 # ---------------------------------------------------------------------------

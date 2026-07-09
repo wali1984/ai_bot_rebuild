@@ -131,6 +131,28 @@ ALTDATA_NUMERIC_FEATURES = (
     "santiment_active_addresses_24h",
     "santiment_transaction_volume",
     "santiment_dev_activity",
+    "moralis_exchange_inflow_usd",
+    "moralis_exchange_outflow_usd",
+    "moralis_net_exchange_flow_usd",
+    "moralis_whale_net_flow_usd",
+    "moralis_smart_wallet_accumulation_score",
+    "moralis_smart_wallet_distribution_score",
+    "moralis_onchain_risk_score",
+    "altdata_derivatives_pressure_score",
+    "altdata_liquidation_sweep_risk_score",
+    "altdata_social_attention_score",
+    "altdata_social_euphoria_risk_score",
+    "altdata_exchange_flow_pressure_usd",
+    "altdata_wallet_accumulation_score",
+    "altdata_wallet_distribution_score",
+    "altdata_institutional_flow_score",
+    "altdata_options_pin_risk_score",
+    "altdata_market_regime_score",
+    "altdata_confluence_long_score",
+    "altdata_confluence_short_score",
+    "altdata_trade_block_score",
+    "altdata_reduce_size_score",
+    "altdata_hedge_required_score",
 )
 
 ALTDATA_PROVIDER_FLAGS = (
@@ -1105,6 +1127,20 @@ def build_dataset_for_universe(
             ta = reader.get_json(
                 TA_KEY_TEMPLATE.format(symbol=symbol, timeframe=tf)
             )
+            # Merge Moralis bridge + confluence engine features into the
+            # altdata vector; None values stay None so masks remain honest.
+            altdata_merged = dict(altdata or {})
+            for bridge_key in (
+                f"v2:features:moralis:{symbol}:{tf}",
+                f"v2:altdata:confluence:{symbol}:{tf}",
+            ):
+                bridge_payload = reader.get_json(bridge_key) or {}
+                bridge_features = bridge_payload.get("features")
+                if isinstance(bridge_features, dict):
+                    for bridge_name, bridge_value in bridge_features.items():
+                        if bridge_value is not None and bridge_name not in altdata_merged:
+                            altdata_merged[str(bridge_name)] = bridge_value
+            altdata_for_row = altdata_merged if altdata_merged else altdata
             snapshot_id = (features or {}).get("feature_snapshot_id") or ""
             label_row = label_rows_by_snapshot.get(str(snapshot_id))
             risk_decision = None  # avoid scanning RISK_DECISIONS list payload per row
@@ -1113,7 +1149,7 @@ def build_dataset_for_universe(
                 timeframe=tf,
                 features=features,
                 ta=ta,
-                altdata=altdata,
+                altdata=altdata_for_row,
                 risk_decision=risk_decision,
                 label_row=label_row,
             )

@@ -327,7 +327,49 @@ def action_policy_diagnostics(
     selected_hold_with_directional_edge = (
         normalized_action == "hold" and counterfactual_action in {"long", "short"}
     )
+    # Per-side net edge decomposition: separates "model sees no edge" from
+    # "pipeline failed to emit a side". USD conversion happens downstream in
+    # the allocator once notional is sized; bps is the publisher-level truth.
+    expected_long_net_edge_bps = expected_move - cost if expected_move is not None else None
+    expected_short_net_edge_bps = -expected_move - cost if expected_move is not None else None
+    best_side: str | None = None
+    best_side_net_edge_bps: float | None = None
+    if expected_long_net_edge_bps is not None:
+        if expected_long_net_edge_bps >= expected_short_net_edge_bps:
+            best_side, best_side_net_edge_bps = "long", expected_long_net_edge_bps
+        else:
+            best_side, best_side_net_edge_bps = "short", expected_short_net_edge_bps
+    hold_probability = probability_by_action.get("hold")
+    no_side_reason: str | None = None
+    why_best_side_rejected: str | None = None
+    if normalized_action == "hold":
+        if expected_move is None:
+            no_side_reason = "EXPECTED_MOVE_MISSING"
+            why_best_side_rejected = "NO_EXPECTED_MOVE_TO_EVALUATE"
+        elif best_side_net_edge_bps is not None and best_side_net_edge_bps < min_edge:
+            no_side_reason = "EDGE_BELOW_COST_MODEL_SEES_NO_EDGE"
+            why_best_side_rejected = (
+                f"best_side_{best_side}_net_edge_{best_side_net_edge_bps:.2f}bps_below_min_edge_{min_edge:.2f}bps"
+            )
+        elif hold_probability is not None and hold_probability > 0.99:
+            no_side_reason = "POLICY_HOLD_COLLAPSED_DIRECTIONAL_PROBABILITY_DEGENERATE"
+            why_best_side_rejected = (
+                f"policy_hold_probability_{hold_probability:.6f}_despite_{best_side}_net_edge_"
+                f"{best_side_net_edge_bps:.2f}bps"
+            )
+        else:
+            no_side_reason = "POLICY_PREFERS_HOLD"
+            why_best_side_rejected = f"hold_probability_{hold_probability}"
     return {
+        "no_side_reason": no_side_reason,
+        "expected_long_net_edge_bps": expected_long_net_edge_bps,
+        "expected_short_net_edge_bps": expected_short_net_edge_bps,
+        "expected_long_net_pnl_usd": None,
+        "expected_short_net_pnl_usd": None,
+        "per_side_usd_note": "usd_sized_downstream_by_allocator_from_bps_edge",
+        "best_side": best_side,
+        "best_side_net_edge_bps": best_side_net_edge_bps,
+        "why_best_side_rejected": why_best_side_rejected,
         "action_probability_by_label": probability_by_action,
         "opening_policy_argmax_action": opening_argmax_action,
         "opening_policy_argmax_probability": opening_candidates.get(opening_argmax_action),
@@ -618,6 +660,79 @@ def _missing_features_for_tokens(example: TrainingExample, trust_row: dict[str, 
     )
 
 
+def _provider_mask_context(example: TrainingExample, trust_row: dict[str, Any]) -> dict[str, Any]:
+    tensor = example.tensor
+    provider_rows: list[dict[str, Any]] = []
+    for index, (name, source) in enumerate(zip(tensor.feature_names, tensor.source_labels)):
+        source_text = str(source)
+        name_text = str(name)
+        is_provider = (
+            "altdata" in source_text
+            or "moralis" in source_text
+            or "coinglass" in source_text
+            or "santiment" in source_text
+            or "altdata" in name_text
+            or "moralis" in name_text
+            or "coinglass" in name_text
+            or "santiment" in name_text
+        )
+        if not is_provider:
+            continue
+        missing = bool(tensor.missing_mask[index]) if index < len(tensor.missing_mask) else True
+        stale = bool(tensor.stale_mask[index]) if index < len(tensor.stale_mask) else False
+        available = int(tensor.source_availability[index]) if index < len(tensor.source_availability) else 0
+        provider_rows.append(
+            {
+                "name": name_text,
+                "source": source_text,
+                "missing": missing,
+                "stale": stale,
+                "source_available": available,
+            }
+        )
+    missing_names = [row["name"] for row in provider_rows if row["missing"]]
+    stale_names = [row["name"] for row in provider_rows if row["stale"]]
+    available_count = sum(1 for row in provider_rows if row["source_available"] > 0)
+    feature_cutoff = (
+        trust_row.get("altdata_feature_cutoff")
+        or trust_row.get("provider_feature_cutoff")
+        or trust_row.get("feature_cutoff")
+        or trust_row.get("decision_cutoff")
+    )
+    return {
+        "altdata_feature_cutoff": feature_cutoff if provider_rows else None,
+        "provider_features_used": available_count,
+        "provider_feature_count": len(provider_rows),
+        "provider_missing": missing_names,
+        "provider_stale": stale_names,
+        "provider_source_availability": {
+            row["name"]: row["source_available"] for row in provider_rows
+        },
+        "provider_missing_mask": {row["name"]: row["missing"] for row in provider_rows},
+        "provider_stale_mask": {row["name"]: row["stale"] for row in provider_rows},
+        "provider_source_availability_vector": [
+            row["source_available"] for row in provider_rows
+        ],
+        "ppo_provider_feature_mask_count": len(provider_rows),
+        "masa_provider_feature_mask_count": len(provider_rows),
+    }
+
+
+PROVIDER_LINEAGE_FIELDS = (
+    "altdata_feature_cutoff",
+    "provider_features_used",
+    "provider_feature_count",
+    "provider_missing",
+    "provider_stale",
+    "provider_source_availability",
+    "provider_missing_mask",
+    "provider_stale_mask",
+    "provider_source_availability_vector",
+    "ppo_provider_feature_mask_count",
+    "masa_provider_feature_mask_count",
+)
+
+
 def _premium_context_from_features(
     *,
     example: TrainingExample,
@@ -816,6 +931,7 @@ def build_prediction_payload(
     )
     integrity = _market_state_fields_from_example(example, prediction_id)
     trust_row = dict(example.trust_row or {})
+    provider_mask_context = _provider_mask_context(example, trust_row)
     premium_contexts = _prediction_premium_contexts(example, trust_row)
     trust_reject_reasons = [str(reason) for reason in (trust_row.get("reject_reasons") or []) if str(reason)]
     feature_hash = trust_row.get("feature_vector_hash") or tensor.tensor_id
@@ -937,6 +1053,7 @@ def build_prediction_payload(
         "source_availability_vector": list(tensor.source_availability_vector),
         "feature_names": list(tensor.feature_names),
         "source_labels": list(tensor.source_labels),
+        **provider_mask_context,
         **premium_contexts,
         "trainer_source": TRAINER_SOURCE,
         "model_source": MODEL_SOURCE,
@@ -1103,9 +1220,30 @@ class V2HybridPredictionPublisher:
             "live_gate": LIVE_GATE_BLOCKED,
             "live_symbols": [],
         }
+        feature_schema_status = {
+            "schema_version": "v2_trainer_feature_schema_status_v1",
+            "generated_est": _est_iso(),
+            "status": status.get("feature_schema_status") or "UNKNOWN",
+            "feature_dim": status.get("feature_dim"),
+            "input_dim": status.get("input_dim"),
+            "expected_input_dim": status.get("expected_input_dim"),
+            "checkpoint_guard_active": status.get("checkpoint_guard_active") is True,
+            "stale_checkpoints_rejected": status.get("stale_checkpoints_rejected") is True,
+            "checkpoint_shape_guard": status.get("checkpoint_shape_guard"),
+            "ppo_provider_feature_mask_count": status.get("ppo_provider_feature_mask_count"),
+            "masa_provider_feature_mask_count": status.get("masa_provider_feature_mask_count"),
+            "provider_feature_names": status.get("provider_feature_names") or [],
+            "provider_missing_masks_required": True,
+            "provider_stale_masks_required": True,
+            "provider_source_availability_required": True,
+            "paper_shadow_only": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+            "places_real_order": False,
+        }
         self.io.set_json(REDIS_HEARTBEAT_KEY, heartbeat)
         self.io.set_json(REDIS_STATUS_KEY, status)
         self.io.set_json(REDIS_METRICS_KEY, metrics)
+        self.io.set_json("v2:trainer:feature_schema_status", feature_schema_status)
 
     def publish_lineage(
         self,
@@ -1181,6 +1319,9 @@ class V2HybridPredictionPublisher:
             record["replay_snapshot_key"] = prediction_payload.get("replay_snapshot_key")
             record["replay_snapshot_write_success"] = prediction_payload.get("replay_snapshot_write_success")
             record["trust_gate_result"] = lineage_contract.to_dict()
+            for field in PROVIDER_LINEAGE_FIELDS:
+                if field in prediction_payload:
+                    record[field] = prediction_payload.get(field)
         if not lineage_contract.allowed:
             orchestrator_dict = mark_runtime_trust_denied(orchestrator_dict, lineage_contract)
             risk_dict = mark_runtime_trust_denied(risk_dict, lineage_contract)
@@ -1228,6 +1369,9 @@ class V2HybridPredictionPublisher:
         signal_payload["replay_snapshot_key"] = prediction_payload.get("replay_snapshot_key")
         signal_payload["replay_snapshot_write_success"] = prediction_payload.get("replay_snapshot_write_success")
         signal_payload["trust_gate_result"] = lineage_contract.to_dict()
+        for field in PROVIDER_LINEAGE_FIELDS:
+            if field in prediction_payload:
+                signal_payload[field] = prediction_payload.get(field)
         if not lineage_contract.allowed:
             signal_payload = mark_runtime_trust_denied(signal_payload, lineage_contract)
         self.io.set_json(ORCHESTRATOR_DECISIONS_KEY, orchestrator_dict)

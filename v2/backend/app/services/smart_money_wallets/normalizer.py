@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
-from v2.backend.app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
+from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
 
 
 def normalize_moralis_payload(
@@ -24,11 +24,13 @@ def normalize_moralis_payload(
         if usd_value > 0:
             features["moralis_whale_net_flow_usd"] = usd_value
             features["moralis_smart_wallet_accumulation_score"] = min(1.0, usd_value / 1_000_000.0)
+            features["moralis_smart_wallet_distribution_score"] = 1.0 - min(1.0, usd_value / 1_000_000.0)
     elif spec.group == "wallet_networth":
         networth = _float(_first_mapping(payload).get("total_networth_usd") or _first_mapping(payload).get("networth_usd"))
         if networth is not None:
             features["moralis_whale_net_flow_usd"] = networth
             features["moralis_smart_wallet_accumulation_score"] = min(1.0, networth / 1_000_000.0)
+            features["moralis_smart_wallet_distribution_score"] = 1.0 - min(1.0, networth / 1_000_000.0)
     elif spec.group in {
         "wallet_history",
         "wallet_transactions",
@@ -44,11 +46,18 @@ def normalize_moralis_payload(
     elif spec.group == "token_holders":
         holder_count = len(rows)
         if holder_count:
-            features["moralis_token_holder_delta"] = 0.0
-            features["moralis_holder_concentration_change"] = 0.0
+            # Holder count features
+            features["moralis_holder_count"] = float(holder_count)
+            features["moralis_holder_delta"] = float(holder_count)
+            features["moralis_top_holder_concentration"] = _holder_concentration(rows)
     elif spec.group in {"swaps", "wallet_swaps", "token_swaps"}:
         buy_usd, sell_usd = _swap_usd(rows)
         if buy_usd or sell_usd:
+            # Whale buy/sell (from swap data)
+            features["moralis_whale_buy_usd"] = buy_usd
+            features["moralis_whale_sell_usd"] = sell_usd
+            features["moralis_whale_net_flow_usd"] = buy_usd - sell_usd
+            # DEX pressure metrics
             features["moralis_dex_buy_pressure_usd"] = buy_usd
             features["moralis_dex_sell_pressure_usd"] = sell_usd
             features["moralis_dex_flow_imbalance_usd"] = buy_usd - sell_usd
@@ -59,7 +68,6 @@ def normalize_moralis_payload(
     elif spec.group == "token_metadata":
         meta = _first_mapping(payload)
         if meta:
-            features["moralis_contract_risk_penalty"] = 0.0
             features["moralis_onchain_risk_score"] = 0.0
     elif spec.group == "streams":
         features.update(_stream_features(payload))
@@ -152,6 +160,22 @@ def _event_time(rows: list[Mapping[str, Any]]) -> str | None:
         return None
     value = rows[0].get("block_timestamp") or rows[0].get("timestamp")
     return str(value) if value else None
+
+
+def _holder_concentration(rows: list[Mapping[str, Any]]) -> float:
+    """Calculate concentration of top holders (Herfindahl index)."""
+    if not rows or len(rows) < 2:
+        return 0.0
+    total = sum(_float(row.get("balance") or row.get("balance_with_decimals")) or 0.0 for row in rows)
+    if total <= 0:
+        return 0.0
+    concentrations = []
+    for row in rows[:10]:  # top 10 holders
+        holder_balance = _float(row.get("balance") or row.get("balance_with_decimals")) or 0.0
+        if holder_balance > 0:
+            concentrations.append((holder_balance / total) ** 2)
+    herfindahl = sum(concentrations)
+    return min(1.0, herfindahl)
 
 
 def _float(value: Any) -> float | None:

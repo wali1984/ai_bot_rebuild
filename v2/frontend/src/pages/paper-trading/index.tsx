@@ -93,7 +93,9 @@ interface Summary {
   open_position_count: number;
   closed_trade_count: number;
   realized_pnl_usd: number | null;
+  realized_net_pnl_usd?: number | null;
   unrealized_pnl_usd: number | null;
+  total_pnl_usd?: number | null;
   total_open_notional: number | null;
   paper_signals_seen: number | null;
   intents_accepted: number | null;
@@ -905,10 +907,14 @@ export default function PaperTradingPage(): JSX.Element {
   const equityCurve = data?.equity_curve ?? [];
   const reasonBreakdown = data?.reason_breakdown ?? {};
   const riskProfile = data?.risk_profile ?? {} as RiskProfile;
+  const apiSummary = (data?.summary ?? {}) as Summary;
   const streamSummary = paperActivity.data.summary as unknown as Partial<Summary>;
   const summary = {
-    ...((data?.summary ?? {}) as Summary),
+    ...apiSummary,
     ...streamSummary,
+    realized_pnl_usd: apiSummary.realized_net_pnl_usd ?? apiSummary.realized_pnl_usd ?? streamSummary.realized_pnl_usd ?? null,
+    unrealized_pnl_usd: apiSummary.unrealized_pnl_usd ?? streamSummary.unrealized_pnl_usd ?? null,
+    total_pnl_usd: apiSummary.total_pnl_usd ?? streamSummary.total_pnl_usd ?? null,
     open_position_count: streamSummary.open_position_count ?? data?.summary?.open_position_count ?? positions.length,
   } as Summary;
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;

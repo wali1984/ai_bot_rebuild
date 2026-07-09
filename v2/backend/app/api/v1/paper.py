@@ -116,6 +116,16 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
     if not portfolio:
         missing.append("v2:portfolio:state")
 
+    realized_net_pnl = (
+        portfolio.get("realized_net_pnl_usd")
+        or portfolio.get("clean_session_valid_realized_pnl_usd")
+        or portfolio.get("realized_pnl_usd")
+    )
+    unrealized_pnl = (
+        portfolio.get("unrealized_pnl_usd")
+        or portfolio.get("clean_session_valid_unrealized_pnl_usd")
+    )
+    total_pnl = portfolio.get("total_pnl_usd")
     data = {
         "paper_session_id": ledger.get("paper_session_id") or portfolio.get("paper_session_id"),
         "paper_session_state_source": ledger.get("paper_session_state_source"),
@@ -127,9 +137,20 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
             or ledger.get("paper_churn_equity_bleed_governor_status")
         ),
         "equity": portfolio.get("equity") or portfolio.get("current_session_equity"),
-        "starting_equity_usd": ledger.get("starting_equity_usd"),
-        "realized_pnl_usd": ledger.get("realized_pnl_usd"),
-        "unrealized_pnl_usd": ledger.get("unrealized_pnl_usd"),
+        "starting_equity_usd": portfolio.get("initial_capital") or portfolio.get("starting_equity_usd") or ledger.get("starting_equity_usd"),
+        "realized_pnl_usd": realized_net_pnl,
+        "realized_net_pnl_usd": realized_net_pnl,
+        "realized_gross_pnl_usd": portfolio.get("realized_gross_pnl_usd"),
+        "unrealized_pnl_usd": unrealized_pnl,
+        "total_pnl_usd": total_pnl,
+        "pnl_source_key": portfolio.get("pnl_source_key", "v2:portfolio:state"),
+        "pnl_source_route": portfolio.get("pnl_source_route", "/api/v2/portfolio"),
+        "pnl_source_type": portfolio.get("pnl_source_type", "CANONICAL_CURRENT_SESSION_RUNTIME") if portfolio else None,
+        "pnl_conflict_detected": bool(portfolio.get("pnl_conflict_detected", False)),
+        "pnl_conflict_reason": portfolio.get("pnl_conflict_reason"),
+        "closed_ledger_net_pnl_usd": portfolio.get("closed_ledger_net_pnl_usd"),
+        "portfolio_realized_matches_closed_ledger": portfolio.get("portfolio_realized_matches_closed_ledger"),
+        "equity_reconciles_within_1_cent": portfolio.get("equity_reconciles_within_1_cent"),
         "counts": {
             "open_positions": len(open_positions),
             "closed_trades": len(closed_trades),
@@ -150,7 +171,7 @@ def _paper_payload(endpoint: str) -> dict[str, Any]:
     }
     return {
         "data": data,
-        "source": "redis:v2:paper:ledger + redis:v2:portfolio:state + redis:v2:paper:trade_management:status",
+        "source": "redis:v2:portfolio:state + redis:v2:paper:ledger + redis:v2:paper:trade_management:status",
         "source_type": "redis_live" if ledger else "unavailable",
         "endpoint": endpoint,
         "timestamp": timestamp,

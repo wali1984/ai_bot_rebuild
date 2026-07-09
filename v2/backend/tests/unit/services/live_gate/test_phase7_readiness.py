@@ -40,6 +40,7 @@ def _runtime(*, enabled: bool = True) -> dict[str, object]:
 def _account(**overrides: object) -> dict[str, object]:
     values: dict[str, object] = {
         "signed_account_read_ok": True,
+        "available_balance_usd": 1_000.0,
         "available_margin": 1_000.0,
         "local_position": {"symbol": "BTCUSDT", "side": "flat", "quantity": 0.0},
         "exchange_position": {"symbol": "BTCUSDT", "side": "flat", "quantity": 0.0},
@@ -70,13 +71,16 @@ def _filters(**overrides: object) -> dict[str, object]:
 def _allocation(**overrides: object) -> dict[str, object]:
     values: dict[str, object] = {
         "symbol": "BTCUSDT",
+        "allocator_decision_id": "allocsim_phase7",
         "action": "long",
         "price": 50_000.0,
         "target_quantity": 0.01,
         "target_notional_usd": 500.0,
         "allocated_margin_usd": 250.0,
         "recommended_leverage": 2.0,
+        "recommended_leverage_source": "adaptive_simulation",
         "recommended_margin_mode": "isolated_paper_simulated",
+        "recommended_margin_mode_source": "adaptive_simulation",
         "stop_distance_bps": 120.0,
         "max_loss_if_stop_hit": 6.0,
         "liquidation_buffer_bps": 2_000.0,
@@ -85,6 +89,7 @@ def _allocation(**overrides: object) -> dict[str, object]:
         "expected_net_pnl_usd": 4.0,
         "portfolio_exposure_after_trade": 500.0,
         "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_block_reasons": [],
         "preemptive_edge_control": {
             "preemptive_decision_id": "pec_test_allow",
             "preemptive_decision": "ALLOW",
@@ -234,10 +239,29 @@ def test_phase7_complete_fixture_builds_operator_packet_fields() -> None:
     assert packet["quantity"] == 0.01
     assert packet["notional"] == 500.0
     assert packet["margin"] == 250.0
+    assert packet["allocator_decision_id"] == "allocsim_phase7"
+    assert packet["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert packet["allocator_block_reasons"] == []
     assert packet["leverage_recommendation"] == 2.0
+    assert packet["recommended_leverage_source"] == "adaptive_simulation"
     assert packet["margin_mode_recommendation"] == "isolated_paper_simulated"
+    assert packet["recommended_margin_mode_source"] == "adaptive_simulation"
     assert packet["max_loss"] == 6.0
+    assert packet["max_loss_usd"] == 6.0
+    assert packet["max_loss_source"] == "allocation.max_loss_if_stop_hit"
     assert packet["liquidation_buffer"] == 2_000.0
+    assert packet["liquidation_buffer_usd"] == 100.0
+    assert packet["liquidation_buffer_source"] == "derived_from_liquidation_buffer_bps_and_notional"
+    assert packet["signed_account_read_status"] == "PASS"
+    assert packet["available_balance_usd"] == 1_000.0
+    assert packet["open_orders_count"] == 0
+    assert packet["open_positions_count"] == 1
+    assert packet["symbol_min_notional"] == "5"
+    assert packet["symbol_step_size"] == "0.0001"
+    assert packet["symbol_tick_size"] == "0.10"
+    assert packet["symbol_lot_size_status"] == "PASS"
+    assert packet["symbol_price_filter_status"] == "PASS"
+    assert packet["reduce_only_supported"] is True
     assert pre_submit["pass_conditions"]["advanced_indicator_evidence_pass"] is True
     assert pre_submit["advanced_indicator_evidence"]["consumed"] is True
     assert pre_submit["advanced_indicator_evidence"]["fvg_standalone_allows_trade"] is False

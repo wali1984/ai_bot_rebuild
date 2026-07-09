@@ -8,9 +8,9 @@ from typing import Any, Mapping
 
 import httpx
 
-from v2.backend.app.services.coinglass_provider.endpoint_registry import CoinGlassEndpointSpec
-from v2.backend.app.services.coinglass_provider.models import CoinGlassResponse
-from v2.backend.app.services.coinglass_provider.rate_limit import (
+from app.services.coinglass_provider.endpoint_registry import CoinGlassEndpointSpec
+from app.services.coinglass_provider.models import CoinGlassResponse
+from app.services.coinglass_provider.rate_limit import (
     COINGLASS_TIMEOUT_SECONDS,
     CoinGlassRateLimiter,
 )

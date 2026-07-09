@@ -21,8 +21,20 @@ import type { PageMeta } from '../../types/page';
 interface PortfolioData {
   paper_balance?: number | null;
   paper_equity?: number | null;
+  equity?: number | null;
+  realized_net_pnl_usd?: number | null;
+  realized_gross_pnl_usd?: number | null;
+  realized_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
+  total_pnl_usd?: number | null;
+  clean_session_valid_realized_pnl_usd?: number | null;
+  clean_session_valid_unrealized_pnl_usd?: number | null;
   realized_pnl?: number | null;
   unrealized_pnl?: number | null;
+  pnl_source_key?: string | null;
+  pnl_source_route?: string | null;
+  pnl_source_type?: string | null;
+  pnl_conflict_detected?: boolean | null;
   open_positions?: unknown[];
   account_mode?: string | null;
 }
@@ -234,9 +246,16 @@ export default function DashboardPage(): JSX.Element {
   const marketTickers = marketEnv.data?.tickers ?? [];
 
   const portfolio = portfolioEnv.data;
-  const equity = portfolio?.paper_equity ?? portfolio?.paper_balance;
-  const pnlToday = portfolio?.realized_pnl;
-  const unrealizedPnl = portfolio?.unrealized_pnl;
+  const equity = portfolio?.equity ?? portfolio?.paper_equity ?? portfolio?.paper_balance;
+  const pnlToday =
+    portfolio?.realized_net_pnl_usd
+    ?? portfolio?.clean_session_valid_realized_pnl_usd
+    ?? portfolio?.realized_pnl_usd
+    ?? portfolio?.realized_pnl;
+  const unrealizedPnl =
+    portfolio?.unrealized_pnl_usd
+    ?? portfolio?.clean_session_valid_unrealized_pnl_usd
+    ?? portfolio?.unrealized_pnl;
   const openPositions = portfolio?.open_positions ?? [];
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;

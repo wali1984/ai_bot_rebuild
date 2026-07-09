@@ -271,6 +271,18 @@ def _provider_readiness_summary() -> dict[str, Any]:
     moralis_usage = _read_v2_redis_json("v2:provider:moralis:usage") or {}
     coinglass_endpoint_status = _read_v2_redis_json("v2:provider:coinglass:endpoint_status") or {}
     moralis_endpoint_status = _read_v2_redis_json("v2:provider:moralis:endpoint_status") or {}
+    provider_consumption = _read_v2_redis_json("v2:altdata:provider_consumption_status") or {}
+    confluence_sample = _read_v2_redis_json(
+        "v2:altdata:confluence:"
+        + str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper()
+        + ":"
+        + str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m"))
+    ) or {}
+    confluence_features = (
+        confluence_sample.get("features")
+        if isinstance(confluence_sample.get("features"), dict)
+        else {}
+    )
     if not coinglass:
         coinglass = build_coinglass_health(os.environ)
     if not moralis:
@@ -293,6 +305,29 @@ def _provider_readiness_summary() -> dict[str, Any]:
         "moralis_actual_payload_present": provider_actual_data.get("moralis", {}).get("actual_payload_present"),
         "coinglass_heartbeat_only": provider_actual_data.get("coinglass", {}).get("heartbeat_only"),
         "moralis_heartbeat_only": provider_actual_data.get("moralis", {}).get("heartbeat_only"),
+        "moralis_feature_bridge_ready": moralis.get("feature_bridge_ready"),
+        "moralis_feature_count": moralis.get("feature_count"),
+        "moralis_required_feature_count": moralis.get("required_feature_count"),
+        "moralis_missing_feature_flags": moralis.get("missing_feature_flags"),
+        "moralis_stale_feature_flags": moralis.get("stale_feature_flags"),
+        "moralis_missing_mask_true": moralis.get("missing_mask_true"),
+        "moralis_stale_mask_true": moralis.get("stale_mask_true"),
+        "moralis_token_map_count": moralis.get("token_map_count"),
+        "moralis_wallet_watchlist_count": moralis.get("wallet_watchlist_count"),
+        "provider_tensor_consumption": provider_consumption.get("provider_tensor_consumption"),
+        "provider_risk_consumption": provider_consumption.get("provider_risk_consumption"),
+        "provider_orchestrator_consumption": provider_consumption.get("provider_orchestrator_consumption"),
+        "provider_allocator_consumption": provider_consumption.get("provider_allocator_consumption"),
+        "provider_paper_consumption": provider_consumption.get("provider_paper_consumption"),
+        "provider_live_dryrun_consumption": provider_consumption.get("provider_live_dryrun_consumption"),
+        "provider_feedback_attribution": provider_consumption.get("provider_feedback_attribution"),
+        "ppo_provider_feature_count": provider_consumption.get("ppo_provider_feature_count"),
+        "masa_provider_feature_count": provider_consumption.get("masa_provider_feature_count"),
+        "confluence_trade_block_score": provider_consumption.get("confluence_trade_block_score", confluence_features.get("altdata_trade_block_score")),
+        "confluence_reduce_size_score": provider_consumption.get("confluence_reduce_size_score", confluence_features.get("altdata_reduce_size_score")),
+        "confluence_hedge_required_score": provider_consumption.get("confluence_hedge_required_score", confluence_features.get("altdata_hedge_required_score")),
+        "altdata_provider_consumption_status": provider_consumption,
+        "altdata_single_provider_can_approve": False,
         "coinglass_usage": coinglass_usage,
         "moralis_usage": moralis_usage,
         "coinglass_endpoint_status": coinglass_endpoint_status,
@@ -3732,28 +3767,198 @@ async def get_realtime_manifest() -> dict[str, Any]:
 async def get_data_health() -> dict[str, Any]:
     """Public-safe data health summary. Shows freshness and availability of each major data surface."""
     endpoint = "/api/v2/data-health"
-    market_ok = False
-    signal_ok = False
-    try:
-        overview = await get_market_overview()
-        market_ok = overview.get("source_type") in ("api", "repository") and not overview.get("stale", True)
-    except Exception:
-        pass
-    try:
-        sig = _active_signal()
-        signal_ok = sig is not None
-    except Exception:
-        pass
-    surfaces = [
-        {"name": "Market data", "endpoint": "/api/v2/market/overview", "status": "ok" if market_ok else "degraded", "description": "Live ticker + candle data from exchange"},
-        {"name": "Signal feed", "endpoint": "/api/v2/signals", "status": "ok" if signal_ok else "degraded", "description": "AI signal stream"},
-        {"name": "Portfolio", "endpoint": "/api/v2/portfolio", "status": "partial", "description": "Paper portfolio repository"},
-        {"name": "Alerts", "endpoint": "/api/v2/alerts", "status": "partial", "description": "Paper alert store"},
-        {"name": "Trainer", "endpoint": "/api/v2/trainer/summary", "status": "partial", "description": "ML trainer runtime"},
-        {"name": "Backtests", "endpoint": "/api/v2/backtests", "status": "pending", "description": "Backtest engine not connected"},
-        {"name": "WebSocket", "endpoint": "/api/v2/ws/market-data", "status": "partial", "description": "Realtime WebSocket stream"},
+    warnings: list[str] = []
+    surface_timeout_seconds = float(os.environ.get("V2_DATA_HEALTH_SURFACE_TIMEOUT_SECONDS", "6"))
+
+    async def _surface_payload(path: str) -> tuple[dict[str, Any] | None, str | None]:
+        try:
+            handled, payload = await asyncio.wait_for(
+                _readonly_resource_direct_payload(path, None),
+                timeout=surface_timeout_seconds,
+            )
+        except TimeoutError:
+            return None, f"{path}: timeout_after_{surface_timeout_seconds:g}s"
+        except Exception as exc:
+            return None, f"{path}: {type(exc).__name__}: {exc}"
+        if not handled or not isinstance(payload, dict):
+            return None, f"{path}: route_not_resolved"
+        return payload, None
+
+    def _base_surface(
+        *,
+        name: str,
+        endpoint: str,
+        status: str,
+        description: str,
+        payload: dict[str, Any] | None = None,
+        actual_payload_count: int | None = None,
+    ) -> dict[str, Any]:
+        row: dict[str, Any] = {
+            "name": name,
+            "endpoint": endpoint,
+            "status": status,
+            "description": description,
+        }
+        if actual_payload_count is not None:
+            row["actual_payload_count"] = actual_payload_count
+        if isinstance(payload, dict):
+            row["source_type"] = payload.get("source_type")
+            row["stale"] = payload.get("stale")
+            row["lag_ms"] = payload.get("lag_ms")
+            row["missing_fields"] = payload.get("missing_fields") or []
+            row["last_success"] = payload.get("received_at") or payload.get("timestamp")
+        return row
+
+    surfaces: list[dict[str, Any]] = []
+    surface_paths = [
+        "/api/v2/market/overview",
+        "/api/v2/signals",
+        "/api/v2/portfolio",
+        "/api/v2/mobile/alerts?limit=30",
+        "/api/v2/trainer/summary",
+        "/api/v2/backtests",
     ]
-    overall = "ok" if market_ok else ("degraded" if any(s["status"] == "ok" for s in surfaces) else "offline")
+    surface_results = dict(
+        zip(
+            surface_paths,
+            await asyncio.gather(*(_surface_payload(path) for path in surface_paths)),
+            strict=True,
+        )
+    )
+
+    market_payload, market_error = surface_results["/api/v2/market/overview"]
+    market_data = market_payload.get("data") if isinstance(market_payload, dict) else {}
+    market_tickers = market_data.get("tickers") if isinstance(market_data, dict) else []
+    market_count = len(market_tickers) if isinstance(market_tickers, list) else 0
+    market_unavailable = not isinstance(market_payload, dict) or market_payload.get("source_type") == "unavailable"
+    if market_error:
+        warnings.append(market_error)
+    market_status = (
+        "ok"
+        if not market_unavailable and market_count > 0 and market_payload.get("stale") is not True
+        else "partial"
+        if not market_unavailable and market_count > 0
+        else "error"
+    )
+    surfaces.append(_base_surface(
+        name="Market data",
+        endpoint="/api/v2/market/overview",
+        status=market_status,
+        description=f"Exchange ticker feed with {market_count} current ticker rows",
+        payload=market_payload,
+        actual_payload_count=market_count,
+    ))
+
+    signal_payload, signal_error = surface_results["/api/v2/signals"]
+    signal_data = signal_payload.get("data") if isinstance(signal_payload, dict) else {}
+    active_signal = signal_data.get("active_signal") if isinstance(signal_data, dict) else None
+    signal_unavailable = not isinstance(signal_payload, dict) or signal_payload.get("source_type") == "unavailable"
+    if signal_error:
+        warnings.append(signal_error)
+    signal_status = (
+        "ok"
+        if not signal_unavailable and isinstance(active_signal, dict)
+        else "partial"
+        if not signal_unavailable
+        else "error"
+    )
+    surfaces.append(_base_surface(
+        name="Signal feed",
+        endpoint="/api/v2/signals",
+        status=signal_status,
+        description="Latest paper signal payload from Redis/runtime fallback" if isinstance(active_signal, dict) else "Signal endpoint reachable; no active signal payload",
+        payload=signal_payload,
+        actual_payload_count=1 if isinstance(active_signal, dict) else 0,
+    ))
+
+    portfolio_payload, portfolio_error = surface_results["/api/v2/portfolio"]
+    portfolio_data = portfolio_payload.get("data") if isinstance(portfolio_payload, dict) else {}
+    positions = portfolio_data.get("positions") if isinstance(portfolio_data, dict) else []
+    portfolio_count = len(positions) if isinstance(positions, list) else 0
+    equity_present = isinstance(portfolio_data, dict) and portfolio_data.get("equity") is not None
+    portfolio_unavailable = not isinstance(portfolio_payload, dict) or portfolio_payload.get("source_type") == "unavailable"
+    if portfolio_error:
+        warnings.append(portfolio_error)
+    portfolio_status = (
+        "ok"
+        if not portfolio_unavailable and equity_present and portfolio_payload.get("stale") is not True
+        else "partial"
+        if not portfolio_unavailable and (equity_present or portfolio_count >= 0)
+        else "error"
+    )
+    surfaces.append(_base_surface(
+        name="Portfolio",
+        endpoint="/api/v2/portfolio",
+        status=portfolio_status,
+        description=f"Paper portfolio state with equity {'present' if equity_present else 'missing'} and {portfolio_count} open rows",
+        payload=portfolio_payload,
+        actual_payload_count=1 if equity_present else portfolio_count,
+    ))
+
+    alerts_payload, alerts_error = surface_results["/api/v2/mobile/alerts?limit=30"]
+    alerts_data = alerts_payload.get("data") if isinstance(alerts_payload, dict) else alerts_payload
+    alert_rows = alerts_data.get("alerts") if isinstance(alerts_data, dict) else []
+    alert_count = len(alert_rows) if isinstance(alert_rows, list) else 0
+    alerts_unavailable = not isinstance(alerts_payload, dict) or alerts_payload.get("source_type") == "unavailable"
+    if alerts_error:
+        warnings.append(alerts_error)
+    alerts_status = "ok" if not alerts_unavailable else "partial"
+    surfaces.append(_base_surface(
+        name="Alerts",
+        endpoint="/api/v2/mobile/alerts",
+        status=alerts_status,
+        description=f"Read-only alert feed reachable with {alert_count} recent rows",
+        payload=alerts_payload,
+        actual_payload_count=alert_count,
+    ))
+
+    trainer_payload, trainer_error = surface_results["/api/v2/trainer/summary"]
+    trainer_state = str(trainer_payload.get("state") or "").upper() if isinstance(trainer_payload, dict) else ""
+    trainer_active = bool(trainer_payload.get("cuda_active")) or "ACTIVE" in trainer_state
+    trainer_missing = trainer_state in {"", "MISSING_EVIDENCE", "BLOCKED_NO_TRUSTED_FEEDBACK", "UNKNOWN"}
+    if trainer_error:
+        warnings.append(trainer_error)
+    trainer_status = "ok" if trainer_active and not trainer_missing else "partial" if isinstance(trainer_payload, dict) else "error"
+    surfaces.append(_base_surface(
+        name="Trainer",
+        endpoint="/api/v2/trainer/summary",
+        status=trainer_status,
+        description=f"Trainer runtime state {trainer_state or 'UNKNOWN'}",
+        payload=trainer_payload,
+        actual_payload_count=1 if isinstance(trainer_payload, dict) and not trainer_missing else 0,
+    ))
+
+    backtests_payload, backtests_error = surface_results["/api/v2/backtests"]
+    backtest_data = backtests_payload.get("data") if isinstance(backtests_payload, dict) else {}
+    backtest_rows = (backtest_data.get("backtests") or backtest_data.get("runs") or []) if isinstance(backtest_data, dict) else []
+    backtest_count = len(backtest_rows) if isinstance(backtest_rows, list) else 0
+    if backtests_error:
+        warnings.append(backtests_error)
+    backtests_status = "ok" if backtest_count > 0 else "pending" if isinstance(backtests_payload, dict) else "error"
+    surfaces.append(_base_surface(
+        name="Backtests",
+        endpoint="/api/v2/backtests",
+        status=backtests_status,
+        description=f"Backtest route reachable; {backtest_count} current run rows",
+        payload=backtests_payload,
+        actual_payload_count=backtest_count,
+    ))
+
+    websocket_status = "ok" if market_status == "ok" and signal_status in {"ok", "partial"} else "partial"
+    surfaces.append({
+        "name": "WebSocket",
+        "endpoint": "/api/v2/ws/resource",
+        "status": websocket_status,
+        "description": "Versioned resource WebSocket route is the shared web/iOS stream; HTTP fallback remains enabled",
+        "actual_payload_count": sum(1 for row in surfaces if row.get("actual_payload_count", 0) > 0),
+        "source_type": "websocket_resource_contract",
+        "stale": False,
+        "missing_fields": [],
+    })
+
+    status_set = {str(row.get("status")) for row in surfaces}
+    core_ok = market_status == "ok" and signal_status in {"ok", "partial"} and portfolio_status in {"ok", "partial"}
+    overall = "error" if "error" in status_set and not core_ok else "partial" if status_set & {"partial", "pending"} else "ok"
     return _base_response(
         endpoint=endpoint,
         data={"overall": overall, "surfaces": surfaces, "count": len(surfaces)},
@@ -3761,7 +3966,7 @@ async def get_data_health() -> dict[str, Any]:
         source_type="api",
         timestamp=_utc_now(),
         missing_fields=[],
-        warnings=[],
+        warnings=warnings,
         mode="read_only",
     )
 
@@ -5066,7 +5271,11 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             return None
         if not _repo_has_pnl and portfolio_state:
             _ps_equity = _float(portfolio_state.get("equity"))
-            _ps_rpnl = _float(portfolio_state.get("realized_pnl_usd"))
+            _ps_rpnl = _first_not_none(
+                _float(portfolio_state.get("realized_net_pnl_usd")),
+                _float(portfolio_state.get("clean_session_valid_realized_pnl_usd")),
+                _float(portfolio_state.get("realized_pnl_usd")),
+            )
             _ps_upnl = _first_not_none(
                 _float(portfolio_state.get("unrealized_pnl_usd")),
                 _float(portfolio_state.get("net_unrealized_pnl")),
@@ -5092,6 +5301,18 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             if should_synthesize_equity:
                 base_realized_for_equity = realized_pnl if realized_pnl is not None else _float(redis_hb.get("realized_pnl_usd")) or 0.0
                 equity = round(_paper_initial_capital + base_realized_for_equity + (unrealized_pnl or 0.0), 4)
+        realized_gross_pnl = _first_not_none(
+            _float(portfolio_state.get("realized_gross_pnl_usd")),
+            _float(portfolio_state.get("gross_pnl_usd")),
+        )
+        realized_for_total = _float(realized_pnl)
+        unrealized_for_total = _float(unrealized_pnl)
+        total_pnl = _first_not_none(
+            _float(portfolio_state.get("total_pnl_usd")),
+            (realized_for_total + unrealized_for_total)
+            if realized_for_total is not None and unrealized_for_total is not None
+            else None,
+        )
         _open_count = (
             _first_not_none(
                 _integer(portfolio_state.get("open_positions_count")),
@@ -5110,6 +5331,10 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             _float(redis_hb.get("total_open_notional")),
         )
         data = {
+            # Canonical PnL source (Phase 2 implementation)
+            "pnl_source_key": "v2:portfolio:state",
+            "pnl_source_route": "/api/v2/portfolio",
+            "pnl_source_type": "CANONICAL_CURRENT_SESSION_RUNTIME",
             "equity": equity,
             "paper_equity": equity,
             "paper_balance": equity,
@@ -5122,6 +5347,11 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "initial_capital": _paper_initial_capital,
             "starting_equity_usd": _paper_initial_capital,
             "paper_session_id": _paper_session_id,
+            # Net PnL (primary economic metric)
+            "realized_net_pnl_usd": _clamp_pnl(realized_pnl),
+            "realized_gross_pnl_usd": _clamp_pnl(realized_gross_pnl),
+            "total_pnl_usd": _clamp_pnl(total_pnl),
+            # Legacy aliases (for backwards compatibility)
             "realized_pnl": _clamp_pnl(realized_pnl),
             "realized_pnl_usd": _clamp_pnl(realized_pnl),
             "unrealized_pnl": _clamp_pnl(unrealized_pnl),
@@ -5142,6 +5372,18 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "contains_quarantined_positions": bool(portfolio_state.get("contains_quarantined_positions")),
             "equity_trusted": portfolio_state.get("equity_trusted") is not False,
             "pnl_trusted": portfolio_state.get("pnl_trusted") is not False,
+            # Canonical source fields (passed from portfolio_state)
+            "pnl_source_key": portfolio_state.get("pnl_source_key", "v2:portfolio:state"),
+            "pnl_source_route": portfolio_state.get("pnl_source_route", "/api/v2/portfolio"),
+            "pnl_source_type": portfolio_state.get("pnl_source_type", "CANONICAL_CURRENT_SESSION_RUNTIME"),
+            "pnl_conflict_detected": portfolio_state.get("pnl_conflict_detected", False),
+            "pnl_conflict_reason": portfolio_state.get("pnl_conflict_reason"),
+            "pnl_conflict_sources": portfolio_state.get("pnl_conflict_sources", []),
+            "closed_ledger_net_pnl_usd": portfolio_state.get("closed_ledger_net_pnl_usd"),
+            "portfolio_realized_matches_closed_ledger": portfolio_state.get("portfolio_realized_matches_closed_ledger"),
+            "equity_reconciles_within_1_cent": portfolio_state.get("equity_reconciles_within_1_cent"),
+            "source_generated_utc": portfolio_state.get("generated_utc") or portfolio_state.get("generated_at"),
+            "freshness_seconds": portfolio_state.get("freshness_seconds"),
             "reason_if_untrusted": portfolio_state.get("reason_if_untrusted"),
             "invalid_admission_accepted_excluded": portfolio_state.get("invalid_admission_accepted_excluded"),
             "invalid_admission_closed_trades_excluded": portfolio_state.get("invalid_admission_closed_trades_excluded"),
@@ -5244,10 +5486,16 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
     # None checks so valid clean-session 0.0 PnL does not fall through to raw
     # heartbeat or legacy payload values.
     base_realized = _first_public_not_none(
+        _float(pub_portfolio_state.get("realized_net_pnl_usd")),
+        _float(pub_portfolio_state.get("clean_session_valid_realized_pnl_usd")),
         _float(pub_portfolio_state.get("realized_pnl_usd")),
         _float(account.get("realized_pnl") if scoped_paper and isinstance(account, dict) else None),
         _float(portfolio_data.get("realized_pnl_usd") if scoped_portfolio else None),
         _float(redis_hb_public.get("realized_pnl_usd")),
+    )
+    base_gross_realized = _first_public_not_none(
+        _float(pub_portfolio_state.get("realized_gross_pnl_usd")),
+        _float(pub_portfolio_state.get("gross_pnl_usd")),
     )
     base_unrealized = _first_public_not_none(
         _float(pub_portfolio_state.get("unrealized_pnl_usd")),
@@ -5262,6 +5510,12 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         or _float(redis_hb_public.get("starting_equity_usd"))
         or _float(redis_hb_public.get("initial_capital"))
         or PAPER_INITIAL_CAPITAL
+    )
+    base_total_pnl = _first_public_not_none(
+        _float(pub_portfolio_state.get("total_pnl_usd")),
+        (base_realized + base_unrealized)
+        if base_realized is not None and base_unrealized is not None
+        else None,
     )
     _public_session_id = (
         pub_portfolio_state.get("paper_session_id")
@@ -5299,8 +5553,11 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         ),
         "realized_pnl": _clamp(base_realized),
         "realized_pnl_usd": _clamp(base_realized),
+        "realized_net_pnl_usd": _clamp(base_realized),
+        "realized_gross_pnl_usd": _clamp(base_gross_realized),
         "unrealized_pnl": _clamp(base_unrealized),
         "unrealized_pnl_usd": _clamp(base_unrealized),
+        "total_pnl_usd": _clamp(base_total_pnl),
         "paper_initial_capital": _public_initial_capital,
         "initial_capital": _public_initial_capital,
         "starting_equity_usd": _public_initial_capital,
@@ -5330,6 +5587,17 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "contains_quarantined_positions": bool(pub_portfolio_state.get("contains_quarantined_positions")),
         "equity_trusted": pub_portfolio_state.get("equity_trusted") is not False,
         "pnl_trusted": pub_portfolio_state.get("pnl_trusted") is not False,
+        "pnl_source_key": pub_portfolio_state.get("pnl_source_key", "v2:portfolio:state"),
+        "pnl_source_route": pub_portfolio_state.get("pnl_source_route", "/api/v2/portfolio"),
+        "pnl_source_type": pub_portfolio_state.get("pnl_source_type", "CANONICAL_CURRENT_SESSION_RUNTIME"),
+        "pnl_conflict_detected": pub_portfolio_state.get("pnl_conflict_detected", False),
+        "pnl_conflict_reason": pub_portfolio_state.get("pnl_conflict_reason"),
+        "pnl_conflict_sources": pub_portfolio_state.get("pnl_conflict_sources", []),
+        "closed_ledger_net_pnl_usd": pub_portfolio_state.get("closed_ledger_net_pnl_usd"),
+        "portfolio_realized_matches_closed_ledger": pub_portfolio_state.get("portfolio_realized_matches_closed_ledger"),
+        "equity_reconciles_within_1_cent": pub_portfolio_state.get("equity_reconciles_within_1_cent"),
+        "source_generated_utc": pub_portfolio_state.get("generated_utc") or pub_portfolio_state.get("generated_at"),
+        "freshness_seconds": pub_portfolio_state.get("freshness_seconds"),
         "reason_if_untrusted": pub_portfolio_state.get("reason_if_untrusted"),
         "invalid_admission_accepted_excluded": pub_portfolio_state.get("invalid_admission_accepted_excluded"),
         "invalid_admission_closed_trades_excluded": pub_portfolio_state.get("invalid_admission_closed_trades_excluded"),
@@ -10495,6 +10763,10 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
         }, ["Redis unavailable for paper activity; returned structured empty paper state"]
     hb_raw = client.get("v2:paper:heartbeat")
     heartbeat: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
+    portfolio_raw = client.get("v2:portfolio:state")
+    portfolio: dict[str, Any] = json.loads(portfolio_raw) if portfolio_raw else {}
+    if not isinstance(portfolio, dict):
+        portfolio = {}
 
     rp_raw = client.get("v2:risk:active_profile")
     risk_profile: dict[str, Any] = json.loads(rp_raw) if rp_raw else {}
@@ -10520,6 +10792,17 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
     fills = _paper_fills_from_intents(intents, limit=120)
     open_orders, order_history = _paper_orders_from_intents(intents, limit=150)
     audit_events = _paper_audit_events_from_intents(intents, limit=80)
+    canonical_realized_pnl = _float(
+        portfolio.get("realized_net_pnl_usd")
+        if portfolio.get("realized_net_pnl_usd") is not None
+        else portfolio.get("clean_session_valid_realized_pnl_usd")
+        if portfolio.get("clean_session_valid_realized_pnl_usd") is not None
+        else portfolio.get("realized_pnl_usd")
+    )
+    canonical_unrealized_pnl = _float(portfolio.get("unrealized_pnl_usd"))
+    canonical_total_pnl = _float(portfolio.get("total_pnl_usd"))
+    if canonical_total_pnl is None and canonical_realized_pnl is not None:
+        canonical_total_pnl = canonical_realized_pnl + (canonical_unrealized_pnl or 0.0)
     data = {
         "positions": positions,
         "fills": fills,
@@ -10543,8 +10826,18 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
         "summary": {
             "open_position_count": len(positions),
             "closed_trade_count": int(heartbeat.get("closed_trade_count") or 0),
-            "realized_pnl_usd": heartbeat.get("realized_pnl_usd") or 0.0,
-            "unrealized_pnl_usd": position_metrics["unrealized_pnl_usd"],
+            "realized_pnl_usd": (
+                canonical_realized_pnl
+                if canonical_realized_pnl is not None
+                else heartbeat.get("realized_pnl_usd") or 0.0
+            ),
+            "realized_net_pnl_usd": canonical_realized_pnl,
+            "unrealized_pnl_usd": (
+                canonical_unrealized_pnl
+                if canonical_unrealized_pnl is not None
+                else position_metrics["unrealized_pnl_usd"]
+            ),
+            "total_pnl_usd": canonical_total_pnl,
             "total_open_notional": position_metrics["total_open_notional"] or heartbeat.get("total_open_notional"),
             "paper_signals_seen": heartbeat.get("paper_signals_seen"),
             "intents_accepted": heartbeat.get("intents_accepted"),
@@ -10563,6 +10856,16 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
             "order_history_count": len(order_history),
             "open_order_count": len(open_orders),
             "audit_event_count": len(audit_events),
+            "pnl_source_key": portfolio.get("pnl_source_key") or "v2:portfolio:state",
+            "pnl_source_route": portfolio.get("pnl_source_route") or "/api/v2/portfolio",
+            "pnl_source_type": (
+                portfolio.get("pnl_source_type")
+                or "CANONICAL_CURRENT_SESSION_RUNTIME"
+                if portfolio
+                else "fallback:v2:paper:heartbeat"
+            ),
+            "pnl_conflict_detected": bool(portfolio.get("pnl_conflict_detected")),
+            "pnl_source_conflict_detected": bool(portfolio.get("pnl_source_conflict_detected")),
         },
         "stream": {
             "source": "v2:paper:* Redis",
@@ -10584,6 +10887,10 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
             client = get_redis()
             hb_raw = client.get("v2:paper:heartbeat")
             heartbeat: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
+            portfolio_raw = client.get("v2:portfolio:state")
+            portfolio: dict[str, Any] = json.loads(portfolio_raw) if portfolio_raw else {}
+            if not isinstance(portfolio, dict):
+                portfolio = {}
 
             pos_raw = client.get("v2:paper:positions")
             positions_raw: list[Any] = json.loads(pos_raw) if pos_raw else []
@@ -10693,6 +11000,18 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 r = str(t.get("close_reason") or "UNKNOWN")
                 reason_counts[r] = reason_counts.get(r, 0) + 1
 
+            canonical_realized_pnl = _float(
+                portfolio.get("realized_net_pnl_usd")
+                if portfolio.get("realized_net_pnl_usd") is not None
+                else portfolio.get("clean_session_valid_realized_pnl_usd")
+                if portfolio.get("clean_session_valid_realized_pnl_usd") is not None
+                else portfolio.get("realized_pnl_usd")
+            )
+            canonical_unrealized_pnl = _float(portfolio.get("unrealized_pnl_usd"))
+            canonical_total_pnl = _float(portfolio.get("total_pnl_usd"))
+            if canonical_total_pnl is None and canonical_realized_pnl is not None:
+                canonical_total_pnl = canonical_realized_pnl + (canonical_unrealized_pnl or 0.0)
+
             return {
                 "positions": positions,
                 "closed_trades": trades[:200],
@@ -10713,8 +11032,18 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 "summary": {
                     "open_position_count": int(heartbeat.get("open_position_count") or len(positions)),
                     "closed_trade_count": int(heartbeat.get("closed_trade_count") or len(closed_raw)),
-                    "realized_pnl_usd": heartbeat.get("realized_pnl_usd") or 0.0,
-                    "unrealized_pnl_usd": position_metrics["unrealized_pnl_usd"] if positions else (heartbeat.get("unrealized_pnl_usd") or 0.0),
+                    "realized_pnl_usd": (
+                        canonical_realized_pnl
+                        if canonical_realized_pnl is not None
+                        else heartbeat.get("realized_pnl_usd") or 0.0
+                    ),
+                    "realized_net_pnl_usd": canonical_realized_pnl,
+                    "unrealized_pnl_usd": (
+                        canonical_unrealized_pnl
+                        if canonical_unrealized_pnl is not None
+                        else position_metrics["unrealized_pnl_usd"] if positions else (heartbeat.get("unrealized_pnl_usd") or 0.0)
+                    ),
+                    "total_pnl_usd": canonical_total_pnl,
                     "total_open_notional": position_metrics["total_open_notional"] or heartbeat.get("total_open_notional"),
                     "paper_signals_seen": heartbeat.get("paper_signals_seen"),
                     "intents_accepted": heartbeat.get("intents_accepted"),
@@ -10729,6 +11058,16 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                     "missing_mark_price_count": position_metrics["missing_mark_price_count"],
                     "position_source_status": position_source_status,
                     "position_rows_returned": len(positions),
+                    "pnl_source_key": portfolio.get("pnl_source_key") or "v2:portfolio:state",
+                    "pnl_source_route": portfolio.get("pnl_source_route") or "/api/v2/portfolio",
+                    "pnl_source_type": (
+                        portfolio.get("pnl_source_type")
+                        or "CANONICAL_CURRENT_SESSION_RUNTIME"
+                        if portfolio
+                        else "fallback:v2:paper:heartbeat"
+                    ),
+                    "pnl_conflict_detected": bool(portfolio.get("pnl_conflict_detected")),
+                    "pnl_source_conflict_detected": bool(portfolio.get("pnl_source_conflict_detected")),
                 },
                 "_warnings": position_warnings,
             }

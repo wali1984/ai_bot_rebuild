@@ -312,6 +312,28 @@ FEATURE_SPEC: tuple[tuple[str, str], ...] = (
     ("santiment_dev_activity", "v2:altdata:santiment"),
     ("lunarcrush_score", "v2:altdata:lunarcrush"),
     ("nansen_presence", "v2:altdata:nansen"),
+    ("moralis_exchange_inflow_usd", "v2:features:moralis"),
+    ("moralis_exchange_outflow_usd", "v2:features:moralis"),
+    ("moralis_net_exchange_flow_usd", "v2:features:moralis"),
+    ("moralis_whale_net_flow_usd", "v2:features:moralis"),
+    ("moralis_smart_wallet_accumulation_score", "v2:features:moralis"),
+    ("moralis_smart_wallet_distribution_score", "v2:features:moralis"),
+    ("moralis_onchain_risk_score", "v2:features:moralis"),
+    ("altdata_derivatives_pressure_score", "v2:altdata:confluence"),
+    ("altdata_liquidation_sweep_risk_score", "v2:altdata:confluence"),
+    ("altdata_social_attention_score", "v2:altdata:confluence"),
+    ("altdata_social_euphoria_risk_score", "v2:altdata:confluence"),
+    ("altdata_exchange_flow_pressure_usd", "v2:altdata:confluence"),
+    ("altdata_wallet_accumulation_score", "v2:altdata:confluence"),
+    ("altdata_wallet_distribution_score", "v2:altdata:confluence"),
+    ("altdata_institutional_flow_score", "v2:altdata:confluence"),
+    ("altdata_options_pin_risk_score", "v2:altdata:confluence"),
+    ("altdata_market_regime_score", "v2:altdata:confluence"),
+    ("altdata_confluence_long_score", "v2:altdata:confluence"),
+    ("altdata_confluence_short_score", "v2:altdata:confluence"),
+    ("altdata_trade_block_score", "v2:altdata:confluence"),
+    ("altdata_reduce_size_score", "v2:altdata:confluence"),
+    ("altdata_hedge_required_score", "v2:altdata:confluence"),
 )
 
 
@@ -1302,6 +1324,28 @@ class V2UnifiedFeatureTensorBuilder:
             if raw_by_name.get(name) is None:
                 raw_by_name[name] = value
                 provider_sources[name] = "provider_feature_bridge"
+
+        # Alt-data bridge payloads (Moralis wallet intelligence + confluence
+        # engine scores) publish {"features": {...}} with explicit masks; a
+        # None value stays missing here so the mask channels stay honest.
+        for bridge_label, bridge_payload in (
+            ("v2:features:moralis", payloads.get("moralis_features")),
+            ("v2:smart_money:signals", payloads.get("smart_money_signals")),
+            ("v2:altdata:confluence", payloads.get("altdata_confluence")),
+        ):
+            bridge_features = (
+                bridge_payload.get("features") if isinstance(bridge_payload, Mapping) else None
+            )
+            if not isinstance(bridge_features, Mapping):
+                continue
+            for bridge_name, bridge_value in bridge_features.items():
+                name = str(bridge_name)
+                if name not in feature_spec_names:
+                    continue
+                parsed = _finite_float(bridge_value)
+                if parsed is not None and raw_by_name.get(name) is None:
+                    raw_by_name[name] = parsed
+                    provider_sources[name] = bridge_label
 
         coinank_sources: dict[str, str] = {}
         if coinank_funding_rate is not None and _dig(payloads.get("funding"), "funding_rate", "rate", "fundingRate", "lastFundingRate") is None:

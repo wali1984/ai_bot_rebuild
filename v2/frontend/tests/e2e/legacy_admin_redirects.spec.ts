@@ -15,15 +15,11 @@ const REDIRECT_TABLE: Array<{ from: string; to: string }> = [
   { from: '/admin/system',               to: '/admin' },
   { from: '/admin/system-health',        to: '/admin' },
   // Data
-  { from: '/admin/monitor-center',       to: '/admin/data' },
   { from: '/admin/ingestors',            to: '/admin/data' },
   // Intelligence
   { from: '/admin/trainer',              to: '/admin/intelligence' },
-  { from: '/admin/trainer-admin',        to: '/admin/intelligence' },
-  { from: '/admin/trainer-prediction-monitor', to: '/admin/intelligence' },
   { from: '/admin/model-state',          to: '/admin/intelligence' },
   { from: '/admin/ai-brain',             to: '/admin/intelligence' },
-  { from: '/admin/signal-explainability',to: '/admin/intelligence' },
   // Orchestration
   { from: '/admin/orchestrator',         to: '/admin/orchestration' },
   { from: '/admin/orchestrator-admin',   to: '/admin/orchestration' },
@@ -33,7 +29,6 @@ const REDIRECT_TABLE: Array<{ from: string; to: string }> = [
   { from: '/admin/risk-control',         to: '/admin/risk' },
   { from: '/admin/readiness',            to: '/admin/risk' },
   { from: '/admin/live-readiness',       to: '/admin/risk' },
-  { from: '/admin/external-manual-position-quarantine', to: '/admin/risk' },
   // Execution
   { from: '/admin/execution-admin',      to: '/admin/execution' },
   // Exchanges
@@ -42,8 +37,7 @@ const REDIRECT_TABLE: Array<{ from: string; to: string }> = [
   { from: '/admin/config-admin',         to: '/admin/config' },
   // Reports
   { from: '/admin/report-center',        to: '/admin/reports' },
-  { from: '/admin/executive-status',     to: '/admin/reports' },
-  { from: '/admin/evidence',             to: '/admin/reports' },
+  { from: '/admin/operator-proof-dashboard', to: '/admin/evidence' },
   // Logs
   { from: '/admin/logs-errors',          to: '/admin/logs' },
   // Audit
@@ -54,8 +48,9 @@ const REDIRECT_TABLE: Array<{ from: string; to: string }> = [
   { from: '/admin/coverage-system-atlas',to: '/admin/tools' },
   { from: '/admin/claude-admin-ai',      to: '/admin/tools' },
   { from: '/admin/ollama-local-assistant', to: '/admin/tools' },
-  { from: '/admin/codex-review-center',  to: '/admin/tools' },
   // /system/* namespace
+  { from: '/system/executive-summary',   to: '/admin/executive-status' },
+  { from: '/system/build-code-review',   to: '/admin/codex-review-center' },
   { from: '/system/health',              to: '/admin' },
   { from: '/system/risk-controllers',    to: '/admin/risk' },
   { from: '/system/exchanges',           to: '/admin/exchanges' },

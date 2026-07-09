@@ -12,6 +12,7 @@ import { canSee, normalizeRole } from '../../auth/rbac';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
 import { StaleStateAlertsPanel } from '../../components/dashboard/StaleStateAlertsPanel';
 import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
+import { healthStatusTone } from '../../components/system/healthStatus';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import {
   adaptiveStatusColor,
@@ -41,8 +42,19 @@ interface PortfolioData {
   initial_capital?: number | null;
   paper_initial_capital?: number | null;
   starting_equity_usd?: number | null;
+  realized_net_pnl_usd?: number | null;
+  realized_gross_pnl_usd?: number | null;
+  realized_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
+  total_pnl_usd?: number | null;
+  clean_session_valid_realized_pnl_usd?: number | null;
+  clean_session_valid_unrealized_pnl_usd?: number | null;
   realized_pnl?: number | null;
   unrealized_pnl?: number | null;
+  pnl_source_key?: string | null;
+  pnl_source_route?: string | null;
+  pnl_source_type?: string | null;
+  pnl_conflict_detected?: boolean | null;
   open_positions?: unknown[];
   account_mode?: string | null;
 }
@@ -199,15 +211,6 @@ function sideColor(s: string | null | undefined): string {
   if (lo === 'short' || lo === 'sell') return 'var(--sell, #ef4444)';
   return 'var(--text-secondary)';
 }
-function statusTone(s: string): { bg: string; color: string; label: string } {
-  switch (s) {
-    case 'ok': return { bg: 'color-mix(in oklch, var(--buy,#10b981) 14%, transparent)', color: 'var(--buy,#10b981)', label: 'OK' };
-    case 'partial': return { bg: 'color-mix(in oklch, #f59e0b 14%, transparent)', color: '#f59e0b', label: 'PARTIAL' };
-    case 'pending': return { bg: 'color-mix(in oklch, var(--text-muted) 14%, transparent)', color: 'var(--text-muted)', label: 'PENDING' };
-    default: return { bg: 'color-mix(in oklch, var(--sell,#ef4444) 14%, transparent)', color: 'var(--sell,#ef4444)', label: 'ERROR' };
-  }
-}
-
 function publicDashboardText(value: string | null | undefined): string {
   const raw = (value ?? '—').trim();
   const upper = raw.toUpperCase();
@@ -581,7 +584,7 @@ function RiskPanel({ profile, latestResult, heartbeat }: {
       <PanelHead
         title="Risk Gateway"
         sub={profile?.profile_id ?? undefined}
-        to="/risk-control"
+        to="/admin/risk"
         badge={heartbeat?.classification?.includes('OK') ? 'OK' : undefined}
         badgeTone="ok"
       />
@@ -920,9 +923,9 @@ function SystemHealthPanel({ surfaces }: { surfaces: HealthSurface[] }): JSX.Ele
       <PanelHead title="System Health" to="/system-health" />
       <div style={{ padding: '10px 16px 14px', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {surfaces.map(s => {
-          const t = statusTone(s.status);
+          const t = healthStatusTone(s.status);
           return (
-            <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: t.bg, border: `1px solid color-mix(in oklch,${t.color} 25%,transparent)` }}>
+            <div key={s.name} title={s.description} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, background: t.bg, border: `1px solid color-mix(in oklch,${t.color} 25%,transparent)` }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
               <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
               <span style={{ fontSize: 10, color: t.color, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{t.label}</span>
@@ -941,8 +944,8 @@ const NAV_TILES: Array<{ label: string; desc: string; to: string }> = [
   { label: 'Markets', desc: '627 symbols · full screener', to: '/markets' },
   { label: 'Signals', desc: 'AI signal stream · history', to: '/signals' },
   { label: 'Portfolio', desc: 'Equity · PnL · positions', to: '/portfolio' },
-  { label: 'Trainer', desc: 'Model · predictions · health', to: '/trainer' },
-  { label: 'Risk Control', desc: 'Profile · limits · kill switch', to: '/risk-control' },
+  { label: 'Trainer', desc: 'Model · predictions · health', to: '/ai-predictions' },
+  { label: 'Risk Control', desc: 'Profile · limits · kill switch', to: '/admin/risk' },
   { label: 'Audit Ledger', desc: 'Immutable execution trail', to: '/audit-ledger' },
   { label: 'System Health', desc: 'Services · monitors · Redis', to: '/system-health' },
 ];
@@ -1001,10 +1004,20 @@ export default function DashboardPage(): JSX.Element {
     portfolioData?.equity != null
     || portfolioData?.paper_equity != null
     || portfolioData?.paper_balance != null
-    || streamSummary.realized_pnl_usd != null
-    || streamSummary.unrealized_pnl_usd != null;
-  const realized = streamSummary.realized_pnl_usd ?? portfolioData?.realized_pnl ?? null;
-  const unrealized = streamSummary.unrealized_pnl_usd ?? portfolioData?.unrealized_pnl ?? null;
+    || portfolioData?.realized_net_pnl_usd != null
+    || portfolioData?.realized_pnl_usd != null
+    || portfolioData?.unrealized_pnl_usd != null;
+  const realized =
+    portfolioData?.realized_net_pnl_usd
+    ?? portfolioData?.clean_session_valid_realized_pnl_usd
+    ?? portfolioData?.realized_pnl_usd
+    ?? portfolioData?.realized_pnl
+    ?? null;
+  const unrealized =
+    portfolioData?.unrealized_pnl_usd
+    ?? portfolioData?.clean_session_valid_unrealized_pnl_usd
+    ?? portfolioData?.unrealized_pnl
+    ?? null;
   const startingCapital =
     portfolioData?.initial_capital
     ?? portfolioData?.paper_initial_capital
@@ -1084,7 +1097,7 @@ export default function DashboardPage(): JSX.Element {
         data-testid="live-block-banner"
         data-live-gate-status="blocked_human_only"
       >
-        LIVE TRADING: BLOCKED · blocked_human_only
+        EXECUTION BLOCKED · LIVE TRADING: BLOCKED · blocked_human_only
         <span className="live-block-banner__hint">execution-restricted runtime truth</span>
       </div>
 

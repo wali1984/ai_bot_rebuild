@@ -78,16 +78,25 @@ export async function fetchCurrentUser(): Promise<AuthUser | null> {
 }
 
 export async function loginWithPassword(request: LoginRequest): Promise<LoginResponse> {
-  const response = await fetch('/api/auth/login', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
+  let response: Response;
+  try {
+    response = await fetch('/api/auth/login', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  } catch {
+    throw new Error('Sign-in service unavailable');
+  }
   if (!response.ok) {
     throw new Error(response.status === 401 ? 'Invalid email or password' : 'Sign-in service unavailable');
   }
-  return parseJson<LoginResponse>(response);
+  try {
+    return await parseJson<LoginResponse>(response);
+  } catch {
+    throw new Error('Sign-in service unavailable');
+  }
 }
 
 export async function logoutSession(): Promise<void> {

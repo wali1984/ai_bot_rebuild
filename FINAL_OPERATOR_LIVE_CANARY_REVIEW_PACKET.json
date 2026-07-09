@@ -1,0 +1,364 @@
+{
+  "closed_trade_evidence_policy": {
+    "closed_rows_total": 13,
+    "counts_as_a_plus_rows": 0,
+    "counts_as_live_ready_rows": 0,
+    "fake_verifier_only_pass_allowed": false,
+    "g13_g14_waived_rows_excluded_from_live_approval": true,
+    "reconstructed_rows_excluded_from_a_plus_and_live_ready": 13,
+    "strict_current_rows": 0,
+    "strict_full_economics_rows": 0
+  },
+  "deployment": {
+    "active_release_code_matches_commit_or_diff_listed": true,
+    "active_release_diffs_listed": [
+      "M claude_worklog/disk_janitor/disk_janitor_status.json",
+      "?? raw_evidence/final_live_canary_review_20260708/same_day_cutover/same_day_ceo_packet.md",
+      "?? raw_evidence/final_live_canary_review_20260708/same_day_cutover/same_day_production_go_live_gate_status.json"
+    ],
+    "actual_branch": "codex/pipeline-trust-refresh",
+    "actual_head": "e985a9ec5542c0c61be2c6cc387fbeaec31fc686",
+    "expected_branch": "codex/pipeline-trust-refresh",
+    "expected_commit": "e985a9ec5542c0c61be2c6cc387fbeaec31fc686",
+    "matches_expected_commit": true,
+    "origin_head": "e985a9ec5542c0c61be2c6cc387fbeaec31fc686",
+    "worktree_clean_before_required_review_artifacts": false
+  },
+  "exact_next_patch": "Keep paper/probation running under preemptive edge control until current-session probation closes rebuild and an independent A+ candidate appears; then rerun this packet before any order/test-order/leverage/margin action.",
+  "final_state": "PRODUCTION_STACK_READY_LIVE_BLOCKED",
+  "generated_utc": "2026-07-08T20:45:00Z",
+  "live_canary_safety": {
+    "account_read_permission_status": "NOT_CHECKED_CREDENTIALS_ABSENT",
+    "kill_switch_namespace": "v2:live_canary:kill_switch",
+    "kill_switch_present": true,
+    "leverage_mutated": false,
+    "liquidation_buffer_usd_present": false,
+    "live_gate": "blocked_human_only",
+    "live_ready": false,
+    "margin_mutated": false,
+    "max_loss_usd_present": true,
+    "order_submitted": false,
+    "permission_probe_go_no_go": "V2_LIVE_CANARY_PERMISSION_PROBE_BLOCKED",
+    "reduce_only_path_present": false,
+    "signed_read_account_status_present": false,
+    "symbol_filters_present": true,
+    "test_order_submitted": false
+  },
+  "operator_approval_assertions": {
+    "a_plus_claim_from_probation_allowed": false,
+    "any_real_order_approved": false,
+    "any_test_order_approved": false,
+    "cross_margin_live_operation_approved": false,
+    "day5_16_of_16_pass_allows_real_order": false,
+    "leverage_margin_mutation_approved": false,
+    "unrestricted_live_trading_approved": false
+  },
+  "probation_status": {
+    "advance_to_20_close_gate": false,
+    "checks": {
+      "ATR_stop_cluster": false,
+      "PF": null,
+      "closed_probation_trades": 0,
+      "high_confidence_loss_cluster": false,
+      "notional_weighted_expectancy_bps": null,
+      "orphaned_positions": 0
+    },
+    "dashboard_truth": {
+      "a_plus_final_rows": 0,
+      "artifact": "dashboard_probation_truth_status",
+      "closed_probation_trades": 0,
+      "forbidden_claims": {
+        "probation_as_a_plus": false,
+        "probation_as_live_ready": false,
+        "thousand_x_on_track": false
+      },
+      "gate_status": "ACCUMULATING_0_OF_5",
+      "generated_utc": "2026-07-08T20:44:26.788132+00:00",
+      "live_blocked": true,
+      "open_probation_fills": 1,
+      "probation_active": true,
+      "supervisor_halt_active": false
+    },
+    "paper_session_id": "paper_3000_final_pre_live_20260705T024432Z",
+    "probation_counts_as_A_plus": false,
+    "probation_counts_as_live_ready": false,
+    "status": "ACCUMULATING_0_OF_5"
+  },
+  "provider_services": {
+    "coinglass": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Wed 2026-07-08 16:38:25 EDT",
+      "FragmentPath": "/home/wali/.config/systemd/user/ai-bot-v2-coinglass-provider-loop.service",
+      "Id": "ai-bot-v2-coinglass-provider-loop.service",
+      "MainPID": "3063398",
+      "NRestarts": "1",
+      "SubState": "running",
+      "UnitFileState": "enabled"
+    },
+    "moralis": {
+      "ActiveState": "active",
+      "ExecMainStartTimestamp": "Wed 2026-07-08 16:38:40 EDT",
+      "FragmentPath": "/home/wali/.config/systemd/user/ai-bot-v2-moralis-provider-loop.service",
+      "Id": "ai-bot-v2-moralis-provider-loop.service",
+      "MainPID": "3063901",
+      "NRestarts": "1",
+      "SubState": "running",
+      "UnitFileState": "enabled"
+    },
+    "process_restart_proof": {
+      "expected_nrestarts_after_proof": ">=1",
+      "performed": true,
+      "result": "PASS_RESTARTED_UNDER_SYSTEMD"
+    }
+  },
+  "provider_truth": {
+    "coinank": {
+      "actual_data_inferred_from_success_count": true,
+      "current_endpoint_error_count": 0,
+      "current_endpoint_success_count": 298,
+      "freshness_seconds": 8.403578996658325,
+      "generated_utc": "2026-07-08T20:43:52Z",
+      "heartbeat_present": true,
+      "heartbeat_ttl_seconds": 300,
+      "legacy_key_contract_is_current_source": true,
+      "status_file": "v2/frontend/public/operator_runtime/coinank_market_intelligence/latest/coinank_market_intelligence_status.json"
+    },
+    "coinglass": {
+      "actual_payload_count_1h": 7,
+      "actual_payload_count_5m": 7,
+      "core_system_blocked": false,
+      "dashboard_color": "GREEN",
+      "endpoint_actual_count": 7,
+      "endpoint_summary": {
+        "funding_rate": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:23Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "liquidation_heatmap_or_levels": {
+          "actual_payload_present": false,
+          "dashboard_color": "GRAY",
+          "generated_utc": "2026-07-08T20:42:53Z",
+          "heartbeat_only": true,
+          "status": "CONFIGURED_BUT_UNAUTHORIZED_OR_UNSUBSCRIBED"
+        },
+        "liquidation_orders": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:52Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "long_short_ratio": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:28Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "market_snapshot": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:20Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "open_interest": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:25Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "orderbook_l2_l3": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:57Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "trades": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:44:54Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        }
+      },
+      "last_http_status": 200,
+      "last_success_at": "2026-07-08T20:44:57Z",
+      "rate_limit_status": {
+        "backoff": {
+          "active": false,
+          "consecutive_failures": 0,
+          "reason": "NONE",
+          "seconds_remaining": 0
+        },
+        "core_system_blocked": false,
+        "hard_limit_per_minute": 285,
+        "health_reserve_per_minute": 5,
+        "manual_reserve_per_minute": 15,
+        "max_concurrent_requests": 5,
+        "normal_limit_per_minute": 210,
+        "provider": "coinglass",
+        "provider_limit_source": "ACCOUNT_HEADER_DISCOVERED",
+        "public_limit_per_minute": 300,
+        "raw_key_exposed": false,
+        "refill_per_second": 1.0833333333333333,
+        "requests_per_minute": 65,
+        "schema_version": "coinglass_rate_limit_status_v1",
+        "timeout_seconds": 8.0,
+        "tokens_available": 63.65331971192307
+      },
+      "raw_key_exposed": false,
+      "status": "READY",
+      "subscription_status": "READY",
+      "usage": {
+        "core_system_blocked": false,
+        "raw_key_exposed": false,
+        "requests_per_minute": 65
+      }
+    },
+    "moralis": {
+      "actual_payload_count_1h": 5,
+      "actual_payload_count_5m": 5,
+      "configured_no_watchlist_is_green": false,
+      "core_system_blocked": false,
+      "daily_cu_used": 825,
+      "dashboard_color": "GREEN",
+      "endpoint_actual_count": 5,
+      "endpoint_summary": {
+        "multiple_token_prices": {
+          "actual_payload_present": false,
+          "dashboard_color": "GRAY",
+          "generated_utc": "2026-07-08T20:39:01Z",
+          "heartbeat_only": true,
+          "status": "UNAVAILABLE"
+        },
+        "token_address_transfers": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:38:48Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "token_holders": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:38:51Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "token_metadata": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:38:57Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "token_price": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:38:59Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        },
+        "token_swaps": {
+          "actual_payload_present": false,
+          "dashboard_color": "GRAY",
+          "generated_utc": "2026-07-08T20:38:54Z",
+          "heartbeat_only": true,
+          "status": "READY"
+        },
+        "token_transfers": {
+          "actual_payload_present": true,
+          "dashboard_color": "GREEN",
+          "generated_utc": "2026-07-08T20:38:44Z",
+          "heartbeat_only": false,
+          "status": "READY"
+        }
+      },
+      "last_http_status": 404,
+      "last_success_at": "2026-07-08T20:39:01Z",
+      "rate_limit_status": null,
+      "raw_key_exposed": false,
+      "smart_wallet_candidate_count": 0,
+      "status": "READY",
+      "subscription_status": "READY",
+      "token_map_count": 0,
+      "usage": {
+        "core_system_blocked": false,
+        "current_rps": 5,
+        "raw_key_exposed": false
+      },
+      "wallet_watchlist_count": 0
+    },
+    "moralis_semantics": {
+      "smart_wallet_candidate_count": 0,
+      "standalone_trade_approval_allowed": false,
+      "token_payloads_active": true,
+      "unknown_wallet_called_smart_money": false,
+      "wallet_watchlist_count": 0
+    },
+    "provider_consumption": {
+      "allocator": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      },
+      "live_dry_run": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      },
+      "orchestrator": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      },
+      "paper": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      },
+      "risk": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      },
+      "trainer": {
+        "actual_provider_count": 2,
+        "core_system_blocked": false,
+        "feature_count": 48,
+        "heartbeat_only_green_allowed": false,
+        "optional_provider_failures": [],
+        "raw_key_exposed": false
+      }
+    }
+  },
+  "same_day_cutover_rerun": {
+    "live_gate": "blocked_human_only",
+    "live_ready": false,
+    "path": "raw_evidence/final_live_canary_review_20260708/same_day_cutover/same_day_production_go_live_gate_status.json",
+    "status": "LIVE_CANARY_OPERATOR_REVIEW_REQUIRED"
+  },
+  "schema_version": "final_operator_live_canary_review_packet_v1",
+  "single_blocker": "NO_CURRENT_SESSION_INDEPENDENT_A_PLUS_LIVE_CANARY_CANDIDATE"
+}

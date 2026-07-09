@@ -8,9 +8,9 @@ from typing import Any
 
 import httpx
 
-from v2.backend.app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
-from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
-from v2.backend.app.services.smart_money_wallets.rate_limit import (
+from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
+from app.services.smart_money_wallets.models import MoralisResponse
+from app.services.smart_money_wallets.rate_limit import (
     MORALIS_TIMEOUT_SECONDS,
     MoralisRateLimiter,
 )

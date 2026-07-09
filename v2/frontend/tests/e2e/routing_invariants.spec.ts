@@ -45,11 +45,16 @@ const RESOLVED_PAGE_PATHS = new Set<string>([
   '/chart/:symbol?',
   // Admin surface
   '/admin',
+  '/admin/data',
+  '/admin/intelligence',
+  '/admin/orchestration',
   '/admin/system',
   '/admin/monitor-center',
   '/admin/coverage',
   '/admin/scripts',
   '/admin/signal-explainability',
+  '/admin/trainer-admin',
+  '/admin/trainer-prediction-monitor',
   '/admin/ingestors',
   '/admin/trainer',
   '/admin/orchestrator',
@@ -68,10 +73,13 @@ const RESOLVED_PAGE_PATHS = new Set<string>([
   '/admin/migrations',
   '/admin/evidence',
   '/admin/reports',
+  '/admin/tools',
+  '/admin/users',
   '/admin/model-state',
+  '/technical-analysis',
   // System surface
-  '/system/build-code-review',
-  '/system/executive-summary',
+  '/admin/codex-review-center',
+  '/admin/executive-status',
 ]);
 
 /** Paths that are intentionally dead redirect targets (removed from MERGED_LEGACY_PATHS) */
@@ -89,6 +97,19 @@ const INTENTIONALLY_SHADOWED = new Set<string>([
   '/markets/symbols',
   '/backtests/replay',
   '/research/technical-analysis',
+  '/admin/system',
+  '/admin/coverage',
+  '/admin/scripts',
+  '/admin/ingestors',
+  '/admin/trainer',
+  '/admin/orchestrator',
+  '/admin/traders',
+  '/admin/readiness',
+  '/admin/readiness/mobile',
+  '/admin/build-validation',
+  '/admin/ai-tools',
+  '/admin/migrations',
+  '/admin/model-state',
 ]);
 
 test.describe('Routing invariants (no browser)', () => {
@@ -137,20 +158,20 @@ test.describe('Routing invariants (no browser)', () => {
     expect(MERGED_LEGACY_PATHS['/admin/external-manual-position-quarantine']).toBeUndefined();
   });
 
-  test('MERGED_LEGACY_PATHS does not shadow executive-summary', () => {
-    expect(MERGED_LEGACY_PATHS['/system/executive-summary']).toBeUndefined();
+  test('MERGED_LEGACY_PATHS does not shadow executive-status', () => {
+    expect(MERGED_LEGACY_PATHS['/admin/executive-status']).toBeUndefined();
   });
 
-  test('MERGED_LEGACY_PATHS does not shadow build-code-review', () => {
-    expect(MERGED_LEGACY_PATHS['/system/build-code-review']).toBeUndefined();
+  test('MERGED_LEGACY_PATHS does not shadow codex-review-center', () => {
+    expect(MERGED_LEGACY_PATHS['/admin/codex-review-center']).toBeUndefined();
   });
 
-  test('codex-review-center redirects to the real page path', () => {
-    expect(MERGED_LEGACY_PATHS['/admin/codex-review-center']).toBe('/system/build-code-review');
+  test('system build-code-review redirects to the real page path', () => {
+    expect(MERGED_LEGACY_PATHS['/system/build-code-review']).toBe('/admin/codex-review-center');
   });
 
-  test('executive-status redirects to the real page path', () => {
-    expect(MERGED_LEGACY_PATHS['/admin/executive-status']).toBe('/system/executive-summary');
+  test('system executive-summary redirects to the real page path', () => {
+    expect(MERGED_LEGACY_PATHS['/system/executive-summary']).toBe('/admin/executive-status');
   });
 
   test('/dashboard is not a redirect source', () => {
