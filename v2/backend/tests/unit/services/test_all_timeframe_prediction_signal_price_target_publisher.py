@@ -90,6 +90,11 @@ def test_runtime_paper_signal_row_marks_hold_zeroed_after_cost_edge() -> None:
                         "confidence_calibrated": 0.8,
                         "expected_move_bps": -20.0,
                         "expected_move_after_cost_bps": 0.0,
+                        "actual_observed_spread_entry_bps": 1.0,
+                        "expected_slippage_bps": 1.0,
+                        "fee_bps": 2.0,
+                        "expected_funding_bps": 0.5,
+                        "target_notional_usd": 100.0,
                         "paper_fill_allowed": False,
                         "paper_fill_gate_block_reasons": [
                             "NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION"
@@ -124,6 +129,12 @@ def test_runtime_paper_signal_row_marks_hold_zeroed_after_cost_edge() -> None:
     assert row["hold_action_with_directional_expected_move_bps"] is True
     assert row["hold_action_directional_expected_move_bps"] == -20.0
     assert row["expected_move_after_cost_zeroed_by_hold_action"] is True
+    assert row["expected_long_net_edge_bps"] == -24.5
+    assert row["expected_short_net_edge_bps"] == 15.5
+    assert row["expected_long_net_pnl_usd"] == -0.245
+    assert row["expected_short_net_pnl_usd"] == 0.155
+    assert row["best_side"] == "short"
+    assert row["why_best_side_rejected"] == "selected_hold_best_side_short_net_edge_15.500000bps"
     assert (
         row["paper_non_actionable_diagnostic_reason"]
         == "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"

@@ -259,10 +259,19 @@ def hold_zero_after_cost_diagnostic(
     action: Any,
     expected_move_bps: Any,
     expected_move_after_cost_bps: Any,
+    round_trip_cost_bps: Any = None,
+    diagnostic_notional_usd: Any = None,
 ) -> dict[str, Any]:
     normalized_action = str(action or "").strip().lower()
     expected_move = to_float(expected_move_bps)
     expected_after_cost = to_float(expected_move_after_cost_bps)
+    explicit_cost = to_float(round_trip_cost_bps)
+    cost = abs(explicit_cost) if explicit_cost is not None else 0.0
+    notional = to_float(diagnostic_notional_usd)
+    notional_source = "candidate_notional_usd"
+    if notional is None or notional <= 0.0:
+        notional = 1.0
+        notional_source = "diagnostic_unit_notional_usd_no_allocator_size"
     directional_expected_move = expected_move is not None and expected_move != 0.0
     hold_with_directional_expected_move = (
         normalized_action == "hold" and directional_expected_move
@@ -272,11 +281,54 @@ def hold_zero_after_cost_diagnostic(
         and expected_after_cost is not None
         and expected_after_cost == 0.0
     )
+    expected_long_net_edge_bps = expected_move - cost if expected_move is not None else None
+    expected_short_net_edge_bps = -expected_move - cost if expected_move is not None else None
+    expected_long_net_pnl_usd = (
+        None
+        if expected_long_net_edge_bps is None
+        else round(notional * expected_long_net_edge_bps / 10000.0, 8)
+    )
+    expected_short_net_pnl_usd = (
+        None
+        if expected_short_net_edge_bps is None
+        else round(notional * expected_short_net_edge_bps / 10000.0, 8)
+    )
+    best_side = None
+    best_side_net_edge_bps = None
+    if expected_long_net_edge_bps is not None and expected_short_net_edge_bps is not None:
+        if expected_long_net_edge_bps >= expected_short_net_edge_bps:
+            best_side = "long"
+            best_side_net_edge_bps = expected_long_net_edge_bps
+        else:
+            best_side = "short"
+            best_side_net_edge_bps = expected_short_net_edge_bps
+    no_side_reason = None
+    why_best_side_rejected = None
+    if normalized_action == "hold":
+        if expected_move is None:
+            no_side_reason = "EXPECTED_MOVE_MISSING"
+            why_best_side_rejected = "NO_EXPECTED_MOVE_TO_EVALUATE"
+        elif best_side_net_edge_bps is not None and best_side_net_edge_bps <= 0.0:
+            no_side_reason = "MODEL_SEES_NO_POSITIVE_AFTER_COST_SIDE"
+            why_best_side_rejected = f"best_side_{best_side}_net_edge_{best_side_net_edge_bps:.6f}bps_non_positive"
+        else:
+            no_side_reason = "MODEL_SELECTED_HOLD_DESPITE_DIRECTIONAL_EXPECTED_MOVE"
+            why_best_side_rejected = f"selected_hold_best_side_{best_side}_net_edge_{best_side_net_edge_bps:.6f}bps"
     return {
         "selected_action_expected_move_bps_sign": expected_move_sign_label(expected_move),
         "hold_action_with_directional_expected_move_bps": hold_with_directional_expected_move,
         "hold_action_directional_expected_move_bps": expected_move if hold_with_directional_expected_move else None,
         "expected_move_after_cost_zeroed_by_hold_action": zeroed_by_hold,
+        "no_side_reason": no_side_reason,
+        "expected_long_net_edge_bps": expected_long_net_edge_bps,
+        "expected_short_net_edge_bps": expected_short_net_edge_bps,
+        "expected_long_net_pnl_usd": expected_long_net_pnl_usd,
+        "expected_short_net_pnl_usd": expected_short_net_pnl_usd,
+        "per_side_usd_notional_basis": notional_source,
+        "per_side_usd_notional": notional,
+        "best_side": best_side,
+        "best_side_net_edge_bps": best_side_net_edge_bps,
+        "why_best_side_rejected": why_best_side_rejected,
         "paper_non_actionable_diagnostic_reason": (
             "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"
             if zeroed_by_hold
@@ -1539,6 +1591,20 @@ def build_prediction_row(
         feature_source_key=selected_feature_key,
     )
     source_lineage["market_cost_evidence"] = market_cost_evidence.get("market_cost_evidence_source_lineage")
+    round_trip_cost_bps = sum(
+        to_float(market_cost_evidence.get(field)) or 0.0
+        for field in (
+            "actual_observed_spread_entry_bps",
+            "expected_slippage_bps",
+            "fee_bps",
+            "expected_funding_bps",
+        )
+    )
+    diagnostic_notional_usd = (
+        to_float(prediction.get("target_notional_usd"))
+        or to_float(prediction.get("gross_notional_usd"))
+        or to_float(prediction.get("notional_usd"))
+    )
     paper_gate_block_reasons = as_list(
         prediction.get("paper_fill_gate_block_reasons")
         or prediction.get("paper_fill_block_reasons")
@@ -1588,6 +1654,8 @@ def build_prediction_row(
         action=action,
         expected_move_bps=expected_move,
         expected_move_after_cost_bps=expected_after_cost,
+        round_trip_cost_bps=round_trip_cost_bps,
+        diagnostic_notional_usd=diagnostic_notional_usd,
     )
     return {
         "prediction_id": prediction_id,
@@ -2952,10 +3020,26 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         if expected_move is None:
             expected_move = to_float(signal.get("expected_move"))
         after_cost = to_float(signal.get("expected_move_after_cost_bps"))
+        runtime_round_trip_cost_bps = sum(
+            to_float(signal.get(field)) or 0.0
+            for field in (
+                "actual_observed_spread_entry_bps",
+                "expected_slippage_bps",
+                "fee_bps",
+                "expected_funding_bps",
+            )
+        )
+        runtime_diagnostic_notional_usd = (
+            to_float(signal.get("target_notional_usd"))
+            or to_float(signal.get("gross_notional_usd"))
+            or to_float(signal.get("notional_usd"))
+        )
         action_edge_diagnostic = hold_zero_after_cost_diagnostic(
             action=action,
             expected_move_bps=expected_move,
             expected_move_after_cost_bps=after_cost,
+            round_trip_cost_bps=runtime_round_trip_cost_bps,
+            diagnostic_notional_usd=runtime_diagnostic_notional_usd,
         )
         price_payload = market_price_payload(store, symbol)
         last_price, price_field = extract_last_price(price_payload)
