@@ -61,7 +61,7 @@ test.describe('operator truth realtime contract', () => {
     expect(source).toContain('Trainer Acc/Base');
     expect(source).toContain('Trainer Reload');
     expect(source).toContain('1000x Trajectory');
-    expect(source).toContain('1000x Days');
+    expect(source).toContain('1000x Projection');
     expect(source).toContain('A-grade Source');
     expect(source).toContain('A-grade Roots');
     expect(source).toContain('A-grade Dominant');
@@ -76,10 +76,28 @@ test.describe('operator truth realtime contract', () => {
     expect(source).toContain('/tonight_live_like_paper_shadow/');
   });
 
+  test('trader snapshot waits for the shared stream before using HTTP fallback', () => {
+    const source = readFileSync(path.resolve(process.cwd(), 'src/hooks/useTraderSnapshot.ts'), 'utf8');
+
+    expect(source).toContain("url: '/api/v2/trader/snapshot'");
+    expect(source).toContain('initialFetchWhenStreaming: false');
+    expect(source).toContain('httpFallback: true');
+  });
+
   test('resource hook preserves current payloads when a later frame is stale or incomplete', () => {
     const source = readFileSync(path.resolve(process.cwd(), 'src/hooks/useRealtimeResource.ts'), 'utf8');
 
     expect(source).toContain('mergeRealtimeResourceEnvelope(prev, nextEnvelope)');
     expect(source).toContain('Latest resource frame was stale or incomplete; preserving last current payload');
+  });
+
+  test('frontend realtime payload contracts do not expose retired providers as active data sources', () => {
+    const source = readFileSync(path.resolve(process.cwd(), 'src/data/realtimeUserWebsitePayloads.ts'), 'utf8');
+
+    expect(source).toContain('RetiredAltDataProviderStatus');
+    expect(source).toContain('retired_from_active_panels');
+    expect(source).not.toMatch(/AltDataNansenStatus|AltDataLunarCrushStatus/);
+    expect(source).not.toMatch(/nansen_payload_present|lunarcrush_payload_present/);
+    expect(source).not.toMatch(/\\bnansen\\b|\\blunarcrush\\b|Alpha\\s*Vantage|AlphaVantage/i);
   });
 });
