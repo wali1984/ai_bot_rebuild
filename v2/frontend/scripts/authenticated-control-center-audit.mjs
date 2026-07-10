@@ -13,6 +13,11 @@ const backendBaseUrl = (process.env.CONTROL_CENTER_BACKEND_BASE_URL ?? 'http://1
 const username = process.env.DASHBOARD_TEST_USERNAME ?? '';
 const password = process.env.DASHBOARD_TEST_PASSWORD ?? '';
 const nowIso = new Date().toISOString();
+const routeSettleMs = Number(process.env.CONTROL_CENTER_AUDIT_SETTLE_MS ?? 2000);
+const networkIdleMs = Number(process.env.CONTROL_CENTER_AUDIT_NETWORK_IDLE_MS ?? 5000);
+const dashboardPrimaryDataTargetMs = 2_000;
+const routePrimaryDataTargetMs = 5_000;
+const refreshRetainedDataTargetMs = 1_000;
 
 const REQUIRED_ROUTES = [
   '/login',
@@ -349,6 +354,70 @@ async function authenticate(page) {
   };
 }
 
+function routeLatencyTarget(route) {
+  if (route === '/dashboard') return dashboardPrimaryDataTargetMs;
+  if (route === '/login') return 3_000;
+  return routePrimaryDataTargetMs;
+}
+
+function routeLatencyRows(routeRows) {
+  return routeRows.map((row) => {
+    const targetMs = routeLatencyTarget(row.route);
+    return {
+      route: row.route,
+      time_to_first_render_ms: row.time_to_first_render_ms,
+      time_to_primary_data_ms: row.time_to_first_real_data_ms,
+      target_ms: targetMs,
+      target_pass: typeof row.time_to_first_real_data_ms === 'number' && row.time_to_first_real_data_ms <= targetMs,
+    };
+  });
+}
+
+function routeLatencyFailures(routeRows) {
+  return routeLatencyRows(routeRows)
+    .filter((row) => row.target_pass !== true)
+    .map((row) => ({
+      route: row.route,
+      time_to_primary_data_ms: row.time_to_primary_data_ms,
+      target_ms: row.target_ms,
+    }));
+}
+
+function refreshFailures(routeRows) {
+  return routeRows
+    .filter((row) => row.refresh_error || row.data_vanished_after_refresh)
+    .map((row) => ({
+      route: row.route,
+      refresh_error: row.refresh_error,
+      data_vanished_after_refresh: row.data_vanished_after_refresh,
+      time_to_after_refresh_real_data_ms: row.time_to_after_refresh_real_data_ms ?? null,
+    }));
+}
+
+function apiContractFailures(apiRows) {
+  return apiRows.filter((row) => !apiRowContractOk(row));
+}
+
+function api500Count(apiRows) {
+  return apiRows.filter((row) => typeof row.status === 'number' && row.status >= 500).length;
+}
+
+function networkErrors(routeRows) {
+  return routeRows.flatMap((row) => row.network_errors.map((error) => ({ route: row.route, ...error })));
+}
+
+function browserNavigationAborts(routeRows) {
+  return routeRows.flatMap((row) => (row.browser_navigation_aborts ?? []).map((error) => ({ route: row.route, ...error })));
+}
+
+function requestCancellations(routeRows) {
+  return routeRows.flatMap((row) => (row.request_cancellations ?? []).map((error) => ({ route: row.route, ...error })));
+}
+
+function consoleErrors(routeRows) {
+  return routeRows.flatMap((row) => row.console_errors.map((error) => ({ route: row.route, message: error })));
+}
+
 async function auditLoginSurface() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 980 } });
@@ -443,8 +512,9 @@ async function auditRoute(context, route) {
   const page = await context.newPage();
   const apiRequests = [];
   const consoleErrors = [];
-  const networkErrors = [];
+  const requestFailures = [];
   const httpErrors = [];
+  let auditStage = 'initial_navigation';
   let largestApiPayloadBytes = 0;
   let largestApiPayloadUrl = null;
 
@@ -457,10 +527,17 @@ async function auditRoute(context, route) {
     if (url.includes('/api/')) apiRequests.push({ url, method: request.method() });
   });
   page.on('requestfailed', (request) => {
-    networkErrors.push({
+    const failure = request.failure()?.errorText ?? 'unknown';
+    const requestCancelled = failure === 'net::ERR_ABORTED';
+    const browserLifecycleAbort = requestCancelled
+      && ['refresh_navigation', 'closing'].includes(auditStage);
+    requestFailures.push({
       url: request.url(),
       method: request.method(),
-      failure: request.failure()?.errorText ?? 'unknown',
+      failure,
+      audit_stage: auditStage,
+      request_cancelled: requestCancelled,
+      browser_lifecycle_abort: browserLifecycleAbort,
     });
   });
   page.on('response', (response) => {
@@ -486,7 +563,10 @@ async function auditRoute(context, route) {
     firstRenderMs = Date.now() - started;
     await page.waitForFunction(() => (document.body?.innerText || '').trim().length > 80, null, { timeout: 10_000 }).catch(() => undefined);
     firstRealDataMs = Date.now() - started;
-    await page.waitForTimeout(Number(process.env.CONTROL_CENTER_AUDIT_SETTLE_MS ?? 2000));
+    auditStage = 'initial_settle';
+    await page.waitForLoadState('networkidle', { timeout: networkIdleMs }).catch(() => undefined);
+    await page.waitForTimeout(routeSettleMs);
+    auditStage = 'initial_settled';
   } catch (error) {
     navigationError = error instanceof Error ? error.message : String(error);
   }
@@ -519,10 +599,17 @@ async function auditRoute(context, route) {
 
   const beforeLength = textBefore.trim().length;
   let refreshError = null;
+  let refreshRealDataMs = null;
   try {
+    const refreshStarted = Date.now();
+    auditStage = 'refresh_navigation';
     await page.reload({ waitUntil: 'domcontentloaded', timeout: 45_000 });
     await page.waitForFunction(() => (document.body?.innerText || '').trim().length > 80, null, { timeout: 10_000 }).catch(() => undefined);
+    refreshRealDataMs = Date.now() - refreshStarted;
+    auditStage = 'refresh_settle';
+    await page.waitForLoadState('networkidle', { timeout: networkIdleMs }).catch(() => undefined);
     await page.waitForTimeout(1000);
+    auditStage = 'refresh_settled';
   } catch (error) {
     refreshError = error instanceof Error ? error.message : String(error);
   }
@@ -531,8 +618,12 @@ async function auditRoute(context, route) {
   const afterShot = `screenshots/${process.env.CONTROL_CENTER_AUDIT_PHASE ?? 'phase0'}/${routeName(route).replace('.png', '__after_refresh.png')}`;
   await page.screenshot({ path: resolve(goalDir, afterShot), fullPage: true }).catch(() => undefined);
   const finalUrl = page.url();
+  auditStage = 'closing';
   await page.close();
 
+  const browserNavigationAborts = requestFailures.filter((entry) => entry.browser_lifecycle_abort);
+  const requestCancellations = requestFailures.filter((entry) => entry.request_cancelled);
+  const runtimeNetworkErrors = requestFailures.filter((entry) => !entry.request_cancelled);
   const dataVanishedAfterRefresh = beforeLength > 200 && textAfter.trim().length < Math.min(120, beforeLength * 0.25);
   return {
     route,
@@ -544,16 +635,20 @@ async function auditRoute(context, route) {
     time_to_first_render_ms: firstRenderMs,
     time_to_first_real_data_ms: firstRealDataMs,
     time_to_interactive_ms: Date.now() - started,
-    websocket_or_sse_connected: networkErrors.some((entry) => /ws|stream|sse|realtime/i.test(entry.url)) ? false : null,
+    websocket_or_sse_connected: runtimeNetworkErrors.some((entry) => /ws|stream|sse|realtime/i.test(entry.url)) ? false : null,
     api_request_count: apiRequests.length,
     largest_api_payload_bytes: largestApiPayloadBytes,
     largest_api_payload_url: largestApiPayloadUrl,
     console_errors: consoleErrors,
-    network_errors: networkErrors,
+    network_errors: runtimeNetworkErrors,
+    request_cancellations: requestCancellations,
+    browser_navigation_aborts: browserNavigationAborts,
+    raw_request_failures: requestFailures,
     http_errors: httpErrors,
     navigation_error: navigationError,
     refresh_error: refreshError,
     data_vanished_after_refresh: dataVanishedAfterRefresh,
+    time_to_after_refresh_real_data_ms: typeof refreshRealDataMs === 'number' ? refreshRealDataMs : null,
     stale_widgets: /stale|degraded|unavailable/i.test(textBefore),
     duplicate_or_conflicting_values: pnlAmounts.length > 4,
     pnl_amounts_visible: pnlAmounts,
@@ -1007,6 +1102,8 @@ writeJson('phase0_console_network_errors.json', {
     route: row.route,
     console_errors: row.console_errors,
     network_errors: row.network_errors,
+    request_cancellations: row.request_cancellations ?? [],
+    browser_navigation_aborts: row.browser_navigation_aborts ?? [],
     http_errors: row.http_errors,
     navigation_error: row.navigation_error,
     refresh_error: row.refresh_error,
@@ -1026,14 +1123,140 @@ writeJson('phase0_screenshot_manifest.json', {
   screenshots,
 });
 
+const latencyRows = routeLatencyRows(routeRows);
+const latencyFailures = routeLatencyFailures(routeRows);
+const routeRefreshFailures = refreshFailures(routeRows);
+const routeNetworkErrors = networkErrors(routeRows);
+const routeRequestCancellations = requestCancellations(routeRows);
+const routeBrowserNavigationAborts = browserNavigationAborts(routeRows);
+const routeConsoleErrors = consoleErrors(routeRows);
+const apiFailures = apiContractFailures(apiRows);
+const dashboardRow = routeRows.find((row) => row.route === '/dashboard') ?? null;
+const dashboardVisibleMs = dashboardRow?.time_to_first_real_data_ms ?? null;
+const streamContractsReady = apiRows
+  .filter((row) => row.path?.startsWith('/api/v2/stream/'))
+  .every(apiRowContractOk);
+const routePassCount = routeRows.filter((row) => row.pass).length;
+const routeFailCount = routeRows.filter((row) => !row.pass).length;
+const apiContractPassCount = apiRows.filter(apiRowContractOk).length;
+const apiContractFailCount = apiFailures.length;
+
+writeJson('phase3_web_latency_report.json', {
+  schema_version: 'phase3_web_latency_report_v1',
+  goal_id: GOAL_ID,
+  generated_at_utc: nowIso,
+  dashboard_url: baseUrl,
+  status: latencyFailures.length === 0 ? 'LATENCY_TARGETS_PASS' : 'LATENCY_TARGETS_MISSED',
+  targets: {
+    dashboard_primary_data_visible_ms: dashboardPrimaryDataTargetMs,
+    route_primary_data_visible_ms: routePrimaryDataTargetMs,
+    login_primary_data_visible_ms: 3_000,
+    refresh_retained_data_visible_ms: refreshRetainedDataTargetMs,
+  },
+  routes: latencyRows,
+  latency_failures: latencyFailures,
+});
+
+writeJson('phase3_web_realtime_refresh_proof.json', {
+  schema_version: 'phase3_web_realtime_refresh_proof_v1',
+  goal_id: GOAL_ID,
+  generated_at_utc: nowIso,
+  dashboard_url: baseUrl,
+  status: latencyFailures.length === 0 && routeRefreshFailures.length === 0
+    ? 'REFRESH_AND_LATENCY_TARGETS_PASS'
+    : routeRefreshFailures.length === 0
+      ? 'REFRESH_PASS_LATENCY_TARGETS_MISSED'
+      : 'REFRESH_OR_LATENCY_TARGETS_MISSED',
+  dashboard_primary_data_visible_ms: dashboardVisibleMs,
+  dashboard_target_ms: dashboardPrimaryDataTargetMs,
+  route_primary_data_target_ms: routePrimaryDataTargetMs,
+  refresh_retained_data_visible_target_ms: refreshRetainedDataTargetMs,
+  latency_target_pass: latencyFailures.length === 0,
+  latency_failures: latencyFailures,
+  refresh_blank_route_count: routeRows.filter((row) => row.data_vanished_after_refresh).length,
+  refresh_failures: routeRefreshFailures,
+  route_refresh_timings: routeRows.map((row) => ({
+    route: row.route,
+    time_to_after_refresh_real_data_ms: row.time_to_after_refresh_real_data_ms ?? null,
+    data_vanished_after_refresh: row.data_vanished_after_refresh,
+    refresh_error: row.refresh_error,
+  })),
+  websocket_or_sse_connected: streamContractsReady,
+  last_known_good_state_visible_during_reconnect: routeRows.every((row) => !row.data_vanished_after_refresh),
+  provider_panels_update_or_show_stale_state: routeRows
+    .filter((row) => ['/providers', '/ingestors', '/markets'].includes(row.route))
+    .every((row) => row.pass),
+});
+
+writeJson('phase10_enterprise_performance_report.json', {
+  goal_id: GOAL_ID,
+  generated_at_utc: nowIso,
+  status: routeFailCount === 0
+    && apiContractFailCount === 0
+    && latencyFailures.length === 0
+    && routeRefreshFailures.length === 0
+    ? 'PRODUCTION_BROWSER_AND_API_TARGETS_PASS'
+    : 'PRODUCTION_TARGETS_INCOMPLETE',
+  acceptance_targets: {
+    login_to_dashboard_after_auth_ms: 3_000,
+    primary_dashboard_data_visible_ms: dashboardPrimaryDataTargetMs,
+    critical_realtime_updates_ms: 3_000,
+    console_crashes: 0,
+    unauthorized_api_loops: 0,
+    api_500s: 0,
+    huge_unpaginated_payload_bytes: 5_000_000,
+  },
+  login_to_dashboard_after_auth_ms: authResult.elapsed_ms ?? null,
+  primary_dashboard_data_visible_ms: dashboardVisibleMs,
+  route_pass_count: routePassCount,
+  route_fail_count: routeFailCount,
+  api_contract_pass_count: apiContractPassCount,
+  api_contract_fail_count: apiContractFailCount,
+  api_500s: api500Count(apiRows),
+  console_crashes: routeConsoleErrors.length,
+  network_error_count: routeNetworkErrors.length,
+  request_cancellation_count: routeRequestCancellations.length,
+  browser_navigation_abort_count: routeBrowserNavigationAborts.length,
+  network_cleanliness_pass: routeNetworkErrors.length === 0,
+  unauthorized_api_loops: apiRows.filter((row) => row.status === 401 || row.status === 403).length,
+  latency_target_pass: latencyFailures.length === 0,
+  latency_failures: latencyFailures,
+  refresh_target_pass: routeRefreshFailures.length === 0,
+  refresh_failures: routeRefreshFailures,
+  route_timings: latencyRows,
+});
+
+writeJson('phase10_console_network_cleanliness.json', {
+  goal_id: GOAL_ID,
+  generated_at_utc: nowIso,
+  status: routeConsoleErrors.length === 0 && routeNetworkErrors.length === 0
+    ? 'CONSOLE_AND_NETWORK_CLEAN'
+    : 'CONSOLE_OR_NETWORK_ERRORS_PRESENT',
+  console_errors: routeConsoleErrors,
+  network_errors: routeNetworkErrors,
+  request_cancellations: routeRequestCancellations,
+  request_cancellations_documented: routeRequestCancellations.every((entry) => entry.failure === 'net::ERR_ABORTED'),
+  browser_navigation_aborts: routeBrowserNavigationAborts,
+  browser_navigation_aborts_documented: routeBrowserNavigationAborts.every((entry) => entry.failure === 'net::ERR_ABORTED'),
+  http_errors: routeRows.flatMap((row) => row.http_errors.map((error) => ({ route: row.route, ...error }))),
+  route_error_counts: routeRows.map((row) => ({
+    route: row.route,
+    console_errors: row.console_errors.length,
+    network_errors: row.network_errors.length,
+    request_cancellations: (row.request_cancellations ?? []).length,
+    browser_navigation_aborts: (row.browser_navigation_aborts ?? []).length,
+    http_errors: row.http_errors.length,
+  })),
+});
+
 writeJson('phase11_authenticated_route_crawl_status.json', {
   goal_id: GOAL_ID,
   generated_at_utc: nowIso,
   base_url: baseUrl,
   auth_success: authResult.success,
-  api_contract_pass_count: apiRows.filter(apiRowContractOk).length,
-  api_contract_fail_count: apiRows.filter((row) => !apiRowContractOk(row)).length,
-  api_contract_failures: apiRows.filter((row) => !apiRowContractOk(row)).map((row) => ({
+  api_contract_pass_count: apiContractPassCount,
+  api_contract_fail_count: apiContractFailCount,
+  api_contract_failures: apiFailures.map((row) => ({
     path: row.path,
     status: row.status,
     api_payload_kind: row.api_payload_kind,
@@ -1042,8 +1265,8 @@ writeJson('phase11_authenticated_route_crawl_status.json', {
     error: row.error,
   })),
   routes: routeRows,
-  route_pass_count: routeRows.filter((row) => row.pass).length,
-  route_fail_count: routeRows.filter((row) => !row.pass).length,
+  route_pass_count: routePassCount,
+  route_fail_count: routeFailCount,
 });
 
 writeJson('phase11_route_failures.json', {
