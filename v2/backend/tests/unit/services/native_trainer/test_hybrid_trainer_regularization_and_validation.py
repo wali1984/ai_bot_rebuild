@@ -123,8 +123,8 @@ def test_regularization_knobs_default_values(monkeypatch) -> None:
         monkeypatch.delenv(env, raising=False)
     model = V2HybridPolicyModel(input_dim=1)
     trainer = V2HybridPPOTrainer(model=model)
-    assert trainer.entropy_coefficient == pytest.approx(0.02)
-    assert trainer.supervised_entropy_bonus == pytest.approx(0.001)
+    assert trainer.entropy_coefficient == pytest.approx(0.01)
+    assert trainer.supervised_entropy_bonus == pytest.approx(0.0)
     assert trainer.weight_decay == pytest.approx(0.02)
 
 
@@ -183,7 +183,7 @@ def test_generalization_gap_and_knobs_reported_in_metrics() -> None:
     m = result.metrics
     assert "train_val_generalization_gap" in m
     assert isinstance(m["train_val_generalization_gap"], float)
-    assert m["entropy_coefficient"] == pytest.approx(0.02)
+    assert m["entropy_coefficient"] == pytest.approx(0.01)
     assert m["weight_decay"] == pytest.approx(0.02)
     assert m["model_dropout"] == pytest.approx(0.10)
 

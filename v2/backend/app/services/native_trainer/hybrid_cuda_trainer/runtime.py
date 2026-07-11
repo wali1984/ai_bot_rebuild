@@ -429,8 +429,12 @@ def run_hybrid_trainer_cycle(
         # deadlock), then the streak resets. State is process-local (the persistent
         # loop is one long-running process) so it does not depend on Redis IO.
         _prior_reject_streak = int(_PROMOTION_REJECTION_STREAK.get("count", 0))
+        # High default (50 ~ ~1h of cycles): last-resort against a genuine prolonged
+        # deadlock on a STABLE model. Must NOT rapidly force-save a DIVERGING model
+        # (persisting progressively worse checkpoints) — the validation guard correctly
+        # rejecting a diverging model is desired. Env-tunable.
         _max_promotion_reject_streak = max(
-            1, int(_float_env("V2_TRAINER_MAX_PROMOTION_REJECTION_STREAK", 3))
+            1, int(_float_env("V2_TRAINER_MAX_PROMOTION_REJECTION_STREAK", 50))
         )
         checkpoint_promotion["prior_promotion_rejection_streak"] = _prior_reject_streak
         checkpoint_promotion["max_promotion_rejection_streak"] = _max_promotion_reject_streak

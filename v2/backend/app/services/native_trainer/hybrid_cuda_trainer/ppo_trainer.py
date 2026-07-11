@@ -171,17 +171,18 @@ class V2HybridPPOTrainer:
         self.entropy_coefficient = (
             float(entropy_coefficient)
             if entropy_coefficient is not None
-            else float(os.getenv("V2_TRAINER_ENTROPY_COEF", "0.02") or 0.02)
+            else float(os.getenv("V2_TRAINER_ENTROPY_COEF", "0.01") or 0.01)
         )
+        # Default 0.0: a nonzero supervised-lane entropy bonus was found to DESTABILIZE
+        # training on the live model (entropy drifted high and supervised loss diverged
+        # upward, 3.6 -> 16+). Reverted to 0.0 (stable regime). Preventing the original
+        # entropy collapse is a proper OFFLINE-tuning problem (LR/loss-scaling/entropy
+        # schedule), not a live default. Still env-tunable for controlled experiments
+        # via V2_TRAINER_SUPERVISED_ENTROPY_BONUS.
         self.supervised_entropy_bonus = (
             float(supervised_entropy_bonus)
             if supervised_entropy_bonus is not None
-            # 0.001: prevents the original entropy-collapse-to-zero, but small enough
-            # that entropy settles toward the observed healthy band (~0.5, where the
-            # out-of-sample rollout reward was positive) rather than drifting to ~1.0
-            # (which inflated supervised validation loss and destabilized training).
-            # Env-tunable via V2_TRAINER_SUPERVISED_ENTROPY_BONUS.
-            else float(os.getenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.001") or 0.001)
+            else float(os.getenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.0") or 0.0)
         )
         self.weight_decay = (
             float(weight_decay)
