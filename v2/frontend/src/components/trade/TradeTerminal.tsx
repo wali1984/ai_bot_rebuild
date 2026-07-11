@@ -10,6 +10,7 @@ import { PaperOrderTicket } from './PaperOrderTicket';
 import { RecentTradesTape } from './RecentTradesTape';
 import { SymbolHeader } from './SymbolHeader';
 import { TradeBottomTabs } from './TradeBottomTabs';
+import { TradeExecutionReadinessPanel } from './TradeExecutionReadinessPanel';
 import { TradeIntelligenceBar } from './TradeIntelligenceBar';
 import { TradingChartPanel } from './TradingChartPanel';
 import { AdaptiveCapitalTelemetryPanel } from '../trading/AdaptiveCapitalTelemetryPanel';
@@ -102,7 +103,10 @@ export function TradeTerminal(): JSX.Element {
         <div>
           <span>Account Balance</span>
           <strong style={{ color: 'var(--buy)' }}>
-            <CanonicalMetricValue metric={accountMetric('account.available_balance')} />
+            <CanonicalMetricValue
+              metric={accountMetric('account.available_balance')}
+              emptyText="Paper balance unavailable; live signed account not read"
+            />
           </strong>
         </div>
         <div>
@@ -135,7 +139,12 @@ export function TradeTerminal(): JSX.Element {
         </div>
         <div>
           <span>Risk Gate</span>
-          <strong><CanonicalMetricValue metric={riskMetric} /></strong>
+          <strong>
+            <CanonicalMetricValue
+              metric={riskMetric}
+              emptyText="Fail-closed: no current risk record"
+            />
+          </strong>
         </div>
         <div>
           <span>Last Price</span>
@@ -171,6 +180,7 @@ export function TradeTerminal(): JSX.Element {
 
       {/* Orchestrator / Risk / Trainer intelligence strip */}
       <TradeIntelligenceBar state={state} />
+      <TradeExecutionReadinessPanel state={state} />
 
       <nav className="trade-mobile-switcher" aria-label="Trade modules">
         {MOBILE_MODULES.map(({ key, label, Icon }) => (

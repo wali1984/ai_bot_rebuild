@@ -6,6 +6,11 @@ from typing import Any, Mapping
 from .feed_quality import iso_now
 
 
+CROSS_VENUE_EXECUTABLE_DEPTH_FLOOR_USD = 50_000.0
+DEEP_ALIGNED_DEPTH_DISAGREEMENT_PENALTY_CAP = 0.08
+THIN_OR_UNCONFIRMED_DEPTH_DISAGREEMENT_PENALTY_CAP = 0.25
+
+
 def _float(value: Any) -> float | None:
     try:
         if value is None:
@@ -54,10 +59,22 @@ def evaluate_cross_venue_confirmation(
     k_imb = _float((kucoin or {}).get("depth_imbalance") if isinstance(kucoin, Mapping) else None)
     imbalance_conflict = b_imb is not None and k_imb is not None and abs(b_imb) > 0.15 and abs(k_imb) > 0.15 and (b_imb > 0) != (k_imb > 0)
     venues_present = int(binance is not None) + int(kucoin is not None)
+    price_aligned = price_divergence_bps is not None and price_divergence_bps <= 5.0
+    executable_depth_confirmed = (
+        b_depth is not None
+        and k_depth is not None
+        and min(b_depth, k_depth) >= CROSS_VENUE_EXECUTABLE_DEPTH_FLOOR_USD
+    )
+    depth_penalty_cap = (
+        DEEP_ALIGNED_DEPTH_DISAGREEMENT_PENALTY_CAP
+        if venues_present >= 2 and price_aligned and executable_depth_confirmed and not imbalance_conflict
+        else THIN_OR_UNCONFIRMED_DEPTH_DISAGREEMENT_PENALTY_CAP
+    )
+    depth_disagreement_penalty = min(depth_penalty_cap, depth_disagreement * 0.25)
     score = 0.25 if venues_present <= 1 else 0.65
     if price_divergence_bps is not None:
         score -= min(0.3, price_divergence_bps / 100.0)
-    score -= min(0.25, depth_disagreement * 0.25)
+    score -= depth_disagreement_penalty
     if imbalance_conflict:
         score -= 0.25
     if trade_tape_confirmation_score is not None:
@@ -75,6 +92,11 @@ def evaluate_cross_venue_confirmation(
         "kucoin_present": kucoin is not None,
         "price_divergence_bps": None if price_divergence_bps is None else round(price_divergence_bps, 8),
         "depth_disagreement_score": round(depth_disagreement, 8),
+        "depth_disagreement_penalty": round(depth_disagreement_penalty, 8),
+        "depth_penalty_cap": depth_penalty_cap,
+        "executable_depth_floor_usd": CROSS_VENUE_EXECUTABLE_DEPTH_FLOOR_USD,
+        "executable_depth_confirmed": bool(executable_depth_confirmed),
+        "price_aligned": bool(price_aligned),
         "imbalance_conflict": bool(imbalance_conflict),
         "lead_lag_classification": "single_venue_unconfirmed" if venues_present <= 1 else ("venue_conflict" if imbalance_conflict else "venues_confirm"),
         "cross_venue_confirmation_score": round(score, 8),

@@ -227,7 +227,26 @@ export function TraderDashboard(): JSX.Element {
   const marketRegime = firstText(currentSignal?.market_regime, currentSignal?.regime, currentSignal?.trend) ?? 'Market regime monitored';
   const portfolioData = envelopeUsable(portfolio) ? portfolio.data : null;
   const positionRows = envelopeUsable(positions) ? positions.data?.positions ?? [] : [];
-  const totalPnl = (portfolioData?.realized_pnl ?? 0) + (portfolioData?.unrealized_pnl ?? 0);
+  const realizedPnl = firstNumber(
+    portfolioData?.paper_realized_pnl_usd,
+    portfolioData?.realized_net_pnl_usd,
+    portfolioData?.clean_session_valid_realized_pnl_usd,
+    portfolioData?.realized_pnl_usd,
+    portfolioData?.realized_pnl,
+  );
+  const unrealizedPnl = firstNumber(
+    portfolioData?.paper_unrealized_pnl_usd,
+    portfolioData?.unrealized_pnl_usd,
+    portfolioData?.clean_session_valid_unrealized_pnl_usd,
+    portfolioData?.unrealized_pnl,
+  );
+  const totalPnl = firstNumber(
+    portfolioData?.paper_total_pnl_usd,
+    portfolioData?.total_pnl_usd,
+    realizedPnl !== null && unrealizedPnl !== null ? realizedPnl + unrealizedPnl : null,
+  ) ?? 0;
+  const accountEquity = firstNumber(portfolioData?.paper_equity_usd, portfolioData?.equity, portfolioData?.paper_equity, portfolioData?.paper_balance);
+  const portfolioSource = firstText(portfolioData?.data_source, portfolioData?.pnl_source_key, portfolioData?.pnl_source_route) ?? sourceName(portfolio, 'Trading account');
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const oneDayPnl = pnlWindow(pnlHistory, '1d');
@@ -267,14 +286,14 @@ export function TraderDashboard(): JSX.Element {
       </header>
 
       <section className="trader-dashboard-kpis" aria-label="Dashboard KPIs">
-        <MetricCard label="Account equity" value={formatMoney(portfolioData?.equity)} detail={sourceName(portfolio, 'Trading account')} tone={portfolioData ? 'ok' : 'warn'} />
-        <MetricCard label="Today PnL" value={formatSignedMoney(totalPnl)} detail="Realized plus unrealized account PnL" tone={totalPnl >= 0 ? 'ok' : 'block'} />
+        <MetricCard label="Account equity" value={formatMoney(accountEquity)} detail={portfolioSource} tone={portfolioData ? 'ok' : 'warn'} />
+        <MetricCard label="Today PnL" value={formatSignedMoney(totalPnl)} detail="Canonical paper realized + unrealized PnL" tone={totalPnl >= 0 ? 'ok' : 'block'} />
         <MetricCard label="1D PnL" value={formatAdaptiveMoney(oneDayPnl?.realized_pnl_usd)} detail={`${oneDayPnl?.closed_trade_count ?? 0} closes`} tone={(oneDayPnl?.realized_pnl_usd ?? 0) >= 0 ? 'ok' : 'block'} />
         <MetricCard label="1W PnL" value={formatAdaptiveMoney(sevenDayPnl?.realized_pnl_usd)} detail={`${sevenDayPnl?.closed_trade_count ?? 0} closes`} tone={(sevenDayPnl?.realized_pnl_usd ?? 0) >= 0 ? 'ok' : 'block'} />
         <MetricCard label="30D PnL" value={formatAdaptiveMoney(thirtyDayPnl?.realized_pnl_usd)} detail={`${thirtyDayPnl?.closed_trade_count ?? 0} closes`} tone={(thirtyDayPnl?.realized_pnl_usd ?? 0) >= 0 ? 'ok' : 'block'} />
         <MetricCard
           label="Capital status"
-          value={capitalStatus?.status ?? 'CONNECTING'}
+          value={capitalStatus?.status ?? 'Pending'}
           detail={capitalStatus?.capital_utilization_classification ?? 'Adaptive sizing'}
           tone={(capitalStatus?.status ?? '').toUpperCase() === 'PASSED' ? 'ok' : 'block'}
         />

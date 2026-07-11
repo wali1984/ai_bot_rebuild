@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Sequence
 
 from .config import LIVE_GATE_BLOCKED
 
@@ -21,7 +21,10 @@ def assert_prediction_or_trainer_key(key: str) -> None:
         "v2:trainer:hybrid_cuda:",
         "v2:replay:",
         "v2:market:mtf_snapshot:",
-        "v2:decision:mtf_snapshot:",
+        # Full v2:decision: namespace — per-ID immutable risk/orchestrator
+        # decision records + candidate/signal indexes (operator mission
+        # 2026-07-10: last-write-wins previews are not per-candidate lineage).
+        "v2:decision:",
         "v2:mtf_snapshot:",
         "v2:risk:decisions",
         "v2:orchestrator:decisions",
@@ -72,6 +75,43 @@ class V2OnlyJsonIO:
     def __init__(self, client: Any = None) -> None:
         self.client = client
         self.audit = V2OnlyIOAudit()
+
+    def get_json_many(self, keys: "Sequence[str]") -> dict[str, Any]:
+        """Pipelined batch read: one Redis round-trip for many v2 keys.
+
+        Missing keys map to None so request caches can record definitive
+        misses. Falls back to an empty dict (callers then use get_json) if the
+        pipeline itself fails.
+        """
+        result: dict[str, Any] = {}
+        valid: list[str] = []
+        for key in keys:
+            try:
+                assert_v2_key(key)
+            except ValueError:
+                continue
+            valid.append(key)
+        if self.client is None or not valid:
+            return result
+        try:
+            pipe = self.client.pipeline(transaction=False)
+            for key in valid:
+                pipe.get(key)
+            raws = pipe.execute()
+        except Exception as exc:  # noqa: BLE001
+            self.audit.errors.append(f"pipeline_get_failed:{type(exc).__name__}")
+            return result
+        for key, raw in zip(valid, raws):
+            self.audit.reads_attempted += 1
+            if raw is None:
+                self.audit.reads_missing += 1
+                result[key] = None
+                continue
+            try:
+                result[key] = json.loads(raw)
+            except (TypeError, ValueError):
+                result[key] = None
+        return result
 
     def get_json(self, key: str) -> Any:
         assert_v2_key(key)

@@ -99,6 +99,18 @@ interface ExplainData {
     policy_value: number | null;
     missing_feature_count: number;
   };
+  missing_feature_alert?: {
+    active: boolean;
+    severity: 'none' | 'info' | 'warn' | 'critical' | 'unknown';
+    operational: boolean;
+    prediction_still_produced: boolean;
+    data_coverage_pct: number | null;
+    missing_feature_count: number;
+    stale_feature_count: number;
+    missing_by_category: Record<string, number>;
+    missing_provider_names: string[];
+    message: string;
+  };
 }
 
 interface TrainerSummary {
@@ -109,6 +121,38 @@ interface TrainerSummary {
   episodes_total?: number | null;
   drift_watch_count?: number | null;
   drift_alarm_count?: number | null;
+}
+
+interface TrainerStatusContract {
+  state?: string | null;
+  checkpoint_id?: string | null;
+  model_source?: string | null;
+  cuda_active?: boolean | null;
+  data_coverage?: number | null;
+  live_gate?: string | null;
+  routes_to_live?: boolean | null;
+  places_real_order?: boolean | null;
+  freshness_status?: string | null;
+  staleness_seconds?: number | null;
+  source?: string | null;
+  input_dim?: number | null;
+  feature_count?: number | null;
+}
+
+interface ProviderStatusCard {
+  provider: string;
+  dashboard_color?: string | null;
+  actual_payload_count?: number | null;
+  feature_count?: number | null;
+  actual_payload_present?: boolean | null;
+  heartbeat_only?: boolean | null;
+}
+
+interface ProviderStatusContract {
+  providers?: ProviderStatusCard[];
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -291,6 +335,9 @@ function ReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: stri
   });
   const exp = envelope.data?.explanation;
   const nums = envelope.data?.key_numbers;
+  const featureAlert = envelope.data?.missing_feature_alert;
+  const alertColor = (sev: string): string =>
+    sev === 'critical' ? '#ef5350' : sev === 'warn' ? '#f59e0b' : sev === 'info' ? '#38bdf8' : '#26c281';
 
   if (loading && !exp) {
     return (
@@ -308,6 +355,43 @@ function ReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: stri
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {featureAlert && featureAlert.active && (
+        <div
+          data-testid="missing-feature-alert"
+          style={{
+            padding: '10px 14px',
+            background: `${alertColor(featureAlert.severity)}18`,
+            border: `1px solid ${alertColor(featureAlert.severity)}55`,
+            borderRadius: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: alertColor(featureAlert.severity) }}>
+              ⚠ Degraded inputs — {featureAlert.severity}
+            </span>
+            <span style={{ fontSize: 11, color: '#26c281', fontWeight: 700 }}>
+              ✓ prediction still produced (operating on masked inputs)
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <span>Coverage: <b>{featureAlert.data_coverage_pct != null ? `${featureAlert.data_coverage_pct.toFixed(1)}%` : '—'}</b></span>
+            <span>Missing: <b>{featureAlert.missing_feature_count}</b></span>
+            <span>Stale: <b>{featureAlert.stale_feature_count}</b></span>
+          </div>
+          {Object.keys(featureAlert.missing_by_category || {}).length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(featureAlert.missing_by_category).map(([cat, n]) => (
+                <span key={cat} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)' }}>
+                  {cat.replace(/_/g, ' ')}: {n}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {nums && (
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
           {[
@@ -473,6 +557,104 @@ function TrainerCard(): JSX.Element {
   );
 }
 
+const AI_PROVIDER_LANES = [
+  ['coinglass', 'CoinGlass'],
+  ['moralis', 'Moralis'],
+  ['santiment', 'Santiment / Sanbase'],
+] as const;
+
+function providerStatusById(providers: ProviderStatusCard[] | undefined): Map<string, ProviderStatusCard> {
+  const out = new Map<string, ProviderStatusCard>();
+  for (const provider of providers ?? []) {
+    out.set(provider.provider.toLowerCase(), provider);
+  }
+  return out;
+}
+
+function countText(value: number | null | undefined): string {
+  if (value == null) return 'pending';
+  return value.toLocaleString('en-US');
+}
+
+function TrainerBrainSummary(): JSX.Element {
+  const trainer = useRealtimeResource<TrainerStatusContract>({
+    url: '/api/v2/trainer/status',
+    source: '/api/v2/trainer/status',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const providers = useRealtimeResource<ProviderStatusContract>({
+    url: '/api/v2/providers/status',
+    source: '/api/v2/providers/status',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: 'contract',
+  });
+  const trainerData = trainer.envelope.data;
+  const providerMap = useMemo(() => providerStatusById(providers.envelope.data?.providers), [providers.envelope.data?.providers]);
+  const liveBlocked = trainerData?.routes_to_live !== true && trainerData?.places_real_order !== true;
+
+  return (
+    <section
+      data-testid="ai-trainer-brain-summary"
+      style={{
+        marginBottom: 12,
+        padding: '12px 14px',
+        borderRadius: 10,
+        border: '1px solid rgba(99,102,241,0.18)',
+        background: 'rgba(99,102,241,0.045)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+        <div>
+          <strong style={{ display: 'block', fontSize: 12, color: 'var(--text-primary)' }}>Trainer brain summary</strong>
+          <span style={{ display: 'block', marginTop: 3, fontSize: 11, color: 'var(--text-muted)' }}>
+            PPO and MASA read provider features through the masked tensor feed; this panel is read-only and cannot approve trades.
+          </span>
+        </div>
+        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: liveBlocked ? '#f59e0b' : '#ef5350' }}>
+          Trading approval {trainerData?.live_gate ?? providers.envelope.data?.live_gate ?? 'blocked_human_only'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8 }}>
+        {[
+          ['PPO status', trainerData?.state ?? trainerData?.freshness_status ?? 'connecting'],
+          ['MASA model source', trainerData?.model_source ?? 'pending'],
+          ['Checkpoint ID', publicRuntimeId(trainerData?.checkpoint_id)?.slice(0, 24) ?? 'pending'],
+          ['Tensor input dim', countText(trainerData?.input_dim)],
+          ['Feature count', countText(trainerData?.feature_count)],
+        ].map(([label, value]) => (
+          <div key={label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
+            <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
+            <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{value}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
+        {AI_PROVIDER_LANES.map(([id, label]) => {
+          const provider = providerMap.get(id);
+          const actual = provider?.actual_payload_present === true && provider?.heartbeat_only !== true;
+          return (
+            <div key={id} data-testid={`ai-provider-feature-${id}`} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+                <strong style={{ fontSize: 11, color: 'var(--text-primary)' }}>{label}</strong>
+                <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: actual ? '#26c281' : 'var(--text-muted)' }}>
+                  {String(provider?.dashboard_color ?? 'connecting').toUpperCase()}
+                </span>
+              </div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>
+                provider features {countText(provider?.feature_count)} · samples {countText(provider?.actual_payload_count)} · actual data {actual ? 'yes' : 'no'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 // ─── Sort header ──────────────────────────────────────────────────────────
 
 type SortKey = 'symbol' | 'timeframe' | 'action' | 'confidence_calibrated' | 'age_seconds' | 'data_coverage_percent' | 'missing_feature_count';
@@ -609,6 +791,7 @@ export default function AIPredictionsPage(): JSX.Element {
         </div>
 
         <div style={{ marginBottom: 12 }}><TrainerCard /></div>
+        <TrainerBrainSummary />
 
         {/* KPI strip */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>

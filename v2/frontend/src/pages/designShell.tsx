@@ -3,7 +3,7 @@ import { DangerousControlPanel } from '../components/controls/DangerousControlPa
 import type { PageMeta, PageRbac, PageRoute } from '../types/page';
 import { Panel } from './cockpitComponents';
 
-const LIVE_BLOCKED = 'EXECUTION ROUTING: operator gated';
+const LIVE_BLOCKED = 'EXECUTION ROUTING: approval gated';
 
 interface DesignPageShellProps {
   meta: PageMeta;

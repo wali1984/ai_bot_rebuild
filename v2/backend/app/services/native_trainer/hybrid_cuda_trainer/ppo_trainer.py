@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import math
 import os
+import subprocess
+import threading
 import time
 from contextlib import nullcontext
 from dataclasses import dataclass, field
@@ -10,7 +12,10 @@ from datetime import datetime
 from typing import Any, Sequence
 
 from app.services.market_state_integrity.scoring import OPTIONAL_OR_EVENT_FEATURE_TOKENS
-from app.services.market_state_integrity.sample_rejection import classify_training_sample
+from app.services.market_state_integrity.sample_rejection import (
+    classify_training_sample,
+    missing_mask_training_override_status,
+)
 from app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
 from app.services.native_trainer.dataloader_worker_config import (
     PERSISTENT_WORKERS,
@@ -25,6 +30,105 @@ from .model import V2HybridPolicyModel
 EXPECTED_MOVE_HEAD_BIAS_ABS_LIMIT = 12.0
 EXPECTED_MOVE_HEAD_SATURATION_BPS = 118.0
 EXPECTED_MOVE_HEAD_TARGET_MISMATCH_BPS = 30.0
+GPU_TRAINING_SAMPLE_INTERVAL_SECONDS = 0.5
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _parse_nvidia_smi_training_sample(raw: str) -> dict[str, float] | None:
+    parts = [part.strip() for part in str(raw or "").split(",")]
+    if len(parts) < 3:
+        return None
+    util = _finite_float_or_none(parts[0])
+    vram_used = _finite_float_or_none(parts[1])
+    vram_total = _finite_float_or_none(parts[2])
+    if util is None or vram_used is None or vram_total in (None, 0.0):
+        return None
+    return {
+        "gpu_utilization_percent": util,
+        "vram_used_mb": vram_used,
+        "vram_total_mb": float(vram_total),
+    }
+
+
+def _summarize_training_gpu_samples(samples: Sequence[dict[str, float]]) -> dict[str, Any]:
+    if not samples:
+        return {
+            "training_window_gpu_sampler_active": False,
+            "training_window_gpu_utilization_sample_count": 0,
+        }
+    utils = [float(sample["gpu_utilization_percent"]) for sample in samples]
+    vram_used = [float(sample["vram_used_mb"]) for sample in samples]
+    vram_total = max(float(sample["vram_total_mb"]) for sample in samples)
+    return {
+        "training_window_gpu_sampler_active": True,
+        "training_window_gpu_utilization_sample_count": len(samples),
+        "training_window_gpu_utilization_avg_percent": round(sum(utils) / len(utils), 6),
+        "training_window_gpu_utilization_max_percent": round(max(utils), 6),
+        "training_window_gpu_utilization_min_percent": round(min(utils), 6),
+        "training_window_vram_used_avg_mb": round(sum(vram_used) / len(vram_used), 6),
+        "training_window_vram_used_max_mb": round(max(vram_used), 6),
+        "training_window_vram_total_mb": round(vram_total, 6),
+        "training_window_vram_used_max_fraction": round(max(vram_used) / vram_total, 6),
+    }
+
+
+class _TrainingWindowGpuSampler:
+    def __init__(self, *, enabled: bool, interval_seconds: float = GPU_TRAINING_SAMPLE_INTERVAL_SECONDS) -> None:
+        self.enabled = bool(enabled)
+        self.interval_seconds = max(0.1, float(interval_seconds))
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._samples: list[dict[str, float]] = []
+
+    def start(self) -> None:
+        if not self.enabled:
+            return
+        self._thread = threading.Thread(
+            target=self._run,
+            name="v2-trainer-gpu-window-sampler",
+            daemon=True,
+        )
+        self._thread.start()
+
+    def stop(self) -> dict[str, Any]:
+        if self._thread is not None:
+            self._stop.set()
+            self._thread.join(timeout=2.0)
+        return _summarize_training_gpu_samples(self._samples)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            sample = self._read_once()
+            if sample is not None:
+                self._samples.append(sample)
+            self._stop.wait(self.interval_seconds)
+
+    @staticmethod
+    def _read_once() -> dict[str, float] | None:
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    "--query-gpu=utilization.gpu,memory.used,memory.total",
+                    "--format=csv,noheader,nounits",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+        except Exception:
+            return None
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+        return _parse_nvidia_smi_training_sample(result.stdout.splitlines()[0])
 
 
 @dataclass(frozen=True)
@@ -46,9 +150,43 @@ class PPOTrainingResult:
 
 
 class V2HybridPPOTrainer:
-    def __init__(self, *, model: V2HybridPolicyModel, clip_epsilon: float = 0.2) -> None:
+    def __init__(
+        self,
+        *,
+        model: V2HybridPolicyModel,
+        clip_epsilon: float = 0.2,
+        entropy_coefficient: float | None = None,
+        supervised_entropy_bonus: float | None = None,
+        weight_decay: float | None = None,
+    ) -> None:
         self.model = model
         self.clip_epsilon = float(clip_epsilon)
+        # Regularization / exploration knobs are env-tunable so the operator can
+        # tune or instantly revert without a redeploy. Defaults are chosen to
+        # counter the observed pathologies: near-zero policy entropy (collapse)
+        # and an in-sample/out-of-sample overfit gap.
+        #   V2_TRAINER_ENTROPY_COEF=0.01              -> restore prior PPO-lane value
+        #   V2_TRAINER_SUPERVISED_ENTROPY_BONUS=0.0   -> restore prior (no supervised entropy)
+        #   V2_TRAINER_WEIGHT_DECAY=0.01              -> restore torch AdamW default
+        self.entropy_coefficient = (
+            float(entropy_coefficient)
+            if entropy_coefficient is not None
+            else float(os.getenv("V2_TRAINER_ENTROPY_COEF", "0.02") or 0.02)
+        )
+        self.supervised_entropy_bonus = (
+            float(supervised_entropy_bonus)
+            if supervised_entropy_bonus is not None
+            # 0.002 (was 0.005): enough to prevent the entropy-collapse-to-zero seen
+            # originally, but low enough that entropy does not drift runaway-high
+            # (~1.0) and inflate supervised validation loss every cycle (which was
+            # tripping the checkpoint-promotion regression guard). Env-tunable.
+            else float(os.getenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.002") or 0.002)
+        )
+        self.weight_decay = (
+            float(weight_decay)
+            if weight_decay is not None
+            else float(os.getenv("V2_TRAINER_WEIGHT_DECAY", "0.02") or 0.02)
+        )
 
     def train(
         self,
@@ -62,12 +200,57 @@ class V2HybridPPOTrainer:
         trusted_rows, rejection_metrics = self._filter_trusted_training_rows(available_rows)
         ppo_rows = [row for row in trusted_rows if self._has_on_policy_ppo_fields(row)]
         outcome_rows = [row for row in trusted_rows if self._has_outcome_supervised_targets(row)]
-        if ppo_rows:
+        if ppo_rows and outcome_rows:
+            learning_mode = "ppo_mixed_outcome_supervised"
+            ppo_row_ids = {id(row) for row in ppo_rows}
+            outcome_row_ids = {id(row) for row in outcome_rows}
+            # Keep the scarce on-policy rows in the training slice. Otherwise
+            # the default validation split can place the only PPO row at the
+            # tail, yielding a large batch but no clipped-surrogate update.
+            learnable_rows = [
+                *ppo_rows,
+                *[
+                    row
+                    for row in trusted_rows
+                    if id(row) in outcome_row_ids and id(row) not in ppo_row_ids
+                ],
+            ]
+        elif ppo_rows:
             learning_mode = "ppo_on_policy"
             learnable_rows = ppo_rows
         else:
             learning_mode = "outcome_supervised"
             learnable_rows = outcome_rows
+        trust_rows_for_metrics = [self._trust_row(row) for row in learnable_rows]
+        accepted_trust_rows_for_metrics = [self._trust_row(row) for row in trusted_rows]
+        policy_sampled_rows_seen = sum(
+            1
+            for row in accepted_trust_rows_for_metrics
+            if row.get("ppo_on_policy_entry_fields_present") is True
+            or row.get("old_log_prob") not in (None, "")
+            or row.get("selected_action_log_prob") not in (None, "")
+        )
+        policy_sampled_rows_with_action_probabilities = sum(
+            1
+            for row in accepted_trust_rows_for_metrics
+            if isinstance(row.get("action_probabilities"), (list, tuple))
+            and len(row.get("action_probabilities") or []) > 0
+        )
+        policy_sampled_closed_positions = sum(
+            1
+            for row in accepted_trust_rows_for_metrics
+            if row.get("exit_time") not in (None, "")
+            or row.get("close_time") not in (None, "")
+            or row.get("realized_pnl_bps") not in (None, "")
+        )
+        ppo_exact_reason = None
+        if not ppo_rows:
+            if policy_sampled_rows_seen <= 0:
+                ppo_exact_reason = "NO_POLICY_SAMPLED_POSITION_OPEN"
+            elif policy_sampled_closed_positions <= 0:
+                ppo_exact_reason = "POLICY_POSITION_OPEN_WAITING_CLOSE"
+            else:
+                ppo_exact_reason = "CLOSED_ROWS_MISSING_ON_POLICY_FIELDS"
         rejection_metrics.update(
             {
                 "accepted_training_rows": len(trusted_rows),
@@ -76,19 +259,81 @@ class V2HybridPPOTrainer:
                 "outcome_supervised_rows": len(outcome_rows),
                 "trusted_replay_rows_loaded": sum(
                     1
-                    for row in learnable_rows
-                    if str(self._trust_row(row).get("update_lane") or "").upper()
+                    for row in trust_rows_for_metrics
+                    if str(row.get("update_lane") or "").upper()
                     == "OUTCOME_SUPERVISED_TRUSTED_REPLAY"
+                ),
+                "trusted_replay_backfill_rows_loaded": sum(
+                    1
+                    for row in trust_rows_for_metrics
+                    if row.get("trusted_replay_backfill_lane") is True
                 ),
                 "feedback_rows_entered_batch": sum(
                     1
-                    for row in learnable_rows
-                    if str(self._trust_row(row).get("update_lane") or "").upper()
+                    for row in trust_rows_for_metrics
+                    if str(row.get("update_lane") or "").upper()
                     == "OUTCOME_SUPERVISED_CLOSED_TRADE"
                 ),
-                "ppo_rows_rejected_missing_on_policy_fields": max(0, len(trusted_rows) - len(ppo_rows)),
+                "counterfactual_rows_consumed": sum(
+                    1
+                    for row in trust_rows_for_metrics
+                    if "COUNTERFACTUAL" in str(
+                        row.get("trainer_feedback_source")
+                        or row.get("trainer_feedback_source_key")
+                        or ""
+                    ).upper()
+                ),
+                "paper_closed_rows_consumed": sum(
+                    1
+                    for row in trust_rows_for_metrics
+                    if row.get("realized_pnl_bps") not in (None, "")
+                    or row.get("realized_net_pnl_bps") not in (None, "")
+                ),
+                "strategy_supply_feedback_rows": sum(
+                    1
+                    for row in trust_rows_for_metrics
+                    if "STRATEGY_SUPPLY" in str(row.get("trainer_feedback_source") or "").upper()
+                ),
+                "historical_replay_rows": sum(
+                    1 for row in trust_rows_for_metrics if row.get("historical_replay_row") is True
+                ),
+                "feature_snapshot_archive_rows": sum(
+                    1
+                    for row in trust_rows_for_metrics
+                    if "DURABLE_FEATURE_SNAPSHOT" in str(
+                        row.get("trainer_feedback_source") or row.get("row_source") or ""
+                    ).upper()
+                ),
+                "policy_sampled_rows_seen": policy_sampled_rows_seen,
+                "policy_sampled_rows_with_action_probabilities": (
+                    policy_sampled_rows_with_action_probabilities
+                ),
+                "policy_sampled_rows_with_old_log_prob": sum(
+                    1 for row in accepted_trust_rows_for_metrics if row.get("old_log_prob") not in (None, "")
+                ),
+                "policy_sampled_rows_with_old_value": sum(
+                    1 for row in accepted_trust_rows_for_metrics if row.get("old_value") not in (None, "")
+                ),
+                "policy_sampled_rows_with_rollout_id": sum(
+                    1 for row in accepted_trust_rows_for_metrics if row.get("rollout_id") not in (None, "")
+                ),
+                "policy_sampled_materialized_positions": sum(
+                    1
+                    for row in accepted_trust_rows_for_metrics
+                    if row.get("materialization_queue_id") not in (None, "")
+                    and row.get("ppo_on_policy_entry_fields_present") is True
+                ),
+                "policy_sampled_closed_positions": policy_sampled_closed_positions,
+                "ppo_rows_pending": 0 if ppo_rows else policy_sampled_rows_seen,
+                "ppo_rows_consumed": len(ppo_rows),
+                "ppo_no_rows_exact_reason": ppo_exact_reason,
+                "ppo_rows_rejected_missing_on_policy_fields": (
+                    max(0, len(trusted_rows) - len(ppo_rows)) if not ppo_rows else 0
+                ),
+                "ppo_rows_missing_on_policy_fields": max(0, len(trusted_rows) - len(ppo_rows)),
                 "learning_update_lane": learning_mode if learnable_rows else "blocked",
                 "closed_trade_feedback_requires_outcome_supervised_lane": bool(outcome_rows and not ppo_rows),
+                "mixed_ppo_outcome_batch_active": bool(ppo_rows and outcome_rows),
             }
         )
         target_batch_size = max(1, int(batch_size))
@@ -136,17 +381,21 @@ class V2HybridPPOTrainer:
     ) -> tuple[list[TrainingExample], dict[str, Any]]:
         accepted: list[TrainingExample] = []
         rejected: list[dict[str, Any]] = []
+        rejected_family_diagnostics: list[dict[str, Any]] = []
+        cost_masked_accepted = 0
         for row in rows:
             trust_row = self._trust_row(row)
             if not _has_explicit_training_trust_evidence(trust_row):
-                rejected.append(
-                    {
-                        "id": self._row_id(row, trust_row),
-                        "symbol": row.symbol,
-                        "timeframe": row.timeframe,
-                        "reasons": ["EXPLICIT_TRAINING_TRUST_EVIDENCE_MISSING"],
-                        "market_state_integrity_score": None,
-                    }
+                item = {
+                    "id": self._row_id(row, trust_row),
+                    "symbol": row.symbol,
+                    "timeframe": row.timeframe,
+                    "reasons": ["EXPLICIT_TRAINING_TRUST_EVIDENCE_MISSING"],
+                    "market_state_integrity_score": None,
+                }
+                rejected.append(item)
+                rejected_family_diagnostics.append(
+                    self._rejection_family_diagnostic(row, trust_row, item["reasons"])
                 )
                 continue
             sample = classify_training_sample(trust_row)
@@ -155,14 +404,33 @@ class V2HybridPPOTrainer:
             if sample.get("accepted_for_training") is True and not reasons:
                 accepted.append(row)
                 continue
-            rejected.append(
-                {
-                    "id": self._row_id(row, trust_row),
-                    "symbol": row.symbol,
-                    "timeframe": row.timeframe,
-                    "reasons": sorted(reasons) or ["MARKET_STATE_REJECTED_FOR_TRAINING"],
-                    "market_state_integrity_score": sample.get("market_state_integrity_score"),
-                }
+            # Historical archive rows that predate a derived-cost estimator carry
+            # explicit decision-time masks for ONLY cost fields (fee/slippage).
+            # Those are pricing-model inputs, not market-state feature families:
+            # trainable with the mask intact. The subset check guarantees no
+            # stale/future-leak/other reason rides along, and decision/live
+            # gates still demand real cost evidence via their own validators.
+            if (
+                reasons
+                and reasons
+                <= {"MISSING_CRITICAL_FEATURE_FAMILY", "ROW_CLASSIFICATION_MISSING_MASKED"}
+                and self._missing_names_are_training_cost_maskable(
+                    trust_row.get("missing_feature_names")
+                )
+            ):
+                cost_masked_accepted += 1
+                accepted.append(row)
+                continue
+            item = {
+                "id": self._row_id(row, trust_row),
+                "symbol": row.symbol,
+                "timeframe": row.timeframe,
+                "reasons": sorted(reasons) or ["MARKET_STATE_REJECTED_FOR_TRAINING"],
+                "market_state_integrity_score": sample.get("market_state_integrity_score"),
+            }
+            rejected.append(item)
+            rejected_family_diagnostics.append(
+                self._rejection_family_diagnostic(row, trust_row, item["reasons"])
             )
         reason_counts: dict[str, int] = {}
         for item in rejected:
@@ -172,7 +440,9 @@ class V2HybridPPOTrainer:
             "training_rejection_count": len(rejected),
             "training_rejected_example_ids": [item["id"] for item in rejected[:10]],
             "training_rejection_reason_counts": reason_counts,
+            "training_rejection_family_diagnostics": rejected_family_diagnostics[:50],
             "training_trusted_rows": len(accepted),
+            "training_cost_masked_rows_accepted": cost_masked_accepted,
         }
 
     @staticmethod
@@ -211,16 +481,27 @@ class V2HybridPPOTrainer:
             and row.get("uses_expected_move_as_realized_reward") is False
         )
 
+    @staticmethod
+    def _ppo_objective_active(learning_mode: str) -> bool:
+        return learning_mode in {"ppo_on_policy", "ppo_mixed_outcome_supervised"}
+
+    @staticmethod
+    def _outcome_supervision_active(learning_mode: str) -> bool:
+        return learning_mode in {"outcome_supervised", "ppo_mixed_outcome_supervised"}
+
     @classmethod
     def _extra_rejection_reasons(cls, example: TrainingExample, row: dict[str, Any]) -> list[str]:
         reasons: list[str] = []
         classification = str(example.row_classification).upper()
         if classification != "TRAINABLE":
+            safe_missing_mask = missing_mask_training_override_status(row).get(
+                "safe_to_train_with_missing_mask"
+            )
             optional_missing_masked = (
                 classification == "MISSING_MASKED"
                 and cls._missing_names_are_optional_or_event_dependent(row.get("missing_feature_names"))
             )
-            if not optional_missing_masked:
+            if not optional_missing_masked and not safe_missing_mask:
                 reasons.append(f"ROW_CLASSIFICATION_{example.row_classification}")
         if row.get("accepted_for_training") is False:
             reasons.append("EXPLICIT_ACCEPTED_FOR_TRAINING_FALSE")
@@ -267,6 +548,57 @@ class V2HybridPPOTrainer:
             reasons.append("REJECTED_ORDER_MARKED_POSITIVE_TRAINING_OUTCOME")
         return reasons
 
+    @classmethod
+    def _rejection_family_diagnostic(
+        cls,
+        example: TrainingExample,
+        row: dict[str, Any],
+        reasons: Sequence[str],
+    ) -> dict[str, Any]:
+        override = missing_mask_training_override_status(row, list(reasons))
+        missing = [str(name) for name in cls._names_from_mask_field(row.get("missing_feature_names"))]
+        stale = [str(name) for name in cls._names_from_mask_field(row.get("stale_feature_names"))]
+        row_source = str(
+            row.get("row_source")
+            or row.get("trainer_feedback_source")
+            or row.get("update_lane")
+            or "unknown"
+        )
+        return {
+            "row_source": row_source,
+            "row_id": cls._row_id(example, row),
+            "symbol": example.symbol,
+            "timeframe": example.timeframe,
+            "row_count": 1,
+            "missing_feature_families": missing,
+            "masked_feature_families": missing,
+            "stale_feature_families": stale,
+            "critical_missing_vs_optional_missing": override.get(
+                "critical_missing_vs_optional_missing"
+            ),
+            "feature_family_introduced_after_snapshot_time": override.get(
+                "feature_family_introduced_after_snapshot_time"
+            ),
+            "source_availability": override.get("source_availability"),
+            "lineage_mask_present": override.get("lineage_mask_present"),
+            "classification_mask_present": override.get("classification_mask_present"),
+            "safe_to_train_with_missing_mask": override.get(
+                "safe_to_train_with_missing_mask"
+            ),
+            "unsafe_to_train_reason": override.get("unsafe_to_train_reason"),
+            "rejection_reasons": list(reasons),
+        }
+
+    @staticmethod
+    def _names_from_mask_field(value: Any) -> list[Any]:
+        if isinstance(value, dict):
+            return [name for name, flagged in value.items() if flagged]
+        if isinstance(value, (list, tuple, set)):
+            return list(value)
+        if value in (None, ""):
+            return []
+        return [value]
+
     @staticmethod
     def _missing_names_are_optional_or_event_dependent(value: Any) -> bool:
         if isinstance(value, dict):
@@ -284,6 +616,38 @@ class V2HybridPPOTrainer:
             lowered = name.lower()
             if not any(token in lowered for token in OPTIONAL_OR_EVENT_FEATURE_TOKENS):
                 return False
+        return True
+
+    # Derived cost-estimator inputs, not market-state feature families. Rows
+    # whose ONLY decision-time missing names match these tokens may train with
+    # the explicit mask (training lane only; decision/live cost gates are
+    # enforced by their own validators on real values).
+    _TRAINING_COST_MASKABLE_TOKENS = (
+        "fee_bps",
+        "expected_slippage",
+        "slippage_bps",
+        "expected_cost",
+        "spread_slippage_funding",
+    )
+
+    @classmethod
+    def _missing_names_are_training_cost_maskable(cls, value: Any) -> bool:
+        if isinstance(value, (dict,)):
+            names = [str(name) for name in value.keys()]
+        elif isinstance(value, (list, tuple)):
+            names = [str(name) for name in value]
+        else:
+            return False
+        names = [name for name in names if name.strip()]
+        if not names:
+            return False
+        for name in names:
+            lowered = name.lower()
+            if any(token in lowered for token in OPTIONAL_OR_EVENT_FEATURE_TOKENS):
+                continue
+            if any(token in lowered for token in cls._TRAINING_COST_MASKABLE_TOKENS):
+                continue
+            return False
         return True
 
     @staticmethod
@@ -349,6 +713,89 @@ class V2HybridPPOTrainer:
             tuned = min(requested, int(available_rows))
         return max(1, int(tuned))
 
+    def _validation_supervised_loss(
+        self,
+        validation_rows: Sequence[TrainingExample],
+    ) -> dict[str, Any]:
+        """Out-of-sample supervised loss on the held-out validation split.
+
+        The training loop carves out a validation split but historically never
+        evaluated it, so the trainer had no generalization signal and could not
+        detect the in-sample/out-of-sample overfit gap that lets an overfit
+        checkpoint (low train loss) get promoted despite poor live behaviour.
+        This computes a real held-out supervised loss (policy cross-entropy +
+        expected-move MSE) under eval()/no_grad; it never affects gradients.
+        """
+        rows = list(validation_rows)
+        empty = {
+            "validation_supervised_loss": None,
+            "validation_supervised_loss_before": None,
+            "validation_supervised_loss_after": None,
+            "validation_rows_evaluated": 0,
+            "validation_loss_delta": None,
+            "validation_improved": None,
+            "train_val_generalization_gap": None,
+        }
+        if not rows or not self.model.torch_available:
+            return dict(empty)
+        torch = self.model.torch
+        net = self.model.net
+        if torch is None or net is None:
+            return dict(empty)
+        device = self.model.device
+        try:
+            val_x = torch.tensor(
+                [list(r.tensor.model_vector) for r in rows],
+                dtype=torch.float32,
+                device="cpu",
+            )
+            val_x = torch.nan_to_num(val_x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
+            val_x = torch.clamp(val_x, min=-1_000_000.0, max=1_000_000.0).to(device=device)
+            policy_labels, _ = self._python_policy_action_supervision_labels(rows)
+            val_actions = torch.tensor(policy_labels, dtype=torch.long, device=device)
+            val_expected = torch.tensor(
+                [r.label_expected_move_after_cost_bps for r in rows],
+                dtype=torch.float32,
+                device=device,
+            )
+            val_expected = torch.clamp(
+                torch.nan_to_num(val_expected, nan=0.0, posinf=120.0, neginf=-120.0),
+                min=-120.0,
+                max=120.0,
+            )
+            was_training = bool(net.training)
+            net.eval()
+            try:
+                with torch.no_grad():
+                    out = net(val_x)
+                    logits = torch.clamp(
+                        torch.nan_to_num(out["logits"], nan=0.0, posinf=30.0, neginf=-30.0),
+                        min=-30.0,
+                        max=30.0,
+                    )
+                    expected_move = torch.clamp(
+                        torch.nan_to_num(out["expected_move"], nan=0.0, posinf=120.0, neginf=-120.0),
+                        min=-120.0,
+                        max=120.0,
+                    )
+                    ce = torch.nn.functional.cross_entropy(logits, val_actions)
+                    mse = torch.nn.functional.mse_loss(expected_move, val_expected)
+                    val_loss = ce + 0.01 * mse
+            finally:
+                if was_training:
+                    net.train()
+            val_loss_f = float(val_loss.detach().cpu().item())
+        except Exception:
+            return dict(empty)
+        return {
+            "validation_supervised_loss": val_loss_f if math.isfinite(val_loss_f) else None,
+            "validation_supervised_loss_after": val_loss_f if math.isfinite(val_loss_f) else None,
+            "validation_rows_evaluated": len(rows),
+            "validation_loss_delta": None,
+            "validation_improved": None,
+            "train_val_generalization_gap": None,
+        }
+
     def _train_torch(
         self,
         rows: Sequence[TrainingExample],
@@ -392,6 +839,11 @@ class V2HybridPPOTrainer:
         clipped_expected_label_count = int(
             (torch.abs(raw_expected - cpu_expected) > 1e-6).sum().detach().cpu().item()
         )
+        ppo_row_flags = [self._has_on_policy_ppo_fields(row) for row in rows]
+        ppo_row_count = sum(1 for flag in ppo_row_flags if flag)
+        outcome_row_count = sum(1 for row in rows if self._has_outcome_supervised_targets(row))
+        ppo_objective_active = self._ppo_objective_active(learning_mode) and ppo_row_count > 0
+        outcome_supervision_active = self._outcome_supervision_active(learning_mode)
         workers = compute_dataloader_workers(row_count=selected_rows) if self.model.cuda_active else 0
         prefetch_factor: int | None = PREFETCH_FACTOR if workers > 0 else None
         dataloader_used = False
@@ -475,7 +927,7 @@ class V2HybridPPOTrainer:
         if initial_sanitized_parameter_count:
             non_finite_parameter_value_count_sanitized += initial_sanitized_parameter_count
             non_finite_parameter_sanitization_events += 1
-        opt = torch.optim.AdamW(net.parameters(), lr=1e-4)
+        opt = torch.optim.AdamW(net.parameters(), lr=1e-4, weight_decay=self.weight_decay)
         action_weights = self._torch_action_class_weights(
             target_actions=policy_target_actions,
             torch=torch,
@@ -549,34 +1001,64 @@ class V2HybridPPOTrainer:
                 out0 = net(x)
                 loss_before_t = supervised_loss(out0)
                 safe_out0 = safe_outputs(out0)
-                if learning_mode == "ppo_on_policy":
-                    old_log_probs = torch.tensor(
-                        [float(self._trust_row(row).get("old_log_prob")) for row in rows],
+                current_log_probs = torch.log_softmax(safe_out0["logits"], dim=-1).gather(
+                    1,
+                    policy_target_actions[:, None],
+                ).squeeze(1)
+                ppo_row_mask = torch.tensor(ppo_row_flags, dtype=torch.bool, device=device)
+                old_log_probs = current_log_probs.detach().clone()
+                ppo_advantages = torch.zeros_like(old_log_probs)
+                if ppo_objective_active:
+                    old_log_values = []
+                    advantage_values = []
+                    for row in rows:
+                        trust_row = self._trust_row(row)
+                        if self._has_on_policy_ppo_fields(row):
+                            old_log_values.append(float(trust_row.get("old_log_prob")))
+                            advantage_values.append(
+                                float(trust_row.get("reward")) - float(trust_row.get("old_value"))
+                            )
+                        else:
+                            old_log_values.append(0.0)
+                            advantage_values.append(0.0)
+                    supplied_old_log_probs = torch.tensor(
+                        old_log_values,
                         dtype=torch.float32,
                         device=device,
                     )
-                    ppo_advantages = torch.tensor(
-                        [
-                            float(self._trust_row(row).get("reward"))
-                            - float(self._trust_row(row).get("old_value"))
-                            for row in rows
-                        ],
+                    supplied_advantages = torch.tensor(
+                        advantage_values,
                         dtype=torch.float32,
                         device=device,
                     )
-                else:
-                    old_log_probs = torch.log_softmax(safe_out0["logits"], dim=-1).gather(
-                        1,
-                        policy_target_actions[:, None],
-                    ).squeeze(1)
-                    ppo_advantages = torch.zeros_like(old_log_probs)
+                    old_log_probs = torch.where(ppo_row_mask, supplied_old_log_probs, old_log_probs)
+                    ppo_advantages = torch.where(ppo_row_mask, supplied_advantages, ppo_advantages)
+        # Evaluate the held-out rows before optimizer steps so runtime can
+        # reject checkpoint candidates that regress out-of-sample loss.
+        validation_metrics_before = self._validation_supervised_loss(validation_rows)
         loss_after_t = loss_before_t
         non_finite_loss_steps = 0
         non_finite_gradient_steps = 0
         sanitized_gradient_steps = 0
         sanitized_gradient_value_count = 0
+        advantage_anomaly_steps = 0
         max_gradient_norm = 0.0
         optimizer_steps_this_cycle = 0
+        last_component_losses: dict[str, float | None] = {
+            "ppo_policy_loss": None,
+            "ppo_value_loss": None,
+            "ppo_entropy": None,
+            "masa_loss": None,
+            "expected_move_loss": None,
+            "confidence_loss": None,
+        }
+
+        def _finite_or_none(value: Any) -> float | None:
+            try:
+                f = float(value.detach().cpu().item())
+            except Exception:
+                return None
+            return f if math.isfinite(f) else None
 
         def sanitize_gradients() -> int:
             sanitized_count = 0
@@ -596,6 +1078,8 @@ class V2HybridPPOTrainer:
                     grad.copy_(cleaned)
             return sanitized_count
 
+        training_gpu_sampler = _TrainingWindowGpuSampler(enabled=bool(self.model.cuda_active))
+        training_gpu_sampler.start()
         for _ in range(max(1, int(steps))):
             opt.zero_grad(set_to_none=True)
             with autocast():
@@ -604,15 +1088,33 @@ class V2HybridPPOTrainer:
                     1,
                     policy_target_actions[:, None],
                 ).squeeze(1)
-                log_ratio = torch.clamp(new_log_probs - old_log_probs.detach(), min=-20.0, max=20.0)
-                ratio = torch.nan_to_num(torch.exp(log_ratio), nan=1.0, posinf=1.0, neginf=1.0)
-                advantage = torch.clamp(ppo_advantages, -5.0, 5.0)
-                unclipped = ratio * advantage
-                clipped = torch.clamp(ratio, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon) * advantage
-                policy_loss = -torch.minimum(unclipped, clipped).mean()
                 log_probs = torch.log_softmax(out["logits"], dim=-1)
                 probs = torch.softmax(out["logits"], dim=-1)
-                entropy = -(probs * log_probs).sum(dim=-1).mean()
+                entropy_per_row = -(probs * log_probs).sum(dim=-1)
+                if ppo_objective_active:
+                    ppo_new_log_probs = new_log_probs[ppo_row_mask]
+                    ppo_old_log_probs = old_log_probs.detach()[ppo_row_mask]
+                    log_ratio = torch.clamp(ppo_new_log_probs - ppo_old_log_probs, min=-20.0, max=20.0)
+                    ratio = torch.nan_to_num(torch.exp(log_ratio), nan=1.0, posinf=1.0, neginf=1.0)
+                    advantage = torch.clamp(ppo_advantages[ppo_row_mask], -5.0, 5.0)
+                    unclipped = ratio * advantage
+                    clipped = torch.clamp(ratio, 1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon) * advantage
+                    policy_loss = -torch.minimum(unclipped, clipped).mean()
+                    # PPO diagnostics: clip fraction, approx KL, advantage stats.
+                    ppo_clip_fraction = (
+                        (torch.abs(ratio - 1.0) > self.clip_epsilon).float().mean()
+                    )
+                    ppo_approx_kl = (ppo_old_log_probs - ppo_new_log_probs).mean()
+                    ppo_advantage_mean = advantage.mean()
+                    ppo_advantage_std = advantage.std(unbiased=False)
+                    entropy = entropy_per_row[ppo_row_mask].mean()
+                else:
+                    policy_loss = new_log_probs.new_tensor(0.0)
+                    ppo_clip_fraction = new_log_probs.new_tensor(0.0)
+                    ppo_approx_kl = new_log_probs.new_tensor(0.0)
+                    ppo_advantage_mean = new_log_probs.new_tensor(0.0)
+                    ppo_advantage_std = new_log_probs.new_tensor(0.0)
+                    entropy = entropy_per_row.mean()
                 value_loss = mse(out["value"], expected_move_training_target / 100.0)
                 move_loss = mse(out["expected_move"], expected_move_training_target)
                 masa_loss = mse(out["masa"], torch.tanh(expected_move_training_target / 100.0))
@@ -620,7 +1122,7 @@ class V2HybridPPOTrainer:
                     out["confidence"],
                     torch.clamp(torch.abs(expected_move_training_target) / 100.0, 0.0, 1.0),
                 )
-                if learning_mode == "ppo_on_policy":
+                if ppo_objective_active:
                     loss = (
                         supervised_loss(out)
                         + 0.1 * policy_loss
@@ -628,10 +1130,45 @@ class V2HybridPPOTrainer:
                         + 0.01 * move_loss
                         + 0.1 * masa_loss
                         + 0.05 * confidence_loss
-                        - 0.01 * entropy
+                        - self.entropy_coefficient * entropy
                     )
                 else:
-                    loss = supervised_loss(out)
+                    # Supervised-only lane: the cross-entropy term drives the policy
+                    # head toward a near-deterministic (entropy-collapsed) action
+                    # distribution. A small entropy bonus keeps exploration alive so
+                    # the policy does not lock into a single losing action bias.
+                    loss = supervised_loss(out) - self.supervised_entropy_bonus * entropy
+            last_component_losses = {
+                "ppo_policy_loss": _finite_or_none(policy_loss),
+                "ppo_value_loss": _finite_or_none(value_loss),
+                "ppo_entropy": _finite_or_none(entropy),
+                "masa_loss": _finite_or_none(masa_loss),
+                "expected_move_loss": _finite_or_none(move_loss),
+                "confidence_loss": _finite_or_none(confidence_loss),
+                "ppo_clip_fraction": _finite_or_none(ppo_clip_fraction),
+                "ppo_approx_kl_divergence": _finite_or_none(ppo_approx_kl),
+                "ppo_advantage_mean": _finite_or_none(ppo_advantage_mean),
+                "ppo_advantage_std": _finite_or_none(ppo_advantage_std),
+            }
+            # Tracking assertion (pre-backprop): catch invalid/exploded
+            # advantages on the on-policy lane before they can reach the
+            # optimizer. Equal finite nonzero advantages are still valid PPO
+            # signal; they should not block the supervised outcome lane.
+            if ppo_objective_active:
+                adv_mean = last_component_losses["ppo_advantage_mean"]
+                adv_std = last_component_losses["ppo_advantage_std"]
+                advantage_exploded = adv_mean is None or abs(adv_mean) >= 5.0
+                advantage_vanished = (
+                    adv_std is not None
+                    and adv_std == 0.0
+                    and (adv_mean is None or abs(adv_mean) <= 1e-9)
+                    and ppo_row_count > 1
+                )
+                if advantage_exploded or advantage_vanished:
+                    advantage_anomaly_steps += 1
+                    non_finite_loss_steps += 1
+                    opt.zero_grad(set_to_none=True)
+                    continue
             if bool(torch.isfinite(loss).detach().cpu().item()) is False:
                 non_finite_loss_steps += 1
                 opt.zero_grad(set_to_none=True)
@@ -678,6 +1215,7 @@ class V2HybridPPOTrainer:
                 else:
                     non_finite_gradient_steps += 1
                     opt.zero_grad(set_to_none=True)
+        training_gpu_metrics = training_gpu_sampler.stop()
         feedback_head_nudge_applied = False
         expected_move_head_recovery_metrics: dict[str, Any] = {
             "expected_move_head_saturation_recovery_applied": False,
@@ -881,6 +1419,21 @@ class V2HybridPPOTrainer:
             with autocast():
                 loss_after_t = supervised_loss(net(x))
         net.eval()
+        # Out-of-sample generalization signal on the held-out validation split.
+        validation_metrics = self._validation_supervised_loss(validation_rows)
+        _val_loss_before = validation_metrics_before.get("validation_supervised_loss")
+        _train_loss_final = float(loss_after_t.detach().cpu().item())
+        _val_loss_value = validation_metrics.get("validation_supervised_loss")
+        validation_metrics["validation_supervised_loss_before"] = _val_loss_before
+        validation_metrics["validation_supervised_loss_after"] = _val_loss_value
+        if _val_loss_before is not None and _val_loss_value is not None:
+            _delta = float(_val_loss_value) - float(_val_loss_before)
+            validation_metrics["validation_loss_delta"] = round(_delta, 6)
+            validation_metrics["validation_improved"] = bool(_delta <= 0.0)
+        if _val_loss_value is not None and math.isfinite(_train_loss_final):
+            _gap = _val_loss_value - _train_loss_final
+            validation_metrics["train_val_generalization_gap"] = round(_gap, 6)
+            validation_metrics["overfit_gap_warning"] = bool(_gap > 0.5)
         elapsed_seconds = max(1e-6, time.perf_counter() - started)
         parameter_vector_after = self._parameter_vector()
         parameter_hash_after = self._parameter_hash_from_vector(parameter_vector_after)
@@ -912,8 +1465,12 @@ class V2HybridPPOTrainer:
             status=(
                 "V2_NATIVE_RL_MASA_PPO_ON_POLICY_CUDA_TRAINING_STEP_RAN"
                 if learning_mode == "ppo_on_policy" and self.model.cuda_active
+                else "V2_NATIVE_RL_MASA_PPO_MIXED_OUTCOME_SUPERVISED_CUDA_TRAINING_STEP_RAN"
+                if learning_mode == "ppo_mixed_outcome_supervised" and self.model.cuda_active
                 else "V2_NATIVE_RL_MASA_PPO_ON_POLICY_CPU_TRAINING_STEP_RAN"
                 if learning_mode == "ppo_on_policy"
+                else "V2_NATIVE_RL_MASA_PPO_MIXED_OUTCOME_SUPERVISED_CPU_TRAINING_STEP_RAN"
+                if learning_mode == "ppo_mixed_outcome_supervised"
                 else "V2_NATIVE_RL_MASA_OUTCOME_SUPERVISED_CUDA_TRAINING_STEP_RAN"
                 if self.model.cuda_active
                 else "V2_NATIVE_RL_MASA_OUTCOME_SUPERVISED_CPU_TRAINING_STEP_RAN"
@@ -932,18 +1489,31 @@ class V2HybridPPOTrainer:
             action_distribution=dist,
             metrics={
                 **(rejection_metrics or {}),
+                **validation_metrics,
+                "entropy_coefficient": self.entropy_coefficient,
+                "supervised_entropy_bonus": self.supervised_entropy_bonus,
+                "weight_decay": self.weight_decay,
+                "model_dropout": float(getattr(self.model, "dropout", 0.0) or 0.0),
                 "learning_update_lane": learning_mode,
-                "ppo_objective_used": learning_mode == "ppo_on_policy",
-                "outcome_supervised_update_used": learning_mode == "outcome_supervised",
+                "ppo_objective_used": bool(ppo_objective_active),
+                "outcome_supervised_update_used": bool(outcome_supervision_active),
                 "ppo_requires_on_policy_fields": True,
-                "realized_reward_source": "realized_after_cost_reward_minus_value_baseline"
-                if learning_mode == "outcome_supervised"
-                else "on_policy_reward_minus_old_value",
+                "realized_reward_source": (
+                    "mixed_on_policy_reward_minus_old_value_and_realized_after_cost_reward"
+                    if learning_mode == "ppo_mixed_outcome_supervised"
+                    else "realized_after_cost_reward_minus_value_baseline"
+                    if learning_mode == "outcome_supervised"
+                    else "on_policy_reward_minus_old_value"
+                ),
                 "uses_expected_move_as_realized_reward": False,
+                "mixed_ppo_outcome_batch_active": learning_mode == "ppo_mixed_outcome_supervised",
+                "ppo_clipped_surrogate_rows": int(ppo_row_count),
+                "outcome_supervised_batch_rows": int(outcome_row_count),
                 "optimizer_steps_this_cycle": int(optimizer_steps_this_cycle),
                 "parameter_hash_before": parameter_hash_before,
                 "parameter_hash_after": parameter_hash_after,
                 "weight_delta_norm": weight_delta_norm,
+                **last_component_losses,
                 **self._action_balance_metrics(rows),
                 "action_class_weights": [
                     round(float(v), 8) for v in action_weights.detach().cpu().tolist()
@@ -995,6 +1565,14 @@ class V2HybridPPOTrainer:
                 "non_finite_gradient_steps": non_finite_gradient_steps,
                 "sanitized_gradient_steps": sanitized_gradient_steps,
                 "sanitized_gradient_value_count": sanitized_gradient_value_count,
+                "advantage_anomaly_steps": advantage_anomaly_steps,
+                # True NaN/Inf events only; clamped large-but-finite gradient
+                # values are tracked separately under sanitized_gradient_*.
+                "tensor_nan_inf_count": int(non_finite_loss_steps)
+                + int(non_finite_gradient_steps)
+                + int(non_finite_feature_count)
+                + int(non_finite_expected_label_count),
+                "ppo_clip_epsilon_bounds": [1.0 - self.clip_epsilon, 1.0 + self.clip_epsilon],
                 "non_finite_parameter_value_count_sanitized": non_finite_parameter_value_count_sanitized,
                 "non_finite_parameter_sanitization_events": non_finite_parameter_sanitization_events,
                 "parameter_finite_guard_active": True,
@@ -1002,7 +1580,15 @@ class V2HybridPPOTrainer:
                 "gradient_clip_max_norm": 1.0,
                 "vram_reserved_mb": vram_reserved,
                 "vram_target_mb": vram_target_mb,
+                **training_gpu_metrics,
                 "oom_count": 0,
+                "train_elapsed_ms": round(elapsed_seconds * 1000.0, 3),
+                "gpu_train_time_ms": round(elapsed_seconds * 1000.0, 3)
+                if self.model.cuda_active
+                else None,
+                "cpu_train_time_ms": None
+                if self.model.cuda_active
+                else round(elapsed_seconds * 1000.0, 3),
                 "training_steps_per_minute": round((max(1, int(steps)) / elapsed_seconds) * 60.0, 6),
                 "tensor_rows_per_second": round(float(selected_rows) / elapsed_seconds, 6),
                 "uses_shared_encoder": True,
@@ -1031,6 +1617,12 @@ class V2HybridPPOTrainer:
         parameter_vector_before = self._parameter_vector()
         parameter_hash_before = self._parameter_hash_from_vector(parameter_vector_before)
         input_dim = int(self.model.input_dim)
+        ppo_objective_active = self._ppo_objective_active(learning_mode) and any(
+            self._has_on_policy_ppo_fields(row) for row in rows
+        )
+        outcome_supervision_active = self._outcome_supervision_active(learning_mode)
+        ppo_row_count = sum(1 for row in rows if self._has_on_policy_ppo_fields(row))
+        outcome_row_count = sum(1 for row in rows if self._has_outcome_supervised_targets(row))
         expected_move_labels, expected_move_supervision_metrics = self._python_expected_move_supervision_labels(rows)
         policy_action_labels, policy_action_supervision_metrics = self._python_policy_action_supervision_labels(rows)
 
@@ -1080,6 +1672,8 @@ class V2HybridPPOTrainer:
             status=(
                 "V2_NATIVE_RL_MASA_PPO_ON_POLICY_TORCH_UNAVAILABLE_CPU_FALLBACK_TRAINING_STEP_RAN"
                 if learning_mode == "ppo_on_policy"
+                else "V2_NATIVE_RL_MASA_PPO_MIXED_OUTCOME_SUPERVISED_TORCH_UNAVAILABLE_CPU_FALLBACK_TRAINING_STEP_RAN"
+                if learning_mode == "ppo_mixed_outcome_supervised"
                 else "V2_NATIVE_RL_MASA_OUTCOME_SUPERVISED_TORCH_UNAVAILABLE_CPU_FALLBACK_TRAINING_STEP_RAN"
             ),
             device="cpu",
@@ -1097,13 +1691,20 @@ class V2HybridPPOTrainer:
             metrics={
                 **(rejection_metrics or {}),
                 "learning_update_lane": learning_mode,
-                "ppo_objective_used": learning_mode == "ppo_on_policy",
-                "outcome_supervised_update_used": learning_mode == "outcome_supervised",
+                "ppo_objective_used": bool(ppo_objective_active),
+                "outcome_supervised_update_used": bool(outcome_supervision_active),
                 "ppo_requires_on_policy_fields": True,
-                "realized_reward_source": "realized_after_cost_reward_minus_value_baseline"
-                if learning_mode == "outcome_supervised"
-                else "on_policy_reward_minus_old_value",
+                "realized_reward_source": (
+                    "mixed_on_policy_reward_minus_old_value_and_realized_after_cost_reward"
+                    if learning_mode == "ppo_mixed_outcome_supervised"
+                    else "realized_after_cost_reward_minus_value_baseline"
+                    if learning_mode == "outcome_supervised"
+                    else "on_policy_reward_minus_old_value"
+                ),
                 "uses_expected_move_as_realized_reward": False,
+                "mixed_ppo_outcome_batch_active": learning_mode == "ppo_mixed_outcome_supervised",
+                "ppo_clipped_surrogate_rows": int(ppo_row_count),
+                "outcome_supervised_batch_rows": int(outcome_row_count),
                 "optimizer_steps_this_cycle": int(max(1, int(steps)) if update_count > 0 else 0),
                 "parameter_hash_before": parameter_hash_before,
                 "parameter_hash_after": parameter_hash_after,
@@ -1133,6 +1734,9 @@ class V2HybridPPOTrainer:
                 "persistent_workers": False,
                 "gradient_accumulation_steps": 1,
                 "oom_count": 0,
+                "train_elapsed_ms": round(elapsed_seconds * 1000.0, 3),
+                "gpu_train_time_ms": None,
+                "cpu_train_time_ms": round(elapsed_seconds * 1000.0, 3),
                 "training_steps_per_minute": round((max(1, int(steps)) / elapsed_seconds) * 60.0, 6),
                 "tensor_rows_per_second": round(float(selected_rows) / elapsed_seconds, 6),
                 "forward_pass_present": True,

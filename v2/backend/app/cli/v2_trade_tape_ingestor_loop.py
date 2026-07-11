@@ -1,4 +1,4 @@
-"""Free Binance aggTrades trade-tape ingestor loop (Phase 5).
+"""Binance aggTrade WebSocket-primary trade-tape ingestor loop (Phase 5).
 
 Writes only:
     v2:market:agg_trades:{symbol}            raw recent aggTrades (bounded)
@@ -6,8 +6,8 @@ Writes only:
     goal_state/.../trade_tape_feature_status.json (+ order_flow_confirmation_status.json)
 
 Public market data only. Never places/cancels orders, never touches leverage,
-margin, live gates, or legacy Redis keys. Request budget is capped per cycle
-to stay far below Binance's 2400 weight/min IP limit (aggTrades weight = 20).
+margin, live gates, or legacy Redis keys. REST is fallback-only and requires
+``BINANCE_REST_FALLBACK_ALLOWED=true``.
 """
 from __future__ import annotations
 
@@ -21,10 +21,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+)
 from v2.backend.app.services.trade_tape.service import (
     AGG_TRADES_REQUEST_WEIGHT,
     AGG_TRADES_REDIS_KEY_TEMPLATE,
     TRADE_TAPE_FEATURES_REDIS_KEY_TEMPLATE,
+    WEBSOCKET_PRIMARY_SOURCE,
     compute_trade_tape_features,
     fetch_binance_agg_trades,
     order_flow_confirms_side,
@@ -245,18 +250,37 @@ def run_cycle(client: Any, *, rotation_offset: int, max_symbols: int) -> dict[st
     per_symbol: list[dict[str, Any]] = []
     ok_count = 0
     non_neutral = 0
+    source_counts: dict[str, int] = {}
+    fallback_count = 0
     for symbol in symbols:
         row: dict[str, Any] = {"symbol": symbol}
         try:
             trades = fetch_binance_agg_trades(symbol, limit=1000)
+            fetch_metadata = getattr(fetch_binance_agg_trades, "last_fetch_metadata", {})
+            if not isinstance(fetch_metadata, dict):
+                fetch_metadata = {}
+            source = str(fetch_metadata.get("source") or WEBSOCKET_PRIMARY_SOURCE)
+            source_counts[source] = int(source_counts.get(source) or 0) + 1
+            fallback_used = bool(fetch_metadata.get("fallback_used", False))
+            if fallback_used:
+                fallback_count += 1
             features = compute_trade_tape_features(trades)
             features["symbol"] = symbol
             features["generated_utc"] = generated
+            features["source"] = source
+            features["transport"] = fetch_metadata.get("transport") or "websocket_primary_fetcher"
+            features["websocket_primary"] = bool(fetch_metadata.get("websocket_primary", True))
+            features["fallback_used"] = fallback_used
+            features["fallback_reason"] = fetch_metadata.get("fallback_reason")
             raw_payload = {
                 "schema_version": "v2_agg_trades_raw_v1",
                 "symbol": symbol,
                 "generated_utc": generated,
-                "source": "binance_fapi_public_agg_trades",
+                "source": source,
+                "transport": fetch_metadata.get("transport") or "websocket_primary_fetcher",
+                "websocket_primary": bool(fetch_metadata.get("websocket_primary", True)),
+                "fallback_used": fallback_used,
+                "fallback_reason": fetch_metadata.get("fallback_reason"),
                 "trades": trades[-RAW_TRADES_KEPT:],
             }
             wrote_raw = _safe_set_json(client, AGG_TRADES_REDIS_KEY_TEMPLATE.format(symbol=symbol), raw_payload)
@@ -272,6 +296,10 @@ def run_cycle(client: Any, *, rotation_offset: int, max_symbols: int) -> dict[st
                     "taker_buy_pct_1m": features.get("taker_buy_pct_1m"),
                     "cumulative_delta_trend_5m": features.get("cumulative_delta_trend_5m"),
                     "large_trade_flag": features.get("large_trade_flag"),
+                    "source": source,
+                    "transport": fetch_metadata.get("transport") or "websocket_primary_fetcher",
+                    "fallback_used": fallback_used,
+                    "fallback_reason": fetch_metadata.get("fallback_reason"),
                     "wrote_raw_key": wrote_raw,
                     "wrote_features_key": wrote_features,
                 }
@@ -299,7 +327,12 @@ def run_cycle(client: Any, *, rotation_offset: int, max_symbols: int) -> dict[st
         "goal_id": GOAL_ID,
         "generated_utc": generated,
         "worker_id": "v2_trade_tape_ingestor_loop",
-        "source": "binance_fapi_public_agg_trades",
+        "source": WEBSOCKET_PRIMARY_SOURCE,
+        "source_counts": source_counts,
+        "transport_policy": "binance_public_agg_trade_websocket_primary_rest_fallback_only",
+        "rest_fallback_allowed": binance_rest_fallback_allowed(),
+        "rest_fallback_env": REST_FALLBACK_ENV,
+        "fallback_symbol_count": fallback_count,
         "request_weight_per_symbol": AGG_TRADES_REQUEST_WEIGHT,
         "request_weight_budget_per_cycle": WEIGHT_BUDGET_PER_CYCLE,
         "universe_size": len(universe),

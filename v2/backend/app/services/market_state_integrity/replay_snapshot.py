@@ -38,6 +38,11 @@ def build_replay_snapshot(
             or prediction.get("ppo_selected_action")
             or prediction.get("action")
         ),
+        # Entry-time policy outputs for PPO on-policy lineage (same forward
+        # pass as selected_action; never backfilled post-hoc).
+        "action_probabilities": list(prediction.get("action_probabilities") or []) or None,
+        "selected_action_probability": prediction.get("selected_action_probability"),
+        "policy_value": prediction.get("policy_value"),
         "model_version": prediction.get("model_version") or prediction.get("model_source") or prediction.get("model_id"),
         "model_id": prediction.get("model_id"),
         "checkpoint_id": prediction.get("checkpoint_id"),

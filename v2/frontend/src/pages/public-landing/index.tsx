@@ -306,7 +306,7 @@ export default function PublicLandingPage(): JSX.Element {
             { k: 'ETH price', v: heroTickers[1] ? fmtPrice(heroTickers[1].last_price) : '...', ok: !!heroTickers[1] },
             { k: 'Data source', v: hasData ? 'WebSocket' : 'Connecting...', ok: hasData },
             { k: 'Execution', v: 'Restricted', warn: true },
-            { k: 'Trading gate', v: 'Operator gated', bad: true },
+            { k: 'Trading gate', v: 'Approval gated', bad: true },
           ].map(({ k, v, ok, warn, bad }) => (
             <div
               key={k}
@@ -374,7 +374,7 @@ export default function PublicLandingPage(): JSX.Element {
 
           <p style={{ fontSize: 16, color: 'rgba(190,210,230,0.65)', lineHeight: 1.6, maxWidth: 580, margin: '0 0 32px' }}>
             AI-powered signals, real-time derivatives analytics, and risk-governed execution intelligence.
-            Professional-grade trading infrastructure for operator-gated execution workflows.
+            Professional-grade trading infrastructure for approval-gated execution workflows.
           </p>
 
           {/* CTA buttons */}
@@ -556,7 +556,7 @@ export default function PublicLandingPage(): JSX.Element {
             <FeatureCard
               icon="📄"
               title="Execution Telemetry"
-              desc="Position tracking, P&amp;L, execution ledger, and operator-governed trade workflow visibility."
+              desc="Position tracking, P&amp;L, execution ledger, and approval-governed trade workflow visibility."
             />
             <FeatureCard
               icon="📊"

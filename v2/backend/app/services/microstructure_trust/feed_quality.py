@@ -99,11 +99,17 @@ def evaluate_feed_quality(
         exchange_latency_ms = max(0, transaction_ms - event_ms)
     local_reference_ms = transaction_ms if transaction_ms is not None else event_ms
     observed_latency_ms = _safe_float(observed_local_latency_ms)
-    local_latency_ms = None if local_reference_ms is None else max(0, available_ms - local_reference_ms)
-    local_latency_source = "timestamp_delta" if local_latency_ms is not None else "missing"
-    if local_latency_ms is None and observed_latency_ms is not None and observed_latency_ms >= 0:
+    timestamp_delta_latency_ms = (
+        None if local_reference_ms is None else max(0, available_ms - local_reference_ms)
+    )
+    local_latency_ms = None
+    local_latency_source = "missing"
+    if observed_latency_ms is not None and observed_latency_ms >= 0:
         local_latency_ms = observed_latency_ms
         local_latency_source = "observed_local_latency_ms"
+    elif timestamp_delta_latency_ms is not None:
+        local_latency_ms = timestamp_delta_latency_ms
+        local_latency_source = "timestamp_delta"
     update_gap_ms = None if previous_received_ms is None else max(0, received_ms - previous_received_ms)
     book_update_age_ms = max(0, decision_ms - available_ms)
     elapsed_ms = max(1, received_ms - first_observed_ms)
@@ -141,6 +147,8 @@ def evaluate_feed_quality(
         "available_at": available_at,
         "decision_time": decision_time,
         "exchange_latency_ms": exchange_latency_ms,
+        "timestamp_delta_latency_ms": timestamp_delta_latency_ms,
+        "observed_local_latency_ms": observed_latency_ms,
         "local_latency_ms": local_latency_ms,
         "local_latency_source": local_latency_source,
         "latency_ms": local_latency_ms,

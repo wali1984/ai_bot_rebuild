@@ -274,6 +274,68 @@ def test_phase7_complete_fixture_builds_operator_packet_fields() -> None:
     assert packet["test_order_submitted"] is False
 
 
+def test_phase7_accepts_allocator_pass_decision_vocabulary() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(allocator_decision="PASS"),
+        now_ms=1_000,
+    )
+
+    assert "LIVE_PRE_SUBMIT_ALLOCATOR_NOT_ALLOWING_SIZE" not in status["blockers"]
+    assert status["pass_conditions"]["allocator_allows_size"] is True
+    assert status["order_submitted"] is False
+    assert status["test_order_submitted"] is False
+
+
+def test_phase7_derives_hedge_mode_policy_from_signed_read_when_runtime_policy_absent() -> None:
+    status = build_live_pre_submit_dry_run_status(
+        _runtime(),
+        account_snapshot=_account(hedge_mode=True, dual_side_position=True),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(),
+        now_ms=1_000,
+    )
+
+    reconciliation = status["position_reconciliation_status"]
+    policy = reconciliation["position_mode_policy"]
+    assert "HEDGE_MODE_MISMATCH" not in status["blockers"]
+    assert "HEDGE_MODE_DISABLED" not in status["blockers"]
+    assert policy["observed_hedge_mode"] is True
+    assert policy["allow_hedge_mode"] is True
+    assert policy["expected_hedge_mode"] is True
+    assert policy["derived_from_signed_read"] is True
+    assert status["order_submitted"] is False
+    assert status["test_order_submitted"] is False
+
+
+def test_phase7_respects_explicit_runtime_no_hedge_mode_policy() -> None:
+    runtime = _runtime()
+    runtime["live_canary_config"] = {
+        **runtime["live_canary_config"],
+        "allow_hedge_mode": False,
+        "expected_hedge_mode": False,
+    }
+
+    status = build_live_pre_submit_dry_run_status(
+        runtime,
+        account_snapshot=_account(hedge_mode=True, dual_side_position=True),
+        symbol_filter_snapshot=_filters(),
+        allocation_payload=_allocation(),
+        now_ms=1_000,
+    )
+
+    policy = status["position_reconciliation_status"]["position_mode_policy"]
+    assert "HEDGE_MODE_MISMATCH" in status["blockers"]
+    assert "HEDGE_MODE_DISABLED" in status["blockers"]
+    assert policy["allow_hedge_mode"] is False
+    assert policy["expected_hedge_mode"] is False
+    assert policy["derived_from_signed_read"] is False
+    assert status["order_submitted"] is False
+    assert status["exchange_margin_mutated"] is False
+
+
 def test_phase7_invalid_position_transition_blocks_before_order_preview_ready() -> None:
     account = _account(
         local_position={"symbol": "BTCUSDT", "side": "long", "quantity": 0.01},

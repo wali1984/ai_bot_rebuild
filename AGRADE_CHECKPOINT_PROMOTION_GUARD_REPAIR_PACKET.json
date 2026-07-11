@@ -1,0 +1,83 @@
+{
+  "marker": "V2_A_GRADE_TRAINER_CHECKPOINT_PROMOTION_GUARD_REPAIRED_LIVE_BLOCKED",
+  "generated_utc": "2026-07-11T22:25:09Z",
+  "scope": "trainer checkpoint promotion guard for A-grade edge generalization",
+  "live_safety": {
+    "live_gate": "blocked_human_only",
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "a_plus_thresholds_weakened": false,
+    "live_thresholds_weakened": false
+  },
+  "defect": {
+    "summary": "The trainer evaluated held-out validation metrics but runtime still promoted every training cycle by writing a new checkpoint unconditionally.",
+    "impact": "A checkpoint with worse out-of-sample validation or an overfit gap could become the current policy before paper/backtest/rollout publication, delaying true A-grade evidence accumulation.",
+    "point_in_time_safety_changed": false
+  },
+  "repair": {
+    "validation_supervised_loss_before_added": true,
+    "validation_supervised_loss_after_added": true,
+    "validation_loss_delta_added": true,
+    "validation_improved_added": true,
+    "checkpoint_promotion_guard_active_default": true,
+    "max_validation_loss_increase_default": 0.02,
+    "reject_overfit_gap_default": true,
+    "rejected_candidate_writes_checkpoint": false,
+    "rejected_candidate_restores_prior_checkpoint": true,
+    "restore_failure_behavior": "fail_closed_no_prediction_publication_from_rejected_candidate",
+    "telemetry_added": [
+      "checkpoint_candidate_weight_mutated",
+      "checkpoint_promoted_this_cycle",
+      "checkpoint_promotion_guard_active",
+      "checkpoint_promotion_allowed",
+      "checkpoint_promotion_rejected",
+      "checkpoint_promotion_reason"
+    ],
+    "env_controls": {
+      "V2_TRAINER_VALIDATION_CHECKPOINT_GUARD": "set 0/false to disable guard",
+      "V2_TRAINER_VALIDATION_MAX_LOSS_INCREASE": "allowed held-out validation loss increase before rejection",
+      "V2_TRAINER_REJECT_OVERFIT_CHECKPOINTS": "set 0/false to ignore overfit_gap_warning for promotion"
+    }
+  },
+  "promotion_reject_reasons": [
+    "VALIDATION_LOSS_REGRESSED",
+    "TRAIN_VAL_OVERFIT_GAP"
+  ],
+  "promotion_allow_reasons": [
+    "VALIDATION_GUARD_PASS",
+    "VALIDATION_GUARD_DISABLED",
+    "NO_PRIOR_CHECKPOINT_TO_RESTORE",
+    "NO_VALIDATION_ROWS",
+    "VALIDATION_SIGNAL_UNAVAILABLE"
+  ],
+  "files_changed_for_this_repair": [
+    "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/ppo_trainer.py",
+    "v2/backend/app/services/native_trainer/hybrid_cuda_trainer/runtime.py",
+    "v2/backend/tests/unit/services/native_trainer/test_hybrid_cuda_trainer_runtime.py",
+    "v2/backend/tests/unit/services/native_trainer/test_hybrid_trainer_regularization_and_validation.py",
+    "AGRADE_CHECKPOINT_PROMOTION_GUARD_REPAIR_PACKET.json"
+  ],
+  "validation": {
+    "py_compile": "passed",
+    "focused_tests": "15 passed",
+    "native_trainer_suite": "229 passed"
+  },
+  "runtime_deploy_check": {
+    "paper_shadow_trainer_service_restarted": true,
+    "service_name": "ai-bot-v2-native-cuda-trainer-persistent.service",
+    "service_active_after_restart": true,
+    "post_restart_status_field_verified": true,
+    "checkpoint_promotion_guard_active": true,
+    "latest_checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+    "latest_online_learning_status": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+    "last_durable_weight_update_at": "2026-07-11T22:23:38Z",
+    "post_restart_status_field_note": "Read-only Redis GET observed checkpoint_promotion_* fields after final restart; the guard rejected the latest candidate instead of promoting an out-of-sample validation regression."
+  },
+  "a_grade_status": {
+    "a_grade_claimed_fixed": false,
+    "reason": "This fixes a code-defect that could promote overfit trainer checkpoints. It does not fabricate A-grade closed economic trades or lower strict gates.",
+    "next_required_runtime_evidence": "Clean paper closes and strict economic runway must accumulate under the guarded policy."
+  }
+}

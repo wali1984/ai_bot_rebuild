@@ -91,12 +91,12 @@ export function publicRuntimeLabel(value: string | null | undefined): string {
   return value
     .trim()
     .replace(/\bpaper[_ -]?fill\b/gi, 'execution')
-    .replace(/\bpaper[_ -]?only\b/gi, 'operator gated')
+    .replace(/\bpaper[_ -]?only\b/gi, 'approval gated')
     .replace(/\bpaper[_ -]?runtime\b/gi, 'execution runtime')
     .replace(/\bpaper[_ -]?account\b/gi, 'account')
     .replace(/\bpaper\b/gi, 'runtime')
-    .replace(/\bblocked_human_only\b/gi, 'operator gated')
-    .replace(/\bhuman_only\b/gi, 'operator gated')
+    .replace(/\bblocked_human_only\b/gi, 'approval required')
+    .replace(/\bhuman_only\b/gi, 'approval required')
     .replace(/_/g, ' ');
 }
 

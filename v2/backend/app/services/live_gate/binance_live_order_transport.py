@@ -41,6 +41,9 @@ from v2.backend.app.services.adaptive_capital_allocator import (
     allocate_live_candidate,
 )
 from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    binance_rest_fallback_decision,
     binance_ws_api_url,
     build_signed_ws_api_request,
     default_ws_api_sender,
@@ -48,13 +51,15 @@ from v2.backend.app.services.binance_unified_websocket_transport import (
     resolve_binance_credential_binding,
     transport_policy_snapshot,
 )
+from v2.backend.app.services.execution.binance_order_builder import (
+    build_binance_order_plan,
+)
 
 _EST = ZoneInfo("America/New_York")
 _REPO_ROOT_ENV = "V2_REPO_ROOT"
 _TRANSPORT_DISABLED_ENV = "V2_BINANCE_LIVE_ORDER_TRANSPORT_DISABLED"
 _BINANCE_BASE_URL_ENV = "V2_BINANCE_USDM_BASE_URL"
 _REDIS_REQUIRED_ENV = "V2_BINANCE_LIVE_ORDER_TRANSPORT_REDIS_REQUIRED"
-_REST_ORDER_FALLBACK_ENABLED_ENV = "V2_BINANCE_REST_ORDER_FALLBACK_ENABLED"
 _MAX_SIGNAL_AGE_SECONDS = 180
 
 ARTIFACT_REL = Path("v2_binance_live_order_transport_binding_and_first_hour_monitoring/latest")
@@ -67,6 +72,12 @@ KEY_KILL_SWITCH = "v2:live_order_transport:kill_switch"
 KEY_DEDUPE = "v2:live_order_transport:dedupe"
 KEY_MONITOR = "v2:live_order_transport:first_hour_monitor"
 ALLOWED_REDIS_KEYS = frozenset({KEY_STATUS, KEY_AUDIT, KEY_KILL_SWITCH, KEY_DEDUPE, KEY_MONITOR})
+SYMBOL_FILTER_CACHE_KEY_TEMPLATES = (
+    "v2:exchange:symbol_filters:{symbol}",
+    "v2:symbol_filters:{symbol}",
+    "v2:binance:symbol_filters:{symbol}",
+    "v2:exchange:symbol_filters",
+)
 
 REQUIRED_LINEAGE_FIELDS = (
     "prediction_id",
@@ -180,6 +191,106 @@ def _safe_redis_get_json(redis_client: Any, key: str) -> Any:
         return None
 
 
+def _redis_get_json_unrestricted(redis_client: Any, key: str) -> Any:
+    if redis_client is None or not key.startswith("v2:"):
+        return None
+    try:
+        raw = redis_client.get(key)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        return json.loads(str(raw))
+    except Exception:
+        return None
+
+
+def _filter_by_type(filters: Any, filter_type: str) -> dict[str, Any]:
+    if not isinstance(filters, list):
+        return {}
+    for item in filters:
+        if isinstance(item, dict) and str(item.get("filterType") or "") == filter_type:
+            return item
+    return {}
+
+
+def _normalize_symbol_filter_payload(
+    *,
+    symbol: str,
+    payload: Mapping[str, Any],
+    source_key: str,
+) -> dict[str, Any] | None:
+    row: Mapping[str, Any] = payload
+    if isinstance(payload.get("filters"), Mapping) and isinstance(payload["filters"].get(symbol), Mapping):
+        row = payload["filters"][symbol]
+    elif isinstance(payload.get(symbol), Mapping):
+        row = payload[symbol]
+    elif isinstance(payload.get("symbols"), list):
+        for item in payload["symbols"]:
+            if isinstance(item, Mapping) and str(item.get("symbol") or "").upper() == symbol:
+                row = item
+                break
+    filters = row.get("filters")
+    lot = _filter_by_type(filters, "MARKET_LOT_SIZE") or _filter_by_type(filters, "LOT_SIZE")
+    price_filter = _filter_by_type(filters, "PRICE_FILTER")
+    min_notional = _filter_by_type(filters, "MIN_NOTIONAL") or _filter_by_type(filters, "NOTIONAL")
+    min_qty = row.get("min_qty") or row.get("minQty") or lot.get("minQty")
+    step_size = row.get("step_size") or row.get("stepSize") or lot.get("stepSize")
+    tick_size = row.get("tick_size") or row.get("tickSize") or price_filter.get("tickSize")
+    min_notional_value = (
+        row.get("min_notional")
+        or row.get("minNotional")
+        or row.get("min_notional_usdt")
+        or min_notional.get("notional")
+        or min_notional.get("minNotional")
+    )
+    status = row.get("status")
+    if not any(value not in (None, "") for value in (min_qty, step_size, tick_size, min_notional_value, status)):
+        return None
+    return {
+        "ok": True,
+        "symbol": symbol,
+        "status": status,
+        "quantity_precision": row.get("quantityPrecision") or row.get("quantity_precision"),
+        "price_precision": row.get("pricePrecision") or row.get("price_precision"),
+        "min_qty": min_qty,
+        "max_qty": row.get("max_qty") or row.get("maxQty") or lot.get("maxQty"),
+        "step_size": step_size,
+        "tick_size": tick_size,
+        "min_price": row.get("min_price") or row.get("minPrice") or price_filter.get("minPrice"),
+        "max_price": row.get("max_price") or row.get("maxPrice") or price_filter.get("maxPrice"),
+        "min_notional": min_notional_value,
+        "endpoint": f"redis:{source_key}",
+        "source": "binance_symbol_filter_cache_primary",
+        "transport": "websocket_cache_primary",
+        "cache_primary_used": True,
+        "rest_fallback_used": False,
+        "error_type": None,
+    }
+
+
+def _fetch_symbol_filters_from_cache(redis_client: Any, symbol: str) -> dict[str, Any] | None:
+    normalized = str(symbol or "").upper()
+    if not normalized:
+        return None
+    for template in SYMBOL_FILTER_CACHE_KEY_TEMPLATES:
+        key = template.format(symbol=normalized)
+        payload = _redis_get_json_unrestricted(redis_client, key)
+        if not isinstance(payload, Mapping):
+            continue
+        resolved = _normalize_symbol_filter_payload(
+            symbol=normalized,
+            payload=payload,
+            source_key=key,
+        )
+        if resolved:
+            return resolved
+    return None
+
+
 def _read_risk_gateway_decisions(redis_client: Any) -> list[dict[str, Any]]:
     if redis_client is None:
         return []
@@ -230,6 +341,12 @@ class LiveOrderCandidate:
     confidence: float | None
     source_generated_est: str | None
     position_side: str | None = None
+    best_bid: float | None = None
+    best_ask: float | None = None
+    symbol_filters: Mapping[str, Any] | None = None
+    hedge_mode: bool = False
+    maker_fee_bps: float = 2.0
+    taker_fee_bps: float = 4.0
 
     def lineage_payload(self) -> dict[str, str]:
         return {
@@ -245,11 +362,12 @@ class LiveOrderCandidate:
 
 
 class BinanceUsdMLiveOrderTransport:
-    """Single signed Binance USD-M order transport.
+    """Legacy Binance USD-M REST fallback helper.
 
-    No caller can use this class to alter leverage or margin mode; it only
-    builds ``POST /fapi/v1/order`` MARKET orders after the guard returns an
-    unblocked ``LiveOrderCandidate``.
+    Trader order submission is WebSocket API only via
+    ``BinanceUsdMWebSocketPrimaryTransport``. This legacy wrapper remains for
+    signed/public read fallback and symbol metadata; it never submits REST
+    orders, even if old REST fallback environment flags are present.
     """
 
     def __init__(
@@ -270,68 +388,41 @@ class BinanceUsdMLiveOrderTransport:
         api_key: str,
         api_secret: str,
     ) -> dict[str, Any]:
-        if os.environ.get(_REST_ORDER_FALLBACK_ENABLED_ENV, "0").strip().lower() not in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }:
-            return {
-                "submitted": False,
-                "status_code": None,
-                "error_type": "REST_ORDER_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
-                "response_redacted": "",
-                "endpoint": "POST /fapi/v1/order",
-                "client_order_id": _client_order_id(candidate),
-                "rest_fallback_disabled": True,
-            }
-        params = {
-            "symbol": candidate.symbol,
-            "side": candidate.side,
-            "type": "MARKET",
-            "quantity": _format_quantity(candidate.quantity),
-            "newClientOrderId": _client_order_id(candidate),
-            "timestamp": str(self._clock_ms()),
-        }
-        if candidate.position_side:
-            params["positionSide"] = candidate.position_side
-        body = urllib.parse.urlencode(params)
-        signature = hmac.new(api_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
-        request = urllib.request.Request(
-            f"{self.base_url}/fapi/v1/order",
-            data=f"{body}&signature={signature}".encode("utf-8"),
-            headers={"X-MBX-APIKEY": api_key, "Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        try:
-            with self._urlopen(request, timeout=8.0) as response:
-                response_text = response.read().decode("utf-8", errors="replace")
-                status_code = int(getattr(response, "status", 200))
-        except urllib.error.HTTPError as exc:
-            response_text = exc.read().decode("utf-8", errors="replace")
-            return {
-                "submitted": False,
-                "status_code": int(exc.code),
-                "error_type": "HTTPError",
-                "response_redacted": _redact_response(response_text),
-            }
-        except Exception as exc:
-            return {
-                "submitted": False,
-                "status_code": None,
-                "error_type": type(exc).__name__,
-                "response_redacted": "",
-            }
         return {
-            "submitted": 200 <= status_code < 300,
-            "status_code": status_code,
-            "error_type": None,
-            "response_redacted": _redact_response(response_text),
-            "endpoint": "POST /fapi/v1/order",
-            "client_order_id": params["newClientOrderId"],
+            "submitted": False,
+            "status_code": None,
+            "error_type": "REST_ORDER_SUBMIT_DISABLED_WEBSOCKET_API_REQUIRED",
+            "response_redacted": "",
+            "endpoint": "WS order.place",
+            "blocked_rest_endpoint": "POST /fapi/v1/order",
+            "client_order_id": _client_order_id(candidate),
+            "transport": "websocket_api_required",
+            "required_transport": "BinanceUsdMWebSocketPrimaryTransport.submit_market_order",
+            "rest_fallback_used": False,
+            "rest_order_fallback_supported": False,
+            "places_real_order": False,
+            "raw_credentials_exposed": False,
         }
 
     def fetch_position_mode(self, *, api_key: str, api_secret: str) -> dict[str, Any]:
+        fallback_reason = "websocket_position_mode_read_unavailable"
+        fallback = binance_rest_fallback_decision(
+            endpoint="GET /fapi/v1/positionSide/dual",
+            fallback_reason=fallback_reason,
+            role="signed_position_mode_read_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return {
+                "ok": False,
+                "status_code": None,
+                "error_type": str(fallback["rest_fallback_blocked_reason"] or "REST_FALLBACK_BLOCKED"),
+                "endpoint": "GET /fapi/v1/positionSide/dual",
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "transport": fallback["transport"],
+                "rest_fallback_used": False,
+                "rest_fallback_reason": fallback_reason,
+                "rest_used_as_primary": False,
+            }
         params = {"timestamp": str(self._clock_ms())}
         body = urllib.parse.urlencode(params)
         signature = hmac.new(api_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -366,9 +457,32 @@ class BinanceUsdMLiveOrderTransport:
             "error_type": None,
             "dual_side_position": payload.get("dualSidePosition") is True if isinstance(payload, dict) else None,
             "endpoint": "GET /fapi/v1/positionSide/dual",
+            "transport": fallback["transport"],
+            "rest_fallback_used": True,
+            "rest_fallback_reason": fallback_reason,
+            "rest_used_as_primary": False,
         }
 
     def fetch_account_margin_status(self, *, api_key: str, api_secret: str) -> dict[str, Any]:
+        fallback_reason = "websocket_account_status_read_unavailable"
+        fallback = binance_rest_fallback_decision(
+            endpoint="GET /fapi/v3/account",
+            fallback_reason=fallback_reason,
+            role="signed_account_status_read_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return {
+                "ok": False,
+                "status_code": None,
+                "error_type": str(fallback["rest_fallback_blocked_reason"] or "REST_FALLBACK_BLOCKED"),
+                "endpoint": "GET /fapi/v3/account",
+                "balances_redacted": True,
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "transport": fallback["transport"],
+                "rest_fallback_used": False,
+                "rest_fallback_reason": fallback_reason,
+                "rest_used_as_primary": False,
+            }
         params = {"timestamp": str(self._clock_ms())}
         body = urllib.parse.urlencode(params)
         signature = hmac.new(api_secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -429,9 +543,31 @@ class BinanceUsdMLiveOrderTransport:
             "_unrealized_pnl_usdt": unrealized_pnl,
             "endpoint": "GET /fapi/v3/account",
             "balances_redacted": True,
+            "transport": fallback["transport"],
+            "rest_fallback_used": True,
+            "rest_fallback_reason": fallback_reason,
+            "rest_used_as_primary": False,
         }
 
     def fetch_symbol_filters(self, symbol: str) -> dict[str, Any]:
+        fallback_reason = "symbol_filter_cache_missing"
+        fallback = binance_rest_fallback_decision(
+            endpoint="GET /fapi/v1/exchangeInfo",
+            fallback_reason=fallback_reason,
+            role="public_symbol_metadata_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return {
+                "ok": False,
+                "symbol": symbol,
+                "error_type": str(fallback["rest_fallback_blocked_reason"] or "REST_FALLBACK_BLOCKED"),
+                "endpoint": "GET /fapi/v1/exchangeInfo",
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "transport": fallback["transport"],
+                "rest_fallback_used": False,
+                "rest_fallback_reason": fallback_reason,
+                "rest_used_as_primary": False,
+            }
         url = f"{self.base_url}/fapi/v1/exchangeInfo?symbol={urllib.parse.quote(symbol)}"
         request = urllib.request.Request(url, headers={"User-Agent": "v2-live-order-transport/1.0"})
         try:
@@ -466,6 +602,10 @@ class BinanceUsdMLiveOrderTransport:
             "min_notional": min_notional.get("notional"),
             "endpoint": "GET /fapi/v1/exchangeInfo",
             "error_type": None if row else "SYMBOL_FILTERS_MISSING",
+            "transport": fallback["transport"],
+            "rest_fallback_used": True,
+            "rest_fallback_reason": fallback_reason,
+            "rest_used_as_primary": False,
         }
 
 
@@ -483,12 +623,14 @@ class BinanceUsdMWebSocketPrimaryTransport:
         ws_api_url: str | None = None,
         ws_sender: Callable[..., dict[str, Any]] | None = None,
         rest_metadata_transport: BinanceUsdMLiveOrderTransport | None = None,
+        redis_client: Any | None = None,
         clock_ms: Callable[[], int] | None = None,
         timeout_seconds: float = 8.0,
     ) -> None:
         self.ws_api_url = (ws_api_url or binance_ws_api_url()).rstrip("/")
         self._ws_sender = ws_sender or default_ws_api_sender
         self._rest_metadata_transport = rest_metadata_transport or BinanceUsdMLiveOrderTransport(clock_ms=clock_ms)
+        self._redis_client = redis_client
         self._clock_ms = clock_ms or (lambda: int(time.time() * 1000))
         self._timeout_seconds = timeout_seconds
 
@@ -536,15 +678,72 @@ class BinanceUsdMWebSocketPrimaryTransport:
         api_secret: str,
     ) -> dict[str, Any]:
         client_order_id = _client_order_id(candidate)
-        params: dict[str, Any] = {
-            "symbol": candidate.symbol,
-            "side": candidate.side,
-            "type": "MARKET",
-            "quantity": _format_quantity(candidate.quantity),
-            "newClientOrderId": client_order_id,
-        }
-        if candidate.position_side:
-            params["positionSide"] = candidate.position_side
+        symbol_filters = dict(candidate.symbol_filters or {})
+        if not symbol_filters:
+            return {
+                "submitted": False,
+                "status_code": None,
+                "error_type": "MAKER_FIRST_SYMBOL_FILTERS_MISSING",
+                "endpoint": "WS order.place",
+                "websocket_api_url": self.ws_api_url,
+                "client_order_id": client_order_id,
+                "rest_fallback_used": False,
+                "transport": "websocket_api_primary",
+                "order_type": "LIMIT",
+                "timeInForce": "GTX",
+                "maker_first": True,
+                "places_real_order": False,
+            }
+        hedge_mode = bool(
+            candidate.hedge_mode or str(candidate.position_side or "").upper() in {"LONG", "SHORT"}
+        )
+        plan = build_binance_order_plan(
+            symbol=candidate.symbol,
+            side=candidate.side,
+            symbol_filters=symbol_filters,
+            hedge_mode=hedge_mode,
+            generated_utc=est_now(),
+            current_price=candidate.price_reference,
+            best_bid=candidate.best_bid,
+            best_ask=candidate.best_ask,
+            quantity=candidate.quantity,
+            notional_usd=candidate.requested_notional_usdt,
+            order_type="LIMIT",
+            time_in_force="GTX",
+            close_position=False,
+            reduce_only=False,
+            maker_fee_bps=candidate.maker_fee_bps,
+            taker_fee_bps=candidate.taker_fee_bps,
+        )
+        reject_reasons = list(plan.get("builder_reject_reasons") or [])
+        if not plan.get("symbol_filter_pass"):
+            reject_reasons.append("SYMBOL_FILTER_PASS_FALSE")
+        if not plan.get("maker_first") or plan.get("order_type") != "LIMIT":
+            reject_reasons.append("MAKER_FIRST_LIMIT_GTX_REQUIRED")
+        if plan.get("timeInForce") != "GTX":
+            reject_reasons.append("POST_ONLY_GTX_REQUIRED")
+        if plan.get("post_only_cross_spread_risk"):
+            reject_reasons.append("POST_ONLY_WOULD_CROSS_OR_BOOK_MISSING")
+        params = dict(plan.get("order_params") or {})
+        if candidate.position_side and params.get("positionSide") != candidate.position_side:
+            reject_reasons.append("POSITION_SIDE_MISMATCH")
+        if reject_reasons or not params:
+            return {
+                "submitted": False,
+                "status_code": None,
+                "error_type": "MAKER_FIRST_ORDER_PLAN_REJECTED",
+                "reject_reasons": sorted(set(reject_reasons)),
+                "endpoint": "WS order.place",
+                "websocket_api_url": self.ws_api_url,
+                "client_order_id": client_order_id,
+                "rest_fallback_used": False,
+                "transport": "websocket_api_primary",
+                "order_type": "LIMIT",
+                "timeInForce": "GTX",
+                "maker_first": True,
+                "places_real_order": False,
+            }
+        params["newClientOrderId"] = client_order_id
         result = self._send_signed(
             method="order.place",
             params=params,
@@ -565,6 +764,10 @@ class BinanceUsdMWebSocketPrimaryTransport:
             "client_order_id": response_result.get("clientOrderId") or client_order_id,
             "request_redacted": result.get("request_redacted", ""),
             "rest_fallback_used": False,
+            "transport": "websocket_api_primary",
+            "order_type": "LIMIT",
+            "timeInForce": "GTX",
+            "maker_first": True,
         }
 
     def fetch_position_mode(self, *, api_key: str, api_secret: str) -> dict[str, Any]:
@@ -641,7 +844,39 @@ class BinanceUsdMWebSocketPrimaryTransport:
             "response_redacted": result.get("response_redacted", ""),
         }
 
+    def fetch_open_orders(self, *, api_key: str, api_secret: str, symbol: str | None = None) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+        if symbol:
+            params["symbol"] = str(symbol).upper()
+        result = self._send_signed(
+            method="openOrders.status",
+            params=params,
+            api_key=api_key,
+            api_secret=api_secret,
+            request_id=f"v2_open_orders_read_{str(symbol or 'all').lower()}",
+        )
+        response_payload = _as_dict(result.get("response"))
+        response_result = response_payload.get("result")
+        orders = response_result if isinstance(response_result, list) else []
+        return {
+            "ok": bool(result.get("ok")) and isinstance(response_result, list),
+            "status_code": result.get("status_code"),
+            "error_type": result.get("error_type"),
+            "endpoint": "WS openOrders.status",
+            "websocket_api_url": self.ws_api_url,
+            "source": "binance_ws_api_signed_readonly",
+            "transport": "websocket_api_primary",
+            "rest_fallback_used": False,
+            "open_orders_count": len([item for item in orders if isinstance(item, dict)]),
+            "response_redacted": result.get("response_redacted", ""),
+            "raw_credentials_exposed": False,
+            "raw_open_orders_payload_exposed": False,
+        }
+
     def fetch_symbol_filters(self, symbol: str) -> dict[str, Any]:
+        cached = _fetch_symbol_filters_from_cache(self._redis_client, symbol)
+        if cached:
+            return cached
         status = self._rest_metadata_transport.fetch_symbol_filters(symbol)
         status["source"] = "binance_public_rest_metadata_fallback"
         status["rest_fallback_reason"] = "exchangeInfo_symbol_filters_metadata"
@@ -745,7 +980,13 @@ def _risk_record_for_signal(risk_records: list[dict[str, Any]], signal: Mapping[
 
 
 def _position_read_ready(connectivity: Mapping[str, Any]) -> bool:
-    return connectivity.get("position_read_status") in {"HTTP_200", "OK", "READY"}
+    status = str(connectivity.get("position_read_status") or "").upper()
+    if status in {"OK", "READY", "WEBSOCKET_PRIMARY_READY", "SIGNED_WS_READ_EXECUTED", "WS_API_OK"}:
+        return True
+    if status != "HTTP_200":
+        return False
+    endpoint = str(connectivity.get("position_read_endpoint") or "").upper()
+    return bool(connectivity.get("rest_fallback_used") is True and endpoint.startswith("GET /FAPI/"))
 
 
 def _force_disabled_by_env() -> bool:
@@ -819,7 +1060,7 @@ def evaluate_live_order_transport(
         "blockers": ["NO_CANDIDATE_EVALUATED"],
         "live_canary_enabled": False,
     }
-    submitter = transport or BinanceUsdMWebSocketPrimaryTransport()
+    submitter = transport or BinanceUsdMWebSocketPrimaryTransport(redis_client=client)
     position_mode_status: dict[str, Any] = {
         "ok": None,
         "dual_side_position": None,
@@ -910,6 +1151,16 @@ def evaluate_live_order_transport(
             else None
         )
         price = _as_float(selected_signal.get("price_target_after_cost")) or _as_float(selected_signal.get("price_target"))
+        best_bid = (
+            _as_float(selected_signal.get("best_bid"))
+            or _as_float(selected_signal.get("bid"))
+            or _as_float(selected_signal.get("bid_price"))
+        )
+        best_ask = (
+            _as_float(selected_signal.get("best_ask"))
+            or _as_float(selected_signal.get("ask"))
+            or _as_float(selected_signal.get("ask_price"))
+        )
         confidence = _as_float(selected_signal.get("confidence"))
         expected_move = _as_float(selected_signal.get("expected_move_after_cost_bps"))
         profile = _as_dict(runtime_payload.get("risk_profile"))
@@ -960,6 +1211,8 @@ def evaluate_live_order_transport(
             blockers.append("ORDER_SIDE_NOT_DERIVED_FROM_SIGNAL")
         if price is None or price <= 0:
             blockers.append("PRICE_REFERENCE_MISSING")
+        if best_bid is None or best_ask is None or best_bid <= 0 or best_ask <= 0 or best_ask <= best_bid:
+            blockers.append("MAKER_FIRST_TOP_OF_BOOK_MISSING_OR_INVALID")
         if allocation.decision.startswith("BLOCK_"):
             blockers.append(f"ADAPTIVE_ALLOCATOR_{allocation.decision}")
             min_order_adjustment = _as_float(allocation_payload.get("exchange_min_order_adjustment")) or 0.0
@@ -1050,6 +1303,8 @@ def evaluate_live_order_transport(
             "quantity": quantity,
             "requested_notional_usdt": notional,
             "price_reference": price,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
             "lineage": {k: lineage.get(k) for k in REQUIRED_LINEAGE_FIELDS},
             "final_approval_audit_id": lineage.get("final_approval_audit_id"),
             "expected_move_after_cost_bps": expected_move,
@@ -1207,6 +1462,10 @@ def evaluate_live_order_transport(
                 confidence=confidence,
                 source_generated_est=str(selected_signal.get("generated_est") or ""),
                 position_side=position_side,
+                best_bid=best_bid,
+                best_ask=best_ask,
+                symbol_filters=filter_status,
+                hedge_mode=position_mode_status.get("dual_side_position") is True,
             )
             if dry_run:
                 submit_result = {

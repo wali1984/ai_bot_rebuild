@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+import os
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter
+from starlette.concurrency import run_in_threadpool
 
 from app.api.v2._common import get_redis
 from app.api.v2.market_contracts import _derivatives_realtime_source_evidence, _market_stream_telemetry
@@ -15,6 +18,7 @@ from app.services.market_stream_alert_history import market_stream_alert_history
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 
 router = APIRouter(tags=["v2-public-status"])
+V2_STATUS_BUILD_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_V2_STATUS_BUILD_TIMEOUT_SECONDS", "1.25"))
 
 
 def _redis_json(key: str) -> Any:
@@ -32,6 +36,73 @@ def _redis_json(key: str) -> Any:
 
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+async def _bounded_status_build(func: Any, *args: Any, timeout: float) -> Any:
+    return await asyncio.wait_for(
+        run_in_threadpool(func, *args),
+        timeout=max(0.1, float(timeout)),
+    )
+
+
+def _fallback_v2_status(reason: str) -> dict[str, Any]:
+    live_gate_status = "blocked_human_only"
+    status_dimensions = build_truthful_status_dimensions(
+        market_stream={"status": "unavailable", "stale": True},
+        runtime_state="source unavailable",
+        data_status="source unavailable",
+        redis_available=False,
+        live_gate_status=live_gate_status,
+        live_trading_enabled=False,
+        order_submission_enabled=False,
+        places_real_order=False,
+        account_authenticated=False,
+        account_connected=False,
+    )
+    return {
+        "status": "degraded",
+        "platform_status": "degraded",
+        "api_status": "available",
+        "data_status": "source unavailable",
+        "paper_mode": True,
+        "live_trading_enabled": False,
+        "status_dimensions": status_dimensions,
+        "market_stream": {
+            "symbol": "BTCUSDT",
+            "status": "unavailable",
+            "source": "Data source unavailable",
+            "last_frame_at": None,
+            "lag_ms": None,
+            "stale": True,
+        },
+        "market_stream_alert": {
+            "status": "active",
+            "severity": "warning",
+            "summary": "Market stream freshness is degraded or unavailable.",
+            "action": "Fallback market data remains labeled until stream freshness recovers.",
+            "stale_for_ms": None,
+        },
+        "market_stream_alert_history": {"status": "unavailable", "alerts": [], "count": 0},
+        "market_stream_alert_notifier": {"status": "unavailable"},
+        "derivatives_data": {
+            "status": "pending",
+            "source": "Derivatives source evidence pending",
+            "funding": "pending",
+            "open_interest": "pending",
+            "liquidations": "pending",
+            "long_short": "pending",
+            "basis": "pending",
+            "exchange_comparison": "pending",
+            "stale": True,
+            "missing_count": 1,
+        },
+        "incidents": [{"status": "investigating", "summary": reason}],
+        "updated_at": _utc_now(),
+        "source": "bounded status fallback",
+        "endpoint": "/api/v2/status",
+        "stale": True,
+        "warnings": [reason],
+    }
 
 
 def _safe_market_stream_status(symbol: str = "BTCUSDT") -> dict[str, Any]:
@@ -106,8 +177,7 @@ def _safe_derivatives_data_status() -> dict[str, Any]:
     }
 
 
-@router.get("/status")
-async def get_v2_status() -> dict[str, Any]:
+def _build_v2_status_payload() -> dict[str, Any]:
     r = get_redis()
     warnings: list[str] = []
     platform_status = "available"
@@ -164,6 +234,7 @@ async def get_v2_status() -> dict[str, Any]:
     )
 
     return {
+        "status": platform_status,
         "platform_status": platform_status,
         "api_status": api_status,
         "data_status": data_status,
@@ -182,6 +253,19 @@ async def get_v2_status() -> dict[str, Any]:
         "stale": r is None,
         "warnings": warnings,
     }
+
+
+@router.get("/status")
+async def get_v2_status() -> dict[str, Any]:
+    try:
+        return await _bounded_status_build(
+            _build_v2_status_payload,
+            timeout=V2_STATUS_BUILD_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return _fallback_v2_status("Public status read exceeded bounded runtime budget")
+    except Exception as exc:
+        return _fallback_v2_status(f"Public status read unavailable: {type(exc).__name__}")
 
 
 # ---------------------------------------------------------------------------

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
+import { DangerousControlPanel } from '../../components/controls/DangerousControlPanel';
+import meta from './meta';
 
 const FILLS_ENDPOINT = '/api/v2/admin/execution/fills';
 const RISK_ENDPOINT = '/api/v2/risk/status';
@@ -77,6 +79,8 @@ export default function AdminExecutionPage(): JSX.Element {
           <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 11 }}>{r.data.heartbeat.decisions_processed_total.toLocaleString()} risk decisions</span>
         )}
       </div>
+
+      <DangerousControlPanel controlIds={meta.dangerousControlIds} />
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line-soft)' }}>

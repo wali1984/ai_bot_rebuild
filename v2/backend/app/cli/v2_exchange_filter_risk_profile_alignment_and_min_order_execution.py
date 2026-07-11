@@ -40,6 +40,7 @@ from v2.backend.app.services.all_timeframe_prediction_signal_price_target_publis
 )
 from v2.backend.app.services.live_gate.binance_live_order_transport import (  # noqa: E402
     BinanceUsdMLiveOrderTransport,
+    BinanceUsdMWebSocketPrimaryTransport,
     evaluate_live_order_transport,
 )
 from v2.backend.app.services.live_gate.exchange_filter_sizing import min_executable_order  # noqa: E402
@@ -226,7 +227,7 @@ def signals_by_symbol(signal_status: Mapping[str, Any]) -> dict[str, dict[str, A
 def exchange_filter_snapshot(
     *,
     client: Any,
-    transport: BinanceUsdMLiveOrderTransport,
+    transport: BinanceUsdMLiveOrderTransport | BinanceUsdMWebSocketPrimaryTransport,
     signal_status: Mapping[str, Any],
     runtime_payload: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -710,7 +711,7 @@ def run_once(
     os.environ["V2_REPO_ROOT"] = str(repo_root)
     client = connect_redis()
     generated_est = est_now()
-    transport = BinanceUsdMLiveOrderTransport()
+    transport = BinanceUsdMWebSocketPrimaryTransport(redis_client=client)
 
     runtime_before = read_runtime_execution_state(repo_root=repo_root, redis_client=client, max_age_seconds=86400)
     safe_run("v2_orchestrator_arbitration_loop", orchestrator_loop.run_once)

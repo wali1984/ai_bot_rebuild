@@ -98,7 +98,7 @@ function readable(value: string | null | undefined): string {
   if (!value) return 'evidence pending';
   return value
     .replace(/payload/gi, 'source')
-    .replace(/operator_dashboard/gi, 'operator monitor')
+    .replace(/operator_dashboard/gi, 'approval monitor')
     .replace(/operator_runtime/gi, 'runtime source')
     .replace(/_/g, ' ')
     .toLowerCase()

@@ -1,0 +1,92 @@
+{
+  "A+": {
+    "A_plus_candidates": 0,
+    "exact_no_A_plus_reason": "A+/live gates remain strict; current rows are paper exploration/shadow and are not live-ready evidence",
+    "live_ready_candidates": 0,
+    "next_A_plus_patch": "continue accumulating closed paper outcomes and holdout-calibrated evidence; do not promote exploration rows"
+  },
+  "external_input_required": false,
+  "generated_utc": "2026-07-11T08:25:53Z",
+  "gpu": {
+    "batch_size_after": 16384,
+    "batch_size_before": 4096,
+    "cpu_prep_bottleneck": false,
+    "data_loader_time_ms": 14575.513,
+    "data_starved": false,
+    "gpu_time_share_after": 0.591493,
+    "gpu_train_time_ms": 21104.446,
+    "gpu_utilization_after": 86.368421,
+    "gpu_utilization_before": 15,
+    "gpu_utilization_source": "training_window_nvidia_smi_sampler",
+    "oom_events": 0,
+    "prediction_load_ms": 11375.36,
+    "prefetched_backfill_rows": 0,
+    "train_steps_after": 128,
+    "train_steps_before": null,
+    "training_window_gpu_utilization_max_percent": 93.0,
+    "training_window_gpu_utilization_sample_count": 19,
+    "training_window_vram_used_max_fraction": 0.476231,
+    "vram_reserved_fraction_after": 0.396776,
+    "vram_used_after_gb": 7.582,
+    "vram_used_before_gb": 1.3
+  },
+  "live": {
+    "leverage_mutated": false,
+    "live_gate": "blocked_human_only",
+    "margin_mutated": false,
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "transfer": false,
+    "withdraw": false
+  },
+  "marker": "V2_TRAINER_GPU_SATURATION_AND_PAPER_LEARNING_ACTIVE_LIVE_BLOCKED",
+  "next_action": "Keep live blocked; sustain paper closes and continue cautious VRAM/capacity tuning without synthetic GPU load or gate weakening.",
+  "paper": {
+    "closed_positions": 27,
+    "counterfactual_rows": 41,
+    "exact_no_fill_reason": null,
+    "exploration_candidates": 2,
+    "inventory_supply_rows": 747,
+    "materialized_positions": 1,
+    "open_positions": 1,
+    "strategy_supply_rows": 26
+  },
+  "remaining_internal_blockers": [
+    "A+/live-ready candidates remain 0 by strict gates",
+    "Training-window VRAM max rose from about 1.3GB to 7.582GB but remains below the 60-75% VRAM target; do not force cosmetic load"
+  ],
+  "supporting_runtime": {
+    "effective_trainer_mode": "REPLAY_AND_ONLINE_LEARNING",
+    "online_learning_status": "WEIGHTS_UPDATING",
+    "paper_actionability_allowed_rows": 91,
+    "prediction_grid_current": "CUDA_PREDICTION_GRID_FULL_COVERAGE",
+    "prediction_rows": 640,
+    "service_packet_generated_utc": "2026-07-11T08:20:23Z",
+    "trainer_learning_ready": true
+  },
+  "trainer": {
+    "MASA_active": true,
+    "PPO_clipped_surrogate_active": true,
+    "PPO_rows_consumed": 6,
+    "PPO_value_entropy_active": true,
+    "accepted_training_rows_after": 16384,
+    "accepted_training_rows_before": 225,
+    "checkpoint_hash": "6aaa9efa6d67724deb24fcb936705a98201ffee88c27db0b70128cc68395398a",
+    "checkpoint_hash_changed": true,
+    "dominant_rejection_reasons_after": [],
+    "dominant_rejection_reasons_before": [
+      "MISSING_CRITICAL_FEATURE_FAMILY",
+      "ROW_CLASSIFICATION_MISSING_MASKED"
+    ],
+    "learning_active": true,
+    "learning_update_lane": "ppo_mixed_outcome_supervised",
+    "optimizer_steps_this_cycle": 128,
+    "tensor_nan_inf_count": 0,
+    "training_rejection_count_after": 0,
+    "training_rejection_count_before": 3871
+  },
+  "website": {
+    "dashboard_validation_errors": 0,
+    "production_deploy_verified": true
+  }
+}

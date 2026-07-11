@@ -29,7 +29,7 @@ const COPY_MAP: Record<string, string> = {
   'source pending': 'Connecting stream',
   'backend unavailable': 'Trading service reconnecting',
   'endpoint missing': 'Required trading endpoint reconnecting',
-  enabled_operator_approved: 'Operator approval recorded',
+  enabled_operator_approved: 'Approval recorded',
   PAPER_RUNTIME_ONLINE_ACTIVE: 'Execution runtime active',
   PAPER: 'Execution restricted',
   READ_ONLY: 'Read-only platform',
@@ -80,7 +80,8 @@ export function publicRuntimeCopy(value: unknown, fallback = '—'): string {
     .replace(/\bservice unavailable\b/gi, 'service reconnecting')
     .replace(/\bendpoint unavailable\b/gi, 'endpoint reconnecting')
     .replace(/\bunavailable\b/gi, 'connecting')
-    .replace(/\bsimulated only\b/gi, 'operator gated')
+    .replace(/\boperator\b/gi, 'approval')
+    .replace(/\bsimulated only\b/gi, 'approval gated')
     .replace(/\bsimulated\b/gi, 'guarded');
 }
 

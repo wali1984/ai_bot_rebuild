@@ -29,12 +29,12 @@ test.describe('backtests replay realtime contract', () => {
     expect(source).not.toContain('await getV2MarketCandles');
   });
 
-  test('live platform telemetry copy does not expose paper-only phrasing', () => {
+  test('live platform telemetry copy sanitizes internal runtime phrasing', () => {
     const telemetry = readFileSync(path.resolve(process.cwd(), 'src/components/trading/AdaptiveCapitalTelemetryPanel.tsx'), 'utf8');
     const marketIntelligence = readFileSync(path.resolve(process.cwd(), 'src/pages/market-intelligence/index.tsx'), 'utf8');
 
-    expect(telemetry).toContain('operator-gated execution controls');
     expect(telemetry).toContain("replace(/\\bpaper\\s*only");
+    expect(telemetry).toContain(".replace(/operator/gi, 'approval')");
     expect(marketIntelligence).toContain('title="Signal Accuracy + Capital Productivity"');
     expect(marketIntelligence).not.toContain('Research Signal Accuracy + Capital Productivity');
   });

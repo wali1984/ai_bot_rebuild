@@ -47,6 +47,33 @@ test.describe('realtime resource frame semantics', () => {
     expect(merged.envelope.warnings).toContain('Latest resource frame was stale or incomplete; preserving last current payload');
   });
 
+  test('preserves restored session last-known-good data when reconnect receives an offline frame', () => {
+    const restored = envelope({
+      data: { price: 104, frame: 'session-last-known-good' },
+      source_type: 'cache',
+      freshness_status: 'stale',
+      warnings: ['Session last-known-good payload restored while realtime transport reconnects'],
+    });
+    const offline = envelope({
+      data: null,
+      source_type: 'websocket',
+      freshness_status: 'offline',
+      data_quality_status: 'missing',
+      missing_fields: ['data'],
+      errors: ['resource_websocket_unavailable'],
+      received_at: Date.parse('2026-06-23T19:00:20Z'),
+    });
+
+    const merged = realtimeResourceTestHooks.mergeRealtimeResourceEnvelope(restored, offline);
+
+    expect(merged.preservedReason).toBe('stale_or_incomplete');
+    expect(merged.shouldCache).toBe(false);
+    expect(merged.envelope.data).toEqual({ price: 104, frame: 'session-last-known-good' });
+    expect(merged.envelope.source_type).toBe('cache');
+    expect(merged.envelope.freshness_status).toBe('stale');
+    expect(merged.envelope.warnings).toContain('Latest resource frame was stale or incomplete; preserving last current payload');
+  });
+
   test('preserves the current payload when a fresh frame arrives out of order', () => {
     const previous = envelope({
       data: { price: 102, frame: 'newer' },

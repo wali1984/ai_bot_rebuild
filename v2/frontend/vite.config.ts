@@ -1,5 +1,18 @@
+import { cp, mkdir } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+
+const frontendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
+const curatedPublicEntries = [
+  "api",
+  "brand",
+  "favicon.svg",
+  "icons",
+  "manifest.webmanifest",
+  "service-worker.js",
+];
 
 // In Vite 8 + @vitejs/plugin-react 6, the React Refresh preamble (which
 // defines window.$RefreshReg$ and window.$RefreshSig$) is injected via
@@ -30,8 +43,30 @@ const reactRefreshPreamble: Plugin = {
   },
 };
 
-export default defineConfig({
-  plugins: [reactRefreshPreamble, react()],
+const copyCuratedPublicAssets: Plugin = {
+  name: "copy-curated-public-assets",
+  apply: "build",
+  async closeBundle() {
+    const publicRoot = path.join(frontendRoot, "public");
+    const distRoot = path.join(frontendRoot, "dist");
+    await mkdir(distRoot, { recursive: true });
+    await Promise.all(
+      curatedPublicEntries.map(async (entry) => {
+        await cp(path.join(publicRoot, entry), path.join(distRoot, entry), {
+          errorOnExist: false,
+          force: true,
+          recursive: true,
+        }).catch((error: NodeJS.ErrnoException) => {
+          if (error.code !== "ENOENT") throw error;
+        });
+      }),
+    );
+  },
+};
+
+export default defineConfig(({ command }) => ({
+  plugins: [reactRefreshPreamble, react(), copyCuratedPublicAssets],
+  publicDir: command === "build" ? false : "public",
   server: {
     port: 5173,
     strictPort: true,
@@ -65,16 +100,18 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
+        ws: true,
       },
       "/ws": {
         target: process.env.VITE_API_PROXY_TARGET ?? "http://127.0.0.1:8000",
         changeOrigin: true,
         secure: false,
+        ws: true,
       },
     },
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    sourcemap: false,
   },
-});
+}));

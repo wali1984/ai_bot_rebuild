@@ -1,3 +1,4 @@
+import type { ComponentType, LazyExoticComponent } from 'react';
 import type { Role } from '../auth/rbac';
 import type { DangerousControlId } from '../constants/dangerousControls';
 
@@ -30,5 +31,5 @@ export interface PageModule {
   meta: PageMeta;
   rbac: PageRbac;
   route: PageRoute;
-  Component: React.ComponentType;
+  Component: ComponentType | LazyExoticComponent<ComponentType>;
 }

@@ -63,6 +63,94 @@ def _merge_from_json(out: dict[str, Any], raw: Any) -> bool:
     return found
 
 
+def _read_json(r: Any, key: str) -> dict[str, Any]:
+    try:
+        raw = r.get(key)
+    except Exception:
+        return {}
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        data = json.loads(raw) if raw else {}
+    except (ValueError, TypeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+@router.get("/backtest")
+async def get_backtest_results() -> dict[str, Any]:
+    """Realtime backtest + replay-feedback results for the web/iOS display.
+
+    Read-only. Surfaces the trainer's in-cycle policy backtest, the out-of-sample
+    generalization signal (validation loss + overfit gap), and the continuous
+    replay -> trainer feedback so the operator can see whether backtest edge is
+    holding up out-of-sample. Backtest is explicitly NOT A+/live evidence.
+    """
+    out: dict[str, Any] = {
+        "available": False,
+        "generated_utc": None,
+        "policy_backtest": None,
+        "generalization": None,
+        "replay_feedback": None,
+        "continuous_replay_active": None,
+        "effective_trainer_mode": None,
+        "replay_examples_built": None,
+        "backtest_is_a_plus_evidence": False,
+    }
+    r = get_redis()
+    if r is None:
+        return out
+
+    trainer = _read_json(r, "v2:trainer:hybrid_cuda:status")
+    if trainer:
+        out["generated_utc"] = trainer.get("generated_utc")
+        out["effective_trainer_mode"] = trainer.get("effective_trainer_mode")
+        out["replay_examples_built"] = trainer.get("trusted_replay_examples_built")
+        util = trainer.get("cuda_cpu_resource_utilization")
+        pb = util.get("policy_backtest") if isinstance(util, dict) else None
+        if isinstance(pb, dict):
+            out["available"] = True
+            out["policy_backtest"] = {
+                "win_rate": pb.get("win_rate"),
+                "profit_factor_proxy": pb.get("profit_factor_proxy"),
+                "expectancy_after_cost_bps": pb.get("expectancy_after_cost_bps"),
+                "rows_evaluated": pb.get("rows_evaluated"),
+                "status": pb.get("status"),
+                "evidence_class": pb.get("evidence_class"),
+            }
+        lm = trainer.get("learning_metrics")
+        if isinstance(lm, dict):
+            out["generalization"] = {
+                "validation_supervised_loss": lm.get("validation_supervised_loss"),
+                "validation_rows_evaluated": lm.get("validation_rows_evaluated"),
+                "train_val_generalization_gap": lm.get("train_val_generalization_gap"),
+                "overfit_gap_warning": lm.get("overfit_gap_warning"),
+                "loss_before": lm.get("loss_before"),
+                "loss_after": lm.get("loss_after"),
+            }
+
+    cf = _read_json(r, "v2:trainer:feedback:counterfactual_status")
+    if cf:
+        out["replay_feedback"] = {
+            "existing_counterfactual_rows": cf.get("existing_counterfactual_rows"),
+            "new_matured_rows": cf.get("new_matured_rows"),
+            "pending_rows": cf.get("pending_rows"),
+            "trainer_loader_consumes": cf.get("trainer_loader_consumes_counterfactual_key"),
+        }
+
+    ef = _read_json(r, "v2:edge_factory:replay_status")
+    if ef:
+        out["continuous_replay_active"] = True
+        out["edge_factory_replay_status"] = {
+            "status": ef.get("status"),
+            "generated_utc": ef.get("generated_utc"),
+            "replay_windows_processed": ef.get("replay_windows_processed") or ef.get("windows_processed"),
+            "snapshots_scanned": ef.get("snapshots_scanned"),
+        }
+
+    return out
+
+
 @router.get("/status")
 async def get_replay_status() -> dict[str, Any]:
     r = get_redis()

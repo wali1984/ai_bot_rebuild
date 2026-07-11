@@ -107,6 +107,14 @@ function coerceSnapshot(value: unknown): TraderSnapshot | null {
   return required.every((key) => isRecord(maybeWrapped[key])) ? maybeWrapped as unknown as TraderSnapshot : null;
 }
 
+function errorShapedPayload(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const record = isRecord(value.data) ? value.data : value;
+  if (!isRecord(record)) return false;
+  const keys = Object.keys(record);
+  return keys.length <= 3 && ('detail' in record || 'error' in record || 'errors' in record);
+}
+
 export function applyTraderSnapshotEnvelope(envelope: ValidatedDataEnvelope<unknown>): TraderRealtimeState {
   const nextSnapshot = coerceSnapshot(envelope.data);
   if (!nextSnapshot || containsInvalidNumber(nextSnapshot)) {
@@ -117,7 +125,28 @@ export function applyTraderSnapshotEnvelope(envelope: ValidatedDataEnvelope<unkn
       || envelope.freshness_status === 'unavailable'
       || envelope.data_quality_status === 'missing'
       || envelope.errors.length > 0
+      // Auth/error stubs ({detail: ...}) mean the source delivered no snapshot at
+      // all — that is "source unavailable", not a data-integrity failure.
+      || errorShapedPayload(envelope.data)
     );
+    const failureReason = nextSnapshot
+      ? 'Trader snapshot contains NaN or infinity'
+      : sourceUnavailable
+        ? 'Trader snapshot source unavailable'
+        : 'Trader snapshot payload is missing required sections';
+    // A bad frame must never poison an already-good snapshot: keep the last-good
+    // snapshot and its quality, mark it stale, and surface the failure as a warning.
+    if (state.snapshot) {
+      state = {
+        ...state,
+        receivedAt: envelope.received_at,
+        freshness: 'stale',
+        lastError: failureReason,
+        warnings: [...new Set([...state.warnings, `Ignored bad trader snapshot frame: ${failureReason}`])],
+      };
+      emit();
+      return state;
+    }
     state = {
       ...state,
       source: envelope.source,
@@ -125,11 +154,7 @@ export function applyTraderSnapshotEnvelope(envelope: ValidatedDataEnvelope<unkn
       receivedAt: envelope.received_at,
       freshness: envelope.freshness_status,
       quality: sourceUnavailable ? 'missing' : 'invalid',
-      lastError: nextSnapshot
-        ? 'Trader snapshot contains NaN or infinity'
-        : sourceUnavailable
-          ? 'Trader snapshot source unavailable'
-          : 'Trader snapshot payload is missing required sections',
+      lastError: failureReason,
       warnings: [...state.warnings, ...envelope.warnings],
       missingFields: [...new Set([...state.missingFields, ...envelope.missing_fields])],
     };

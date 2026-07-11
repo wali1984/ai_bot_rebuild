@@ -18,9 +18,16 @@ class FakeRedis:
             key: json.dumps(value)
             for key, value in payloads.items()
         }
+        self.lists: dict[str, list[str]] = {}
 
     def get(self, key: str) -> str | None:
         return self.payloads.get(key)
+
+    def set(self, key: str, value: str) -> None:
+        self.payloads[key] = value
+
+    def rpush(self, key: str, value: str) -> None:
+        self.lists.setdefault(key, []).append(value)
 
 
 def test_runtime_paper_signal_row_missing_thesis_timeframe_is_shadow_blocked() -> None:
@@ -133,9 +140,59 @@ def test_runtime_paper_signal_row_marks_hold_zeroed_after_cost_edge() -> None:
     assert row["expected_short_net_edge_bps"] == 15.5
     assert row["expected_long_net_pnl_usd"] == -0.245
     assert row["expected_short_net_pnl_usd"] == 0.155
+    assert row["long_expected_gross_pnl_usd"] == -0.2
+    assert row["long_expected_cost_usd"] == 0.045
+    assert row["long_expected_net_pnl_usd"] == -0.245
+    assert row["short_expected_gross_pnl_usd"] == 0.2
+    assert row["short_expected_cost_usd"] == 0.045
+    assert row["short_expected_net_pnl_usd"] == 0.155
     assert row["best_side"] == "short"
+    assert row["best_side_expected_net_pnl_usd"] == 0.155
+    assert row["selected_action"] == "hold"
+    assert row["hold_no_trade_reason"] == "MODEL_SELECTED_HOLD_DESPITE_DIRECTIONAL_EXPECTED_MOVE"
     assert row["why_best_side_rejected"] == "selected_hold_best_side_short_net_edge_15.500000bps"
     assert (
         row["paper_non_actionable_diagnostic_reason"]
         == "HOLD_ACTION_WITH_DIRECTIONAL_EXPECTED_MOVE_ZERO_AFTER_COST_EDGE"
     )
+
+
+def test_publish_v2_keys_appends_guardian_pit_observation_without_live_mutation() -> None:
+    redis = FakeRedis({})
+    store = publisher.V2KeyValueStore(redis)
+    prediction_row = {
+        "prediction_id": "pred-pit-1",
+        "prediction_redis_key": "v2:prediction:BTCUSDT:1m",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "status": "PRESENT_CURRENT",
+        "selected_action": "long",
+        "decision_time": "2026-07-09T20:40:00Z",
+        "feature_cutoff": "2026-07-09T20:39:59Z",
+        "available_at": "2026-07-09T20:39:58Z",
+        "generated_est": "2026-07-09T16:40:00-04:00",
+        "feature_vector_hash": "hash-pit-1",
+        "prediction_temporal_block_reasons": [],
+    }
+
+    audit = publisher.publish_v2_keys(
+        store,
+        {"prediction_rows": [prediction_row], "stale_threshold_seconds": 900},
+        {"published_signals": []},
+    )
+
+    rows = redis.lists[publisher.GUARDIAN_PIT_OBSERVATION_LIST_KEY]
+    assert audit["guardian_pit_observation_appends"] == 1
+    assert audit["guardian_pit_observation_list_key"] == publisher.GUARDIAN_PIT_OBSERVATION_LIST_KEY
+    assert len(rows) == 1
+    payload = json.loads(rows[0])
+    assert payload["schema_version"] == "v2_guardian_pit_prediction_observation_append_v1"
+    assert payload["prediction_id"] == "pred-pit-1"
+    assert payload["decision_time"] == "2026-07-09T20:40:00Z"
+    assert payload["feature_cutoff"] == "2026-07-09T20:39:59Z"
+    assert payload["available_at"] == "2026-07-09T20:39:58Z"
+    assert payload["counts_as_a_grade_evidence"] is False
+    assert payload["counts_as_a_plus"] is False
+    assert payload["places_real_order"] is False
+    assert payload["routes_to_live"] is False
+    assert payload["test_order_submitted"] is False

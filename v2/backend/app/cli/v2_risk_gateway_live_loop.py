@@ -440,6 +440,130 @@ def _active_risk_profile_payload() -> dict[str, Any] | None:
     }
 
 
+_PER_ID_DECISION_RECORD_TTL_SECONDS = 7200
+
+
+def _write_per_id_risk_decision_record(
+    client,
+    *,
+    risk_record: Any,
+    decision: Any,
+    winner: dict[str, Any],
+    now_ms: int,
+) -> None:
+    """Immutable per-ID risk decision record for the risk-gateway path.
+
+    Every risk_decision_id this loop stamps into signal lineage must
+    dereference at v2:decision:risk:{id}; last-write-wins previews are not
+    canonical lineage.
+    """
+
+    if client is None:
+        return
+    risk_decision_id = str(getattr(risk_record, "risk_decision_id", "") or "")
+    if not risk_decision_id:
+        return
+    generated_utc = _utc_iso()
+    expires_at = datetime.fromtimestamp(
+        (now_ms / 1000.0) + _PER_ID_DECISION_RECORD_TTL_SECONDS, tz=timezone.utc
+    ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    candidate_id = str(
+        winner.get("candidate_id")
+        or getattr(decision, "prediction_id", None)
+        or ""
+    )
+    signal_id = str(
+        winner.get("signal_id")
+        or getattr(risk_record, "prediction_id", None)
+        or ""
+    )
+    reasons = [str(getattr(risk_record, "risk_reason_code", "") or "")]
+    reasons += [str(x) for x in winner.get("risk_microstructure_reject_reasons") or []]
+    record = {
+        "schema_version": "v2_per_id_risk_decision_record_v1",
+        "risk_decision_id": risk_decision_id,
+        "candidate_id": candidate_id,
+        "signal_id": signal_id,
+        "prediction_id": getattr(risk_record, "prediction_id", None),
+        "symbol": getattr(risk_record, "symbol", None),
+        "timeframe": winner.get("timeframe"),
+        "side": winner.get("side") or winner.get("selected_action"),
+        "decision": getattr(risk_record, "risk_action", None),
+        "risk_action": getattr(risk_record, "risk_action", None),
+        "status": getattr(risk_record, "risk_action", None),
+        "reasons": [r for r in reasons if r],
+        "max_loss_usd": winner.get("max_loss_usd")
+        or winner.get("expected_max_loss_usd"),
+        "liquidation_buffer_usd": winner.get("liquidation_buffer_usd")
+        or winner.get("expected_liquidation_buffer_usd"),
+        "position_limit": winner.get("position_limit"),
+        "feature_vector_hash": winner.get("feature_vector_hash"),
+        "feature_cutoff": winner.get("feature_cutoff"),
+        "available_at": winner.get("available_at"),
+        "decision_time": winner.get("decision_time"),
+        "generated_utc": generated_utc,
+        "expires_at": expires_at,
+        "model_version": winner.get("model_version"),
+        "checkpoint_hash": winner.get("checkpoint_id")
+        or winner.get("checkpoint_hash"),
+        "provider_hashes": dict(winner.get("source_hashes") or {}),
+        "input_decision_action": getattr(risk_record, "input_decision_action", None),
+        "producer": LOOP_WORKER_ID,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_gate": LIVE_GATE_BLOCKED,
+    }
+    _safe_set_v2(
+        client,
+        f"{V2_REDIS_PREFIX}decision:risk:{risk_decision_id}",
+        record,
+        ex=_PER_ID_DECISION_RECORD_TTL_SECONDS,
+    )
+    # Legacy surfaces stamp the same decision as rd_{prediction_hash} (no
+    # dec_ segment). Publish the identical immutable record under that alias
+    # so every stamped id dereferences; this is the same record, not a
+    # last-write-wins preview.
+    if risk_decision_id.startswith("rd_dec_"):
+        alias_id = "rd_" + risk_decision_id[len("rd_dec_"):]
+        _safe_set_v2(
+            client,
+            f"{V2_REDIS_PREFIX}decision:risk:{alias_id}",
+            {**record, "alias_of": risk_decision_id},
+            ex=_PER_ID_DECISION_RECORD_TTL_SECONDS,
+        )
+    if candidate_id:
+        index_key = f"{V2_REDIS_PREFIX}decision:index:by_candidate:{candidate_id}"
+        existing_index = _read_json_key(client, index_key) or {}
+        existing_index.update(
+            {
+                "risk_decision_key": f"{V2_REDIS_PREFIX}decision:risk:{risk_decision_id}",
+                "risk_decision_id": risk_decision_id,
+                "prediction_id": getattr(risk_record, "prediction_id", None),
+                "signal_id": signal_id,
+                "generated_utc": generated_utc,
+                "expires_at": expires_at,
+            }
+        )
+        _safe_set_v2(
+            client, index_key, existing_index, ex=_PER_ID_DECISION_RECORD_TTL_SECONDS
+        )
+    if signal_id:
+        sig_index_key = f"{V2_REDIS_PREFIX}decision:index:by_signal:{signal_id}"
+        existing_sig = _read_json_key(client, sig_index_key) or {}
+        existing_sig.update(
+            {
+                "risk_decision_key": f"{V2_REDIS_PREFIX}decision:risk:{risk_decision_id}",
+                "risk_decision_id": risk_decision_id,
+                "candidate_id": candidate_id,
+                "generated_utc": generated_utc,
+                "expires_at": expires_at,
+            }
+        )
+        _safe_set_v2(
+            client, sig_index_key, existing_sig, ex=_PER_ID_DECISION_RECORD_TTL_SECONDS
+        )
+
+
 def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
     started = _utc_iso()
     client = _connect_redis()
@@ -488,6 +612,13 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
                 decision=decision,
                 winner=winner_for_payload,
             )
+        )
+        _write_per_id_risk_decision_record(
+            client,
+            risk_record=risk,
+            decision=decision,
+            winner=winner_for_payload,
+            now_ms=now,
         )
     keys_written: list[str] = []
     if client is not None:

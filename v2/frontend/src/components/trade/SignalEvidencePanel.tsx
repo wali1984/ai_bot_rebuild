@@ -46,10 +46,12 @@ export function SignalEvidencePanel({ state }: { state: TradeTerminalState }): J
     <div className="trade-evidence-panel" data-testid="signal-evidence-panel">
       <div className="trade-evidence-panel__summary">
         <div><span>Direction</span><strong>{tradeCopy(state.signal.direction)}</strong></div>
-        <div><span>Confidence</span><strong>{formatPercent(state.signal.confidence)}</strong></div>
+        <div><span>Executable confidence</span><strong>{formatPercent(state.signal.executableConfidence)}</strong></div>
+        <div><span>Selected confidence</span><strong>{formatPercent(state.signal.selectedConfidence)}</strong></div>
         <div><span>Strategy</span><strong>{tradeCopy(state.signal.strategy)}</strong></div>
         <div><span>Model</span><strong>{tradeCopy(state.signal.modelVersion)}</strong></div>
         <div><span>Risk decision</span><strong>{tradeCopy(state.signal.riskDecision)}</strong></div>
+        <div><span>Confidence label</span><strong>{tradeCopy(state.signal.confidenceLabel)}</strong></div>
         <div><span>Freshness</span><strong title={state.signal.source}>{tradeCopy(state.signal.freshness)}</strong></div>
       </div>
       <div className="trade-evidence-panel__levels">

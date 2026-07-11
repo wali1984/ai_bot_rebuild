@@ -266,6 +266,12 @@ final class AIBotV2CoreTests: XCTestCase {
               "signal_id": "sig-1",
               "prediction_id": "pred-1",
               "confidence": 0.72,
+              "confidence_selected_action": 0.72,
+              "confidence_executable_trade": 0.0,
+              "confidence_display_label": "Unproven confidence",
+              "confidence_type": "selected_action_probability_not_post_cost_edge",
+              "confidence_a_plus_eligible": false,
+              "confidence_tradeability_block_reasons": ["operator_gated"],
               "live_gate": "blocked_human_only",
               "exchange_action_taken": false,
               "exchange_call_invariant": "LIVE_TRADING_BLOCKED",
@@ -283,6 +289,9 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertTrue(signal.isReadOnlyBlockedLive)
         XCTAssertEqual(signal.data.active_signal?.symbol, "BTCUSDT")
         XCTAssertEqual(signal.data.active_signal?.exchange_action_taken, false)
+        XCTAssertEqual(signal.data.active_signal?.confidence_selected_action, 0.72)
+        XCTAssertEqual(signal.data.active_signal?.confidence_executable_trade, 0.0)
+        XCTAssertEqual(signal.data.active_signal?.confidence_a_plus_eligible, false)
         XCTAssertEqual(signal.data.active_signal?.exchange_call_invariant, "LIVE_TRADING_BLOCKED")
     }
 
@@ -583,6 +592,8 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertTrue(source.contains("Santiment/Sanbase"))
         XCTAssertTrue(source.contains("santiment_symbol_count"))
         XCTAssertTrue(source.contains("santiment_rate_limit_remaining_month"))
+        XCTAssertTrue(source.contains("heartbeatOnly: summary.provider_readiness?.coinglass_heartbeat_only"))
+        XCTAssertTrue(source.contains("marker = status ?? color ?? \"actual payload\""))
     }
 
     func testIOSProviderIngestorTruthScreenUsesCanonicalStatus() throws {
@@ -623,6 +634,8 @@ final class AIBotV2CoreTests: XCTestCase {
             "Disabled heatmap",
             "Smart wallet candidates",
             "Missing high-value metrics",
+            "providerDashboardTone",
+            "providerDashboardBadgeText",
         ] {
             XCTAssertTrue(
                 providersView.contains(snippet),
@@ -646,6 +659,8 @@ final class AIBotV2CoreTests: XCTestCase {
             "rate_limit_remaining",
             "daily_quota_used",
             "monthly_quota_used",
+            "providerDashboardTone",
+            "providerDashboardBadgeText",
         ] {
             XCTAssertTrue(
                 appModels.contains(field),
@@ -968,9 +983,69 @@ final class AIBotV2CoreTests: XCTestCase {
               "raw_key_exposed": false,
               "routes_to_live": false,
               "places_real_order": false
+            },
+            {
+              "provider": "santiment",
+              "display_name": "Santiment/Sanbase",
+              "status": "READY",
+              "dashboard_color": "gray",
+              "dashboard_color_reason": "provider_runtime_summary",
+              "actual_payload_count": 1,
+              "feature_count": 12,
+              "consumer_count": 0,
+              "heartbeat_only": false,
+              "actual_payload_present": true,
+              "raw_key_exposed": false,
+              "routes_to_live": false,
+              "places_real_order": false
+            },
+            {
+              "provider": "moralis",
+              "display_name": "Moralis",
+              "status": "CONFIGURED_NO_WATCHLIST",
+              "dashboard_color": "gray",
+              "dashboard_color_reason": "provider_runtime_summary",
+              "actual_payload_count": 1,
+              "feature_count": 1,
+              "consumer_count": 0,
+              "heartbeat_only": false,
+              "actual_payload_present": true,
+              "raw_key_exposed": false,
+              "routes_to_live": false,
+              "places_real_order": false
+            },
+            {
+              "provider": "binance",
+              "display_name": "Binance",
+              "status": "unknown",
+              "dashboard_color": "gray",
+              "dashboard_color_reason": "provider_runtime_summary",
+              "actual_payload_count": 0,
+              "feature_count": 0,
+              "consumer_count": 0,
+              "heartbeat_only": false,
+              "actual_payload_present": false,
+              "raw_key_exposed": false,
+              "routes_to_live": false,
+              "places_real_order": false
+            },
+            {
+              "provider": "heartbeat_only",
+              "display_name": "Heartbeat Only",
+              "status": "READY",
+              "dashboard_color": "green",
+              "dashboard_color_reason": "heartbeat_not_payload",
+              "actual_payload_count": 1,
+              "feature_count": 1,
+              "consumer_count": 0,
+              "heartbeat_only": true,
+              "actual_payload_present": true,
+              "raw_key_exposed": false,
+              "routes_to_live": false,
+              "places_real_order": false
             }
           ],
-          "provider_count": 1,
+          "provider_count": 5,
           "heartbeat_only_green_count": 0,
           "live_gate": "blocked_human_only",
           "paper_only": true,
@@ -981,7 +1056,14 @@ final class AIBotV2CoreTests: XCTestCase {
         let providers = try JSONDecoder().decode(EnterpriseProviderCards.self, from: providersJSON)
         XCTAssertEqual(providers.providers.first?.provider, "coinglass")
         XCTAssertEqual(providers.providers.first?.dashboard_color, "yellow")
+        XCTAssertEqual(providers.providers.first?.providerDashboardTone, "yellow")
+        XCTAssertEqual(providers.providers.first?.providerDashboardBadgeText, "YELLOW")
         XCTAssertFalse(providers.providers.first?.raw_key_exposed ?? true)
+        let tones = Dictionary(uniqueKeysWithValues: providers.providers.map { ($0.provider, $0.providerDashboardTone) })
+        XCTAssertEqual(tones["santiment"], "green")
+        XCTAssertEqual(tones["moralis"], "yellow")
+        XCTAssertEqual(tones["binance"], "gray")
+        XCTAssertEqual(tones["heartbeat_only"], "yellow")
     }
 
     func testIOSWatchCompanionReceivesLiveResourceState() throws {
@@ -1230,6 +1312,48 @@ final class AIBotV2CoreTests: XCTestCase {
             text.contains("paperPositionMoneyText(pricing.total_open_notional)"),
             "Paper execution screen must render open notional from backend pricing metrics"
         )
+    }
+
+    func testMissingFeatureAlertDecodesAndStaysOperational() throws {
+        let json = Data("""
+        {"active":true,"severity":"critical","operational":true,"prediction_still_produced":true,
+         "data_coverage_pct":53.8,"missing_feature_count":144,"stale_feature_count":3,
+         "missing_by_category":{"alternative_data":12,"htf":4},
+         "missing_provider_names":["coinglass_funding_rate"],
+         "message":"Data coverage at inference: 53.8% (144 features missing)."}
+        """.utf8)
+        let alert = try JSONDecoder().decode(AIPredictionMissingFeatureAlert.self, from: json)
+        XCTAssertTrue(alert.active)
+        XCTAssertEqual(alert.severity, "critical")
+        // System keeps operating end-to-end even under missing features.
+        XCTAssertTrue(alert.operational)
+        XCTAssertTrue(alert.prediction_still_produced)
+        XCTAssertEqual(alert.data_coverage_pct, 53.8)
+        XCTAssertEqual(alert.missing_feature_count, 144)
+        XCTAssertEqual(alert.missing_by_category["alternative_data"], 12)
+        XCTAssertEqual(alert.missing_provider_names.first, "coinglass_funding_rate")
+    }
+
+    func testBacktestResultsDecodeIncludeGeneralizationAndReplayFeedback() throws {
+        let json = Data("""
+        {"available":true,"generated_utc":"2026-07-11T21:00:00Z",
+         "effective_trainer_mode":"REPLAY_AND_ONLINE_LEARNING","replay_examples_built":1328,
+         "backtest_is_a_plus_evidence":false,"continuous_replay_active":true,
+         "policy_backtest":{"win_rate":0.9895,"profit_factor_proxy":209.29,"expectancy_after_cost_bps":54.49,"rows_evaluated":16384,"status":"OK","evidence_class":"BACKTEST_ONLY_NOT_A_PLUS_EVIDENCE"},
+         "generalization":{"validation_supervised_loss":7.63,"validation_rows_evaluated":3276,"train_val_generalization_gap":3.98,"overfit_gap_warning":true,"loss_before":87.2,"loss_after":3.65},
+         "replay_feedback":{"existing_counterfactual_rows":3198,"new_matured_rows":173,"pending_rows":1522,"trainer_loader_consumes":true}}
+        """.utf8)
+        let bt = try JSONDecoder().decode(BacktestResults.self, from: json)
+        XCTAssertTrue(bt.available)
+        // Backtest is never A+/live evidence.
+        XCTAssertFalse(bt.backtest_is_a_plus_evidence)
+        XCTAssertEqual(bt.policy_backtest?.win_rate, 0.9895)
+        XCTAssertEqual(bt.policy_backtest?.evidence_class, "BACKTEST_ONLY_NOT_A_PLUS_EVIDENCE")
+        // Out-of-sample overfit signal is surfaced.
+        XCTAssertEqual(bt.generalization?.overfit_gap_warning, true)
+        XCTAssertEqual(bt.generalization?.train_val_generalization_gap, 3.98)
+        XCTAssertEqual(bt.replay_feedback?.existing_counterfactual_rows, 3198)
+        XCTAssertEqual(bt.continuous_replay_active, true)
     }
 
     private func swiftStringLiterals(in text: String) -> [String] {

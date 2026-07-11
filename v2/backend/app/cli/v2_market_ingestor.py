@@ -11,7 +11,8 @@ Hard rules (all asserted by tests):
   - No legacy Redis writes. The worker writes only V2-namespaced data-plane
     entries to a JSON file under ``v2/runtime/v2_market_ingestor/latest/``.
   - No exchange mutating method invocation (no order/cancel/leverage/margin).
-  - Public REST GETs only.
+  - Binance public WebSocket/cache workers are primary. This legacy-anchored
+    worker may call Binance REST only when BINANCE_REST_FALLBACK_ALLOWED=true.
 """
 from __future__ import annotations
 
@@ -31,6 +32,10 @@ from v2.backend.app.services.market_ingest.service import (
     MarketIngestService,
     PriceSourcePriority,
     V2_KEY_PREFIX,
+)
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_decision,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
@@ -95,6 +100,20 @@ def http_get(url: str) -> Tuple[int, Any]:
     """Stdlib-only public GET fetcher. Used as the default http_get for the
     service. Tests inject their own callable instead.
     """
+    if "binance.com" in url:
+        fallback = binance_rest_fallback_decision(
+            endpoint=urllib.parse.urlparse(url).path or url,
+            fallback_reason="v2_market_ingestor_websocket_cache_miss",
+            role="legacy_anchored_market_ingestor_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return 599, {
+                "error": "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                "blocked_reason": fallback["rest_fallback_blocked_reason"],
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "transport_policy": "binance_websocket_cache_primary_rest_fallback_only",
+                "rest_used_as_primary": False,
+            }
     request = urllib.request.Request(
         url,
         method="GET",

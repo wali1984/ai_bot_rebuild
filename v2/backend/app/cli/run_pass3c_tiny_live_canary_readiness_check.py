@@ -15,8 +15,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from app.cli.run_pass3b_exact_live_path_dry_run import build_signed_read_context, numeric, parse_env, redact, read_live_control_state, read_json_key, signed_get, utc_now
+from app.cli.run_pass3b_exact_live_path_dry_run import (
+    _ws_api_result,
+    build_signed_read_context,
+    numeric,
+    parse_env,
+    redact,
+    read_live_control_state,
+    read_json_key,
+    utc_now,
+)
+from app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
 from app.services.live_gate.live_position_state_machine import LiveCanaryConfig, evaluate_live_canary_preflight
+from app.services.market_data.current_price_resolver import resolve_current_price
 from app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
 
 STATUS_BLOCKED_INSUFFICIENT_BALANCE = "PASS3C_BLOCKED_INSUFFICIENT_BALANCE"
@@ -101,7 +112,7 @@ def run_readiness_check(
     account = signed_reads.get("account_margin_status") if isinstance(signed_reads.get("account_margin_status"), Mapping) else {}
     available_balance = numeric(account.get("_available_balance_usdt"), 0.0) if signed_available else 0.0
     min_notional = numeric(filters.get("min_notional"), 0.0)
-    mark_price = build_mark_price_context(symbol_u)
+    mark_price = build_mark_price_context(symbol_u, redis_client=client)
     live_canary_config = LiveCanaryConfig.from_mapping(live_gate.get("live_canary_config") or live_gate.get("live_canary") or {})
     notional_validation = validate_candidate_notional(
         quantity=quantity,
@@ -249,7 +260,37 @@ def candidate_record(symbol: str, quantity: float, notional_usd: float) -> dict[
     }
 
 
-def build_mark_price_context(symbol: str) -> dict[str, Any]:
+def _current_price_resolver_context(symbol: str, redis_client: Any) -> dict[str, Any] | None:
+    try:
+        current = resolve_current_price(redis_client, symbol)
+    except Exception as exc:
+        return {
+            "available": False,
+            "reason": f"CURRENT_PRICE_RESOLVER_ERROR:{type(exc).__name__}",
+            "source": "current_price_resolver",
+            "rest_fallback_used": False,
+        }
+    price = numeric(current.get("price"), 0.0)
+    if price <= 0:
+        return None
+    source = str(current.get("source") or "current_price_resolver")
+    return {
+        "available": True,
+        "symbol": symbol,
+        "signed_mark_price": price,
+        "signed_mark_price_ts_ms": int(time.time() * 1000),
+        "source": f"current_price_resolver:{source}",
+        "source_available_at": current.get("available_at"),
+        "source_staleness_seconds": current.get("staleness_seconds"),
+        "execution_grade": current.get("execution_grade"),
+        "can_size_trade": current.get("can_size_trade"),
+        "rest_fallback_used": bool(current.get("fallback_used")),
+        "rest_fallback_from_cache_only": bool(current.get("fallback_used")),
+        "signed_rest_fallback_used": False,
+    }
+
+
+def build_mark_price_context(symbol: str, *, redis_client: Any = None) -> dict[str, Any]:
     env = parse_env(Path("v2/.env.local"))
     api_key = env.get("BINANCE_API_KEY") or env.get("BINANCE_FUT_API_KEY")
     api_secret = env.get("BINANCE_API_SECRET") or env.get("BINANCE_SECRET_KEY") or env.get("BINANCE_FUT_API_SECRET")
@@ -257,20 +298,56 @@ def build_mark_price_context(symbol: str) -> dict[str, Any]:
         return {"available": False, "reason": "SIGNED_MARK_PRICE_MISSING"}
     base = os.environ.get("V2_BINANCE_USDM_BASE_URL", "https://fapi.binance.com").rstrip("/")
     now_ms = int(time.time() * 1000)
-    try:
-        payload = signed_get(base, "/fapi/v2/positionRisk", {"symbol": symbol}, api_key, api_secret)
-    except Exception as exc:
-        return {"available": False, "reason": type(exc).__name__}
+    adapter = BinanceUSDMAdapter(api_key=api_key, api_secret=api_secret, base_url=base)
+    position_read = adapter.signed_ws_read("account.position", {"symbol": symbol, "recvWindow": 5000}, execute=True)
+    payload = _ws_api_result(position_read)
+    source = "WSS account.position"
+    if not isinstance(payload, list | dict):
+        if redis_client is not None:
+            current = _current_price_resolver_context(symbol, redis_client)
+            if current and current.get("available") is True:
+                current.update(
+                    {
+                        "signed_ws_position_status": position_read.get("status"),
+                        "signed_ws_position_status_code": position_read.get("ws_status_code"),
+                        "websocket_account_position_required_primary": True,
+                    }
+                )
+                return current
+        return {
+            "available": False,
+            "reason": "SIGNED_MARK_PRICE_WS_API_UNAVAILABLE_CURRENT_PRICE_CACHE_MISSING",
+            "signed_ws_position_status": position_read.get("status"),
+            "signed_ws_position_status_code": position_read.get("ws_status_code"),
+            "source": source,
+            "signed_read_transport_primary": "binance_usdm_websocket_api",
+            "signed_rest_fallback_supported_for_trader": False,
+            "rest_api_role": "public_market_data_fallback_only",
+        }
     row = payload[0] if isinstance(payload, list) and payload and isinstance(payload[0], Mapping) else payload if isinstance(payload, Mapping) else {}
     mark_price = numeric(row.get("markPrice"), 0.0)
     if mark_price <= 0:
-        return {"available": False, "reason": "SIGNED_MARK_PRICE_MISSING", "source": "GET /fapi/v2/positionRisk"}
+        if redis_client is not None:
+            current = _current_price_resolver_context(symbol, redis_client)
+            if current and current.get("available") is True:
+                current.update(
+                    {
+                        "signed_ws_position_status": position_read.get("status"),
+                        "signed_ws_position_status_code": position_read.get("ws_status_code"),
+                        "websocket_account_position_required_primary": True,
+                    }
+                )
+                return current
+        return {"available": False, "reason": "SIGNED_MARK_PRICE_MISSING", "source": source}
     return {
         "available": True,
         "symbol": symbol,
         "signed_mark_price": mark_price,
         "signed_mark_price_ts_ms": now_ms,
-        "source": "GET /fapi/v2/positionRisk",
+        "source": source,
+        "rest_fallback_used": False,
+        "signed_rest_fallback_used": False,
+        "signed_read_transport_primary": "binance_usdm_websocket_api",
     }
 
 

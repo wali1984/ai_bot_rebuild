@@ -38,6 +38,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_decision,
+    binance_rest_fallback_allowed,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import BASELINE_25_SYMBOLS
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
@@ -154,11 +159,50 @@ def _safe_redis_set(redis_client: Any, key: str, payload: Any, *, ex: int = 21_6
         return False
 
 
+def _read_json_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="ignore")
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    return value
+
+
+def _safe_redis_get_json(redis_client: Any, key: str) -> Any:
+    if redis_client is None:
+        return None
+    try:
+        return _read_json_value(redis_client.get(key))
+    except Exception:
+        return None
+
+
 def _http_get_json(
     url: str,
     headers: Mapping[str, str] | None = None,
     timeout: float = HTTP_TIMEOUT_SECONDS,
 ) -> HttpResult:
+    if "fapi.binance.com" in url:
+        fallback = binance_rest_fallback_decision(
+            endpoint=urllib.parse.urlparse(url).path or url,
+            fallback_reason="dynamic_symbol_discovery_binance_symbol_cache_missing",
+            role="dynamic_symbol_discovery_symbol_metadata_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return HttpResult(
+                status_code=0,
+                body={
+                    "error": "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                    "blocked_reason": fallback["rest_fallback_blocked_reason"],
+                    "required_env": f"{REST_FALLBACK_ENV}=true",
+                    "rest_used_as_primary": False,
+                },
+                error="REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            )
     safe_headers = {"User-Agent": "ai-bot-v2-dynamic-symbol-discovery/1.0"}
     safe_headers.update(dict(headers or {}))
     req = urllib.request.Request(url, headers=safe_headers)
@@ -252,6 +296,117 @@ def _symbol_variants_for_token(token: str) -> tuple[str, ...]:
     return (f"{token}USDT", f"1000{token}USDT")
 
 
+def _binance_symbol_from_row(row: Mapping[str, Any], *, require_contract_metadata: bool) -> str | None:
+    symbol = str(row.get("symbol") or "").upper()
+    if not symbol.endswith("USDT"):
+        return None
+    if str(row.get("status") or "TRADING").upper() not in {"TRADING", ""}:
+        return None
+    quote_asset = str(row.get("quoteAsset") or row.get("quote_asset") or "USDT").upper()
+    if quote_asset and quote_asset != "USDT":
+        return None
+    contract_type = str(row.get("contractType") or row.get("contract_type") or "PERPETUAL").upper()
+    if require_contract_metadata and contract_type != "PERPETUAL":
+        return None
+    return symbol
+
+
+def _iter_symbol_filter_rows(payload: Any) -> Iterable[Mapping[str, Any]]:
+    if not isinstance(payload, Mapping):
+        return []
+    if isinstance(payload.get("symbols"), list):
+        return [row for row in payload["symbols"] if isinstance(row, Mapping)]
+    nested_filters = payload.get("filters")
+    if isinstance(nested_filters, Mapping):
+        return [
+            {"symbol": symbol, **dict(row)}
+            for symbol, row in nested_filters.items()
+            if isinstance(row, Mapping)
+        ]
+    rows: list[Mapping[str, Any]] = []
+    for symbol, row in payload.items():
+        if not isinstance(symbol, str) or not symbol.upper().endswith("USDT"):
+            continue
+        if isinstance(row, Mapping):
+            rows.append({"symbol": symbol, **dict(row)})
+    if rows:
+        return rows
+    if payload.get("symbol"):
+        return [payload]
+    return []
+
+
+def _iter_scan_keys(redis_client: Any, patterns: Iterable[str]) -> Iterable[str]:
+    if redis_client is None or not hasattr(redis_client, "scan_iter"):
+        return []
+    keys: list[str] = []
+    for pattern in patterns:
+        try:
+            for key in redis_client.scan_iter(pattern):
+                keys.append(key.decode("utf-8", errors="ignore") if isinstance(key, bytes) else str(key))
+        except Exception:
+            continue
+    return keys
+
+
+def _fetch_binance_usdm_symbols_from_cache(redis_client: Any) -> tuple[set[str], dict[str, Any]]:
+    symbols: set[str] = set()
+    source_keys: list[str] = []
+    exchange_info_keys = (
+        "v2:exchange:binance:exchangeInfo",
+        "v2:exchange:binance_usdm:exchangeInfo",
+        "v2:exchange:usdm:exchangeInfo",
+    )
+    symbol_filter_keys = (
+        "v2:exchange:symbol_filters",
+        "v2:symbol_filters",
+        "v2:binance:symbol_filters",
+    )
+    for key in exchange_info_keys:
+        payload = _safe_redis_get_json(redis_client, key)
+        if not isinstance(payload, Mapping):
+            continue
+        rows = payload.get("symbols") if isinstance(payload.get("symbols"), list) else []
+        for row in rows:
+            if isinstance(row, Mapping) and (symbol := _binance_symbol_from_row(row, require_contract_metadata=True)):
+                symbols.add(symbol)
+        if rows:
+            source_keys.append(key)
+    for key in symbol_filter_keys:
+        payload = _safe_redis_get_json(redis_client, key)
+        rows = list(_iter_symbol_filter_rows(payload))
+        for row in rows:
+            if symbol := _binance_symbol_from_row(row, require_contract_metadata=False):
+                symbols.add(symbol)
+        if rows:
+            source_keys.append(key)
+    for key in _iter_scan_keys(
+        redis_client,
+        (
+            "v2:exchange:symbol_filters:*",
+            "v2:symbol_filters:*",
+            "v2:binance:symbol_filters:*",
+        ),
+    ):
+        payload = _safe_redis_get_json(redis_client, key)
+        rows = list(_iter_symbol_filter_rows(payload))
+        for row in rows:
+            if symbol := _binance_symbol_from_row(row, require_contract_metadata=False):
+                symbols.add(symbol)
+        if rows:
+            source_keys.append(key)
+    return symbols, {
+        "provider": "binance_usdm_websocket_cache_primary",
+        "source_status": "CACHE_OK" if symbols else "CACHE_MISSING",
+        "symbol_count": len(symbols),
+        "source_keys": sorted(set(source_keys))[:50],
+        "source_key_count": len(set(source_keys)),
+        "network_call_attempted": False,
+        "primary_transport": "websocket_cache_primary",
+        "rest_fallback_used": False,
+    }
+
+
 def _map_token_to_usdm_symbol(token: str, tradable: set[str]) -> str | None:
     for variant in _symbol_variants_for_token(token):
         if variant in tradable:
@@ -259,7 +414,10 @@ def _map_token_to_usdm_symbol(token: str, tradable: set[str]) -> str | None:
     return None
 
 
-def _fetch_binance_usdm_symbols(http_get: HttpGet) -> tuple[set[str], dict[str, Any]]:
+def _fetch_binance_usdm_symbols(http_get: HttpGet, redis_client: Any | None = None) -> tuple[set[str], dict[str, Any]]:
+    cached_symbols, cache_status = _fetch_binance_usdm_symbols_from_cache(redis_client)
+    if cached_symbols:
+        return cached_symbols, cache_status
     result = http_get(
         f"{BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
         {},
@@ -280,11 +438,15 @@ def _fetch_binance_usdm_symbols(http_get: HttpGet) -> tuple[set[str], dict[str, 
             ):
                 symbols.add(symbol)
     return symbols, {
-        "provider": "binance_usdm_public_exchange_info",
+        "provider": "binance_usdm_public_exchange_info_rest_fallback",
         "source_status": status,
         "http_status": result.status_code,
         "symbol_count": len(symbols),
         "network_call_attempted": result.request_attempted,
+        "primary_transport": "websocket_cache_primary",
+        "cache_primary_status": cache_status,
+        "rest_fallback_used": bool(result.request_attempted),
+        "rest_fallback_required_env": f"{REST_FALLBACK_ENV}=true",
     }
 
 
@@ -762,7 +924,7 @@ def run_once(
     coinglass_key = os.environ.get("COINGLASS_API_KEY") or None
     surf_key = os.environ.get("ASKSURF_API_KEY") or os.environ.get("SURF_API_KEY") or None
 
-    tradable_symbols, binance_status = _fetch_binance_usdm_symbols(http_get)
+    tradable_symbols, binance_status = _fetch_binance_usdm_symbols(http_get, redis_client=redis_client)
     if tradable_symbols:
         # Cache the fresh Binance list so future 418 bans can fall back to it.
         _save_binance_tradable_cache(tradable_symbols)

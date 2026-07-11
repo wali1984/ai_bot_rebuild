@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,7 +20,8 @@ class _FakeRedis:
     def get(self, key: str):
         return self.payloads.get(key)
 
-    def set(self, key: str, value: str):
+    def set(self, key: str, value: str, ex: int | None = None):
+        del ex
         self.payloads[key] = value
         return True
 
@@ -28,6 +30,16 @@ class _FakeRedis:
         if value is None:
             return 0
         return len(value.encode("utf-8") if isinstance(value, str) else value)
+
+    def scan_iter(self, match: str | None = None, count: int | None = None):
+        del count
+        if match is None:
+            yield from self.payloads
+            return
+        prefix = match.split("*", 1)[0]
+        for key in self.payloads:
+            if key.startswith(prefix):
+                yield key
 
 
 def _preemptive_allow_decision(**overrides) -> dict[str, object]:
@@ -46,6 +58,2563 @@ def _preemptive_allow_decision(**overrides) -> dict[str, object]:
     }
     decision.update(overrides)
     return decision
+
+
+def test_read_paper_signals_enriches_matched_native_policy_fields() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:confidence_threshold_trial:status": {"paused": False},
+            "v2:signals:paper": [
+                {
+                    "symbol": "JTOUSDT",
+                    "timeframe": "15m",
+                    "prediction_id": "v2h_policy_entry",
+                    "decision_time": "2026-07-11T05:00:00Z",
+                    "available_at": "2026-07-11T04:58:00Z",
+                    "feature_cutoff": "2026-07-11T04:55:00Z",
+                    "paper_fill_allowed": True,
+                    "valid_for_paper": True,
+                    "market_state_id": "mstate_policy_entry",
+                }
+            ],
+            "v2:trainer:hybrid_cuda:signals:paper:JTOUSDT:15m": {
+                "prediction_id": "v2h_policy_entry",
+                "decision_time": "2026-07-11T05:00:00Z",
+                "available_at": "2026-07-11T04:58:00Z",
+                "feature_cutoff": "2026-07-11T04:55:00Z",
+                "action_labels": ["hold", "long", "short"],
+                "action_probabilities": [0.05, 0.9, 0.05],
+                "selected_action_probability": 0.9,
+                "selected_action_log_prob": -0.10536051565782628,
+                "policy_value": 0.25,
+                "entry_policy_fields_source": (
+                    "V2_NATIVE_CUDA_TRAINER_ENTRY_FORWARD_PASS"
+                ),
+            },
+        }
+    )
+
+    rows = paper_loop._read_paper_signals(redis_client)  # noqa: SLF001
+
+    assert rows[0]["action_probabilities"] == [0.05, 0.9, 0.05]
+    assert rows[0]["policy_value"] == 0.25
+    assert rows[0]["selected_action_log_prob"] == -0.10536051565782628
+    assert rows[0]["paper_signal_policy_enrichment_prediction_id"] == (
+        "v2h_policy_entry"
+    )
+
+
+def test_read_paper_signals_rejects_future_native_policy_fields() -> None:
+    redis_client = _FakeRedis(
+        {
+            "v2:paper:confidence_threshold_trial:status": {"paused": False},
+            "v2:signals:paper": [
+                {
+                    "symbol": "JTOUSDT",
+                    "timeframe": "15m",
+                    "prediction_id": "v2h_policy_entry",
+                    "decision_time": "2026-07-11T05:00:00Z",
+                    "available_at": "2026-07-11T04:58:00Z",
+                    "feature_cutoff": "2026-07-11T04:55:00Z",
+                    "paper_fill_allowed": True,
+                    "valid_for_paper": True,
+                    "market_state_id": "mstate_policy_entry",
+                }
+            ],
+            "v2:trainer:hybrid_cuda:signals:paper:JTOUSDT:15m": {
+                "prediction_id": "v2h_policy_entry",
+                "decision_time": "2026-07-11T05:01:00Z",
+                "available_at": "2026-07-11T05:00:30Z",
+                "feature_cutoff": "2026-07-11T04:59:59Z",
+                "action_probabilities": [0.05, 0.9, 0.05],
+                "selected_action_log_prob": -0.10536051565782628,
+                "policy_value": 0.25,
+            },
+        }
+    )
+
+    rows = paper_loop._read_paper_signals(redis_client)  # noqa: SLF001
+
+    assert "action_probabilities" not in rows[0]
+    assert "policy_value" not in rows[0]
+    assert "paper_signal_policy_enrichment_prediction_id" not in rows[0]
+
+
+def test_trainer_feedback_derives_legacy_native_on_policy_fields_from_entry_probability() -> None:
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[
+            {
+                "trainer_feedback_id": "fb-native-close",
+                "prediction_id": "v2h_legacy_native_policy",
+                "signal_id": "sig_v2h_legacy_native_policy",
+                "symbol": "JSTUSDT",
+                "timeframe": "15m",
+                "side": "long",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "feature_cutoff": "2026-07-08T04:14:59.999Z",
+                "available_at": "2026-07-08T04:17:02.188Z",
+                "decision_time": "2026-07-08T04:19:20.458Z",
+                "selected_action_probability": 0.8,
+                "policy_value": 0.25,
+                "realized_net_pnl_bps": 12.0,
+                "position_id": "",
+            }
+        ],
+        outcome_labels=[
+            {
+                "trainer_feedback_id": "fb-native-close",
+                "prediction_id": "v2h_legacy_native_policy",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "outcome_targets": {
+                    "directional_outcome": "UP",
+                    "realized_net_pnl_bps": 12.0,
+                },
+            }
+        ],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["old_log_prob"] == pytest.approx(math.log(0.8))
+    assert rows[0]["old_value"] == 0.25
+    assert rows[0]["realized_after_cost_reward"] == 0.12
+    assert rows[0]["reward"] == 0.12
+    assert rows[0]["done"] is True
+    assert rows[0]["rollout_id"] == "v2h_legacy_native_policy"
+    assert rows[0]["ppo_on_policy_entry_fields_present"] is True
+    assert rows[0]["paper_learning_lane"] == "PPO_ON_POLICY_PAPER_EXPLORATION"
+    assert rows[0]["routes_to_live"] is False
+    assert rows[0]["places_real_order"] is False
+
+
+def test_trainer_feedback_uses_self_contained_native_trust_when_prediction_expired() -> None:
+    feature_snapshot_id = "v2_fsnap_self_contained"
+    common = {
+        "trainer_feedback_id": "fb-native-self-contained",
+        "prediction_id": "v2h_self_contained_native_policy",
+        "signal_id": "sig_v2h_self_contained_native_policy",
+        "symbol": "JSTUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "selected_action": "long",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "feature_snapshot_id": feature_snapshot_id,
+        "entry_feature_snapshot_id": feature_snapshot_id,
+        "mtf_snapshot_id": "mtf_self_contained",
+        "decision_id": "decision_self_contained",
+        "checkpoint_id": "v2_hybrid_ckpt_self_contained",
+        "model_version": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+        "source_hashes": {
+            "feature_vector_hash": "tensor_self_contained",
+            "source_timestamp_hash": "source_time_self_contained",
+        },
+        "feature_vector_hash": "tensor_self_contained",
+        "feature_cutoff": "2026-07-08T04:14:59.999Z",
+        "available_at": "2026-07-08T04:17:02.188Z",
+        "decision_time": "2026-07-08T04:19:20.458Z",
+        "confidence_calibrated": 0.76,
+        "expected_move_after_cost_bps": 10.25,
+        "selected_action_probability": 0.8,
+        "policy_value": 0.25,
+        "realized_net_pnl_bps": 12.0,
+    }
+    feature_snapshot = {
+        "feature_snapshot_id": feature_snapshot_id,
+        "symbol": "JSTUSDT",
+        "timeframe": "15m",
+        "feature_cutoff": "2026-07-08T04:14:59.999Z",
+        "available_at": "2026-07-08T04:17:02.188Z",
+        "generated_utc": "2026-07-08T04:17:02.188Z",
+        "candle_closed_confirmed": True,
+        "features": {"ret_pct": 0.1},
+    }
+
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[dict(common, position_id="paper_pos_JSTUSDT")],
+        outcome_labels=[
+            dict(
+                common,
+                outcome_targets={
+                    "directional_outcome": "UP",
+                    "realized_net_pnl_bps": 12.0,
+                },
+            )
+        ],
+        feature_snapshots_by_id={feature_snapshot_id: feature_snapshot},
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["trust_reconstructed"] is True
+    assert rows[0]["trust_reconstruction_rejection_reasons"] == []
+    assert rows[0]["old_log_prob"] == pytest.approx(math.log(0.8))
+    assert rows[0]["old_value"] == 0.25
+    assert rows[0]["rollout_id"] == "paper_pos_JSTUSDT"
+    assert rows[0]["ppo_on_policy_entry_fields_present"] is True
+    assert rows[0]["routes_to_live"] is False
+    assert rows[0]["places_real_order"] is False
+
+
+def _strict_governance_close(**overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "trainer_feedback_id": "strict-fb",
+        "position_id": "strict-pos",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "strategy_id": "strict-governance",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "confidence_calibrated": 0.92,
+        "gross_notional_usd": 100.0,
+        "realized_net_pnl_usd": -1.0,
+        "realized_net_pnl_bps": -100.0,
+        "exit_reason": "STOP_LOSS",
+        "exit_price_utc": "2026-07-11T05:00:00Z",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_exploration_rows_do_not_govern_strict_performance() -> None:
+    rows = [
+        _strict_governance_close(
+            trainer_feedback_id=f"explore-{idx}",
+            paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+            paper_fill_allowed_source="PAPER_RISK_CONTROLLER_EXPLORATION_LOCAL_GATE",
+            counts_as_strict_preemptive_evidence=False,
+            counts_as_a_plus_evidence=False,
+        )
+        for idx in range(5)
+    ]
+
+    source_rows = paper_loop._paper_performance_source_rows(rows)  # noqa: SLF001
+    status = paper_loop._paper_performance_circuit_breaker_status(rows)  # noqa: SLF001
+
+    assert source_rows == []
+    assert status["governed_closed_rows"] == 0
+    assert status["strict_governance_selector"] == "STRICT_TIER_EXCLUSION_ACTIVE"
+    assert status["strict_governance_excluded_rows"] == 5
+    assert status["strict_governance_excluded_non_strict_rows"] == 5
+    assert status["strict_governance_exclusion_reason_counts"] == {
+        "NON_STRICT_PAPER_TIER": 5,
+        "COUNTS_AS_STRICT_PREEMPTIVE_EVIDENCE_FALSE": 5,
+        "COUNTS_AS_A_PLUS_EVIDENCE_FALSE": 5,
+    }
+    assert status["state"] == "ACTIVE"
+    assert paper_loop._paper_strict_governance_exclusion_reasons(rows[0]) == [  # noqa: SLF001
+        "NON_STRICT_PAPER_TIER",
+        "COUNTS_AS_STRICT_PREEMPTIVE_EVIDENCE_FALSE",
+        "COUNTS_AS_A_PLUS_EVIDENCE_FALSE",
+    ]
+
+
+def test_bootstrap_reduced_size_rows_do_not_govern_strict_performance() -> None:
+    rows = [
+        _strict_governance_close(
+            trainer_feedback_id=f"bootstrap-{idx}",
+            source_tier=paper_loop.PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE,
+        )
+        for idx in range(5)
+    ]
+
+    assert paper_loop._paper_performance_source_rows(rows) == []  # noqa: SLF001
+    assert "NON_STRICT_PAPER_TIER" in paper_loop._paper_strict_governance_exclusion_reasons(rows[0])  # noqa: SLF001
+
+
+def test_reconstructed_rows_do_not_govern_strict_performance() -> None:
+    rows = [
+        _strict_governance_close(
+            trainer_feedback_id=f"reconstructed-{idx}",
+            trust_reconstructed=True,
+        )
+        for idx in range(5)
+    ]
+
+    assert paper_loop._paper_performance_source_rows(rows) == []  # noqa: SLF001
+    assert "RECONSTRUCTED_OR_ARCHIVE_ROW" in paper_loop._paper_strict_governance_exclusion_reasons(rows[0])  # noqa: SLF001
+
+
+def test_strict_rows_still_govern_strict_performance() -> None:
+    rows = [
+        _strict_governance_close(trainer_feedback_id=f"strict-loss-{idx}")
+        for idx in range(5)
+    ]
+
+    source_rows = paper_loop._paper_performance_source_rows(rows)  # noqa: SLF001
+    status = paper_loop._paper_performance_circuit_breaker_status(rows)  # noqa: SLF001
+
+    assert len(source_rows) == 5
+    assert status["governed_closed_rows"] == 5
+    assert status["state"] == "HALTED_PERFORMANCE"
+    assert "CLOSED_5_EXPECTANCY_NON_POSITIVE" in status["block_reasons"]
+
+
+def test_non_strict_rows_still_feed_trainer_feedback() -> None:
+    close = _strict_governance_close(
+        trainer_feedback_id="exploration-feedback",
+        prediction_id="pred-exploration-feedback",
+        signal_id="sig-exploration-feedback",
+        position_id="paper_pos_exploration_feedback",
+        paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        counts_as_strict_preemptive_evidence=False,
+        counts_as_a_plus_evidence=False,
+        feature_cutoff="2026-07-11T04:55:00Z",
+        available_at="2026-07-11T04:56:00Z",
+        decision_time="2026-07-11T04:57:00Z",
+        selected_action_probability=0.72,
+        policy_value=0.10,
+        realized_net_pnl_bps=8.0,
+        realized_net_pnl_usd=0.8,
+    )
+
+    rows = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close],
+        outcome_labels=[
+            {
+                "trainer_feedback_id": "exploration-feedback",
+                "prediction_id": "pred-exploration-feedback",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "outcome_targets": {
+                    "directional_outcome": "UP",
+                    "realized_net_pnl_bps": 8.0,
+                },
+            }
+        ],
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["trainer_feedback_id"] == "exploration-feedback"
+    assert rows[0]["paper_only"] is True
+    assert rows[0]["routes_to_live"] is False
+    assert rows[0]["places_real_order"] is False
+
+
+def test_non_strict_rows_still_show_in_paper_analytics() -> None:
+    row = _strict_governance_close(
+        paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        counts_as_strict_preemptive_evidence=False,
+        counts_as_a_plus_evidence=False,
+    )
+
+    counts = paper_loop._closed_trade_side_counts({"closed_trades": [row]})  # noqa: SLF001
+
+    assert counts == {"long": 1, "short": 0}
+    assert paper_loop._paper_performance_source_rows([row]) == []  # noqa: SLF001
+
+
+def test_a_plus_live_gates_unchanged() -> None:
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal={
+            "selected_action": "long",
+            "confidence_calibrated": 0.95,
+            "expected_move_after_cost_bps": 50.0,
+        },
+        intent={
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "side": "long",
+            "confidence_calibrated": 0.95,
+            "expected_move_after_cost_bps": 50.0,
+            "policy_sampled_paper_exploration_candidate": True,
+            "paper_fill_allowed": False,
+            "paper_fill_gate_block_reasons": [
+                "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY",
+                "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            ],
+        },
+        allocation=_allowed_allocation(
+            confidence_calibrated=0.95,
+            expected_move_after_cost_bps=50.0,
+            expected_net_pnl_usd=1.0,
+            expected_max_loss_usd=0.5,
+        ),
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        bucket_quarantine_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+            "quarantined_buckets": [
+                {
+                    "bucket_key": "side:long",
+                    "bucket_type": "side",
+                    "closed_outcome_count": 5,
+                    "block_reasons": ["NEGATIVE_EXPECTANCY_SIDE_BUCKET"],
+                }
+            ],
+        },
+        high_confidence_loss_cluster_gate={
+            "cluster_detected": False,
+            "bucket_specific_recovery_enabled": True,
+        },
+        preemptive_decision=_preemptive_allow_decision(
+            expected_edge_after_cost_bps=50.0,
+            pre_trade_loss_probability=0.35,
+        ),
+    )
+
+    assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["paper_exploration_counts_as_A_plus"] is False
+    assert classification["paper_exploration_counts_as_live_ready"] is False
+
+
+def test_paper_exploration_supply_bridge_refresh_publishes_status() -> None:
+    redis = _FakeRedis({})
+
+    def inventory_builder(**kwargs):
+        assert kwargs["client"] is redis
+        return {
+            "summary": {
+                "generated_utc": "2026-07-10T03:28:29.000Z",
+                "total_candidate_count": 1,
+                "paper_exploration_materialization_queue_status": {
+                    "same_cycle_candidate_count": 1,
+                    "same_cycle_exploration_accepted_count": 0,
+                    "same_cycle_materialized_count": 0,
+                    "queued_count": 1,
+                    "expired_count": 0,
+                    "counterfactual_count": 0,
+                    "prequeue_rejected_count": 0,
+                    "prequeue_counterfactual_count": 0,
+                    "max_accept_to_materialization_ms": 25,
+                },
+                "hard_fail": False,
+            },
+            "rows": [
+                {
+                    "candidate_id": "hyp-bridge",
+                    "source_runtime_key": "v2:strategy_supply:hypotheses:BTCUSDT:15m",
+                    "strategy_supply_hypothesis": True,
+                    "stale_prediction": False,
+                    "side": "long",
+                    "expected_net_pnl_usd": 1.25,
+                    "paper_risk_controller_exploration_above_floor": True,
+                }
+            ],
+        }
+
+    status = paper_loop._paper_exploration_supply_bridge_refresh(  # noqa: SLF001
+        redis,
+        generated_utc="2026-07-10T03:28:30.000Z",
+        live_context={"live_gate": "blocked_human_only"},
+        entry_freeze_status={"status": "CLEAR"},
+        inventory_builder=inventory_builder,
+    )
+
+    assert status["active"] is True
+    assert status["fresh_strategy_supply_rows"] == 1
+    assert status["fresh_exploration_candidates"] == 1
+    assert status["strategy_supply_bridge_rows_written"] == 1
+    assert status["live_gate"] == "blocked_human_only"
+    assert status["routes_to_live"] is False
+    supply_payload = json.loads(
+        redis.payloads["v2:paper:exploration:supply_status"]
+    )
+    materialization_payload = json.loads(
+        redis.payloads["v2:paper:exploration:materialization_status"]
+    )
+    assert supply_payload["active"] is True
+    assert materialization_payload["fresh_exploration_candidates"] == 1
+    assert materialization_payload["same_cycle_candidate_count"] == 1
+    assert materialization_payload["same_cycle_exploration_accepted_count"] == 0
+    assert materialization_payload["same_cycle_materialized_count"] == 0
+    assert materialization_payload["queued_count"] == 1
+    assert materialization_payload["counterfactual_count"] == 0
+    assert materialization_payload["max_accept_to_materialization_ms"] == 25
+    assert materialization_payload["exact_no_fill_reason"] == (
+        "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
+    )
+    assert materialization_payload["queue_resolution_state"] == (
+        "ACTIVE_REVALIDATION_IN_PROGRESS"
+    )
+    assert materialization_payload["places_real_order"] is False
+
+
+def test_paper_exploration_supply_bridge_consumes_existing_queue_before_refresh() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_v1",
+                "generated_utc": "2026-07-10T03:28:29.000Z",
+                "rows": [
+                    {
+                        "queue_id": "paper_exploration_materialize_hyp-existing",
+                        "candidate_id": "hyp-existing",
+                        "prediction_id": "hyp-existing",
+                        "signal_id": "hyp-existing",
+                        "symbol": "BTCUSDT",
+                        "timeframe": "15m",
+                        "side": "long",
+                        "paper_only": True,
+                        "routes_to_live": False,
+                        "places_real_order": False,
+                    }
+                ],
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        }
+    )
+
+    def inventory_builder(**kwargs):  # pragma: no cover - must not be called
+        raise AssertionError(f"inventory refresh should be skipped: {kwargs}")
+
+    status = paper_loop._paper_exploration_supply_bridge_refresh(  # noqa: SLF001
+        redis,
+        generated_utc="2026-07-10T03:28:30.000Z",
+        live_context={"live_gate": "blocked_human_only"},
+        entry_freeze_status={"status": "CLEAR"},
+        inventory_builder=inventory_builder,
+    )
+
+    assert status["status"] == "ACTIVE_EXISTING_MATERIALIZATION_QUEUE_CONSUMED_FIRST"
+    assert status["existing_materialization_queue_consumed_first"] is True
+    assert status["strategy_supply_bridge_rows_written"] == 1
+    assert status["paper_loop_rows_after_bridge"] == 1
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    supply_payload = json.loads(
+        redis.payloads["v2:paper:exploration:supply_status"]
+    )
+    assert supply_payload["existing_materialization_queue_consumed_first"] is True
+    assert (
+        supply_payload["materialization_queue_status"][
+            "existing_materialization_queue_consumed_first"
+        ]
+        is True
+    )
+
+
+def test_paper_exploration_queue_cycle_retains_active_signal_lineage() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "rows": [
+                    {
+                        "queue_id": "paper_exploration_materialize_hyp-1",
+                        "candidate_id": "hyp-1",
+                        "prediction_id": "hyp-1",
+                        "signal_id": "hyp-1",
+                        "symbol": "BTCUSDT",
+                        "timeframe": "15m",
+                        "side": "long",
+                        "accepted_at": "2026-07-10T03:28:29.000Z",
+                        "expires_at": "2026-07-10T03:30:29.000Z",
+                        "expected_net_pnl_usd": 1.2,
+                        "expected_max_loss_usd": 0.4,
+                        "paper_signal": {
+                            "candidate_id": "hyp-1",
+                            "prediction_id": "hyp-1",
+                            "signal_id": "hyp-1",
+                            "symbol": "BTCUSDT",
+                            "timeframe": "15m",
+                            "side": "long",
+                            "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
+                            "market_state_id": "strategy_supply_market_state:hyp-1",
+                            "valid_for_paper": True,
+                            "market_state_integrity_score": 91.0,
+                            "entry_feature_snapshot_id": "snap_hyp_1",
+                            "entry_feature_available_at": "2026-07-10T03:27:58.000Z",
+                            "entry_feature_generated_at": "2026-07-10T03:27:59.000Z",
+                            "entry_feature_cutoff": "2026-07-10T03:14:59.999Z",
+                            "entry_feature_decision_time": "2026-07-10T03:28:00.000Z",
+                            "paper_only": True,
+                            "routes_to_live": False,
+                            "places_real_order": False,
+                            "counts_as_A_plus": False,
+                            "counts_as_live_ready": False,
+                        },
+                    }
+                ]
+            }
+        }
+    )
+
+    status = paper_loop._paper_exploration_materialization_queue_cycle_status(  # noqa: SLF001
+        redis,
+        now=datetime(2026, 7, 10, 3, 28, 30, tzinfo=timezone.utc),
+        generated_utc="2026-07-10T03:28:30.000Z",
+    )
+
+    assert status["queued_count"] == 1
+    active_row = status["_active_queue_rows"][0]
+    assert active_row["queue_id"] == "paper_exploration_materialize_hyp-1"
+    assert active_row["paper_only"] is True
+    assert active_row["routes_to_live"] is False
+    assert active_row["places_real_order"] is False
+    assert active_row["counts_as_A_plus"] is False
+    assert active_row["counts_as_live_ready"] is False
+    active_signal = status["_active_signal_rows"][0]
+    assert active_signal["materialization_queue_id"] == (
+        "paper_exploration_materialize_hyp-1"
+    )
+    assert active_signal["source_prediction_status"] == "CURRENT_RUNTIME_PAPER_SIGNAL"
+    assert active_signal["entry_feature_snapshot_id"] == "snap_hyp_1"
+    assert active_signal["routes_to_live"] is False
+    assert active_signal["places_real_order"] is False
+
+
+def test_materialization_queue_signal_uses_materialization_queue_id_without_queue_id() -> None:
+    signal = paper_loop._paper_exploration_queue_signal(  # noqa: SLF001
+        {
+            "candidate_id": "hyp-no-queue-id",
+            "prediction_id": "hyp-no-queue-id",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-no-queue-id",
+            "symbol": "SOLUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "selected_action": "long",
+            "accepted_at": "2026-07-10T03:28:29.000Z",
+            "expires_at": "2026-07-10T03:43:29.000Z",
+            "confidence_executable_trade": 0.81,
+            "dynamic_exploration_floor": 0.66,
+            "paper_risk_controller_exploration_above_floor": True,
+        }
+    )
+
+    assert signal["materialization_queue_id"] == (
+        "paper_exploration_materialize_hyp-no-queue-id"
+    )
+    assert paper_loop._paper_exploration_queue_row_matches(  # noqa: SLF001
+        {"materialization_queue_id": "paper_exploration_materialize_hyp-no-queue-id"},
+        signal,
+    )
+    assert signal["paper_only"] is True
+    assert signal["routes_to_live"] is False
+    assert signal["places_real_order"] is False
+
+
+def test_paper_exploration_queue_counterfactual_preserves_decisions_and_lineage() -> None:
+    feedback = paper_loop._paper_exploration_queue_counterfactual(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-1",
+            "candidate_id": "hyp-1",
+            "prediction_id": "hyp-1",
+            "signal_id": "sig-hyp-1",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "risk_decision_id": "risk-hyp-1",
+            "orchestrator_decision_id": "orch-hyp-1",
+            "allocator_decision_id": "alloc-hyp-1",
+            "preemptive_decision_id": "preemptive-hyp-1",
+            "pre_trade_loss_probability": 0.81,
+            "paper_risk_controller_exploration_loss_probability_bound": 0.64,
+            "paper_risk_controller_exploration_min_exit_feasibility": 0.55,
+            "exit_feasibility_score": 0.61,
+            "risk_block_reasons": [
+                "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+            ],
+            "expected_net_pnl_usd": 1.2,
+            "expected_max_loss_usd": 0.4,
+            "current_price": 65000.0,
+            "recommended_notional_usd": 10.0,
+            "recommended_leverage": 1.0,
+            "recommended_margin_mode": "isolated",
+            "liquidation_buffer_usd": 50.0,
+            "exit_plan": {"max_loss_usd": 0.4, "stop_price": 64800.0},
+            "hedge_plan": {"required": False},
+            "provider_hashes": {"microstructure": "provider-hash"},
+            "feature_vector_hash": "feature-hash",
+            "entry_feature_snapshot_id": "v2_fsnap_current",
+            "entry_feature_snapshot_requested_id": "snap_missing",
+            "entry_feature_snapshot_fallback_used": True,
+            "entry_feature_snapshot_resolution_status": (
+                "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
+            ),
+            "entry_feature_available_at": "2026-07-10T03:27:58.000Z",
+            "entry_feature_generated_at": "2026-07-10T03:27:58.000Z",
+            "entry_feature_cutoff": "2026-07-10T03:14:59.999Z",
+            "entry_feature_decision_time": "2026-07-10T03:28:00.000Z",
+            "entry_feature_source": "v2:features:latest:BTCUSDT:15m",
+            "entry_feature_candle_closed_confirmed": True,
+            "paper_performance_circuit_breaker_block_reasons": [
+                "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY"
+            ],
+            "paper_performance_circuit_breaker_candidate_bucket_keys": [
+                "side:short",
+                "timeframe:4h",
+            ],
+            "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+            "paper_performance_circuit_breaker_matched_blocked_bucket_proof": [],
+            "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+                "loss_cluster_side:short"
+            ],
+            "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:short"],
+            "paper_performance_circuit_breaker_advisory_bucket_proof": [
+                {
+                    "bucket_key": "side:short",
+                    "classification": "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
+                    "closed_outcome_count": 3,
+                    "profit_factor": 0.7,
+                    "proof_status": "BUCKET_METADATA_PRESENT",
+                }
+            ],
+            "paper_performance_circuit_breaker_advisory_loss_cluster_keys": [
+                "loss_cluster_timeframe:4h"
+            ],
+            "paper_performance_circuit_global_halt_only": False,
+            "paper_risk_controller_exploration_broad_quarantine_size_cap_required": True,
+            "raw_safety_fields": {
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            },
+            "invariant_checks": {
+                "paper_only_is_true": True,
+                "routes_to_live_is_false": True,
+                "places_real_order_is_false": True,
+            },
+        },
+        generated_utc="2026-07-10T03:28:30.000Z",
+        reason="MARKET_INTEGRITY_BLOCKED_AFTER_QUEUE_CONSUMPTION",
+        exact_reasons=["runtime_market_evidence:ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED"],
+    )
+
+    assert feedback["risk_decision"] == "PASS"
+    assert feedback["risk_decision_id"] == "risk-hyp-1"
+    assert feedback["orchestrator_decision"] == "PASS"
+    assert feedback["orchestrator_decision_id"] == "orch-hyp-1"
+    assert feedback["allocator_decision"] == "PASS"
+    assert feedback["allocator_decision_id"] == "alloc-hyp-1"
+    assert feedback["preemptive_decision_id"] == "preemptive-hyp-1"
+    assert feedback["pre_trade_loss_probability"] == 0.81
+    assert feedback["paper_risk_controller_exploration_loss_probability_bound"] == 0.64
+    assert feedback["paper_risk_controller_exploration_min_exit_feasibility"] == 0.55
+    assert feedback["exit_feasibility_score"] == 0.61
+    assert feedback["risk_block_reasons"] == [
+        "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+    ]
+    assert feedback["expected_net_pnl_usd"] == 1.2
+    assert feedback["expected_max_loss_usd"] == 0.4
+    assert feedback["current_price"] == 65000.0
+    assert feedback["recommended_notional_usd"] == 10.0
+    assert feedback["recommended_leverage"] == 1.0
+    assert feedback["recommended_margin_mode"] == "isolated"
+    assert feedback["liquidation_buffer_usd"] == 50.0
+    assert feedback["exit_plan"] == {"max_loss_usd": 0.4, "stop_price": 64800.0}
+    assert feedback["hedge_plan"] == {"required": False}
+    assert feedback["provider_hashes"] == {"microstructure": "provider-hash"}
+    assert feedback["feature_vector_hash"] == "feature-hash"
+    assert feedback["entry_feature_snapshot_id"] == "v2_fsnap_current"
+    assert feedback["entry_feature_snapshot_requested_id"] == "snap_missing"
+    assert feedback["entry_feature_snapshot_fallback_used"] is True
+    assert feedback["entry_feature_snapshot_resolution_status"] == (
+        "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
+    )
+    assert feedback["entry_feature_candle_closed_confirmed"] is True
+    assert feedback["paper_performance_circuit_breaker_block_reasons"] == [
+        "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY"
+    ]
+    assert feedback["paper_performance_circuit_breaker_candidate_bucket_keys"] == [
+        "side:short",
+        "timeframe:4h",
+    ]
+    assert feedback["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert (
+        feedback["paper_performance_circuit_breaker_matched_blocked_bucket_proof"]
+        == []
+    )
+    assert feedback["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
+        "loss_cluster_side:short"
+    ]
+    assert feedback["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
+        "side:short"
+    ]
+    assert feedback["paper_performance_circuit_breaker_advisory_bucket_proof"] == [
+        {
+            "bucket_key": "side:short",
+            "classification": "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
+            "closed_outcome_count": 3,
+            "profit_factor": 0.7,
+            "proof_status": "BUCKET_METADATA_PRESENT",
+        }
+    ]
+    assert feedback["paper_performance_circuit_breaker_advisory_loss_cluster_keys"] == [
+        "loss_cluster_timeframe:4h"
+    ]
+    assert feedback["paper_performance_circuit_global_halt_only"] is False
+    assert feedback[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert feedback["raw_safety_fields"]["routes_to_live"] is False
+    assert feedback["invariant_checks"]["routes_to_live_is_false"] is True
+    assert feedback["future_label_pending"] is True
+    assert feedback["trainer_consumable"] is False
+    assert feedback["counts_as_A_plus"] is False
+    assert feedback["counts_as_live_ready"] is False
+    assert feedback["routes_to_live"] is False
+    assert feedback["places_real_order"] is False
+
+
+def test_paper_exploration_queue_counterfactual_falls_back_to_decision_ids() -> None:
+    feedback = paper_loop._paper_exploration_queue_counterfactual(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-compact",
+            "candidate_id": "hyp-compact",
+            "prediction_id": "hyp-compact",
+            "symbol": "ETHUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "paper_signal": {
+                "candidate_id": "hyp-compact",
+                "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
+                "pre_trade_loss_probability": 0.92,
+                "loss_probability_reason": (
+                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+                ),
+                "loss_probability_reasons": [
+                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+                    "CALIBRATION_PENALTY:microstructure_trust_below_allocator_minimum",
+                ],
+                "loss_probability_calibration": {
+                    "adjusted_loss_probability": 0.92,
+                    "base_loss_probability": 0.84,
+                    "penalties": {
+                        "microstructure_trust_below_allocator_minimum": 0.08,
+                    },
+                },
+            },
+            "risk_decision_id": "rd_dec_hyp_compact",
+            "risk_decision_record_key": "v2:decision:risk:rd_dec_hyp_compact",
+            "risk_decision_record_hash": "risk-hash-compact",
+            "risk_decision_record_resolved": True,
+            "risk_decision_source": "PER_ID_DECISION_RECORD",
+            "orchestrator_decision_id": "dec_hyp_compact",
+            "orchestrator_decision_record_key": (
+                "v2:decision:orchestrator:dec_hyp_compact"
+            ),
+            "orchestrator_decision_record_hash": "orch-hash-compact",
+            "orchestrator_decision_record_resolved": True,
+            "orchestrator_decision_source": "PER_ID_DECISION_RECORD",
+            "decision_record_missing_reasons": [],
+            "allocator_decision_id": "allocsim_hyp_compact",
+            "preemptive_decision_id": "pec_hyp_compact",
+            "paper_risk_controller_exploration_loss_probability_bound": 0.72,
+            "expected_net_pnl_usd": 0.37,
+            "expected_max_loss_usd": 0.67,
+            "current_price": 1790.0,
+            "provider_hashes": {"latest": "provider-hash"},
+            "feature_vector_hash": "feature-hash",
+        },
+        generated_utc="2026-07-10T10:10:31.000Z",
+        reason="TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+    )
+
+    assert feedback["risk_decision_id"] == "rd_dec_hyp_compact"
+    assert feedback["risk_decision"] == "PASS"
+    assert feedback["risk_decision_record_key"] == "v2:decision:risk:rd_dec_hyp_compact"
+    assert feedback["risk_decision_record_hash"] == "risk-hash-compact"
+    assert feedback["risk_decision_record_resolved"] is True
+    assert feedback["risk_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert feedback["orchestrator_decision_id"] == "dec_hyp_compact"
+    assert feedback["orchestrator_decision"] == "PASS"
+    assert (
+        feedback["orchestrator_decision_record_key"]
+        == "v2:decision:orchestrator:dec_hyp_compact"
+    )
+    assert feedback["orchestrator_decision_record_hash"] == "orch-hash-compact"
+    assert feedback["orchestrator_decision_record_resolved"] is True
+    assert feedback["orchestrator_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert feedback["decision_record_missing_reasons"] == []
+    assert feedback["allocator_decision_id"] == "allocsim_hyp_compact"
+    assert feedback["allocator_decision"] == "PASS"
+    assert feedback["preemptive_decision_id"] == "pec_hyp_compact"
+    assert feedback["pre_trade_loss_probability"] == 0.92
+    assert feedback["loss_probability_reason"] == "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+    assert feedback["loss_probability_reasons"] == [
+        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+        "CALIBRATION_PENALTY:microstructure_trust_below_allocator_minimum",
+    ]
+    assert feedback["loss_probability_calibration"]["adjusted_loss_probability"] == 0.92
+    assert feedback["routes_to_live"] is False
+    assert feedback["places_real_order"] is False
+    assert feedback["counts_as_A_plus"] is False
+    assert feedback["counts_as_live_ready"] is False
+
+
+def test_paper_exploration_queue_counterfactual_prefers_runtime_block_decision() -> None:
+    feedback = paper_loop._paper_exploration_queue_counterfactual(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-runtime-block",
+            "candidate_id": "hyp-runtime-block",
+            "prediction_id": "hyp-runtime-block",
+            "symbol": "VIRTUALUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "paper_signal": {
+                "candidate_id": "hyp-runtime-block",
+                "allocator_decision_id": "alloc-source",
+                "allocator_decision": "PASS",
+            },
+            "allocator_decision_id": "alloc-runtime",
+            "allocator_decision": "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+            "risk_decision_id": "risk-runtime",
+            "risk_decision": "PASS",
+            "orchestrator_decision_id": "orch-runtime",
+            "orchestrator_decision": "PASS",
+        },
+        generated_utc="2026-07-10T10:10:31.000Z",
+        reason="TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        exact_reasons=["LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"],
+    )
+
+    assert feedback["allocator_decision_id"] == "alloc-runtime"
+    assert feedback["allocator_decision"] == "BLOCK_NON_EXECUTABLE_PAPER_TIER"
+    assert feedback["risk_decision"] == "PASS"
+    assert feedback["orchestrator_decision"] == "PASS"
+    assert feedback["routes_to_live"] is False
+    assert feedback["places_real_order"] is False
+    assert feedback["counts_as_A_plus"] is False
+    assert feedback["counts_as_live_ready"] is False
+
+
+def test_paper_exploration_runtime_feedback_context_preserves_resolved_snapshot() -> None:
+    context = paper_loop._paper_exploration_queue_runtime_feedback_context(  # noqa: SLF001
+        {"queue_id": "paper_exploration_materialize_hyp-1"},
+        [
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-1",
+                "risk_decision": "PASS",
+                "risk_decision_id": "rd_dec_hyp-1",
+                "orchestrator_decision": "PASS",
+                "orchestrator_decision_id": "dec_hyp-1",
+                "allocator_decision": "PASS",
+                "allocator_decision_id": "allocsim_hyp-1",
+                "entry_feature_snapshot_id": "v2_fsnap_current",
+                "entry_feature_snapshot_requested_id": "snap_missing",
+                "entry_feature_snapshot_fallback_used": True,
+                "entry_feature_snapshot_resolution_status": (
+                    "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
+                ),
+                "entry_feature_candle_closed_confirmed": True,
+                "paper_performance_circuit_breaker_candidate_bucket_keys": [
+                    "side:short"
+                ],
+                "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+                    "loss_cluster_side:short"
+                ],
+                "paper_performance_circuit_global_halt_only": False,
+                "pre_trade_loss_probability": 0.79,
+                "loss_probability_reason": (
+                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+                ),
+                "loss_probability_reasons": [
+                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+                ],
+                "loss_probability_calibration": {
+                    "adjusted_loss_probability": 0.79,
+                },
+                "paper_risk_controller_exploration_loss_probability_bound": 0.62,
+                "risk_block_reasons": [
+                    "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+                ],
+                "places_real_order": True,
+            }
+        ],
+    )
+
+    assert context == {
+        "risk_decision": "PASS",
+        "risk_decision_id": "rd_dec_hyp-1",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "dec_hyp-1",
+        "allocator_decision": "PASS",
+        "allocator_decision_id": "allocsim_hyp-1",
+        "entry_feature_snapshot_id": "v2_fsnap_current",
+        "entry_feature_snapshot_requested_id": "snap_missing",
+        "entry_feature_snapshot_fallback_used": True,
+        "entry_feature_snapshot_resolution_status": (
+            "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
+        ),
+        "entry_feature_candle_closed_confirmed": True,
+        "paper_performance_circuit_breaker_candidate_bucket_keys": ["side:short"],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+            "loss_cluster_side:short"
+        ],
+        "paper_performance_circuit_global_halt_only": False,
+        "pre_trade_loss_probability": 0.79,
+        "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+        "loss_probability_reasons": [
+            "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+        ],
+        "loss_probability_calibration": {
+            "adjusted_loss_probability": 0.79,
+        },
+        "paper_risk_controller_exploration_loss_probability_bound": 0.62,
+        "risk_block_reasons": [
+            "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+        ],
+    }
+
+
+def test_paper_exploration_rejected_row_applies_decision_label_fallbacks() -> None:
+    row = {
+        "risk_decision_id": "rd_dec_hyp-public",
+        "orchestrator_decision_id": "dec_hyp-public",
+        "allocator_decision_id": "allocsim_hyp-public",
+    }
+
+    paper_loop._paper_exploration_apply_decision_label_fallbacks(row)  # noqa: SLF001
+
+    assert row["risk_decision"] == "PASS"
+    assert row["orchestrator_decision"] == "PASS"
+    assert row["allocator_decision"] == "PASS"
+
+
+def test_compact_rows_preserve_per_id_decision_record_lineage() -> None:
+    compact = paper_loop._compact_rows_for_state(  # noqa: SLF001
+        [
+            {
+                "candidate_id": "hyp-record-lineage",
+                "symbol": "VIRTUALUSDT",
+                "timeframe": "15m",
+                "risk_decision_id": "rd_dec_hyp-record-lineage",
+                "risk_decision_record_key": (
+                    "v2:decision:risk:rd_dec_hyp-record-lineage"
+                ),
+                "risk_decision_record_hash": "risk-hash-lineage",
+                "risk_decision_record_resolved": True,
+                "risk_decision_source": "PER_ID_DECISION_RECORD",
+                "orchestrator_decision_id": "dec_hyp-record-lineage",
+                "orchestrator_decision_record_key": (
+                    "v2:decision:orchestrator:dec_hyp-record-lineage"
+                ),
+                "orchestrator_decision_record_hash": "orch-hash-lineage",
+                "orchestrator_decision_record_resolved": True,
+                "orchestrator_decision_source": "PER_ID_DECISION_RECORD",
+                "decision_record_missing_reasons": [],
+            }
+        ]
+    )[0]
+
+    assert compact["risk_decision_record_key"] == (
+        "v2:decision:risk:rd_dec_hyp-record-lineage"
+    )
+    assert compact["risk_decision_record_hash"] == "risk-hash-lineage"
+    assert compact["risk_decision_record_resolved"] is True
+    assert compact["risk_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert compact["orchestrator_decision_record_key"] == (
+        "v2:decision:orchestrator:dec_hyp-record-lineage"
+    )
+    assert compact["orchestrator_decision_record_hash"] == "orch-hash-lineage"
+    assert compact["orchestrator_decision_record_resolved"] is True
+    assert compact["orchestrator_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert compact["decision_record_missing_reasons"] == []
+
+
+def test_paper_exploration_remaining_queue_removes_resolved_rows() -> None:
+    rows, signals = paper_loop._paper_exploration_remaining_queue_after_resolution(  # noqa: SLF001
+        active_queue_rows=[
+            {"queue_id": "paper_exploration_materialize_hyp-rejected"},
+            {"queue_id": "paper_exploration_materialize_hyp-materialized"},
+            {"queue_id": "paper_exploration_materialize_hyp-still-active"},
+        ],
+        active_queue_signals=[
+            {"materialization_queue_id": "paper_exploration_materialize_hyp-rejected"},
+            {"materialization_queue_id": "paper_exploration_materialize_hyp-materialized"},
+            {"materialization_queue_id": "paper_exploration_materialize_hyp-still-active"},
+        ],
+        resolved_queue_ids={
+            "paper_exploration_materialize_hyp-rejected",
+            "paper_exploration_materialize_hyp-materialized",
+        },
+    )
+
+    assert rows == [{"queue_id": "paper_exploration_materialize_hyp-still-active"}]
+    assert signals == [
+        {"materialization_queue_id": "paper_exploration_materialize_hyp-still-active"}
+    ]
+
+
+def test_paper_exploration_materialized_queue_ids_require_safe_exploration_rows() -> None:
+    ids = paper_loop._paper_exploration_materialized_queue_ids_from_rows(  # noqa: SLF001
+        [
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-safe",
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "counts_as_A_plus": False,
+                "counts_as_live_ready": False,
+            },
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-live",
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "paper_only": True,
+                "routes_to_live": True,
+            },
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-a-plus",
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "paper_only": True,
+                "counts_as_A_plus": True,
+            },
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-other",
+                "paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER",
+                "paper_only": True,
+            },
+        ]
+    )
+
+    assert ids == {"paper_exploration_materialize_hyp-safe"}
+
+
+def test_current_cycle_materialized_queue_ids_exclude_persistent_accepted_fills() -> None:
+    old_persistent_fill = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-old",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_live_ready": False,
+    }
+    current_fill = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-current",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_live_ready": False,
+    }
+
+    ids = paper_loop._paper_exploration_current_cycle_materialized_queue_ids(  # noqa: SLF001
+        open_position_rows=[old_persistent_fill],
+        current_accepted_rows=[current_fill],
+        current_queue_accepted_ids={"paper_exploration_materialize_hyp-current"},
+    )
+
+    assert ids == {"paper_exploration_materialize_hyp-current"}
+
+
+def test_materialization_queue_status_preserves_prequeue_feedback_truth() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_v1",
+                "generated_utc": "2026-07-10T15:38:51.000Z",
+                "queue_published_at": "2026-07-10T15:38:51.000Z",
+                "inventory_generated_utc": "2026-07-10T15:38:09.000Z",
+                "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+                "rows": [],
+            },
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_status_v1",
+                "generated_utc": "2026-07-10T15:38:51.000Z",
+                "prequeue_rejected_count": 4,
+                "prequeue_counterfactual_count": 4,
+                "prequeue_counterfactual_key": (
+                    paper_loop.PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY
+                ),
+                "prequeue_rejected_reason_counts": {
+                    "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m": 1
+                },
+                "prequeue_rejected_rows": [
+                    {
+                        "candidate_id": "hyp-prequeue",
+                        "symbol": "CRVUSDT",
+                        "timeframe": "15m",
+                        "side": "long",
+                        "block_reasons": [
+                            "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m"
+                        ],
+                        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
+                            "side_timeframe:long|15m"
+                        ],
+                        "paper_performance_circuit_breaker_matched_blocked_bucket_proof": [
+                            {
+                                "bucket_key": "side_timeframe:long|15m",
+                                "classification": "HARD_BLOCK_FOR_PAPER_EXPLORATION",
+                                "closed_outcome_count": 2,
+                                "profit_factor": 0.0,
+                                "proof_status": "BUCKET_METADATA_PRESENT",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+    )
+
+    status = paper_loop._paper_exploration_materialization_queue_cycle_status(  # noqa: SLF001
+        redis,
+        now=datetime(2026, 7, 10, 15, 40, tzinfo=timezone.utc),
+        generated_utc="2026-07-10T15:40:00.000Z",
+    )
+
+    assert status["queue_rows_seen"] == 0
+    assert status["source_queue_generated_utc"] == "2026-07-10T15:38:51.000Z"
+    assert status["queue_published_at"] == "2026-07-10T15:38:51.000Z"
+    assert status["inventory_generated_utc"] == "2026-07-10T15:38:09.000Z"
+    assert status["accepted_at_semantics"] == "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED"
+    assert status["prequeue_rejected_count"] == 4
+    assert status["prequeue_counterfactual_count"] == 4
+    assert status["prequeue_status_preserved_from_inventory_generated_utc"] == (
+        "2026-07-10T15:38:51.000Z"
+    )
+    written = json.loads(
+        redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY]
+    )
+    assert written["prequeue_rejected_count"] == 4
+    assert written["queue_published_at"] == "2026-07-10T15:38:51.000Z"
+    assert written["inventory_generated_utc"] == "2026-07-10T15:38:09.000Z"
+    assert written["accepted_at_semantics"] == "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED"
+    assert written["prequeue_counterfactual_count"] == 4
+    assert written["prequeue_rejected_rows"][0][
+        "paper_performance_circuit_breaker_matched_blocked_bucket_proof"
+    ] == [
+        {
+            "bucket_key": "side_timeframe:long|15m",
+            "classification": "HARD_BLOCK_FOR_PAPER_EXPLORATION",
+            "closed_outcome_count": 2,
+            "profit_factor": 0.0,
+            "proof_status": "BUCKET_METADATA_PRESENT",
+        }
+    ]
+
+
+def test_materialization_queue_cycle_preserves_future_source_pending_rows() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_v1",
+                "generated_utc": "2026-07-10T03:28:29.000Z",
+                "rows": [
+                    {
+                        "queue_id": "paper_exploration_materialize_hyp-pending",
+                        "candidate_id": "hyp-pending",
+                        "prediction_id": "hyp-pending",
+                        "signal_id": "hyp-pending",
+                        "symbol": "SOLUSDT",
+                        "timeframe": "5m",
+                        "side": "long",
+                        "accepted_at": "2026-07-10T03:28:29.000Z",
+                        "source_freshness_pending": True,
+                        "source_freshness_time": "2026-07-10T03:29:00.000Z",
+                        "earliest_eligible_decision_time": "2026-07-10T03:29:00.000Z",
+                        "expires_at": "2026-07-10T03:44:00.000Z",
+                        "paper_signal": {
+                            "candidate_id": "hyp-pending",
+                            "prediction_id": "hyp-pending",
+                            "signal_id": "hyp-pending",
+                            "symbol": "SOLUSDT",
+                            "timeframe": "5m",
+                            "side": "long",
+                            "paper_only": True,
+                            "routes_to_live": False,
+                            "places_real_order": False,
+                            "counts_as_A_plus": False,
+                            "counts_as_live_ready": False,
+                            "valid_for_paper": True,
+                        },
+                    }
+                ],
+            }
+        }
+    )
+
+    status = paper_loop._paper_exploration_materialization_queue_cycle_status(  # noqa: SLF001
+        redis,
+        now=datetime(2026, 7, 10, 3, 28, 30, tzinfo=timezone.utc),
+        generated_utc="2026-07-10T03:28:30.000Z",
+    )
+    written_queue = json.loads(
+        redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY]
+    )
+
+    assert status["queued_count"] == 1
+    assert status["active_count"] == 0
+    assert status["pending_source_time_count"] == 1
+    assert status["same_cycle_candidate_count"] == 0
+    assert status["counterfactual_count"] == 0
+    assert status["_active_signal_rows"] == []
+    assert len(status["_pending_source_rows"]) == 1
+    assert written_queue["rows"][0]["materialization_queue_result"] == (
+        "PENDING_SOURCE_TIME_NEXT_CYCLE"
+    )
+    assert len(written_queue["pending_source_rows"]) == 1
+
+
+def test_materialization_queue_cycle_consumes_post_bridge_published_rows_with_current_time() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_v1",
+                "generated_utc": "2026-07-10T03:28:50.000Z",
+                "queue_published_at": "2026-07-10T03:28:50.000Z",
+                "inventory_generated_utc": "2026-07-10T03:28:00.000Z",
+                "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+                "rows": [
+                    {
+                        "queue_id": "paper_exploration_materialize_hyp-post-bridge",
+                        "candidate_id": "hyp-post-bridge",
+                        "prediction_id": "hyp-post-bridge",
+                        "signal_id": "hyp-post-bridge",
+                        "symbol": "SOLUSDT",
+                        "timeframe": "5m",
+                        "side": "long",
+                        "accepted_at": "2026-07-10T03:28:50.000Z",
+                        "expires_at": "2026-07-10T03:43:50.000Z",
+                        "source_freshness_pending": False,
+                        "paper_signal": {
+                            "candidate_id": "hyp-post-bridge",
+                            "prediction_id": "hyp-post-bridge",
+                            "signal_id": "hyp-post-bridge",
+                            "symbol": "SOLUSDT",
+                            "timeframe": "5m",
+                            "side": "long",
+                            "paper_only": True,
+                            "routes_to_live": False,
+                            "places_real_order": False,
+                            "counts_as_A_plus": False,
+                            "counts_as_live_ready": False,
+                            "valid_for_paper": True,
+                        },
+                    }
+                ],
+            }
+        }
+    )
+
+    status = paper_loop._paper_exploration_materialization_queue_cycle_status(  # noqa: SLF001
+        redis,
+        now=datetime(2026, 7, 10, 3, 28, 55, tzinfo=timezone.utc),
+        generated_utc="2026-07-10T03:28:55.000Z",
+    )
+
+    assert status["source_queue_generated_utc"] == "2026-07-10T03:28:50.000Z"
+    assert status["queue_published_at"] == "2026-07-10T03:28:50.000Z"
+    assert status["inventory_generated_utc"] == "2026-07-10T03:28:00.000Z"
+    assert status["accepted_at_semantics"] == "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED"
+    assert status["queued_count"] == 1
+    assert status["active_count"] == 1
+    assert status["same_cycle_candidate_count"] == 1
+    assert status["max_accept_to_materialization_ms"] == 5000
+    assert len(status["_active_signal_rows"]) == 1
+
+
+def test_materialization_queue_resolution_preserves_pending_source_rows() -> None:
+    remaining_active = [
+        {
+            "queue_id": "paper_exploration_materialize_hyp-active-remaining",
+            "candidate_id": "hyp-active-remaining",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    ]
+    pending_source = [
+        {
+            "queue_id": "paper_exploration_materialize_hyp-pending",
+            "candidate_id": "hyp-pending",
+            "source_freshness_pending": True,
+            "earliest_eligible_decision_time": "2026-07-10T03:29:00.000Z",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    ]
+
+    payload = paper_loop._paper_exploration_queue_payload_after_resolution(  # noqa: SLF001
+        remaining_active_queue_rows=remaining_active,
+        pending_source_queue_rows=pending_source,
+        resolved_queue_ids={"paper_exploration_materialize_hyp-resolved"},
+        generated_utc="2026-07-10T03:28:30.000Z",
+    )
+
+    assert payload["rows"] == [*remaining_active, *pending_source]
+    assert payload["pending_source_rows"] == pending_source
+    assert payload["resolved_after_queue_ids"] == [
+        "paper_exploration_materialize_hyp-resolved"
+    ]
+    assert payload["paper_only"] is True
+    assert payload["routes_to_live"] is False
+    assert payload["places_real_order"] is False
+
+
+def test_materialization_status_summary_fields_expose_prequeue_no_fill() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "same_cycle_candidate_count": 0,
+            "same_cycle_exploration_accepted_count": 0,
+            "same_cycle_materialized_count": 0,
+            "queued_count": 0,
+            "expired_count": 0,
+            "counterfactual_count": 2,
+            "rejected_after_queue_counterfactual_count": 1,
+            "prequeue_rejected_count": 7,
+            "prequeue_counterfactual_count": 7,
+            "max_accept_to_materialization_ms": 0,
+        }
+    )
+
+    assert fields["same_cycle_candidate_count"] == 0
+    assert fields["same_cycle_exploration_accepted_count"] == 0
+    assert fields["same_cycle_materialized_count"] == 0
+    assert fields["queued_count"] == 0
+    assert fields["active_count"] == 0
+    assert fields["expired_count"] == 0
+    assert fields["counterfactual_count"] == 10
+    assert fields["queue_counterfactual_count"] == 2
+    assert fields["rejected_after_queue_counterfactual_count"] == 1
+    assert fields["prequeue_rejected_count"] == 7
+    assert fields["prequeue_counterfactual_count"] == 7
+    assert fields["max_accept_to_materialization_ms"] == 0
+    assert fields["exact_no_fill_reason"] == (
+        "ALL_CURRENT_ROWS_PREQUEUE_BLOCKED_WITH_EXACT_REASONS"
+    )
+
+
+def test_materialization_status_summary_fields_marks_active_revalidation_in_progress() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "same_cycle_candidate_count": 4,
+            "same_cycle_exploration_accepted_count": 0,
+            "same_cycle_materialized_count": 0,
+            "queued_count": 4,
+            "active_count": 4,
+            "expired_count": 0,
+            "counterfactual_count": 0,
+            "prequeue_rejected_count": 0,
+            "prequeue_counterfactual_count": 0,
+            "rejected_after_queue_count": 0,
+            "max_accept_to_materialization_ms": 280,
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == (
+        "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
+    )
+    assert fields["queue_resolution_state"] == "ACTIVE_REVALIDATION_IN_PROGRESS"
+
+
+def test_materialization_status_summary_classifies_true_prequeue_blockers() -> None:
+    bucket_fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "prequeue_rejected_count": 2,
+            "prequeue_counterfactual_count": 2,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m": 2
+            },
+        }
+    )
+    mixed_fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "prequeue_rejected_count": 2,
+            "prequeue_counterfactual_count": 2,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m": 1,
+                "MATERIALIZATION_PREQUEUE_EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:short:182.1": 1,
+            },
+        }
+    )
+    mixed_conflict_fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "prequeue_rejected_count": 2,
+            "prequeue_counterfactual_count": 2,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m": 1,
+                "MATERIALIZATION_PREQUEUE_SELECTED_SIDE_ECONOMICS_CONFLICT:"
+                "short:SELECTED_SIDE_NET_USD_POSITIVE_WHILE_EDGE_BPS_NON_POSITIVE": 1,
+            },
+        }
+    )
+
+    assert bucket_fields["exact_no_fill_reason"] == (
+        "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
+    )
+    assert bucket_fields["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m"
+    ]
+    assert mixed_fields["exact_no_fill_reason"] == "MIXED_TRUE_PREQUEUE_BLOCKERS"
+    assert mixed_fields["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m",
+        "MATERIALIZATION_PREQUEUE_EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:short:182.1",
+    ]
+    assert mixed_conflict_fields["exact_no_fill_reason"] == (
+        "MIXED_TRUE_PREQUEUE_BLOCKERS"
+    )
+    assert mixed_conflict_fields["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|15m",
+        "MATERIALIZATION_PREQUEUE_SELECTED_SIDE_ECONOMICS_CONFLICT:"
+        "short:SELECTED_SIDE_NET_USD_POSITIVE_WHILE_EDGE_BPS_NON_POSITIVE",
+    ]
+    assert mixed_conflict_fields["order_submitted"] is False
+    assert mixed_conflict_fields["test_order_submitted"] is False
+    assert mixed_conflict_fields["leverage_mutated"] is False
+    assert mixed_conflict_fields["margin_mutated"] is False
+
+
+def test_materialization_status_summary_collapses_matching_prequeue_and_after_queue_bucket_blocks() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "rejected_after_queue_count": 4,
+            "rejected_after_queue_reason_counts": {
+                "TRUE_BUCKET_SPECIFIC_QUARANTINE_AFTER_QUEUE_CONSUMPTION": 4
+            },
+            "prequeue_rejected_count": 7,
+            "prequeue_counterfactual_count": 7,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side:long": 7
+            },
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
+
+
+def test_public_queue_status_includes_prequeue_exact_no_fill_reason() -> None:
+    public_status = paper_loop._paper_exploration_public_queue_status(  # noqa: SLF001
+        {
+            "schema_version": "paper_exploration_materialization_queue_status_v1",
+            "generated_utc": "2026-07-10T21:22:23.601Z",
+            "queue_rows_seen": 3,
+            "queued_count": 0,
+            "active_count": 0,
+            "pending_source_time_count": 0,
+            "expired_count": 0,
+            "same_cycle_candidate_count": 3,
+            "same_cycle_materialized_count": 0,
+            "prequeue_rejected_count": 8,
+            "prequeue_counterfactual_count": 8,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:"
+                "confidence_regime:0.7-0.8|MICROSTRUCTURE_MOMENTUM": 8,
+                "MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:"
+                "loss_cluster_symbol:INJUSDT": 1,
+            },
+            "_active_queue_rows": [{"candidate_id": "hidden_internal_row"}],
+        }
+    )
+
+    assert "_active_queue_rows" not in public_status
+    assert public_status["exact_no_fill_reason"] == (
+        "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
+    )
+    assert public_status["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:"
+        "confidence_regime:0.7-0.8|MICROSTRUCTURE_MOMENTUM",
+        "MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:"
+        "loss_cluster_symbol:INJUSDT",
+    ]
+    assert public_status["counterfactual_count"] == 8
+    assert public_status["order_submitted"] is False
+    assert public_status["test_order_submitted"] is False
+    assert public_status["leverage_mutated"] is False
+    assert public_status["margin_mutated"] is False
+
+
+def test_materialization_last_cycle_counts_include_prequeue_feedback() -> None:
+    public_status = paper_loop._paper_exploration_public_queue_status(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "expired_count": 1,
+            "unsafe_count": 1,
+            "counterfactual_count": 0,
+            "rejected_after_queue_count": 2,
+            "rejected_after_queue_counterfactual_count": 2,
+            "prequeue_rejected_count": 4,
+            "prequeue_counterfactual_count": 4,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:"
+                "side_timeframe:short|4h": 4,
+            },
+        }
+    )
+
+    assert public_status["counterfactual_count"] == 6
+    recomputed = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        public_status
+    )
+    assert recomputed["queue_counterfactual_count"] == 0
+    assert recomputed["prequeue_counterfactual_count"] == 4
+    assert recomputed["counterfactual_count"] == 6
+    assert paper_loop._paper_exploration_last_cycle_rejected_rows_count(  # noqa: SLF001
+        public_status,
+        blocked_queue_ids={"q1", "q2"},
+    ) == 8
+
+
+def test_materialization_status_summary_classifies_pending_source_next_cycle() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 1,
+            "active_count": 0,
+            "pending_source_time_count": 1,
+            "same_cycle_candidate_count": 0,
+            "same_cycle_materialized_count": 0,
+        }
+    )
+
+    assert fields["queued_count"] == 1
+    assert fields["active_count"] == 0
+    assert fields["pending_source_time_count"] == 1
+    assert fields["exact_no_fill_reason"] == (
+        "PAPER_EXPLORATION_PENDING_SOURCE_TIME_NEXT_CYCLE"
+    )
+
+
+def test_materialization_status_summary_classifies_mixed_prequeue_and_after_queue() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 0,
+            "active_count": 1,
+            "same_cycle_candidate_count": 1,
+            "rejected_after_queue_count": 1,
+            "rejected_after_queue_counterfactual_count": 1,
+            "rejected_after_queue_reason_counts": {
+                "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION": 1
+            },
+            "prequeue_rejected_count": 1,
+            "prequeue_counterfactual_count": 1,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|1h": 1
+            },
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == (
+        "MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS"
+    )
+    assert fields["after_queue_exact_no_fill_reason"] == (
+        "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED"
+    )
+    assert fields["after_queue_no_fill_reasons"] == [
+        "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    ]
+    assert fields["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|1h"
+    ]
+
+
+def test_materialization_status_summary_classifies_pending_source_and_prequeue() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "queued_count": 1,
+            "active_count": 0,
+            "pending_source_time_count": 1,
+            "prequeue_rejected_count": 1,
+            "prequeue_counterfactual_count": 1,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|1h": 1
+            },
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == (
+        "MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS"
+    )
+    assert fields["pending_source_time_count"] == 1
+    assert fields["prequeue_no_fill_reasons"] == [
+        "MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:side_timeframe:long|1h"
+    ]
+
+
+def test_paper_exploration_counterfactual_feedback_merge_preserves_existing_rows() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY: [
+                {
+                    "trainer_feedback_id": "cf_existing",
+                    "paper_exploration_candidate_id": "existing",
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                }
+            ]
+        }
+    )
+
+    merged = paper_loop._merge_paper_exploration_counterfactual_feedback_rows(  # noqa: SLF001
+        redis,
+        [
+            {
+                "trainer_feedback_id": "cf_new",
+                "paper_exploration_candidate_id": "new",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        ],
+    )
+
+    assert {row["trainer_feedback_id"] for row in merged} == {
+        "cf_existing",
+        "cf_new",
+    }
+
+    updated = paper_loop._merge_paper_exploration_counterfactual_feedback_rows(  # noqa: SLF001
+        redis,
+        [
+            {
+                "trainer_feedback_id": "cf_existing",
+                "paper_exploration_candidate_id": "existing",
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "updated": True,
+            }
+        ],
+    )
+
+    assert len(updated) == 1
+    assert updated[0]["updated"] is True
+
+
+def test_accepted_fill_from_open_position_rehydrates_exploration_lineage() -> None:
+    row = paper_loop._accepted_fill_from_open_position(  # noqa: SLF001
+        {
+            "position_id": "paper_pos_ORDIUSDT",
+            "symbol": "ORDIUSDT",
+            "timeframe": "4h",
+            "side": "long",
+            "net_quantity": 2.0,
+            "entry_price": 3.5,
+            "candidate_id": "hyp_replayed_exploration",
+            "prediction_id": "hyp_replayed_exploration",
+            "signal_id": "hyp_replayed_exploration",
+            "runtime_revalidated_preemptive_decision_id": "pec_replayed_exploration",
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "adaptive_allocation": {
+                "allocation_id": "alloc_real_replayed_exploration",
+            },
+            "source_hashes": {
+                "feature_vector_hash": "strategy_supply_replayed",
+                "latest": "latest-provider-hash",
+                "orderbook": "orderbook-provider-hash",
+            },
+        }
+    )
+
+    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert row["materialization_queue_id_reconstructed_from_candidate_id"] is True
+    assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["preemptive_decision_id"] == "pec_replayed_exploration"
+    assert row["allocation_id"] == "alloc_real_replayed_exploration"
+    assert row["allocator_decision_id"] == "alloc_real_replayed_exploration"
+    assert row["allocator_decision_id_source"] == "adaptive_allocation.allocation_id"
+    assert row["feature_vector_hash"] == "strategy_supply_replayed"
+    assert row["provider_hashes"] == {
+        "latest": "latest-provider-hash",
+        "orderbook": "orderbook-provider-hash",
+    }
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert row["live_order"] is False
+    assert row["test_order"] is False
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+    assert row["raw_safety_fields"]["routes_to_live"] is False
+    assert row["invariant_checks"]["routes_to_live_is_false"] is True
+
+
+def test_accepted_fill_from_open_position_backfills_exploration_lifecycle_fields() -> None:
+    row = paper_loop._accepted_fill_from_open_position(  # noqa: SLF001
+        {
+            "fill_id": "paper_pos_REUSDT",
+            "ledger_row_id": "paper_pos_REUSDT",
+            "symbol": "REUSDT",
+            "timeframe": "4h",
+            "side": "short",
+            "quantity": 21.01531772,
+            "entry_price": 0.5711,
+            "gross_notional_usd": 12.00184795,
+            "liquidation_buffer_bps": 9931.87124174,
+            "liquidation_price_estimate": 1.1393445,
+            "candidate_id": "hyp_6debaeb9fd0eecc0",
+            "prediction_id": "hyp_6debaeb9fd0eecc0",
+            "signal_id": "hyp_6debaeb9fd0eecc0",
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "hedge_state": "NO_HEDGE",
+            "hedge_reason": "NO_HEDGE_CONTEXT",
+        }
+    )
+
+    assert row["position_id"] == "paper_pos_REUSDT"
+    assert row["position_id_backfilled_from"] == "fill_id"
+    assert row["paper_exploration_position_id_repair_applied"] is True
+    assert row["liquidation_buffer_usd"] == pytest.approx(11.92008085)
+    assert row["liquidation_buffer_usd_source"] == "liquidation_buffer_bps_x_notional_usd"
+    assert row["hedge_plan"] == {
+        "hedge_required": False,
+        "status": "NO_HEDGE_REQUIRED",
+        "reason": "NO_HEDGE_CONTEXT",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+
+
+def test_closed_paper_exploration_economics_contract_backfills_phase6_aliases() -> None:
+    row = paper_loop._normalize_closed_paper_exploration_economics(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "symbol": "REUSDT",
+            "timeframe": "4h",
+            "side": "short",
+            "position_id": "paper_pos_REUSDT",
+            "entry_time_et": "2026-07-10T15:45:24.000-04:00",
+            "exit_time_et": "2026-07-10T16:19:26.358-04:00",
+            "entry_price": 0.5711,
+            "exit_price": 0.5709,
+            "gross_notional_usd": 12.00184795,
+            "gross_realized_pnl_usd": 0.00420306,
+            "fees": 0.00479906,
+            "slippage": 0.00105123,
+            "funding": 0.0,
+            "realized_net_pnl_usd": -0.00164722,
+            "mae_usd": 0.0,
+            "mfe_usd": 0.0462337,
+            "winner": False,
+            "trainer_feedback_id": "trainer_feedback_paper_close_paper_pos_REUSDT_1_2995",
+            "routes_to_live": True,
+            "places_real_order": True,
+            "counts_as_A_plus": True,
+            "counts_as_live_ready": True,
+        }
+    )
+
+    assert row["entry_time"] == "2026-07-10T19:45:24.000Z"
+    assert row["exit_time"] == "2026-07-10T20:19:26.358Z"
+    assert row["realized_gross_pnl_usd"] == pytest.approx(0.00420306)
+    assert row["fees_usd"] == pytest.approx(0.00479906)
+    assert row["slippage_usd"] == pytest.approx(0.00105123)
+    assert row["funding_usd"] == pytest.approx(0.0)
+    assert row["max_adverse_usd"] == pytest.approx(0.0)
+    assert row["max_favorable_usd"] == pytest.approx(0.0462337)
+    assert row["win_loss"] == "loss"
+    assert row["dirty_flag"] is False
+    assert row["dirty_reasons"] == []
+    assert row["trainer_consumable"] is False
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+
+
+def test_closed_paper_exploration_shrink_guard_rows_normalize_before_write() -> None:
+    exploration_close = {
+        "close_id": "close_exploration_old",
+        "paper_session_id": "sess_a",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "symbol": "REUSDT",
+        "timeframe": "4h",
+        "side": "short",
+        "position_id": "paper_pos_REUSDT",
+        "entry_time_et": "2026-07-10T15:45:24.000-04:00",
+        "exit_time_et": "2026-07-10T16:19:26.358-04:00",
+        "exit_price_utc": "2026-07-10T20:19:26.358Z",
+        "gross_realized_pnl_usd": 0.00420306,
+        "fees": 0.00479906,
+        "slippage": 0.00105123,
+        "funding": 0.0,
+        "realized_net_pnl_usd": -0.00164722,
+        "mae_usd": 0.0,
+        "mfe_usd": 0.0462337,
+        "winner": False,
+    }
+    redis_rows = [
+        exploration_close,
+        *[
+            {
+                "close_id": f"close_{idx}",
+                "paper_session_id": "sess_a",
+                "symbol": "ETHUSDT",
+                "exit_price_utc": "2026-07-10T20:19:26.358Z",
+            }
+            for idx in range(3)
+        ],
+    ]
+    fake = _FakeRedis({"v2:paper:closed_trades": redis_rows})
+
+    guarded, status = paper_loop._closed_trades_shrink_guard(  # noqa: SLF001
+        fake, [], session_id="sess_a"
+    )
+    normalized = paper_loop._normalize_closed_paper_exploration_economics_rows(  # noqa: SLF001
+        guarded
+    )
+    row = next(item for item in normalized if item.get("close_id") == "close_exploration_old")
+
+    assert status["engaged"] is True
+    assert row["entry_time"] == "2026-07-10T19:45:24.000Z"
+    assert row["exit_time"] == "2026-07-10T20:19:26.358Z"
+    assert row["realized_gross_pnl_usd"] == pytest.approx(0.00420306)
+    assert row["fees_usd"] == pytest.approx(0.00479906)
+    assert row["slippage_usd"] == pytest.approx(0.00105123)
+    assert row["funding_usd"] == pytest.approx(0.0)
+    assert row["max_adverse_usd"] == pytest.approx(0.0)
+    assert row["max_favorable_usd"] == pytest.approx(0.0462337)
+    assert row["dirty_flag"] is False
+    assert row["dirty_reasons"] == []
+
+
+def test_paper_risk_exploration_classifier_rejects_conflicting_probation_marker() -> None:
+    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER",
+            "explicit_paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "paper_fill_allowed_source": "POSITIVE_EDGE_PROBATION_PAPER_LOCAL_GATE",
+        }
+    ) is False
+    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+        {
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "paper_fill_allowed_source": "PAPER_RISK_CONTROLLER_EXPLORATION_LOCAL_GATE",
+        }
+    ) is True
+    assert paper_loop._is_paper_risk_controller_exploration_row(  # noqa: SLF001
+        {"materialization_queue_id": "paper_exploration_materialize_hyp_123"}
+    ) is True
+
+
+def test_active_safe_checkpoint_id_from_evidence_requires_loaded_native_weights() -> None:
+    checkpoint_id, source = paper_loop._active_safe_checkpoint_id_from_evidence(  # noqa: SLF001
+        {
+            "active_checkpoint_id": "v2_hybrid_ckpt_safe",
+            "active_checkpoint_weight_status": "V2_SAFE_NATIVE_WEIGHT_BLOB_LOADED",
+            "native_model_weights_load_verified": True,
+        }
+    )
+    assert checkpoint_id == "v2_hybrid_ckpt_safe"
+    assert source == "redis:v2:trainer:checkpoint:evidence.active_checkpoint_id"
+
+    missing, missing_source = paper_loop._active_safe_checkpoint_id_from_evidence(  # noqa: SLF001
+        {
+            "active_checkpoint_id": "legacy_metadata_only",
+            "active_checkpoint_weight_status": "CHECKPOINT_METADATA_ONLY_NO_WEIGHTS_LOADED",
+            "native_model_weights_load_verified": False,
+        }
+    )
+    assert missing is None
+    assert missing_source is None
+
+
+def test_existing_accepted_fills_fallback_uses_lifecycle_open_positions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(paper_loop, "_read_lifecycle_state_file", lambda: {
+        "open_positions": [
+            {
+                "position_id": "paper_pos_ORDIUSDT",
+                "symbol": "ORDIUSDT",
+                "timeframe": "4h",
+                "side": "long",
+                "net_quantity": 2.0,
+                "entry_price": 3.5,
+                "candidate_id": "hyp_replayed_exploration",
+                "prediction_id": "hyp_replayed_exploration",
+                "signal_id": "hyp_replayed_exploration",
+                "preemptive_decision_id": "pec_replayed_exploration",
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+                "adaptive_allocation": {
+                    "allocation_id": "alloc_real_replayed_exploration",
+                },
+                "source_hashes": {
+                    "feature_vector_hash": "strategy_supply_replayed",
+                    "latest": "latest-provider-hash",
+                },
+            }
+        ]
+    })
+    monkeypatch.setattr(paper_loop, "_read_accepted_fill_state_file", lambda: {})
+
+    rows = paper_loop._read_existing_accepted_fills(None)  # noqa: SLF001
+    row = rows["paper_pos_ORDIUSDT"]
+
+    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["preemptive_decision_id"] == "pec_replayed_exploration"
+    assert row["allocation_id"] == "alloc_real_replayed_exploration"
+    assert row["allocator_decision_id"] == "alloc_real_replayed_exploration"
+    assert row["allocator_decision_id_source"] == "adaptive_allocation.allocation_id"
+    assert row["feature_vector_hash"] == "strategy_supply_replayed"
+    assert row["provider_hashes"] == {"latest": "latest-provider-hash"}
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+
+
+def test_repair_paper_exploration_public_lineage_rows_merges_open_position_context() -> None:
+    open_position = {
+        "position_id": "paper_pos_ORDIUSDT",
+        "symbol": "ORDIUSDT",
+        "timeframe": "4h",
+        "side": "long",
+        "net_quantity": 2.0,
+        "entry_price": 3.5,
+        "candidate_id": "hyp_replayed_exploration",
+        "prediction_id": "hyp_replayed_exploration",
+        "signal_id": "hyp_replayed_exploration",
+        "preemptive_decision_id": "pec_replayed_exploration",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "risk_decision_id": "rd_dec_hyp_replayed_exploration",
+        "orchestrator_decision_id": "dec_hyp_replayed_exploration",
+        "gross_notional_usd": 12.0,
+        "liquidation_buffer_bps": 2500.0,
+        "hedge_state": "NO_HEDGE",
+        "hedge_reason": "NO_HEDGE_CONTEXT",
+        "adaptive_allocation": {
+            "allocation_id": "alloc_real_replayed_exploration",
+        },
+        "source_hashes": {
+            "feature_vector_hash": "strategy_supply_replayed",
+            "latest": "latest-provider-hash",
+        },
+    }
+
+    rows = paper_loop._repair_paper_exploration_public_lineage_rows(  # noqa: SLF001
+        [
+            {
+                "symbol": "ORDIUSDT",
+                "timeframe": "4h",
+                "side": "long",
+                "candidate_id": "hyp_replayed_exploration",
+                "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            }
+        ],
+        open_positions=[open_position],
+    )
+    row = rows[0]
+
+    assert row["materialization_queue_id"] == "paper_exploration_materialize_hyp_replayed_exploration"
+    assert row["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["preemptive_decision_id"] == "pec_replayed_exploration"
+    assert row["risk_decision"] == "PASS"
+    assert row["risk_decision_id"] == "rd_dec_hyp_replayed_exploration"
+    assert row["orchestrator_decision"] == "PASS"
+    assert row["orchestrator_decision_id"] == "dec_hyp_replayed_exploration"
+    assert row["allocator_decision_id"] == "alloc_real_replayed_exploration"
+    assert row["allocator_decision"] == "PASS"
+    assert row["allocator_decision_id_source"] == "adaptive_allocation.allocation_id"
+    assert row["feature_vector_hash"] == "strategy_supply_replayed"
+    assert row["provider_hashes"] == {"latest": "latest-provider-hash"}
+    assert row["position_id"] == "paper_pos_ORDIUSDT"
+    assert row["liquidation_buffer_usd"] == pytest.approx(3.0)
+    assert row["liquidation_buffer_usd_source"] == "liquidation_buffer_bps_x_notional_usd"
+    assert row["hedge_plan"]["status"] == "NO_HEDGE_REQUIRED"
+    assert row["hedge_plan"]["routes_to_live"] is False
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+    assert row["raw_safety_fields"]["paper_only"] is True
+
+
+def test_paper_exploration_no_fill_reason_does_not_treat_a_plus_microstructure_as_market_integrity() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            "a_plus_gate:microstructure_trust_confirms",
+            "a_plus_gate:trade_tape_confirms",
+        ]
+    )
+
+    assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_prioritizes_specific_loss_cluster_over_generic_performance() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            "paper_performance_circuit_breaker:PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY",
+            "loss_cluster_symbol:LINKUSDT",
+        ]
+    )
+
+    assert reason == "TRUE_BUCKET_SPECIFIC_LOSS_CLUSTER_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_queue_rejection_reasons_include_matched_loss_cluster_key() -> None:
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        {"queue_id": "paper_exploration_materialize_hyp-1"},
+        [
+            {
+                "materialization_queue_id": "paper_exploration_materialize_hyp-1",
+                "paper_performance_circuit_breaker_reasons": [
+                    "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY",
+                ],
+                "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+                    "loss_cluster_symbol:LINKUSDT",
+                ],
+            }
+        ],
+    )
+
+    assert "loss_cluster_symbol:LINKUSDT" in reasons
+
+
+def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidence() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "NOT_A_PLUS_CANDIDATE",
+            "a_plus_gate:no_quarantine_bucket",
+            "a_plus_gate:exit_plan_valid",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+            "strategy_router:HTF_DIRECTION_CONFLICT",
+        ]
+    )
+
+    assert reason == "NON_EXECUTABLE_PAPER_TIER_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_classifies_strategy_router_without_false_quarantine() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "NOT_A_PLUS_CANDIDATE",
+            "a_plus_gate:no_quarantine_bucket",
+            "a_plus_gate:microstructure_trust_confirms",
+            "strategy_router:DATA_QUALITY_BELOW_THRESHOLD",
+        ]
+    )
+
+    assert reason == "STRATEGY_ROUTER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_does_not_promote_router_loss_quarantine_to_true_bucket() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "NOT_A_PLUS_CANDIDATE",
+            "a_plus_gate:no_quarantine_bucket",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+            "strategy_router:PAPER_LOSS_BUCKET_QUARANTINE",
+        ]
+    )
+
+    assert reason == "NON_EXECUTABLE_PAPER_TIER_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_does_not_promote_generic_bucket_match_without_proof() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+            "BUCKET_PF_OR_EXPECTANCY_NEGATIVE",
+            "BUCKET_QUARANTINE_MATCH",
+            "GUARDIAN_HALTED_OR_MISSING",
+        ]
+    )
+
+    assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_prefers_performance_over_policy_when_bucket_health_present() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            "EXPLORATION_POLICY_REVALIDATION:CONFIDENCE_BELOW_DYNAMIC_FLOOR:0.720000<0.880000",
+            "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
+            "ATR_STOP_RISK_FORMING",
+            "BUCKET_PF_OR_EXPECTANCY_NEGATIVE",
+            "a_plus_gate:no_quarantine_bucket",
+        ]
+    )
+
+    assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_no_fill_reason_prefers_allocator_liquidity_over_generic_quarantine() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY",
+            "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+            "BUCKET_QUARANTINE_MATCH",
+            "GUARDIAN_HALTED_OR_MISSING",
+        ]
+    )
+
+    assert reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_allocator_block_precedes_policy_revalidation() -> None:
+    policy_reasons = paper_loop._paper_exploration_queue_policy_revalidation_reasons(  # noqa: SLF001
+        {
+            "paper_risk_controller_exploration_above_floor": False,
+            "confidence_executable_trade": 0.72,
+            "dynamic_exploration_floor": 0.88,
+        }
+    )
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            *policy_reasons,
+            "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY",
+        ]
+    )
+
+    assert policy_reasons == [
+        "EXPLORATION_POLICY_REVALIDATION:CONFIDENCE_BELOW_DYNAMIC_FLOOR:0.720000<0.880000"
+    ]
+    assert reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_performance_block_precedes_policy_revalidation() -> None:
+    policy_reasons = paper_loop._paper_exploration_queue_policy_revalidation_reasons(  # noqa: SLF001
+        {
+            "paper_risk_controller_exploration_above_floor": False,
+            "confidence_executable_trade": 0.72,
+            "dynamic_exploration_floor": 0.88,
+        }
+    )
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            *policy_reasons,
+            "NEGATIVE_BUCKET_HEALTH",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+            "ATR_STOP_RISK_FORMING",
+            "PRICE_ABOVE_VWAP_WITH_FALLING_CVD",
+            "BUCKET_PF_OR_EXPECTANCY_NEGATIVE",
+            "GUARDIAN_HALTED_OR_MISSING",
+        ]
+    )
+
+    assert reason == (
+        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+    )
+
+
+def test_paper_exploration_policy_revalidation_not_added_for_above_floor_allocator_block() -> None:
+    policy_reasons = paper_loop._paper_exploration_queue_policy_revalidation_reasons(  # noqa: SLF001
+        {
+            "paper_risk_controller_exploration_above_floor": True,
+            "paper_risk_controller_exploration_eligible": False,
+            "confidence_executable_trade": 0.72,
+            "dynamic_exploration_floor": 0.66,
+        }
+    )
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            *policy_reasons,
+            "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE",
+        ]
+    )
+
+    assert policy_reasons == []
+    assert reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_exact_no_fill_reason_preserves_policy_revalidation() -> None:
+    reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {"EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION": 3}
+    )
+
+    assert reason == "ALL_CURRENT_ROWS_EXPLORATION_POLICY_REVALIDATION_BLOCKED"
+    assert components == [
+        "EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    ]
+
+
+def test_paper_exploration_runtime_reasons_drop_secondary_non_executable_tier() -> None:
+    reasons = paper_loop._paper_exploration_filter_runtime_rejection_reasons(  # noqa: SLF001
+        {},
+        [
+            "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+            "EXIT_FEASIBILITY_LOW",
+        ],
+    )
+
+    assert reasons == [
+        "BUCKET_HIGH_CONFIDENCE_LOSS_RATE_ELEVATED",
+        "EXIT_FEASIBILITY_LOW",
+    ]
+
+
+def test_paper_exploration_runtime_reasons_keep_sole_non_executable_tier() -> None:
+    reasons = paper_loop._paper_exploration_filter_runtime_rejection_reasons(  # noqa: SLF001
+        {},
+        ["paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE"],
+    )
+
+    assert reasons == ["paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE"]
+
+
+def test_paper_exploration_no_fill_reason_classifies_cost_write_invariant() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "PAPER_FILL_WRITE_INVARIANT_BLOCKED",
+            "paper_fill_write_invariant:FALLBACK_COST_NOT_ALLOWED",
+            "paper_fill_write_invariant:MISSING_PRODUCTION_GRADE_COST_FLAG",
+        ]
+    )
+
+    assert reason == (
+        "TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    )
+
+
+def test_paper_exploration_no_fill_reason_prefers_entry_gate_over_non_executable_tier() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "P0_ENTRY_GATE_BLOCKED",
+            "entry_gate:EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:short:199.8bps",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+        ]
+    )
+
+    assert reason == (
+        "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
+    )
+
+
+def test_paper_exploration_no_fill_reason_classifies_symbol_exclusion() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "P0_ENTRY_GATE_BLOCKED",
+            "entry_gate:SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TIAUSDT",
+            "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+        ]
+    )
+
+    assert reason == "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_exact_no_fill_reason_handles_mixed_true_blocks() -> None:
+    reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {
+            "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION": 2,
+            "TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION": 1,
+            "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 3,
+        }
+    )
+
+    assert reason == "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION"
+    assert components == [
+        "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+    ]
+
+
+def test_paper_exploration_exact_no_fill_reason_preserves_uniform_risk() -> None:
+    reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {"TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 2}
+    )
+
+    assert reason == "ALL_CURRENT_ROWS_TRUE_RISK_BLOCKED"
+    assert components == ["TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION"]
+
+
+def test_paper_exploration_compact_rejected_queue_rows_preserve_runtime_proof() -> None:
+    compact = paper_loop._compact_rows_for_state(  # noqa: SLF001
+        [
+            {
+                "queue_id": "paper_exploration_materialize_hyp-proof",
+                "candidate_id": "hyp-proof",
+                "symbol": "JUPUSDT",
+                "timeframe": "4h",
+                "side": "long",
+                "materialization_queue_result": "REJECTED_AFTER_QUEUE_REVALIDATION",
+                "materialization_no_fill_reason": (
+                    "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION"
+                ),
+                "materialization_no_fill_exact_reasons": [
+                    "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+                ],
+                "pre_trade_loss_probability": 0.81,
+                "paper_risk_controller_exploration_loss_probability_bound": 0.64,
+                "risk_block_reasons": [
+                    "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+                ],
+                "risk_decision": "BLOCKED",
+                "risk_decision_id": "rd_dec_hyp-proof",
+                "orchestrator_decision": "PASS",
+                "orchestrator_decision_id": "dec_hyp-proof",
+                "allocator_decision": "PASS",
+                "allocator_decision_id": "allocsim_hyp-proof",
+                "expected_net_pnl_usd": 1.2,
+                "expected_max_loss_usd": 0.4,
+                "current_price": 0.62,
+                "recommended_notional_usd": 5.0,
+                "recommended_leverage": 1.0,
+                "recommended_margin_mode": "isolated",
+                "liquidation_buffer_usd": 25.0,
+                "provider_hashes": {"latest": "provider-hash"},
+                "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+                    "loss_cluster_symbol:JUPUSDT"
+                ],
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+        ]
+    )[0]
+
+    assert compact["pre_trade_loss_probability"] == 0.81
+    assert compact["paper_risk_controller_exploration_loss_probability_bound"] == 0.64
+    assert compact["risk_block_reasons"] == [
+        "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+    ]
+    assert compact["risk_decision"] == "BLOCKED"
+    assert compact["risk_decision_id"] == "rd_dec_hyp-proof"
+    assert compact["orchestrator_decision"] == "PASS"
+    assert compact["orchestrator_decision_id"] == "dec_hyp-proof"
+    assert compact["allocator_decision"] == "PASS"
+    assert compact["allocator_decision_id"] == "allocsim_hyp-proof"
+    assert compact["expected_max_loss_usd"] == 0.4
+    assert compact["provider_hashes"] == {"latest": "provider-hash"}
+    assert compact["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
+        "loss_cluster_symbol:JUPUSDT"
+    ]
+    assert compact["routes_to_live"] is False
+    assert compact["places_real_order"] is False
+
+
+def test_paper_exploration_no_fill_reason_keeps_true_entry_feature_market_integrity() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            "runtime_market_evidence:ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED",
+        ]
+    )
+
+    assert reason == "MARKET_INTEGRITY_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+
+
+def test_paper_exploration_queue_signal_uses_safe_timestamp_and_funding_bps() -> None:
+    signal = paper_loop._paper_exploration_queue_signal(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-safe",
+            "candidate_id": "hyp-safe",
+            "prediction_id": "hyp-safe",
+            "signal_id": "hyp-safe",
+            "symbol": "BTCUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "accepted_at": "2026-07-10T03:28:29.000Z",
+            "source_generated_utc": "2026-07-10T03:00:05.000Z",
+            "available_at": "2026-07-10T03:00:00.000Z",
+            "decision_time": "2026-07-10T03:00:01.000Z",
+            "expected_funding_usd": 0.01,
+            "expected_net_pnl_usd": 0.8,
+            "expected_max_loss_usd": 0.4,
+            "confidence_executable_trade": 0.83,
+            "dynamic_exploration_floor": 0.61,
+            "pre_trade_loss_probability": 0.81,
+            "paper_risk_controller_exploration_loss_probability_bound": 0.64,
+            "risk_block_reasons": [
+                "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+            ],
+            "paper_performance_circuit_breaker_matched_loss_cluster_keys": [
+                "loss_cluster_symbol:BTCUSDT"
+            ],
+            "dynamic_exploration_floor_formula": "formula-test",
+            "exploration_floor_inputs": {"loss_cluster_quarantine": False},
+            "exploration_floor_range": {"min": 0.58, "max": 0.88},
+            "paper_risk_controller_exploration_eligible": True,
+            "paper_risk_controller_exploration_above_floor": True,
+            "current_price": 8.1,
+            "recommended_notional_usd": 100.0,
+            "paper_signal": {
+                "candidate_id": "hyp-safe",
+                "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
+                "entry_feature_available_at": "2026-07-10T03:00:00.000Z",
+                "entry_feature_decision_time": "2026-07-10T03:00:01.000Z",
+            },
+        }
+    )
+
+    assert signal["entry_feature_generated_at"] == "2026-07-10T03:00:00.000Z"
+    assert signal["entry_feature_generated_at_source"] == (
+        "entry_feature_available_at_fallback"
+    )
+    assert "source_generated_utc_after_entry_feature_decision_time" in signal[
+        "entry_feature_generated_at_rejections"
+    ]
+    assert signal["expected_funding_bps"] == 1.0
+    assert signal["expected_funding_bps_source"] == "paper_queue_expected_funding_usd_to_bps"
+    assert signal["expected_funding_bps_fallback"] is False
+    assert signal["exit_plan"]["status"] == "INTERNAL_PAPER_EXIT_PLAN_ACTIVE"
+    assert signal["exit_plan"]["time_exit_at"] == "2026-07-10T04:13:29.000Z"
+    assert signal["exit_plan"]["stop_loss_price"] < 8.1
+    assert signal["confidence_executable_trade"] == 0.83
+    assert signal["dynamic_exploration_floor"] == 0.61
+    assert signal["pre_trade_loss_probability"] == 0.81
+    assert signal["paper_risk_controller_exploration_loss_probability_bound"] == 0.64
+    assert signal["risk_block_reasons"] == [
+        "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND"
+    ]
+    assert signal["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
+        "loss_cluster_symbol:BTCUSDT"
+    ]
+    assert signal["exploration_floor_inputs"] == {"loss_cluster_quarantine": False}
+    assert signal["paper_risk_controller_exploration_eligible"] is True
+    assert signal["paper_risk_controller_exploration_above_floor"] is True
+    assert signal["routes_to_live"] is False
+    assert signal["places_real_order"] is False
+
+
+def test_materialization_queue_expected_net_restore_requires_favorable_signed_edge() -> None:
+    intent = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-restore",
+        "side": "long",
+        "expected_move_after_cost_bps": 12.0,
+        "expected_net_pnl_usd": 0.0,
+    }
+    allocation = {"expected_net_pnl_usd": 0.0, "model_inputs": {}}
+
+    paper_loop._restore_materialization_queue_expected_economics(  # noqa: SLF001
+        intent=intent,
+        signal={"expected_net_pnl_usd": 0.42},
+        allocation=allocation,
+    )
+
+    assert intent["expected_net_pnl_usd"] == 0.42
+    assert allocation["expected_net_pnl_usd"] == 0.42
+    assert intent["paper_materialization_queue_expected_net_restore_applied"] is True
+    assert allocation["model_inputs"]["expected_net_pnl_usd"] == 0.42
+
+    short_intent = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-no-restore",
+        "side": "short",
+        "expected_move_after_cost_bps": 12.0,
+        "expected_net_pnl_usd": 0.0,
+    }
+    short_allocation = {"expected_net_pnl_usd": 0.0, "model_inputs": {}}
+
+    paper_loop._restore_materialization_queue_expected_economics(  # noqa: SLF001
+        intent=short_intent,
+        signal={"expected_net_pnl_usd": 0.42},
+        allocation=short_allocation,
+    )
+
+    assert short_intent["expected_net_pnl_usd"] == 0.0
+    assert short_allocation["expected_net_pnl_usd"] == 0.0
+    assert short_intent[
+        "paper_materialization_queue_expected_net_restore_skipped_reason"
+    ].startswith("CURRENT_SIGNED_EDGE_NOT_FAVORABLE_FOR_SIDE:short")
 
 
 def test_operator_et_timestamp_fields_preserve_utc_trace() -> None:
@@ -431,6 +3000,946 @@ def test_b_grade_resumption_requests_patch_after_three_zero_fill_cycles() -> Non
     ]
 
 
+def test_paper_risk_controller_exploration_classifies_no_trade_guardian_override() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-explore",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.84,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+    }
+    intent = {
+        **signal,
+        "preemptive_decision_id": "pec-loop-explore",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "pre_trade_loss_probability": 0.24,
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_action": "REDUCE_SIZE",
+        "public_orderbook_trust_score": 0.8,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.7,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-explore",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-explore",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-explore",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-explore",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+    paper_loop._apply_preemptive_decision_context(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        preemptive_decision=preemptive,
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+    paper_loop._apply_paper_tier_classification(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        classification=classification,
+    )
+
+    assert classification["paper_opportunity_tier"] == paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    assert classification["counts_as_A_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["paper_exploration_paper_fill_allowed"] is True
+    assert classification["paper_only"] is True
+    assert classification["mandatory_size_haircut"] is True
+    assert classification["paper_risk_controller_exploration"] is True
+    assert classification["allow_paper_risk_controller_exploration"] is True
+    assert classification["calibration_label_purpose"] == (
+        paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_OUTCOME_LABEL
+    )
+    assert classification["risk_budget_fraction_of_normal_adaptive"] <= (
+        paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+    )
+    assert classification["paper_risk_controller_exploration_budget_cap_applied"] is True
+    assert classification["paper_risk_controller_exploration_loss_probability_bound"] == (
+        paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+    )
+    assert paper_loop._paper_preemptive_admission_rejection_reasons(intent) == []  # noqa: SLF001
+
+
+def test_final_a_plus_false_rows_do_not_enter_a_plus_governance() -> None:
+    row = _strict_governance_close(
+        paper_opportunity_tier=paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
+        a_plus=True,
+        counts_as_A_plus=True,
+        counts_as_final_A_plus=False,
+        counts_as_final_a_plus=False,
+        realized_net_pnl_bps=20.0,
+        realized_net_pnl_usd=2.0,
+    )
+
+    status = paper_loop._a_plus_5_trade_gate_runtime_status(  # noqa: SLF001
+        [row],
+        generated_utc="2026-07-11T10:00:00Z",
+    )
+
+    assert paper_loop._is_a_plus_closed_row(row) is False  # noqa: SLF001
+    assert status["total_closed_a_plus_trades_seen"] == 0
+    assert status["closed_a_plus_trades_considered"] == 0
+    assert status["status"] == "WAITING_FOR_5_CLOSED_A_PLUS_TRADES"
+    assert status["routes_to_live"] is False
+
+
+def test_paper_risk_controller_exploration_ignores_advisory_only_router_quarantine_no_trade() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-explore-advisory",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.84,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "strategy_selected_mode": "risk_off_no_trade",
+        "strategy_router_selected_mode": "no_trade_mode",
+        "strategy_router_block_reason": "PAPER_LOSS_BUCKET_QUARANTINE",
+        "strategy_regime_labels": ["RISK_OFF", "NO_TRADE"],
+        "paper_performance_circuit_global_halt_only": True,
+        "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": [
+            "loss_cluster_side:long"
+        ],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
+        "preemptive_decision_id": "pec-loop-explore-advisory",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "pre_trade_loss_probability": 0.24,
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.91,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-explore-advisory",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-explore-advisory",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-explore-advisory",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-explore-advisory",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={
+            "status": "ACTIVE",
+            "blocked_bucket_keys": ["side:long"],
+        },
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert classification["paper_risk_controller_exploration"] is True
+    assert "lifecycle_or_no_trade_strategy_reasons" not in classification
+    assert "paper_bucket_quarantine_matched_blocked_bucket_keys" not in classification
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["counts_as_A_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+
+
+def test_materialization_queue_preemptive_revalidation_overwrites_stale_runtime_reason() -> None:
+    intent = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-stale",
+        "runtime_revalidated_preemptive_decision": "NO_TRADE",
+        "runtime_revalidated_preemptive_decision_id": "pec-stale",
+        "runtime_revalidated_preemptive_decision_reasons": [
+            "BUCKET_QUARANTINE_MATCH"
+        ],
+    }
+    allocation = {
+        "model_inputs": {
+            "runtime_revalidated_preemptive_decision": "NO_TRADE",
+            "runtime_revalidated_preemptive_decision_reasons": [
+                "BUCKET_QUARANTINE_MATCH"
+            ],
+        }
+    }
+    current_decision = {
+        "preemptive_decision": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "preemptive_decision_id": "pec-current",
+        "preemptive_decision_reasons": [
+            "GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_RISK_CONTROLLER_EXPLORATION"
+        ],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    paper_loop._apply_preemptive_decision_context(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        preemptive_decision=current_decision,
+    )
+
+    for target in (intent, allocation, allocation["model_inputs"]):
+        assert target["runtime_revalidated_preemptive_decision"] == (
+            "PAPER_RISK_CONTROLLER_EXPLORATION"
+        )
+        assert target["runtime_revalidated_preemptive_decision_id"] == "pec-current"
+        assert target["runtime_revalidated_preemptive_decision_reasons"] == [
+            "GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_RISK_CONTROLLER_EXPLORATION"
+        ]
+
+
+def test_materialization_queue_signal_drops_stale_runtime_revalidation_fields() -> None:
+    signal = paper_loop._paper_exploration_queue_signal(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-stale",
+            "paper_signal": {
+                "candidate_id": "hyp-stale",
+                "symbol": "MONUSDT",
+                "timeframe": "4h",
+                "side": "long",
+                "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                "runtime_revalidated_preemptive_decision": "NO_TRADE",
+                "runtime_revalidated_preemptive_decision_id": "pec-stale",
+                "runtime_revalidated_preemptive_decision_reasons": [
+                    "BUCKET_QUARANTINE_MATCH"
+                ],
+            },
+        }
+    )
+
+    assert signal["paper_risk_controller_exploration"] is True
+    assert signal["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert signal["runtime_revalidated_preemptive_decision"] is None
+    assert signal["runtime_revalidated_preemptive_decision_id"] is None
+    assert signal["runtime_revalidated_preemptive_decision_reasons"] is None
+
+
+def test_materialization_queue_advisory_quarantine_drops_runtime_bucket_match() -> None:
+    reasons = paper_loop._paper_exploration_filter_runtime_rejection_reasons(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-advisory",
+            "paper_signal": {
+                "candidate_id": "hyp-advisory",
+                "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "paper_performance_circuit_global_halt_only": True,
+                "paper_performance_circuit_breaker_advisory_bucket_keys": [
+                    "side:long"
+                ],
+                "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+                "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
+            },
+        },
+        [
+            "BUCKET_QUARANTINE_MATCH",
+            "GUARDIAN_HALTED_OR_MISSING",
+            "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE",
+        ],
+    )
+
+    assert "BUCKET_QUARANTINE_MATCH" not in reasons
+    assert "GUARDIAN_HALTED_OR_MISSING" in reasons
+    assert (
+        "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE"
+        in reasons
+    )
+
+
+def test_materialization_queue_exact_quarantine_keeps_runtime_bucket_match() -> None:
+    reasons = paper_loop._paper_exploration_filter_runtime_rejection_reasons(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp-exact",
+            "paper_signal": {
+                "candidate_id": "hyp-exact",
+                "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "paper_performance_circuit_global_halt_only": True,
+                "paper_performance_circuit_breaker_advisory_bucket_keys": [
+                    "side:long"
+                ],
+                "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
+                    "symbol:DOGEUSDT"
+                ],
+            },
+        },
+        ["BUCKET_QUARANTINE_MATCH", "GUARDIAN_HALTED_OR_MISSING"],
+    )
+
+    assert "BUCKET_QUARANTINE_MATCH" in reasons
+
+
+def test_materialization_queue_classification_preserves_tier_when_intent_has_null_tier() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-queue-tier",
+        "materialization_queue_id": "paper_exploration_materialize_queue-tier",
+        "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.72,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "paper_opportunity_tier": None,
+        "exploration_tier": None,
+        "paper_exploration_tier": None,
+        "paper_risk_controller_exploration": None,
+        "allow_paper_risk_controller_exploration": None,
+        "block_reasons": [
+            "BUCKET_QUARANTINE_MATCH",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+        ],
+        "paper_performance_circuit_global_halt_only": True,
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": [
+            "loss_cluster_side:long",
+            "loss_cluster_timeframe:5m",
+        ],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
+        "preemptive_decision_id": "pec-loop-queue-tier",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "pre_trade_loss_probability": 0.24,
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.91,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-queue-tier",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-queue-tier",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-queue-tier",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-queue-tier",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert classification["tier"] == paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    assert classification["paper_risk_controller_exploration"] is True
+    assert classification["paper_risk_controller_exploration_eligible"] is True
+    assert classification["paper_risk_controller_exploration_above_floor"] is True
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["counts_as_A_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+
+
+def test_materialization_queue_policy_snapshot_survives_floor_recompute_drift() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-queue-floor-drift",
+        "materialization_queue_id": "paper_exploration_materialize_floor-drift",
+        "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "symbol": "SOLUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.72,
+        "dynamic_exploration_floor": 0.66,
+        "paper_risk_controller_exploration_above_floor": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "block_reasons": [
+            "BUCKET_QUARANTINE_MATCH",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+        ],
+        "paper_performance_circuit_global_halt_only": True,
+        "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": [
+            "loss_cluster_timeframe:1h",
+        ],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
+        "preemptive_decision_id": "pec-loop-floor-drift",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "pre_trade_loss_probability": 0.24,
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.30,
+        "composite_microstructure_trust_score": 0.30,
+        "provider_confluence_score": 0.0,
+        "total_expected_cost_bps": 50.0,
+        "volatility_bps": 500.0,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 0,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-floor-drift",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-floor-drift",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-floor-drift",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-floor-drift",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert classification["paper_risk_controller_exploration_above_floor"] is True
+    assert classification["dynamic_exploration_floor"] == 0.66
+    assert (
+        classification["paper_risk_controller_exploration_policy_snapshot_retained"]
+        is True
+    )
+    assert (
+        classification["runtime_recomputed_dynamic_exploration_floor"]
+        > signal["confidence_executable_trade"]
+    )
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+    assert classification["counts_as_A_plus"] is False
+    assert classification["counts_as_live_ready"] is False
+
+
+def test_materialization_queue_policy_snapshot_does_not_override_exact_quarantine() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-queue-exact-quarantine",
+        "materialization_queue_id": "paper_exploration_materialize_exact-quarantine",
+        "tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "symbol": "DOGEUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.72,
+        "dynamic_exploration_floor": 0.66,
+        "paper_risk_controller_exploration_above_floor": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "current_price": 0.2,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 0.19},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "paper_exploration_exact_blocked_bucket_keys": ["symbol:DOGEUSDT"],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
+            "symbol:DOGEUSDT"
+        ],
+        "preemptive_decision_id": "pec-loop-exact-quarantine",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "pre_trade_loss_probability": 0.24,
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.91,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-exact-quarantine",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-exact-quarantine",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-exact-quarantine",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-exact-quarantine",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={},
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] != (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert (
+        classification["paper_risk_controller_exploration_policy_snapshot_retained"]
+        is False
+    )
+    assert "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE" in (
+        classification["paper_risk_controller_exploration_block_reasons"] or []
+    )
+
+
+def test_paper_risk_controller_exploration_ignores_broad_high_confidence_loss_cluster_gate() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-explore-broad-cluster",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.84,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "preemptive_decision_id": "pec-loop-explore-broad-cluster",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.91,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-explore-broad-cluster",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-explore-broad-cluster",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-explore-broad-cluster",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-explore-broad-cluster",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={
+            "cluster_detected": True,
+            "cluster_evidence_missing": False,
+            "bucket_specific_recovery_enabled": True,
+            "affected_symbols": ["BTCUSDT"],
+            "quarantined_sides": ["long"],
+            "quarantined_timeframes": ["5m"],
+            "quarantined_strategy_modes": [],
+        },
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert classification["paper_risk_controller_exploration"] is True
+    assert classification[
+        "paper_risk_controller_exploration_high_confidence_loss_cluster_advisory_only"
+    ] is True
+    assert classification["high_confidence_loss_cluster_bucket_match_reasons"] == []
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_paper_risk_controller_exploration_symbol_loss_cluster_still_blocks() -> None:
+    now = "2026-07-08T12:00:00.000Z"
+    past = "2026-07-08T11:59:00.000Z"
+    signal = {
+        "candidate_id": "cand-loop-explore-symbol-cluster",
+        "symbol": "SOLUSDT",
+        "timeframe": "5m",
+        "side": "long",
+        "selected_action": "long",
+        "confidence_executable_trade": 0.84,
+        "current_price": 150.0,
+        "expected_net_pnl_usd": 2.8,
+        "expected_max_loss_usd": 1.1,
+        "expected_move_after_cost_bps": 18.0,
+        "expected_cost_usd": 0.4,
+        "exit_plan": {"max_loss_usd": 1.1, "stop_price": 148.9},
+        "feature_cutoff": past,
+        "available_at": past,
+        "decision_time": now,
+        "feature_vector_hash": "hash-feature",
+        "provider_feature_hashes": {"binance": "hash-binance"},
+        "provider_features_used": ["binance"],
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    intent = {
+        **signal,
+        "preemptive_decision_id": "pec-loop-explore-symbol-cluster",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_action": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+        "exit_feasible": True,
+        "exit_feasibility_score": 0.86,
+        "microstructure_trust_score": 0.91,
+        "composite_microstructure_trust_score": 0.91,
+        "market_state_integrity_score": 91.0,
+        "production_grade_cost_flag": True,
+        "bucket_evidence_count": 35,
+        "bucket_profit_factor": 1.3,
+    }
+    allocation = {
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc-loop-explore-symbol-cluster",
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "recommended_leverage": 0.25,
+        "recommended_margin_mode": "isolated_paper",
+        "risk_decision": "PASS",
+        "risk_decision_id": "risk-loop-explore-symbol-cluster",
+        "orchestrator_decision": "PASS",
+        "orchestrator_decision_id": "orch-loop-explore-symbol-cluster",
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision_id="pec-loop-explore-symbol-cluster",
+        preemptive_decision="NO_TRADE",
+        preemptive_action="GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+    )
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=signal,
+        intent=intent,
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "new_entries_allowed": False,
+            "failure_reasons": ["GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"],
+        },
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={
+            "cluster_detected": True,
+            "cluster_evidence_missing": False,
+            "bucket_specific_recovery_enabled": True,
+            "affected_symbols": ["SOLUSDT"],
+            "quarantined_sides": ["long"],
+            "quarantined_timeframes": ["5m"],
+            "quarantined_strategy_modes": [],
+        },
+        preemptive_decision=preemptive,
+    )
+
+    assert classification["paper_opportunity_tier"] == paper_loop.PAPER_TIER_SHADOW_ONLY
+    assert classification["paper_opportunity_tier_reason"] == (
+        "HIGH_CONFIDENCE_LOSS_CLUSTER_BUCKET_QUARANTINED"
+    )
+    assert classification["high_confidence_loss_cluster_bucket_match_reasons"] == [
+        "HIGH_CONFIDENCE_LOSS_CLUSTER_SYMBOL_QUARANTINED"
+    ]
+    assert classification["routes_to_live"] is False
+    assert classification["places_real_order"] is False
+
+
+def test_paper_risk_controller_exploration_hard_quarantine_still_blocks_no_trade() -> None:
+    row = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "strategy_router_block_reason": "PAPER_LOSS_BUCKET_QUARANTINE",
+        "paper_performance_circuit_global_halt_only": True,
+        "paper_performance_circuit_breaker_advisory_bucket_keys": ["side:long"],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [
+            "side_timeframe:long|5m"
+        ],
+        "strategy_router_selected_mode": "no_trade_mode",
+        "strategy_regime_labels": ["NO_TRADE"],
+    }
+
+    reasons = paper_loop._paper_lifecycle_or_no_trade_strategy_reasons(  # noqa: SLF001
+        signal={},
+        intent=row,
+    )
+
+    assert "intent.strategy_router_selected_mode=NO_TRADE" in reasons
+    assert "strategy_regime_labels_include_NO_TRADE" in reasons
+
+
 def test_write_paper_open_position_state_mirrors_canonical_positions_key() -> None:
     class FakeRedis:
         def __init__(self) -> None:
@@ -452,6 +3961,55 @@ def test_write_paper_open_position_state_mirrors_canonical_positions_key() -> No
     assert [key for key, _, _ in redis_client.writes] == written
     assert [ttl for _, _, ttl in redis_client.writes] == [123, 123]
     assert [json.loads(payload) for _, payload, _ in redis_client.writes] == [rows, rows]
+
+
+def test_paper_feedback_write_preserves_strategy_supply_feedback_rows() -> None:
+    strategy_row = {
+        "trainer_feedback_id": "strategy-supply-1",
+        "trainer_feedback_source": "V2_STRATEGY_SUPPLY_SHADOW_OUTCOME",
+        "trainer_consumable": True,
+        "future_labels_used_as_features": False,
+        "counts_as_a_plus": True,
+        "routes_to_live": True,
+        "places_real_order": True,
+        "symbol": "FARTCOINUSDT",
+        "timeframe": "15m",
+    }
+    redis_client = _FakeRedis(
+        {
+            "v2:trainer:feedback:outcomes": [
+                strategy_row,
+                {
+                    "trainer_feedback_id": "paper-old",
+                    "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE",
+                    "trainer_consumable": True,
+                },
+            ]
+        }
+    )
+    current_rows = [
+        {
+            "trainer_feedback_id": "paper-current",
+            "trainer_feedback_source": "V2_PAPER_TRADE_MANAGEMENT_CLOSED_TRADE",
+            "trainer_consumable": True,
+        }
+    ]
+
+    merged, preserved = paper_loop._merge_persistent_strategy_supply_trainer_feedback_rows(  # noqa: SLF001
+        redis_client,
+        current_rows,
+    )
+
+    assert preserved == 1
+    assert [row["trainer_feedback_id"] for row in merged] == [
+        "paper-current",
+        "strategy-supply-1",
+    ]
+    preserved_row = merged[1]
+    assert preserved_row["counts_as_a_plus"] is False
+    assert preserved_row["routes_to_live"] is False
+    assert preserved_row["places_real_order"] is False
+    assert preserved_row["paper_only"] is True
 
 
 def test_paper_session_metadata_rows_bind_open_position_identity() -> None:
@@ -506,6 +4064,384 @@ def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
     )
 
     assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" in reasons
+
+
+def test_materialization_queue_preserves_calibrated_loss_probability_on_revalidation() -> None:
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "materialization_queue_id": "paper_exploration_materialize_hyp_ena",
+        "paper_risk_controller_exploration_eligible": True,
+        "pre_trade_loss_probability": 0.2972,
+        "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+        "loss_probability_reasons": [
+            "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+            "CALIBRATION_PENALTY:microstructure_trust_below_allocator_minimum",
+        ],
+        "loss_probability_calibration": {
+            "base_loss_probability": 0.24,
+            "adjusted_loss_probability": 0.2972,
+        },
+    }
+    allocation = {"model_inputs": {}}
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision="NO_TRADE",
+        preemptive_decision_reasons=[
+            "MICROSTRUCTURE_TRUST_MISSING",
+            "EXIT_FEASIBILITY_LOW",
+        ],
+        pre_trade_loss_probability=0.92,
+    )
+
+    paper_loop._apply_preemptive_decision_context(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        preemptive_decision=preemptive,
+    )
+
+    assert intent["pre_trade_loss_probability"] == pytest.approx(0.2972)
+    assert allocation["pre_trade_loss_probability"] == pytest.approx(0.2972)
+    assert allocation["model_inputs"]["pre_trade_loss_probability"] == pytest.approx(0.2972)
+    assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert allocation["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert intent["pre_trade_loss_probability_source"] == (
+        "strategy_supply_calibrated_materialization_queue"
+    )
+    assert intent["runtime_revalidated_loss_probability_source"] == (
+        "paper_loop_preemptive_recompute"
+    )
+    assert intent["runtime_revalidated_preemptive_decision"] == "NO_TRADE"
+    assert intent["runtime_revalidated_preemptive_decision_reasons"] == [
+        "MICROSTRUCTURE_TRUST_MISSING",
+        "EXIT_FEASIBILITY_LOW",
+    ]
+
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(intent)  # noqa: SLF001
+
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in reasons
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
+    assert (
+        "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE"
+        not in reasons
+    )
+
+
+def test_materialization_queue_signal_copies_calibrated_loss_context_into_runtime_intent() -> None:
+    queue_signal = paper_loop._paper_exploration_queue_signal(  # noqa: SLF001
+        {
+            "queue_id": "paper_exploration_materialize_hyp_ldo",
+            "candidate_id": "hyp_ldo",
+            "prediction_id": "hyp_ldo",
+            "signal_id": "hyp_ldo",
+            "symbol": "LDOUSDT",
+            "timeframe": "4h",
+            "side": "long",
+            "selected_action": "long",
+            "confidence_executable_trade": 0.84,
+            "current_price": 0.31,
+            "expected_net_pnl_usd": 2.0,
+            "expected_max_loss_usd": 1.0,
+            "expected_move_after_cost_bps": 12.0,
+            "expected_cost_usd": 0.15,
+            "feature_cutoff": "2026-07-10T12:00:00.000Z",
+            "available_at": "2026-07-10T12:00:00.000Z",
+            "decision_time": "2026-07-10T12:00:01.000Z",
+            "feature_vector_hash": "feature_hash_ldo",
+            "provider_hashes": {"binance": "provider_hash_ldo"},
+            "exit_plan": {"max_loss_usd": 1.0, "stop_loss_price": 0.30},
+            "exit_feasible": True,
+            "exit_feasibility_score": 0.86,
+            "production_grade_cost_flag": True,
+            "microstructure_trust_score": 0.91,
+            "composite_microstructure_trust_score": 0.82,
+            "trade_tape_confirmation_score": 0.75,
+            "risk_decision_id": "risk_ldo",
+            "risk_decision": "PASS",
+            "orchestrator_decision_id": "orch_ldo",
+            "orchestrator_decision": "PASS",
+            "allocator_decision_id": "alloc_ldo",
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "preemptive_decision_id": "pec_source_ldo",
+            "pre_trade_loss_probability": 0.28,
+            "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+            "loss_probability_reasons": [
+                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+            ],
+            "loss_probability_calibration": {
+                "base_loss_probability": 0.405249,
+                "adjusted_loss_probability": 0.28,
+            },
+        }
+    )
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "materialization_queue_id": queue_signal["materialization_queue_id"],
+        "paper_risk_controller_exploration_eligible": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        **paper_loop._paper_exploration_loss_probability_context(queue_signal),  # noqa: SLF001
+    }
+    allocation = {
+        "model_inputs": {},
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "allocator_decision_id": "alloc_ldo",
+        "recommended_leverage": 1.0,
+        "recommended_margin_mode": "isolated",
+        "target_notional_usd": 10.0,
+        "gross_notional_usd": 10.0,
+    }
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision="NO_TRADE",
+        preemptive_decision_reasons=[
+            "BUCKET_QUARANTINE_MATCH",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+        ],
+        pre_trade_loss_probability=0.92,
+    )
+
+    paper_loop._apply_preemptive_decision_context(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        preemptive_decision=preemptive,
+    )
+
+    assert intent["pre_trade_loss_probability"] == pytest.approx(0.28)
+    assert allocation["pre_trade_loss_probability"] == pytest.approx(0.28)
+    assert allocation["model_inputs"]["pre_trade_loss_probability"] == pytest.approx(0.28)
+    assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert (
+        intent["pre_trade_loss_probability_source"]
+        == "strategy_supply_calibrated_materialization_queue"
+    )
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(intent)  # noqa: SLF001
+    assert "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in reasons
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" not in reasons
+
+    classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+        signal=queue_signal,
+        intent={**queue_signal, **intent},
+        allocation=allocation,
+        integrity_gate={"allowed": True},
+        local_trade_gates_pass=False,
+        exploration_trade_gates_pass=True,
+        positive_edge_probation_trade_gates_pass=False,
+        paper_fill_allowed_upstream=False,
+        portfolio_drawdown_bps=0.0,
+        continuous_edge_guardian_gate={"status": "HALTED", "new_entries_allowed": False},
+        bucket_quarantine_status={},
+        high_confidence_loss_cluster_gate={"cluster_detected": False},
+        preemptive_decision=preemptive,
+    )
+    paper_loop._apply_paper_tier_classification(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        classification=classification,
+    )
+
+    assert classification["paper_opportunity_tier"] == (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    assert intent["pre_trade_loss_probability"] == pytest.approx(0.28)
+    assert allocation["pre_trade_loss_probability"] == pytest.approx(0.28)
+    assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert paper_loop._paper_preemptive_admission_rejection_reasons(intent) == []  # noqa: SLF001
+
+
+def test_exploration_budget_cap_derives_positive_paper_margin_from_scaled_notional() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "recommended_leverage": 2.0,
+    }
+    allocation = {
+        "target_notional_usdt": 100.0,
+        "target_notional_usd": 100.0,
+        "gross_notional_usd": 100.0,
+        "allocated_margin_usd": 0.0,
+        "recommended_leverage": 2.0,
+        "effective_leverage": 2.0,
+        "model_inputs": {},
+    }
+
+    paper_loop._apply_b_grade_exploration_budget_cap(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        risk_budget_fraction_of_normal_adaptive=0.25,
+    )
+
+    scaled_notional = allocation["target_notional_usdt"]
+    assert scaled_notional > 0.0
+    assert allocation["allocated_margin_usd"] == pytest.approx(scaled_notional / 2.0)
+    assert intent["allocated_margin_usd"] == pytest.approx(scaled_notional / 2.0)
+    assert allocation["model_inputs"]["selected_allocated_margin_usd"] == pytest.approx(
+        scaled_notional / 2.0
+    )
+    assert allocation["paper_allocated_margin_usd_source"] == (
+        "DERIVED_FROM_SCALED_NOTIONAL_AND_RECOMMENDED_LEVERAGE"
+    )
+    assert intent["paper_only"] is True
+    assert intent["places_real_order"] is False
+    assert intent["routes_to_live"] is False
+
+
+def test_strategy_supply_preserves_calibrated_loss_probability_before_tier_classification() -> None:
+    intent = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_SHADOW_ONLY,
+        "strategy_supply_hypothesis": True,
+        "strategy_supply_hypothesis_id": "hyp_dash_1h",
+        "pre_trade_loss_probability": 0.3193,
+        "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+        "loss_probability_calibration": {
+            "base_loss_probability": 0.448038,
+            "adjusted_loss_probability": 0.3193,
+        },
+    }
+    allocation = {"model_inputs": {}}
+    preemptive = _preemptive_allow_decision(
+        preemptive_decision="NO_TRADE",
+        preemptive_decision_reasons=["NEGATIVE_BUCKET_HEALTH"],
+        pre_trade_loss_probability=0.92,
+    )
+
+    paper_loop._apply_preemptive_decision_context(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        preemptive_decision=preemptive,
+    )
+
+    assert intent["pre_trade_loss_probability"] == pytest.approx(0.3193)
+    assert allocation["pre_trade_loss_probability"] == pytest.approx(0.3193)
+    assert intent["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert intent["pre_trade_loss_probability_source"] == (
+        "strategy_supply_calibrated_inventory"
+    )
+
+
+def test_queue_runtime_context_keeps_source_loss_and_moves_runtime_loss() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp_ens",
+        "paper_signal": {
+            "candidate_id": "hyp_ens",
+            "prediction_id": "hyp_ens",
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+            "pre_trade_loss_probability": 0.2903,
+            "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+            "loss_probability_reasons": [
+                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+            ],
+            "loss_probability_calibration": {
+                "base_loss_probability": 0.44,
+                "adjusted_loss_probability": 0.2903,
+            },
+        },
+    }
+    runtime_row = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp_ens",
+        "candidate_id": "hyp_ens",
+        "pre_trade_loss_probability": 0.92,
+        "preemptive_decision_id": "pec_runtime_ens",
+        "preemptive_decision": "NO_TRADE",
+        "preemptive_decision_reasons": ["NEGATIVE_BUCKET_HEALTH"],
+        "paper_fill_gate_block_reasons": [
+            "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND"
+        ],
+    }
+
+    context = paper_loop._paper_exploration_queue_runtime_feedback_context(  # noqa: SLF001
+        queue_row,
+        [runtime_row],
+    )
+    merged = {**paper_loop._paper_exploration_queue_signal(queue_row), **context}  # noqa: SLF001
+
+    assert "pre_trade_loss_probability" not in context
+    assert context["runtime_revalidated_pre_trade_loss_probability"] == pytest.approx(0.92)
+    assert context["runtime_revalidated_preemptive_decision"] == "NO_TRADE"
+    assert context["runtime_revalidated_preemptive_decision_reasons"] == [
+        "NEGATIVE_BUCKET_HEALTH"
+    ]
+    assert merged["pre_trade_loss_probability"] == pytest.approx(0.2903)
+    assert merged["pre_trade_loss_probability_source"] == (
+        "strategy_supply_calibrated_materialization_queue"
+    )
+    assert merged["loss_probability_calibration"]["adjusted_loss_probability"] == 0.2903
+
+
+def test_queue_rejection_uses_runtime_specific_reasons_when_source_loss_preserved() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp_runtime_specific",
+        "paper_signal": {
+            "candidate_id": "hyp_runtime_specific",
+            "prediction_id": "hyp_runtime_specific",
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+            "pre_trade_loss_probability": 0.2903,
+            "paper_risk_controller_exploration_loss_probability_bound": 0.72,
+            "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+            "loss_probability_reasons": [
+                "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+            ],
+            "loss_probability_calibration": {
+                "base_loss_probability": 0.44,
+                "adjusted_loss_probability": 0.2903,
+            },
+        },
+    }
+    runtime_row = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp_runtime_specific",
+        "candidate_id": "hyp_runtime_specific",
+        "pre_trade_loss_probability": 0.92,
+        "paper_exploration_fill_gate_block_reasons": [
+            "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND",
+            "preemptive_edge_control:PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND",
+        ],
+        "runtime_revalidated_preemptive_decision_reasons": [
+            "BUCKET_QUARANTINE_MATCH",
+            "NEGATIVE_BUCKET_HEALTH",
+        ],
+    }
+
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        queue_row,
+        [runtime_row],
+    )
+
+    assert "BUCKET_QUARANTINE_MATCH" in reasons
+    assert "NEGATIVE_BUCKET_HEALTH" in reasons
+    assert not any("LOSS_PROBABILITY_ABOVE" in reason for reason in reasons)
+    assert (
+        paper_loop._paper_exploration_queue_no_fill_reason(reasons)  # noqa: SLF001
+        == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+    )
+
+
+def test_queue_rejection_keeps_loss_bound_when_source_loss_not_preserved() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp_runtime_loss",
+        "paper_signal": {
+            "candidate_id": "hyp_runtime_loss",
+            "prediction_id": "hyp_runtime_loss",
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+            "pre_trade_loss_probability": 0.2903,
+        },
+    }
+    runtime_row = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp_runtime_loss",
+        "candidate_id": "hyp_runtime_loss",
+        "pre_trade_loss_probability": 0.92,
+        "paper_exploration_fill_gate_block_reasons": [
+            "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND",
+        ],
+    }
+
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        queue_row,
+        [runtime_row],
+    )
+
+    assert "PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_ABOVE_BOUND" in reasons
 
 
 def test_preemptive_reduced_size_requires_guardian_approval_at_admission() -> None:
@@ -707,6 +4643,432 @@ def test_global_performance_halt_preserves_probation_allocator_evidence() -> Non
     assert allocation["global_halt_preserves_probation_allocator_evidence"] is True
 
 
+def test_global_performance_halt_allows_clean_paper_risk_controller_exploration_bucket() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "UNRELATEDUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+            "block_reasons": ["ROLLING_50_PROFIT_FACTOR_BELOW_1"],
+            "recovery_high_confidence_loss_cluster_status": {
+                "cluster_detected": True,
+                "affected_symbols": ["LOSSUSDT"],
+                "quarantined_sides": ["long"],
+                "quarantined_timeframes": ["4h"],
+                "quarantined_strategy_modes": [],
+            },
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_circuit_global_halt_only"] is True
+    assert intent["paper_risk_controller_exploration_global_halt_bucket_clean_allowed"] is True
+    assert intent["paper_risk_controller_exploration_circuit_breaker_size_cap_required"] is True
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == []
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert allocation["paper_only"] is True
+    assert allocation["routes_to_live"] is False
+    assert allocation["places_real_order"] is False
+
+
+def test_global_performance_halt_caps_exploration_matching_broad_side_bucket() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "MATCHUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
+        "side:long"
+    ]
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert allocation["mandatory_size_haircut"] is True
+
+
+def test_global_performance_halt_caps_broad_negative_bucket_metadata() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "MATCHUSDT",
+        "timeframe": "4h",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long", "timeframe:4h"],
+            "bucket_quarantine_status": {
+                "negative_bucket_min_count": 2,
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "side:long",
+                        "bucket_type": "side",
+                        "block_reasons": [
+                            "NEGATIVE_EXPECTANCY_SIDE_BUCKET",
+                            "NEGATIVE_PROFIT_FACTOR_SIDE_BUCKET",
+                        ],
+                        "closed_outcome_count": 6,
+                        "profit_factor": 0.57,
+                        "notional_weighted_expectancy_bps": -100.1,
+                    },
+                    {
+                        "bucket_key": "timeframe:4h",
+                        "bucket_type": "timeframe",
+                        "block_reasons": [
+                            "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND",
+                            "NEGATIVE_EXPECTANCY_TIMEFRAME_BUCKET",
+                            "NEGATIVE_PROFIT_FACTOR_TIMEFRAME_BUCKET",
+                        ],
+                        "closed_outcome_count": 3,
+                        "profit_factor": 0.0,
+                        "notional_weighted_expectancy_bps": -28.4,
+                    },
+                ],
+            },
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
+        "side:long",
+        "timeframe:4h",
+    ]
+    assert [
+        proof["classification"]
+        for proof in intent["paper_performance_circuit_breaker_advisory_bucket_proof"]
+    ] == [
+        "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
+        "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
+    ]
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert allocation["mandatory_size_haircut"] is True
+
+
+def test_global_performance_halt_caps_immature_confidence_regime_bucket() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "MATCHUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "confidence_calibrated": 0.84,
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["confidence_regime:0.8-0.9|TREND"],
+            "bucket_quarantine_status": {
+                "negative_bucket_min_count": 2,
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "confidence_regime:0.8-0.9|TREND",
+                        "bucket_type": "confidence_regime",
+                        "block_reasons": ["IMMATURE_CONFIDENCE_REGIME_BUCKET"],
+                        "closed_outcome_count": 1,
+                        "profit_factor": 0.0,
+                        "notional_weighted_expectancy_bps": 2.5,
+                    }
+                ],
+            },
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == [
+        "confidence_regime:0.8-0.9|TREND"
+    ]
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0][
+        "bucket_key"
+    ] == "confidence_regime:0.8-0.9|TREND"
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_proof"][0][
+        "classification"
+    ] == "ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION"
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert allocation["mandatory_size_haircut"] is True
+
+
+def test_global_performance_halt_blocks_mature_confidence_regime_bucket() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "MATCHUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "confidence_calibrated": 0.84,
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["confidence_regime:0.8-0.9|TREND"],
+            "bucket_quarantine_status": {
+                "negative_bucket_min_count": 2,
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "confidence_regime:0.8-0.9|TREND",
+                        "bucket_type": "confidence_regime",
+                        "block_reasons": [
+                            "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND",
+                            "NEGATIVE_PROFIT_FACTOR_CONFIDENCE_REGIME_BUCKET",
+                        ],
+                        "closed_outcome_count": 2,
+                        "profit_factor": 0.0,
+                        "notional_weighted_expectancy_bps": -20.0,
+                    }
+                ],
+            },
+        },
+    )
+
+    assert blocked is True
+    assert intent["paper_performance_circuit_breaker_blocked"] is True
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == [
+        "confidence_regime:0.8-0.9|TREND"
+    ]
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
+        "bucket_key"
+    ] == "confidence_regime:0.8-0.9|TREND"
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
+        "classification"
+    ] == "HARD_BLOCK_FOR_PAPER_EXPLORATION"
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_proof"][0][
+        "profit_factor"
+    ] == 0.0
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == []
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_global_performance_halt_blocks_exploration_matching_quarantine_bucket() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "MATCHUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side_timeframe:long|15m"],
+        },
+    )
+
+    assert blocked is True
+    assert intent["paper_performance_circuit_breaker_blocked"] is True
+    assert "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY" in intent[
+        "paper_performance_circuit_breaker_block_reasons"
+    ]
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == [
+        "side_timeframe:long|15m"
+    ]
+    assert intent["paper_performance_circuit_breaker_advisory_bucket_keys"] == []
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is False
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_global_performance_halt_caps_exploration_matching_broad_loss_cluster_dimension() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "CLEANUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+            "recovery_high_confidence_loss_cluster_status": {
+                "cluster_detected": True,
+                "affected_symbols": [],
+                "quarantined_sides": ["short"],
+                "quarantined_timeframes": [],
+                "quarantined_strategy_modes": [],
+            },
+        },
+    )
+
+    assert blocked is False
+    assert intent["paper_performance_circuit_breaker_blocked"] is False
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == []
+    assert intent["paper_performance_circuit_breaker_advisory_loss_cluster_keys"] == [
+        "loss_cluster_side:short"
+    ]
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+
+
+def test_global_performance_halt_blocks_exploration_matching_loss_cluster_symbol() -> None:
+    intent = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "symbol": "CLEANUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "strategy_id": "trend_mode",
+        "market_regime": "TREND",
+    }
+    allocation = _allowed_allocation()
+
+    blocked = paper_loop._paper_block_new_entry_by_performance_circuit(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+        performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "blocked_bucket_keys": ["side:long"],
+            "recovery_high_confidence_loss_cluster_status": {
+                "cluster_detected": True,
+                "affected_symbols": ["CLEANUSDT"],
+                "quarantined_sides": ["short"],
+                "quarantined_timeframes": [],
+                "quarantined_strategy_modes": [],
+            },
+        },
+    )
+
+    assert blocked is True
+    assert "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY" in intent[
+        "paper_performance_circuit_breaker_block_reasons"
+    ]
+    assert intent["paper_performance_circuit_breaker_matched_blocked_bucket_keys"] == []
+    assert intent["paper_performance_circuit_breaker_matched_loss_cluster_keys"] == [
+        "loss_cluster_symbol:CLEANUSDT"
+    ]
+    assert intent["paper_performance_circuit_breaker_advisory_loss_cluster_keys"] == [
+        "loss_cluster_side:short"
+    ]
+    assert intent[
+        "paper_risk_controller_exploration_broad_quarantine_size_cap_required"
+    ] is True
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
 def _allowed_allocation(**overrides):
     payload = {
         "allocator_decision": "ALLOW_WITH_SIZE",
@@ -799,6 +5161,12 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     )
     assert status["candidate_allocations_selected_before_outcome"] is True
     assert status["candidate_allocations_future_labels_used_as_features"] is False
+    assert status["paper_evidence_lanes"]["active_accepted_fill_lane"] is False
+    assert status["paper_evidence_lanes"]["active_shadow_lane"] is False
+    assert status["paper_evidence_lanes"]["active_counterfactual_lane"] is False
+    assert status["paper_evidence_lanes"]["paper_loop_fresh"] is True
+    assert status["paper_evidence_lanes"]["rows_last_hour"] == 30
+    assert status["paper_evidence_lanes"]["live_mutation_flags_all_false"] is True
     assert len(status["sample_allocations"]) == 25
     assert status["sample_allocations"] == status["candidate_allocations"][:25]
     assert status["accepted_allocation_count"] == 15
@@ -872,6 +5240,37 @@ def test_paper_adaptive_sizing_runtime_status_exposes_full_candidate_allocations
     assert status["missing_microstructure_trust_candidate_count"] == 0
     assert status["paper_only"] is True
     assert status["places_real_order"] is False
+
+
+def test_paper_evidence_lanes_expose_shadow_counterfactual_and_replay(monkeypatch) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status(  # noqa: SLF001
+        [
+            _allowed_allocation(
+                allocation_id="shadow",
+                allocator_decision="BLOCK_GUARDIAN_HALTED",
+                paper_opportunity_tier=paper_loop.PAPER_TIER_SHADOW_ONLY,
+                strategy_supply_shadow_evidence_only=True,
+                preemptive_decision="NO_TRADE",
+                replay_snapshot_id="replay-1",
+                generated_utc="2026-06-22T13:20:00Z",
+                paper_fill_allowed=False,
+                places_real_order=False,
+                leverage_mutation=False,
+                margin_mode_mutation=False,
+            )
+        ]
+    )
+
+    lanes = status["paper_evidence_lanes"]
+    assert lanes["active_accepted_fill_lane"] is False
+    assert lanes["active_shadow_lane"] is True
+    assert lanes["active_counterfactual_lane"] is True
+    assert lanes["active_replay_lane"] is True
+    assert lanes["rows_last_hour"] == 1
+    assert lanes["paper_loop_fresh"] is True
+    assert lanes["live_mutation_flags_all_false"] is True
     assert status["test_orders"] is False
     assert status["leverage_mutation"] is False
     assert status["margin_mode_mutation"] is False
@@ -1125,6 +5524,238 @@ def test_paper_adaptive_sizing_status_blocks_missing_tier_allocations(monkeypatc
     assert published["gross_notional_usd"] == 0.0
     assert published["places_real_order"] is False
     assert allocation["allocator_decision"] == "ALLOW_WITH_SIZE"
+
+
+def test_guardian_forced_shadow_allocation_preserves_positive_usd_economics(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(paper_loop, "_utc_iso", lambda: "2026-06-22T13:30:00Z")
+    allocation = _allowed_allocation(
+        allocation_id="strategy-shadow",
+        source_tier="STRATEGY_SUPPLY_PRE_GUARDIAN_SHADOW_ONLY",
+        paper_opportunity_tier="SHADOW_ONLY",
+        explicit_paper_opportunity_tier="SHADOW_ONLY",
+        paper_opportunity_tier_reason="CONTINUOUS_EDGE_GUARDIAN_A_GRADE_HALTED",
+        paper_fill_allowed_source="CONTINUOUS_EDGE_GUARDIAN_BLOCKED_NEW_A_GRADE_ENTRIES",
+        pre_guardian_paper_opportunity_tier="A_GRADE_EXECUTION_PAPER",
+        pre_guardian_paper_opportunity_tier_reason=(
+            "STRATEGY_SUPPLY_ALLOCATOR_RISK_ORCHESTRATOR_PASS_POSITIVE_USD_EDGE"
+        ),
+        continuous_edge_guardian_forced_shadow_only=True,
+        continuous_edge_guardian_status="A_GRADE_HALTED_PERFORMANCE",
+        continuous_edge_guardian_new_entries_allowed=False,
+        counts_as_a_grade_evidence=False,
+        a_grade_promotion_allowed=False,
+        live_ready_implication=False,
+    )
+
+    status = paper_loop._paper_adaptive_sizing_runtime_status([allocation])  # noqa: SLF001
+    published = status["candidate_allocations"][0]
+
+    assert status["accepted_allocation_count"] == 1
+    assert status["blocked_allocation_count"] == 0
+    assert status["a_grade_rows"] == 0
+    assert status["near_a_grade_rows"] == 1
+    assert status["non_executable_tier_publication_block_count"] == 0
+    assert published["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert published["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert published["expected_net_pnl_usd"] == 12.0
+    assert published["gross_notional_usd"] == 1000.0
+    assert published["counts_as_a_grade_evidence"] is False
+    assert published["a_grade_promotion_allowed"] is False
+    assert published["live_ready_implication"] is False
+    assert published["paper_only"] is True
+    assert published["places_real_order"] is False
+    assert published["test_order"] is False
+    assert published["leverage_mutation"] is False
+    assert published["margin_mode_mutation"] is False
+
+
+def test_strategy_supply_shadow_candidate_allocation_rows_expose_positive_pass_rows() -> None:
+    gate = {
+        "status": "A_GRADE_HALTED_PERFORMANCE",
+        "a_grade_new_entries_allowed": False,
+        "failure_reasons": [
+            {"reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES"}
+        ],
+        "allowed_runtime_actions": ["reduce", "close"],
+    }
+    rows = paper_loop._strategy_supply_shadow_candidate_allocation_rows(  # noqa: SLF001
+        continuous_edge_guardian_gate=gate,
+        inventory_rows=[
+            {
+                "strategy_supply_hypothesis": True,
+                "strategy_supply_hypothesis_id": "hyp_1",
+                "candidate_id": "hyp_1",
+                "prediction_id": "hyp_1",
+                "symbol": "SKYAIUSDT",
+                "timeframe": "1h",
+                "side": "short",
+                "strategy_id": "supply_breakout_short",
+                "strategy_family": "breakout_after_compression",
+                "expected_net_pnl_usd": 9.25,
+                "expected_gross_pnl_usd": 12.0,
+                "expected_cost_usd": 2.75,
+                "expected_fees_usd": 0.8,
+                "expected_slippage_usd": 1.5,
+                "expected_funding_usd": 0.45,
+                "expected_max_loss_usd": 18.0,
+                "expected_move_after_cost_bps": 46.25,
+                "target_notional_usd": 200.0,
+                "current_price": 0.82,
+                "price_source": "v2:market:current_price:SKYAIUSDT",
+                "price_available_at": "2026-06-22T13:29:59Z",
+                "expected_exit_depth_usd": 50000.0,
+                "liquidation_buffer_bps": 800.0,
+                "allocator_packet": {
+                    "correlation_after_trade": 0.33,
+                    "model_inputs": {"spread_bps": 12.5},
+                },
+                "allocator_decision": "PASS",
+                "allocator_decision_id": "alloc_decision_1",
+                "risk_decision": "PASS",
+                "risk_decision_id": "risk_decision_1",
+                "orchestrator_decision": "PASS",
+                "orchestrator_decision_id": "orch_decision_1",
+                "preemptive_action": "BLOCK_GUARDIAN_HALTED",
+                "preemptive_decision_id": "preemptive_1",
+                "pre_trade_loss_probability": 0.31,
+                "loss_probability_reason": "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
+                "loss_probability_reasons": [
+                    "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+                ],
+                "loss_probability_calibration": {
+                    "base_loss_probability": 0.4,
+                    "adjusted_loss_probability": 0.31,
+                },
+                "feature_snapshot_id": "snap_1",
+                "entry_feature_snapshot": {
+                    "feature_snapshot_id": "snap_1",
+                    "symbol": "SKYAIUSDT",
+                    "timeframe": "1h",
+                    "feature_freshness_state": "CURRENT",
+                    "available_at": "2026-06-22T13:29:55Z",
+                    "generated_at": "2026-06-22T13:29:55Z",
+                    "feature_cutoff": "2026-06-22T13:29:50Z",
+                    "candle_closed_confirmed": True,
+                    "latest_unclosed_kline_excluded": True,
+                    "features": {
+                        "close": 0.82,
+                        "orderbook_depth_usd": 50000.0,
+                        "funding_bps": 22.5,
+                    },
+                },
+                "feature_vector_hash": "feature_hash_1",
+                "provider_feature_hashes": {"coinank": "hash-coinank"},
+                "feature_cutoff": "2026-06-22T13:29:50Z",
+                "decision_time": "2026-06-22T13:30:00Z",
+                "generated_utc": "2026-06-22T13:30:09Z",
+            }
+        ],
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["candidate_allocation_source"] == (
+        "strategy_supply_inventory_shadow_evidence_bridge"
+    )
+    assert row["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert row["pre_guardian_paper_opportunity_tier"] == "A_GRADE_EXECUTION_PAPER"
+    assert row["continuous_edge_guardian_forced_shadow_only"] is True
+    assert row["strategy_supply_hypothesis_id"] == "hyp_1"
+    assert row["allocator_decision"] == "ALLOW_WITH_SIZE"
+    assert row["preemptive_decision"] == "BLOCK_GUARDIAN_HALTED"
+    assert row["pre_trade_loss_probability"] == 0.31
+    assert row["pre_trade_loss_probability_source"] == (
+        "strategy_supply_calibrated_inventory"
+    )
+    assert row["loss_probability_reason"] == (
+        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+    )
+    assert row["loss_probability_reasons"] == [
+        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
+    ]
+    assert row["loss_probability_calibration"]["adjusted_loss_probability"] == 0.31
+    assert row["guardian_decision"] == "BLOCK_NEW_A_GRADE_ENTRIES"
+    assert row["guardian_decision_id"].startswith("guardian_")
+    assert row["expected_net_pnl_usd"] == 9.25
+    assert row["notional_usd"] == 200.0
+    assert row["margin_usd"] == 200.0
+    assert row["leverage"] == 1.0
+    assert row["current_price"] == 0.82
+    assert row["entry_feature_snapshot_id"] == "snap_1"
+    assert row["entry_feature_snapshot"]["features"]["close"] == 0.82
+    assert row["strategy_supply_trainer_feedback_ready"] is True
+    assert row["strategy_supply_trainer_feedback_blockers"] == []
+    assert row["source_hashes"] == {"coinank": "hash-coinank"}
+    assert row["fee_bps"] == 40.0
+    assert row["expected_slippage_bps"] == 75.0
+    assert row["expected_funding_bps"] == 22.5
+    assert row["generated_at"] == "2026-06-22T13:30:00Z"
+    assert row["generated_utc"] == "2026-06-22T13:30:00Z"
+    assert row["source_inventory_generated_utc"] == "2026-06-22T13:30:09Z"
+    assert row["allocation_published_at"].endswith("Z")
+    assert row["actual_observed_spread_entry_bps"] == 12.5
+    assert row["observed_bid_ask_spread_bps"] == 12.5
+    assert row["portfolio_correlation_exposure_pct"] == 0.33
+    assert row["correlation_exposure_after_trade"] == 0.33
+    assert row["selector_policy_fingerprint"] == (
+        paper_loop.OUT_OF_SAMPLE_REVERIFY_SELECTOR_POLICY_FINGERPRINT
+    )
+    assert row["candidate_selected_before_outcome"] is True
+    assert row["future_labels_used_as_features"] is False
+    assert row["counts_as_a_grade_evidence"] is False
+    assert row["places_real_order"] is False
+
+
+def test_strategy_supply_shadow_candidate_allocation_rows_keep_risk_blocks_shadow_only() -> None:
+    rows = paper_loop._strategy_supply_shadow_candidate_allocation_rows(  # noqa: SLF001
+        continuous_edge_guardian_gate={
+            "status": "A_GRADE_HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": False,
+        },
+        inventory_rows=[
+            {
+                "strategy_supply_hypothesis": True,
+                "candidate_id": "hyp_risk_blocked",
+                "symbol": "TRUMPUSDT",
+                "timeframe": "1h",
+                "side": "long",
+                "expected_net_pnl_usd": 0.25,
+                "expected_max_loss_usd": 1.5,
+                "expected_fees_usd": 0.8,
+                "expected_slippage_usd": 1.0,
+                "expected_funding_usd": 0.0,
+                "expected_move_after_cost_bps": 12.5,
+                "target_notional_usd": 200.0,
+                "current_price": 9.5,
+                "expected_exit_depth_usd": 100000.0,
+                "expected_liquidation_buffer_usd": 10.0,
+                "allocator_decision": "PASS",
+                "risk_decision": "BLOCKED",
+                "orchestrator_decision": "ABSTAIN",
+                "feature_cutoff": "2026-06-22T13:29:50Z",
+                "decision_time": "2026-06-22T13:30:00Z",
+            }
+        ],
+    )
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["paper_opportunity_tier"] == "SHADOW_ONLY"
+    assert row["strategy_supply_shadow_evidence_only"] is True
+    assert row["continuous_edge_guardian_forced_shadow_only"] is False
+    assert "pre_guardian_paper_opportunity_tier" not in row
+    assert row["paper_opportunity_tier_reason"] == (
+        "STRATEGY_SUPPLY_ALLOCATOR_PASS_SHADOW_EVIDENCE_ONLY"
+    )
+    status = paper_loop._paper_adaptive_sizing_runtime_status(rows)  # noqa: SLF001
+    published = status["candidate_allocations"][0]
+    assert status["accepted_allocation_count"] == 1
+    assert status["a_grade_rows"] == 0
+    assert published["expected_net_pnl_usd"] == 0.25
+    assert published["counts_as_a_grade_evidence"] is False
+    assert published["places_real_order"] is False
 
 
 def test_current_cycle_candidate_allocations_exclude_historical_accepted_rows() -> None:
@@ -1585,6 +6216,80 @@ def test_read_v2_feature_snapshot_missing_timeframe_does_not_default_to_1m() -> 
     assert snapshot["features"] == {}
     assert snapshot["unavailable_reason"] == paper_loop.MISSING_THESIS_TIMEFRAME_BLOCK_REASON
     assert fake.keys == []
+
+
+def test_read_v2_feature_snapshot_for_signal_falls_back_to_pit_valid_latest() -> None:
+    redis = _FakeRedis(
+        {
+            "v2:features:latest:BTCUSDT:15m": {
+                "feature_snapshot_id": "v2_fsnap_current",
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "feature_freshness_state": "CURRENT",
+                "available_at": "2026-07-10T03:27:58.000Z",
+                "generated_at": "2026-07-10T03:27:58.000Z",
+                "feature_cutoff": "2026-07-10T03:14:59.999Z",
+                "candle_close_time": "2026-07-10T03:14:59.999Z",
+                "candle_closed_confirmed": True,
+                "latest_unclosed_kline_excluded": True,
+                "features": {"ta_ATR": 12.0},
+            }
+        }
+    )
+
+    snapshot = paper_loop._read_v2_feature_snapshot_for_signal(  # noqa: SLF001
+        redis,
+        "snap_missing_strategy_supply_id",
+        decision_time="2026-07-10T03:28:00.000Z",
+        symbol="BTCUSDT",
+        timeframe="15m",
+    )
+
+    assert snapshot["features"] == {"ta_ATR": 12.0}
+    assert snapshot["feature_snapshot_id"] == "v2_fsnap_current"
+    assert snapshot["requested_feature_snapshot_id"] == "snap_missing_strategy_supply_id"
+    assert snapshot["feature_snapshot_fallback_used"] is True
+    assert snapshot["feature_snapshot_resolution_status"] == (
+        "FEATURE_SNAPSHOT_LATEST_FALLBACK_PIT_VALID_AFTER_MISSING_ID"
+    )
+    assert snapshot["feature_snapshot_unavailable_reason_before_fallback"] == (
+        "MISSING_V2_FEATURE_SNAPSHOT"
+    )
+
+
+def test_read_v2_feature_snapshot_for_signal_future_latest_does_not_bypass_pit() -> None:
+    redis = _FakeRedis(
+        {
+            "v2:features:latest:BTCUSDT:15m": {
+                "feature_snapshot_id": "v2_fsnap_future",
+                "symbol": "BTCUSDT",
+                "timeframe": "15m",
+                "feature_freshness_state": "CURRENT",
+                "available_at": "2026-07-10T03:28:01.000Z",
+                "generated_at": "2026-07-10T03:28:01.000Z",
+                "feature_cutoff": "2026-07-10T03:14:59.999Z",
+                "candle_close_time": "2026-07-10T03:14:59.999Z",
+                "candle_closed_confirmed": True,
+                "latest_unclosed_kline_excluded": True,
+                "features": {"ta_ATR": 12.0},
+            }
+        }
+    )
+
+    snapshot = paper_loop._read_v2_feature_snapshot_for_signal(  # noqa: SLF001
+        redis,
+        "snap_missing_strategy_supply_id",
+        decision_time="2026-07-10T03:28:00.000Z",
+        symbol="BTCUSDT",
+        timeframe="15m",
+    )
+
+    assert snapshot["features"] == {}
+    assert snapshot["unavailable_reason"] == "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME"
+    assert snapshot["feature_snapshot_fallback_used"] is False
+    assert snapshot["feature_snapshot_resolution_status"] == (
+        "FEATURE_SNAPSHOT_MISSING_ID_AND_LATEST_FALLBACK_UNAVAILABLE"
+    )
 
 
 def test_build_allocation_input_marks_missing_thesis_timeframe_unknown() -> None:
@@ -4269,6 +8974,381 @@ def test_mismatched_runtime_owner_identity_cannot_open_new_economic_paper_fills(
     ]
 
 
+def _risk_controller_exploration_owner_intent(**overrides) -> dict[str, object]:
+    intent: dict[str, object] = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "risk_decision_id": "risk-explore-1",
+        "risk_decision": "PASS",
+        "orchestrator_decision_id": "orch-explore-1",
+        "orchestrator_decision": "PASS",
+        "allocator_decision_id": "alloc-explore-1",
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "production_grade_cost_flag": True,
+        "expected_net_pnl_usd": 0.42,
+        "expected_max_loss_usd": 0.12,
+        "recommended_notional_usd": 10.0,
+        "recommended_leverage": 1.0,
+        "recommended_margin_mode": "isolated",
+        "liquidation_buffer_usd": 50.0,
+        "feature_vector_hash": "feature-hash",
+        "provider_hashes": {"microstructure": "provider-hash"},
+        "exit_plan": {"exit_feasible": True, "max_loss_usd": 0.12},
+        "risk_budget_fraction_of_normal_adaptive": (
+            paper_loop.PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+        ),
+    }
+    intent.update(overrides)
+    return intent
+
+
+def test_paper_risk_controller_exploration_owner_gate_allows_without_challenger_identity() -> None:
+    intent = _risk_controller_exploration_owner_intent()
+
+    assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+    assert intent["paper_policy_owner_open_allowed"] is True
+    assert intent["paper_policy_owner_open_block_reason"] is None
+    assert intent["paper_runtime_owner_rejection_reasons"] == []
+
+
+def _positive_edge_probation_owner_intent(**overrides) -> dict[str, object]:
+    intent: dict[str, object] = {
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
+        "positive_edge_probation_paper": True,
+        "side": "long",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "production_grade_cost_flag": True,
+        "expected_net_pnl_usd": 0.42,
+        "entry_price": 10.0,
+        "gross_notional_usd": 80.0,
+        "recommended_notional_usd": 80.0,
+        "recommended_leverage": 1.0,
+        "recommended_margin_mode": "isolated",
+        "stop_distance_bps": 25.0,
+        "feature_snapshot_id": "snap-probation",
+        "cost_evidence_source_fields": {"spread": "orderbook"},
+        "preemptive_decision_id": "pec-probation",
+        "risk_decision_id": "risk-probation",
+        "orchestrator_decision_id": "orch-probation",
+    }
+    intent.update(overrides)
+    return intent
+
+
+def test_positive_edge_probation_owner_gate_derives_internal_exit_plan() -> None:
+    intent = _positive_edge_probation_owner_intent()
+
+    assert paper_loop._paper_policy_owner_open_rejection_reasons(intent) == []  # noqa: SLF001
+
+    assert intent["paper_policy_owner_open_allowed"] is True
+    assert intent["exit_plan"]["status"] == "INTERNAL_PAPER_EXIT_PLAN_ACTIVE"
+    assert intent["exit_plan"]["paper_only"] is True
+    assert intent["exit_plan"]["routes_to_live"] is False
+    assert intent["expected_max_loss_usd"] == 0.2
+
+
+def test_positive_edge_probation_owner_gate_blocks_without_bounded_exit_plan() -> None:
+    intent = _positive_edge_probation_owner_intent(
+        entry_price=None,
+        stop_distance_bps=None,
+        expected_max_loss_usd=None,
+        exit_plan=None,
+    )
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons[0] == "POSITIVE_EDGE_PROBATION_OWNER_GUARD_BLOCKED"
+    assert "exit_plan_missing" in reasons
+    assert "expected_max_loss_usd_missing" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+def test_learning_lane_accepted_fill_normalization_derives_exit_plan_and_safety_flags() -> None:
+    valid_rows, quarantined_rows, status = paper_loop._split_invalid_admission_accepted_rows(  # noqa: SLF001
+        [
+            {
+                "paper_opportunity_tier": paper_loop.PAPER_TIER_POSITIVE_EDGE_PROBATION,
+                "paper_only": True,
+                "routes_to_live": False,
+                "places_real_order": False,
+                "counts_as_A_plus": None,
+                "counts_as_final_a_plus": None,
+                "counts_as_live_ready": None,
+                "side": "long",
+                "entry_price": 10.0,
+                "gross_notional_usd": 80.0,
+                "recommended_notional_usd": 80.0,
+                "stop_distance_bps": 25.0,
+            }
+        ]
+    )
+
+    assert quarantined_rows == []
+    assert status["valid_accepted_rows"] == 1
+    row = valid_rows[0]
+    assert row["exit_plan"]["status"] == "INTERNAL_PAPER_EXIT_PLAN_ACTIVE"
+    assert row["expected_max_loss_usd"] == 0.2
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+
+
+def test_paper_risk_controller_exploration_owner_gate_rejects_live_route_flags() -> None:
+    intent = _risk_controller_exploration_owner_intent(routes_to_live=True)
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons[0] == "PAPER_RISK_CONTROLLER_EXPLORATION_OWNER_GUARD_BLOCKED"
+    assert "routes_to_live_not_false" in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_reason"),
+    [
+        ({"risk_decision_id": None}, "risk_controller_evidence_missing"),
+        ({"risk_decision": None}, "risk_controller_evidence_missing"),
+        ({"orchestrator_decision_id": None}, "orchestrator_evidence_missing"),
+        ({"orchestrator_decision": None}, "orchestrator_evidence_missing"),
+        ({"allocator_decision_id": None}, "allocator_evidence_missing"),
+        ({"allocator_decision": None}, "allocator_evidence_missing"),
+        ({"expected_max_loss_usd": None}, "expected_max_loss_usd_missing"),
+        ({"expected_net_pnl_usd": None}, "expected_net_pnl_usd_missing"),
+        ({"production_grade_cost_flag": False}, "production_grade_cost_evidence_missing"),
+        ({"routes_to_live": True}, "routes_to_live_not_false"),
+        ({"places_real_order": True}, "places_real_order_not_false"),
+        ({"counts_as_A_plus": True}, "counts_as_A_plus_not_false"),
+        ({"counts_as_live_ready": True}, "counts_as_live_ready_not_false"),
+        ({"feature_vector_hash": None}, "feature_vector_hash_missing"),
+        ({"provider_hashes": {}}, "provider_hashes_missing"),
+        ({"exit_plan": None}, "exit_plan_missing"),
+    ],
+)
+def test_paper_risk_controller_exploration_owner_gate_rejects_missing_safety_evidence(
+    override: dict[str, object],
+    expected_reason: str,
+) -> None:
+    intent = _risk_controller_exploration_owner_intent(**override)
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons[0] == "PAPER_RISK_CONTROLLER_EXPLORATION_OWNER_GUARD_BLOCKED"
+    assert expected_reason in reasons
+    assert intent["paper_policy_owner_open_allowed"] is False
+
+
+def test_materialization_queue_owner_gate_reports_exact_reasons_without_wrapper() -> None:
+    intent = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-safe",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "risk_decision_id": "risk-safe",
+        "risk_decision": "PASS",
+        "orchestrator_decision_id": "orch-safe",
+        "orchestrator_decision": "PASS",
+        "allocator_decision_id": "alloc-safe",
+        "allocator_decision": "BLOCK_INSUFFICIENT_LIQUIDITY",
+        "expected_net_pnl_usd": 0.42,
+        "expected_max_loss_usd": 0.12,
+        "recommended_notional_usd": 10.0,
+        "recommended_leverage": 1.0,
+        "recommended_margin_mode": "isolated",
+        "liquidation_buffer_usd": 50.0,
+        "feature_vector_hash": "feature-hash",
+        "provider_hashes": {"microstructure": "provider-hash"},
+        "exit_plan": {"exit_feasible": True, "max_loss_usd": 0.12},
+    }
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert reasons == [
+        "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY"
+    ]
+    assert not any("OWNER_GUARD" in reason for reason in reasons)
+    assert intent["paper_policy_owner_open_allowed"] is False
+    assert intent["paper_policy_owner_open_block_reason"] == reasons[0]
+
+
+def test_materialization_queue_owner_gate_rejects_no_trade_strategy_rows() -> None:
+    intent = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-no-trade",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "risk_decision_id": "risk-no-trade",
+        "risk_decision": "PASS",
+        "orchestrator_decision_id": "orch-no-trade",
+        "orchestrator_decision": "PASS",
+        "allocator_decision_id": "alloc-no-trade",
+        "allocator_decision": "PASS",
+        "expected_net_pnl_usd": 0.42,
+        "expected_max_loss_usd": 0.12,
+        "recommended_notional_usd": 10.0,
+        "recommended_leverage": 1.0,
+        "recommended_margin_mode": "isolated",
+        "liquidation_buffer_usd": 50.0,
+        "feature_vector_hash": "feature-hash",
+        "provider_hashes": {"microstructure": "provider-hash"},
+        "exit_plan": {"exit_feasible": True, "max_loss_usd": 0.12},
+        "strategy_id": "no_trade_mode",
+        "strategy_family": "no_trade_mode",
+        "strategy_router_selected_mode": "no_trade_mode",
+    }
+
+    reasons = paper_loop._paper_policy_owner_open_rejection_reasons(intent)  # noqa: SLF001
+
+    assert "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE" in reasons
+    assert "no_trade_entry_evidence:intent.strategy_id=NO_TRADE" in reasons
+    assert "no_trade_entry_evidence:intent.strategy_family=NO_TRADE" in reasons
+    assert "no_trade_entry_evidence:intent.strategy_router_selected_mode=NO_TRADE" in reasons
+    assert not any("OWNER_GUARD" in reason for reason in reasons)
+    assert intent["paper_policy_owner_open_allowed"] is False
+    assert intent["materialization_queue_entry_evidence_status"] == (
+        "REJECTED_LIFECYCLE_OR_NO_TRADE_STRATEGY"
+    )
+    assert intent["paper_policy_owner_open_block_reason"] == (
+        "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
+    )
+
+
+def test_materialization_queue_preserves_clean_source_strategy_identity() -> None:
+    signal = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-clean",
+        "strategy_selected_mode": "trend_continuation",
+        "strategy_id": "trend_continuation",
+        "strategy_family": "microstructure_momentum",
+        "strategy_subtype": "breakout_follow",
+        "entry_reason": "trend_continuation_entry",
+    }
+    intent = {
+        "materialization_queue_id": signal["materialization_queue_id"],
+        "strategy_selected_mode": "risk_off_no_trade",
+        "strategy_id": "risk_off_no_trade",
+        "strategy_family": "risk_off_no_trade",
+        "strategy_subtype": "risk_off_no_trade",
+        "strategy_mode": "risk_off_no_trade",
+        "strategy_canonical_mode": "risk_off_no_trade",
+        "strategy_router_selected_mode": "no_trade_mode",
+        "entry_reason": "no_trade_mode",
+        "strategy_regime_labels": ["NO_TRADE"],
+    }
+
+    paper_loop._preserve_materialization_queue_strategy_identity(  # noqa: SLF001
+        intent=intent,
+        signal=signal,
+    )
+    reasons = paper_loop._paper_lifecycle_or_no_trade_strategy_reasons(  # noqa: SLF001
+        signal={},
+        intent=intent,
+    )
+
+    assert intent["materialization_queue_strategy_identity_preserved"] is True
+    assert intent["strategy_selected_mode"] == "trend_continuation"
+    assert intent["strategy_id"] == "trend_continuation"
+    assert intent["strategy_family"] == "microstructure_momentum"
+    assert intent["strategy_subtype"] == "breakout_follow"
+    assert intent["strategy_mode"] == "trend_continuation"
+    assert intent["strategy_canonical_mode"] == "trend_continuation"
+    assert intent["strategy_router_selected_mode"] == "trend_continuation"
+    assert intent["entry_reason"] == "trend_continuation_entry"
+    assert intent["strategy_regime_labels"] == []
+    assert intent["materialization_queue_stale_no_trade_strategy_modes_replaced"] is True
+    assert intent["materialization_queue_stale_no_trade_regime_labels_replaced"] is True
+    assert "intent.strategy_id=NO_TRADE" not in reasons
+    assert "intent.strategy_family=NO_TRADE" not in reasons
+    assert "intent.strategy_mode=NO_TRADE" not in reasons
+    assert "intent.strategy_canonical_mode=NO_TRADE" not in reasons
+    assert "intent.strategy_router_selected_mode=NO_TRADE" not in reasons
+    assert "intent.entry_reason=NO_TRADE" not in reasons
+    assert "strategy_regime_labels_include_NO_TRADE" not in reasons
+
+
+def test_materialization_queue_preserved_no_trade_source_still_blocks() -> None:
+    signal = {
+        "materialization_queue_id": "paper_exploration_materialize_hyp-no-trade",
+        "strategy_selected_mode": "no_trade_mode",
+        "strategy_id": "no_trade_mode",
+        "strategy_family": "no_trade_mode",
+        "entry_reason": "no_trade_mode",
+        "strategy_regime_labels": ["NO_TRADE"],
+    }
+    intent = {
+        "materialization_queue_id": signal["materialization_queue_id"],
+        "strategy_selected_mode": "trend_continuation",
+        "strategy_id": "trend_continuation",
+        "strategy_family": "trend_continuation",
+    }
+
+    paper_loop._preserve_materialization_queue_strategy_identity(  # noqa: SLF001
+        intent=intent,
+        signal=signal,
+    )
+    reasons = paper_loop._paper_lifecycle_or_no_trade_strategy_reasons(  # noqa: SLF001
+        signal={},
+        intent=intent,
+    )
+
+    assert intent["materialization_queue_strategy_identity_preserved"] is True
+    assert "intent.strategy_id=NO_TRADE" in reasons
+    assert "intent.strategy_family=NO_TRADE" in reasons
+    assert "strategy_regime_labels_include_NO_TRADE" in reasons
+
+
+def test_materialization_queue_no_trade_strategy_maps_to_true_entry_gate_no_fill() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE",
+            "no_trade_entry_evidence:intent.strategy_id=NO_TRADE",
+        ]
+    )
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 3}
+    )
+
+    assert reason == "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED"
+    assert components == ["TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"]
+
+
 def test_missing_owner_attribution_rows_are_explicit_pre_cutover_not_challenger_credit() -> None:
     row = {
         "fill_id": "fill-pre-cutover",
@@ -4380,6 +9460,68 @@ def test_active_cuda_owner_attribution_keeps_unknown_candidate_mismatch_blocked(
     assert normalized["paper_owner_attribution_blocks_challenger_credit"] is True
     assert normalized["counts_as_a_grade_evidence"] is False
     assert normalized["challenger_credit_allowed"] is False
+
+
+def test_paper_exploration_materialization_owner_allows_hypothesis_candidate_id() -> None:
+    row = {
+        "fill_id": "fill-paper-exploration-hyp",
+        "ledger_row_id": "fill-paper-exploration-hyp",
+        "symbol": "RAREUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "candidate_id": "hyp_fc0dd90be508f348",
+        "policy_id": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID,
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration": True,
+        "materialization_queue_id": "paper_exploration_materialize_hyp_fc0dd90be508f348",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_a_grade_evidence": False,
+        "counts_as_live_ready": False,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == "hyp_fc0dd90be508f348"
+    assert normalized["policy_id"] == paper_loop.CHALLENGER_V2_ACTIVE_CUDA_CANDIDATE_ID
+    assert normalized["paper_owner_attribution_complete"] is True
+    assert normalized["paper_owner_attribution_missing_fields"] == []
+    assert normalized["paper_owner_attribution_blocks_challenger_credit"] is False
+
+
+def test_compacted_hypothesis_paper_fill_owner_allows_hypothesis_policy_id() -> None:
+    row = {
+        "fill_id": "fill-paper-exploration-hyp-compact",
+        "ledger_row_id": "fill-paper-exploration-hyp-compact",
+        "symbol": "BTCUSDT",
+        "timeframe": "1h",
+        "side": "long",
+        "decision": "ACCEPTED_PAPER_FILL",
+        "candidate_id": "hyp_26488b85b421662e",
+        "policy_id": "hyp_26488b85b421662e",
+        "paper_policy_owner": paper_loop.PAPER_POLICY_OWNER_CHALLENGER_V2,
+        "policy_fingerprint": paper_loop.CHALLENGER_V2_ACTIVE_CUDA_POLICY_FINGERPRINT,
+        "model_source": paper_loop.CHALLENGER_V2_MODEL_SOURCE,
+        "counts_as_a_grade_evidence": False,
+        "counts_as_A_plus": False,
+        "counts_as_live_ready": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    normalized = paper_loop._normalize_paper_owner_attribution(row)  # noqa: SLF001
+
+    assert normalized["candidate_id"] == "hyp_26488b85b421662e"
+    assert normalized["policy_id"] == "hyp_26488b85b421662e"
+    assert normalized["paper_owner_attribution_complete"] is True
+    assert normalized["paper_owner_attribution_missing_fields"] == []
+    assert normalized["paper_owner_attribution_blocks_challenger_credit"] is False
 
 
 def test_owner_attribution_status_allows_current_challenger_and_quarantines_history() -> None:
@@ -6748,6 +11890,93 @@ def test_invalid_admission_accepted_rows_are_split_to_quarantine() -> None:
     )
 
 
+def test_no_trade_materialization_accepted_row_is_quarantined() -> None:
+    rows = [
+        {
+            "fill_id": "paper_pos_dash",
+            "candidate_id": "hyp-no-trade-fill",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-no-trade-fill",
+            "symbol": "DASHUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+            "strategy_id": "no_trade_mode",
+            "strategy_family": "no_trade_mode",
+            "strategy_selected_mode": "no_trade_mode",
+            "entry_price": 34.78,
+            "expected_max_loss_usd": 0.25,
+            "exit_plan": {"max_loss_usd": 0.25, "paper_only": True},
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_A_plus": False,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+            "trainer_consumable": True,
+            "counts_as_a_grade_evidence": True,
+        }
+    ]
+
+    valid_rows, quarantine_rows, status = (
+        paper_loop._split_invalid_admission_accepted_rows(rows)  # noqa: SLF001
+    )
+
+    assert valid_rows == []
+    assert len(quarantine_rows) == 1
+    assert quarantine_rows[0]["accepted_fill_quarantined"] is True
+    assert "LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE" in (
+        quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"]
+    )
+    assert (
+        "no_trade_entry_evidence:intent.strategy_id=NO_TRADE"
+        in quarantine_rows[0]["invalid_admission_entry_gate_block_reasons"]
+    )
+    assert quarantine_rows[0]["trainer_consumable"] is False
+    assert quarantine_rows[0]["counts_as_a_grade_evidence"] is False
+    assert status["valid_accepted_rows"] == 0
+    assert status["invalid_admission_accepted_rows_quarantined"] == 1
+
+
+def test_invalid_admission_open_position_is_flagged_but_retained_for_lifecycle() -> None:
+    invalid_rows = [
+        {
+            "fill_id": "paper_pos_aave",
+            "candidate_id": "hyp-aave",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-aave",
+            "entry_gate_block_reasons": ["REGIME_GATE_NO_CASCADE_DATA:long:trend:AAVEUSDT:1h"],
+            "paper_only": True,
+        }
+    ]
+    open_positions = [
+        {
+            "position_id": "paper_pos_aave",
+            "candidate_id": "hyp-aave",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-aave",
+            "symbol": "AAVEUSDT",
+            "timeframe": "1h",
+            "side": "long",
+            "strategy_id": "trend_continuation",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_a_grade_evidence": True,
+        }
+    ]
+
+    flagged_rows, quarantined_rows = paper_loop._flag_invalid_admission_open_positions(  # noqa: SLF001
+        open_positions,
+        invalid_rows,
+    )
+
+    assert len(flagged_rows) == 1
+    assert len(quarantined_rows) == 1
+    assert flagged_rows[0]["position_id"] == "paper_pos_aave"
+    assert flagged_rows[0]["accepted_fill_quarantined"] is True
+    assert flagged_rows[0]["invalid_admission_open_position_retained_for_lifecycle"] is True
+    assert flagged_rows[0]["trainer_consumable"] is False
+    assert flagged_rows[0]["counts_as_a_grade_evidence"] is False
+
+
 def test_priority_bucket_context_matches_strategy_regime_labels_for_paper_only_collection() -> None:
     readiness = {
         "generated_utc": "2026-06-23T20:55:00Z",
@@ -7856,20 +13085,36 @@ def test_paper_performance_circuit_breaker_blocks_high_confidence_loss_cluster_e
     assert status["places_real_order"] is False
 
 
-def test_high_confidence_loss_cluster_blocks_new_entries() -> None:
+def test_non_strict_high_confidence_loss_cluster_surfaces_but_does_not_block(
+    monkeypatch,
+) -> None:
+    # Phase 1: the fixture rows are the bootstrap-reduced-size (non-strict) tier.
+    # After tier exclusion, a high-confidence loss cluster on those rows must NOT
+    # drive the strict circuit's block_reasons (that was the exact contamination
+    # removed), but it MUST still surface in the non-blocking calibration
+    # diagnostic so trainer/UI keep visibility of the miscalibration.
     rows = _high_confidence_loss_fixture_rows()
+    monkeypatch.setattr(
+        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
+    )
 
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         rows,
         generated_utc="2026-07-07T21:20:00Z",
     )
 
-    cluster = status["recovery_high_confidence_loss_cluster_status"]
-    assert cluster["cluster_detected"] is True
-    assert cluster["high_confidence_min_score"] == pytest.approx(0.70)
-    assert cluster["high_confidence_loss_count"] == len(rows)
-    assert status["new_entries_allowed"] is False
-    assert "HIGH_CONFIDENCE_LOSS_CLUSTER" in status["block_reasons"]
+    # Strict cluster sees no strict rows -> not detected, not blocking.
+    strict_cluster = status["recovery_high_confidence_loss_cluster_status"]
+    assert strict_cluster["cluster_detected"] is False
+    assert "HIGH_CONFIDENCE_LOSS_CLUSTER" not in status["block_reasons"]
+    assert status["governed_closed_rows"] == 0
+    assert status["new_entries_allowed"] is True
+
+    # Non-blocking diagnostic still surfaces the non-strict miscalibration.
+    diagnostic = status["non_strict_high_confidence_loss_diagnostic"]
+    assert diagnostic["cluster_detected"] is True
+    assert diagnostic["high_confidence_loss_count"] == len(rows)
+    assert diagnostic["governs_strict_circuit"] is False
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
 
@@ -7878,17 +13123,31 @@ def test_high_confidence_loss_cluster_forces_shadow_only_not_reduced_size(
     monkeypatch,
 ) -> None:
     rows = _high_confidence_loss_fixture_rows()
-    # Pin the verified-repair epoch out: this test asserts the behavior when
-    # the fixture losses ARE current blocking evidence (post-repair losses
-    # re-block instantly; the repo-level epoch artifact must not neuter them).
     monkeypatch.setattr(
         paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
     )
-    status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
-        rows,
-        generated_utc="2026-07-07T21:20:00Z",
-    )
     cake = next(row for row in rows if row["symbol"] == "CAKEUSDT")
+    # Phase 1: the fixture (bootstrap-reduced-size) losses no longer self-govern
+    # the strict circuit, so this test now supplies an EXPLICIT quarantine on the
+    # candidate's side bucket to verify the classification unit still forces
+    # SHADOW_ONLY on a quarantined-bucket re-entry (the safety behavior is
+    # unchanged; only the source of the quarantine evidence differs).
+    quarantine_status = {
+        "new_entries_allowed": False,
+        "global_halt_required": False,
+        "blocked_bucket_keys": [f"side:{cake['side']}"],
+        "quarantined_buckets": [
+            {
+                "bucket_key": f"side:{cake['side']}",
+                "bucket_type": "side",
+                "state": "QUARANTINED",
+                "candidate_blocking": True,
+                "closed_outcome_count": 5,
+                "profit_factor": 0.0,
+                "high_confidence_loss_rate": 1.0,
+            }
+        ],
+    }
     intent = {
         "symbol": cake["symbol"],
         "timeframe": cake["timeframe"],
@@ -7916,7 +13175,7 @@ def test_high_confidence_loss_cluster_forces_shadow_only_not_reduced_size(
         paper_fill_allowed_upstream=False,
         portfolio_drawdown_bps=0.0,
         continuous_edge_guardian_gate=_active_guardian_gate(),
-        bucket_quarantine_status=status["bucket_quarantine_status"],
+        bucket_quarantine_status=quarantine_status,
         preemptive_decision=_allow_preemptive_decision(),
     )
 
@@ -8075,13 +13334,26 @@ def test_high_confidence_loss_bucket_does_not_block_unrelated_bucket_when_bucket
     assert classification["places_real_order"] is False
 
 
-def test_high_confidence_loss_cluster_preserves_close_reduce_only() -> None:
+def test_high_confidence_loss_cluster_preserves_close_reduce_only(monkeypatch) -> None:
+    # Phase 1: the fixture rows are A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY, a
+    # non-strict probe tier. After the tier-exclusion repair those losses no
+    # longer govern the STRICT circuit — so new entries are not halted by them —
+    # but they must still surface in the non-blocking calibration diagnostic and
+    # close/reduce/mark-to-market/feedback must remain permitted.
+    monkeypatch.setattr(
+        paper_loop, "_paper_verified_exit_repair_deployed_utc", lambda: None
+    )
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         _high_confidence_loss_fixture_rows(),
         generated_utc="2026-07-07T21:20:00Z",
     )
 
-    assert status["new_entries_allowed"] is False
+    assert status["governed_closed_rows"] == 0
+    assert status["new_entries_allowed"] is True
+    assert "HIGH_CONFIDENCE_LOSS_CLUSTER" not in status["block_reasons"]
+    diagnostic = status["non_strict_high_confidence_loss_diagnostic"]
+    assert diagnostic["cluster_detected"] is True
+    assert diagnostic["governs_strict_circuit"] is False
     assert status["allow_close"] is True
     assert status["allow_reduce"] is True
     assert status["allow_mark_to_market"] is True
@@ -8231,6 +13503,50 @@ def test_negative_phase3_side_and_strategy_regime_buckets_block_reentry() -> Non
     ]
     assert intent["paper_fill_allowed"] is False
     assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+
+
+def test_positive_expectancy_pf_only_side_bucket_is_watch_only_not_quarantine() -> None:
+    profitable = _phase1_closed_trade_row(
+        10.0,
+        symbol="WIFUSDT",
+        timeframe="15m",
+        strategy_id="trend_mode",
+        regime="TREND",
+        confidence=0.50,
+        close_reason="TAKE_PROFIT",
+    )
+    loss = _phase1_closed_trade_row(
+        -15.0,
+        symbol="TRUMPUSDT",
+        timeframe="1h",
+        strategy_id="range_mode",
+        regime="CHOP",
+        confidence=0.50,
+        close_reason="MODEL_STOP",
+    )
+    profitable["gross_notional_usd"] = 10_000.0
+    loss["gross_notional_usd"] = 1.0
+
+    status = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
+        [profitable, loss],
+        generated_utc="2026-07-10T06:55:00Z",
+    )
+    quarantined_by_key = {
+        row["bucket_key"]: row
+        for row in status["quarantined_buckets"]
+    }
+
+    assert "side:long" in quarantined_by_key
+    side_bucket = quarantined_by_key["side:long"]
+    assert side_bucket["state"] == "WATCH_ONLY_SIZE_CAP"
+    assert side_bucket["candidate_blocking"] is False
+    assert side_bucket["requires_exploration_size_cap"] is True
+    assert side_bucket["notional_weighted_expectancy_bps"] > 0.0
+    assert side_bucket["non_blocking_watch_reason"] == (
+        "WATCH_ONLY_POSITIVE_EXPECTANCY_PF_BELOW_1_BROAD_BUCKET"
+    )
+    assert "side:long" not in status["blocked_bucket_keys"]
+    assert status["global_halt_required"] is False
 
 
 def test_atr_stop_loss_cluster_quarantines_matching_bucket() -> None:
@@ -8479,6 +13795,109 @@ def test_no_trade_tier_blocks_executable_allocator_decision() -> None:
     assert allocation["pre_paper_tier_block_gross_notional_usd"] == 1000.0
     assert intent["places_real_order"] is False
     assert allocation["places_real_order"] is False
+
+
+def test_no_trade_tier_preserves_existing_performance_circuit_block() -> None:
+    intent = {
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
+        "paper_only": True,
+        "places_real_order": False,
+        "gross_notional_usd": 1000.0,
+        "allocated_margin_usd": 500.0,
+        "paper_fill_allowed": True,
+        "paper_sizing_complete": True,
+        "paper_performance_circuit_breaker_blocked": True,
+        "paper_fill_gate_block_reasons": [
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+        ],
+        "local_block_reasons": [
+            "paper_performance_circuit_breaker:"
+            "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+        ],
+    }
+    allocation = _allowed_allocation(paper_opportunity_tier="NO_TRADE")
+
+    blocked = paper_loop._block_non_executable_paper_tier(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+    )
+
+    assert blocked is True
+    assert intent["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    assert allocation["allocator_decision"] == "BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER"
+    assert intent["non_executable_paper_tier_block_reason"] == (
+        paper_loop.PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON
+    )
+    assert not any(
+        reason == "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
+        for reason in intent["local_block_reasons"]
+    )
+    assert paper_loop.PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON in intent[
+        "paper_fill_gate_block_reasons"
+    ]
+    assert intent["paper_fill_allowed"] is False
+    assert intent["gross_notional_usd"] == 0.0
+    assert allocation["gross_notional_usd"] == 0.0
+
+
+def test_no_trade_tier_preserves_existing_allocator_block_reason() -> None:
+    intent = {
+        "paper_opportunity_tier": "NO_TRADE",
+        "paper_opportunity_tier_reason": "EXPECTED_EDGE_NOT_FAVORABLE_AFTER_COST",
+        "paper_only": True,
+        "places_real_order": False,
+        "gross_notional_usd": 1000.0,
+        "allocated_margin_usd": 500.0,
+        "paper_fill_allowed": True,
+        "paper_sizing_complete": True,
+        "paper_allocation_block_reason": (
+            "allocator_decision_not_exploration_fill_eligible:"
+            "BLOCK_INSUFFICIENT_LIQUIDITY"
+        ),
+        "local_block_reasons": [
+            "allocator_decision_not_exploration_fill_eligible:"
+            "BLOCK_INSUFFICIENT_LIQUIDITY"
+        ],
+    }
+    allocation = _allowed_allocation(paper_opportunity_tier="NO_TRADE")
+    allocation["allocator_decision"] = "BLOCK_INSUFFICIENT_LIQUIDITY"
+    allocation["paper_allocation_block_reason"] = (
+        "allocator_decision_not_exploration_fill_eligible:"
+        "BLOCK_INSUFFICIENT_LIQUIDITY"
+    )
+
+    blocked = paper_loop._block_non_executable_paper_tier(  # noqa: SLF001
+        intent=intent,
+        allocation=allocation,
+    )
+
+    assert blocked is True
+    assert intent["allocator_decision"] == "BLOCK_INSUFFICIENT_LIQUIDITY"
+    assert allocation["allocator_decision"] == "BLOCK_INSUFFICIENT_LIQUIDITY"
+    assert intent["non_executable_paper_tier_block_reason"] == (
+        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
+    )
+    assert intent["non_executable_paper_tier_primary_block_reason"] == (
+        "allocator_decision_not_exploration_fill_eligible:"
+        "BLOCK_INSUFFICIENT_LIQUIDITY"
+    )
+    assert intent["non_executable_paper_tier_secondary_to_existing_block"] is True
+    assert not any(
+        reason == "paper_tier:NON_EXECUTABLE_PAPER_TIER:NO_TRADE"
+        for reason in intent["local_block_reasons"]
+    )
+    assert (
+        "existing_allocator_block:allocator_decision_not_exploration_fill_eligible:"
+        "BLOCK_INSUFFICIENT_LIQUIDITY"
+    ) in intent["local_block_reasons"]
+    assert (
+        "allocator_decision_not_exploration_fill_eligible:"
+        "BLOCK_INSUFFICIENT_LIQUIDITY"
+    ) in intent["paper_fill_gate_block_reasons"]
+    assert intent["paper_fill_allowed"] is False
+    assert intent["gross_notional_usd"] == 0.0
+    assert allocation["gross_notional_usd"] == 0.0
 
 
 def test_blocked_directional_candidate_can_emit_shadow_observation_without_fill_implication() -> None:
@@ -9625,6 +15044,307 @@ class TestHighConfidenceLossClusterGate:
             preemptive_decision=_allow_preemptive_decision(),
     )
 
+    @staticmethod
+    def _policy_sampled_intent(**overrides) -> dict:
+        intent = {
+            "symbol": "JTOUSDT",
+            "timeframe": "15m",
+            "side": "long",
+            "selected_action": "long",
+            "strategy_selected_mode": "trend_mode",
+            "paper_fill_allowed": True,
+            "valid_for_paper": True,
+            "market_state_id": "mstate_policy_sampled",
+            "confidence_calibrated": 0.95,
+            "confidence_executable_trade": 0.95,
+            "current_price": 1.0,
+            "entry_price": 1.0,
+            "expected_move_after_cost_bps": 50.0,
+            "expected_net_pnl_usd": 1.0,
+            "expected_max_loss_usd": 0.5,
+            "stop_distance_bps": 25.0,
+            "feature_cutoff": "2026-07-11T04:00:00Z",
+            "available_at": "2026-07-11T04:01:00Z",
+            "decision_time": "2026-07-11T04:02:00Z",
+            "action_probabilities": [0.05, 0.9, 0.05],
+            "selected_action_probability": 0.9,
+            "policy_value": 0.2,
+            "prediction_id": "v2h_policy_sampled",
+            "model_version": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+            "risk_controller_decision": "PASS",
+            "orchestrator_decision": "PASS",
+            "allocator_decision": "ALLOW_WITH_SIZE",
+            "feature_vector_hash": "feature-hash-policy-sampled",
+            "provider_hashes": {"latest": "provider-hash"},
+            "preemptive_decision_id": "pec_policy_sampled",
+            "exit_plan": {"stop_loss_bps": 25.0, "max_loss_usd": 0.5},
+            "production_grade_cost_flag": True,
+            "actual_observed_spread_entry_bps": 1.0,
+            "expected_slippage_bps": 1.0,
+            "fee_bps": 4.0,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_A_plus": False,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+        }
+        intent.update(overrides)
+        return intent
+
+    def test_policy_sampled_exploration_treats_broad_quarantine_as_advisory(
+        self,
+    ) -> None:
+        intent = self._policy_sampled_intent()
+        classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal=dict(intent),
+            intent=dict(intent),
+            allocation=_allowed_allocation(
+                confidence_calibrated=0.95,
+                expected_move_after_cost_bps=50.0,
+                expected_net_pnl_usd=1.0,
+                expected_max_loss_usd=0.5,
+            ),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=False,
+            exploration_trade_gates_pass=True,
+            paper_fill_allowed_upstream=True,
+            portfolio_drawdown_bps=0.0,
+            bucket_quarantine_status={
+                "new_entries_allowed": False,
+                "blocked_bucket_keys": ["side:long"],
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "side:long",
+                        "bucket_type": "side",
+                        "closed_outcome_count": 4,
+                        "block_reasons": ["NEGATIVE_EXPECTANCY_SIDE_BUCKET"],
+                        "profit_factor": 0.5,
+                        "notional_weighted_expectancy_bps": -10.0,
+                    }
+                ],
+            },
+            high_confidence_loss_cluster_gate={
+                "cluster_detected": True,
+                "cluster_evidence_missing": False,
+                "bucket_specific_recovery_enabled": True,
+                "affected_symbols": [],
+                "quarantined_sides": ["long"],
+                "quarantined_timeframes": [],
+                "quarantined_strategy_modes": [],
+            },
+            preemptive_decision=_allow_preemptive_decision(),
+        )
+
+        assert classification["paper_opportunity_tier"] == (
+            "PAPER_RISK_CONTROLLER_EXPLORATION"
+        )
+        assert classification["paper_risk_controller_exploration_block_reasons"] == []
+        assert (
+            classification[
+                "paper_risk_controller_exploration_high_confidence_loss_cluster_advisory_only"
+            ]
+            is True
+        )
+        assert (
+            classification["policy_sampled_paper_exploration_cluster_advisory_only"]
+            is True
+        )
+        assert classification["routes_to_live"] is False
+        assert classification["places_real_order"] is False
+        assert classification["counts_as_A_plus"] is False
+        assert classification["counts_as_live_ready"] is False
+
+    def test_policy_sampled_exploration_relaxes_upstream_broad_paper_blocks(
+        self,
+    ) -> None:
+        intent = self._policy_sampled_intent(
+            paper_fill_allowed=False,
+            paper_fill_gate_block_reasons=[
+                "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY",
+                "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY",
+                "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            ],
+            paper_risk_controller_exploration_block_reasons=[
+                "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE"
+            ],
+            paper_opportunity_tier_reason="NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
+        )
+        classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal=dict(intent),
+            intent=dict(intent),
+            allocation=_allowed_allocation(
+                confidence_calibrated=0.95,
+                expected_move_after_cost_bps=50.0,
+                expected_net_pnl_usd=1.0,
+                expected_max_loss_usd=0.5,
+            ),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=False,
+            exploration_trade_gates_pass=True,
+            paper_fill_allowed_upstream=False,
+            portfolio_drawdown_bps=0.0,
+            bucket_quarantine_status={
+                "new_entries_allowed": False,
+                "blocked_bucket_keys": ["side:long"],
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "side:long",
+                        "bucket_type": "side",
+                        "closed_outcome_count": 4,
+                        "block_reasons": ["NEGATIVE_EXPECTANCY_SIDE_BUCKET"],
+                        "profit_factor": 0.5,
+                        "notional_weighted_expectancy_bps": -10.0,
+                    }
+                ],
+            },
+            high_confidence_loss_cluster_gate={
+                "cluster_detected": True,
+                "cluster_evidence_missing": False,
+                "bucket_specific_recovery_enabled": True,
+                "affected_symbols": [],
+                "quarantined_sides": ["long"],
+                "quarantined_timeframes": [],
+                "quarantined_strategy_modes": [],
+            },
+            preemptive_decision=_allow_preemptive_decision(),
+        )
+
+        assert classification["paper_opportunity_tier"] == (
+            "PAPER_RISK_CONTROLLER_EXPLORATION"
+        )
+        assert classification["policy_sampled_paper_exploration_candidate"] is True
+        assert classification["strict_paper_fill_allowed_upstream"] is False
+        assert classification["routes_to_live"] is False
+        assert classification["places_real_order"] is False
+        assert classification["counts_as_A_plus"] is False
+        assert classification["counts_as_live_ready"] is False
+
+    def test_policy_sampled_exploration_does_not_relax_hard_upstream_blocks(
+        self,
+    ) -> None:
+        intent = self._policy_sampled_intent(
+            paper_fill_allowed=False,
+            paper_fill_gate_block_reasons=[
+                "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY",
+                "PRE_TRADE_GATE_BLOCKED",
+            ],
+        )
+
+        assert (
+            paper_loop._is_policy_sampled_paper_exploration_candidate(intent)  # noqa: SLF001
+            is False
+        )
+
+    def test_policy_sampled_exploration_relaxes_broad_circuit_allocator_block(
+        self,
+    ) -> None:
+        intent = self._policy_sampled_intent(
+            paper_fill_allowed=False,
+            paper_fill_gate_block_reasons=[
+                "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY",
+                "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+            ],
+            paper_fill_block_reason="PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+        )
+        classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal=dict(intent),
+            intent=dict(intent),
+            allocation=_allowed_allocation(
+                allocator_decision="BLOCK_PAPER_PERFORMANCE_CIRCUIT_BREAKER",
+                confidence_calibrated=0.95,
+                expected_move_after_cost_bps=50.0,
+                expected_net_pnl_usd=1.0,
+                expected_max_loss_usd=0.5,
+            ),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=False,
+            exploration_trade_gates_pass=True,
+            paper_fill_allowed_upstream=False,
+            portfolio_drawdown_bps=0.0,
+            bucket_quarantine_status={
+                "new_entries_allowed": False,
+                "blocked_bucket_keys": ["side:long"],
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "side:long",
+                        "bucket_type": "side",
+                        "closed_outcome_count": 4,
+                        "block_reasons": ["NEGATIVE_EXPECTANCY_SIDE_BUCKET"],
+                        "profit_factor": 0.5,
+                        "notional_weighted_expectancy_bps": -10.0,
+                    }
+                ],
+            },
+            high_confidence_loss_cluster_gate={
+                "cluster_detected": False,
+                "bucket_specific_recovery_enabled": True,
+            },
+            preemptive_decision=_allow_preemptive_decision(),
+        )
+
+        assert classification["paper_opportunity_tier"] == (
+            "PAPER_RISK_CONTROLLER_EXPLORATION"
+        )
+        assert (
+            classification[
+                "policy_sampled_paper_exploration_allocator_circuit_advisory_only"
+            ]
+            is True
+        )
+        assert classification["paper_exploration_exact_blocked_bucket_keys"] == []
+        assert classification["routes_to_live"] is False
+        assert classification["places_real_order"] is False
+
+    def test_policy_sampled_exploration_exact_bucket_still_blocks(self) -> None:
+        intent = self._policy_sampled_intent()
+        classification = paper_loop._classify_paper_opportunity_tier(  # noqa: SLF001
+            signal=dict(intent),
+            intent=dict(intent),
+            allocation=_allowed_allocation(
+                confidence_calibrated=0.95,
+                expected_move_after_cost_bps=50.0,
+                expected_net_pnl_usd=1.0,
+                expected_max_loss_usd=0.5,
+            ),
+            integrity_gate={"allowed": True},
+            local_trade_gates_pass=False,
+            exploration_trade_gates_pass=True,
+            paper_fill_allowed_upstream=True,
+            portfolio_drawdown_bps=0.0,
+            bucket_quarantine_status={
+                "new_entries_allowed": False,
+                "blocked_bucket_keys": ["side_timeframe:long|15m"],
+                "quarantined_buckets": [
+                    {
+                        "bucket_key": "side_timeframe:long|15m",
+                        "bucket_type": "side_timeframe",
+                        "closed_outcome_count": 3,
+                        "block_reasons": [
+                            "HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND"
+                        ],
+                        "profit_factor": 0.4,
+                        "notional_weighted_expectancy_bps": -15.0,
+                    }
+                ],
+            },
+            high_confidence_loss_cluster_gate={
+                "cluster_detected": False,
+                "bucket_specific_recovery_enabled": True,
+            },
+            preemptive_decision=_allow_preemptive_decision(),
+        )
+
+        assert classification["paper_opportunity_tier"] == "SHADOW_ONLY"
+        assert classification["paper_opportunity_tier_reason"] == (
+            "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY"
+        )
+        assert classification["paper_bucket_quarantine_matched_blocked_bucket_keys"] == [
+            "side_timeframe:long|15m"
+        ]
+        assert classification["routes_to_live"] is False
+        assert classification["places_real_order"] is False
+
     def test_bootstrap_flag_without_any_trust_evidence_is_denied(self) -> None:
         intent = self._bootstrap_intent(
             public_orderbook_trust_score=None,
@@ -9810,3 +15530,341 @@ class TestCgF044StateFileOverrideAndSyntheticQuarantine:
         )
         assert kept == [row]
         assert quarantined == []
+
+
+# ---------------------------------------------------------------------------
+# Policy-intent decision-record dereference (operator mission 2026-07-10):
+# risk/orchestrator IDs on CUDA-policy signals must resolve into decision
+# records (canonical preview by matching ID; DENY wins) or fall back to the
+# loop's inline gates with exact dereference blockers — never guessed.
+# ---------------------------------------------------------------------------
+
+def _dereference_intent(**overrides):
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "risk_decision_id": "rd_dec_x1",
+        "orchestrator_decision_id": "dec_x1",
+    }
+    intent.update(overrides)
+    return intent
+
+
+def _dereference_kwargs(intent, **overrides):
+    kwargs = dict(
+        intent=intent,
+        signal={"trust_gate_result": {"allowed": True}},
+        risk_preview=None,
+        orchestrator_preview=None,
+        pre_trade_allowed=True,
+        fee_gate_blocked=False,
+        fee_gate_reason=None,
+        now=datetime(2026, 7, 10, 20, 0, tzinfo=timezone.utc),
+    )
+    kwargs.update(overrides)
+    return kwargs
+
+
+def test_policy_sampled_exploration_dereferences_risk_decision_record() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "risk_decision_id": "rd_dec_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "risk_action": "allow",
+        "created_at": "2026-07-10T19:55:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent, risk_preview=preview)
+    )
+    assert out["risk_decision_record_resolved"] is True
+    assert out["risk_controller_decision"] == "PASS"
+    assert out["risk_decision_source"] == "DASHBOARD_PREVIEW_MATCHED_ID_ONLY"
+
+
+def test_policy_sampled_exploration_dereferences_orchestrator_decision_record() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "orchestrator_decision_id": "dec_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "input_decision_action": "allow",
+        "created_at": "2026-07-10T19:55:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent, orchestrator_preview=preview)
+    )
+    assert out["orchestrator_decision_record_resolved"] is True
+    assert out["orchestrator_decision"] == "PASS"
+
+
+def test_missing_risk_record_blocks_with_exact_reason() -> None:
+    intent = _dereference_intent()
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent)
+    )
+    assert "RISK_DECISION_RECORD_MISSING_BY_ID" in out[
+        "decision_record_dereference_blockers"
+    ]
+    # Inline gates are the live paper risk gateway when no record matches.
+    assert out["risk_decision_source"] == "INLINE_PAPER_GATE_FALLBACK"
+    assert out["risk_controller_decision"] == "PASS"
+
+
+def test_missing_orchestrator_record_blocks_with_exact_reason() -> None:
+    intent = _dereference_intent()
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent)
+    )
+    assert "ORCHESTRATOR_DECISION_RECORD_MISSING_BY_ID" in out[
+        "decision_record_dereference_blockers"
+    ]
+    assert out["orchestrator_decision"] == "PASS"
+    assert out["orchestrator_decision_source"] == "INLINE_PAPER_GATE_FALLBACK"
+
+
+def test_stale_decision_record_blocks_with_exact_reason() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "risk_decision_id": "rd_dec_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "risk_action": "allow",
+        "created_at": "2026-07-10T18:00:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent, risk_preview=preview)
+    )
+    assert "RISK_DECISION_RECORD_STALE" in out["decision_record_dereference_blockers"]
+    assert out["risk_decision_record_resolved"] is False
+
+
+def test_candidate_mismatched_decision_record_blocks() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "risk_decision_id": "rd_dec_x1",
+        "symbol": "ETHUSDT",
+        "timeframe": "1m",
+        "risk_action": "allow",
+        "created_at": "2026-07-10T19:55:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent, risk_preview=preview)
+    )
+    assert "RISK_DECISION_RECORD_CANDIDATE_MISMATCH" in out[
+        "decision_record_dereference_blockers"
+    ]
+    assert out["risk_decision_record_resolved"] is False
+
+
+def test_resolved_deny_record_wins_over_inline_gates() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "risk_decision_id": "rd_dec_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "risk_action": "deny",
+        "created_at": "2026-07-10T19:55:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent, risk_preview=preview)
+    )
+    assert out["risk_controller_decision"].startswith("DENY:")
+
+
+def test_resolved_records_allow_fill_gate_to_continue_and_stay_paper_only() -> None:
+    from v2.backend.app.services.paper_exploration import exploration_paper_fill_gate
+
+    row = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "selected_action": "short",
+        "confidence_calibrated": 0.95,
+        "current_price": 100.0,
+        "expected_net_pnl_usd": 1.0,
+        "expected_max_loss_usd": 0.5,
+        "expected_move_after_cost_bps": -50.0,
+        "feature_cutoff": "2026-07-10T19:59:00Z",
+        "available_at": "2026-07-10T19:59:00Z",
+        "decision_time": "2026-07-10T19:59:30Z",
+        "risk_controller_decision": "PASS",
+        "orchestrator_decision": "PASS",
+        "allocator_decision": "ALLOW_WITH_SIZE",
+        "feature_vector_hash": "fh_x",
+        "provider_hashes": {"ta": "h1"},
+        "preemptive_decision_id": "pec_x",
+        "exit_feasibility_score": 0.9,
+        "liquidation_buffer_usd": 50.0,
+        "paper_exploration_exact_blocked_bucket_keys": [],
+        "paper_exploration_regime_advisory_buckets": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    gate = exploration_paper_fill_gate(row)
+    blockers = list(gate.get("paper_fill_gate_block_reasons") or gate.get("blockers") or [])
+    assert not any("DECISION_NOT_FILL_ELIGIBLE" in b for b in blockers)
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+
+
+def test_exploration_dereference_never_overwrites_existing_decisions() -> None:
+    intent = _dereference_intent(
+        risk_controller_decision="PASS",
+        orchestrator_decision="PASS",
+    )
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        **_dereference_kwargs(intent)
+    )
+    assert "risk_controller_decision" not in out
+    assert "orchestrator_decision" not in out
+
+
+class _PerIdDecisionRedisStub:
+    def __init__(self, records):
+        self._records = records
+
+    def get(self, key):
+        import json as _json
+
+        value = self._records.get(key)
+        return _json.dumps(value) if value is not None else None
+
+
+def test_risk_and_orchestrator_per_id_records_resolved_from_store() -> None:
+    intent = _dereference_intent()
+    records = {
+        "v2:decision:risk:rd_dec_x1": {
+            "risk_decision_id": "rd_dec_x1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "risk_action": "allow",
+            "created_at": "2026-07-10T19:59:00Z",
+        },
+        "v2:decision:orchestrator:dec_x1": {
+            "orchestrator_decision_id": "dec_x1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "input_decision_action": "allow",
+            "created_at": "2026-07-10T19:59:00Z",
+        },
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
+    )
+    assert out["risk_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert out["risk_decision_record_key"] == "v2:decision:risk:rd_dec_x1"
+    assert out["risk_decision_record_hash"]
+    assert out["risk_controller_decision"] == "PASS"
+    assert out["orchestrator_decision_source"] == "PER_ID_DECISION_RECORD"
+    assert out["orchestrator_decision"] == "PASS"
+
+
+def test_per_id_decision_store_writes_risk_orchestrator_and_indexes() -> None:
+    redis = _FakeRedis({})
+    status = paper_loop._write_paper_per_id_decision_store(  # noqa: SLF001
+        redis,
+        [
+            {
+                "candidate_id": "hyp_store_1",
+                "prediction_id": "pred_store_1",
+                "signal_id": "sig_store_1",
+                "risk_decision_id": "rd_store_1",
+                "orchestrator_decision_id": "orch_store_1",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "side": "long",
+                "risk_decision": "PASS",
+                "orchestrator_decision": "PASS",
+                "expected_max_loss_usd": 0.42,
+                "liquidation_buffer_usd": 12.0,
+                "feature_vector_hash": "feature-hash-store",
+                "feature_cutoff": "2026-07-10T19:58:00Z",
+                "available_at": "2026-07-10T19:58:10Z",
+                "decision_time": "2026-07-10T19:59:00Z",
+                "generated_utc": "2026-07-10T19:59:01Z",
+                "model_version": "unit_model",
+                "checkpoint_id": "ckpt_store",
+                "provider_hashes": {"latest": "provider-hash"},
+            }
+        ],
+    )
+
+    assert status["risk_records_written"] == 1
+    assert status["orchestrator_records_written"] == 1
+    assert status["missing_record_count"] == 0
+    risk = json.loads(redis.payloads["v2:decision:risk:rd_store_1"])
+    orchestrator = json.loads(redis.payloads["v2:decision:orchestrator:orch_store_1"])
+    candidate_index = json.loads(
+        redis.payloads["v2:decision:index:by_candidate:hyp_store_1"]
+    )
+    signal_index = json.loads(redis.payloads["v2:decision:index:by_signal:sig_store_1"])
+
+    assert risk["risk_decision_id"] == "rd_store_1"
+    assert risk["risk_action"] == "allow"
+    assert risk["max_loss_usd"] == 0.42
+    assert risk["routes_to_live"] is False
+    assert risk["places_real_order"] is False
+    assert orchestrator["orchestrator_decision_id"] == "orch_store_1"
+    assert orchestrator["orchestrator_action"] == "allow"
+    assert orchestrator["route"] == "paper"
+    assert candidate_index["decision_record_keys"] == [
+        "v2:decision:risk:rd_store_1",
+        "v2:decision:orchestrator:orch_store_1",
+    ]
+    assert signal_index["candidate_id"] == "hyp_store_1"
+
+    second_status = paper_loop._write_paper_per_id_decision_store(  # noqa: SLF001
+        redis,
+        [
+            {
+                "candidate_id": "hyp_store_1",
+                "prediction_id": "pred_store_1",
+                "signal_id": "sig_store_1",
+                "risk_decision_id": "rd_store_1",
+                "orchestrator_decision_id": "orch_store_1",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "side": "long",
+            }
+        ],
+    )
+    assert second_status["risk_records_existing"] == 1
+    assert second_status["orchestrator_records_existing"] == 1
+
+
+def test_last_write_preview_not_used_as_per_id_lineage() -> None:
+    intent = _dereference_intent()
+    preview = {
+        "risk_decision_id": "rd_dec_x1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "risk_action": "allow",
+        "created_at": "2026-07-10T19:59:00Z",
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        None, **_dereference_kwargs(intent, risk_preview=preview)
+    )
+    assert out["risk_decision_source"] != "PER_ID_DECISION_RECORD"
+    assert out["risk_decision_source"] == "DASHBOARD_PREVIEW_MATCHED_ID_ONLY"
+
+
+def test_per_id_deny_record_wins_and_stays_paper_only() -> None:
+    intent = _dereference_intent()
+    records = {
+        "v2:decision:risk:rd_dec_x1": {
+            "risk_decision_id": "rd_dec_x1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "risk_action": "deny",
+            "created_at": "2026-07-10T19:59:00Z",
+        }
+    }
+    out = paper_loop._paper_policy_intent_decision_dereference(  # noqa: SLF001
+        _PerIdDecisionRedisStub(records), **_dereference_kwargs(intent)
+    )
+    assert out["risk_controller_decision"].startswith("DENY:")
+    assert "order_submitted" not in out
+    assert "routes_to_live" not in out

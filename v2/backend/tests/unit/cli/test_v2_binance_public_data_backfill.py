@@ -4,7 +4,10 @@ import hashlib
 import zipfile
 from datetime import date
 
+import pytest
+
 from v2.backend.app.cli.v2_binance_public_data_backfill import (
+    _download,
     build_archive_requests,
     verify_checksum,
 )
@@ -36,3 +39,16 @@ def test_verify_checksum_accepts_binance_checksum_format(tmp_path) -> None:
     checksum_path.write_text(f"{digest}  BTCUSDT-trades-2026-06-01.zip\n")
 
     assert verify_checksum(zip_path, checksum_path) is True
+
+
+def test_archive_download_is_rest_fallback_only(monkeypatch, tmp_path) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    target = tmp_path / "BTCUSDT-trades-2026-06-01.zip"
+
+    with pytest.raises(RuntimeError, match="BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"):
+        _download(
+            "https://data.binance.vision/data/futures/um/daily/trades/BTCUSDT/BTCUSDT-trades-2026-06-01.zip",
+            target,
+        )
+
+    assert not target.exists()

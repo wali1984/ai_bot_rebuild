@@ -106,6 +106,49 @@ def test_online_learning_runtime_fields_publish_checkpoint_evidence() -> None:
     assert fields["checkpoint_hash"] == "checkpoint-sha256"
 
 
+def test_gpu_saturation_controller_backs_off_after_validation_checkpoint_rejection() -> None:
+    decision = runtime_module.adaptive_gpu_saturation_decision(
+        state={"steps_multiplier": 4},
+        accepted_rows=16_384,
+        data_loader_time_ms=100_000.0,
+        gpu_train_time_ms=25_000.0,
+        vram_reserved_mb=4_000.0,
+        vram_total_mb=16_000.0,
+        oom_occurred=False,
+        checkpoint_promotion_rejected=True,
+        checkpoint_promotion_reason="VALIDATION_LOSS_REGRESSED",
+        validation_loss_delta=0.858461,
+        overfit_gap_warning=True,
+    )
+
+    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
+    assert decision["steps_multiplier"] == 2
+    assert decision["checkpoint_promotion_rejected"] is True
+    assert decision["checkpoint_promotion_reason"] == "VALIDATION_LOSS_REGRESSED"
+    assert decision["artificial_load_added"] is False
+
+
+def test_gpu_saturation_controller_backs_off_on_validation_delta_without_rejection_flag() -> None:
+    decision = runtime_module.adaptive_gpu_saturation_decision(
+        state={"steps_multiplier": 3},
+        accepted_rows=16_384,
+        data_loader_time_ms=120_000.0,
+        gpu_train_time_ms=20_000.0,
+        vram_reserved_mb=4_000.0,
+        vram_total_mb=16_000.0,
+        oom_occurred=False,
+        checkpoint_promotion_rejected=False,
+        checkpoint_promotion_reason=None,
+        validation_loss_delta=1.65997,
+        overfit_gap_warning=False,
+    )
+
+    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
+    assert decision["steps_multiplier"] == 1
+    assert decision["validation_regressed"] is True
+    assert decision["validation_loss_backoff_delta"] == runtime_module.RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA
+
+
 def test_drawdown_attribution_separates_trial_overlay_from_native() -> None:
     ledger = {
         "accepted": [
@@ -215,6 +258,55 @@ def test_resource_status_distinguishes_sample_set_below_target_from_training_blo
     assert resource["vram_target_mb"] == 12288.0
     assert resource["cpu_quota_percent"] == 50.0
     assert resource["ram_limit_gb"] == 75.0
+
+
+def test_resource_status_prefers_training_window_gpu_utilization(monkeypatch) -> None:
+    class _TrainerResult:
+        metrics = {
+            "training": {
+                "batch_size": 4096,
+                "metrics": {
+                    "accepted_training_rows": 16384,
+                    "available_examples": 16384,
+                    "actual_batch_size": 16384,
+                    "training_window_gpu_utilization_avg_percent": 68.5,
+                    "training_window_gpu_utilization_max_percent": 74.0,
+                    "training_window_gpu_utilization_sample_count": 12,
+                    "data_loader_time_ms": 9000.0,
+                    "gpu_train_time_ms": 18000.0,
+                },
+            }
+        }
+
+        status = {
+            "cuda_cpu_resource_utilization": {
+                "target_batch_size": 4096,
+                "actual_batch_size": 16384,
+                "current_vram_used_mb": 9000.0,
+                "vram_total_mb": 16303.0,
+            }
+        }
+
+    monkeypatch.setattr(
+        runtime_module,
+        "gpu_status_from_nvidia_smi",
+        lambda: {
+            "gpu_utilization_percent": 9.0,
+            "vram_used_mb": 9560.0,
+            "vram_total_mb": 16303.0,
+            "gpu_name": "test-gpu",
+        },
+    )
+    monkeypatch.setattr(runtime_module, "memory_status", lambda: {"ram_total_gb": 64.0, "ram_used_gb": 16.0})
+    monkeypatch.setattr(runtime_module, "cpu_utilization_percent", lambda: 12.0)
+
+    resource = build_resource_status(trainer_result=_TrainerResult(), persistent_state={})
+
+    assert resource["gpu_utilization_percent"] == 68.5
+    assert resource["gpu_utilization_source"] == "training_window_nvidia_smi_sampler"
+    assert resource["current_gpu_utilization_percent"] == 9.0
+    assert resource["training_window_gpu_utilization_max_percent"] == 74.0
+    assert resource["training_window_gpu_utilization_sample_count"] == 12
 
 
 def test_persistent_runtime_status_exposes_utc_and_liveness(tmp_path: Path, monkeypatch) -> None:
@@ -426,7 +518,7 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
         },
     )
 
-    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer):
+    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
         captured["symbols"] = config.symbols
         captured["timeframes"] = config.timeframes
         captured["live_gate"] = config.live_gate
@@ -448,6 +540,41 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
     assert captured["max_training_rows_per_cycle"] == 64
     assert captured["batch_size"] == 64
     assert captured["train_steps"] == 1
+    assert captured["publish"] is True
+
+
+def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(runtime_module, "connect_redis", lambda: None)
+    monkeypatch.setattr(
+        runtime_module,
+        "resolve_symbols_with_provenance",
+        lambda: {
+            "symbols": ["BTCUSDT", "ETHUSDT"],
+            "symbol_profile": "dynamic_or_baseline",
+            "smoke_test": False,
+            "count": 2,
+        },
+    )
+
+    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
+        captured["max_training_rows_per_cycle"] = config.max_training_rows_per_cycle
+        captured["batch_size"] = config.batch_size
+        captured["train_steps"] = config.train_steps
+        captured["publish"] = publish
+        return object()
+
+    monkeypatch.setattr(runtime_module, "run_hybrid_trainer_cycle", _fake_run_hybrid_trainer_cycle)
+
+    runtime_module.run_native_training_cycle(paths=paths, max_rows=32768, risk_caps_configured=True)
+
+    assert captured["max_training_rows_per_cycle"] == 32768
+    assert captured["batch_size"] == runtime_module.RESIDENT_MAX_BATCH_SIZE
+    assert captured["train_steps"] == runtime_module.RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE
     assert captured["publish"] is True
 
 
@@ -628,6 +755,94 @@ def test_publish_persistent_payloads_merges_current_runtime_liveness_fields(tmp_
     assert runtime["trainer_liveness_status"] == "HEALTHY"
     assert runtime["heartbeat_age_seconds"] == 1.0
     assert runtime["prediction_grid_current"] is True
+
+
+def test_publish_persistent_payloads_overwrites_stale_checkpoint_identity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    paths.operator_dir.mkdir(parents=True, exist_ok=True)
+    (paths.operator_dir / "native_trainer_runtime_status.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": "v2_hybrid_ckpt_old",
+                "checkpoint_path": ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_old.weights.npz",
+                "checkpoint_hash": "old_hash",
+                "checkpoint_reload_verified": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "systemctl_show",
+        lambda unit: {"ActiveState": "active", "MainPID": str(os.getpid()), "UnitFileState": "masked"}
+        if unit == runtime_module.LEGACY_BRIDGE_UNIT
+        else {"ActiveState": "active", "MainPID": str(os.getpid())},
+    )
+
+    class _TrainerResult:
+        predictions = [{"prediction_id": "pred_1"}]
+        status = {"checkpoint_id": "v2_hybrid_ckpt_new"}
+        metrics = {
+            "training": {
+                "status": "TRAINED",
+                "training_steps": 2,
+                "train_rows": 1,
+                "validation_rows": 0,
+                "metrics": {
+                    "trusted_rows_loaded": 1,
+                    "feedback_rows_entered_batch": 1,
+                    "optimizer_steps_this_cycle": 2,
+                    "optimizer_steps_last_hour": 2,
+                    "optimizer_steps_total": 2,
+                    "parameter_hash_before": "before",
+                    "parameter_hash_after": "after",
+                    "weight_delta_norm": 0.1,
+                    "checkpoint_weight_blob_written": True,
+                    "checkpoint_path": ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_new.weights.npz",
+                    "checkpoint_hash": "new_hash",
+                    "checkpoint_reload_verified": True,
+                    "last_successful_weight_update_at": "2026-07-10T06:40:00Z",
+                    "online_learning_status": "WEIGHTS_UPDATING",
+                    "effective_trainer_mode": "ONLINE_PAPER_LEARNING",
+                },
+            }
+        }
+
+    publish_persistent_payloads(
+        paths=paths,
+        persistent={
+            "service_active": True,
+            "pid": os.getpid(),
+            "uptime_seconds": 30,
+            "training_steps_total": 2,
+            "training_steps_last_hour": 2,
+            "prediction_grid_rows": 1,
+            "prediction_grid_expected_rows": 1,
+            "worker_health_status": "HEALTHY",
+            "trainer_liveness_status": "HEALTHY",
+            "heartbeat_age_seconds": 1.0,
+            "last_batch_age_seconds": 1.0,
+            "last_prediction_age_seconds": 1.0,
+        },
+        resource={"bottleneck_reason": None},
+        checkpoint={"checkpoint_count": 1, "checkpoint_total_size_gb": 0.0, "checkpoint_dir_size_bytes": 1},
+        attribution={},
+        guard={"status": "TRIAL_ACTIVE", "drawdown_guard_reason": "DRAWDOWN_GUARD_NOT_BREACHED"},
+        trainer_result=_TrainerResult(),
+        all_timeframe_refresh={"ran": False},
+    )
+
+    runtime = json.loads(
+        (paths.operator_dir / "native_trainer_runtime_status.json").read_text(encoding="utf-8")
+    )
+    assert runtime["checkpoint_id"] == "v2_hybrid_ckpt_new"
+    assert runtime["checkpoint_path"] == ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_new.weights.npz"
+    assert runtime["checkpoint_hash"] == "new_hash"
+    assert runtime["checkpoint_weight_blob_written"] is True
+    assert runtime["checkpoint_reload_verified"] is True
 
 
 def test_publish_persistent_payloads_does_not_reuse_stale_trusted_rows_when_feedback_unavailable(
@@ -1435,6 +1650,74 @@ def test_confidence_artifacts_activate_from_trusted_replay_holdout(
     assert reliability["sample_count"] == 2
     assert reliability["reason"] == "confidence reliability buckets computed from trusted replay holdout rows"
     assert "_calibration_rows" not in holdout
+
+
+def test_confidence_artifacts_reuse_recent_holdout_without_rescanning(monkeypatch) -> None:
+    monkeypatch.setattr(runtime_module, "_redis_json_list", lambda _key: [])
+
+    def _unexpected_holdout(**_kwargs):
+        raise AssertionError("holdout calibration should be cadence-reused")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "build_trusted_replay_holdout_calibration",
+        _unexpected_holdout,
+    )
+
+    previous = {
+        "schema_version": "trusted_confidence_calibration_status_v1",
+        "generated_utc": "2026-06-22T10:00:00Z",
+        "status": "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION",
+        "trusted_holdout_rows": 149,
+        "trusted_replay_holdout_status": "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION",
+        "trusted_replay_holdout_evaluated_rows": 149,
+        "trusted_replay_holdout_source": "TRUSTED_REPLAY_TEMPORAL_HOLDOUT_CURRENT_CHECKPOINT_FORWARD",
+        "trusted_replay_holdout_checkpoint_hash": "hash_before",
+        "brier_score": 0.04,
+        "ece": 0.2,
+    }
+
+    artifacts = runtime_module.build_confidence_artifacts(
+        prediction_public={"prediction_rows": []},
+        generated_utc="2026-06-22T10:01:00Z",
+        run_holdout_calibration=False,
+        previous_trusted_confidence_calibration=previous,
+        holdout_calibration_reuse_age_seconds=60.0,
+        holdout_calibration_min_interval_seconds=900,
+    )
+
+    calibration = artifacts["trusted_confidence_calibration_status.json"]
+    assert calibration["status"] == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+    assert calibration["trusted_holdout_rows"] == 149
+    assert calibration["trusted_replay_holdout_checkpoint_hash"] == "hash_before"
+    assert calibration["holdout_calibration_reused"] is True
+    assert calibration["holdout_calibration_reuse_age_seconds"] == 60.0
+    assert calibration["holdout_calibration_min_interval_seconds"] == 900
+    assert calibration["brier_score"] == 0.04
+    assert calibration["ece"] == 0.2
+
+
+def test_holdout_calibration_due_respects_recent_active_publish() -> None:
+    previous = {
+        "generated_utc": "2026-06-22T10:00:00Z",
+        "status": "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION",
+    }
+
+    due, age = runtime_module.holdout_calibration_due(
+        previous,
+        generated_utc="2026-06-22T10:10:00Z",
+        min_interval_seconds=900,
+    )
+    assert due is False
+    assert age == 600.0
+
+    due, age = runtime_module.holdout_calibration_due(
+        previous,
+        generated_utc="2026-06-22T10:16:00Z",
+        min_interval_seconds=900,
+    )
+    assert due is True
+    assert age == 960.0
 
 
 def test_selected_action_outcome_uses_realized_direction_not_trade_outcome_label() -> None:

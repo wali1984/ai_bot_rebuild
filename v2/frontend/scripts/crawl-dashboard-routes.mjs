@@ -40,6 +40,10 @@ function compactText(text, length = 1800) {
 
 function isIgnoredNetworkIssue(entry) {
   const url = typeof entry === 'string' ? entry : entry.url ?? '';
+  const failure = typeof entry === 'string' ? entry : entry.failure ?? '';
+  if (/net::ERR_ABORTED/i.test(failure)) {
+    return true;
+  }
   return /tradingview|favicon|googletagmanager|google-analytics|doubleclick|analytics|sentry|clarity/i.test(url);
 }
 

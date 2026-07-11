@@ -1,9 +1,11 @@
+import Foundation
 import SwiftUI
 
 struct TrainerPredictionView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
     @State private var vm = PredictionsViewModel()
+    @State private var backtestVM = BacktestReplayViewModel()
 
     var body: some View {
         NavigationStack {
@@ -25,11 +27,23 @@ struct TrainerPredictionView: View {
                     }
                 }
             }
-            .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
+            .refreshable {
+                await vm.load(token: auth.currentToken(), baseURL: appState.baseURL)
+                await backtestVM.load(token: auth.currentToken(), baseURL: appState.baseURL)
+            }
         }
-        .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onDisappear { vm.stopAutoRefresh() }
+        .task {
+            await vm.load(token: auth.currentToken(), baseURL: appState.baseURL)
+            await backtestVM.load(token: auth.currentToken(), baseURL: appState.baseURL)
+        }
+        .onAppear {
+            vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL)
+            backtestVM.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL)
+        }
+        .onDisappear {
+            vm.stopAutoRefresh()
+            backtestVM.stopAutoRefresh()
+        }
     }
 
     private var actionableToggle: some View {
@@ -90,11 +104,79 @@ struct TrainerPredictionView: View {
         ScrollView {
             VStack(spacing: 12) {
                 RuntimeTruthLiveCard(title: "Runtime Truth")
+                featureAlertCard
+                backtestCard
                 metricsRow
                 matrixList
             }
             .padding(16)
             .padding(.bottom, 32)
+        }
+    }
+
+    @ViewBuilder
+    private var featureAlertCard: some View {
+        if let alert = backtestVM.featureAlert, alert.active {
+            VStack(spacing: 8) {
+                HStack {
+                    SectionHeader(title: "Degraded Inputs · \(alert.severity.uppercased())", accent: alertAccent(alert.severity))
+                    Spacer()
+                }
+                Text("Prediction still produced — operating on masked inputs")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(NerVyx.validation)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                DataRow(label: "Coverage", value: alert.data_coverage_pct.map { String(format: "%.1f%%", $0) } ?? "—", mono: true)
+                DataRow(label: "Missing", value: "\(alert.missing_feature_count)", valueColor: NerVyx.warning, mono: true)
+                DataRow(label: "Stale", value: "\(alert.stale_feature_count)", mono: true)
+                if !alert.missing_by_category.isEmpty {
+                    Text(alert.missing_by_category.map { "\($0.key.replacingOccurrences(of: "_", with: " ")): \($0.value)" }.joined(separator: " · "))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(NerVyx.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .nerVyxCard(accent: alertAccent(alert.severity).opacity(0.4))
+        }
+    }
+
+    @ViewBuilder
+    private var backtestCard: some View {
+        if let bt = backtestVM.backtest, bt.available, let pb = bt.policy_backtest {
+            VStack(spacing: 8) {
+                HStack {
+                    SectionHeader(title: "Backtest & Generalization", accent: NerVyx.inference)
+                    Spacer()
+                    if bt.continuous_replay_active == true {
+                        NerVyxBadge(text: "REPLAY LIVE", color: NerVyx.validation, small: true)
+                    }
+                }
+                DataRow(label: "Backtest Win", value: pb.win_rate.map { String(format: "%.1f%%", $0 * 100) } ?? "—", valueColor: NerVyx.validation, mono: true)
+                DataRow(label: "Profit Factor", value: pb.profit_factor_proxy.map { String(format: "%.2f", $0) } ?? "—", mono: true)
+                DataRow(label: "Expectancy", value: pb.expectancy_after_cost_bps.map { String(format: "%+.1f bps", $0) } ?? "—", mono: true)
+                if let gen = bt.generalization {
+                    DataRow(label: "Train Loss", value: gen.loss_after.map { String(format: "%.2f", $0) } ?? "—", mono: true)
+                    DataRow(label: "Val Loss (OOS)", value: gen.validation_supervised_loss.map { String(format: "%.2f", $0) } ?? "—", mono: true)
+                    DataRow(label: "Overfit Gap", value: gen.train_val_generalization_gap.map { String(format: "%.2f", $0) } ?? "—", valueColor: (gen.overfit_gap_warning == true) ? NerVyx.warning : NerVyx.validation, mono: true)
+                }
+                if let rf = bt.replay_feedback {
+                    DataRow(label: "Replay→Trainer", value: "\(rf.existing_counterfactual_rows ?? 0) rows", mono: true)
+                }
+                Text("\(pb.evidence_class ?? "BACKTEST_ONLY") — not A+/live evidence")
+                    .font(.system(size: 9))
+                    .foregroundStyle(NerVyx.warning)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .nerVyxCard(accent: NerVyx.inference.opacity(0.3))
+        }
+    }
+
+    private func alertAccent(_ severity: String) -> Color {
+        switch severity {
+        case "critical": return NerVyx.sell
+        case "warn": return NerVyx.warning
+        case "info": return NerVyx.inference
+        default: return NerVyx.validation
         }
     }
 
@@ -112,7 +194,7 @@ struct TrainerPredictionView: View {
                 accent: NerVyx.validation
             )
             NerVyxStatCard(
-                label: "AVG CONF",
+                label: "AVG EXEC",
                 value: String(format: "%.0f%%", vm.avgConfidence * 100),
                 valueColor: NerVyx.confidenceColor(vm.avgConfidence),
                 sublabel: vm.streamLabel,
@@ -183,11 +265,15 @@ struct PredictionRowView: View {
                     )
                 }
                 HStack(spacing: 8) {
-                    ConfidenceBar(value: row.confidence ?? 0)
+                    ConfidenceBar(value: row.executableConfidence)
                         .frame(width: 70)
-                    Text(row.confidencePct)
+                    Text(row.executableConfidencePct)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(NerVyx.confidenceColor(row.confidence ?? 0))
+                        .foregroundStyle(NerVyx.confidenceColor(row.executableConfidence))
+                    Text(row.paperExplorationTier)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(row.paperExplorationTier == "NONE" ? NerVyx.textMuted : NerVyx.signal)
+                        .lineLimit(1)
                     Spacer()
                     if row.actionable == true {
                         HStack(spacing: 3) {
@@ -216,7 +302,10 @@ struct PredictionRowView: View {
 // MARK: - Prediction Detail (Signal Explainability)
 
 struct PredictionDetailView: View {
+    @Environment(AuthManager.self) private var auth
+    @Environment(AppState.self) private var appState
     let row: SignalMatrixRow
+    @State private var explanation: AIPredictionExplanation?
 
     var body: some View {
         ZStack {
@@ -224,6 +313,7 @@ struct PredictionDetailView: View {
             ScrollView {
                 VStack(spacing: 12) {
                     headerCard
+                    aiReasoningCard
                     confidenceCard
                     executionCard
                     coverageCard
@@ -235,6 +325,70 @@ struct PredictionDetailView: View {
         }
         .navigationTitle(row.displaySymbol)
         .navigationBarTitleDisplayMode(.inline)
+        .task { await loadReasoning() }
+    }
+
+    private struct ReasoningSection: Identifiable {
+        var id: String { title }
+        let title: String
+        let text: String
+    }
+
+    private func reasoningSections(_ exp: AIPredictionExplanation) -> [ReasoningSection] {
+        var out: [ReasoningSection] = []
+        func add(_ title: String, _ text: String?) {
+            if let t = text, !t.isEmpty { out.append(ReasoningSection(title: title, text: t)) }
+        }
+        add("What the model sees", exp.summary)
+        add("Signal strength", exp.signal_strength)
+        add("Confidence", exp.confidence_narrative)
+        add("Data quality", exp.data_quality_narrative)
+        add("Market integrity", exp.market_integrity_narrative)
+        add("Technical drivers", exp.technical_drivers)
+        add("Price target", exp.price_target_narrative)
+        add("Risk gate", exp.risk_gate_narrative)
+        add("Pipeline state", exp.pipeline_state_narrative)
+        return out
+    }
+
+    @ViewBuilder
+    private var aiReasoningCard: some View {
+        if let exp = explanation {
+            VStack(spacing: 10) {
+                SectionHeader(title: "AI Reasoning", accent: NerVyx.inference)
+                ForEach(reasoningSections(exp)) { section in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(section.title.uppercased())
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(NerVyx.textMuted)
+                        Text(section.text)
+                            .font(.system(size: 12))
+                            .foregroundStyle(NerVyx.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .nerVyxCard(accent: NerVyx.inference.opacity(0.3))
+        }
+    }
+
+    private func loadReasoning() async {
+        guard let sym = row.symbol, let tf = row.timeframe else { return }
+        do {
+            let resp: AIPredictionExplainResponse = try await APIClient.shared.get(
+                path: APIEndpoints.predictionsExplain,
+                queryItems: [
+                    URLQueryItem(name: "symbol", value: sym),
+                    URLQueryItem(name: "timeframe", value: tf),
+                ],
+                token: auth.currentToken(),
+                baseURL: appState.baseURL
+            )
+            explanation = resp.data?.explanation
+        } catch {
+            // reasoning is best-effort; the structured detail cards remain.
+        }
     }
 
     private var headerCard: some View {
@@ -267,20 +421,32 @@ struct PredictionDetailView: View {
 
     private var confidenceCard: some View {
         VStack(spacing: 10) {
-            SectionHeader(title: "Model Confidence", accent: NerVyx.primary)
+            SectionHeader(title: "Confidence Truth", accent: NerVyx.primary)
             VStack(spacing: 6) {
                 HStack {
-                    Text("Confidence")
+                    Text("Executable confidence")
                         .font(.system(size: 12))
                         .foregroundStyle(NerVyx.textMuted)
                     Spacer()
-                    Text(row.confidencePct)
+                    Text(row.executableConfidencePct)
                         .font(.system(size: 20, weight: .bold, design: .monospaced))
-                        .foregroundStyle(NerVyx.confidenceColor(row.confidence ?? 0))
+                        .foregroundStyle(NerVyx.confidenceColor(row.executableConfidence))
                 }
-                ConfidenceBar(value: row.confidence ?? 0)
+                ConfidenceBar(value: row.executableConfidence)
                     .frame(height: 8)
             }
+            DataRow(label: "Selected Confidence", value: row.selectedConfidencePct, mono: true)
+            DataRow(label: "Raw Model Confidence", value: row.confidencePct, mono: true)
+            DataRow(label: "Confidence Type", value: row.confidenceDisplayLabel, mono: false)
+            DataRow(label: "Paper Exploration", value: row.paperExplorationTier, valueColor: row.paperExplorationTier == "NONE" ? NerVyx.textSecondary : NerVyx.signal)
+            if let expectedNet = row.expected_net_pnl_usd {
+                DataRow(label: "Expected Net USD", value: String(format: "$%.2f", expectedNet), valueColor: expectedNet > 0 ? NerVyx.validation : NerVyx.warning, mono: true)
+            }
+            if let maxLoss = row.expected_max_loss_usd {
+                DataRow(label: "Max Loss USD", value: String(format: "$%.2f", maxLoss), valueColor: NerVyx.warning, mono: true)
+            }
+            DataRow(label: "Why Not A+", value: row.whyNotAPlus)
+            DataRow(label: "Why Not Live", value: row.whyNotLiveReady, valueColor: NerVyx.sell)
             if let model = row.model_version {
                 DataRow(label: "Model", value: model, mono: true)
             }
@@ -312,6 +478,15 @@ struct PredictionDetailView: View {
                     value: nervyxPublicRuntimeText(risk),
                     valueColor: NerVyx.statusColor(risk)
                 )
+            }
+            if let riskController = row.risk_controller_decision {
+                DataRow(label: "Risk Controller", value: nervyxPublicRuntimeText(riskController))
+            }
+            if let allocator = row.allocator_decision {
+                DataRow(label: "Allocator", value: nervyxPublicRuntimeText(allocator))
+            }
+            if let trainer = row.trainer_feedback_status {
+                DataRow(label: "Trainer Feedback", value: nervyxPublicRuntimeText(trainer))
             }
             if let fill = row.paper_fill_status {
                 DataRow(

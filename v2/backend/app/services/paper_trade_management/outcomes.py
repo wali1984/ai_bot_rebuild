@@ -490,6 +490,16 @@ def build_close_event(
         "action_probabilities": position.action_probabilities,
         "policy_value": position.policy_value,
         "value_baseline": position.value_baseline,
+        "selected_action_log_prob": position.selected_action_log_prob,
+        "old_log_prob": position.old_log_prob,
+        "old_value": position.old_value,
+        "rollout_id": position.rollout_id,
+        "trajectory_index": position.trajectory_index,
+        "ppo_on_policy_entry_fields_present": (
+            position.ppo_on_policy_entry_fields_present
+        ),
+        "entry_policy_fields_source": position.entry_policy_fields_source,
+        "paper_learning_lane": position.paper_learning_lane,
         "prediction_score_source": position.prediction_score_source
         or (
             "ENTRY_FILL_VERIFIED_PREDICTION_SCORE_FIELDS"

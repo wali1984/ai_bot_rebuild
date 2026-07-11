@@ -124,12 +124,11 @@ def _atomic_write_text(path: Path, text: str) -> None:
 def _binance_ohlcv_client_contract() -> IngestorClientContract:
     return IngestorClientContract(
         family="binance_ohlcv",
-        primary_data_source="binance_usdm_public_klines_rest",
+        primary_data_source="binance_usdm_public_kline_websocket_stream",
         auth_required=False,
         credential_env_var_name=None,
         network_url_template=(
-            "https://fapi.binance.com/fapi/v1/klines"
-            "?symbol={symbol}&interval={timeframe}&limit=200"
+            "wss://fstream.binance.com/stream?streams={symbol_lower}@kline_{timeframe}"
         ),
         redis_target_keys=[
             OHLCV_KEY_TEMPLATE,
@@ -154,8 +153,8 @@ def _ohlcv_envelope(symbol: str, timeframe: str) -> FreshnessEnvelope:
             ),
         },
         gap_reason=(
-            "V2-native Binance OHLCV client contract defined but disabled;"
-            " operator decision required to enable the public-REST poller."
+            "V2-native Binance OHLCV WebSocket client contract defined but disabled;"
+            " operator decision required to enable the public stream. REST remains fallback-only."
         ),
     )
 
@@ -200,11 +199,11 @@ def build_phase_1_binance_ohlcv() -> dict[str, Any]:
 def _binance_orderbook_client_contract() -> IngestorClientContract:
     return IngestorClientContract(
         family="binance_orderbook",
-        primary_data_source="binance_usdm_public_depth_rest",
+        primary_data_source="binance_usdm_public_depth_websocket_stream",
         auth_required=False,
         credential_env_var_name=None,
         network_url_template=(
-            "https://fapi.binance.com/fapi/v1/depth?symbol={symbol}&limit=100"
+            "wss://fstream.binance.com/stream?streams={symbol_lower}@depth20@100ms"
         ),
         redis_target_keys=[
             ORDERBOOK_KEY_TEMPLATE,
@@ -226,8 +225,8 @@ def _orderbook_envelope(symbol: str) -> FreshnessEnvelope:
             "target_key": ORDERBOOK_KEY_TEMPLATE.format(symbol=symbol),
         },
         gap_reason=(
-            "V2-native Binance orderbook client contract defined but"
-            " disabled; depth WS/REST poller is operator-decision-gated."
+            "V2-native Binance orderbook WebSocket client contract defined but"
+            " disabled; depth stream activation is operator-decision-gated. REST remains fallback-only."
         ),
     )
 

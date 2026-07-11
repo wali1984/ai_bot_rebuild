@@ -35,6 +35,22 @@ class TestCrossVenueHonesty:
         assert out["lead_lag_classification"] == "venues_confirm"
         assert out["cross_venue_confirmation_score"] >= 0.5
 
+    def test_deep_price_aligned_venues_do_not_fail_on_depth_scale_difference(self):
+        out = evaluate_cross_venue_confirmation(
+            symbol="RENDERUSDT",
+            binance=_book(1.5565, 199_000.0, 0.07),
+            kucoin=_book(1.5565, 1_550_000.0, 0.07),
+            coinank_liquidation_context={"liquidation_no_events": 1},
+            trade_tape_confirmation_score=0.75,
+        )
+
+        assert out["venues_present"] == 2
+        assert out["lead_lag_classification"] == "venues_confirm"
+        assert out["executable_depth_confirmed"] is True
+        assert out["price_aligned"] is True
+        assert out["depth_disagreement_penalty"] <= 0.08
+        assert out["cross_venue_confirmation_score"] >= 0.60
+
     def test_binance_only_cannot_fake_pass(self):
         out = evaluate_cross_venue_confirmation(
             symbol="SYNUSDT",

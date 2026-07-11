@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from datetime import datetime
 from pathlib import Path
 
@@ -10,6 +11,9 @@ from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VE
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     build_strategy_hedge_exit_feedback,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import checkpoint as checkpoint_module
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import model as model_module
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import ppo_trainer as ppo_trainer_module
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
@@ -35,6 +39,33 @@ from v2.backend.app.services.paper_trade_management.position_state import positi
 DECISION_TIME = "2026-06-21T10:01:00Z"
 AVAILABLE_AT = "2026-06-21T10:00:30Z"
 FEATURE_CUTOFF = "2026-06-21T10:00:00Z"
+
+
+def test_training_window_gpu_sample_parser_and_summary() -> None:
+    sample = ppo_trainer_module._parse_nvidia_smi_training_sample("72, 9820, 16303")
+
+    assert sample == {
+        "gpu_utilization_percent": 72.0,
+        "vram_used_mb": 9820.0,
+        "vram_total_mb": 16303.0,
+    }
+
+    summary = ppo_trainer_module._summarize_training_gpu_samples(
+        [
+            sample,
+            {
+                "gpu_utilization_percent": 58.0,
+                "vram_used_mb": 9400.0,
+                "vram_total_mb": 16303.0,
+            },
+        ]
+    )
+
+    assert summary["training_window_gpu_sampler_active"] is True
+    assert summary["training_window_gpu_utilization_sample_count"] == 2
+    assert summary["training_window_gpu_utilization_avg_percent"] == 65.0
+    assert summary["training_window_gpu_utilization_max_percent"] == 72.0
+    assert summary["training_window_vram_used_max_fraction"] == round(9820.0 / 16303.0, 6)
 
 
 def _epoch_ms(iso_value: str) -> int:
@@ -805,6 +836,39 @@ def test_embedded_entry_feature_snapshot_trains_when_archive_snapshot_missing() 
     assert examples[0].tensor.feature_snapshot_id == "feat_1"
 
 
+def test_embedded_entry_prediction_snapshot_reconstructs_without_archive_prediction() -> None:
+    close_event, outcome_label = _close_and_outcome(action="long")
+    entry_prediction_snapshot = _trust_prediction(selected_action="long")
+    entry_prediction_snapshot.update(
+        {
+            "confidence_calibrated": 0.71,
+            "expected_move_after_cost_bps": 18.0,
+            "entry_prediction_snapshot_source": "ENTRY_DECISION_TIME_PAYLOAD",
+        }
+    )
+    close_event["entry_prediction_snapshot"] = entry_prediction_snapshot
+    close_event["entry_feature_snapshot"] = _feature_snapshot()
+    outcome_label["entry_prediction_snapshot"] = dict(entry_prediction_snapshot)
+    outcome_label["entry_feature_snapshot"] = _feature_snapshot()
+
+    row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
+        close_events=[close_event],
+        outcome_labels=[outcome_label],
+        predictions_by_id={},
+        feature_snapshots_by_id={},
+    )[0]
+
+    assert row["trust_reconstructed"] is True
+    assert row["trust_source_ids"]["entry_prediction_id"] == "pred_1"
+    assert row["trust_source_ids"]["checkpoint_id"] == "ckpt_1"
+    assert row["entry_prediction_snapshot"]["prediction_id"] == "pred_1"
+    assert row["entry_feature_snapshot"]["feature_snapshot_id"] == "feat_1"
+    assert row["checkpoint_id"] == "ckpt_1"
+    assert row["confidence_calibrated"] == pytest.approx(0.71)
+    assert row["expected_move_after_cost_bps"] == pytest.approx(18.0)
+    assert row["trust_reconstruction_rejection_reasons"] == []
+
+
 def test_mismatched_embedded_entry_feature_snapshot_is_not_trainable() -> None:
     close_event, outcome_label = _close_and_outcome(action="long")
     prediction = _trust_prediction(selected_action="long")
@@ -856,6 +920,88 @@ def test_ppo_rejects_rows_without_on_policy_fields() -> None:
     assert result.metrics["learning_update_lane"] == "outcome_supervised"
 
 
+def test_ppo_mixed_lane_keeps_outcome_rows_in_training_batch() -> None:
+    ppo_row = _training_example(
+        1,
+        trust_overrides={
+            "old_log_prob": -0.7,
+            "old_value": 0.05,
+            "reward": 0.42,
+            "done": True,
+            "rollout_id": "rollout_1",
+            "trajectory_index": 0,
+        },
+    )
+    replay_row = _training_example(2)
+    second_replay_row = _training_example(3)
+    model = V2HybridPolicyModel(input_dim=len(ppo_row.tensor.model_vector), seed=7)
+    trainer = V2HybridPPOTrainer(model=model)
+
+    result = trainer.train(
+        [replay_row, second_replay_row, ppo_row],
+        steps=1,
+        batch_size=8,
+        validation_fraction=0.34,
+    )
+
+    assert result.metrics["learning_update_lane"] == "ppo_mixed_outcome_supervised"
+    assert result.metrics["ppo_objective_used"] is True
+    assert result.metrics["outcome_supervised_update_used"] is True
+    assert result.metrics["mixed_ppo_outcome_batch_active"] is True
+    assert result.metrics["ppo_rows_consumed"] == 1
+    assert result.metrics["ppo_rows_rejected_missing_on_policy_fields"] == 0
+    assert result.metrics["ppo_rows_missing_on_policy_fields"] == 2
+    assert result.metrics["selected_examples"] == 3
+    assert result.metrics["actual_batch_size"] == 3
+    assert result.train_rows == 2
+
+
+def test_ppo_equal_nonzero_advantages_do_not_skip_mixed_training() -> None:
+    ppo_rows = [
+        _training_example(
+            1,
+            trust_overrides={
+                "old_log_prob": -0.7,
+                "old_value": 0.05,
+                "reward": 2.3058026,
+                "done": True,
+                "rollout_id": "rollout_equal",
+                "trajectory_index": 0,
+            },
+        ),
+        _training_example(
+            2,
+            trust_overrides={
+                "old_log_prob": -0.6,
+                "old_value": 0.15,
+                "reward": 2.4058026,
+                "done": True,
+                "rollout_id": "rollout_equal",
+                "trajectory_index": 1,
+            },
+        ),
+    ]
+    replay_row = _training_example(3)
+    model = V2HybridPolicyModel(input_dim=len(ppo_rows[0].tensor.model_vector), seed=7)
+    trainer = V2HybridPPOTrainer(model=model)
+
+    result = trainer.train(
+        [*ppo_rows, replay_row],
+        steps=1,
+        batch_size=8,
+        validation_fraction=0.0,
+    )
+
+    assert result.metrics["learning_update_lane"] == "ppo_mixed_outcome_supervised"
+    assert result.metrics["ppo_objective_used"] is True
+    assert result.metrics["ppo_rows_consumed"] == 2
+    assert result.metrics["ppo_advantage_std"] == pytest.approx(0.0)
+    assert result.metrics["ppo_advantage_mean"] == pytest.approx(2.2558026)
+    assert result.metrics["advantage_anomaly_steps"] == 0
+    assert result.metrics["non_finite_loss_steps"] == 0
+    assert result.metrics["optimizer_steps_this_cycle"] == 1
+
+
 def test_outcome_supervised_lane_updates_weights() -> None:
     _, result = _train_one()
     assert result.metrics["learning_update_lane"] == "outcome_supervised"
@@ -882,6 +1028,24 @@ def test_checkpoint_contains_updated_weight_blob(tmp_path: Path) -> None:
     assert manifest.weight_blob_written is True
     assert manifest.weight_file_path is not None
     assert Path(manifest.weight_file_path).exists()
+
+
+def test_checkpoint_writers_do_not_share_deterministic_tmp_paths(tmp_path: Path) -> None:
+    model, result = _train_one()
+    manager = V2HybridCheckpointManager(tmp_path / ".local_models/v2_native_rl_masa_ppo")
+    manifest = manager.write_checkpoint(
+        model=model,
+        input_dim=model.input_dim,
+        device=result.device,
+        cuda_active=result.cuda_active,
+        write_weight_blob=True,
+    )
+    weight_path = Path(manifest.weight_file_path or "")
+
+    assert "NamedTemporaryFile" in inspect.getsource(checkpoint_module._atomic_write_text)
+    assert "NamedTemporaryFile" in inspect.getsource(model_module.V2HybridPolicyModel.save_weight_blob)
+    assert not weight_path.with_suffix(weight_path.suffix + ".tmp").exists()
+    assert not list(weight_path.parent.glob(f".{weight_path.name}.*.tmp"))
 
 
 def test_checkpoint_reload_reproduces_predictions(tmp_path: Path) -> None:

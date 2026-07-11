@@ -8,11 +8,15 @@ After=network-online.target redis.service
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment=LIVE_GATE=blocked_human_only
+Environment=V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER=1
+Environment=V2_TRAINER_HIDDEN_SIZE=2048
+Environment=V2_TRAINER_RESIDUAL_BLOCKS=4
+Environment=V2_TRAINER_CPU_THREADS=8
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
-ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --repo-root "/home/wali/Desktop/AI BOT REBUILD" --interval-seconds 5 --max-rows 32768'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --repo-root "/home/wali/Desktop/AI BOT REBUILD" --interval-seconds 5 --max-rows 16384'
 Restart=always
-RestartSec=30
-CPUQuota=50%
+RestartSec=5
+CPUQuota=1600%
 MemoryHigh=72G
 MemoryMax=75G
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-native-cuda-trainer-persistent.log

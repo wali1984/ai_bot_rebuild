@@ -9,6 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
+from v2.backend.app.services.live_gate.binance_live_order_transport import (
+    BinanceUsdMWebSocketPrimaryTransport,
+    _fetch_symbol_filters_from_cache,
+)
 from v2.backend.app.services.live_gate.phase7_readiness import build_phase7_status_bundle
 
 
@@ -23,6 +27,16 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
+def _float(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number == number and abs(number) != float("inf") else None
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -31,11 +45,12 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _read_first_jsonl(path: Path) -> dict[str, Any]:
+def _read_jsonl_rows(path: Path) -> list[dict[str, Any]]:
     try:
         handle = path.open("r", encoding="utf-8")
     except OSError:
-        return {}
+        return []
+    rows: list[dict[str, Any]] = []
     with handle:
         for line in handle:
             if not line.strip():
@@ -45,8 +60,13 @@ def _read_first_jsonl(path: Path) -> dict[str, Any]:
             except ValueError:
                 continue
             if isinstance(payload, dict):
-                return payload
-    return {}
+                rows.append(payload)
+    return rows
+
+
+def _read_first_jsonl(path: Path) -> dict[str, Any]:
+    rows = _read_jsonl_rows(path)
+    return rows[0] if rows else {}
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -89,19 +109,186 @@ def _redis_json(client: Any, key: str) -> Any:
         return None
 
 
-def _candidate_from_args(*, candidate_file: Path | None, inventory_dir: Path | None) -> dict[str, Any]:
+def _epoch_ms(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        if isinstance(value, (int, float)):
+            number = float(value)
+            return int(number if number > 1e12 else number * 1000)
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return int(dt.timestamp() * 1000)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _websocket_signed_account_snapshot(client: Any) -> dict[str, Any]:
+    payload = _as_dict(_redis_json(client, "v2:binance:websocket_signed_read_status"))
+    if not payload:
+        return {}
+    results = _as_dict(payload.get("signed_ws_read_results"))
+    account_status = _as_dict(results.get("account.status"))
+    balance_status = _as_dict(results.get("account.balance"))
+    position_status = _as_dict(results.get("account.position"))
+    account_summary = _as_dict(account_status.get("response_summary"))
+    balance_summary = _as_dict(balance_status.get("response_summary"))
+    position_summary = _as_dict(position_status.get("response_summary"))
+    signed_ok = (
+        str(payload.get("signed_read_overall_status") or "").startswith("WEBSOCKET_PRIMARY_READY")
+        or (
+            account_status.get("status") == "SIGNED_WS_READ_EXECUTED"
+            and position_status.get("status") == "SIGNED_WS_READ_EXECUTED"
+        )
+    )
+    if not signed_ok:
+        return {}
+    available = _first_non_empty(
+        account_summary.get("availableBalance"),
+        account_summary.get("available_balance"),
+        account_summary.get("available_margin"),
+        balance_summary.get("usdt_available_balance"),
+        balance_summary.get("total_available_balance_usd_equivalent"),
+    )
+    wallet_balance = _first_non_empty(
+        account_summary.get("totalWalletBalance"),
+        balance_summary.get("usdt_balance"),
+        balance_summary.get("total_balance_usd_equivalent"),
+    )
+    margin_balance = _first_non_empty(
+        account_summary.get("totalMarginBalance"),
+        balance_summary.get("usdt_cross_wallet_balance"),
+        balance_summary.get("total_cross_wallet_balance_usd_equivalent"),
+    )
+    generated = payload.get("generated_utc")
+    position_sides = {
+        str(item or "").upper()
+        for item in position_summary.get("position_sides_present") or []
+        if str(item or "").strip()
+    }
+    dual_side_position = account_summary.get("dualSidePosition")
+    if dual_side_position is None:
+        if {"LONG", "SHORT"} & position_sides:
+            dual_side_position = True
+        elif "BOTH" in position_sides:
+            dual_side_position = False
+    return {
+        "signed_account_read_ok": True,
+        "ok": True,
+        "fresh": True,
+        "signed_read_fresh": True,
+        "signed_read_ts_ms": _epoch_ms(generated) or int(datetime.now(timezone.utc).timestamp() * 1000),
+        "source": "binance_ws_api_signed_readonly",
+        "transport": "websocket_api_primary",
+        "rest_fallback_used": False,
+        "available_margin": available,
+        "available_margin_usd": available,
+        "available_balance_usd": available,
+        "wallet_balance": wallet_balance,
+        "margin_balance": margin_balance,
+        "cross_wallet_balance": balance_summary.get("usdt_cross_wallet_balance"),
+        "cross_wallet_balance_usd": _first_non_empty(
+            balance_summary.get("usdt_cross_wallet_balance"),
+            balance_summary.get("total_cross_wallet_balance_usd_equivalent"),
+        ),
+        "cross_unrealized_pnl": balance_summary.get("usdt_cross_unrealized_pnl"),
+        "cross_unrealized_pnl_usd": _first_non_empty(
+            balance_summary.get("usdt_cross_unrealized_pnl"),
+            balance_summary.get("total_cross_unrealized_pnl_usd_equivalent"),
+        ),
+        "unrealized_pnl": _first_non_empty(
+            account_summary.get("totalUnrealizedProfit"),
+            balance_summary.get("total_cross_unrealized_pnl_usd_equivalent"),
+        ),
+        "account_assets_present_count": account_summary.get("assets_present_count"),
+        "balance_assets_present_count": balance_summary.get("assets_present_count"),
+        "current_positions": [],
+        "positions": [],
+        "open_orders": [],
+        "hedge_mode": dual_side_position,
+        "dual_side_position": dual_side_position,
+        "margin_mode": "cross",
+    }
+
+
+def _symbol_set_from_payload(payload: Mapping[str, Any]) -> set[str]:
+    symbols: set[str] = set()
+    for key in ("accepted_live_symbols", "live_symbols", "execution_live_symbols"):
+        symbols.update(str(item).upper() for item in payload.get(key) or [] if str(item).strip())
+    config = payload.get("live_canary_config")
+    if isinstance(config, Mapping):
+        symbols.update(str(item).upper() for item in config.get("allowed_symbols") or [] if str(item).strip())
+    return symbols
+
+
+def _candidate_symbol(candidate: Mapping[str, Any]) -> str:
+    return str(candidate.get("symbol") or "").upper()
+
+
+def _positive_net_usd(candidate: Mapping[str, Any]) -> bool:
+    value = _float(candidate.get("expected_net_pnl_usd"))
+    return value is not None and value > 0
+
+
+def _passes_dry_run_candidate_basics(candidate: Mapping[str, Any]) -> bool:
+    return (
+        str(candidate.get("allocator_decision") or "").upper() == "PASS"
+        and str(candidate.get("risk_decision") or "").upper() == "PASS"
+        and str(candidate.get("orchestrator_decision") or "").upper() == "PASS"
+    )
+
+
+def _select_inventory_row(rows: list[dict[str, Any]], *, accepted_symbols: set[str]) -> dict[str, Any]:
+    if not rows:
+        return {}
+    ranked: list[tuple[int, dict[str, Any]]] = []
+    for index, row in enumerate(rows):
+        symbol_allowed = bool(accepted_symbols) and _candidate_symbol(row) in accepted_symbols
+        score = 0
+        if symbol_allowed:
+            score += 100
+        if _positive_net_usd(row):
+            score += 20
+        if _passes_dry_run_candidate_basics(row):
+            score += 10
+        ranked.append((score * 10_000 - index, row))
+    ranked.sort(key=lambda item: item[0], reverse=True)
+    return ranked[0][1]
+
+
+def _candidate_from_args(
+    *,
+    candidate_file: Path | None,
+    inventory_dir: Path | None,
+    accepted_symbols: set[str] | None = None,
+) -> dict[str, Any]:
     if candidate_file is not None:
         return _read_json(candidate_file)
+    accepted = accepted_symbols or set()
     if inventory_dir is not None:
-        row = _read_first_jsonl(inventory_dir / "a_plus_candidate_rows.jsonl")
+        row = _select_inventory_row(_read_jsonl_rows(inventory_dir / "a_plus_candidate_rows.jsonl"), accepted_symbols=accepted)
         if row:
             return row
-        return _read_first_jsonl(inventory_dir / "near_a_plus_candidate_rows.jsonl")
+        return _select_inventory_row(_read_jsonl_rows(inventory_dir / "near_a_plus_candidate_rows.jsonl"), accepted_symbols=accepted)
     return {}
 
 
-def _symbol_filter(client: Any, candidate: Mapping[str, Any]) -> dict[str, Any]:
+def _symbol_filter(
+    client: Any,
+    candidate: Mapping[str, Any],
+    *,
+    metadata_transport: Any | None = None,
+) -> dict[str, Any]:
     symbol = str(candidate.get("symbol") or "").upper()
+    cached = _fetch_symbol_filters_from_cache(client, symbol)
+    if cached:
+        return cached
     for key in (
         f"v2:exchange:symbol_filters:{symbol}",
         f"v2:symbol_filters:{symbol}",
@@ -114,6 +301,33 @@ def _symbol_filter(client: Any, candidate: Mapping[str, Any]) -> dict[str, Any]:
     embedded = candidate.get("symbol_filter_status")
     if isinstance(embedded, Mapping):
         return dict(embedded)
+    if not symbol:
+        return {
+            "ok": False,
+            "symbol": symbol,
+            "error_type": "SYMBOL_MISSING_FOR_SYMBOL_FILTER_LOOKUP",
+            "endpoint": "redis:symbol_filters + public_metadata_fallback",
+            "rest_fallback_used": False,
+            "rest_used_as_primary": False,
+        }
+    transport = metadata_transport or BinanceUsdMWebSocketPrimaryTransport(redis_client=client)
+    fetch_symbol_filters = getattr(transport, "fetch_symbol_filters", None)
+    if callable(fetch_symbol_filters):
+        try:
+            payload = fetch_symbol_filters(symbol)
+        except Exception as exc:
+            return {
+                "ok": False,
+                "symbol": symbol,
+                "error_type": type(exc).__name__,
+                "endpoint": "GET /fapi/v1/exchangeInfo",
+                "source": "binance_public_metadata_fallback",
+                "rest_fallback_used": True,
+                "rest_fallback_reason": "exchangeInfo_symbol_filters_metadata",
+                "rest_used_as_primary": False,
+            }
+        if isinstance(payload, Mapping):
+            return dict(payload)
     return {}
 
 
@@ -123,6 +337,38 @@ def _feature_hash(payload: Any) -> str | None:
         return None
     canonical = json.dumps(features, sort_keys=True, default=str)
     return hashlib.sha256(canonical.encode()).hexdigest()[:24]
+
+
+def _candidate_quantity(candidate: Mapping[str, Any]) -> float | None:
+    explicit = _float(candidate.get("quantity") or candidate.get("target_quantity"))
+    if explicit is not None and explicit > 0:
+        return explicit
+    notional = _float(
+        candidate.get("target_notional_usd")
+        or candidate.get("gross_notional_usd")
+        or candidate.get("notional")
+        or candidate.get("expected_notional_usd")
+    )
+    price = _float(
+        candidate.get("current_price")
+        or candidate.get("entry_price")
+        or candidate.get("price")
+        or candidate.get("mark_price")
+    )
+    if notional is None or price is None or notional <= 0 or price <= 0:
+        return None
+    return notional / price
+
+
+def _candidate_price_reference(candidate: Mapping[str, Any]) -> float | None:
+    return _float(
+        candidate.get("selected_execution_price")
+        or candidate.get("entry_price")
+        or candidate.get("current_price")
+        or candidate.get("mark_price")
+        or candidate.get("last_trade_price")
+        or candidate.get("price")
+    )
 
 
 def _altdata_lineage(client: Any, candidate: Mapping[str, Any]) -> dict[str, Any]:
@@ -161,6 +407,8 @@ def build_dry_run_packet(
     candidate: Mapping[str, Any],
     output_dir: Path | None = None,
     generated_utc: str | None = None,
+    symbol_filter_transport: Any | None = None,
+    symbol_filter_snapshot: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     generated = generated_utc or _utc_now()
     runtime_payload = _as_dict(_redis_json(client, "v2:live_gate:state"))
@@ -176,19 +424,35 @@ def build_dry_run_packet(
         }
     operator_truth = _as_dict(_redis_json(client, "v2:operator:truth"))
     account_snapshot = _as_dict(_redis_json(client, "v2:live_order_transport:status"))
-    symbol_filter_snapshot = _symbol_filter(client, candidate)
+    ws_account_snapshot = _websocket_signed_account_snapshot(client)
+    if ws_account_snapshot and not (
+        account_snapshot.get("signed_account_read_ok") is True or account_snapshot.get("ok") is True
+    ):
+        account_snapshot = {**account_snapshot, **ws_account_snapshot}
+    resolved_symbol_filter_snapshot = (
+        dict(symbol_filter_snapshot)
+        if isinstance(symbol_filter_snapshot, Mapping)
+        else _symbol_filter(
+            client,
+            candidate,
+            metadata_transport=symbol_filter_transport,
+        )
+    )
+    price_reference = _candidate_price_reference(candidate)
     allocation_payload = {
         "allocator_decision_id": candidate.get("allocator_decision_id"),
         "symbol": candidate.get("symbol"),
         "timeframe": candidate.get("timeframe"),
         "side": candidate.get("side"),
         "action": candidate.get("side"),
+        "price": price_reference,
+        "price_reference": price_reference,
         "target_notional_usd": candidate.get("target_notional_usd")
         or candidate.get("gross_notional_usd")
         or candidate.get("notional")
         or candidate.get("expected_notional_usd"),
         "gross_notional_usd": candidate.get("gross_notional_usd"),
-        "target_quantity": candidate.get("quantity") or candidate.get("target_quantity"),
+        "target_quantity": _candidate_quantity(candidate),
         "allocated_margin_usd": candidate.get("allocated_margin_usd"),
         "expected_net_pnl_usd": candidate.get("expected_net_pnl_usd"),
         "max_loss_usd": candidate.get("max_loss_usd") or candidate.get("expected_max_loss_usd"),
@@ -226,7 +490,7 @@ def build_dry_run_packet(
         runtime_payload=runtime_payload,
         operator_truth=operator_truth,
         account_snapshot=account_snapshot,
-        symbol_filter_snapshot=symbol_filter_snapshot,
+        symbol_filter_snapshot=resolved_symbol_filter_snapshot,
         allocation_payload=allocation_payload,
         candidate_signal=dict(candidate),
         generated_utc=generated,
@@ -262,6 +526,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--candidate-file", default=None)
     parser.add_argument("--inventory-dir", default=None)
     parser.add_argument("--redis-url", default=None)
+    parser.add_argument(
+        "--refresh-signed-read-status",
+        action="store_true",
+        help="run read-only Binance WebSocket API signed reads and publish the dry-run status key first",
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
@@ -269,15 +538,38 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    client = _redis_client(args.redis_url)
+    runtime_payload = _as_dict(_redis_json(client, "v2:live_gate:state"))
     candidate = _candidate_from_args(
         candidate_file=Path(args.candidate_file) if args.candidate_file else None,
         inventory_dir=Path(args.inventory_dir) if args.inventory_dir else None,
+        accepted_symbols=_symbol_set_from_payload(runtime_payload),
     )
-    client = _redis_client(args.redis_url)
+    symbol_filter_snapshot = None
+    if args.refresh_signed_read_status:
+        # Public metadata can take longer than the signed-read freshness guard.
+        # Resolve it first, then refresh account reads immediately before the
+        # no-execute packet is composed.
+        symbol_filter_snapshot = _symbol_filter(client, candidate)
+        try:
+            from v2.backend.app.cli.v2_binance_websocket_signed_read_status_publisher import (
+                build_status as _build_signed_read_status,
+                publish_status as _publish_signed_read_status,
+            )
+
+            signed_status = _build_signed_read_status(execute=True)
+            _publish_signed_read_status(
+                signed_status,
+                redis_url=args.redis_url,
+                ttl_seconds=900,
+            )
+        except Exception:
+            pass
     status = build_dry_run_packet(
         client=client,
         candidate=candidate,
         output_dir=Path(args.output_dir),
+        symbol_filter_snapshot=symbol_filter_snapshot,
     )
     if client is not None:
         try:

@@ -39,9 +39,13 @@ interface PortfolioData {
   equity?: number | null;
   paper_equity?: number | null;
   paper_balance?: number | null;
+  paper_equity_usd?: number | null;
   initial_capital?: number | null;
   paper_initial_capital?: number | null;
   starting_equity_usd?: number | null;
+  paper_realized_pnl_usd?: number | null;
+  paper_unrealized_pnl_usd?: number | null;
+  paper_total_pnl_usd?: number | null;
   realized_net_pnl_usd?: number | null;
   realized_gross_pnl_usd?: number | null;
   realized_pnl_usd?: number | null;
@@ -51,12 +55,68 @@ interface PortfolioData {
   clean_session_valid_unrealized_pnl_usd?: number | null;
   realized_pnl?: number | null;
   unrealized_pnl?: number | null;
+  paper_session_id?: string | null;
+  data_source?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
   pnl_source_key?: string | null;
   pnl_source_route?: string | null;
   pnl_source_type?: string | null;
   pnl_conflict_detected?: boolean | null;
   open_positions?: unknown[];
   account_mode?: string | null;
+}
+
+interface ReadonlyContract<T> {
+  schema_version?: string;
+  data?: T | null;
+  source?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
+  data_quality_status?: string | null;
+  live_gate?: unknown;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+}
+
+interface LiveCanaryStatusData {
+  why_none?: string | null;
+  dry_run?: boolean | null;
+  operator_approval_required?: boolean | null;
+  selected_a_plus_candidate?: unknown;
+  no_mutation_flags?: Record<string, unknown> | null;
+  status_payload?: Record<string, unknown> | null;
+}
+
+interface APlusInventoryData {
+  evaluated_candidates?: number | null;
+  a_plus_candidates?: number | null;
+  live_ready_rows?: number | null;
+  counts_as_final_a_plus?: boolean | null;
+  probation_counts_as_final_a_plus?: boolean | null;
+  paper_session_id?: string | null;
+  rejected_reason_matrix?: Record<string, unknown> | null;
+}
+
+interface MobileRiskStatusData {
+  live_gate?: unknown;
+  risk_state?: string | null;
+  risk_classification?: string | null;
+  kill_switch_active?: boolean | null;
+  fail_closed?: boolean | null;
+  top_blockers?: string[] | null;
+  probation_5_trade_gate?: Record<string, unknown> | null;
+  positive_edge_probation_runtime_status?: Record<string, unknown> | null;
+  real_trader_readiness?: Record<string, unknown> | null;
+  adaptive_hedge_cross_margin?: Record<string, unknown> | null;
+  preemptive_edge_control?: Record<string, unknown> | null;
+  advanced_indicators?: Record<string, unknown> | null;
+  provider_readiness?: Record<string, unknown> | null;
+  market_data_freshness?: Record<string, unknown> | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
 }
 
 interface TickerRow {
@@ -97,6 +157,24 @@ interface ActiveSignal {
   side?: string;
   confidence?: number | null;
   confidence_calibrated?: number | null;
+  confidence_executable_trade?: number | null;
+  confidence_selected_action?: number | null;
+  confidence_display_label?: string | null;
+  confidence_tradeability_block_reasons?: string[] | null;
+  paper_exploration_tier?: string | null;
+  exploration_tier?: string | null;
+  paper_exploration_current_blocker?: string | null;
+  paper_exploration_paper_fill_allowed?: boolean | null;
+  paper_exploration_risk_controller_decision?: string | null;
+  paper_exploration_orchestrator_decision?: string | null;
+  paper_exploration_allocator_decision?: string | null;
+  expected_net_pnl_usd?: number | null;
+  expected_max_loss_usd?: number | null;
+  why_not_a_plus?: string[] | null;
+  why_not_live_ready?: string[] | null;
+  risk_controller_decision?: string | null;
+  allocator_decision?: string | null;
+  trainer_feedback_status?: string | null;
   target_1?: number | null;
   expected_move_after_cost_bps?: number | null;
   data_coverage_percent?: number | null;
@@ -225,7 +303,7 @@ function publicDashboardText(value: string | null | undefined): string {
     .replace(/no data/gi, 'Connecting stream')
     .replace(/data[_\s-]*coverage/gi, 'data quality')
     .replace(/\bcoverage\b/gi, 'quality')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'approval gated')
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -242,9 +320,52 @@ function publicDashboardText(value: string | null | undefined): string {
   return cleaned;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function firstDashboardNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function firstDashboardText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+function firstDashboardReason(value: string[] | null | undefined, fallback: string): string {
+  return value?.find(reason => typeof reason === 'string' && reason.trim()) ?? fallback;
+}
+
+function firstDashboardBool(...values: unknown[]): boolean | null {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+  }
+  return null;
+}
+
+function liveGateText(value: unknown): string {
+  const record = asRecord(value);
+  const raw = record
+    ? firstDashboardText(record.gate, record.label, record.status, record.live_gate)
+    : firstDashboardText(value);
+  return raw ?? 'blocked_human_only';
+}
+
+function flagText(value: unknown): string {
+  const bool = firstDashboardBool(value);
+  if (bool === true) return 'YES';
+  if (bool === false) return 'NO';
+  return '—';
+}
+
 // ─── WebSocket resource hook ─────────────────────────────────────────────────
 
-function useDashboardStream<T>(url: string, intervalMs: number): {
+function useDashboardStream<T>(url: string, intervalMs: number, unwrapEnvelopeData: boolean | 'contract' = true): {
   data: T | null;
   envelope: ValidatedDataEnvelope<T>;
   loading: boolean;
@@ -259,6 +380,7 @@ function useDashboardStream<T>(url: string, intervalMs: number): {
     mode: 'read_only',
     initialFetch: true,
     httpFallback: true,
+    unwrapEnvelopeData,
   });
   return { data: envelope.data ?? null, envelope, loading, error };
 }
@@ -402,7 +524,7 @@ function streamTone(env: ValidatedDataEnvelope<unknown> | null | undefined, load
 
 function streamLabel(env: ValidatedDataEnvelope<unknown> | null | undefined, loading: boolean, error?: string | null): string {
   if (error) return 'OFFLINE';
-  if (loading && !env?.data) return 'CONNECTING';
+  if (loading && !env?.data) return 'Pending';
   if (env?.freshness_status === 'fresh') return 'LIVE';
   if (env?.freshness_status === 'delayed') return 'DELAYED';
   if (env?.freshness_status === 'stale') return 'STALE';
@@ -438,6 +560,179 @@ function DashboardStreamStatus({ items, browser }: {
   );
 }
 
+function ControlCenterMetric({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}): JSX.Element {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ display: 'block', fontSize: 15, fontWeight: 800, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', overflowWrap: 'anywhere' }}>{value}</span>
+      {sub ? <span style={{ display: 'block', marginTop: 2, fontSize: 10, color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{sub}</span> : null}
+    </div>
+  );
+}
+
+function DashboardControlCenterTruthPanel({
+  portfolio,
+  portfolioEnvelope,
+  liveCanaryContract,
+  liveCanaryEnvelope,
+  aPlusContract,
+  aPlusEnvelope,
+  riskTruth,
+  riskEnvelope,
+  exchangeAccounts,
+}: {
+  portfolio: PortfolioData | null;
+  portfolioEnvelope: ValidatedDataEnvelope<PortfolioData>;
+  liveCanaryContract: ReadonlyContract<LiveCanaryStatusData> | null;
+  liveCanaryEnvelope: ValidatedDataEnvelope<ReadonlyContract<LiveCanaryStatusData>>;
+  aPlusContract: ReadonlyContract<APlusInventoryData> | null;
+  aPlusEnvelope: ValidatedDataEnvelope<ReadonlyContract<APlusInventoryData>>;
+  riskTruth: MobileRiskStatusData | null;
+  riskEnvelope: ValidatedDataEnvelope<MobileRiskStatusData>;
+  exchangeAccounts: unknown[];
+}): JSX.Element {
+  const liveCanary = liveCanaryContract?.data ?? null;
+  const aPlus = aPlusContract?.data ?? null;
+  const statusPayload = asRecord(liveCanary?.status_payload) ?? {};
+  const noMutationFlags = asRecord(liveCanary?.no_mutation_flags) ?? {};
+  const hedge = asRecord(riskTruth?.adaptive_hedge_cross_margin) ?? {};
+  const preemptive = asRecord(riskTruth?.preemptive_edge_control) ?? {};
+  const preemptiveAdvanced = asRecord(preemptive.advanced_indicators) ?? {};
+  const providerReadiness = asRecord(riskTruth?.provider_readiness) ?? {};
+  const realReadiness = asRecord(riskTruth?.real_trader_readiness) ?? {};
+  const probation = asRecord(riskTruth?.probation_5_trade_gate) ?? {};
+  const probationRuntime = asRecord(riskTruth?.positive_edge_probation_runtime_status) ?? {};
+  const marketFreshness = asRecord(riskTruth?.market_data_freshness) ?? {};
+
+  const liveGate = liveGateText(riskTruth?.live_gate ?? liveCanaryContract?.live_gate ?? statusPayload.live_gate);
+  const liveBlocked = liveGate.toLowerCase().includes('blocked') || liveGate.toLowerCase().includes('operator gated');
+  const placesRealOrder = firstDashboardBool(
+    riskTruth?.places_real_order,
+    liveCanaryContract?.places_real_order,
+    statusPayload.places_real_order,
+    noMutationFlags.places_real_order,
+  ) === true;
+  const routesToLive = firstDashboardBool(
+    riskTruth?.routes_to_live,
+    liveCanaryContract?.routes_to_live,
+    statusPayload.routes_to_live,
+  ) === true;
+  const orderMutated = [
+    statusPayload.real_order_attempted,
+    statusPayload.real_order_submitted,
+    statusPayload.test_order_submitted,
+    statusPayload.leverage_changed,
+    statusPayload.margin_mode_changed,
+    noMutationFlags.real_order_attempted,
+    noMutationFlags.real_order_submitted,
+    noMutationFlags.test_order_submitted,
+    noMutationFlags.leverage_changed,
+    noMutationFlags.margin_mode_changed,
+  ].some((value) => value === true);
+
+  const blockers = Array.isArray(statusPayload.fail_blockers)
+    ? statusPayload.fail_blockers.map(String)
+    : Array.isArray(riskTruth?.top_blockers)
+      ? riskTruth.top_blockers
+      : [];
+  const canaryBlocker = firstDashboardText(liveCanary?.why_none, blockers[0], statusPayload.go_no_go, riskTruth?.risk_state) ?? 'No current canary candidate';
+  const paperGate = firstDashboardText(
+    probationRuntime.status,
+    probation.status,
+    preemptive.positive_edge_probation_status,
+    riskTruth?.risk_state,
+  ) ?? 'Probation gate unavailable';
+  const signedReadConfigured = exchangeAccounts.some((account) => {
+    const row = asRecord(account);
+    const credential = asRecord(row?.credential_status);
+    return row?.read_only === true || credential?.configured === true || credential?.status === 'configured';
+  });
+  const signedRead = signedReadConfigured
+    ? 'SIGNED READ PRESENT'
+    : firstDashboardBool(realReadiness.live_ready) === true
+      ? 'REAL READINESS PRESENT'
+      : 'SIGNED READ PENDING';
+  const equity = firstDashboardNumber(portfolio?.paper_equity_usd, portfolio?.equity, portfolio?.paper_equity, portfolio?.paper_balance);
+  const totalPnl = firstDashboardNumber(portfolio?.paper_total_pnl_usd, portfolio?.total_pnl_usd);
+  const liquidationBuffer = firstDashboardNumber(hedge.portfolio_liquidation_buffer_usd, hedge.cross_margin_available_buffer_usd);
+  const hedgeState = firstDashboardText(hedge.hedge_state, hedge.status) ?? 'Hedge state unavailable';
+  const topLevelAdvanced = asRecord(riskTruth?.advanced_indicators) ?? {};
+  const squeezeGuard = firstDashboardBool(
+    preemptiveAdvanced.sweep_risk_can_block_or_reduce,
+    preemptiveAdvanced.squeeze_risk_can_block_or_reduce,
+    topLevelAdvanced.sweep_risk_can_block_or_reduce,
+  );
+  const providerSummary = [
+    ['CoinGlass', providerReadiness.coinglass_dashboard_color ?? providerReadiness.coinglass_status],
+    ['Moralis', providerReadiness.moralis_dashboard_color ?? providerReadiness.moralis_status],
+    ['Santiment', providerReadiness.santiment_status],
+  ]
+    .map(([name, value]) => `${name}:${publicDashboardText(firstDashboardText(value) ?? '—')}`)
+    .join(' · ');
+  const stalenessValues = [
+    firstDashboardNumber(portfolio?.staleness_seconds),
+    firstDashboardNumber(liveCanaryContract?.staleness_seconds),
+    firstDashboardNumber(aPlusContract?.staleness_seconds),
+    firstDashboardNumber(riskTruth?.staleness_seconds),
+  ].filter((value): value is number => value !== null);
+  const maxStaleness = stalenessValues.length ? Math.max(...stalenessValues) : null;
+  const freshness = [
+    portfolioEnvelope.freshness_status,
+    liveCanaryContract?.freshness_status ?? liveCanaryEnvelope.freshness_status,
+    aPlusContract?.freshness_status ?? aPlusEnvelope.freshness_status,
+    riskTruth?.freshness_status ?? riskEnvelope.freshness_status,
+    firstDashboardText(marketFreshness.freshness_state),
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <Panel>
+      <section data-testid="dashboard-control-center-truth" style={{ padding: '14px 16px 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 14 }}>
+          <div>
+            <span style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Runtime Control Center Truth</span>
+            <h2 style={{ margin: '3px 0 0', fontSize: 18, color: 'var(--text-primary)' }}>Live status: {liveBlocked || !placesRealOrder ? 'LIVE BLOCKED' : 'DRY RUN REVIEW REQUIRED'}</h2>
+          </div>
+          <span className="nervyx-dashboard-pill" style={{
+            background: routesToLive || placesRealOrder || orderMutated ? 'color-mix(in oklch,var(--sell,#ef4444) 15%,transparent)' : 'color-mix(in oklch,#f59e0b 15%,transparent)',
+            color: routesToLive || placesRealOrder || orderMutated ? 'var(--sell,#ef4444)' : '#f59e0b',
+            border: '1px solid color-mix(in oklch,currentColor 28%,transparent)',
+          }}>
+            {routesToLive || placesRealOrder || orderMutated ? 'MUTATION RISK' : 'NO ORDER / TEST / LEVERAGE / MARGIN MUTATION'}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
+          <ControlCenterMetric label="A+ candidates" value={String(aPlus?.a_plus_candidates ?? 0)} sub={`${aPlus?.evaluated_candidates ?? 0} evaluated · ${aPlus?.live_ready_rows ?? 0} live-ready rows`} color={(aPlus?.a_plus_candidates ?? 0) > 0 ? 'var(--buy,#10b981)' : '#f59e0b'} />
+          <ControlCenterMetric label="Live canary blocker" value={publicDashboardText(canaryBlocker)} sub={firstDashboardText(statusPayload.go_no_go) ?? '/api/v2/live-canary/status'} color="var(--sell,#ef4444)" />
+          <ControlCenterMetric label="Paper/probation gate" value={publicDashboardText(paperGate)} sub={firstDashboardText(probation.source, aPlus?.paper_session_id) ?? '/api/v2/a-plus/inventory'} color="#f59e0b" />
+          <ControlCenterMetric label="Signed-read status" value={signedRead} sub="Exchange metadata only; live remains blocked" color={signedReadConfigured ? 'var(--buy,#10b981)' : '#f59e0b'} />
+          <ControlCenterMetric label="paper_equity_usd" value={f$(equity)} sub={portfolio?.pnl_source_key ?? portfolioEnvelope.source} />
+          <ControlCenterMetric label="paper_total_pnl_usd" value={f$(totalPnl)} sub={portfolio?.pnl_source_route ?? '/api/v2/portfolio'} color={pnlColor(totalPnl)} />
+          <ControlCenterMetric label="Liquidation buffer" value={f$(liquidationBuffer)} sub="portfolio_liquidation_buffer_usd" color="var(--buy,#10b981)" />
+          <ControlCenterMetric label="Hedge status" value={publicDashboardText(hedgeState)} sub={`hedge_required_score=${firstDashboardNumber(providerReadiness.confluence_hedge_required_score)?.toFixed(2) ?? '—'}`} />
+          <ControlCenterMetric label="Squeeze risk" value={squeezeGuard === true ? 'SWEEP GUARD ACTIVE' : squeezeGuard === false ? 'No active sweep guard' : 'Squeeze guard unavailable'} sub="sweep risk can block or reduce" color={squeezeGuard === true ? '#f59e0b' : 'var(--text-primary)'} />
+          <ControlCenterMetric label="Data freshness" value={maxStaleness !== null ? `${Math.round(maxStaleness)}s max` : 'fresh'} sub={freshness || 'freshness pending'} />
+        </div>
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          <span>live_gate={publicDashboardText(liveGate)}</span>
+          <span>places_real_order={flagText(placesRealOrder)}</span>
+          <span>routes_to_live={flagText(routesToLive)}</span>
+          <span>providers={providerSummary}</span>
+        </div>
+      </section>
+    </Panel>
+  );
+}
+
 // ─── Active Signal panel ──────────────────────────────────────────────────────
 
 function ActiveSignalPanel({
@@ -459,14 +754,23 @@ function ActiveSignalPanel({
             <CanonicalMetricValue metric={signalIdMetric} />
           </div>
           <div>
-            <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Confidence</span>
+            <span style={{ display: 'block', fontSize: 10, textTransform: 'uppercase' }}>Executable Confidence</span>
             <CanonicalMetricValue metric={signalConfidenceMetric} />
           </div>
         </div>
       </Panel>
     );
   }
-  const conf = signal.confidence_calibrated ?? signal.confidence ?? null;
+  const selectedConf = signal.confidence_selected_action ?? signal.confidence_calibrated ?? signal.confidence ?? null;
+  const executableConf = signal.confidence_executable_trade ?? null;
+  const confidenceLabel = signal.confidence_display_label ?? 'Unproven confidence';
+  const explorationTier = signal.paper_exploration_tier ?? signal.exploration_tier ?? null;
+  const explorationBlocker = signal.paper_exploration_current_blocker ?? 'not above floor';
+  const paperFillTruth = signal.paper_exploration_paper_fill_allowed === true
+    ? 'PAPER_FILL_ALLOWED'
+    : signal.paper_exploration_paper_fill_allowed === false
+      ? 'BLOCKED'
+      : (signal.paper_fill_allowed === true ? 'PAPER_FILL_ALLOWED' : signal.paper_fill_allowed === false ? 'BLOCKED' : 'PENDING');
   const side = signal.side ?? '—';
   const sc = sideColor(side);
   const freshBadge = signal.source_freshness === 'CURRENT' ? 'LIVE' : signal.source_freshness === 'STALE' ? 'STALE' : null;
@@ -488,12 +792,15 @@ function ActiveSignalPanel({
         {/* Confidence bar */}
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Confidence</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: conf != null && conf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', fontFamily: 'var(--font-mono)' }}>
-              <CanonicalMetricValue metric={signalConfidenceMetric} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{confidenceLabel}</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: executableConf != null && executableConf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b', fontFamily: 'var(--font-mono)' }}>
+              {executableConf != null ? fPct(executableConf) : '—'}
             </span>
           </div>
-          <ConfBar pct={conf ?? 0} color={conf != null && conf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b'} />
+          <ConfBar pct={executableConf ?? 0} color={executableConf != null && executableConf >= 0.66 ? 'var(--buy,#10b981)' : '#f59e0b'} />
+          <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            selected-action confidence {fPct(selectedConf)}
+          </div>
         </div>
 
         {/* Key metrics grid */}
@@ -501,9 +808,20 @@ function ActiveSignalPanel({
           {[
             ['Target', signal.target_1 != null ? '$' + signal.target_1.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'],
             ['Exp. Move', fBpsAsPct(signal.expected_move_after_cost_bps)],
+            ['Confidence Type', confidenceLabel],
+            ['Paper Tier', explorationTier ?? 'NONE'],
+            ['Exploration Blocker', explorationBlocker],
+            ['Paper Fill', paperFillTruth],
+            ['Expected Net', f$(signal.expected_net_pnl_usd)],
+            ['Max Loss', f$(signal.expected_max_loss_usd)],
+            ['Why Not A+', firstDashboardReason(signal.why_not_a_plus, 'A+ evidence not matured')],
+            ['Why Not Live', firstDashboardReason(signal.why_not_live_ready, 'blocked_human_only')],
             ['Data Quality', signal.data_coverage_percent != null ? signal.data_coverage_percent.toFixed(1) + '%' : '—'],
             ['State Score', signal.market_state_integrity_score != null ? signal.market_state_integrity_score.toFixed(1) + '%' : '—'],
-            ['Risk Result', signal.risk_result ?? '—'],
+            ['Risk Result', signal.paper_exploration_risk_controller_decision ?? signal.risk_controller_decision ?? signal.risk_result ?? '—'],
+            ['Orchestrator', signal.paper_exploration_orchestrator_decision ?? '—'],
+            ['Allocator', signal.paper_exploration_allocator_decision ?? signal.allocator_decision ?? '—'],
+            ['Trainer', signal.trainer_feedback_status ?? '—'],
             ['Fill Allowed', signal.paper_fill_allowed ? 'YES' : 'NO'],
           ].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>
@@ -853,7 +1171,7 @@ function CapitalProductivityPanel({ capital }: { capital: CapitalProductivityRun
     <Panel>
       <PanelHead
         title="Capital Productivity"
-        badge={capital?.status ?? 'CONNECTING'}
+        badge={capital?.status ?? 'Pending'}
         badgeTone={capital?.status === 'PASSED' ? 'ok' : 'block'}
       />
       <div style={{ padding: '10px 16px 14px' }}>
@@ -891,7 +1209,7 @@ function AccuracySummaryPanel({ accuracy }: { accuracy: SignalPredictionAccuracy
       <PanelHead
         title="Signal Accuracy"
         to="/signals"
-        badge={accuracy?.status ?? 'CONNECTING'}
+        badge={accuracy?.status ?? 'Pending'}
         badgeTone={accuracy?.status === 'READY' ? 'ok' : 'warn'}
       />
       <div style={{ padding: '10px 16px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
@@ -983,6 +1301,9 @@ export default function DashboardPage(): JSX.Element {
   const paperActivity = usePaperActivityStream(1000);
   const adaptiveCapital = useAdaptiveCapitalDashboard(30_000);
   const portfolioStream = useDashboardStream<PortfolioData>('/api/v2/portfolio', 15_000);
+  const liveCanaryStream = useDashboardStream<ReadonlyContract<LiveCanaryStatusData>>('/api/v2/live-canary/status', 10_000, false);
+  const aPlusStream = useDashboardStream<ReadonlyContract<APlusInventoryData>>('/api/v2/a-plus/inventory', 10_000, false);
+  const mobileRiskStream = useDashboardStream<MobileRiskStatusData>('/api/v2/mobile/risk-status', 15_000);
   const signalStream = useDashboardStream<{ active_signal?: ActiveSignal }>('/api/v2/signals', 10_000);
   const orchStream = useDashboardStream<{ heartbeat?: OrchestratorHeartbeat; last_proposals?: OrchestratorProposal[] }>('/api/v2/orchestrator/status', 10_000);
   const riskStream = useDashboardStream<{ active_profile?: RiskProfile; latest_gateway_result?: RiskGatewayResult; heartbeat?: RiskHeartbeat }>('/api/v2/risk/status', 15_000);
@@ -1001,20 +1322,26 @@ export default function DashboardPage(): JSX.Element {
   const fills = streamFills;
   const paperSummary = Object.keys(streamSummary).length ? streamSummary : null;
   const hasRuntimeAccount =
-    portfolioData?.equity != null
+    portfolioData?.paper_equity_usd != null
+    || portfolioData?.equity != null
     || portfolioData?.paper_equity != null
     || portfolioData?.paper_balance != null
+    || portfolioData?.paper_realized_pnl_usd != null
+    || portfolioData?.paper_unrealized_pnl_usd != null
+    || portfolioData?.paper_total_pnl_usd != null
     || portfolioData?.realized_net_pnl_usd != null
     || portfolioData?.realized_pnl_usd != null
     || portfolioData?.unrealized_pnl_usd != null;
   const realized =
-    portfolioData?.realized_net_pnl_usd
+    portfolioData?.paper_realized_pnl_usd
+    ?? portfolioData?.realized_net_pnl_usd
     ?? portfolioData?.clean_session_valid_realized_pnl_usd
     ?? portfolioData?.realized_pnl_usd
     ?? portfolioData?.realized_pnl
     ?? null;
   const unrealized =
-    portfolioData?.unrealized_pnl_usd
+    portfolioData?.paper_unrealized_pnl_usd
+    ?? portfolioData?.unrealized_pnl_usd
     ?? portfolioData?.clean_session_valid_unrealized_pnl_usd
     ?? portfolioData?.unrealized_pnl
     ?? null;
@@ -1023,8 +1350,9 @@ export default function DashboardPage(): JSX.Element {
     ?? portfolioData?.paper_initial_capital
     ?? portfolioData?.starting_equity_usd
     ?? null;
-  const reportedEquity = portfolioData?.equity ?? portfolioData?.paper_equity ?? portfolioData?.paper_balance;
-  const equity = reportedEquity ?? (hasRuntimeAccount && startingCapital != null ? startingCapital + (realized ?? 0) + (unrealized ?? 0) : null);
+  const reportedEquity = portfolioData?.paper_equity_usd ?? portfolioData?.equity ?? portfolioData?.paper_equity ?? portfolioData?.paper_balance;
+  const totalPnl = portfolioData?.paper_total_pnl_usd ?? portfolioData?.total_pnl_usd ?? (realized != null && unrealized != null ? realized + unrealized : null);
+  const equity = reportedEquity ?? (hasRuntimeAccount && startingCapital != null ? startingCapital + (totalPnl ?? (realized ?? 0) + (unrealized ?? 0)) : null);
   const activeSignal = signalData?.active_signal ?? null;
   const proposals = orchData?.last_proposals ?? [];
   const orchHeartbeat = orchData?.heartbeat ?? null;
@@ -1051,13 +1379,25 @@ export default function DashboardPage(): JSX.Element {
   const dashboardStreamItems = useMemo(() => ([
     { label: 'Activity', envelope: paperActivity.envelope as ValidatedDataEnvelope<unknown> | null, loading: paperActivity.loading, error: paperActivity.error },
     { label: 'Portfolio', envelope: portfolioStream.envelope as ValidatedDataEnvelope<unknown>, loading: portfolioStream.loading, error: portfolioStream.error },
+    { label: 'Live Canary', envelope: liveCanaryStream.envelope as ValidatedDataEnvelope<unknown>, loading: liveCanaryStream.loading, error: liveCanaryStream.error },
+    { label: 'A+', envelope: aPlusStream.envelope as ValidatedDataEnvelope<unknown>, loading: aPlusStream.loading, error: aPlusStream.error },
+    { label: 'Risk Truth', envelope: mobileRiskStream.envelope as ValidatedDataEnvelope<unknown>, loading: mobileRiskStream.loading, error: mobileRiskStream.error },
     { label: 'Signals', envelope: signalStream.envelope as ValidatedDataEnvelope<unknown>, loading: signalStream.loading, error: signalStream.error },
     { label: 'Risk', envelope: riskStream.envelope as ValidatedDataEnvelope<unknown>, loading: riskStream.loading, error: riskStream.error },
     { label: 'Market', envelope: marketStream.envelope as ValidatedDataEnvelope<unknown>, loading: marketStream.loading, error: marketStream.error },
   ]), [
+    aPlusStream.envelope,
+    aPlusStream.error,
+    aPlusStream.loading,
+    liveCanaryStream.envelope,
+    liveCanaryStream.error,
+    liveCanaryStream.loading,
     marketStream.envelope,
     marketStream.error,
     marketStream.loading,
+    mobileRiskStream.envelope,
+    mobileRiskStream.error,
+    mobileRiskStream.loading,
     paperActivity.envelope,
     paperActivity.error,
     paperActivity.loading,
@@ -1092,16 +1432,19 @@ export default function DashboardPage(): JSX.Element {
         <StatusBar orch={orchData} risk={riskData} />
       </div>
 
-      <div
-        className="live-block-banner live-block-banner--red"
-        data-testid="live-block-banner"
-        data-live-gate-status="blocked_human_only"
-      >
-        EXECUTION BLOCKED · LIVE TRADING: BLOCKED · blocked_human_only
-        <span className="live-block-banner__hint">execution-restricted runtime truth</span>
-      </div>
-
       <DashboardStreamStatus items={dashboardStreamItems} browser={browserStatus} />
+
+      <DashboardControlCenterTruthPanel
+        portfolio={portfolioData}
+        portfolioEnvelope={portfolioStream.envelope}
+        liveCanaryContract={liveCanaryStream.data}
+        liveCanaryEnvelope={liveCanaryStream.envelope}
+        aPlusContract={aPlusStream.data}
+        aPlusEnvelope={aPlusStream.envelope}
+        riskTruth={mobileRiskStream.data}
+        riskEnvelope={mobileRiskStream.envelope}
+        exchangeAccounts={Array.isArray(user?.exchange_accounts) ? user.exchange_accounts : []}
+      />
 
       {/* KPI strip */}
       <div className="nervyx-dashboard__kpis">

@@ -6,7 +6,7 @@ export const NERVYX_BRAND = {
   tagline: 'Sense. Decide. Adapt.',
   secondaryLine: 'One system. Every market state.',
   paperStatus: 'One system. Every market state.',
-  liveBlockedLabel: 'Operator gated',
+  liveBlockedLabel: 'Approval gated',
   assets: {
     logoOnMidnight: '/brand/nervyx-one-logo-horizontal-on-midnight.svg',
     logoOnLight: '/brand/nervyx-one-logo-horizontal-on-light.svg',

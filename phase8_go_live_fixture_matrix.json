@@ -1,0 +1,30 @@
+{
+  "marker": "PHASE8_GO_LIVE_FIXTURE_MATRIX",
+  "generated_utc": "2026-07-11T22:10:52Z",
+  "live_gate": "blocked_human_only",
+  "groups": {
+    "A_signal_and_preemptive_edge": "covered_by_a_plus_inventory_and_paper_loop_regressions",
+    "B_strict_governance_exclusion": "covered_by_phase1_tests",
+    "C_adaptive_leverage_margin": "covered_by_adaptive_capital_allocator_tests",
+    "D_liquidation_and_cross_margin": "covered_by_cross_margin_tests",
+    "E_hedge_first_risk": "covered_by_hedge_first_tests",
+    "F_maker_first_execution": "covered_by_live_canary_no_execute_preview_test",
+    "G_live_canary_no_execute": "covered_by_v2_live_canary_dry_run_tests",
+    "H_exchange_filter_min_order": "covered_by_existing_live_canary_symbol_filter_tests",
+    "I_position_reconciliation": "covered_by_existing_live_canary_position_mode_tests",
+    "J_safety_no_mutation_scan": "covered_by_validation_safety_scan",
+    "K_operator_gate": "blocked_human_only"
+  },
+  "minimum_tests_added_or_reused": [
+    "test_exploration_rows_do_not_govern_strict_performance",
+    "test_strict_rows_still_govern_strict_performance",
+    "test_counts_as_final_a_plus_false_blocks_a_plus_governance",
+    "test_high_loss_probability_shrinks_paper_notional_without_rejecting",
+    "test_allocated_margin_derives_from_final_notional_and_leverage",
+    "test_cross_margin_hedge_improves_buffer_when_correlation_valid",
+    "test_hedge_first_positive_hedge_ev_selects_protective_hedge",
+    "test_live_canary_dry_run_rejects_position_without_liquidation_buffer",
+    "test_live_canary_dry_run_emits_maker_first_no_execute_preview"
+  ],
+  "status": "FIXTURE_MATRIX_READY"
+}

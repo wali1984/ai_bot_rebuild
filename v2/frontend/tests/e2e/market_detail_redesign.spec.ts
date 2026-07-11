@@ -35,8 +35,7 @@ const FORBIDDEN_STRINGS = [
 ] as const;
 
 async function openMarket(page: Page): Promise<void> {
-  await gotoAs(page, '/market/BTCUSDT');
-  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await gotoAs(page, '/market/BTCUSDT', undefined, { waitUntil: 'domcontentloaded' });
   await expect(page.getByTestId('page-market-detail')).toBeVisible();
 }
 
@@ -195,8 +194,7 @@ test.describe('market detail redesign', () => {
   });
 
   test('invalid route symbols show designed unavailable state without fallback market identity', async ({ page }) => {
-    await gotoAs(page, '/market/btcusdt..');
-    await page.waitForLoadState('networkidle').catch(() => undefined);
+    await gotoAs(page, '/market/btcusdt..', undefined, { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('page-market-detail')).toBeVisible();
     await expect(page.getByText('Invalid market symbol').first()).toBeVisible();
     await expect(page.getByText(/Enter a valid market symbol/i).first()).toBeVisible();

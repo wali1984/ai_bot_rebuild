@@ -2723,6 +2723,17 @@ def test_rows_from_json_extracts_full_candidate_allocations_before_samples(
         "liquidity_bucket": "low",
         "target_notional_usdt": 1200.0,
         "recommended_leverage": 3.0,
+        "entry_price": 50.0,
+        "entry_feature_snapshot_id": "fs-full-1",
+        "entry_feature_snapshot": {
+            "feature_snapshot_id": "fs-full-1",
+            "symbol": "SOLUSDT",
+            "timeframe": "15m",
+            "available_at": "2026-06-21T11:59:59Z",
+            "feature_cutoff": "2026-06-21T11:45:00Z",
+            "candle_closed_confirmed": True,
+            "features": {"close": 50.0, "orderbook_depth_usd": 200000.0},
+        },
         "model_inputs": {
             "selected_margin_mode": "isolated_paper_simulated",
             "fee_bps": 4.0,
@@ -2771,12 +2782,137 @@ def test_rows_from_json_extracts_full_candidate_allocations_before_samples(
     )
     assert rows[0]["_producer_source_list_field"] == "candidate_allocations"
     assert rows[0]["expected_move_after_cost_bps"] == 85.0
+    assert rows[0]["entry_price"] == 50.0
+    assert rows[0]["entry_feature_snapshot_id"] == "fs-full-1"
+    assert rows[0]["entry_feature_snapshot"]["features"]["close"] == 50.0
     assert rows[2]["_producer_extracted_from_json"] == (
         "paper_loop_once_sample_allocation"
     )
     assert rows[2]["_producer_source_list_field"] == "sample_allocations"
     assert rows[2]["lineage_ids"]["prediction_id"] == "pred-sample-only"
     assert all(row["future_labels_used_as_features"] is False for row in rows)
+
+
+def test_strategy_supply_evidence_sidecar_writes_pending_not_a_plus(
+    tmp_path: Path,
+) -> None:
+    rows_path = tmp_path / "out_of_sample_realtime_paper_reverify_rows.jsonl"
+    source_row = {
+        "strategy_supply_hypothesis": True,
+        "strategy_supply_hypothesis_id": "hyp-supply-1",
+        "candidate_id": "cand-supply-1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "short",
+        "strategy_id": "supply-short",
+        "strategy_family": "breakout_after_compression",
+        "strategy_subtype": "compression_short",
+        "decision_time": "2026-06-21T12:00:00Z",
+        "available_at": "2026-06-21T11:59:59Z",
+        "feature_cutoff": "2026-06-21T11:59:50Z",
+        "expected_net_pnl_usd": 2.5,
+        "expected_gross_pnl_usd": 3.0,
+        "expected_cost_usd": 0.5,
+        "expected_max_loss_usd": 1.2,
+        "notional_usd": 100.0,
+        "margin_usd": 50.0,
+        "entry_price": 100.0,
+        "current_price": 100.0,
+        "entry_price_source": "v2:market:current_price:BTCUSDT",
+        "entry_price_utc": "2026-06-21T11:59:59Z",
+        "entry_feature_snapshot_id": "fs-supply-1",
+        "feature_snapshot_id": "fs-supply-1",
+        "entry_feature_snapshot": {
+            "feature_snapshot_id": "fs-supply-1",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "available_at": "2026-06-21T11:59:59Z",
+            "feature_cutoff": "2026-06-21T11:59:50Z",
+            "feature_freshness_state": "CURRENT",
+            "candle_closed_confirmed": True,
+            "features": {"close": 100.0, "orderbook_depth_usd": 10000.0},
+        },
+        "provider_feature_hashes": {"coinank": "hash-coinank"},
+        "preemptive_decision_id": "preemptive-1",
+        "allocator_decision_id": "allocator-1",
+        "risk_decision_id": "risk-1",
+        "orchestrator_decision_id": "orchestrator-1",
+        "guardian_decision_id": "guardian-1",
+        "continuous_edge_guardian_forced_shadow_only": True,
+        "guardian_new_entries_allowed": False,
+    }
+
+    status = producer._write_strategy_supply_evidence_sidecars(  # noqa: SLF001
+        source_rows=[source_row],
+        rows_path=rows_path,
+        generated_utc="2026-06-21T12:00:10Z",
+    )
+    pending_rows, _ = producer._iter_jsonl(tmp_path / "strategy_supply_pending_evidence.jsonl")
+
+    assert status["source_row_count"] == 1
+    assert status["pending_rows_appended"] == 1
+    assert status["guardian_blocked_row_count"] == 1
+    assert pending_rows[0]["hypothesis_id"] == "hyp-supply-1"
+    assert pending_rows[0]["provider_hashes"] == {"coinank": "hash-coinank"}
+    assert pending_rows[0]["entry_price"] == 100.0
+    assert pending_rows[0]["notional_usd"] == 100.0
+    assert pending_rows[0]["expected_cost_usd"] == 0.5
+    assert pending_rows[0]["entry_feature_snapshot_id"] == "fs-supply-1"
+    assert pending_rows[0]["entry_feature_snapshot"]["features"]["close"] == 100.0
+    assert pending_rows[0]["trainer_feedback_ready"] is True
+    assert pending_rows[0]["trainer_feedback_blockers"] == []
+    assert pending_rows[0]["countable_pending_evidence"] is False
+    assert pending_rows[0]["not_countable_reason"] == "guardian-blocked"
+    assert pending_rows[0]["counts_as_a_plus"] is False
+
+
+def test_strategy_supply_sidecar_rejects_missing_pit_entry_snapshot_before_pending(
+    tmp_path: Path,
+) -> None:
+    rows_path = tmp_path / "out_of_sample_realtime_paper_reverify_rows.jsonl"
+    source_row = {
+        "strategy_supply_hypothesis": True,
+        "strategy_supply_hypothesis_id": "hyp-supply-late-snapshot",
+        "candidate_id": "cand-supply-late-snapshot",
+        "symbol": "ADAUSDT",
+        "timeframe": "15m",
+        "side": "short",
+        "strategy_id": "supply-short",
+        "decision_time": "2026-06-21T12:00:00Z",
+        "available_at": "2026-06-21T12:00:00Z",
+        "feature_cutoff": "2026-06-21T12:00:00Z",
+        "expected_net_pnl_usd": 2.5,
+        "expected_cost_usd": 0.5,
+        "expected_max_loss_usd": 1.2,
+        "notional_usd": 100.0,
+        "entry_price": 100.0,
+        "entry_feature_snapshot_id": "fs-late-1",
+        "entry_feature_available_at": "2026-06-21T12:00:05Z",
+        "entry_feature_unavailable_reason": "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME",
+        "provider_feature_hashes": {"coinank": "hash-coinank"},
+        "preemptive_decision_id": "preemptive-1",
+        "allocator_decision_id": "allocator-1",
+        "risk_decision_id": "risk-1",
+        "orchestrator_decision_id": "orchestrator-1",
+    }
+
+    status = producer._write_strategy_supply_evidence_sidecars(  # noqa: SLF001
+        source_rows=[source_row],
+        rows_path=rows_path,
+        generated_utc="2026-06-21T12:00:10Z",
+    )
+    pending_rows, _ = producer._iter_jsonl(tmp_path / "strategy_supply_pending_evidence.jsonl")
+    rejected_rows, _ = producer._iter_jsonl(tmp_path / "strategy_supply_rejected_evidence.jsonl")
+
+    assert status["source_row_count"] == 1
+    assert status["pending_rows_appended"] == 0
+    assert status["rejected_rows_appended"] == 1
+    assert status["missing_pit_row_count"] == 1
+    assert pending_rows == []
+    assert rejected_rows[0]["hypothesis_id"] == "hyp-supply-late-snapshot"
+    assert rejected_rows[0]["reasons"] == ["FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME"]
+    assert rejected_rows[0]["counts_as_a_plus"] is False
+    assert rejected_rows[0]["counts_as_live_ready"] is False
 
 
 def test_forward_holdout_source_materializes_preoutcome_candidate_without_a_grade_promotion(
@@ -4504,7 +4640,7 @@ def test_regenerate_status_classifies_no_go_exit_after_artifacts_written(
     out_dir.mkdir()
     monkeypatch.setattr(producer, "DEFAULT_OUT_DIR", out_dir)
 
-    def fake_run(*_args, **_kwargs):
+    def fake_run(command, *, log_path, timeout_seconds):
         (out_dir / "operator_dashboard_payload.json").write_text(json.dumps({
             "generated_utc": "2026-06-22T03:30:55Z",
             "overall_status": "NO_GO",
@@ -4512,9 +4648,10 @@ def test_regenerate_status_classifies_no_go_exit_after_artifacts_written(
                 "status": "NO_GO_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY_INCOMPLETE",
             },
         }))
-        return SimpleNamespace(returncode=2, stdout="{\"overall_status\":\"NO_GO\"}", stderr="")
+        log_path.write_text("{\"overall_status\":\"NO_GO\"}")
+        return 2, False
 
-    monkeypatch.setattr(producer.subprocess, "run", fake_run)
+    monkeypatch.setattr(producer, "_run_status_regeneration_command", fake_run)
 
     result = producer.regenerate_status(horizon_years=5.0)
 
@@ -4526,6 +4663,32 @@ def test_regenerate_status_classifies_no_go_exit_after_artifacts_written(
         == "NO_GO_OUT_OF_SAMPLE_LIVE_GRADE_REVERIFY_INCOMPLETE"
     )
     assert (out_dir / "out_of_sample_evidence_producer_status_regeneration.log").exists()
+
+
+def test_regenerate_status_times_out_fail_closed(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    out_dir = tmp_path / "latest"
+    out_dir.mkdir()
+    monkeypatch.setattr(producer, "DEFAULT_OUT_DIR", out_dir)
+
+    def fake_run(command, *, log_path, timeout_seconds):
+        log_path.write_text(
+            f"STATUS_REGENERATION_TIMEOUT_AFTER_SECONDS={float(timeout_seconds)}"
+        )
+        return None, True
+
+    monkeypatch.setattr(producer, "_run_status_regeneration_command", fake_run)
+
+    result = producer.regenerate_status(horizon_years=5.0, timeout_seconds=3.0)
+
+    assert result["status"] == "NO_GO_STATUS_REGENERATION_TIMEOUT"
+    assert result["returncode"] is None
+    assert result["timed_out"] is True
+    assert result["timeout_seconds"] == 3.0
+    log_text = (out_dir / "out_of_sample_evidence_producer_status_regeneration.log").read_text()
+    assert "STATUS_REGENERATION_TIMEOUT_AFTER_SECONDS=3.0" in log_text
 
 
 def test_sidecar_summary_flags_concentrated_profit(tmp_path: Path) -> None:
@@ -4751,6 +4914,41 @@ def test_rejection_ledger_summary_reports_total_reasons_by_source_kind(tmp_path:
     assert summary["source_kind_reason_counts"]["redis_paper_intent"]["MISSING_ACCOUNTING_FEES"] == 1
     assert summary["top_reason_combinations"][0]["row_count"] == 1
     assert summary["samples_by_reason"]["DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE"][0]["candidate_identity"] == "candidate-1"
+
+
+def test_rejection_ledger_summary_can_be_bounded_for_large_runtime_ledgers(tmp_path: Path) -> None:
+    rejected_path = tmp_path / "out_of_sample_realtime_paper_reverify_rejected.jsonl"
+    _write_jsonl(rejected_path, [
+        {
+            "candidate_identity": "candidate-1",
+            "source_kind": "redis_paper_intent",
+            "symbol": "BTCUSDT",
+            "timeframe": "5m",
+            "side": "long",
+            "decision_time": "2026-06-21T12:00:00Z",
+            "reasons": ["SOURCE_SELECTOR_POLICY_FINGERPRINT_MISSING"],
+        },
+        {
+            "candidate_identity": "candidate-2",
+            "source_kind": "redis_paper_signal",
+            "symbol": "ETHUSDT",
+            "timeframe": "15m",
+            "side": "short",
+            "decision_time": "2026-06-21T12:05:00Z",
+            "reasons": ["NO_PRE_REGISTERED_HOLDOUT_WINDOW"],
+        },
+    ])
+
+    summary = producer._rejection_ledger_summary(rejected_path, max_rows=1)
+
+    assert summary["row_count"] == 1
+    assert summary["source_status"]["bounded_reader_used"] is True
+    assert summary["source_status"]["truncated_by_max_rows"] is True
+    assert summary["source_status"]["max_rows"] == 1
+    assert summary["source_status"]["sha256"] is None
+    assert summary["source_status"]["sha256_omitted_reason"] == "bounded_summary_requested"
+    assert summary["reason_counts"] == {"SOURCE_SELECTOR_POLICY_FINGERPRINT_MISSING": 1}
+    assert "NO_PRE_REGISTERED_HOLDOUT_WINDOW" not in summary["reason_counts"]
 
 
 def test_realtime_source_gate_breakdown_counts_duplicate_rejections(tmp_path: Path) -> None:

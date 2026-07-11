@@ -43,6 +43,24 @@ interface SignalRow {
   action: string | null;
   side: string | null;
   confidence: number | null;
+  confidence_executable_trade?: number | null;
+  confidence_selected_action?: number | null;
+  confidence_display_label?: string | null;
+  confidence_tradeability_block_reasons?: string[] | null;
+  paper_exploration_tier?: string | null;
+  exploration_tier?: string | null;
+  paper_exploration_current_blocker?: string | null;
+  paper_exploration_paper_fill_allowed?: boolean | null;
+  paper_exploration_risk_controller_decision?: string | null;
+  paper_exploration_orchestrator_decision?: string | null;
+  paper_exploration_allocator_decision?: string | null;
+  expected_net_pnl_usd?: number | null;
+  expected_max_loss_usd?: number | null;
+  why_not_a_plus?: string[] | null;
+  why_not_live_ready?: string[] | null;
+  risk_controller_decision?: string | null;
+  allocator_decision?: string | null;
+  trainer_feedback_status?: string | null;
   live_gate: string | null;
   actionable: boolean;
   risk_state: string | null;
@@ -91,6 +109,10 @@ interface ExplainData {
     action: string;
     confidence_calibrated: number;
     confidence_raw: number;
+    confidence_selected_action?: number | null;
+    confidence_executable_trade?: number | null;
+    confidence_display_label?: string | null;
+    confidence_tradeability_block_reasons?: string[] | null;
     dominant_prob: number;
     expected_move_bps: number;
     price_target: number | null;
@@ -100,6 +122,106 @@ interface ExplainData {
     policy_value: number | null;
     missing_feature_count: number;
   };
+}
+
+interface SignalCurrentActive {
+  symbol?: string | null;
+  timeframe?: string | null;
+  action?: string | null;
+  side?: string | null;
+  proposed_action?: string | null;
+  actionable?: boolean | null;
+  actionable_reason_code?: string | null;
+  live_gate?: string | null;
+  generated_at?: string | null;
+  signal_id?: string | null;
+  prediction_id?: string | null;
+  source_freshness?: string | null;
+  market_age_seconds?: number | null;
+  exchange_action_taken?: boolean | null;
+  exchange_call_invariant?: string | null;
+  confidence?: number | null;
+  confidence_calibrated?: number | null;
+  confidence_executable_trade?: number | null;
+  confidence_selected_action?: number | null;
+  confidence_display_label?: string | null;
+  confidence_tradeability_block_reasons?: string[] | null;
+  paper_exploration_tier?: string | null;
+  exploration_tier?: string | null;
+  paper_exploration_current_blocker?: string | null;
+  paper_exploration_paper_fill_allowed?: boolean | null;
+  paper_exploration_risk_controller_decision?: string | null;
+  paper_exploration_orchestrator_decision?: string | null;
+  paper_exploration_allocator_decision?: string | null;
+  expected_net_pnl_usd?: number | null;
+  expected_max_loss_usd?: number | null;
+  why_not_a_plus?: string[] | null;
+  why_not_live_ready?: string[] | null;
+  risk_controller_decision?: string | null;
+  allocator_decision?: string | null;
+  trainer_feedback_status?: string | null;
+  price_target?: number | null;
+  price_target_after_cost?: number | null;
+  expected_move_after_cost_bps?: number | null;
+  data_coverage_percent?: number | null;
+  market_state_integrity_score?: number | null;
+  paper_fill_allowed?: boolean | null;
+  risk_result?: string | null;
+  blocked_reason?: string | null;
+  explanation?: string | null;
+}
+
+interface SignalCurrentContract {
+  schema_version?: string;
+  source?: string | null;
+  source_type?: string | null;
+  endpoint?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
+  data_quality_status?: string | null;
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  data?: {
+    active_signal?: SignalCurrentActive | null;
+    account_scope?: string | null;
+    account_specific?: boolean | null;
+    public_paper_signal?: boolean | null;
+  } | null;
+}
+
+interface APlusInventoryContract {
+  source?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  data?: {
+    evaluated_candidates?: number | null;
+    a_plus_candidates?: number | null;
+    live_ready_rows?: number | null;
+    counts_as_final_a_plus?: boolean | null;
+    paper_session_id?: string | null;
+  } | null;
+}
+
+interface ProviderStatusCard {
+  provider?: string | null;
+  display_name?: string | null;
+  dashboard_color?: string | null;
+  status?: string | null;
+  actual_payload_count?: number | null;
+  feature_count?: number | null;
+  consumer_count?: number | null;
+  heartbeat_only?: boolean | null;
+}
+
+interface ProviderStatusContract {
+  providers?: ProviderStatusCard[];
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────
@@ -196,6 +318,65 @@ function fmtBps(bps: number | null | undefined): string {
   const pct = bps / 100;
   return `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`;
 }
+function fmtUsd(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return '—';
+  return `${value < 0 ? '-' : ''}$${Math.abs(value).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+}
+
+function signalText(value: unknown, fallback = '—'): string {
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .replace(/blocked_human_only/gi, 'LIVE BLOCKED')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b[a-z0-9]/g, (char) => char.toUpperCase())
+      .replace(/\bPnl\b/g, 'PnL')
+      .replace(/\bUsd\b/g, 'USD');
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value === 'boolean') return value ? 'YES' : 'NO';
+  return fallback;
+}
+function firstReason(reasons: string[] | null | undefined, fallback: string): string {
+  return reasons?.find(reason => typeof reason === 'string' && reason.trim()) ?? fallback;
+}
+
+function signalNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  }
+  return null;
+}
+
+function providerLookup(providers: ProviderStatusCard[] | undefined): Map<string, ProviderStatusCard> {
+  const map = new Map<string, ProviderStatusCard>();
+  for (const row of providers ?? []) {
+    const key = String(row.provider ?? row.display_name ?? '').toLowerCase();
+    if (key) map.set(key, row);
+  }
+  return map;
+}
+
+function SignalTruthMetric({
+  label,
+  value,
+  sub,
+  color,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  color?: string;
+}): JSX.Element {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
+      <span style={{ display: 'block', fontSize: 14, fontWeight: 800, color: color ?? 'var(--text-primary)', fontFamily: 'var(--font-mono)', overflowWrap: 'anywhere' }}>{value}</span>
+      {sub ? <span style={{ display: 'block', marginTop: 2, fontSize: 10, color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{sub}</span> : null}
+    </div>
+  );
+}
 
 function signalRowFromLineage(payload: CurrentRuntimeLineagePayload | null | undefined): SignalRow | null {
   if (!payload) return null;
@@ -219,6 +400,26 @@ function signalRowFromLineage(payload: CurrentRuntimeLineagePayload | null | und
     action: runtimeText(signal.proposed_action, rawOutput.side, trainer.direction),
     side: runtimeText(signal.side, rawOutput.side, trainer.direction),
     confidence: runtimeNumber(signal.confidence_calibrated, trainer.confidence_calibrated, drivers.confidence_calibrated),
+    confidence_executable_trade: runtimeNumber(signal.confidence_executable_trade, trainer.confidence_executable_trade),
+    confidence_selected_action: runtimeNumber(signal.confidence_selected_action, trainer.confidence_selected_action),
+    confidence_display_label: runtimeText(signal.confidence_display_label, trainer.confidence_display_label),
+    confidence_tradeability_block_reasons: Array.isArray(signal.confidence_tradeability_block_reasons)
+      ? signal.confidence_tradeability_block_reasons.map(String)
+      : null,
+    paper_exploration_tier: runtimeText(signal.paper_exploration_tier, signal.exploration_tier),
+    exploration_tier: runtimeText(signal.exploration_tier, signal.paper_exploration_tier),
+    paper_exploration_current_blocker: runtimeText(signal.paper_exploration_current_blocker),
+    paper_exploration_paper_fill_allowed: runtimeBoolean(signal.paper_exploration_paper_fill_allowed),
+    paper_exploration_risk_controller_decision: runtimeText(signal.paper_exploration_risk_controller_decision),
+    paper_exploration_orchestrator_decision: runtimeText(signal.paper_exploration_orchestrator_decision),
+    paper_exploration_allocator_decision: runtimeText(signal.paper_exploration_allocator_decision),
+    expected_net_pnl_usd: runtimeNumber(signal.expected_net_pnl_usd, risk.expected_net_pnl_usd),
+    expected_max_loss_usd: runtimeNumber(signal.expected_max_loss_usd, risk.expected_max_loss_usd),
+    why_not_a_plus: Array.isArray(signal.why_not_a_plus) ? signal.why_not_a_plus.map(String) : null,
+    why_not_live_ready: Array.isArray(signal.why_not_live_ready) ? signal.why_not_live_ready.map(String) : null,
+    risk_controller_decision: runtimeText(signal.risk_controller_decision, risk.risk_decision, risk.risk_result),
+    allocator_decision: runtimeText(signal.allocator_decision),
+    trainer_feedback_status: runtimeText(signal.trainer_feedback_status),
     live_gate: liveGate,
     actionable: runtimeBoolean(signal.actionable) ?? true,
     risk_state: runtimeText(risk.risk_result, risk.risk_action, risk.risk_reason_code),
@@ -259,7 +460,7 @@ function RoutingBadge({ gateStatus, paperFill }: { gateStatus: string | null | u
       GATED
     </span>
   );
-  return <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)' }}>CONNECTING</span>;
+  return <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', fontFamily: 'var(--font-mono)' }}>Pending</span>;
 }
 
 // ─── Action badge ─────────────────────────────────────────────────────────
@@ -327,6 +528,101 @@ function AccuracyBadge({ cell }: { cell: SignalPredictionAccuracyCell | null }):
   );
 }
 
+function SignalRuntimeTruthPanel({
+  current,
+  currentEnvelope,
+  aPlus,
+  providers,
+}: {
+  current: SignalCurrentContract | null;
+  currentEnvelope: { freshness_status: string; lag_ms: number | null; source: string; endpoint?: string };
+  aPlus: APlusInventoryContract | null;
+  providers: ProviderStatusContract | null;
+}): JSX.Element {
+  const active = current?.data?.active_signal ?? null;
+  const providerMap = providerLookup(providers?.providers);
+  const providerSummary = [
+    providerMap.get('coinglass'),
+    providerMap.get('moralis'),
+    providerMap.get('santiment') ?? providerMap.get('sanbase'),
+  ].map((provider) => {
+    const name = provider?.display_name ?? provider?.provider ?? 'provider';
+    const color = provider?.dashboard_color ?? provider?.status ?? 'gray';
+    const payloads = provider?.actual_payload_count ?? 0;
+    const heartbeat = provider?.heartbeat_only ? 'heartbeat-only' : 'actual';
+    return `${name}:${String(color).toUpperCase()}/${payloads} ${heartbeat}`;
+  }).join(' · ');
+  const liveGate = active?.live_gate ?? current?.live_gate ?? providers?.live_gate ?? 'blocked_human_only';
+  const liveBlocked = /blocked|human/i.test(liveGate);
+  const action = active?.side ?? active?.proposed_action ?? active?.action ?? null;
+  const confidence = signalNumber(active?.confidence_calibrated, active?.confidence);
+  const executableConfidence = signalNumber(active?.confidence_executable_trade);
+  const confidenceLabel = active?.confidence_display_label ?? 'Unproven confidence';
+  const explorationTier = active?.paper_exploration_tier ?? active?.exploration_tier ?? null;
+  const expectedMove = signalNumber(active?.expected_move_after_cost_bps);
+  const actionable = active?.actionable === true && active?.paper_fill_allowed === true && !liveBlocked;
+  const mutationSafe = current?.places_real_order !== true
+    && current?.routes_to_live !== true
+    && providers?.places_real_order !== true
+    && providers?.routes_to_live !== true
+    && active?.exchange_action_taken !== true;
+  const blocker = active?.blocked_reason
+    ?? active?.risk_result
+    ?? active?.actionable_reason_code
+    ?? active?.explanation
+    ?? (liveBlocked ? 'blocked_human_only' : null);
+
+  return (
+    <section data-testid="signals-runtime-truth-panel" style={{ margin: '12px 16px 0', padding: 16, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start', marginBottom: 14 }}>
+        <div>
+          <span style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current Signal Runtime Truth</span>
+          <h2 style={{ margin: '3px 0 0', fontSize: 17, color: 'var(--text-primary)' }}>
+            {active?.symbol ?? 'No signal'} {active?.timeframe ?? ''} · {signalText(action, 'No action')}
+          </h2>
+        </div>
+        <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)', border: `1px solid ${actionable ? 'rgba(38,194,129,0.35)' : 'rgba(239,83,80,0.35)'}`, color: actionable ? '#26c281' : '#ef5350', background: actionable ? 'rgba(38,194,129,0.1)' : 'rgba(239,83,80,0.08)' }}>
+          {actionable ? 'ACTIONABLE REVIEW' : 'NO LIVE TRADE'}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: 12 }}>
+        <SignalTruthMetric label="canonical source" value="/api/v2/signals/current" sub={current?.source ?? currentEnvelope.source} />
+        <SignalTruthMetric label="live_gate" value={signalText(liveGate)} sub={`places_real_order=${current?.places_real_order === true ? 'YES' : 'NO'} · routes_to_live=${current?.routes_to_live === true ? 'YES' : 'NO'}`} color={liveBlocked ? '#ef5350' : '#f59e0b'} />
+        <SignalTruthMetric label="actionable" value={active?.actionable === true ? 'YES' : 'NO'} sub={signalText(active?.actionable_reason_code, 'actionable_reason_code pending')} color={active?.actionable === true ? '#26c281' : '#ef5350'} />
+        <SignalTruthMetric label="paper_fill_allowed" value={active?.paper_fill_allowed === true ? 'YES' : 'NO'} sub={signalText(active?.exchange_call_invariant, 'LIVE_TRADING_BLOCKED')} color={active?.paper_fill_allowed === true ? '#3b82f6' : '#ef5350'} />
+        <SignalTruthMetric
+          label="executable confidence"
+          value={fmtConf(executableConfidence)}
+          sub={`${confidenceLabel} · selected ${fmtConf(confidence)}`}
+          color={confColor(executableConfidence)}
+        />
+        <SignalTruthMetric
+          label="paper exploration"
+          value={signalText(explorationTier, 'NONE')}
+          sub={`net ${fmtUsd(active?.expected_net_pnl_usd)} · max loss ${fmtUsd(active?.expected_max_loss_usd)}`}
+          color={explorationTier ? '#3b82f6' : 'var(--text-muted)'}
+        />
+        <SignalTruthMetric
+          label="risk / allocator"
+          value={signalText(active?.risk_controller_decision ?? active?.risk_result, 'PENDING')}
+          sub={`allocator ${signalText(active?.allocator_decision, 'PENDING')} · trainer ${signalText(active?.trainer_feedback_status, 'PENDING')}`}
+          color="#3b82f6"
+        />
+        <SignalTruthMetric label="expected_after_cost" value={fmtBps(expectedMove)} sub={active?.price_target_after_cost != null ? `target ${fmtPrice(active.price_target_after_cost)}` : 'target pending'} color={expectedMove != null && expectedMove > 0 ? '#26c281' : '#ef5350'} />
+        <SignalTruthMetric label="A+ candidates" value={String(aPlus?.data?.a_plus_candidates ?? 0)} sub={`${aPlus?.data?.evaluated_candidates ?? 0} evaluated · ${aPlus?.data?.live_ready_rows ?? 0} live-ready`} color={(aPlus?.data?.a_plus_candidates ?? 0) > 0 ? '#26c281' : '#f59e0b'} />
+        <SignalTruthMetric label="data freshness" value={current?.staleness_seconds != null ? `${Math.round(current.staleness_seconds)}s` : currentEnvelope.freshness_status} sub={`lag ${currentEnvelope.lag_ms ?? '—'}ms · ${current?.freshness_status ?? currentEnvelope.freshness_status}`} />
+      </div>
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'grid', gap: 6, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+        <span>why_no_trade={signalText(blocker, 'No live trade until all gates pass')}</span>
+        <span>why_not_A_plus={signalText(firstReason(active?.why_not_a_plus, 'A+ evidence not matured'))}</span>
+        <span>why_not_live_ready={signalText(firstReason(active?.why_not_live_ready, 'Live remains blocked_human_only'))}</span>
+        <span>provider_context={providerSummary || 'provider status pending'}</span>
+        <span>safety={mutationSafe ? 'NO ORDER / TEST / LEVERAGE / MARGIN MUTATION' : 'MUTATION RISK DETECTED'}</span>
+      </div>
+    </section>
+  );
+}
+
 // ─── AI Reasoning drawer ──────────────────────────────────────────────────
 
 function AIReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: string }): JSX.Element {
@@ -370,7 +666,8 @@ function AIReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: st
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16, padding: '10px 14px', background: 'rgba(0,0,0,0.2)', borderRadius: 8 }}>
           {[
             { label: 'Action', value: nums.action, color: actionColor(nums.action) },
-            { label: 'Confidence', value: fmtConf(nums.confidence_calibrated), color: confColor(nums.confidence_calibrated) },
+            { label: 'Executable Confidence', value: fmtConf(nums.confidence_executable_trade ?? null), color: confColor(nums.confidence_executable_trade ?? null) },
+            { label: 'Selected Confidence', value: fmtConf(nums.confidence_selected_action ?? nums.confidence_calibrated), color: confColor(nums.confidence_selected_action ?? nums.confidence_calibrated) },
             { label: 'Raw Confidence', value: fmtConf(nums.confidence_raw), color: 'var(--text-muted)' },
             { label: 'Dominant Prob', value: `${(nums.dominant_prob * 100).toFixed(1)}%`, color: nums.dominant_prob > 0.9 ? '#26c281' : '#f59e0b' },
             { label: 'MASA Signal', value: nums.masa_signal != null ? nums.masa_signal.toFixed(3) : '—', color: nums.masa_signal != null ? (nums.masa_signal < 0 ? '#ef5350' : '#26c281') : 'var(--text-muted)' },
@@ -416,6 +713,12 @@ function SignalCard({ row }: { row: SignalRow }): JSX.Element {
   const [showReasoning, setShowReasoning] = useState(false);
   const isShort = (row.action ?? '').toLowerCase().includes('short');
   const priceChange = row.expected_move_bps != null ? row.expected_move_bps / 100 : null;
+  const executableConfidence = row.confidence_executable_trade ?? null;
+  const selectedConfidence = row.confidence_selected_action ?? row.confidence ?? null;
+  const confidenceLabel = row.confidence_display_label ?? 'Unproven confidence';
+  const explorationTier = row.paper_exploration_tier ?? row.exploration_tier ?? null;
+  const explorationBlocker = row.paper_exploration_current_blocker ?? 'not above floor';
+  const paperFillTruth = row.paper_exploration_paper_fill_allowed === true ? 'PAPER_FILL_ALLOWED' : row.paper_exploration_paper_fill_allowed === false ? 'BLOCKED' : signalText(row.paper_fill_status, 'PENDING');
 
   return (
     <tr>
@@ -432,11 +735,23 @@ function SignalCard({ row }: { row: SignalRow }): JSX.Element {
               </div>
             </div>
             {[
-              ['Confidence', fmtConf(row.confidence), confColor(row.confidence)],
+              ['Executable Confidence', fmtConf(executableConfidence), confColor(executableConfidence)],
+              ['Confidence Type', confidenceLabel, executableConfidence != null && executableConfidence > 0 ? '#26c281' : '#f59e0b'],
+              ['Paper Exploration', signalText(explorationTier, 'NONE'), explorationTier ? '#3b82f6' : 'var(--text-muted)'],
+              ['Exploration Blocker', signalText(explorationBlocker), explorationBlocker === 'PAPER_FILL_ALLOWED' ? '#26c281' : '#f59e0b'],
+              ['Paper Fill', paperFillTruth, row.paper_exploration_paper_fill_allowed ? '#26c281' : '#f59e0b'],
+              ['Expected Net USD', fmtUsd(row.expected_net_pnl_usd), row.expected_net_pnl_usd != null && row.expected_net_pnl_usd > 0 ? '#26c281' : '#f59e0b'],
+              ['Max Loss USD', fmtUsd(row.expected_max_loss_usd), '#f59e0b'],
+              ['Why Not A+', signalText(firstReason(row.why_not_a_plus, 'A+ evidence not matured')), '#f59e0b'],
+              ['Why Not Live', signalText(firstReason(row.why_not_live_ready, 'blocked_human_only')), '#ef5350'],
+              ['Risk Controller', signalText(row.paper_exploration_risk_controller_decision ?? row.risk_controller_decision ?? row.risk_state), gateColor(row.risk_state)],
+              ['Orchestrator', signalText(row.paper_exploration_orchestrator_decision ?? row.orchestrator_state, 'PENDING'), 'var(--text-muted)'],
+              ['Allocator', signalText(row.paper_exploration_allocator_decision ?? row.allocator_decision, 'PENDING'), 'var(--text-muted)'],
+              ['Trainer Feedback', signalText(row.trainer_feedback_status, 'PENDING'), 'var(--text-muted)'],
+              ['Selected Confidence', fmtConf(selectedConfidence), 'var(--text-muted)'],
               ['Data Coverage', row.data_coverage_percent != null ? `${row.data_coverage_percent.toFixed(1)}%` : '—', row.data_coverage_percent != null && row.data_coverage_percent >= 80 ? '#26c281' : '#f59e0b'],
               ['Integrity Score', row.market_state_integrity_score != null ? `${row.market_state_integrity_score.toFixed(1)}/100` : '—', (row.market_state_integrity_score ?? 0) >= 90 ? '#26c281' : '#f59e0b'],
               ['Risk State', publicRuntimeLabel(row.risk_state), gateColor(row.risk_state)],
-              ['Orchestrator', publicRuntimeLabel(row.orchestrator_state), 'var(--text-muted)'],
               ['Execution State', publicRuntimeLabel(row.paper_fill_status), '#3b82f6'],
               ['Signal Age', fmtAge(row.age_seconds), row.age_seconds != null && row.age_seconds < 3600 ? 'var(--text-secondary)' : '#ef5350'],
               ['Generated', row.generated_at ? new Date(row.generated_at).toLocaleString() : '—', 'var(--text-muted)'],
@@ -826,6 +1141,32 @@ export default function SignalsPage(): JSX.Element {
   const { envelope: allEnv } = useRealtimeResource<SignalMatrixData>({
     url: '/api/v2/signals/matrix', source: '/api/v2/signals/matrix', source_type: 'websocket', pollIntervalMs: 60_000, mode: 'read_only',
   });
+  const { envelope: currentSignalEnvelope } = useRealtimeResource<SignalCurrentContract>({
+    url: '/api/v2/signals/current',
+    source: '/api/v2/signals/current',
+    source_type: 'websocket',
+    pollIntervalMs: 10_000,
+    staleThresholdMs: 20_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: false,
+  });
+  const { envelope: aPlusEnvelope } = useRealtimeResource<APlusInventoryContract>({
+    url: '/api/v2/a-plus/inventory',
+    source: '/api/v2/a-plus/inventory',
+    source_type: 'websocket',
+    pollIntervalMs: 15_000,
+    staleThresholdMs: 45_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: false,
+  });
+  const { envelope: providerEnvelope } = useRealtimeResource<ProviderStatusContract>({
+    url: '/api/v2/providers/status',
+    source: '/api/v2/providers/status',
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
   const lineageSignalRow = useMemo(() => signalRowFromLineage(currentLineage.envelope.data), [currentLineage.envelope.data]);
   const matrixRows = envelope.data?.rows ?? [];
   const rows = useMemo(
@@ -855,7 +1196,10 @@ export default function SignalsPage(): JSX.Element {
       if (sortKey === 'symbol') { av = a.symbol; bv = b.symbol; }
       else if (sortKey === 'timeframe') { const o: Record<string, number> = { '1m': 0, '5m': 1, '15m': 2, '1h': 3, '4h': 4 }; av = o[a.timeframe] ?? 99; bv = o[b.timeframe] ?? 99; }
       else if (sortKey === 'action') { av = a.action ?? ''; bv = b.action ?? ''; }
-      else if (sortKey === 'confidence') { av = a.confidence ?? -1; bv = b.confidence ?? -1; }
+      else if (sortKey === 'confidence') {
+        av = a.confidence_executable_trade ?? a.confidence_selected_action ?? a.confidence ?? -1;
+        bv = b.confidence_executable_trade ?? b.confidence_selected_action ?? b.confidence ?? -1;
+      }
       else if (sortKey === 'age_seconds') { av = a.age_seconds ?? 999999; bv = b.age_seconds ?? 999999; }
       else if (sortKey === 'price_target') { av = a.price_target_after_cost ?? a.price_target ?? -1; bv = b.price_target_after_cost ?? b.price_target ?? -1; }
       if (typeof av === 'string' && typeof bv === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
@@ -881,7 +1225,9 @@ export default function SignalsPage(): JSX.Element {
 
   const readyCount = rows.filter(r => ['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => (r.paper_fill_gate_status ?? '').toLowerCase().includes(token))).length;
   const liveCount = rows.filter(r => (r.live_gate ?? '').toLowerCase() === 'open').length;
-  const avgConf = rows.length > 0 ? rows.reduce((s, r) => s + (r.confidence ?? 0), 0) / rows.length : null;
+  const avgConf = rows.length > 0
+    ? rows.reduce((s, r) => s + (r.confidence_executable_trade ?? r.confidence_selected_action ?? r.confidence ?? 0), 0) / rows.length
+    : null;
   const signalFeedReady = rows.length > 0;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status
     ?? adaptiveCapital.data?.capital_productivity_runtime_status?.signal_prediction_accuracy_status
@@ -922,7 +1268,7 @@ export default function SignalsPage(): JSX.Element {
             { label: 'Live Routed', value: signalFeedReady ? liveCount : '—', color: liveCount > 0 ? '#26c281' : 'var(--text-muted)' },
             { label: 'Long', value: signalFeedReady ? rows.filter(r => (r.action ?? '').toLowerCase().includes('long')).length : '—', color: '#26c281' },
             { label: 'Short', value: signalFeedReady ? rows.filter(r => (r.action ?? '').toLowerCase().includes('short')).length : '—', color: '#ef5350' },
-            { label: 'Avg Confidence', value: avgConf != null ? fmtConf(avgConf) : '—', color: confColor(avgConf) },
+            { label: 'Avg Executable Confidence', value: avgConf != null ? fmtConf(avgConf) : '—', color: confColor(avgConf) },
             { label: 'Accuracy', value: formatAdaptivePercent(accuracyStatus?.overall_accuracy), color: adaptiveStatusColor(accuracyStatus?.status) },
             { label: 'Evaluated', value: accuracyStatus?.evaluated_row_count ?? '—', color: 'var(--text-primary)' },
             { label: 'TF Cells', value: evaluatedAccuracyCells != null || totalAccuracyCells != null ? `${evaluatedAccuracyCells ?? 0}/${totalAccuracyCells ?? 0}` : '—', color: 'var(--text-primary)' },
@@ -937,7 +1283,7 @@ export default function SignalsPage(): JSX.Element {
 
         <div className="trader-metric-grid" style={{ marginBottom: 12 }}>
           <CanonicalMetricCard label="Active Signal ID" metric={signalMetric('signal.id')} />
-          <CanonicalMetricCard label="Signal Confidence" metric={signalMetric('signal.confidence')} />
+          <CanonicalMetricCard label="Executable Signal Confidence" metric={signalMetric('signal.confidence')} />
         </div>
 
         {/* Route filter */}
@@ -988,6 +1334,13 @@ export default function SignalsPage(): JSX.Element {
         </div>
       </div>
 
+      <SignalRuntimeTruthPanel
+        current={currentSignalEnvelope.data}
+        currentEnvelope={currentSignalEnvelope}
+        aPlus={aPlusEnvelope.data}
+        providers={providerEnvelope.data}
+      />
+
       <div style={{ padding: '12px 16px 0' }}>
         <AdaptiveCapitalTelemetryPanel
           payload={adaptiveCapital.data}
@@ -1016,7 +1369,7 @@ export default function SignalsPage(): JSX.Element {
                     <SortTh label="Symbol" col="symbol" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <SortTh label="TF" col="timeframe" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <SortTh label="Direction" col="action" current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <SortTh label="Confidence" col="confidence" current={sortKey} dir={sortDir} onSort={handleSort} />
+                    <SortTh label="Executable Confidence" col="confidence" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--bg-panel)', whiteSpace: 'nowrap' }}>Accuracy / PnL</th>
                     <SortTh label="Price Target" col="price_target" current={sortKey} dir={sortDir} onSort={handleSort} />
                     <th style={{ padding: '8px 12px', textAlign: 'left', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--bg-panel)', whiteSpace: 'nowrap' }}>Routing</th>
@@ -1043,7 +1396,7 @@ export default function SignalsPage(): JSX.Element {
                             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', padding: '2px 6px', background: 'var(--bg-base)', borderRadius: 4, border: '1px solid var(--border)' }}>{row.timeframe}</span>
                           </td>
                           <td style={{ padding: '10px 12px' }}><ActionBadge action={row.side ?? row.action} /></td>
-                          <td style={{ padding: '10px 12px' }}><ConfBar value={row.confidence} /></td>
+                          <td style={{ padding: '10px 12px' }}><ConfBar value={row.confidence_executable_trade ?? null} /></td>
                           <td style={{ padding: '10px 12px' }}><AccuracyBadge cell={accuracy} /></td>
                           <td style={{ padding: '10px 12px' }}><PriceTargetCell target={row.price_target_after_cost ?? row.price_target} moveBps={row.expected_move_bps} action={row.action} /></td>
                           <td style={{ padding: '10px 12px' }}><RoutingBadge gateStatus={row.live_gate} paperFill={row.paper_fill_gate_status} /></td>

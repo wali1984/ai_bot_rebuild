@@ -13,6 +13,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -23,6 +24,7 @@ from app.auth.security import optional_auth, require_auth
 from app.auth.users import UserRecord
 from app.services.coinglass_provider import build_coinglass_health
 from app.services.hedge_engine import compute_portfolio_exposure, simulate_cross_margin_stress
+from app.services.portfolio import build_canonical_pnl
 from app.services.provider_features import build_provider_actual_data_panel
 from app.services.smart_money_wallets import build_moralis_health
 
@@ -33,11 +35,23 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
+def _et_now() -> str:
+    return datetime.now(ZoneInfo("America/New_York")).isoformat(timespec="seconds")
+
+
 def _safe_float(v: Any, default: float = 0.0) -> float:
     try:
         return float(v) if v is not None else default
     except (TypeError, ValueError):
         return default
+
+
+def _as_list(v: Any) -> list[Any]:
+    if isinstance(v, list):
+        return v
+    if v in (None, ""):
+        return []
+    return [v]
 
 
 def _optional_positive_float(v: Any) -> float | None:
@@ -280,6 +294,104 @@ def _mobile_hedge_cross_margin_truth(r: Any | None) -> dict[str, Any]:
     }
 
 
+PREEMPTIVE_MATRIX_MOBILE_ROW_LIMIT = 5
+PREEMPTIVE_MATRIX_MOBILE_LIST_PREVIEW_LIMIT = 8
+PREEMPTIVE_MATRIX_MOBILE_ROW_FIELDS = (
+    "preemptive_decision_id",
+    "preemptive_decision",
+    "preemptive_action",
+    "preemptive_allowed",
+    "preemptive_shadow_only",
+    "preemptive_reduce_size_required",
+    "symbol",
+    "side",
+    "timeframe",
+    "strategy_id",
+    "source_tier",
+    "pre_trade_expected_net_pnl_usd",
+    "pre_trade_expected_gross_pnl_usd",
+    "pre_trade_expected_cost_usd",
+    "pre_trade_max_loss_usd",
+    "pre_trade_loss_probability",
+    "pre_trade_profit_probability",
+    "confidence_overstatement_risk",
+    "regime_compatibility_score",
+    "exit_feasibility_score",
+    "bucket_profit_factor",
+    "guardian_new_entries_allowed",
+    "continuous_edge_guardian_status",
+    "reduce_size_guardian_approved",
+    "reduce_size_guardian_approval_reason",
+    "advanced_indicator_status",
+    "advanced_indicator_confluence_score",
+    "fvg_present",
+    "fvg_side_aligned",
+    "liquidity_sweep_state",
+    "microstructure_trust_state",
+    "microstructure_trust_score",
+    "altdata_confluence_present",
+    "altdata_trade_block_score",
+    "altdata_reduce_size_score",
+    "altdata_hedge_required_score",
+    "altdata_wallet_distribution_score",
+    "altdata_liquidation_sweep_risk_score",
+    "altdata_social_euphoria_risk_score",
+    "preemptive_decision_time",
+    "preemptive_decision_time_et",
+    "paper_session_id",
+    "routes_to_live",
+    "places_real_order",
+)
+
+
+def _compact_mobile_preemptive_matrix_row(row: dict[str, Any]) -> dict[str, Any]:
+    compact = {key: row.get(key) for key in PREEMPTIVE_MATRIX_MOBILE_ROW_FIELDS if key in row}
+    for key in (
+        "preemptive_block_reasons",
+        "preemptive_decision_reasons",
+        "advanced_indicator_block_reasons",
+        "advanced_indicator_caution_reasons",
+        "provider_features_used",
+        "provider_features_missing",
+        "candidate_bucket_keys",
+        "matched_quarantined_bucket_keys",
+    ):
+        value = row.get(key)
+        if not isinstance(value, list):
+            continue
+        compact[f"{key}_count"] = len(value)
+        compact[key] = value[:PREEMPTIVE_MATRIX_MOBILE_LIST_PREVIEW_LIMIT]
+        if len(value) > PREEMPTIVE_MATRIX_MOBILE_LIST_PREVIEW_LIMIT:
+            compact[f"{key}_omitted_count"] = len(value) - PREEMPTIVE_MATRIX_MOBILE_LIST_PREVIEW_LIMIT
+    return compact
+
+
+def _compact_mobile_preemptive_candidate_decision_matrix(matrix: dict[str, Any]) -> dict[str, Any]:
+    rows = matrix.get("rows") or matrix.get("sample_decisions") or []
+    rows = rows if isinstance(rows, list) else []
+    preview_rows = [
+        _compact_mobile_preemptive_matrix_row(row)
+        for row in rows[:PREEMPTIVE_MATRIX_MOBILE_ROW_LIMIT]
+        if isinstance(row, dict)
+    ]
+    compact = {
+        key: value
+        for key, value in matrix.items()
+        if key not in {"rows", "sample_decisions"}
+    }
+    compact["rows"] = preview_rows
+    compact["sample_decisions"] = preview_rows
+    compact["full_row_count"] = len(rows)
+    compact["preview_row_count"] = len(preview_rows)
+    compact["payload_compacted"] = len(rows) > PREEMPTIVE_MATRIX_MOBILE_ROW_LIMIT
+    compact["omitted_row_count"] = max(0, len(rows) - PREEMPTIVE_MATRIX_MOBILE_ROW_LIMIT)
+    compact["debug_detail_source"] = "redis:v2:paper:preemptive_candidate_decision_matrix"
+    compact.setdefault("paper_only", True)
+    compact.setdefault("routes_to_live", False)
+    compact.setdefault("places_real_order", False)
+    return compact
+
+
 def _mobile_preemptive_edge_control_truth(r: Any | None) -> dict[str, Any]:
     trade_management_status = (
         _redis_get_json(r, "v2:paper:trade_management:status") if r else None
@@ -513,11 +625,133 @@ def _mobile_preemptive_edge_control_truth(r: Any | None) -> dict[str, Any]:
         "adaptive_hedge_cross_margin": _mobile_hedge_cross_margin_truth(r),
         "provider_readiness": _mobile_provider_readiness(r),
         "preemptive_edge_control_status": status,
-        "preemptive_candidate_decision_matrix": matrix,
+        "preemptive_candidate_decision_matrix": _compact_mobile_preemptive_candidate_decision_matrix(matrix),
         "paper_preemptive_admission_status": admission,
         "positive_edge_probation_policy": probation_policy,
         "positive_edge_probation_runtime_status": probation_runtime,
         "probation_5_trade_gate": probation_5_trade_gate,
+    }
+
+
+def _mobile_preemptive_edge_control_summary(r: Any | None) -> dict[str, Any]:
+    status = (_redis_get_json(r, "v2:paper:preemptive_edge_control_status") if r else None) or {}
+    admission = (_redis_get_json(r, "v2:paper:preemptive_admission_status") if r else None) or {}
+    probation_runtime = (_redis_get_json(r, "v2:paper:positive_edge_probation_runtime_status") if r else None) or {}
+    probation_gate = (_redis_get_json(r, "v2:paper:probation_5_trade_gate") if r else None) or {}
+    decision_counts = status.get("decision_counts") if isinstance(status.get("decision_counts"), dict) else {}
+    action_counts = status.get("action_counts") if isinstance(status.get("action_counts"), dict) else {}
+    prevention_reasons = admission.get("prevention_reasons") or admission.get("top_rejection_reasons") or []
+    probation_candidate_count = _safe_int(probation_runtime.get("current_candidate_count"))
+    return {
+        "preemptive_edge_control": {
+            "status": (
+                "PREEMPTIVE_EDGE_CONTROL_ACTIVE"
+                if status.get("available") is True or bool(status)
+                else "PREEMPTIVE_EDGE_CONTROL_NOT_YET_PUBLISHED"
+            ),
+            "candidate_count": _safe_int(status.get("candidate_count")),
+            "accepted_count": _safe_int(status.get("accepted_count")),
+            "decision_counts": dict(list(decision_counts.items())[:8]),
+            "action_counts": dict(list(action_counts.items())[:8]),
+            "positive_edge_probation_status": probation_runtime.get("status"),
+            "positive_edge_probation_supply_state": (
+                "NO_SAFE_TRADE_SUPPLY"
+                if probation_candidate_count <= 0
+                else "POSITIVE_EDGE_PROBATION_SUPPLY_AVAILABLE"
+            ),
+            "positive_edge_probation_candidates": probation_candidate_count,
+            "positive_edge_probation_accepted": _safe_int(probation_runtime.get("current_accepted_count")),
+            "closed_probation_trade_count": _safe_int(probation_runtime.get("closed_probation_trade_count")),
+            "probation_5_trade_gate_status": probation_gate_display_status(probation_gate),
+            "why_trade_was_prevented": prevention_reasons[:6] if isinstance(prevention_reasons, list) else [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        },
+        "adaptive_hedge_cross_margin": _mobile_hedge_cross_margin_truth(r),
+        "provider_readiness": _mobile_provider_readiness(r),
+    }
+
+
+def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
+    governor = (_redis_get_json(r, "v2:paper:performance_governor_status") if r else None) or {}
+    halt = (_redis_get_json(r, "v2:paper:new_entry_emergency_halt_status") if r else None) or {}
+    freeze = (_redis_get_json(r, "v2:paper:entry_freeze") if r else None) or {}
+    a_plus = (_redis_get_json(r, "v2:paper:a_plus_gate:status") if r else None) or {}
+    trainer = (_redis_get_json(r, "v2:trainer:hybrid_cuda:status") if r else None) or {}
+    market_hb = (_redis_get_json(r, "v2:market:coinapi:ohlcv:heartbeat") if r else None) or {}
+    closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
+    realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
+    top_blockers = list((freeze.get("future_gate_blockers") or []))
+    for reason in (halt.get("halt_reasons") or []):
+        if reason not in top_blockers:
+            top_blockers.append(reason)
+    market_generated_at = (
+        market_hb.get("finished_utc")
+        or market_hb.get("generated_at")
+        or market_hb.get("generated_utc")
+        or market_hb.get("ts")
+    )
+    market_age_seconds: int | None = None
+    if isinstance(market_generated_at, str) and market_generated_at:
+        try:
+            parsed = datetime.fromisoformat(market_generated_at.replace("Z", "+00:00"))
+            market_age_seconds = max(0, int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()))
+        except ValueError:
+            market_age_seconds = None
+    return {
+        "performance": {
+            "profit_factor": governor.get("profit_factor"),
+            "expectancy_usd": (
+                round(realized_pnl_usd / max(1, closed_count), 8)
+                if realized_pnl_usd is not None and closed_count
+                else None
+            ),
+            "realized_pnl_usd": realized_pnl_usd,
+            "notional_weighted_expectancy_bps": governor.get("notional_weighted_expectancy_bps"),
+            "win_rate": governor.get("win_rate"),
+            "closed_outcome_count": governor.get("closed_outcome_count"),
+            "governor_state": governor.get("state"),
+        },
+        "entry_freeze": {
+            "new_entries_allowed": halt.get("new_entries_allowed"),
+            "halt_reasons": (halt.get("halt_reasons") or [])[:6],
+            "future_gate_blockers": (freeze.get("future_gate_blockers") or [])[:6],
+            "allow_close": halt.get("allow_close"),
+            "allow_reduce": halt.get("allow_reduce"),
+        },
+        "a_plus_gate": {
+            "evaluated_candidates": a_plus.get("evaluated_candidates"),
+            "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            "rejected_reason_matrix": dict(list((a_plus.get("rejected_reason_matrix") or {}).items())[:8])
+            if isinstance(a_plus.get("rejected_reason_matrix"), dict) else None,
+            "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
+        },
+        "trainer_learning": {
+            "effective_trainer_mode": trainer.get("effective_trainer_mode"),
+            "online_learning_status": trainer.get("online_learning_status"),
+            "last_successful_weight_update_at": trainer.get("last_successful_weight_update_at"),
+            "checkpoint_id": trainer.get("checkpoint_id"),
+        },
+        "real_trader_readiness": {
+            "live_gate": "blocked_human_only",
+            "operator_flip_required": True,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "live_ready": False,
+        },
+        "market_data_freshness": {
+            "source": market_hb.get("source") or "v2:market:coinapi:ohlcv:heartbeat",
+            "generated_at": market_generated_at,
+            "age_seconds": market_age_seconds,
+            "freshness_state": (
+                "MARKET_FEED_CURRENT"
+                if market_age_seconds is not None and market_age_seconds < 600
+                else "MARKET_FEED_STALE"
+            ),
+        },
+        **_mobile_preemptive_edge_control_summary(r),
+        "top_blockers": top_blockers[:6],
     }
 
 
@@ -1076,7 +1310,18 @@ def _paper_account_session_fields(
     portfolio = (_redis_get_json(r, "v2:portfolio:state") if r else None) or {}
     portfolio_present = bool(portfolio)
     session = (_redis_get_json(r, "v2:paper:session") if r else None) or {}
-    ledger = (_redis_get_json(r, "v2:paper:ledger") if r else None) or {}
+    canonical = build_canonical_pnl(r) if r else {}
+
+    ledger: dict[str, Any] = {}
+    ledger_loaded = False
+
+    def _ledger() -> dict[str, Any]:
+        nonlocal ledger, ledger_loaded
+        if not ledger_loaded:
+            ledger = (_redis_get_json(r, "v2:paper:ledger") if r else None) or {}
+            ledger_loaded = True
+        return ledger
+
     def _first_float(*values: Any) -> float | None:
         for value in values:
             parsed = _optional_float(value)
@@ -1098,9 +1343,13 @@ def _paper_account_session_fields(
         session.get("initial_capital"),
         portfolio.get("starting_equity_usd"),
         portfolio.get("initial_capital"),
-        ledger.get("starting_equity_usd"),
-        ledger.get("initial_capital"),
     )
+    if initial_capital is None:
+        ledger_payload = _ledger()
+        initial_capital = _first_float(
+            ledger_payload.get("starting_equity_usd"),
+            ledger_payload.get("initial_capital"),
+        )
     equity = _first_float(portfolio.get("equity"))
     if equity is None:
         equity = (
@@ -1132,12 +1381,13 @@ def _paper_account_session_fields(
         )
         account_source = "redis:v2:portfolio:state"
     else:
+        ledger_payload = _ledger()
         realized_pnl = _first_float(
-            ledger.get("realized_pnl_usd"),
+            ledger_payload.get("realized_pnl_usd"),
             hb.get("realized_pnl_usd"),
         )
         unrealized_pnl = _first_float(
-            ledger.get("unrealized_pnl_usd"),
+            ledger_payload.get("unrealized_pnl_usd"),
             hb.get("unrealized_pnl_usd"),
         )
         total_pnl = (
@@ -1149,17 +1399,19 @@ def _paper_account_session_fields(
     paper_session_id = (
         session.get("paper_session_id")
         or portfolio.get("paper_session_id")
-        or ledger.get("paper_session_id")
         or session.get("session_id")
         or portfolio.get("session_id")
-        or ledger.get("session_id")
         or hb.get("paper_session_id")
         or hb.get("session_id")
     )
+    if paper_session_id is None:
+        ledger_payload = _ledger()
+        paper_session_id = ledger_payload.get("paper_session_id") or ledger_payload.get("session_id")
     return {
         "paper_session_id": paper_session_id,
         "equity": equity,
         "paper_equity": equity,
+        "paper_equity_usd": canonical.get("paper_equity_usd", equity),
         "paper_balance": equity,
         "available_balance": equity,
         "available_balance_usd": equity,
@@ -1172,23 +1424,27 @@ def _paper_account_session_fields(
         "realized_pnl": realized_pnl,
         "realized_pnl_usd": realized_pnl,
         "realized_net_pnl_usd": realized_pnl,
+        "paper_realized_pnl_usd": canonical.get("paper_realized_pnl_usd", realized_pnl),
         "realized_gross_pnl_usd": _first_float(portfolio.get("realized_gross_pnl_usd")),
         "unrealized_pnl": unrealized_pnl,
         "unrealized_pnl_usd": unrealized_pnl,
+        "paper_unrealized_pnl_usd": canonical.get("paper_unrealized_pnl_usd", unrealized_pnl),
         "total_pnl_usd": total_pnl,
+        "paper_total_pnl_usd": canonical.get("paper_total_pnl_usd", total_pnl),
         "open_position_count": _first_int_or_none(
             portfolio.get("open_positions_count"),
-            None if portfolio_present else ledger.get("open_position_count"),
+            None if portfolio_present else _ledger().get("open_position_count"),
             None if portfolio_present else hb.get("open_position_count"),
             None if portfolio_present else hb.get("accepted_position_count"),
         ),
         "closed_trade_count": _first_int_or_none(
             portfolio.get("closed_trade_count"),
             portfolio.get("closed_positions_count"),
-            None if portfolio_present else ledger.get("closed_trade_count"),
+            None if portfolio_present else _ledger().get("closed_trade_count"),
             None if portfolio_present else hb.get("closed_trade_count"),
         ),
         "account_source": account_source,
+        "data_source": canonical.get("data_source") or account_source,
         "pnl_source_key": portfolio.get("pnl_source_key", "v2:portfolio:state" if portfolio_present else None),
         "pnl_source_route": portfolio.get("pnl_source_route", "/api/v2/portfolio" if portfolio_present else None),
         "pnl_source_type": portfolio.get(
@@ -1203,6 +1459,8 @@ def _paper_account_session_fields(
         "equity_reconciles_within_1_cent": portfolio.get("equity_reconciles_within_1_cent"),
         "source_generated_utc": portfolio.get("generated_utc") or portfolio.get("generated_at"),
         "freshness_seconds": portfolio.get("freshness_seconds"),
+        "staleness_seconds": canonical.get("staleness_seconds"),
+        "freshness_status": canonical.get("freshness_status"),
         "source_type": source_type,
     }
 
@@ -1418,6 +1676,21 @@ def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
         "timeframe": str(sig.get("timeframe") or ""),
         "action": str(sig.get("action") or ""),
         "confidence": _safe_float(sig.get("confidence")),
+        "confidence_selected_action": _safe_float(sig.get("confidence_selected_action")),
+        "confidence_executable_trade": _safe_float(sig.get("confidence_executable_trade")),
+        "confidence_display_label": sig.get("confidence_display_label"),
+        "confidence_type": sig.get("confidence_type"),
+        "confidence_a_plus_eligible": sig.get("confidence_a_plus_eligible") is True,
+        "confidence_tradeability_block_reasons": _as_list(sig.get("confidence_tradeability_block_reasons")),
+        "paper_exploration_tier": sig.get("paper_exploration_tier") or sig.get("exploration_tier"),
+        "exploration_tier": sig.get("exploration_tier") or sig.get("paper_exploration_tier"),
+        "expected_net_pnl_usd": _safe_float(sig.get("expected_net_pnl_usd")),
+        "expected_max_loss_usd": _safe_float(sig.get("expected_max_loss_usd") or sig.get("max_loss_usd")),
+        "why_not_a_plus": _as_list(sig.get("block_reasons")),
+        "why_not_live_ready": _as_list(sig.get("live_ready_block_reasons") or sig.get("block_reasons")),
+        "risk_controller_decision": sig.get("risk_decision") or sig.get("risk_state"),
+        "allocator_decision": sig.get("allocator_decision"),
+        "trainer_feedback_status": sig.get("trainer_feedback_status"),
         "actionable": bool(sig.get("paper_fill_allowed")),
         "risk_state": str(sig.get("risk_state") or ""),
         "paper_fill_status": str(sig.get("paper_fill_status") or ""),
@@ -1481,25 +1754,37 @@ async def get_mobile_dashboard(
 
     # Signal count from live keys
     signal_count = 0
+    signal_count_capped = False
     if r:
         try:
             cursor, keys = r.scan(0, match="v2:signals:latest:*", count=1)
-            signal_count = _safe_int(r.object("encoding", keys[0]) if keys else 0)
-            # Actually scan all
             all_sig_keys: list[str] = keys
-            while cursor != 0:
+            scan_batches = 0
+            while cursor != 0 and scan_batches < 10 and len(all_sig_keys) < 500:
+                scan_batches += 1
                 cursor, batch = r.scan(cursor, match="v2:signals:latest:*", count=200)
                 all_sig_keys.extend(batch)
+            signal_count_capped = cursor != 0 or len(all_sig_keys) >= 500
             signal_count = len(all_sig_keys)
         except Exception:
             signal_count = 0
 
     return {
+        "schema_version": "mobile_dashboard_v2",
         "generated_utc": _utc_now(),
+        "generated_at_utc": _utc_now(),
+        "generated_at_et": _et_now(),
+        "source": "mobile_compact_runtime_contract",
+        "staleness_seconds": account_fields.get("staleness_seconds"),
+        "freshness_status": account_fields.get("freshness_status"),
+        "canonical_owner": "/api/v2/mobile/dashboard",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "data_quality_status": "partial" if account_fields.get("freshness_status") in {"stale", "unavailable"} else "fresh",
         "live_gate": live_gate,
         "paper": {
             **account_fields,
-            **_mobile_a_plus_runtime_truth(r),
+            **_mobile_a_plus_runtime_summary(r),
             "open_positions": open_count,
             "closed_trades": closed_count,
             "realized_pnl_usd": realized_pnl,
@@ -1532,6 +1817,7 @@ async def get_mobile_dashboard(
         "alerts_preview": alerts_preview,
         "redis_connected": r is not None,
         "active_signal_count": signal_count,
+        "active_signal_count_capped": signal_count_capped,
     }
 
 
@@ -1750,9 +2036,21 @@ async def get_mobile_risk_status(
 
     risk = _risk_status_from_redis(r) if r else {}
     hb = _paper_heartbeat(r) if r else {}
+    compact_truth = _mobile_a_plus_runtime_summary(r)
+    preemptive_truth = _mobile_preemptive_edge_control_truth(r)
 
     return {
+        "schema_version": "mobile_risk_status_v2",
         "generated_utc": _utc_now(),
+        "generated_at_utc": _utc_now(),
+        "generated_at_et": _et_now(),
+        "source": "mobile_compact_runtime_contract",
+        "staleness_seconds": None,
+        "freshness_status": "fresh" if r is not None else "unavailable",
+        "canonical_owner": "/api/v2/mobile/risk-status",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "data_quality_status": "fresh" if r is not None else "unavailable",
         "live_gate": _live_gate_status(),
         "risk_state": str(risk.get("state") or "UNKNOWN"),
         "risk_classification": str(risk.get("classification") or ""),
@@ -1766,8 +2064,8 @@ async def get_mobile_risk_status(
         "current_daily_loss_usd": _safe_float(risk.get("current_daily_loss_usd")),
         "dangerous_actions_require_human_approval": True,
         "mobile_can_approve_dangerous_actions": False,
-        **_mobile_preemptive_edge_control_truth(r),
-        **_mobile_a_plus_runtime_truth(r),
+        **compact_truth,
+        **preemptive_truth,
     }
 
 

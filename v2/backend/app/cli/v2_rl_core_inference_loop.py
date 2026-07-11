@@ -29,6 +29,8 @@ DEFAULT_PAYLOAD_PATH = Path(
 )
 CHECKPOINT_EVIDENCE_KEY = f"{V2_REDIS_PREFIX}trainer:checkpoint:evidence"
 DEFAULT_CHECKPOINT_WEIGHT_STATUS = "CHECKPOINT_WEIGHT_BLOB_OPERATOR_REQUIRED"
+HYBRID_TRAINER_STATUS_KEY = f"{V2_REDIS_PREFIX}trainer:hybrid_cuda:status"
+TRAINER_LEARNING_FRESHNESS_SECONDS = 30 * 60
 
 
 def _utc_iso() -> str:
@@ -89,6 +91,36 @@ def _read_json_key(r, key: str) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
+def _trainer_learning_truth(r) -> dict:
+    """Read the learning trainer's weight-update truth; fail-closed.
+
+    The sidecar must never claim trainer health it cannot prove: learning is
+    asserted only when the hybrid trainer reports WEIGHTS_UPDATING with a
+    fresh last_successful_weight_update_at.
+    """
+    hybrid = _read_json_key(r, HYBRID_TRAINER_STATUS_KEY)
+    status = str(hybrid.get("online_learning_status") or "")
+    last_update_raw = hybrid.get("last_successful_weight_update_at")
+    fresh = False
+    if last_update_raw:
+        try:
+            parsed = datetime.fromisoformat(str(last_update_raw).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            fresh = (
+                datetime.now(timezone.utc) - parsed
+            ).total_seconds() <= TRAINER_LEARNING_FRESHNESS_SECONDS
+        except ValueError:
+            fresh = False
+    return {
+        "weights_updating": status == "WEIGHTS_UPDATING" and fresh,
+        "online_learning_status": status or None,
+        "last_successful_weight_update_at": last_update_raw,
+        "weight_update_fresh": fresh,
+        "source_key": HYBRID_TRAINER_STATUS_KEY,
+    }
+
+
 def _read_checkpoint_evidence(r) -> dict:
     if r is None:
         return {}
@@ -111,6 +143,58 @@ def _read_checkpoint_evidence(r) -> dict:
     return payload
 
 
+def _checkpoint_evidence_summary(checkpoint_evidence: dict) -> dict:
+    return {
+        "active_checkpoint_id": checkpoint_evidence.get("active_checkpoint_id"),
+        "active_checkpoint_source": checkpoint_evidence.get("active_checkpoint_source"),
+        "active_checkpoint_weight_status": checkpoint_evidence.get(
+            "active_checkpoint_weight_status"
+        ),
+        "active_checkpoint_blocker": checkpoint_evidence.get(
+            "active_checkpoint_blocker"
+        ),
+        "selected_checkpoint_id": checkpoint_evidence.get("selected_checkpoint_id"),
+        "selected_checkpoint_path": checkpoint_evidence.get("selected_checkpoint_path"),
+        "candidate_count": checkpoint_evidence.get("candidate_count"),
+        "checkpoint_evidence_status": checkpoint_evidence.get(
+            "checkpoint_evidence_status"
+        ),
+        "legacy_checkpoint_metadata_status": checkpoint_evidence.get(
+            "legacy_checkpoint_metadata_status"
+        ),
+        "legacy_checkpoint_weight_status": checkpoint_evidence.get(
+            "legacy_checkpoint_weight_status"
+        ),
+        "legacy_checkpoint_blocker": checkpoint_evidence.get(
+            "legacy_checkpoint_blocker"
+        ),
+        "native_checkpoint_status": checkpoint_evidence.get(
+            "native_checkpoint_status"
+        ),
+        "native_checkpoint_load_status": checkpoint_evidence.get(
+            "native_checkpoint_load_status"
+        ),
+        "native_model_weights_load_verified": bool(
+            checkpoint_evidence.get("native_model_weights_load_verified")
+        ),
+        "safe_npz_weight_load_verified": bool(
+            checkpoint_evidence.get("safe_npz_weight_load_verified")
+        ),
+        "model_weights_loaded_into_v2_process": bool(
+            checkpoint_evidence.get("model_weights_loaded_into_v2_process")
+        ),
+        "model_weights_loaded_scope": checkpoint_evidence.get(
+            "model_weights_loaded_scope"
+        ),
+        "weight_deserialization_performed": bool(
+            checkpoint_evidence.get("weight_deserialization_performed", False)
+        ),
+        "pickle_deserialized": bool(
+            checkpoint_evidence.get("pickle_deserialized", False)
+        ),
+    }
+
+
 def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
     started = _utc_iso()
     from v2.backend.app.services.rl_core.trainer_output import (
@@ -119,18 +203,26 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
     from v2.backend.app.services.market_state_integrity.trust import TrustGateRejectedError
     r = _connect_redis()
     checkpoint_evidence = _read_checkpoint_evidence(r)
-    checkpoint_id = checkpoint_evidence.get("selected_checkpoint_id") or None
-    checkpoint_blocker = (
-        checkpoint_evidence.get("checkpoint_blocker")
-        or DEFAULT_CHECKPOINT_WEIGHT_STATUS
+    checkpoint_id = (
+        checkpoint_evidence.get("active_checkpoint_id")
+        or checkpoint_evidence.get("selected_checkpoint_id")
+        or None
     )
+    checkpoint_blocker = checkpoint_evidence.get("active_checkpoint_blocker")
+    if checkpoint_id is None and not checkpoint_blocker:
+        checkpoint_blocker = checkpoint_evidence.get("checkpoint_blocker") or DEFAULT_CHECKPOINT_WEIGHT_STATUS
     checkpoint_weight_status = (
-        checkpoint_evidence.get("checkpoint_weight_status")
+        checkpoint_evidence.get("active_checkpoint_weight_status")
+        or checkpoint_evidence.get("checkpoint_weight_status")
         or DEFAULT_CHECKPOINT_WEIGHT_STATUS
     )
     checkpoint_evidence_status = (
         checkpoint_evidence.get("checkpoint_evidence_status")
         or "CHECKPOINT_EVIDENCE_MISSING"
+    )
+    checkpoint_evidence_model_weights_load_verified = bool(
+        checkpoint_evidence.get("native_model_weights_load_verified")
+        or checkpoint_evidence.get("model_weights_loaded_into_v2_process")
     )
     trainer_online_mode = (
         checkpoint_evidence.get("trainer_online_mode")
@@ -171,6 +263,12 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
             "routes_to_risk_gateway": False,
             "trader_execution_enabled": False,
             "model_weights_loaded_into_v2_process": False,
+            "rl_core_sidecar_loaded_active_native_checkpoint": False,
+            "checkpoint_evidence_model_weights_load_verified": (
+                checkpoint_evidence_model_weights_load_verified
+            ),
+            "active_trainer_checkpoint_id": checkpoint_evidence.get("active_checkpoint_id"),
+            "active_trainer_checkpoint_source": checkpoint_evidence.get("active_checkpoint_source"),
             "expected_move_bps": rec.expected_move_bps,
             "expected_move_after_cost_bps": rec.expected_move_after_cost_bps,
             "confidence_raw": rec.confidence_raw,
@@ -198,8 +296,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
             )
             if _safe_write(r, sidecar_key, json.dumps(prediction), ex=600):
                 keys_written.append(sidecar_key)
+    trainer_learning_truth = _trainer_learning_truth(r)
     if predictions:
-        classification = "V2_NATIVE_RL_CORE_PRODUCTION_INFERENCE_OK"
+        # Never publish an OK trainer status while weight updates cannot be
+        # proven fresh — inference health and learning health are different
+        # claims (operator rule: TRAINER_INFERENCE_ONLY_NOT_LEARNING).
+        if trainer_learning_truth["weights_updating"]:
+            classification = "V2_NATIVE_RL_CORE_INFERENCE_SIDECAR_OK_TRAINER_LEARNING"
+        else:
+            classification = "TRAINER_INFERENCE_ONLY_NOT_LEARNING"
     elif r is None:
         classification = "BLOCKED_BY_REDIS_UNAVAILABLE"
     else:
@@ -226,6 +331,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
         "v2_prediction_keys_written": keys_written,
         "v2_prediction_keys_written_count": len(keys_written),
         "classification": classification,
+        "role": "inference_sidecar",
+        "trainer_weights_updating": trainer_learning_truth["weights_updating"],
+        "trainer_online_learning_status": trainer_learning_truth[
+            "online_learning_status"
+        ],
+        "trainer_last_successful_weight_update_at": trainer_learning_truth[
+            "last_successful_weight_update_at"
+        ],
+        "trainer_learning_status_source": trainer_learning_truth["source_key"],
         "trainer_online_mode": trainer_online_mode,
         "production_signal_only": True,
         "market_data_mode": "REALTIME_PUBLIC_MARKET_DATA",
@@ -236,20 +350,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
         "checkpoint_evidence_status": checkpoint_evidence_status,
         "checkpoint_id": checkpoint_id,
         "checkpoint_blocker": checkpoint_blocker,
-        "checkpoint_evidence": {
-            "selected_checkpoint_id": checkpoint_evidence.get("selected_checkpoint_id"),
-            "selected_checkpoint_path": checkpoint_evidence.get("selected_checkpoint_path"),
-            "candidate_count": checkpoint_evidence.get("candidate_count"),
-            "legacy_checkpoint_metadata_status": checkpoint_evidence.get(
-                "legacy_checkpoint_metadata_status"
-            ),
-            "weight_deserialization_performed": checkpoint_evidence.get(
-                "weight_deserialization_performed", False
-            ),
-            "model_weights_loaded_into_v2_process": checkpoint_evidence.get(
-                "model_weights_loaded_into_v2_process", False
-            ),
-        },
+        "checkpoint_evidence_model_weights_load_verified": (
+            checkpoint_evidence_model_weights_load_verified
+        ),
+        "checkpoint_evidence": _checkpoint_evidence_summary(checkpoint_evidence),
         "hedge_status": "HEDGE_FAIL_CLOSED_PAPER_HEDGE_ENGINE_PENDING_CODEX_PASS",
         "live_gate": "blocked_human_only",
         "live_symbols": [],

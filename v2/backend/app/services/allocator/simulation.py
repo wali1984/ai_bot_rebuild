@@ -24,6 +24,8 @@ CONSERVATIVE_SPREAD_BPS = 2.0
 CONSERVATIVE_SLIPPAGE_BPS = 2.0
 CONSERVATIVE_VOLATILITY_BPS = 80.0
 CONSERVATIVE_MAINTENANCE_MARGIN_RATE = 0.005
+ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE = 70.0
+ALLOCATOR_MARKET_STATE_INTEGRITY_DEFAULT_SCORE = 70.0
 
 
 def _utc_now() -> str:
@@ -177,7 +179,10 @@ def _base_packet(
         "signed_read_status": "BLOCKED_OPERATOR_KEY_REQUIRED",
         "gross_notional_usd": 0.0,
         "target_notional_usd": 0.0,
+        "target_notional_usdt": 0.0,
+        "recommended_notional_usd": 0.0,
         "allocated_margin_usd": 0.0,
+        "risk_budget_usd": 0.0,
         "recommended_leverage": 0.0,
         "recommended_leverage_source": "adaptive_simulation",
         "recommended_margin_mode": "none",
@@ -221,11 +226,42 @@ def _usd_from_bps(*, notional: float | None, bps: float | None) -> float | None:
     return round(abs(notional) * abs(bps) / 10000.0, 8)
 
 
+def _market_state_integrity_evidence(
+    row: Mapping[str, Any],
+    prediction: Mapping[str, Any],
+) -> tuple[float, float | None, str, bool]:
+    explicit_integrity = _float(_value(row, prediction, "market_state_integrity_score"))
+    if explicit_integrity is not None:
+        score = explicit_integrity * 100.0 if explicit_integrity <= 1.0 else explicit_integrity
+        return score, None, "market_state_integrity_score", True
+
+    trust_score = _float(
+        _value(
+            row,
+            prediction,
+            "composite_microstructure_trust_score",
+            "microstructure_trust_score",
+        )
+    )
+    if trust_score is not None:
+        score = trust_score * 100.0 if trust_score <= 1.0 else trust_score
+        normalized_trust = trust_score if trust_score <= 1.0 else trust_score / 100.0
+        return score, normalized_trust, "microstructure_trust_score", True
+
+    return (
+        ALLOCATOR_MARKET_STATE_INTEGRITY_DEFAULT_SCORE,
+        None,
+        "allocator_default_missing_microstructure_evidence",
+        False,
+    )
+
+
 def _existing_packet(
     row: Mapping[str, Any],
     prediction: Mapping[str, Any],
     *,
     generated_utc: str,
+    recalculate_incomplete_existing_allocation: bool = False,
 ) -> dict[str, Any] | None:
     allocation = _as_dict(_first_present(row.get("allocation"), row.get("adaptive_allocation")))
     raw_decision = _first_present(
@@ -236,16 +272,28 @@ def _existing_packet(
     )
     if raw_decision is None or str(raw_decision).strip().upper() == "MISSING":
         return None
+    raw_decision_text = str(raw_decision).strip().upper()
     decision = _canonical_decision(raw_decision)
     notional = _float(
         _first_present(
+            row.get("recommended_notional_usd"),
             row.get("gross_notional_usd"),
             row.get("target_notional_usd"),
+            row.get("target_notional_usdt"),
+            allocation.get("recommended_notional_usd"),
             allocation.get("gross_notional_usd"),
             allocation.get("target_notional_usd"),
+            allocation.get("target_notional_usdt"),
             prediction.get("notional_usd"),
         )
     )
+    if (
+        recalculate_incomplete_existing_allocation
+        and decision == "PASS"
+        and raw_decision_text in {"ALLOW_WITH_SIZE", "ALLOW", "ALLOWED"}
+        and (notional is None or notional <= 0.0)
+    ):
+        return None
     liquidation_usd = _float(
         _first_present(
             row.get("liquidation_buffer_usd"),
@@ -285,10 +333,26 @@ def _existing_packet(
         reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_MISSING")
     elif expected_net <= 0.0:
         reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_NON_POSITIVE")
+    if notional is not None and notional <= 0.0:
+        reasons.append("ALLOCATOR_TARGET_NOTIONAL_USD_NON_POSITIVE")
+        if expected_net is not None and expected_net > 0.0:
+            expected_net = 0.0
+            reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_INVALID_WITH_ZERO_NOTIONAL")
     if reasons and decision == "PASS":
         decision = "REJECT"
     if decision in {"REJECT", "REDUCE_SIZE", "SHADOW_ONLY"} and not reasons:
         reasons.append(f"ALLOCATOR_{str(raw_decision).strip().upper() or decision}")
+    recommended_leverage = (
+        0.0
+        if decision == "REJECT"
+        else _float(_first_present(row.get("recommended_leverage"), allocation.get("recommended_leverage"))) or 0.0
+    )
+    allocated_margin = _float(_first_present(row.get("allocated_margin_usd"), allocation.get("allocated_margin_usd"))) or 0.0
+    if allocated_margin <= 0.0 and recommended_leverage > 0.0 and notional is not None and notional > 0.0:
+        allocated_margin = round(abs(notional) / recommended_leverage, 8)
+    risk_budget = _float(_first_present(row.get("risk_budget_usd"), allocation.get("risk_budget_usd")))
+    if risk_budget is None and max_loss is not None and max_loss > 0.0:
+        risk_budget = max_loss
     packet = _base_packet(row, prediction, generated_utc=generated_utc, decision=decision, block_reasons=reasons)
     packet.update(
         {
@@ -298,10 +362,11 @@ def _existing_packet(
             "available_margin_usd": _float(_first_present(row.get("available_margin_usd"), allocation.get("available_margin_usd"))),
             "gross_notional_usd": notional or 0.0,
             "target_notional_usd": notional or 0.0,
-            "allocated_margin_usd": _float(_first_present(row.get("allocated_margin_usd"), allocation.get("allocated_margin_usd"))) or 0.0,
-            "recommended_leverage": 0.0
-            if decision == "REJECT"
-            else _float(_first_present(row.get("recommended_leverage"), allocation.get("recommended_leverage"))) or 0.0,
+            "target_notional_usdt": notional or 0.0,
+            "recommended_notional_usd": notional or 0.0,
+            "allocated_margin_usd": allocated_margin,
+            "risk_budget_usd": risk_budget or 0.0,
+            "recommended_leverage": recommended_leverage,
             "recommended_margin_mode": _canonical_margin_mode(
                 _first_present(row.get("recommended_margin_mode"), allocation.get("recommended_margin_mode")),
                 decision=decision,
@@ -330,14 +395,61 @@ def _reject_packet(
     liquidation_buffer_usd: float | None = None,
 ) -> dict[str, Any]:
     packet = _base_packet(row, prediction, generated_utc=generated_utc, decision="REJECT", block_reasons=reasons)
+    notional = _float(
+        _value(
+            row,
+            prediction,
+            "target_notional_usd",
+            "gross_notional_usd",
+            "notional_usd",
+            "requested_notional_usdt",
+        )
+    )
+    expected_fees = _float(_value(row, prediction, "expected_fees_usd", "expected_fee_usd", "fees_usd"))
+    expected_slippage = _float(_value(row, prediction, "expected_slippage_usd", "slippage_usd"))
+    expected_funding = _float(_value(row, prediction, "expected_funding_usd", "funding_usd"))
+    expected_cost = sum(
+        component or 0.0
+        for component in (
+            expected_fees,
+            expected_slippage,
+            expected_funding,
+            _float(_value(row, prediction, "latency_reserve_usd")),
+            _float(_value(row, prediction, "liquidation_risk_reserve_usd")),
+            _float(_value(row, prediction, "exit_failure_reserve_usd")),
+        )
+    )
+    (
+        market_state_integrity_score,
+        microstructure_trust_score,
+        market_state_integrity_source,
+        market_state_integrity_evidence_present,
+    ) = _market_state_integrity_evidence(row, prediction)
     packet.update(
         {
             "decision_reason": "|".join(reasons) if reasons else "allocator_rejected",
+            "gross_notional_usd": notional or 0.0,
+            "target_notional_usd": notional or 0.0,
+            "target_notional_usdt": notional or 0.0,
+            "recommended_notional_usd": notional or 0.0,
+            "risk_budget_usd": 0.0,
             "expected_net_pnl_usd": expected_net_pnl_usd or 0.0,
+            "expected_fee_usd": expected_fees or 0.0,
+            "expected_fees_usd": expected_fees or 0.0,
+            "expected_slippage_usd": expected_slippage or 0.0,
+            "expected_funding_usd": expected_funding or 0.0,
+            "expected_cost_usd": round(expected_cost, 8),
             "max_loss_usd": max_loss_usd or 0.0,
             "expected_max_loss_usd": max_loss_usd or 0.0,
             "liquidation_buffer_usd": liquidation_buffer_usd or 0.0,
             "expected_liquidation_buffer_usd": liquidation_buffer_usd or 0.0,
+            "market_state_integrity_score": round(market_state_integrity_score, 8),
+            "market_state_integrity_minimum_score": ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+            "market_state_integrity_source": market_state_integrity_source,
+            "market_state_integrity_evidence_present": market_state_integrity_evidence_present,
+            "microstructure_trust_score": None
+            if microstructure_trust_score is None
+            else round(microstructure_trust_score, 8),
             "hedge_plan": simulate_hedge_plan(
                 candidate=packet,
                 primary_candidate_passed=False,
@@ -384,13 +496,19 @@ def build_allocator_simulation(
     account_state: Mapping[str, Any] | None = None,
     symbol_filters: Mapping[str, Any] | None = None,
     generated_utc: str | None = None,
+    recalculate_incomplete_existing_allocation: bool = False,
 ) -> dict[str, Any]:
     """Build a canonical allocator packet without live exchange mutation."""
     generated = generated_utc or _utc_now()
     prediction_map = _as_dict(prediction)
     account = _as_dict(account_state)
     filters = _as_dict(symbol_filters)
-    existing = _existing_packet(row, prediction_map, generated_utc=generated)
+    existing = _existing_packet(
+        row,
+        prediction_map,
+        generated_utc=generated,
+        recalculate_incomplete_existing_allocation=recalculate_incomplete_existing_allocation,
+    )
     if existing is not None:
         return existing
 
@@ -415,6 +533,14 @@ def build_allocator_simulation(
             "pre_trade_expected_net_pnl_usd",
         )
     )
+    if side == "long":
+        selected_side_net = _float(_value(row, prediction_map, "long_expected_net_pnl_usd", "expected_long_net_pnl_usd"))
+        if selected_side_net is not None:
+            expected_net = selected_side_net
+    elif side == "short":
+        selected_side_net = _float(_value(row, prediction_map, "short_expected_net_pnl_usd", "expected_short_net_pnl_usd"))
+        if selected_side_net is not None:
+            expected_net = selected_side_net
     max_loss = _float(
         _value(
             row,
@@ -439,6 +565,12 @@ def build_allocator_simulation(
             "close",
         )
     )
+    can_size_trade = _first_present(
+        row.get("can_size_trade"),
+        row.get("current_price_can_size_trade"),
+        prediction_map.get("can_size_trade"),
+        prediction_map.get("current_price_can_size_trade"),
+    )
     pre_trade_loss_probability = _float(_value(row, prediction_map, "pre_trade_loss_probability"))
     # Alt-data confluence context (carried on the row by preemptive edge
     # control). Fail-safe only: can block or shrink, never grow the size.
@@ -458,6 +590,8 @@ def build_allocator_simulation(
         reasons.append("ALLOCATOR_INPUT_SIDE_MISSING")
     if price is None or price <= 0.0:
         reasons.append("ALLOCATOR_INPUT_CURRENT_PRICE_MISSING")
+    elif can_size_trade is not None and not _bool(can_size_trade):
+        reasons.append("ALLOCATOR_CURRENT_PRICE_NOT_TRADE_SIZE_SAFE")
     if expected_net is not None and expected_net <= 0.0:
         reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_NON_POSITIVE")
     if pre_trade_loss_probability is None:
@@ -520,15 +654,20 @@ def build_allocator_simulation(
     liquidity_score = _float(_value(row, prediction_map, "liquidity_score", "market_liquidity_score"))
     if liquidity_score is None:
         liquidity_score = 0.50
-    microstructure_score = _float(_value(row, prediction_map, "microstructure_trust_score", "market_state_integrity_score"))
-    market_state_integrity_score = 100.0 * microstructure_score if microstructure_score is not None and microstructure_score <= 1.0 else microstructure_score
-    if market_state_integrity_score is None:
-        market_state_integrity_score = 70.0
+    (
+        market_state_integrity_score,
+        microstructure_score,
+        market_state_integrity_source,
+        market_state_integrity_evidence_present,
+    ) = _market_state_integrity_evidence(row, prediction_map)
     stop_distance_bps = _float(_value(row, prediction_map, "stop_distance_bps", "atr_stop_distance_bps"))
     maintenance_rate = _float(_value(row, prediction_map, "maintenance_margin_rate")) or CONSERVATIVE_MAINTENANCE_MARGIN_RATE
     min_qty = _float(_first_present(filters.get("min_qty"), row.get("min_qty")))
     step_size = _float(_first_present(filters.get("step_size"), row.get("step_size")))
     min_notional = _float(_first_present(filters.get("min_notional"), row.get("min_notional")))
+    allocator_edge_bps = edge_bps or 0.0
+    if side == "short" and allocator_edge_bps > 0.0:
+        allocator_edge_bps = -allocator_edge_bps
     row_input = AllocationInput(
         symbol=symbol,
         timeframe=timeframe,
@@ -538,7 +677,7 @@ def build_allocator_simulation(
         available_margin=shadow_available,
         wallet_balance=shadow_equity,
         confidence_calibrated=_float(_value(row, prediction_map, "confidence", "confidence_calibrated", "calibrated_confidence")) or 0.0,
-        expected_move_after_cost_bps=edge_bps or 0.0,
+        expected_move_after_cost_bps=allocator_edge_bps,
         market_state_integrity_score=market_state_integrity_score,
         volatility_bps=volatility_bps,
         liquidity_score=liquidity_score,
@@ -572,6 +711,8 @@ def build_allocator_simulation(
     )
     result = allocate_paper_candidate(row_input, RiskEnvelope())
     payload = result.to_payload()
+    gross_notional_payload = _float(payload.get("gross_notional_usd")) or 0.0
+    risk_budget_payload = _float(payload.get("risk_budget_usd")) or 0.0
     raw_decision = payload.get("allocator_decision")
     decision = _canonical_decision(raw_decision)
     block_reasons: list[str] = []
@@ -582,11 +723,28 @@ def build_allocator_simulation(
     liquidation_distance = _float(payload.get("liquidation_distance_usd"))
     max_loss_payload = _float(payload.get("max_loss_usd"))
     expected_net_payload = _float(payload.get("expected_net_pnl_usd"))
-    if liquidation_distance is None:
+    gross_notional_evidence = gross_notional_payload
+    if gross_notional_payload <= 0.0:
+        if notional is not None and notional > 0.0:
+            gross_notional_evidence = notional
+            block_reasons.append("ALLOCATOR_OUTPUT_SIZE_ZERO")
+        else:
+            block_reasons.append("ALLOCATOR_TARGET_NOTIONAL_USD_NON_POSITIVE")
+            if expected_net_payload is not None and expected_net_payload > 0.0:
+                expected_net_payload = 0.0
+                block_reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_INVALID_WITH_ZERO_NOTIONAL")
+    liquidation_distance_evidence = liquidation_distance if liquidation_distance is not None else liquidation_usd
+    max_loss_evidence = max_loss_payload if max_loss_payload is not None else max_loss
+    if (max_loss_evidence is None or max_loss_evidence <= 0.0) and max_loss is not None:
+        max_loss_evidence = max_loss
+    expected_net_evidence = expected_net_payload
+    if (expected_net_evidence is None or expected_net_evidence <= 0.0) and expected_net is not None:
+        expected_net_evidence = expected_net
+    if liquidation_distance_evidence is None:
         block_reasons.append("ALLOCATOR_LIQUIDATION_BUFFER_USD_MISSING")
-    if max_loss_payload is None:
+    if max_loss_evidence is None:
         block_reasons.append("ALLOCATOR_MAX_LOSS_USD_MISSING")
-    if expected_net_payload is not None and expected_net_payload <= 0.0:
+    if expected_net_evidence is not None and expected_net_evidence <= 0.0:
         block_reasons.append("ALLOCATOR_EXPECTED_NET_PNL_USD_NON_POSITIVE")
     if block_reasons and decision == "PASS":
         decision = "REJECT"
@@ -594,16 +752,16 @@ def build_allocator_simulation(
         candidate={
             "symbol": symbol,
             "side": side,
-            "target_notional_usd": payload.get("gross_notional_usd"),
-            "gross_notional_usd": payload.get("gross_notional_usd"),
+            "target_notional_usd": gross_notional_payload,
+            "gross_notional_usd": gross_notional_payload,
         },
         positions=account.get("current_positions") if isinstance(account.get("current_positions"), list) else (),
         equity_usd=shadow_equity,
         risk_budget_usd=_float(payload.get("risk_budget_usd")) or 0.0,
         hedge_budget_usd=_float(payload.get("hedge_budget_usd")) or 0.0,
-        max_loss_usd=max_loss_payload,
-        expected_net_pnl_usd=expected_net_payload,
-        liquidation_buffer_usd=liquidation_distance,
+        max_loss_usd=max_loss_evidence,
+        expected_net_pnl_usd=expected_net_evidence,
+        liquidation_buffer_usd=liquidation_distance_evidence,
         spread_bps=spread_bps,
         slippage_bps=slippage_bps,
         fee_bps=fee_bps,
@@ -612,7 +770,18 @@ def build_allocator_simulation(
         primary_candidate_passed=decision == "PASS",
         hedge_mode_supported=_bool(_first_present(account.get("hedge_mode"), account.get("dual_side_position"))),
     )
-    gross_notional = _float(payload.get("gross_notional_usd")) or 0.0
+    gross_notional = gross_notional_evidence
+    loss_probability_size_factor = 1.0
+    loss_probability_size_reasons: list[str] = []
+    if (
+        pre_trade_loss_probability is not None
+        and 0.60 <= pre_trade_loss_probability < 0.80
+        and gross_notional > 0.0
+    ):
+        loss_pressure = min(1.0, max(0.0, (pre_trade_loss_probability - 0.50) / 0.30))
+        loss_probability_size_factor = round(max(0.35, 1.0 - (0.55 * loss_pressure)), 8)
+        gross_notional = round(gross_notional * loss_probability_size_factor, 8)
+        loss_probability_size_reasons.append("PRE_TRADE_LOSS_PROBABILITY_ELEVATED_CONSERVATIVE_SIZING")
     altdata_size_factor = 1.0
     altdata_size_reasons: list[str] = []
     if altdata_reduce_score is not None and altdata_reduce_score >= 0.50:
@@ -632,6 +801,19 @@ def build_allocator_simulation(
         gross_notional = round(gross_notional * altdata_size_factor, 8)
     altdata_hedge_required = altdata_hedge_score is not None and altdata_hedge_score >= 0.50
     maintenance_margin = _float(payload.get("maintenance_margin_estimate_usd")) or gross_notional * maintenance_rate
+    recommended_leverage_evidence = _float(payload.get("recommended_leverage")) if decision != "REJECT" else 0.0
+    allocated_margin_evidence = _float(payload.get("allocated_margin_usd")) or 0.0
+    if recommended_leverage_evidence and recommended_leverage_evidence > 0.0 and gross_notional > 0.0:
+        allocated_margin_evidence = round(gross_notional / recommended_leverage_evidence, 8)
+    expected_fees_evidence = _float(payload.get("expected_fees_usd"))
+    if expected_fees_evidence is None or expected_fees_evidence == 0.0:
+        expected_fees_evidence = _float(_value(row, prediction_map, "expected_fees_usd", "expected_fee_usd", "fees_usd")) or 0.0
+    expected_slippage_evidence = _float(payload.get("expected_slippage_usd"))
+    if expected_slippage_evidence is None or expected_slippage_evidence == 0.0:
+        expected_slippage_evidence = _float(_value(row, prediction_map, "expected_slippage_usd", "slippage_usd")) or 0.0
+    expected_funding_evidence = _float(payload.get("expected_funding_usd"))
+    if expected_funding_evidence is None or expected_funding_evidence == 0.0:
+        expected_funding_evidence = _float(_value(row, prediction_map, "expected_funding_usd", "funding_usd")) or 0.0
     packet = _base_packet(
         row,
         prediction_map,
@@ -651,26 +833,38 @@ def build_allocator_simulation(
             "paper_simulation_available_margin_usd": round(shadow_available, 8),
             "gross_notional_usd": gross_notional,
             "target_notional_usd": gross_notional,
-            "allocated_margin_usd": _float(payload.get("allocated_margin_usd")) or 0.0,
-            "recommended_leverage": _float(payload.get("recommended_leverage")) if decision != "REJECT" else 0.0,
+            "target_notional_usdt": gross_notional,
+            "recommended_notional_usd": gross_notional,
+            "allocated_margin_usd": allocated_margin_evidence,
+            "risk_budget_usd": risk_budget_payload,
+            "recommended_leverage": recommended_leverage_evidence,
             "recommended_margin_mode": _canonical_margin_mode(payload.get("recommended_margin_mode"), decision=decision),
-            "max_loss_usd": max_loss_payload or 0.0,
-            "expected_max_loss_usd": max_loss_payload or 0.0,
-            "expected_net_pnl_usd": expected_net_payload or 0.0,
-            "expected_fee_usd": _float(payload.get("expected_fees_usd")) or 0.0,
-            "expected_fees_usd": _float(payload.get("expected_fees_usd")) or 0.0,
-            "expected_slippage_usd": _float(payload.get("expected_slippage_usd")) or 0.0,
-            "expected_funding_usd": _float(payload.get("expected_funding_usd")) or 0.0,
-            "liquidation_buffer_usd": liquidation_distance or 0.0,
-            "expected_liquidation_buffer_usd": liquidation_distance or 0.0,
-            "liquidation_buffer_pct": 0.0 if gross_notional <= 0.0 else round((liquidation_distance or 0.0) / gross_notional * 100.0, 8),
+            "max_loss_usd": max_loss_evidence or 0.0,
+            "expected_max_loss_usd": max_loss_evidence or 0.0,
+            "expected_net_pnl_usd": expected_net_evidence or 0.0,
+            "expected_fee_usd": expected_fees_evidence,
+            "expected_fees_usd": expected_fees_evidence,
+            "expected_slippage_usd": expected_slippage_evidence,
+            "expected_funding_usd": expected_funding_evidence,
+            "liquidation_buffer_usd": liquidation_distance_evidence or 0.0,
+            "expected_liquidation_buffer_usd": liquidation_distance_evidence or 0.0,
+            "liquidation_buffer_pct": 0.0 if gross_notional <= 0.0 else round((liquidation_distance_evidence or 0.0) / gross_notional * 100.0, 8),
             "maintenance_margin_usd": round(maintenance_margin, 8),
+            "market_state_integrity_score": round(market_state_integrity_score, 8),
+            "market_state_integrity_minimum_score": ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+            "market_state_integrity_source": market_state_integrity_source,
+            "market_state_integrity_evidence_present": market_state_integrity_evidence_present,
+            "microstructure_trust_score": None
+            if microstructure_score is None
+            else round(microstructure_score, 8),
             "estimated_liquidation_price": payload.get("liquidation_price_estimate"),
             "liquidation_price_estimate": payload.get("liquidation_price_estimate"),
-            "distance_to_liquidation_usd": liquidation_distance or 0.0,
-            "liquidation_distance_usd": liquidation_distance or 0.0,
+            "distance_to_liquidation_usd": liquidation_distance_evidence or 0.0,
+            "liquidation_distance_usd": liquidation_distance_evidence or 0.0,
             "hedge_required": bool(hedge_plan.get("hedge_required")) or altdata_hedge_required,
             "hedge_plan": hedge_plan,
+            "loss_probability_size_factor": loss_probability_size_factor,
+            "loss_probability_size_reasons": loss_probability_size_reasons,
             "altdata_hedge_required": altdata_hedge_required,
             "altdata_size_factor": altdata_size_factor,
             "altdata_size_reasons": altdata_size_reasons,

@@ -23,17 +23,17 @@ interface LiveGateRuntimePayload {
 
 function resolveGateChipClass(p: LiveGateRuntimePayload | null | undefined): string {
   if (!p) return 'chip solid-warn';
-  // Even if gate is operator-approved, treat as blocked when submit is not allowed
+  // Even if gate is approval-recorded, treat as blocked when submit is not allowed
   const submitOk = p.live_order_submit_allowed === true && p.live_blocked !== true && p.places_real_order !== false;
   return submitOk ? 'chip solid-live' : 'chip solid-block';
 }
 
 function resolveGateLabel(p: LiveGateRuntimePayload | null | undefined): string {
-  if (!p) return 'operator gated';
+  if (!p) return 'approval gated';
   if (p.live_order_submit_allowed === false || p.live_blocked === true) {
     return p.live_blocker ?? 'BLOCKED';
   }
-  return p.live_gate ?? 'operator gated';
+  return p.live_gate ?? 'approval gated';
 }
 
 interface ContractPageProps {

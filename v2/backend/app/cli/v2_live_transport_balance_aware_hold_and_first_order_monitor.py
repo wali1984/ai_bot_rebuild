@@ -9,14 +9,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import hmac
 import json
 import os
 import subprocess
 import sys
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -47,11 +43,15 @@ from v2.backend.app.cli.v2_exchange_filter_risk_profile_alignment_and_min_order_
 from v2.backend.app.services.all_timeframe_prediction_signal_price_target_publisher import (  # noqa: E402
     default_paths as signal_default_paths,
 )
+from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+)
 from v2.backend.app.services.live_gate.binance_live_order_transport import (  # noqa: E402
     KEY_STATUS,
     BinanceUsdMLiveOrderTransport,
+    BinanceUsdMWebSocketPrimaryTransport,
     _exchange_credentials_status,
-    _redact_response,
     evaluate_live_order_transport,
 )
 from v2.backend.app.services.live_gate.exchange_filter_sizing import min_executable_order  # noqa: E402
@@ -150,7 +150,10 @@ def _hash_payload(payload: Mapping[str, Any]) -> str:
     return "sha256:" + hashlib.sha256(encoded).hexdigest()
 
 
-def _account_margin_snapshot(repo_root: Path, transport: BinanceUsdMLiveOrderTransport) -> dict[str, Any]:
+def _account_margin_snapshot(
+    repo_root: Path,
+    transport: BinanceUsdMLiveOrderTransport | BinanceUsdMWebSocketPrimaryTransport,
+) -> dict[str, Any]:
     env_status = _exchange_credentials_status(repo_root / "v2/.env.local")
     public_credential_status = {k: v for k, v in env_status.items() if not str(k).startswith("_")}
     if not env_status.get("api_key_present") or not env_status.get("api_secret_present"):
@@ -193,9 +196,51 @@ def _account_margin_snapshot(repo_root: Path, transport: BinanceUsdMLiveOrderTra
     }
 
 
-def _open_orders_snapshot(repo_root: Path, transport: BinanceUsdMLiveOrderTransport) -> dict[str, Any]:
+def _read_open_orders_cache(redis_client: Any) -> tuple[list[Any] | None, str | None]:
+    if redis_client is None:
+        return None, None
+    for key in (
+        "v2:binance:user_data:open_orders",
+        "v2:binance:open_orders",
+        "v2:live:open_orders",
+        "v2:live_order_transport:open_orders",
+        "v2:account:open_orders",
+    ):
+        payload = redis_json(redis_client, key)
+        if isinstance(payload, list):
+            return payload, key
+        if isinstance(payload, Mapping):
+            for field in ("open_orders", "orders", "data"):
+                rows = payload.get(field)
+                if isinstance(rows, list):
+                    return rows, key
+    return None, None
+
+
+def _open_orders_snapshot(
+    repo_root: Path,
+    transport: BinanceUsdMLiveOrderTransport | BinanceUsdMWebSocketPrimaryTransport,
+    *,
+    redis_client: Any = None,
+) -> dict[str, Any]:
     env_status = _exchange_credentials_status(repo_root / "v2/.env.local")
     public_credential_status = {k: v for k, v in env_status.items() if not str(k).startswith("_")}
+    cached_orders, cache_key = _read_open_orders_cache(redis_client)
+    if cached_orders is not None:
+        return {
+            "schema_version": "live_transport_open_orders_snapshot_v1",
+            "generated_est": est_now(),
+            "status": "OPEN_ORDERS_READ_OK",
+            "ok": True,
+            "credential_status": public_credential_status,
+            "endpoint": "USER_DATA_STREAM_OPEN_ORDER_CACHE",
+            "source_key": cache_key,
+            "transport": "websocket_user_data_stream_cache_primary",
+            "rest_fallback_used": False,
+            "open_orders_count": len([item for item in cached_orders if isinstance(item, Mapping)]),
+            "raw_credentials_exposed": False,
+            "raw_open_orders_payload_exposed": False,
+        }
     if not env_status.get("api_key_present") or not env_status.get("api_secret_present"):
         return {
             "schema_version": "live_transport_open_orders_snapshot_v1",
@@ -203,54 +248,74 @@ def _open_orders_snapshot(repo_root: Path, transport: BinanceUsdMLiveOrderTransp
             "status": "BINANCE_CREDENTIALS_MISSING",
             "ok": False,
             "credential_status": public_credential_status,
-            "endpoint": "GET /fapi/v1/openOrders",
+            "endpoint": "USER_DATA_STREAM_OPEN_ORDER_CACHE_REQUIRED",
+            "rest_fallback_endpoint": "GET /fapi/v1/openOrders",
+            "transport": "websocket_user_data_stream_cache_primary",
+            "rest_fallback_used": False,
             "open_orders_count": None,
             "raw_credentials_exposed": False,
             "raw_open_orders_payload_exposed": False,
         }
-    params = {"timestamp": str(transport._clock_ms()), "recvWindow": "5000"}
-    body = urllib.parse.urlencode(params)
-    signature = hmac.new(
-        str(env_status["_api_secret"]).encode("utf-8"),
-        body.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    request = urllib.request.Request(
-        f"{transport.base_url}/fapi/v1/openOrders?{body}&signature={signature}",
-        headers={"X-MBX-APIKEY": str(env_status["_api_key"]), "User-Agent": "v2-live-order-transport/1.0"},
-        method="GET",
-    )
-    try:
-        with transport._urlopen(request, timeout=8.0) as response:
-            response_text = response.read().decode("utf-8", errors="replace")
-            status_code = int(getattr(response, "status", 200))
-            payload = json.loads(response_text)
-    except urllib.error.HTTPError as exc:
-        response_text = exc.read().decode("utf-8", errors="replace")
+    fetch_open_orders = getattr(transport, "fetch_open_orders", None)
+    if callable(fetch_open_orders):
+        raw = fetch_open_orders(
+            api_key=str(env_status["_api_key"]),
+            api_secret=str(env_status["_api_secret"]),
+        )
+        if raw.get("ok") is True:
+            public = {k: v for k, v in raw.items() if not str(k).startswith("_")}
+            return {
+                "schema_version": "live_transport_open_orders_snapshot_v1",
+                "generated_est": est_now(),
+                "status": "OPEN_ORDERS_READ_OK",
+                "ok": True,
+                "credential_status": public_credential_status,
+                "endpoint": raw.get("endpoint") or "WS openOrders.status",
+                "websocket_api_url": raw.get("websocket_api_url"),
+                "transport": raw.get("transport") or "websocket_api_primary",
+                "source": raw.get("source") or "binance_ws_api_signed_readonly",
+                "rest_fallback_endpoint": "GET /fapi/v1/openOrders",
+                "rest_fallback_used": False,
+                "open_orders_count": raw.get("open_orders_count"),
+                "transport_public_open_orders_status": public,
+                "raw_credentials_exposed": False,
+                "raw_open_orders_payload_exposed": False,
+            }
+        if not binance_rest_fallback_allowed():
+            public = {k: v for k, v in raw.items() if not str(k).startswith("_")}
+            return {
+                "schema_version": "live_transport_open_orders_snapshot_v1",
+                "generated_est": est_now(),
+                "status": "OPEN_ORDERS_READ_BLOCKED_WEBSOCKET_PRIMARY_REST_FALLBACK_DISABLED",
+                "ok": False,
+                "credential_status": public_credential_status,
+                "endpoint": raw.get("endpoint") or "WS openOrders.status",
+                "websocket_api_url": raw.get("websocket_api_url"),
+                "transport": raw.get("transport") or "websocket_api_primary",
+                "source": raw.get("source") or "binance_ws_api_signed_readonly",
+                "status_code": raw.get("status_code"),
+                "error_type": raw.get("error_type"),
+                "response_redacted": raw.get("response_redacted"),
+                "rest_fallback_endpoint": "GET /fapi/v1/openOrders",
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "rest_fallback_used": False,
+                "open_orders_count": None,
+                "transport_public_open_orders_status": public,
+                "raw_credentials_exposed": False,
+                "raw_open_orders_payload_exposed": False,
+            }
+    if not binance_rest_fallback_allowed():
         return {
             "schema_version": "live_transport_open_orders_snapshot_v1",
             "generated_est": est_now(),
-            "status": "OPEN_ORDERS_READ_BLOCKED",
+            "status": "OPEN_ORDERS_READ_BLOCKED_WEBSOCKET_PRIMARY_REST_FALLBACK_DISABLED",
             "ok": False,
             "credential_status": public_credential_status,
-            "endpoint": "GET /fapi/v1/openOrders",
-            "status_code": int(exc.code),
-            "error_type": "HTTPError",
-            "response_redacted": _redact_response(response_text),
-            "open_orders_count": None,
-            "raw_credentials_exposed": False,
-            "raw_open_orders_payload_exposed": False,
-        }
-    except Exception as exc:
-        return {
-            "schema_version": "live_transport_open_orders_snapshot_v1",
-            "generated_est": est_now(),
-            "status": "OPEN_ORDERS_READ_BLOCKED",
-            "ok": False,
-            "credential_status": public_credential_status,
-            "endpoint": "GET /fapi/v1/openOrders",
-            "status_code": None,
-            "error_type": type(exc).__name__,
+            "endpoint": "USER_DATA_STREAM_OPEN_ORDER_CACHE_REQUIRED",
+            "rest_fallback_endpoint": "GET /fapi/v1/openOrders",
+            "required_env": f"{REST_FALLBACK_ENV}=true",
+            "transport": "websocket_user_data_stream_cache_primary",
+            "rest_fallback_used": False,
             "open_orders_count": None,
             "raw_credentials_exposed": False,
             "raw_open_orders_payload_exposed": False,
@@ -258,12 +323,15 @@ def _open_orders_snapshot(repo_root: Path, transport: BinanceUsdMLiveOrderTransp
     return {
         "schema_version": "live_transport_open_orders_snapshot_v1",
         "generated_est": est_now(),
-        "status": "OPEN_ORDERS_READ_OK" if 200 <= status_code < 300 and isinstance(payload, list) else "OPEN_ORDERS_READ_BLOCKED",
-        "ok": 200 <= status_code < 300 and isinstance(payload, list),
+        "status": "OPEN_ORDERS_READ_BLOCKED_REST_FALLBACK_REQUIRES_TRANSPORT_METHOD",
+        "ok": False,
         "credential_status": public_credential_status,
-        "endpoint": "GET /fapi/v1/openOrders",
-        "status_code": status_code,
-        "open_orders_count": len(payload) if isinstance(payload, list) else None,
+        "endpoint": "USER_DATA_STREAM_OR_WS_OPEN_ORDERS_REQUIRED",
+        "rest_fallback_endpoint": "GET /fapi/v1/openOrders",
+        "required_transport_method": "fetch_open_orders",
+        "transport": "websocket_primary_rest_fallback_blocked",
+        "rest_fallback_used": False,
+        "open_orders_count": None,
         "raw_credentials_exposed": False,
         "raw_open_orders_payload_exposed": False,
     }
@@ -423,7 +491,14 @@ def _classify_api_read(*, ok: Any, status_code: Any, error_type: Any = None, res
 
 def _connectivity_classification(status_text: Any) -> str:
     text = str(status_text or "")
-    if text in {"OK", "HTTP_200", "READY"}:
+    if text in {
+        "OK",
+        "READY",
+        "WEBSOCKET_PRIMARY_READY",
+        "SIGNED_WS_READ_EXECUTED",
+        "WS_API_OK",
+        "HTTP_200",
+    }:
         return "API_OK"
     if text == "HTTP_451" or "451" in text:
         return "API_RESTRICTED_LOCATION_451"
@@ -508,7 +583,7 @@ def build_signed_read_classification_status(
 
     rows = [
         _classification_row(
-            endpoint="GET /fapi/v3/account",
+            endpoint=str(account_margin.get("endpoint") or "WS account.status"),
             request_type="account info / balance",
             classification=account_classification,
             ok=account_margin.get("ok") is True,
@@ -522,7 +597,7 @@ def build_signed_read_classification_status(
             },
         ),
         _classification_row(
-            endpoint="GET /fapi/v1/positionSide/dual",
+            endpoint=str(position_mode.get("endpoint") or "WS account.position"),
             request_type="position mode",
             classification=position_mode_classification,
             ok=position_mode.get("ok") is True,
@@ -532,7 +607,7 @@ def build_signed_read_classification_status(
             detail={"dual_side_position": position_mode.get("dual_side_position")},
         ),
         _classification_row(
-            endpoint="GET /fapi/v2/positionRisk",
+            endpoint=str(connectivity.get("position_read_endpoint") or "WS account.position"),
             request_type="positions / margin mode read-only / leverage read-only",
             classification=position_risk_classification,
             ok=position_risk_classification == "API_OK",
@@ -546,7 +621,7 @@ def build_signed_read_classification_status(
             },
         ),
         _classification_row(
-            endpoint="GET /fapi/v3/account",
+            endpoint=str(connectivity.get("account_read_endpoint") or "WS account.status"),
             request_type="account probe cross-check",
             classification=account_probe_classification,
             ok=account_probe_classification == "API_OK",
@@ -556,7 +631,7 @@ def build_signed_read_classification_status(
             detail={"account_summary_redacted": connectivity.get("account_summary_redacted") or {}},
         ),
         _classification_row(
-            endpoint="GET /fapi/v1/openOrders",
+            endpoint=str(open_orders.get("endpoint") or "WS openOrders.status"),
             request_type="open orders read-only",
             classification=open_orders_classification,
             ok=open_orders.get("ok") is True,
@@ -2146,7 +2221,11 @@ def run_once(
 ) -> dict[str, Any]:
     os.environ["V2_REPO_ROOT"] = str(repo_root)
     redis_client = connect_redis()
-    transport = BinanceUsdMLiveOrderTransport()
+    rest_metadata_transport = BinanceUsdMLiveOrderTransport()
+    transport = BinanceUsdMWebSocketPrimaryTransport(
+        rest_metadata_transport=rest_metadata_transport,
+        redis_client=redis_client,
+    )
     generated_est = est_now()
 
     runtime_heartbeat = refresh_runtime_execution_state_heartbeat(repo_root=repo_root, redis_client=redis_client)
@@ -2179,7 +2258,7 @@ def run_once(
         "execution_live_symbols": runtime_payload.get("execution_live_symbols") or [],
     }
     account_margin = _account_margin_snapshot(repo_root, transport)
-    open_orders = _open_orders_snapshot(repo_root, transport)
+    open_orders = _open_orders_snapshot(repo_root, transport, redis_client=redis_client)
     fallback_context = _candidate_from_previous_artifacts(repo_root)
     pre_submit = evaluate_live_order_transport(
         repo_root=repo_root,

@@ -116,8 +116,10 @@ export function TradeIntelligenceBar({ state }: { state: TradeTerminalState }): 
   const sig = state.signal;
   const hasSignal = sig.direction !== 'Signal connecting';
   const sigSide = hasSignal ? String(sig.direction).toUpperCase() : '—';
-  const sigConf = sig.confidence !== null ? formatPercent(sig.confidence) : '—';
-  const sigDetail = hasSignal ? `${state.symbol} · Floor ${formatPercent(state.signal.confidence)}` : 'No active signal';
+  const sigConf = sig.executableConfidence !== null ? formatPercent(sig.executableConfidence) : '—';
+  const sigDetail = hasSignal
+    ? `${state.symbol} · ${sig.confidenceLabel} · selected ${formatPercent(state.signal.selectedConfidence)}`
+    : 'No active signal';
 
   const gateLabel = pipeline?.live_gate ?? risk?.live_gate ?? '—';
   const gateDisplay = gateLabel.replace(/_/g, ' ').toUpperCase();
@@ -149,7 +151,7 @@ export function TradeIntelligenceBar({ state }: { state: TradeTerminalState }): 
       )}
       {pill(
         gateTone(pipeline?.live_gate ?? risk?.live_gate),
-        'Live Gate',
+        'Execution Guard',
         gateDisplay,
         risk?.verdict ? risk.verdict.replace(/_/g, ' ').slice(0, 38) : 'Risk gate status',
       )}

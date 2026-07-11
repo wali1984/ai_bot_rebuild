@@ -21,6 +21,16 @@ const anonymousAuthContext: AuthContextValue = {
   logout: async () => undefined,
 };
 
+function shouldSkipInitialAuthProbe(): boolean {
+  if (typeof window === 'undefined') return false;
+  const pathname = window.location.pathname;
+  return pathname === '/'
+    || pathname === '/landing'
+    || pathname === '/login'
+    || pathname === '/status'
+    || pathname === '/status-simple';
+}
+
 export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +44,10 @@ export function AuthProvider({ children }: { children: ReactNode }): JSX.Element
   }, []);
 
   useEffect(() => {
+    if (shouldSkipInitialAuthProbe()) {
+      setLoading(false);
+      return;
+    }
     void refresh();
   }, [refresh]);
 

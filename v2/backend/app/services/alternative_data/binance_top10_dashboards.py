@@ -47,6 +47,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Sequence
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_decision,
+    binance_rest_fallback_allowed,
+)
+
 V2_REDIS_PREFIX = "v2:"
 DASHBOARD_KEY_PREFIX = "v2:dashboards:binance_top10:"
 
@@ -294,6 +300,19 @@ def write_heartbeat_payload(redis_client: Any, payload: dict[str, Any]) -> bool:
 def _default_http_get(
     url: str, headers: dict[str, str], timeout: float
 ) -> tuple[int, Any]:  # pragma: no cover - real HTTP not exercised in tests
+    if "binance.com" in url:
+        fallback = binance_rest_fallback_decision(
+            endpoint=url,
+            fallback_reason="binance_top10_dashboard_websocket_cache_missing",
+            role="binance_top10_dashboard_public_ticker_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return 0, {
+                "error": "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                "blocked_reason": fallback["rest_fallback_blocked_reason"],
+                "required_env": f"{REST_FALLBACK_ENV}=true",
+                "rest_used_as_primary": False,
+            }
     import urllib.error
     import urllib.request
 

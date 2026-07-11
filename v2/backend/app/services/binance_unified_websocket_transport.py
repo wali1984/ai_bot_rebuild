@@ -49,6 +49,8 @@ _INITIAL_TRADER_ID_ENV = "ALPHAFORGE_INITIAL_TRADER_ID"
 _INITIAL_CREDENTIAL_REF_ENV = "ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF"
 
 _SECRET_FIELD_TOKENS = ("key", "secret", "signature")
+REST_FALLBACK_ENV = "BINANCE_REST_FALLBACK_ALLOWED"
+REST_FALLBACK_ALLOWED_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 @dataclass(frozen=True)
@@ -112,6 +114,55 @@ def binance_ws_api_url() -> str:
     return BINANCE_USDM_WS_API_URL
 
 
+def binance_rest_fallback_allowed() -> bool:
+    return os.environ.get(REST_FALLBACK_ENV, "").strip().lower() in REST_FALLBACK_ALLOWED_VALUES
+
+
+def binance_rest_fallback_decision(
+    *,
+    endpoint: str,
+    fallback_reason: str | None,
+    role: str = "public_market_data_or_signed_read_recovery",
+) -> dict[str, Any]:
+    reason = str(fallback_reason or "").strip()
+    allowed = binance_rest_fallback_allowed() and bool(reason)
+    blocked_reason = None
+    if not reason:
+        blocked_reason = "REST_FALLBACK_REASON_REQUIRED_WEBSOCKET_PRIMARY"
+    elif not binance_rest_fallback_allowed():
+        blocked_reason = f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
+    return {
+        "endpoint": endpoint,
+        "transport": "rest_fallback" if allowed else "rest_fallback_blocked_websocket_primary",
+        "transport_role": "fallback_only",
+        "primary_transport": "websocket",
+        "role": role,
+        "rest_fallback_allowed": allowed,
+        "rest_fallback_env": REST_FALLBACK_ENV,
+        "rest_fallback_reason": reason or None,
+        "rest_fallback_blocked_reason": blocked_reason,
+        "required_env": f"{REST_FALLBACK_ENV}=true",
+        "request_allowed": allowed,
+        "rest_used_as_primary": False,
+    }
+
+
+def require_binance_rest_fallback(
+    *,
+    endpoint: str,
+    fallback_reason: str | None,
+    role: str = "public_market_data_or_signed_read_recovery",
+) -> dict[str, Any]:
+    decision = binance_rest_fallback_decision(
+        endpoint=endpoint,
+        fallback_reason=fallback_reason,
+        role=role,
+    )
+    if not decision["request_allowed"]:
+        raise RuntimeError(str(decision["rest_fallback_blocked_reason"]))
+    return decision
+
+
 def transport_policy_snapshot() -> dict[str, Any]:
     return {
         "schema_version": "binance_unified_websocket_transport_policy_v1",
@@ -119,7 +170,12 @@ def transport_policy_snapshot() -> dict[str, Any]:
         "market_data_base_url": BINANCE_USDM_MARKET_STREAM_URL,
         "trading_private_primary": "binance_usdm_websocket_api",
         "trading_websocket_api_url": binance_ws_api_url(),
-        "signed_account_read_primary_methods": ["account.status", "account.position"],
+        "signed_account_read_primary_methods": [
+            "account.status",
+            "account.balance",
+            "account.position",
+            "openOrders.status",
+        ],
         "order_place_method": "order.place",
         "cancel_modify_methods_available_but_disabled": ["order.cancel", "order.modify"],
         "cancel_modify_enabled": False,
@@ -127,6 +183,15 @@ def transport_policy_snapshot() -> dict[str, Any]:
         "leverage_margin_mutation_enabled": False,
         "rest_fallback_enabled_for_order_submit": False,
         "public_market_data_rest_backup": "enabled_only_when_wss_cache_missing_or_stale",
+        "rest_fallback_requires_env_flag": f"{REST_FALLBACK_ENV}=true",
+        "rest_fallback_currently_allowed": binance_rest_fallback_allowed(),
+        "rest_fallback_contract": (
+            "every Binance REST call must be reached only after WebSocket/cache "
+            "failure and must provide an explicit fallback_reason"
+        ),
+        "account_and_trader_rest_polling_allowed": False,
+        "account_and_trader_signed_rest_fallback_supported": False,
+        "account_and_trader_signed_read_failure_behavior": "block_readiness_until_websocket_api_or_user_data_cache_recovers",
         "public_symbol_metadata_rest_fallback": "exchangeInfo_only",
         "official_github_sdk_package": "binance-sdk-derivatives-trading-usds-futures",
         "operator_time_zone": "America/New_York",
@@ -239,6 +304,11 @@ def _default_public_rest_get_json(
     *,
     timeout: float = 8.0,
 ) -> Any:
+    require_binance_rest_fallback(
+        endpoint=path,
+        fallback_reason="websocket_market_cache_missing_or_stale",
+        role="public_market_data_recovery",
+    )
     url = f"{BINANCE_USDM_REST_BASE_URL}{path}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(  # noqa: S310 - fixed Binance HTTPS base URL.
         url,
@@ -543,6 +613,29 @@ class BinanceUnifiedMarketDataClient:
     ) -> UnifiedMarketDataSnapshot:
         generated = est_now_iso()
         errors = [f"wss_primary_unavailable:{wss_reason}"]
+        if not binance_rest_fallback_allowed():
+            errors.append(f"binance_usdm_rest_backup_blocked:{REST_FALLBACK_ENV}_not_true")
+            return UnifiedMarketDataSnapshot(
+                symbol=symbol,
+                timeframe=timeframe,
+                price=None,
+                source_type="MISSING_EVIDENCE",
+                source="binance_usdm_rest_backup_blocked_websocket_primary",
+                source_pointer="/fapi/v1/ticker/price + /fapi/v1/klines",
+                generated_at=generated,
+                generated_est=generated,
+                last_event_at=None,
+                last_event_est=None,
+                last_event_ms=None,
+                age_seconds=None,
+                freshness_state="MISSING",
+                errors=errors,
+                candles=[],
+                wss_cache_used=False,
+                wss_cache_reason=wss_reason,
+                rest_backup_used=False,
+                rest_backup_reason=f"{REST_FALLBACK_ENV}_not_true",
+            )
         try:
             ticker = self.rest_get_json("/fapi/v1/ticker/price", {"symbol": symbol})
             raw_klines = self.rest_get_json(

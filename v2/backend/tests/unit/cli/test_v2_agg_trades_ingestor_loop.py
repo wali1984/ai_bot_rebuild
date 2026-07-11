@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+
 from v2.backend.app.cli import v2_agg_trades_ingestor_loop as ingestor
+from v2.backend.app.services.trade_tape.service import BinanceAggTradesBatchFetchResult
 
 
 def _trade(ts_ms: int, price: float, qty: float, buyer_is_maker: bool) -> dict:
@@ -67,6 +70,26 @@ def test_run_cycle_writes_agg_and_feature_keys(monkeypatch) -> None:
     fake = FakeRedis()
     monkeypatch.setattr(ingestor, "_universe", lambda client: ["AAAUSDT", "BBBUSDT"])
     monkeypatch.setattr(ingestor, "_priority_symbols", lambda client: ["BTCUSDT"])
+
+    def fake_batch(symbols, limit):
+        del limit
+        return BinanceAggTradesBatchFetchResult(
+            symbols=list(symbols),
+            trades_by_symbol={
+                symbol: [_trade(BASE, 100.0, 1.0, False)]
+                for symbol in symbols
+            },
+            source=ingestor.WEBSOCKET_PRIMARY_SOURCE,
+            transport="websocket_batch",
+            websocket_primary=True,
+            fallback_used=False,
+            fallback_reason=None,
+            rest_fallback_allowed=False,
+            websocket_url="wss://fstream.binance.com/market/stream?streams=test",
+            symbol_errors={},
+        )
+
+    monkeypatch.setattr(ingestor, "_fetch_agg_trades_batch", fake_batch)
     monkeypatch.setattr(
         ingestor,
         "_fetch_agg_trades",
@@ -74,6 +97,10 @@ def test_run_cycle_writes_agg_and_feature_keys(monkeypatch) -> None:
     )
     status = ingestor.run_cycle(client=fake, symbols_per_cycle=2, limit=100, ttl_seconds=60)
     assert status["symbols_written"] == 2
+    assert status["transport_policy"] == "binance_public_agg_trade_websocket_primary_rest_fallback_only"
+    assert status["websocket_batch_enabled"] is True
+    assert status["websocket_batch_status"]["symbols_with_trades"] == 2
+    assert status["source_counts"][ingestor.WEBSOCKET_PRIMARY_SOURCE] == 2
     assert "v2:market:agg_trades:BTCUSDT" in fake.store
     assert "v2:market:trade_tape_features:BTCUSDT" in fake.store
     assert status["places_real_order"] is False
@@ -98,6 +125,58 @@ def test_run_cycle_records_fetch_failures(monkeypatch) -> None:
     monkeypatch.setattr(ingestor, "_universe", lambda client: [])
     monkeypatch.setattr(ingestor, "_priority_symbols", lambda client: ["BTCUSDT"])
     monkeypatch.setattr(ingestor, "_fetch_agg_trades", boom)
-    status = ingestor.run_cycle(client=fake, symbols_per_cycle=1, limit=100, ttl_seconds=60)
+    status = ingestor.run_cycle(
+        client=fake,
+        symbols_per_cycle=1,
+        limit=100,
+        ttl_seconds=60,
+        websocket_batch=False,
+    )
     assert status["symbols_written"] == 0
+    assert status["websocket_batch_enabled"] is False
     assert "BTCUSDT" in status["symbols_failed"]
+
+
+def test_run_cycle_writes_empty_websocket_tape_for_quiet_symbol(monkeypatch) -> None:
+    class FakeRedis:
+        def __init__(self) -> None:
+            self.store: dict[str, str] = {}
+
+        def get(self, key: str):
+            return self.store.get(key)
+
+        def set(self, key: str, value: str, ex: int | None = None):
+            del ex
+            self.store[key] = value
+
+    fake = FakeRedis()
+    monkeypatch.setattr(ingestor, "_universe", lambda client: [])
+    monkeypatch.setattr(ingestor, "_priority_symbols", lambda client: ["QUIETUSDT"])
+    monkeypatch.setattr(
+        ingestor,
+        "_fetch_agg_trades_batch",
+        lambda symbols, limit: BinanceAggTradesBatchFetchResult(
+            symbols=list(symbols),
+            trades_by_symbol={"QUIETUSDT": []},
+            source=ingestor.WEBSOCKET_PRIMARY_SOURCE,
+            transport="websocket_batch",
+            websocket_primary=True,
+            fallback_used=False,
+            fallback_reason=None,
+            rest_fallback_allowed=False,
+            websocket_url="wss://fstream.binance.com/market/stream?streams=quietusdt@aggTrade",
+            symbol_errors={"QUIETUSDT": "NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT"},
+        ),
+    )
+
+    status = ingestor.run_cycle(client=fake, symbols_per_cycle=1, limit=100, ttl_seconds=60)
+
+    assert status["symbols_written"] == 1
+    assert status["symbols_failed"] == {}
+    assert status["symbols_without_websocket_tape"] == {
+        "QUIETUSDT": "NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT"
+    }
+    payload = json.loads(fake.store["v2:market:trade_tape_features:QUIETUSDT"])
+    assert payload["source"] == ingestor.WEBSOCKET_PRIMARY_SOURCE
+    assert payload["trade_tape_confirmation_state"] == "INSUFFICIENT_TAPE_DATA"
+    assert payload["empty_tape_reason"] == "NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT"

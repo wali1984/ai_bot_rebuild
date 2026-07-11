@@ -88,17 +88,24 @@ export function TradeSystemPanel({ state }: { state: TradeTerminalState }): JSX.
       <SectionHead title="Active Signal" badge={state.signal.direction !== 'Signal connecting' ? 'LIVE' : 'NONE'} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : undefined} />
       <Row label="Symbol" value={state.symbol} />
       <Row label="AI Direction" value={String(state.signal.direction).toUpperCase()} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : 'neutral'} />
-      <Row label="Confidence" value={state.signal.confidence !== null ? `${((state.signal.confidence as number) * 100).toFixed(1)}%` : '—'} />
+      <Row
+        label="Executable Confidence"
+        value={state.signal.executableConfidence !== null ? `${((state.signal.executableConfidence as number) * 100).toFixed(1)}%` : '—'}
+      />
+      <Row
+        label="Selected Confidence"
+        value={state.signal.selectedConfidence !== null ? `${((state.signal.selectedConfidence as number) * 100).toFixed(1)}% · ${state.signal.confidenceLabel}` : '—'}
+      />
       <Row label="Risk Decision" value={tradeCopy(state.signal.riskDecision)} tone={String(state.signal.riskDecision).includes('allow') ? 'ok' : String(state.signal.riskDecision).includes('connecting') ? 'neutral' : 'warn'} />
       <Row label="Signal Source" value={state.signal.source} />
 
       {/* Orchestrator / Pipeline */}
       <SectionHead
         title="Orchestrator / Pipeline"
-        badge={pLoading ? 'Loading…' : p ? 'CONNECTED' : 'CONNECTING'}
+        badge={pLoading ? 'Loading…' : p ? 'CONNECTED' : 'Pending'}
         tone={p ? 'ok' : 'warn'}
       />
-      <Row label="Live Gate" value={p?.live_gate?.replace(/_/g, ' ').toUpperCase() ?? '—'} tone={gateTone} />
+      <Row label="Execution Guard" value={p?.live_gate?.replace(/_/g, ' ').toUpperCase() ?? '—'} tone={gateTone} />
       <Row label="Gate Source" value={p?.live_gate_runtime_source ?? '—'} />
       <Row label="Execution" value={p?.trader_execution_enabled ? 'ENABLED' : 'DISABLED'} tone={p?.trader_execution_enabled ? 'ok' : 'block'} />
       <Row label="Symbols in Scope" value={p?.symbols?.length != null ? String(p.symbols.length) : '—'} />
@@ -111,7 +118,7 @@ export function TradeSystemPanel({ state }: { state: TradeTerminalState }): JSX.
       {/* Risk Gate */}
       <SectionHead
         title="Risk Gate"
-        badge={rLoading ? 'Loading…' : r?.live_gate ? r.live_gate.replace(/_/g, ' ').toUpperCase() : 'CONNECTING'}
+        badge={rLoading ? 'Loading…' : r?.live_gate ? r.live_gate.replace(/_/g, ' ').toUpperCase() : 'Pending'}
         tone={gateOpen ? 'ok' : 'block'}
       />
       <Row label="Go / No-Go" value={r?.go_no_go?.replace(/_/g, ' ') ?? '—'} tone={gateOpen ? 'ok' : 'block'} />

@@ -31,7 +31,7 @@ interface Props {
 export function ServiceHealthGrid({ services, loading = false }: Props): JSX.Element {
   if (loading) {
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 10 }}>
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
@@ -58,7 +58,7 @@ export function ServiceHealthGrid({ services, loading = false }: Props): JSX.Ele
   return (
     <div
       data-testid="service-health-grid"
-      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}
+      style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 10 }}
     >
       {services.map((svc) => {
         const color = STATUS_COLOR[svc.status] ?? 'var(--text-muted)';

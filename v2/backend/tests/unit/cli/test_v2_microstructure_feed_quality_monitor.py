@@ -211,6 +211,114 @@ def test_microstructure_monitor_uses_binance_event_and_transaction_timestamp_ali
     assert "LOCAL_LATENCY_MISSING" not in (trust.get("feed_quality_fail_reasons") or [])
 
 
+def test_microstructure_context_reads_binance_and_coinglass_derivatives_aliases() -> None:
+    fake = FakeRedis(
+        {
+            "v2:market:long_short:BTCUSDT": {
+                "longShortRatio": "1.5740",
+            },
+            "v2:market:funding:BTCUSDT": {
+                "lastFundingRate": "0.00006622",
+            },
+            "v2:features:coinglass:BTCUSDT:1m": {
+                "features": {
+                    "coinglass_open_interest_delta_usd_5m": -100.0,
+                    "coinglass_open_interest_usd": 10000.0,
+                }
+            },
+        }
+    )
+
+    ctx = monitor._read_context(fake, "BTCUSDT", "1m")
+
+    assert ctx["long_short_ratio"] == 1.574
+    assert ctx["funding_rate"] == 0.00006622
+    assert ctx["open_interest_change_pct"] == -0.01
+
+
+def test_microstructure_context_derives_open_interest_change_from_hist() -> None:
+    fake = FakeRedis(
+        {
+            "v2:market:long_short:ALICEUSDT": {
+                "long_short_ratio": 1.2,
+            },
+            "v2:market:funding:ALICEUSDT": {
+                "lastFundingRate": "0.00005",
+            },
+            "v2:market:open_interest_hist:ALICEUSDT:5m": [
+                {"sumOpenInterest": "1000", "timestamp": 1_780_000_000_000},
+                {"sumOpenInterest": "1050", "timestamp": 1_780_000_300_000},
+            ],
+        }
+    )
+
+    ctx = monitor._read_context(fake, "ALICEUSDT", "1m")
+
+    assert ctx["long_short_ratio"] == 1.2
+    assert ctx["funding_rate"] == 0.00005
+    assert ctx["open_interest_change_pct"] == 0.05
+
+
+def test_combined_feed_quality_does_not_fail_close_on_secondary_latency_warning() -> None:
+    out = monitor._combine_feed_quality(
+        [
+            {
+                "exchange": "binance",
+                "feed_quality_score": 0.92,
+                "latency_ms": 96,
+                "local_latency_ms": 96,
+                "sequence_gap_count": 0,
+                "fail_closed": False,
+                "fail_reasons": [],
+            },
+            {
+                "exchange": "kucoin",
+                "feed_quality_score": 0.64,
+                "latency_ms": 2200,
+                "local_latency_ms": 2200,
+                "sequence_gap_count": 0,
+                "fail_closed": True,
+                "fail_reasons": ["LATENCY_ABOVE_ADAPTIVE_BOUND"],
+            },
+        ]
+    )
+
+    assert out["fail_closed"] is False
+    assert out["feed_quality_score"] == 0.92
+    assert out["latency_ms"] == 96
+    assert out["usable_source_exchanges"] == ["binance"]
+    assert out["fail_reasons"] == []
+    assert out["secondary_feed_warning_reasons"] == ["kucoin:LATENCY_ABOVE_ADAPTIVE_BOUND"]
+    assert out["all_feed_fail_reasons"] == ["LATENCY_ABOVE_ADAPTIVE_BOUND"]
+
+
+def test_combined_feed_quality_preserves_hard_temporal_failures() -> None:
+    out = monitor._combine_feed_quality(
+        [
+            {
+                "exchange": "binance",
+                "feed_quality_score": 0.92,
+                "latency_ms": 96,
+                "sequence_gap_count": 0,
+                "fail_closed": False,
+                "fail_reasons": [],
+            },
+            {
+                "exchange": "kucoin",
+                "feed_quality_score": 0.80,
+                "latency_ms": 100,
+                "sequence_gap_count": 0,
+                "fail_closed": True,
+                "fail_reasons": ["AVAILABLE_AT_AFTER_DECISION_TIME"],
+            },
+        ]
+    )
+
+    assert out["fail_closed"] is True
+    assert out["fail_reasons"] == ["AVAILABLE_AT_AFTER_DECISION_TIME"]
+    assert out["combined_fail_policy"] == "hard_temporal_or_all_venues_failed"
+
+
 def test_microstructure_monitor_decision_time_is_after_book_read(monkeypatch, tmp_path) -> None:
     fake = FakeRedis(
         {

@@ -1,6 +1,9 @@
 """V2 live-canary network-safe permission probe.
 
-Verifies real but non-mutating exchange access:
+WebSocket/user-data streams are the primary Binance transport. Signed account
+permission reads use Binance WebSocket API first. Public REST checks in this
+legacy probe are fallback-only and require
+``BINANCE_REST_FALLBACK_ALLOWED=true`` unless a test injects a fake transport.
 
 - Reads only credential PRESENCE from OS env vars; NEVER returns or
   logs raw key/secret values, never echoes the value, and refuses
@@ -9,15 +12,13 @@ Verifies real but non-mutating exchange access:
   symbol/limit values propagate, but credentials are ALWAYS sourced
   from OS env (not from the file).
 - Calls Binance Futures ``/fapi/v1/exchangeInfo`` (public, read-only)
-  to verify tradability + filters per symbol.
-- Calls Binance Futures ``/fapi/v2/account`` (signed GET, read-only)
-  to verify the account-read permission.
-- Does NOT call any order-shaped endpoint by default. The documented
-  no-fill ``/fapi/v1/order/test`` endpoint MAY be exercised only when
-  BOTH gates are open: ``V2_LIVE_CANARY_ALLOW_TEST_ORDER=true`` in
-  the env file AND a Codex test-order-docs marker file is present.
-  When either gate is closed the probe reports an explicit
-  NOT_CHECKED_* reason.
+  as fallback metadata to verify tradability + filters per symbol.
+- Calls Binance WebSocket API ``account.status`` to verify account-read
+  permission.
+- Does NOT call order-shaped REST endpoints. The legacy no-fill
+  ``/fapi/v1/order/test`` probe is disabled because Binance trader/order
+  readiness is WebSocket API primary and REST is fallback-only for reads or
+  metadata. The probe reports explicit NOT_CHECKED_* reasons instead.
 
 This module NEVER places a real order. NEVER cancels or modifies
 orders. NEVER changes leverage. NEVER changes margin mode. NEVER
@@ -41,6 +42,13 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
+
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_rest_fallback_decision,
+    resolve_binance_credential_binding,
+)
+from v2.backend.app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
+from v2.backend.app.services.execution.order_intent_contract import operator_test_order_allowed
 
 LOCAL_SECRETS_PATH = Path(".local_secrets/live_canary.env")
 APPROVAL_FILE_PATH = Path(
@@ -68,13 +76,11 @@ DEFAULT_MODE = "BLOCKED_UNSELECTED"
 BINANCE_FUTURES_BASE_URL = "https://fapi.binance.com"
 EXCHANGE_INFO_PATH = "/fapi/v1/exchangeInfo"
 ACCOUNT_READ_PATH = "/fapi/v2/account"
-# Binance docs: this endpoint validates parameters and returns 200
-# without entering the matching engine. It is NOT an order placement
-# endpoint and is the only order-shaped path the probe may invoke,
-# and even then only behind the dual gate above.
 TEST_ENDPOINT_PATH = "/fapi/v1/order/test"
+REST_TEST_ORDER_DISABLED_REASON = "NOT_CHECKED_REST_TEST_ORDER_DISABLED_WEBSOCKET_PRIMARY"
 HTTP_TIMEOUT_SECONDS = 10
 HTTP_RECV_WINDOW_MS = 5000
+REST_FALLBACK_ENV = "BINANCE_REST_FALLBACK_ALLOWED"
 
 # Recognised env-config keys. Any other key in the env file is
 # dropped at parse time so accidental credential lines never reach
@@ -87,6 +93,7 @@ ENV_CONFIG_KEYS = (
     "V2_LIVE_CANARY_MAX_DAILY_LOSS_USDT",
     "V2_LIVE_CANARY_DRY_RUN",
     "V2_LIVE_CANARY_ALLOW_TEST_ORDER",
+    REST_FALLBACK_ENV,
 )
 
 
@@ -102,6 +109,64 @@ def _env_var_present(name: str) -> bool:
     """Return True iff env var is set AND non-empty. NEVER returns
     or logs the value."""
     return bool(os.environ.get(name))
+
+
+def _canonical_canary_secrets_path(path: Path) -> bool:
+    try:
+        return path.resolve(strict=False) == LOCAL_SECRETS_PATH.resolve(strict=False)
+    except Exception:
+        return str(path) == str(LOCAL_SECRETS_PATH)
+
+
+def _resolve_probe_credentials(*, allow_file_binding: bool) -> dict[str, Any]:
+    """Resolve Binance credentials without exposing raw values in payloads.
+
+    Process env wins. For the normal operator CLI path, fall back to the
+    shared Binance credential binding resolver, which reads canonical local
+    credential files such as ``v2/.env.local``. Tests that pass a temporary
+    secrets file stay isolated because ``allow_file_binding`` is false there.
+    """
+    env_api_key = os.environ.get(ENV_VAR_BINANCE_KEY_NAME, "").strip()
+    env_api_secret = os.environ.get(ENV_VAR_BINANCE_SECRET_NAME, "").strip()
+    if env_api_key and env_api_secret:
+        return {
+            "api_key": env_api_key,
+            "api_secret": env_api_secret,
+            "api_key_present": True,
+            "api_secret_present": True,
+            "api_key_source": "os.environ",
+            "api_secret_source": "os.environ",
+            "credential_ref": "BINANCE_API_KEY",
+            "credential_account_specific": False,
+        }
+    if not allow_file_binding:
+        return {
+            "api_key": "",
+            "api_secret": "",
+            "api_key_present": bool(env_api_key),
+            "api_secret_present": bool(env_api_secret),
+            "api_key_source": "os.environ" if env_api_key else None,
+            "api_secret_source": "os.environ" if env_api_secret else None,
+            "credential_ref": "BINANCE_API_KEY",
+            "credential_account_specific": False,
+        }
+    binding = resolve_binance_credential_binding()
+    return {
+        "api_key": binding.api_key,
+        "api_secret": binding.api_secret,
+        "api_key_present": bool(binding.api_key),
+        "api_secret_present": bool(binding.api_secret),
+        "api_key_source": binding.api_key_source,
+        "api_secret_source": binding.api_secret_source,
+        "credential_ref": binding.credential_ref,
+        "credential_account_specific": bool(binding.account_specific),
+    }
+
+
+def _rest_fallback_allowed(env_cfg: Mapping[str, str] | None = None) -> bool:
+    if os.environ.get(REST_FALLBACK_ENV, "").lower() == "true":
+        return True
+    return bool(env_cfg and str(env_cfg.get(REST_FALLBACK_ENV) or "").lower() == "true")
 
 
 def read_env_config(path: Path | None = None) -> dict[str, str]:
@@ -156,7 +221,20 @@ def _http_get_public_default(
     path: str,
     params: dict[str, Any] | None = None,
     timeout: int = HTTP_TIMEOUT_SECONDS,
+    rest_fallback_allowed_override: bool | None = None,
 ) -> tuple[int, str]:
+    fallback_allowed = (
+        _rest_fallback_allowed()
+        if rest_fallback_allowed_override is None
+        else bool(rest_fallback_allowed_override)
+    )
+    if not fallback_allowed:
+        return 0, f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
+    binance_rest_fallback_decision(
+        endpoint=path,
+        fallback_reason="live_canary_permission_probe_public_metadata_cache_missing",
+        role="live_canary_permission_probe_public_read_recovery",
+    )
     url = f"{BINANCE_FUTURES_BASE_URL}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
@@ -179,13 +257,26 @@ def _http_get_signed_default(
     path: str,
     params: dict[str, Any] | None = None,
     timeout: int = HTTP_TIMEOUT_SECONDS,
+    rest_fallback_allowed_override: bool | None = None,
 ) -> tuple[int, str]:
     """Signed GET to a read-only Binance Futures endpoint. Returns
     only HTTP status and a placeholder string; the response body is
     discarded so account balances / addresses / positions can never
     leak into the payload."""
+    fallback_allowed = (
+        _rest_fallback_allowed()
+        if rest_fallback_allowed_override is None
+        else bool(rest_fallback_allowed_override)
+    )
+    if not fallback_allowed:
+        return 0, f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
     if not api_key or not api_secret:
         return 0, "NO_CREDENTIALS"
+    binance_rest_fallback_decision(
+        endpoint=path,
+        fallback_reason="live_canary_permission_probe_signed_ws_read_unavailable",
+        role="live_canary_permission_probe_signed_read_recovery",
+    )
     params = dict(params or {})
     params["timestamp"] = int(time.time() * 1000)
     params["recvWindow"] = HTTP_RECV_WINDOW_MS
@@ -209,30 +300,15 @@ def _http_post_signed_test_default(
     path: str,
     params: dict[str, Any] | None = None,
     timeout: int = HTTP_TIMEOUT_SECONDS,
+    rest_fallback_allowed_override: bool | None = None,
 ) -> tuple[int, str]:
-    """Signed POST. Used ONLY for the documented Binance no-fill
-    validation endpoint ``/fapi/v1/order/test``. NEVER used for real
-    placement. The response body is discarded."""
-    if not api_key or not api_secret:
-        return 0, "NO_CREDENTIALS"
-    params = dict(params or {})
-    params["timestamp"] = int(time.time() * 1000)
-    params["recvWindow"] = HTTP_RECV_WINDOW_MS
-    qs = urllib.parse.urlencode(params)
-    signature = hmac.new(api_secret.encode(), qs.encode(), hashlib.sha256).hexdigest()
-    body = (qs + f"&signature={signature}").encode("utf-8")
-    url = f"{BINANCE_FUTURES_BASE_URL}{path}"
-    req = urllib.request.Request(
-        url, data=body, headers={"X-MBX-APIKEY": api_key}, method="POST"
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            _ = resp.read()
-            return resp.status, "OK"
-    except urllib.error.HTTPError as e:
-        return e.code, f"HTTP_{e.code}"
-    except Exception as e:
-        return 0, f"ERROR:{type(e).__name__}"
+    """Legacy REST no-fill order test helper.
+
+    The trader stack is WebSocket API primary, and REST is fallback-only for
+    reads/metadata. A REST order-shaped probe is not a valid fallback, so this
+    helper never opens a network request.
+    """
+    return 0, REST_TEST_ORDER_DISABLED_REASON
 
 
 def _probe_exchange_info(
@@ -303,20 +379,34 @@ def _probe_account_read_permission(
     api_secret: str,
     http_get_signed: Callable[..., tuple[int, str]] | None = None,
 ) -> str:
-    """Signed read-only GET to verify the API key has account-read
-    permission. Returns a status string only; the response body is
-    discarded."""
+    """Signed read-only account probe.
+
+    Runtime uses Binance WebSocket API ``account.status``. The
+    ``http_get_signed`` hook is retained for tests and never used by normal
+    runtime callers.
+    """
     if not api_key or not api_secret:
         return "NOT_CHECKED_CREDENTIALS_ABSENT"
-    http_get_signed = http_get_signed or _http_get_signed_default
-    status, _ = http_get_signed(api_key, api_secret, ACCOUNT_READ_PATH)
-    if status == 200:
+    if http_get_signed is not None:
+        status, _ = http_get_signed(api_key, api_secret, ACCOUNT_READ_PATH)
+        if status == 200:
+            return "OK"
+        if status in (401, 403):
+            return f"DENIED_HTTP_{status}"
+        if status == 0:
+            return "NETWORK_ERROR"
+        return f"HTTP_{status}"
+    adapter = BinanceUSDMAdapter(api_key=api_key, api_secret=api_secret)
+    result = adapter.signed_ws_read("account.status", execute=True)
+    if result.get("status") == "SIGNED_WS_READ_EXECUTED":
         return "OK"
-    if status in (401, 403):
-        return f"DENIED_HTTP_{status}"
-    if status == 0:
-        return "NETWORK_ERROR"
-    return f"HTTP_{status}"
+    ws_status = result.get("ws_status_code")
+    if ws_status in (401, 403):
+        return f"DENIED_WS_{ws_status}"
+    if ws_status:
+        return f"WS_{ws_status}"
+    error = str(result.get("error_type") or result.get("status") or "UNKNOWN")
+    return f"WS_ERROR:{error}"
 
 
 def _probe_documented_no_fill_endpoint(
@@ -328,19 +418,18 @@ def _probe_documented_no_fill_endpoint(
     codex_test_order_marker_path: Path,
     http_post_signed_test: Callable[..., tuple[int, str]] | None = None,
 ) -> tuple[str, bool]:
-    """Call the documented Binance no-fill validation endpoint at
-    ``/fapi/v1/order/test`` ONLY when BOTH gates are open:
+    """Report legacy Binance no-fill validation endpoint status.
 
-    - ``V2_LIVE_CANARY_ALLOW_TEST_ORDER=true`` in the env file
-    - Codex test-order-docs marker present on disk
-
-    Returns ``(status_label, attempted_bool)``. NEVER places a real
-    order. NEVER mutates leverage or margin."""
+    ``/fapi/v1/order/test`` is not a fallback for missing WebSocket state, so
+    this probe never invokes it. Returns ``(status_label, attempted_bool)``.
+    """
     flag = env_cfg.get("V2_LIVE_CANARY_ALLOW_TEST_ORDER", "").strip().lower()
     if flag != "true":
         return ("NOT_CHECKED_FLAG_NOT_SET", False)
     if not codex_test_order_marker_path.exists():
         return ("NOT_CHECKED_CODEX_TEST_ORDER_DOCS_MARKER_ABSENT", False)
+    if not operator_test_order_allowed():
+        return ("NOT_CHECKED_BINANCE_TEST_ORDER_PROBE_ALLOWED_FLAG_NOT_SET", False)
     if not api_key or not api_secret:
         return ("NOT_CHECKED_CREDENTIALS_ABSENT", False)
     if not symbol_info:
@@ -352,28 +441,7 @@ def _probe_documented_no_fill_endpoint(
             break
     if not target_sym:
         return ("NOT_CHECKED_NO_TRADABLE_SYMBOL", False)
-    # The endpoint validates parameters and returns 200 OK without
-    # entering the matching engine per Binance docs. We still send
-    # a notionally-tiny request so the response shape is exercised.
-    params = {
-        "symbol": target_sym,
-        "side": "BUY",
-        "type": "MARKET",
-        "quantity": "0.001",
-    }
-    http_post_signed_test = http_post_signed_test or _http_post_signed_test_default
-    status, _ = http_post_signed_test(
-        api_key, api_secret, TEST_ENDPOINT_PATH, params
-    )
-    if status == 200:
-        return ("OK_VALIDATED_NO_FILL", True)
-    if status in (400, 422):
-        return (f"REJECTED_VALIDATION_HTTP_{status}", True)
-    if status in (401, 403):
-        return (f"DENIED_HTTP_{status}", True)
-    if status == 0:
-        return ("NETWORK_ERROR", True)
-    return (f"HTTP_{status}", True)
+    return (REST_TEST_ORDER_DISABLED_REASON, False)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -410,10 +478,17 @@ class PermissionProbeResult:
     codex_test_order_docs_marker_present: bool
     binance_api_key_env_present: bool
     binance_api_secret_env_present: bool
+    binance_credential_ref: str
+    binance_api_key_source: str | None
+    binance_api_secret_source: str | None
+    binance_credential_account_specific: bool
     test_order_endpoint_attempted: bool
     fail_blockers: tuple[str, ...]
     network_probe_enabled: bool
     network_base_url_documented_only: str
+    binance_transport_primary: str
+    rest_fallback_allowed: bool
+    rest_fallback_policy: str
 
     def as_payload(self) -> dict[str, Any]:
         return {
@@ -449,10 +524,17 @@ class PermissionProbeResult:
             "codex_test_order_docs_marker_present": self.codex_test_order_docs_marker_present,
             "binance_api_key_env_present": self.binance_api_key_env_present,
             "binance_api_secret_env_present": self.binance_api_secret_env_present,
+            "binance_credential_ref": self.binance_credential_ref,
+            "binance_api_key_source": self.binance_api_key_source,
+            "binance_api_secret_source": self.binance_api_secret_source,
+            "binance_credential_account_specific": self.binance_credential_account_specific,
             "test_order_endpoint_attempted": self.test_order_endpoint_attempted,
             "fail_blockers": list(self.fail_blockers),
             "network_probe_enabled": self.network_probe_enabled,
             "network_base_url_documented_only": self.network_base_url_documented_only,
+            "binance_transport_primary": self.binance_transport_primary,
+            "rest_fallback_allowed": self.rest_fallback_allowed,
+            "rest_fallback_policy": self.rest_fallback_policy,
         }
 
 
@@ -486,19 +568,44 @@ def run_probe(
     if env_overrides:
         for k, v in env_overrides.items():
             env_cfg[k] = v
+    rest_fallback_ok = _rest_fallback_allowed(env_cfg)
+    public_metadata_probe_enabled = bool(
+        network_probe_enabled and (rest_fallback_ok or http_get_public_fn is not None)
+    )
     mode = env_cfg.get("V2_LIVE_CANARY_MODE", DEFAULT_MODE)
     if mode not in VALID_MODES:
         mode = DEFAULT_MODE
     symbols = _parse_symbol_list(env_cfg.get("V2_LIVE_CANARY_SYMBOLS", ""))
-    api_key_present = _env_var_present(ENV_VAR_BINANCE_KEY_NAME)
-    api_secret_present = _env_var_present(ENV_VAR_BINANCE_SECRET_NAME)
+    credential_binding = _resolve_probe_credentials(
+        allow_file_binding=_canonical_canary_secrets_path(secrets_path)
+    )
+    api_key_present = bool(credential_binding["api_key_present"])
+    api_secret_present = bool(credential_binding["api_secret_present"])
     credentials_present = api_key_present and api_secret_present
-    if network_probe_enabled and symbols:
+    if public_metadata_probe_enabled and symbols:
+        public_http_get = http_get_public_fn
+        if public_http_get is None and rest_fallback_ok:
+            def public_http_get(
+                path: str,
+                params: dict[str, Any] | None = None,
+                timeout: int = HTTP_TIMEOUT_SECONDS,
+            ) -> tuple[int, str]:
+                return _http_get_public_default(
+                    path,
+                    params=params,
+                    timeout=timeout,
+                    rest_fallback_allowed_override=True,
+                )
+
         exch_status, exch_data = _probe_exchange_info(
-            symbols, http_get_public=http_get_public_fn
+            symbols, http_get_public=public_http_get
         )
     else:
-        exch_status, exch_data = "NOT_CHECKED_NETWORK_PROBE_DISABLED", {}
+        exch_status, exch_data = (
+            "NOT_CHECKED_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"
+            if network_probe_enabled and not rest_fallback_ok
+            else "NOT_CHECKED_NETWORK_PROBE_DISABLED"
+        ), {}
         if not symbols:
             exch_status = "NOT_CHECKED_SYMBOLS_EMPTY"
     symbols_tradable: dict[str, bool] = {}
@@ -512,11 +619,9 @@ def run_probe(
         step_size_by_symbol[s] = info.get("step_size") if info else None
         tick_size_by_symbol[s] = info.get("tick_size") if info else None
     if network_probe_enabled and credentials_present:
-        api_key = os.environ.get(ENV_VAR_BINANCE_KEY_NAME, "")
-        api_secret = os.environ.get(ENV_VAR_BINANCE_SECRET_NAME, "")
         account_status = _probe_account_read_permission(
-            api_key=api_key,
-            api_secret=api_secret,
+            api_key=str(credential_binding["api_key"]),
+            api_secret=str(credential_binding["api_secret"]),
             http_get_signed=http_get_signed_fn,
         )
     elif not credentials_present:
@@ -524,19 +629,19 @@ def run_probe(
     else:
         account_status = "NOT_CHECKED_NETWORK_PROBE_DISABLED"
     if network_probe_enabled:
-        api_key = os.environ.get(ENV_VAR_BINANCE_KEY_NAME, "")
-        api_secret = os.environ.get(ENV_VAR_BINANCE_SECRET_NAME, "")
         test_order_status, test_order_attempted = _probe_documented_no_fill_endpoint(
-            api_key=api_key,
-            api_secret=api_secret,
+            api_key=str(credential_binding["api_key"]),
+            api_secret=str(credential_binding["api_secret"]),
             env_cfg=env_cfg,
             symbol_info=exch_data,
             codex_test_order_marker_path=codex_test_order_marker_path,
-            http_post_signed_test=http_post_signed_test_fn,
+            http_post_signed_test=None,
         )
     else:
         test_order_status, test_order_attempted = (
-            "NOT_CHECKED_NETWORK_PROBE_DISABLED",
+            "NOT_CHECKED_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"
+            if network_probe_enabled and not rest_fallback_ok
+            else "NOT_CHECKED_NETWORK_PROBE_DISABLED",
             False,
         )
     blockers: list[str] = []
@@ -552,6 +657,7 @@ def run_probe(
         "OK",
         "NOT_CHECKED_NETWORK_PROBE_DISABLED",
         "NOT_CHECKED_SYMBOLS_EMPTY",
+        "NOT_CHECKED_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
     ):
         blockers.append(f"EXCHANGE_INFO_CALL_FAILED:{exch_status}")
     for s in symbols:
@@ -572,7 +678,7 @@ def run_probe(
                 blockers.append(
                     f"ACCOUNT_READ_PERMISSION_DENIED:{account_status}"
                 )
-            elif account_status.startswith(("HTTP_", "NETWORK_ERROR")):
+            elif account_status.startswith(("HTTP_", "NETWORK_ERROR", "WS_", "WS_ERROR")):
                 blockers.append(
                     f"ACCOUNT_READ_PERMISSION_ERROR:{account_status}"
                 )
@@ -614,8 +720,15 @@ def run_probe(
         codex_test_order_docs_marker_present=codex_test_order_marker_path.exists(),
         binance_api_key_env_present=api_key_present,
         binance_api_secret_env_present=api_secret_present,
+        binance_credential_ref=str(credential_binding["credential_ref"]),
+        binance_api_key_source=credential_binding["api_key_source"],
+        binance_api_secret_source=credential_binding["api_secret_source"],
+        binance_credential_account_specific=bool(credential_binding["credential_account_specific"]),
         test_order_endpoint_attempted=test_order_attempted,
         fail_blockers=tuple(blockers),
         network_probe_enabled=network_probe_enabled,
         network_base_url_documented_only=BINANCE_FUTURES_BASE_URL,
+        binance_transport_primary="websocket_user_data_stream_and_ws_api",
+        rest_fallback_allowed=rest_fallback_ok,
+        rest_fallback_policy="REST_FALLBACK_ONLY_FOR_PUBLIC_METADATA_AND_SIGNED_READ_RECOVERY_NEVER_TEST_ORDER",
     )

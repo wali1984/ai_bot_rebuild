@@ -302,6 +302,9 @@ def test_submit_function_never_called_when_release_mode_non_live(tmp_path: Path,
 def test_submit_guard_fails_if_submit_function_is_called() -> None:
     guard = pass3b.SubmitGuardTransport()
 
+    assert guard.delegate.__class__.__name__ == "BinanceUsdMWebSocketPrimaryTransport"
+    assert getattr(guard.delegate, "ws_api_url", "").startswith("wss://")
+
     with pytest.raises(AssertionError, match="PASS3B_SUBMIT_GUARD_CALLED"):
         guard.submit_market_order(candidate=object(), api_key="x", api_secret="y")
 
@@ -311,25 +314,54 @@ def test_submit_guard_fails_if_submit_function_is_called() -> None:
 def test_build_signed_read_context_uses_readonly_position_mode_and_real_filters(monkeypatch) -> None:
     calls: list[str] = []
 
-    def fake_signed_get(_base: str, path: str, _params: dict, api_key: str, api_secret: str) -> object:
-        calls.append(path)
-        assert api_key == "key"
-        assert api_secret == "secret"
-        if path == "/fapi/v3/account":
-            return {
-                "canTrade": True,
-                "availableBalance": "12.5",
-                "totalWalletBalance": "15.0",
-                "positions": [
-                    {"symbol": "BTCUSDT", "positionAmt": "0.002", "marginType": "cross"},
-                    {"symbol": "ETHUSDT", "positionAmt": "0", "marginType": "cross"},
-                ],
-            }
-        if path == "/fapi/v1/openOrders":
-            return []
-        if path == "/fapi/v1/positionSide/dual":
-            return {"dualSidePosition": False}
-        raise AssertionError(path)
+    class FakeAdapter:
+        def __init__(self, *, api_key: str, api_secret: str, base_url: str) -> None:
+            assert api_key == "key"
+            assert api_secret == "secret"
+            assert base_url == "https://fapi.binance.com"
+
+        def signed_ws_read(self, method: str, params: dict, *, execute: bool = False) -> dict[str, object]:
+            calls.append(method)
+            assert execute is True
+            if method == "account.status":
+                return {
+                    "status": "SIGNED_WS_READ_EXECUTED",
+                    "ws_status_code": 200,
+                    "response_json": {
+                        "status": 200,
+                        "result": {
+                            "canTrade": True,
+                            "availableBalance": "12.5",
+                            "totalWalletBalance": "15.0",
+                            "positions": [
+                                {"symbol": "BTCUSDT", "positionAmt": "0.002", "marginType": "cross", "positionSide": "BOTH"},
+                                {"symbol": "ETHUSDT", "positionAmt": "0", "marginType": "cross", "positionSide": "BOTH"},
+                            ],
+                        },
+                    },
+                }
+            if method == "account.position":
+                return {
+                    "status": "SIGNED_WS_READ_EXECUTED",
+                    "ws_status_code": 200,
+                    "response_json": {
+                        "status": 200,
+                        "result": [
+                            {"symbol": "BTCUSDT", "positionAmt": "0.002", "marginType": "cross", "positionSide": "BOTH"},
+                            {"symbol": "ETHUSDT", "positionAmt": "0", "marginType": "cross", "positionSide": "BOTH"},
+                        ],
+                    },
+                }
+            if method == "openOrders.status":
+                return {
+                    "status": "SIGNED_WS_READ_EXECUTED",
+                    "ws_status_code": 200,
+                    "response_json": {
+                        "status": 200,
+                        "result": [],
+                    },
+                }
+            raise AssertionError(method)
 
     class FakeMetadataTransport:
         def __init__(self, *, base_url: str | None = None) -> None:
@@ -348,20 +380,103 @@ def test_build_signed_read_context_uses_readonly_position_mode_and_real_filters(
             }
 
     monkeypatch.setattr(pass3b, "parse_env", lambda _path: {"BINANCE_API_KEY": "key", "BINANCE_API_SECRET": "secret"})
-    monkeypatch.setattr(pass3b, "signed_get", fake_signed_get)
+    monkeypatch.setattr(pass3b, "BinanceUSDMAdapter", FakeAdapter)
     monkeypatch.setattr(pass3b, "BinanceUsdMLiveOrderTransport", FakeMetadataTransport)
 
     payload = pass3b.build_signed_read_context("BTCUSDT")
 
-    assert calls == ["/fapi/v3/account", "/fapi/v1/openOrders", "/fapi/v1/positionSide/dual"]
+    assert calls == ["account.status", "account.position", "openOrders.status"]
     assert payload["available"] is True
-    assert payload["position_mode_status"]["endpoint"] == "GET /fapi/v1/positionSide/dual"
+    assert payload["position_mode_status"]["endpoint"] == "WSS account.status/account.position"
     assert payload["position_mode_status"]["dual_side_position"] is False
+    assert payload["rest_fallback_used"] is False
+    assert payload["signed_read_transport_primary"] == "binance_usdm_websocket_api"
+    assert payload["signed_rest_fallback_supported_for_trader"] is False
+    assert payload["open_orders_source"] == "binance_ws_api_openOrders.status"
+    assert payload["open_orders_rest_fallback_used"] is False
     assert payload["account_margin_status"]["wallet_balance_checked"] is True
     assert payload["symbol_filter_status"]["tick_size"] == "0.10"
     assert payload["current_positions"] == [
         {"symbol": "BTCUSDT", "side": "LONG", "quantity": 0.002, "margin_mode": "cross"}
     ]
+
+
+def test_build_signed_read_context_does_not_use_signed_rest_for_trader_reads(monkeypatch) -> None:
+    calls: list[tuple[str, str]] = []
+
+    class FakeAdapter:
+        def __init__(self, *, api_key: str, api_secret: str, base_url: str) -> None:
+            assert api_key == "key"
+            assert api_secret == "secret"
+            assert base_url == "https://fapi.binance.com"
+
+        def signed_ws_read(self, method: str, params: dict, *, execute: bool = False) -> dict[str, object]:
+            calls.append(("ws", method))
+            return {
+                "status": "SIGNED_WS_READ_ERROR",
+                "ws_status_code": 400,
+                "response_json": {"status": 400, "error": {"code": -1}},
+            }
+
+        def signed_get(self, path: str, params: dict, *, execute: bool, fallback_reason: str) -> dict[str, object]:
+            calls.append(("rest", path))
+            raise AssertionError("signed REST must not be used for trader readiness")
+
+    monkeypatch.setattr(pass3b, "parse_env", lambda _path: {"BINANCE_API_KEY": "key", "BINANCE_API_SECRET": "secret"})
+    monkeypatch.setattr(pass3b, "BinanceUSDMAdapter", FakeAdapter)
+
+    payload = pass3b.build_signed_read_context("BTCUSDT")
+
+    assert payload["available"] is False
+    assert payload["reason"] == "BINANCE_WS_API_ACCOUNT_STATUS_REQUIRED_FOR_TRADER_READINESS"
+    assert payload["signed_read_transport_primary"] == "binance_usdm_websocket_api"
+    assert payload["signed_rest_fallback_supported_for_trader"] is False
+    assert payload["rest_fallback_used"] is False
+    assert calls == [
+        ("ws", "account.status"),
+        ("ws", "account.position"),
+        ("ws", "openOrders.status"),
+    ]
+
+
+def test_signed_rest_fallback_wrapper_requires_adapter_executed_status() -> None:
+    class FakeAdapter:
+        def signed_get(self, path, params, *, execute, fallback_reason):  # noqa: ANN001
+            assert path == "/fapi/v3/account"
+            assert params == {"recvWindow": 5000}
+            assert execute is True
+            assert fallback_reason == "WS_API_ACCOUNT_STATUS_UNAVAILABLE"
+            return {"status": "REST_FALLBACK_BLOCKED_WEBSOCKET_PRIMARY"}
+
+    with pytest.raises(RuntimeError, match="REST_FALLBACK_BLOCKED_WEBSOCKET_PRIMARY"):
+        pass3b.signed_rest_fallback_get(
+            FakeAdapter(),
+            "/fapi/v3/account",
+            {"recvWindow": 5000},
+            fallback_reason="WS_API_ACCOUNT_STATUS_UNAVAILABLE",
+        )
+
+
+def test_signed_rest_fallback_wrapper_returns_adapter_response_only_after_fallback_executes() -> None:
+    class FakeAdapter:
+        def signed_get(self, path, params, *, execute, fallback_reason):  # noqa: ANN001
+            return {
+                "status": "SIGNED_READ_EXECUTED",
+                "path": path,
+                "params": params,
+                "execute": execute,
+                "fallback_reason": fallback_reason,
+                "response_json": {"canTrade": True},
+            }
+
+    payload = pass3b.signed_rest_fallback_get(
+        FakeAdapter(),
+        "/fapi/v3/account",
+        {},
+        fallback_reason="WS_API_ACCOUNT_STATUS_UNAVAILABLE",
+    )
+
+    assert payload == {"canTrade": True}
 
 
 def test_no_leverage_or_margin_mutation_and_live_control_remains_disabled(tmp_path: Path, pass3b_runtime) -> None:

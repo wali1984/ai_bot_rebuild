@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useOptionalEnterpriseRealtime } from '../lib/realtime/RealtimeProvider';
 import type { ApiV2Envelope } from '../types/apiV2';
 
 export interface PaperActivityData {
@@ -113,6 +114,8 @@ export function usePaperActivityStream(
   options: PaperActivityStreamOptions = {},
 ): PaperActivityStreamState {
   const { httpFallback = true, initialHttpSeed = true } = options;
+  const sharedRealtime = useOptionalEnterpriseRealtime();
+  const subscribeResourcePath = sharedRealtime?.subscribeResourcePath;
   const [envelope, setEnvelope] = useState<ApiV2Envelope<PaperActivityData> | null>(null);
   const [connected, setConnected] = useState(false);
   const [source, setSource] = useState<PaperActivityStreamState['source']>('unavailable');
@@ -125,6 +128,8 @@ export function usePaperActivityStream(
     let socket: WebSocket | null = null;
     let fallbackTimer: number | null = null;
     let reconnectTimer: number | null = null;
+    let unsubscribeSharedResource: (() => void) | null = null;
+    let receivedSharedFrame = false;
     const urls = paperActivityUrls(intervalMs);
 
     const applyEnvelope = (raw: ApiV2Envelope<unknown>, streamSource: PaperActivityStreamState['source']) => {
@@ -171,9 +176,29 @@ export function usePaperActivityStream(
       fallbackTimer = window.setInterval(() => void poll(), Math.max(1500, intervalMs * 2));
     };
 
-    if (initialHttpSeed && httpFallback) {
+    if (initialHttpSeed && httpFallback && !subscribeResourcePath) {
       // Seed positions immediately via HTTP so fallback-enabled views appear before the WS connects.
       void poll();
+    }
+
+    if (subscribeResourcePath) {
+      unsubscribeSharedResource = subscribeResourcePath('/api/v2/paper/activity', (raw) => {
+        if (cancelled) return;
+        receivedSharedFrame = true;
+        applyEnvelope(raw as unknown as ApiV2Envelope<unknown>, 'websocket');
+        setConnected(true);
+      });
+      if (initialHttpSeed && httpFallback) {
+        fallbackTimer = window.setTimeout(() => {
+          if (!cancelled && !receivedSharedFrame) startFallback();
+        }, Math.min(5_000, Math.max(2_000, intervalMs * 4)));
+      }
+      return () => {
+        cancelled = true;
+        unsubscribeSharedResource?.();
+        if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
+        if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      };
     }
 
     const connect = (index = 0) => {
@@ -226,7 +251,7 @@ export function usePaperActivityStream(
       if (fallbackTimer !== null) window.clearInterval(fallbackTimer);
       if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
     };
-  }, [httpFallback, initialHttpSeed, intervalMs]);
+  }, [httpFallback, initialHttpSeed, intervalMs, subscribeResourcePath]);
 
   const data = useMemo(() => envelope?.data ?? EMPTY_ACTIVITY, [envelope]);
   return {

@@ -377,7 +377,7 @@ def test_b4_trainer_stub_mode_returns_missing_evidence(
     res = client.get("/api/v2/trainer/summary")
     assert res.status_code == 200
     body = res.json()
-    assert set(body.keys()) == TRAINER_KEYS
+    assert TRAINER_KEYS.issubset(body.keys())
     assert body["state"] == "MISSING_EVIDENCE"
     assert body["champion_challenger_status"]["status"] == "MISSING_RUNTIME_EVIDENCE"
     # An audit event should have been appended.
@@ -462,6 +462,79 @@ def test_b4_trainer_summary_exposes_champion_challenger_runtime_contract(
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
     assert status["backtests_processed"]["untouched_holdout_trade_count"] == 120
+
+
+def test_b4_trainer_summary_enriches_hybrid_cuda_learning_runtime(
+    client: TestClient,
+    fake_redis: FakeRedis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("V2_TRAINER_MODE", "stub")
+    monkeypatch.setenv("LEGACY_TRAINER_PYTHON", "/usr/bin/python3")
+    monkeypatch.setenv("LEGACY_BOT_ROOT", "/tmp/legacy")
+    fake_redis.kv["v2:prediction:BTCUSDT:1h"] = json.dumps(
+        {
+            "checkpoint_id": "ckpt-live",
+            "cuda_active": True,
+            "data_coverage_percent": 81.5,
+            "model_source": "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA",
+            "model_id": "policy-live",
+        }
+    )
+    fake_redis.kv["v2:trainer:hybrid_cuda:metrics"] = json.dumps(
+        {
+            "checkpoint": {
+                "checkpoint_id": "ckpt-live",
+                "weight_blob_written": True,
+            },
+            "checkpoint_hash": "checkpoint-hash-after",
+            "checkpoint_load": {"load_status": "LOADED"},
+            "checkpoint_reload_verified": True,
+            "training": {
+                "loss_before": 2.0,
+                "loss_after": 1.5,
+                "metrics": {
+                    "checkpoint_hash": "checkpoint-hash-after",
+                    "checkpoint_reload_verified": True,
+                    "checkpoint_weight_blob_written": True,
+                    "feedback_rows_entered_batch": 275,
+                    "trusted_replay_rows_loaded": 278,
+                    "learning_update_lane": "outcome_supervised",
+                    "outcome_supervised_update_used": True,
+                    "optimizer_steps_this_cycle": 8,
+                    "optimizer_steps_last_hour": 8,
+                    "optimizer_steps_total": 8,
+                    "parameter_hash_before": "hash-before",
+                    "parameter_hash_after": "hash-after",
+                    "weight_delta_norm": 0.5,
+                    "last_successful_weight_update_at": "2026-07-11T02:10:39Z",
+                    "ppo_objective_used": False,
+                    "ppo_on_policy_rows": 0,
+                    "ppo_rows_rejected_missing_on_policy_fields": 275,
+                    "ppo_policy_loss": -0.0,
+                    "ppo_value_loss": 0.006,
+                    "ppo_entropy": 0.05,
+                    "ppo_requires_on_policy_fields": True,
+                    "uses_expected_move_as_realized_reward": False,
+                },
+            },
+        }
+    )
+
+    body = client.get("/api/v2/trainer/status").json()
+
+    assert body["learning_active"] is True
+    assert body["weights_updating"] is True
+    assert body["checkpoint_hash"] == "checkpoint-hash-after"
+    assert body["feedback_rows_consumed"] == 275
+    assert body["PPO_clipped_surrogate_active"] is False
+    assert body["PPO_value_entropy_active"] is True
+    assert body["PPO_rows_consumed"] == 0
+    assert body["PPO_exact_blocker"] == "NO_ON_POLICY_PPO_ROWS_AVAILABLE_OUTCOME_SUPERVISED_ACTIVE"
+    assert body["trainer_learning_status"]["learning_update_lane"] == "outcome_supervised"
+    assert body["ppo_runtime_status"]["off_policy_rows_reported_as_ppo"] is False
+    assert body["routes_to_live"] is False
+    assert body["places_real_order"] is False
 
 
 def test_b4_trainer_argv_validator_rejects_dangerous_flags() -> None:

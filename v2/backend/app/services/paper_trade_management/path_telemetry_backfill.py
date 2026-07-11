@@ -14,6 +14,11 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Iterable
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
+
 
 SCHEMA_VERSION = "v2_paper_closed_trade_path_telemetry_backfill_v1"
 PATH_FIELDS = ("mfe_bps", "mae_bps", "intra_trade_high_price", "intra_trade_low_price")
@@ -197,6 +202,13 @@ def fetch_binance_public_1m_candles(
         url = f"{BINANCE_USDM_KLINES_URL}?{params}"
         try:
             if http_get_json is None:
+                if not binance_rest_fallback_allowed():
+                    return []
+                require_binance_rest_fallback(
+                    endpoint="/fapi/v1/klines",
+                    fallback_reason="paper_path_telemetry_closed_kline_gap",
+                    role="paper_path_telemetry_backfill_recovery",
+                )
                 with urllib.request.urlopen(url, timeout=timeout_seconds) as response:  # noqa: S310 - read-only public market data
                     payload = json.loads(response.read().decode("utf-8"))
             else:
@@ -261,6 +273,13 @@ def fetch_binance_public_agg_trade_samples(
         url = f"{BINANCE_USDM_AGG_TRADES_URL}?{params}"
         try:
             if http_get_json is None:
+                if not binance_rest_fallback_allowed():
+                    break
+                require_binance_rest_fallback(
+                    endpoint="/fapi/v1/aggTrades",
+                    fallback_reason="paper_path_telemetry_agg_trade_gap",
+                    role="paper_path_telemetry_backfill_recovery",
+                )
                 with urllib.request.urlopen(url, timeout=timeout_seconds) as response:  # noqa: S310 - read-only public market data
                     payload = json.loads(response.read().decode("utf-8"))
             else:

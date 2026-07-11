@@ -1,4 +1,4 @@
-"""Binance USD-M aggTrades ingestor (public REST, read-only, V2 namespace only).
+"""Binance USD-M aggTrades ingestor (public WebSocket primary, V2 only).
 
 Fills the gap found by the A+ goal audit: the microstructure trade-tape
 pipeline (``v2_microstructure_feed_quality_monitor`` →
@@ -8,23 +8,33 @@ neutral 0.5. This loop writes raw aggTrades rows plus derived order-flow
 features so tape confirmation, delta, and volume-acceleration become real.
 
 Safety: public market data only; no API keys; writes only ``v2:`` keys;
-never touches exchange order/leverage/margin endpoints.
+never touches exchange order/leverage/margin endpoints. REST is fallback-only
+and requires ``BINANCE_REST_FALLBACK_ALLOWED=true``.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import time
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from v2.backend.app.services.trade_tape.service import compute_trade_tape_features
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+)
+from v2.backend.app.services.trade_tape.service import (
+    BinanceAggTradesBatchFetchResult,
+    BinanceAggTradesFetchResult,
+    WEBSOCKET_PRIMARY_SOURCE,
+    compute_trade_tape_features,
+    fetch_binance_agg_trades_batch_with_source,
+    fetch_binance_agg_trades_with_source,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
-AGG_TRADES_URL = "https://fapi.binance.com/fapi/v1/aggTrades?symbol={symbol}&limit={limit}"
 AGG_TRADES_KEY = "v2:market:agg_trades:{symbol}"
 TAPE_FEATURES_KEY = "v2:market:trade_tape_features:{symbol}"
 CURSOR_KEY = "v2:market:agg_trades:rotation_cursor"
@@ -54,12 +64,88 @@ def _connect_redis() -> Any:
         return None
 
 
-def _fetch_agg_trades(symbol: str, *, limit: int, timeout: float = 10.0) -> list[dict[str, Any]]:
-    url = AGG_TRADES_URL.format(symbol=symbol, limit=limit)
-    req = urllib.request.Request(url, method="GET", headers={"User-Agent": "ai-bot-v2-agg-trades-ingestor"})
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-    return payload if isinstance(payload, list) else []
+def _fetch_agg_trades(symbol: str, *, limit: int, timeout: float = 10.0) -> BinanceAggTradesFetchResult:
+    return fetch_binance_agg_trades_with_source(symbol, limit=limit, timeout=timeout)
+
+
+def _fetch_agg_trades_batch(
+    symbols: list[str],
+    *,
+    limit: int,
+    timeout: float = 20.0,
+) -> BinanceAggTradesBatchFetchResult:
+    return fetch_binance_agg_trades_batch_with_source(symbols, limit_per_symbol=limit, timeout=timeout)
+
+
+def _normalize_fetch_result(fetched: Any, *, symbol: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if isinstance(fetched, BinanceAggTradesFetchResult):
+        return fetched.trades, fetched.status()
+    if isinstance(fetched, tuple) and len(fetched) == 2:
+        trades, source = fetched
+        metadata = {
+            "symbol": symbol,
+            "source": str(source),
+            "transport": "test_or_legacy_fetcher",
+            "websocket_primary": True,
+            "fallback_used": False,
+            "fallback_reason": None,
+            "rest_fallback_allowed": binance_rest_fallback_allowed(),
+            "rest_fallback_env": REST_FALLBACK_ENV,
+        }
+        return list(trades), metadata
+    return list(fetched or []), {
+        "symbol": symbol,
+        "source": WEBSOCKET_PRIMARY_SOURCE,
+        "transport": "websocket_primary_fetcher",
+        "websocket_primary": True,
+        "fallback_used": False,
+        "fallback_reason": None,
+        "rest_fallback_allowed": binance_rest_fallback_allowed(),
+        "rest_fallback_env": REST_FALLBACK_ENV,
+    }
+
+
+def _write_symbol_tape(
+    *,
+    client: Any,
+    symbol: str,
+    trades: list[dict[str, Any]],
+    fetch_metadata: Mapping[str, Any],
+    generated: str,
+    ttl_seconds: int,
+) -> bool:
+    features = compute_tape_features(trades)
+    source = str(fetch_metadata.get("source") or WEBSOCKET_PRIMARY_SOURCE)
+    agg_payload = {
+        "schema_version": "v2_market_agg_trades_v1",
+        "symbol": symbol,
+        "source": source,
+        "transport": fetch_metadata.get("transport"),
+        "websocket_primary": bool(fetch_metadata.get("websocket_primary", True)),
+        "fallback_used": bool(fetch_metadata.get("fallback_used", False)),
+        "fallback_reason": fetch_metadata.get("fallback_reason"),
+        "empty_tape_reason": fetch_metadata.get("empty_tape_reason"),
+        "generated_utc": generated,
+        "trade_count": len(trades),
+        "trades": trades,
+    }
+    feature_payload = {
+        "schema_version": "v2_trade_tape_features_v1",
+        "symbol": symbol,
+        "source": source,
+        "transport": fetch_metadata.get("transport"),
+        "websocket_primary": bool(fetch_metadata.get("websocket_primary", True)),
+        "fallback_used": bool(fetch_metadata.get("fallback_used", False)),
+        "fallback_reason": fetch_metadata.get("fallback_reason"),
+        "empty_tape_reason": fetch_metadata.get("empty_tape_reason"),
+        "generated_utc": generated,
+        **features,
+    }
+    if client is None:
+        return False
+    client.set(AGG_TRADES_KEY.format(symbol=symbol), json.dumps(agg_payload), ex=ttl_seconds)
+    client.set(TAPE_FEATURES_KEY.format(symbol=symbol), json.dumps(feature_payload), ex=ttl_seconds)
+    return True
 
 
 def compute_tape_features(trades: Iterable[Mapping[str, Any]], *, now_ms: int | None = None) -> dict[str, Any]:
@@ -126,6 +212,7 @@ def run_cycle(
     symbols_per_cycle: int,
     limit: int,
     ttl_seconds: int,
+    websocket_batch: bool = True,
 ) -> dict[str, Any]:
     generated = _utc_iso()
     priority = _priority_symbols(client)
@@ -150,33 +237,79 @@ def run_cycle(
     targets = (priority + rotation)[: max(1, symbols_per_cycle)]
     written = 0
     failures: dict[str, str] = {}
-    for symbol in targets:
+    no_tape: dict[str, str] = {}
+    source_counts: dict[str, int] = {}
+    batch_status: dict[str, Any] | None = None
+    remaining_targets = list(targets)
+    if websocket_batch and targets:
         try:
-            trades = _fetch_agg_trades(symbol, limit=limit)
+            batch = _fetch_agg_trades_batch(list(targets), limit=limit)
+            batch_status = batch.status()
+            remaining_targets = []
+            batch_metadata = {
+                "source": batch.source,
+                "transport": batch.transport,
+                "websocket_primary": batch.websocket_primary,
+                "fallback_used": batch.fallback_used,
+                "fallback_reason": batch.fallback_reason,
+                "rest_fallback_allowed": batch.rest_fallback_allowed,
+                "rest_fallback_env": REST_FALLBACK_ENV,
+            }
+            for symbol in targets:
+                trades = list(batch.trades_by_symbol.get(symbol) or [])
+                reason = (batch.symbol_errors or {}).get(symbol)
+                if not trades:
+                    reason = reason or "NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT"
+                    no_tape[symbol] = reason
+                try:
+                    metadata = dict(batch_metadata)
+                    if reason:
+                        metadata["empty_tape_reason"] = reason
+                    if _write_symbol_tape(
+                        client=client,
+                        symbol=symbol,
+                        trades=trades,
+                        fetch_metadata=metadata,
+                        generated=generated,
+                        ttl_seconds=ttl_seconds,
+                    ):
+                        written += 1
+                    source_counts[batch.source] = int(source_counts.get(batch.source) or 0) + 1
+                except Exception as exc:  # noqa: BLE001
+                    failures[symbol] = f"redis:{type(exc).__name__}"
+        except Exception as exc:  # noqa: BLE001
+            batch_status = {
+                "source": WEBSOCKET_PRIMARY_SOURCE,
+                "transport": "websocket_batch",
+                "websocket_primary": True,
+                "fallback_used": False,
+                "fallback_reason": f"{type(exc).__name__}: {exc}",
+                "rest_fallback_allowed": binance_rest_fallback_allowed(),
+                "rest_fallback_env": REST_FALLBACK_ENV,
+                "symbol_count": len(targets),
+                "symbols_with_trades": 0,
+            }
+
+    for symbol in remaining_targets:
+        try:
+            fetched = _fetch_agg_trades(symbol, limit=limit)
+            trades, fetch_metadata = _normalize_fetch_result(fetched, symbol=symbol)
         except Exception as exc:  # noqa: BLE001
             failures[symbol] = f"{type(exc).__name__}: {exc}"
             continue
-        features = compute_tape_features(trades)
-        agg_payload = {
-            "schema_version": "v2_market_agg_trades_v1",
-            "symbol": symbol,
-            "source": "binance_fapi_public_agg_trades_rest",
-            "generated_utc": generated,
-            "trade_count": len(trades),
-            "trades": trades,
-        }
-        feature_payload = {
-            "schema_version": "v2_trade_tape_features_v1",
-            "symbol": symbol,
-            "source": "binance_fapi_public_agg_trades_rest",
-            "generated_utc": generated,
-            **features,
-        }
+        source = str(fetch_metadata.get("source") or WEBSOCKET_PRIMARY_SOURCE)
+        source_counts[source] = int(source_counts.get(source) or 0) + 1
         if client is not None:
             try:
-                client.set(AGG_TRADES_KEY.format(symbol=symbol), json.dumps(agg_payload), ex=ttl_seconds)
-                client.set(TAPE_FEATURES_KEY.format(symbol=symbol), json.dumps(feature_payload), ex=ttl_seconds)
-                written += 1
+                if _write_symbol_tape(
+                    client=client,
+                    symbol=symbol,
+                    trades=trades,
+                    fetch_metadata=fetch_metadata,
+                    generated=generated,
+                    ttl_seconds=ttl_seconds,
+                ):
+                    written += 1
             except Exception as exc:  # noqa: BLE001
                 failures[symbol] = f"redis:{type(exc).__name__}"
     status = {
@@ -185,10 +318,17 @@ def run_cycle(
         "targets": targets,
         "symbols_written": written,
         "symbols_failed": failures,
+        "symbols_without_websocket_tape": no_tape,
         "symbols_per_cycle": symbols_per_cycle,
         "request_limit": limit,
         "ttl_seconds": ttl_seconds,
         "reads_only_public_market_data": True,
+        "transport_policy": "binance_public_agg_trade_websocket_primary_rest_fallback_only",
+        "websocket_batch_enabled": bool(websocket_batch),
+        "websocket_batch_status": batch_status,
+        "source_counts": source_counts,
+        "rest_fallback_allowed": binance_rest_fallback_allowed(),
+        "rest_fallback_env": REST_FALLBACK_ENV,
         "writes_v2_namespace_only": True,
         "places_real_order": False,
         "routes_to_live": False,
@@ -210,6 +350,11 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT)
     parser.add_argument("--ttl-seconds", type=int, default=DEFAULT_TTL_SECONDS)
     parser.add_argument("--max-cycles", type=int, default=0)
+    parser.add_argument(
+        "--per-symbol-websocket",
+        action="store_true",
+        help="Disable combined-stream collection and use one WebSocket per symbol.",
+    )
     args = parser.parse_args()
     client = _connect_redis()
     cycles = 0
@@ -225,6 +370,7 @@ def main() -> int:
             symbols_per_cycle=args.symbols_per_cycle,
             limit=args.limit,
             ttl_seconds=args.ttl_seconds,
+            websocket_batch=not args.per_symbol_websocket,
         )
         print(json.dumps({k: status[k] for k in ("generated_utc", "symbols_written", "symbols_failed")}), flush=True)
         cycles += 1

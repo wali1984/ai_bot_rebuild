@@ -21,6 +21,11 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
 from v2.backend.app.services.orderbook_recorder.features import epoch_ms, utc_now_iso
 from v2.backend.app.services.orderbook_recorder.local_book import LocalOrderBook
 from v2.backend.app.services.orderbook_recorder.providers import (
@@ -58,6 +63,7 @@ KUCOIN_BULLET_PUBLIC_BY_TRADE_TYPE = {
 }
 NEW_REDIS_PREFIX = "v2:orderbook:"
 REDIS_TTL_SECONDS = 30
+SYMBOL_FILTER_CACHE_TTL_SECONDS = 24 * 60 * 60
 STATUS_WORKER_ID = "v2_direct_orderbook_recorder"
 
 
@@ -76,11 +82,57 @@ def _redis_client(enabled: bool) -> Any:
         return None
 
 
+def _read_json_payload(client: Any, key: str) -> Any:
+    if client is None:
+        return None
+    try:
+        raw = client.get(key)
+    except Exception:
+        return None
+    if raw in (None, ""):
+        return None
+    try:
+        if isinstance(raw, bytes):
+            return json.loads(raw.decode("utf-8", errors="ignore"))
+        if isinstance(raw, str):
+            return json.loads(raw)
+        if isinstance(raw, Mapping):
+            return dict(raw)
+    except Exception:
+        return None
+    return None
+
+
 def _safe_redis_set(client: Any, key: str, payload: dict[str, Any], *, ttl_seconds: int = REDIS_TTL_SECONDS) -> bool:
     if client is None:
         return False
     if not key.startswith(NEW_REDIS_PREFIX):
         raise ValueError(f"refused_non_orderbook_redis_key:{key}")
+    client.set(key, json.dumps(payload, sort_keys=True, separators=(",", ":")), ex=int(ttl_seconds))
+    return True
+
+
+def _safe_symbol_filter_cache_set(
+    client: Any,
+    key: str,
+    payload: dict[str, Any],
+    *,
+    ttl_seconds: int = SYMBOL_FILTER_CACHE_TTL_SECONDS,
+) -> bool:
+    if client is None:
+        return False
+    allowed_exact = {
+        "v2:exchange:symbol_filters",
+        "v2:exchange:binance:exchangeInfo",
+        "v2:exchange:binance_usdm:exchangeInfo",
+    }
+    allowed_prefixes = (
+        "v2:exchange:symbol_filters:",
+        "v2:symbol_filters:",
+        "v2:binance:symbol_filters:",
+    )
+    if key not in allowed_exact and not key.startswith(allowed_prefixes):
+        raise ValueError(f"refused_non_symbol_filter_redis_key:{key}")
     client.set(key, json.dumps(payload, sort_keys=True, separators=(",", ":")), ex=int(ttl_seconds))
     return True
 
@@ -442,7 +494,71 @@ def process_raw_message(
     return process_event(event, books=books, replay_store=replay_store, redis_client=redis_client)
 
 
-def fetch_binance_snapshot(symbol: str, *, limit: int = 1000, timeout: float = 8.0) -> dict[str, Any]:
+def _binance_snapshot_from_cache(
+    symbol: str,
+    *,
+    redis_client: Any = None,
+) -> dict[str, Any] | None:
+    normalized = symbol.upper()
+    for key in (
+        _depth_key("binance", normalized),
+        f"v2:market:orderbook:binance:{normalized}",
+        f"v2:market:orderbook:{normalized}",
+        _top_key("binance", normalized),
+    ):
+        payload = _read_json_payload(redis_client, key)
+        if not isinstance(payload, Mapping):
+            continue
+        bids = payload.get("bids") if isinstance(payload.get("bids"), list) else []
+        asks = payload.get("asks") if isinstance(payload.get("asks"), list) else []
+        if not bids and payload.get("bid") not in (None, ""):
+            bids = [[payload.get("bid"), payload.get("bid_qty") or payload.get("bid_quantity") or "0"]]
+        if not asks and payload.get("ask") not in (None, ""):
+            asks = [[payload.get("ask"), payload.get("ask_qty") or payload.get("ask_quantity") or "0"]]
+        if not bids or not asks:
+            continue
+        return {
+            "exchange": "binance",
+            "symbol": normalized,
+            "type": "websocket_cache_snapshot",
+            "bids": bids,
+            "asks": asks,
+            "sequence_id": payload.get("sequence_id") or payload.get("lastUpdateId") or payload.get("update_id"),
+            "event_time_ms": payload.get("event_time_ms") or payload.get("event_time"),
+            "transaction_time_ms": payload.get("transaction_time_ms") or payload.get("transaction_time"),
+            "is_snapshot": True,
+            "source_key": key,
+            "raw": {
+                "source": payload.get("source") or "binance_public_websocket_orderbook_cache_primary",
+                "transport": payload.get("transport") or "websocket_cache_primary",
+            },
+        }
+    return None
+
+
+def fetch_binance_snapshot(
+    symbol: str,
+    *,
+    limit: int = 1000,
+    timeout: float = 8.0,
+    redis_client: Any = None,
+) -> dict[str, Any]:
+    cached = _binance_snapshot_from_cache(symbol, redis_client=redis_client)
+    if cached is not None:
+        return cached
+    try:
+        require_binance_rest_fallback(
+            endpoint="/fapi/v1/depth",
+            fallback_reason="direct_orderbook_websocket_snapshot_cache_missing",
+            role="direct_orderbook_snapshot_seed_recovery",
+        )
+    except RuntimeError as exc:
+        message = str(exc).replace(
+            "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            1,
+        )
+        raise RuntimeError(message) from exc
     url = f"{BINANCE_FAPI_BASE}/fapi/v1/depth?symbol={urllib.parse.quote(symbol.upper())}&limit={int(limit)}"
     req = urllib.request.Request(url, method="GET", headers={"User-Agent": "ai-bot-v2-direct-orderbook-recorder"})
     with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -516,8 +632,10 @@ async def _run_binance_ws(
     redis_client: Any,
     max_messages: int,
     speed: str,
+    redis_read_client: Any = None,
     include_book_ticker: bool = False,
     include_diff_depth: bool = False,
+    partial_levels: list[int] | tuple[int, ...] = (5, 10, 20),
     message_timeout_seconds: float = 30.0,
     websocket_close_timeout_seconds: float = 1.0,
 ) -> list[dict[str, Any]]:
@@ -527,6 +645,7 @@ async def _run_binance_ws(
         raise RuntimeError("websockets package is required for live websocket mode") from exc
     streams = build_binance_stream_names(
         symbols,
+        partial_levels=partial_levels,
         speed=speed,
         include_book_ticker=include_book_ticker,
         include_diff_depth=include_diff_depth,
@@ -539,9 +658,11 @@ async def _run_binance_ws(
         include_diff_depth=include_diff_depth,
     )
     for symbol in symbols[:seed_limit]:
-        try:
-            snapshot_event = fetch_binance_snapshot(symbol, limit=1000)
-        except Exception:
+        snapshot_event = _binance_snapshot_from_cache(
+            symbol,
+            redis_client=redis_read_client if redis_read_client is not None else redis_client,
+        )
+        if snapshot_event is None:
             continue
         seeded = process_event(
             snapshot_event,
@@ -551,7 +672,8 @@ async def _run_binance_ws(
             persist_raw_delta=False,
             persist_features=True,
         )
-        seeded["update_type"] = "rest_snapshot_seed"
+        seeded["update_type"] = "websocket_cache_snapshot_seed"
+        seeded["rest_fallback_used"] = False
         processed.append(seeded)
         if len(processed) >= max_messages:
             return processed
@@ -573,7 +695,11 @@ async def _run_binance_ws(
                 processed.append(result)
                 if result.get("sequence_gap") is True:
                     try:
-                        repair_event = fetch_binance_snapshot(str(result.get("symbol") or ""), limit=1000)
+                        repair_event = fetch_binance_snapshot(
+                            str(result.get("symbol") or ""),
+                            limit=1000,
+                            redis_client=redis_read_client if redis_read_client is not None else redis_client,
+                        )
                     except Exception:
                         continue
                     repair = process_event(
@@ -709,6 +835,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--speed", choices=("100ms", "250ms", "500ms"), default="100ms")
     parser.add_argument("--binance-include-book-ticker", action="store_true")
     parser.add_argument("--binance-include-diff-depth", action="store_true")
+    parser.add_argument(
+        "--binance-book-ticker-only",
+        action="store_true",
+        help=(
+            "Use Binance @bookTicker streams only. Intended for broad current-price "
+            "coverage; writes top-of-book cache and does not seed REST snapshots."
+        ),
+    )
     parser.add_argument("--kucoin-depth", choices=("5", "50", "increment@10ms", "all"), default="all")
     parser.add_argument("--kucoin-trade-type", choices=("SPOT", "FUTURES"), default="FUTURES")
     parser.add_argument("--max-messages", type=int, default=25)
@@ -720,6 +854,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--verify-redis-freshness", action="store_true")
     parser.add_argument("--freshness-stale-bound-ms", type=float, default=1500.0)
     parser.add_argument("--write-status", action="store_true")
+    parser.add_argument(
+        "--seed-symbol-filter-cache-from-rest-fallback",
+        action="store_true",
+        help=(
+            "When Binance WebSocket/cache metadata is missing and "
+            "BINANCE_REST_FALLBACK_ALLOWED=true, seed v2:exchange:symbol_filters* "
+            "from the public exchangeInfo fallback for later cache-primary reads."
+        ),
+    )
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--interval-seconds", type=float, default=1.0)
     parser.add_argument("--loop-max-runs", type=int, default=0)
@@ -825,14 +968,89 @@ def provider_symbol_support_status(provider_symbol_support: dict[str, Any] | Non
     }
 
 
-def fetch_provider_symbol_support(symbols: list[str], *, timeout: float = 12.0) -> dict[str, Any]:
+def _filter_row_from_cached_metadata(payload: Any, symbol: str) -> Mapping[str, Any] | None:
+    normalized = str(symbol).upper()
+    if not isinstance(payload, Mapping):
+        return None
+    if isinstance(payload.get(normalized), Mapping):
+        return payload[normalized]
+    if isinstance(payload.get("filters"), Mapping) and isinstance(payload["filters"].get(normalized), Mapping):
+        return payload["filters"][normalized]
+    for row in payload.get("symbols") or []:
+        if isinstance(row, Mapping) and str(row.get("symbol") or "").upper() == normalized:
+            return row
+    if str(payload.get("symbol") or "").upper() == normalized:
+        return payload
+    return None
+
+
+def _binance_symbol_support_from_cache(
+    symbols: list[str],
+    *,
+    redis_client: Any = None,
+) -> tuple[dict[str, Any], set[str]]:
+    out: dict[str, Any] = {}
+    found: set[str] = set()
+    shared_payloads = [
+        _read_json_payload(redis_client, "v2:exchange:symbol_filters"),
+        _read_json_payload(redis_client, "v2:binance:exchange_info"),
+        _read_json_payload(redis_client, "v2:exchange:binance:exchangeInfo"),
+    ]
+    for symbol in symbols:
+        normalized = str(symbol).upper()
+        candidates = [
+            _read_json_payload(redis_client, f"v2:exchange:symbol_filters:{normalized}"),
+            _read_json_payload(redis_client, f"v2:symbol_filters:{normalized}"),
+            _read_json_payload(redis_client, f"v2:binance:symbol_filters:{normalized}"),
+            *shared_payloads,
+        ]
+        row: Mapping[str, Any] | None = None
+        for payload in candidates:
+            row = _filter_row_from_cached_metadata(payload, normalized)
+            if row is not None:
+                break
+        if row is None:
+            continue
+        status = str(row.get("status") or "TRADING")
+        contract_type = str(row.get("contractType") or row.get("contract_type") or "PERPETUAL")
+        listed = row.get("listed")
+        if listed is None:
+            listed = True
+        out[normalized] = {
+            "provider_symbol": normalized,
+            "listed": bool(listed),
+            "status": status,
+            "contract_type": contract_type,
+            "base_asset": row.get("baseAsset") or row.get("base_asset"),
+            "quote_asset": row.get("quoteAsset") or row.get("quote_asset"),
+            "orderbook_supported": bool(listed and status == "TRADING" and contract_type == "PERPETUAL"),
+            "source": "binance_symbol_metadata_cache_primary",
+            "transport": "websocket_cache_primary",
+        }
+        found.add(normalized)
+    return out, found
+
+
+def fetch_provider_symbol_support(
+    symbols: list[str],
+    *,
+    timeout: float = 12.0,
+    redis_client: Any = None,
+    seed_cache_from_rest_fallback: bool = False,
+) -> dict[str, Any]:
     normalized_symbols = sorted({str(symbol).upper() for symbol in symbols if symbol})
+    cached_binance, cached_symbols = _binance_symbol_support_from_cache(
+        normalized_symbols,
+        redis_client=redis_client,
+    )
     support: dict[str, Any] = {
         "generated_at": utc_now_iso(),
-        "source": "public_exchange_metadata_only",
+        "source": "public_exchange_metadata_cache_primary_rest_fallback_only",
         "binance_endpoint": f"{BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
+        "binance_cache_primary_count": len(cached_symbols),
+        "binance_rest_fallback_allowed": binance_rest_fallback_allowed(),
         "kucoin_endpoint": "https://api-futures.kucoin.com/api/v1/contracts/active",
-        "binance": {},
+        "binance": dict(cached_binance),
         "kucoin": {},
         "fetch_errors": [],
         "places_real_order": False,
@@ -840,8 +1058,32 @@ def fetch_provider_symbol_support(symbols: list[str], *, timeout: float = 12.0) 
         "leverage_mutation": False,
         "margin_mode_mutation": False,
         "transfer_or_withdrawal": False,
+        "symbol_filter_cache_seed": {
+            "requested": bool(seed_cache_from_rest_fallback),
+            "attempted": False,
+            "written_keys": [],
+            "write_errors": [],
+            "ttl_seconds": SYMBOL_FILTER_CACHE_TTL_SECONDS,
+            "transport": "rest_fallback_to_websocket_cache_seed",
+        },
     }
+    missing_binance_symbols = [symbol for symbol in normalized_symbols if symbol not in cached_symbols]
     try:
+        if not missing_binance_symbols:
+            raise StopIteration("BINANCE_SYMBOL_METADATA_CACHE_COVERED_ALL_SYMBOLS")
+        try:
+            require_binance_rest_fallback(
+                endpoint="/fapi/v1/exchangeInfo",
+                fallback_reason="symbol_filter_cache_missing_for_requested_symbols",
+                role="symbol_metadata_cache_seed_recovery",
+            )
+        except RuntimeError as exc:
+            message = str(exc).replace(
+                "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                1,
+            )
+            raise RuntimeError(message) from exc
         req = urllib.request.Request(
             f"{BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
             method="GET",
@@ -850,10 +1092,31 @@ def fetch_provider_symbol_support(symbols: list[str], *, timeout: float = 12.0) 
         with urllib.request.urlopen(req, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
         by_symbol = {str(row.get("symbol") or "").upper(): row for row in payload.get("symbols") or []}
-        for symbol in normalized_symbols:
+        if seed_cache_from_rest_fallback and redis_client is not None and isinstance(payload, dict):
+            seed_status = support["symbol_filter_cache_seed"]
+            seed_status["attempted"] = True
+            for key, cache_payload in (
+                ("v2:exchange:binance:exchangeInfo", payload),
+                ("v2:exchange:symbol_filters", payload),
+            ):
+                try:
+                    if _safe_symbol_filter_cache_set(redis_client, key, cache_payload):
+                        seed_status["written_keys"].append(key)
+                except Exception as exc:  # noqa: BLE001
+                    seed_status["write_errors"].append(f"{key}:{type(exc).__name__}")
+        for symbol in missing_binance_symbols:
             row = by_symbol.get(symbol)
             status = str((row or {}).get("status") or "MISSING")
             contract_type = str((row or {}).get("contractType") or "")
+            if seed_cache_from_rest_fallback and redis_client is not None and isinstance(row, dict):
+                key = f"v2:exchange:symbol_filters:{symbol}"
+                try:
+                    if _safe_symbol_filter_cache_set(redis_client, key, row):
+                        support["symbol_filter_cache_seed"]["written_keys"].append(key)
+                except Exception as exc:  # noqa: BLE001
+                    support["symbol_filter_cache_seed"]["write_errors"].append(
+                        f"{key}:{type(exc).__name__}"
+                    )
             support["binance"][symbol] = {
                 "provider_symbol": symbol,
                 "listed": row is not None,
@@ -862,16 +1125,22 @@ def fetch_provider_symbol_support(symbols: list[str], *, timeout: float = 12.0) 
                 "base_asset": (row or {}).get("baseAsset"),
                 "quote_asset": (row or {}).get("quoteAsset"),
                 "orderbook_supported": bool(row and status == "TRADING" and contract_type == "PERPETUAL"),
+                "source": "binance_exchangeInfo_rest_fallback",
+                "transport": "rest_fallback",
             }
+    except StopIteration:
+        pass
     except Exception as exc:  # noqa: BLE001
         support["fetch_errors"].append({"exchange": "binance", "error": f"{type(exc).__name__}:{exc}"})
-        for symbol in normalized_symbols:
-            support["binance"][symbol] = {
+        for symbol in missing_binance_symbols:
+            support["binance"].setdefault(symbol, {
                 "provider_symbol": symbol,
                 "listed": None,
                 "status": "UNKNOWN_FETCH_FAILED",
                 "orderbook_supported": None,
-            }
+                "source": "binance_symbol_metadata_missing_rest_fallback_unavailable",
+                "transport": "missing",
+            })
     try:
         req = urllib.request.Request(
             "https://api-futures.kucoin.com/api/v1/contracts/active",
@@ -909,11 +1178,21 @@ def fetch_provider_symbol_support(symbols: list[str], *, timeout: float = 12.0) 
 
 def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) -> dict[str, Any]:
     requested_symbols = _resolved_symbols(args)
-    provider_symbol_support = (
-        fetch_provider_symbol_support(requested_symbols)
-        if args.write_status or args.plan_only
-        else {}
-    )
+    redis_read_client = _redis_client(bool(args.write_redis or args.write_status or args.plan_only or args.verify_redis_freshness))
+    redis_client = redis_read_client if args.write_redis else None
+    if args.write_status or args.plan_only:
+        try:
+            provider_symbol_support = fetch_provider_symbol_support(
+                requested_symbols,
+                redis_client=redis_read_client,
+                seed_cache_from_rest_fallback=bool(
+                    args.seed_symbol_filter_cache_from_rest_fallback
+                ),
+            )
+        except TypeError:
+            provider_symbol_support = fetch_provider_symbol_support(requested_symbols)
+    else:
+        provider_symbol_support = {}
     binance_symbols = supported_symbols_for_exchange(requested_symbols, provider_symbol_support, "binance")
     kucoin_symbols = supported_symbols_for_exchange(requested_symbols, provider_symbol_support, "kucoin")
     symbols = active_direct_orderbook_symbols(requested_symbols, provider_symbol_support)
@@ -922,12 +1201,14 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
         "kucoin": kucoin_symbols if args.exchange in {"kucoin", "both"} else [],
     }
     replay_store = LocalReplayStore(Path(args.replay_root))
-    redis_client = _redis_client(args.write_redis)
     books: dict[tuple[str, str], LocalOrderBook] = {}
     processed: list[dict[str, Any]] = []
     run_errors: list[dict[str, str]] = []
     started_at = utc_now_iso()
     max_messages = max(1, int(args.max_messages))
+    binance_book_ticker_only = bool(args.binance_book_ticker_only)
+    binance_include_book_ticker = bool(args.binance_include_book_ticker or binance_book_ticker_only)
+    binance_partial_levels: tuple[int, ...] = () if binance_book_ticker_only else (5, 10, 20)
     if args.fixture_jsonl:
         for raw in _iter_fixture_messages(Path(args.fixture_jsonl)):
             result = process_raw_message(
@@ -951,9 +1232,11 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
                             replay_store=replay_store,
                             redis_client=redis_client,
                             max_messages=binance_budget,
+                            redis_read_client=redis_read_client,
                             speed=args.speed,
-                            include_book_ticker=bool(args.binance_include_book_ticker),
+                            include_book_ticker=binance_include_book_ticker,
                             include_diff_depth=bool(args.binance_include_diff_depth),
+                            partial_levels=binance_partial_levels,
                             message_timeout_seconds=float(args.venue_timeout_seconds),
                             websocket_close_timeout_seconds=float(args.ws_close_timeout_seconds),
                         )
@@ -1007,11 +1290,14 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
         "exchange": args.exchange,
         "binance_streams": build_binance_stream_names(
             binance_symbols[: min(5, len(binance_symbols))],
+            partial_levels=binance_partial_levels,
             speed=args.speed,
-            include_book_ticker=bool(args.binance_include_book_ticker),
+            include_book_ticker=binance_include_book_ticker,
             include_diff_depth=bool(args.binance_include_diff_depth),
         ),
-        "binance_include_book_ticker": bool(args.binance_include_book_ticker),
+        "binance_include_book_ticker": binance_include_book_ticker,
+        "binance_book_ticker_only": binance_book_ticker_only,
+        "binance_partial_depth_levels": list(binance_partial_levels),
         "binance_include_diff_depth": bool(args.binance_include_diff_depth),
         "kucoin_trade_type": args.kucoin_trade_type,
         "kucoin_subscriptions_sample": build_kucoin_subscription_messages(
@@ -1030,7 +1316,7 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
         "redis_enabled": bool(args.write_redis),
         "redis_available": redis_client is not None,
         "redis_freshness_check": _redis_feature_freshness_status(
-            redis_client,
+            redis_read_client,
             exchange_symbols=exchange_symbols,
             stale_bound_ms=float(args.freshness_stale_bound_ms),
         )

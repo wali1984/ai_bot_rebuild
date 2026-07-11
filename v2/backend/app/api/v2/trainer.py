@@ -28,8 +28,10 @@ import json
 import os
 import subprocess
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 
@@ -114,10 +116,38 @@ def validate_trainer_argv(argv: list[str]) -> None:
 
 CACHE_KEY = "v2:trainer:summary"
 CHAMPION_CHALLENGER_STATUS_KEY = "v2:trainer:champion_challenger_status"
+HYBRID_CUDA_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
 PREEMPTIVE_COUNTERFACTUAL_STATUS_KEY = (
     "v2:trainer:preemptive_blocked_counterfactual_status"
 )
 DEFAULT_TTL_S = 30
+DISPLAY_TZ = ZoneInfo("America/New_York")
+
+
+def _utc_now() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _display_time_et() -> str:
+    return datetime.now(DISPLAY_TZ).isoformat(timespec="seconds")
+
+
+def _with_control_center_contract(payload: dict[str, Any], *, source: str) -> dict[str, Any]:
+    out = dict(payload)
+    state = str(out.get("state") or "").upper()
+    data_quality = "partial" if state in {"", "MISSING_EVIDENCE"} else "fresh"
+    out["schema_version"] = str(out.get("schema_version") or "trainer_status_v2")
+    out["generated_at_utc"] = _utc_now()
+    out["generated_at_et"] = _display_time_et()
+    out["source"] = source
+    out["staleness_seconds"] = 0
+    out["freshness_status"] = "fresh"
+    out["canonical_owner"] = "/api/v2/trainer/status"
+    out["live_gate"] = "blocked_human_only"
+    out["places_real_order"] = False
+    out["routes_to_live"] = False
+    out["data_quality_status"] = data_quality
+    return out
 
 
 def _ttl_seconds() -> int:
@@ -144,6 +174,198 @@ def _empty_shape(state: str) -> dict[str, Any]:
         "promotion_min_role": None,
         "champion_challenger_status": _missing_champion_challenger_status(),
     }
+
+
+def _read_redis_json(r: Any, key: str) -> dict[str, Any]:
+    if r is None:
+        return {}
+    try:
+        raw = r.get(key)
+    except Exception:
+        return {}
+    if raw is None:
+        return {}
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _first_metric(metrics: dict[str, Any], training: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        if key in metrics and metrics[key] is not None:
+            return metrics[key]
+        if key in training and training[key] is not None:
+            return training[key]
+    return None
+
+
+def _numeric_metric(value: Any) -> float | int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return value if value == value and value not in {float("inf"), float("-inf")} else None
+    try:
+        parsed = float(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed or parsed in {float("inf"), float("-inf")}:
+        return None
+    return int(parsed) if parsed.is_integer() else parsed
+
+
+def _positive_metric(value: Any) -> bool:
+    parsed = _numeric_metric(value)
+    return parsed is not None and float(parsed) > 0.0
+
+
+def _attach_hybrid_cuda_learning_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    """Attach current V2 trainer learning/PPO evidence from Redis.
+
+    This route must remain a read-only status surface.  The trainer runtime
+    already publishes the metrics; the API should not report inference as
+    learning or leave PPO fields null when the runtime has explicit values.
+    """
+    payload = _read_redis_json(r, HYBRID_CUDA_METRICS_KEY)
+    if not payload:
+        return shape
+
+    out = dict(shape)
+    training = _dict_value(payload.get("training"))
+    metrics = _dict_value(training.get("metrics"))
+    checkpoint = _dict_value(payload.get("checkpoint"))
+    checkpoint_load = _dict_value(payload.get("checkpoint_load"))
+
+    ppo_on_policy_rows = _numeric_metric(
+        _first_metric(metrics, training, "ppo_on_policy_rows")
+    )
+    ppo_rows_rejected = _numeric_metric(
+        _first_metric(metrics, training, "ppo_rows_rejected_missing_on_policy_fields")
+    )
+    ppo_objective_used = (
+        _first_metric(metrics, training, "ppo_objective_used") is True
+    )
+    outcome_supervised_update_used = (
+        _first_metric(metrics, training, "outcome_supervised_update_used") is True
+    )
+    parameter_hash_before = _first_metric(metrics, training, "parameter_hash_before")
+    parameter_hash_after = _first_metric(metrics, training, "parameter_hash_after")
+    weight_delta_norm = _first_metric(metrics, training, "weight_delta_norm")
+    weights_updating = bool(
+        parameter_hash_before
+        and parameter_hash_after
+        and parameter_hash_before != parameter_hash_after
+        and _positive_metric(weight_delta_norm)
+    )
+    feedback_rows = _numeric_metric(
+        _first_metric(metrics, training, "feedback_rows_entered_batch")
+    )
+    trusted_replay_rows = _numeric_metric(
+        _first_metric(metrics, training, "trusted_replay_rows_loaded")
+    )
+    learning_active = bool(
+        weights_updating
+        or ppo_objective_used
+        or outcome_supervised_update_used
+        or _positive_metric(_first_metric(metrics, training, "optimizer_steps_this_cycle"))
+    )
+
+    ppo_status = {
+        "schema_version": "trainer_status_ppo_runtime_v1",
+        "source": f"redis:{HYBRID_CUDA_METRICS_KEY}",
+        "ppo_objective_used": ppo_objective_used,
+        "ppo_clipped_surrogate_active": ppo_objective_used,
+        "ppo_value_entropy_active": (
+            _first_metric(metrics, training, "ppo_value_loss") is not None
+            and _first_metric(metrics, training, "ppo_entropy") is not None
+        ),
+        "ppo_on_policy_rows": ppo_on_policy_rows,
+        "ppo_rows_consumed": ppo_on_policy_rows if ppo_objective_used else 0,
+        "ppo_rows_pending": 0 if ppo_objective_used else ppo_on_policy_rows,
+        "ppo_rows_rejected_missing_on_policy_fields": ppo_rows_rejected,
+        "ppo_requires_on_policy_fields": (
+            _first_metric(metrics, training, "ppo_requires_on_policy_fields") is not False
+        ),
+        "ppo_policy_loss": _first_metric(metrics, training, "ppo_policy_loss"),
+        "ppo_value_loss": _first_metric(metrics, training, "ppo_value_loss"),
+        "ppo_entropy": _first_metric(metrics, training, "ppo_entropy"),
+        "exact_blocker": (
+            None
+            if ppo_objective_used
+            else "NO_ON_POLICY_PPO_ROWS_AVAILABLE_OUTCOME_SUPERVISED_ACTIVE"
+        ),
+        "off_policy_rows_reported_as_ppo": False,
+    }
+    learning_status = {
+        "schema_version": "trainer_status_learning_runtime_v1",
+        "source": f"redis:{HYBRID_CUDA_METRICS_KEY}",
+        "learning_active": learning_active,
+        "weights_updating": weights_updating,
+        "learning_update_lane": _first_metric(metrics, training, "learning_update_lane"),
+        "outcome_supervised_update_used": outcome_supervised_update_used,
+        "feedback_rows_consumed": feedback_rows,
+        "trusted_replay_rows_loaded": trusted_replay_rows,
+        "loss_before": _first_metric(metrics, training, "loss_before"),
+        "loss_after": _first_metric(metrics, training, "loss_after"),
+        "optimizer_steps_this_cycle": _first_metric(
+            metrics, training, "optimizer_steps_this_cycle"
+        ),
+        "optimizer_steps_last_hour": _first_metric(
+            metrics, training, "optimizer_steps_last_hour"
+        ),
+        "optimizer_steps_total": _first_metric(metrics, training, "optimizer_steps_total"),
+        "parameter_hash_before": parameter_hash_before,
+        "parameter_hash_after": parameter_hash_after,
+        "weight_delta_norm": weight_delta_norm,
+        "last_successful_weight_update_at": _first_metric(
+            metrics, training, "last_successful_weight_update_at"
+        ),
+        "checkpoint_hash": _first_metric(metrics, training, "checkpoint_hash")
+        or payload.get("checkpoint_hash"),
+        "checkpoint_id": checkpoint.get("checkpoint_id") or out.get("checkpoint_id"),
+        "checkpoint_reload_verified": payload.get("checkpoint_reload_verified") is True
+        or checkpoint_load.get("load_status") == "LOADED",
+        "checkpoint_weight_blob_written": _first_metric(
+            metrics, training, "checkpoint_weight_blob_written"
+        )
+        is True
+        or checkpoint.get("weight_blob_written") is True,
+        "uses_expected_move_as_realized_reward": _first_metric(
+            metrics, training, "uses_expected_move_as_realized_reward"
+        )
+        is True,
+    }
+
+    out["trainer_learning_status"] = learning_status
+    out["ppo_runtime_status"] = ppo_status
+
+    # Top-level aliases keep dashboard/iOS cards from treating learning/PPO as
+    # null while preserving the detailed nested contracts above.
+    out["learning_active"] = learning_active
+    out["weights_updating"] = weights_updating
+    out["last_training_step"] = learning_status["last_successful_weight_update_at"]
+    out["checkpoint_hash"] = learning_status["checkpoint_hash"]
+    out["checkpoint_reload_verified"] = learning_status["checkpoint_reload_verified"]
+    out["feedback_rows_consumed"] = feedback_rows
+    out["trusted_replay_rows_loaded"] = trusted_replay_rows
+    out["PPO_clipped_surrogate_active"] = ppo_status["ppo_clipped_surrogate_active"]
+    out["PPO_value_entropy_active"] = ppo_status["ppo_value_entropy_active"]
+    out["PPO_rows_consumed"] = ppo_status["ppo_rows_consumed"]
+    out["PPO_rows_pending"] = ppo_status["ppo_rows_pending"]
+    out["PPO_policy_loss"] = ppo_status["ppo_policy_loss"]
+    out["PPO_value_loss"] = ppo_status["ppo_value_loss"]
+    out["PPO_entropy"] = ppo_status["ppo_entropy"]
+    out["PPO_exact_blocker"] = ppo_status["exact_blocker"]
+    return out
 
 
 def _missing_champion_challenger_status() -> dict[str, Any]:
@@ -406,6 +628,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         # Before returning MISSING_EVIDENCE, try Redis fallback
         redis_shape = _redis_fallback_shape(r)
         if redis_shape is not None:
+            redis_shape = _attach_hybrid_cuda_learning_status(redis_shape, r)
             redis_shape = _attach_champion_challenger_status(redis_shape, r)
             redis_shape = _attach_preemptive_feedback_status(redis_shape, r)
             _audit(
@@ -419,7 +642,7 @@ async def get_trainer_summary() -> dict[str, Any]:
                     r.set(CACHE_KEY, json.dumps(redis_shape), ex=_ttl_seconds())
                 except Exception:
                     pass
-            return redis_shape
+            return _with_control_center_contract(redis_shape, source="trainer.summary.redis_fallback")
         shape = _empty_shape("MISSING_EVIDENCE")
         shape = _attach_champion_challenger_status(shape, r)
         shape = _attach_preemptive_feedback_status(shape, r)
@@ -429,7 +652,7 @@ async def get_trainer_summary() -> dict[str, Any]:
             payload=json.dumps(shape, sort_keys=True),
             decision_id=decision_id,
         )
-        return shape
+        return _with_control_center_contract(shape, source="trainer.summary.stub")
 
     if r is not None:
         try:
@@ -442,6 +665,7 @@ async def get_trainer_summary() -> dict[str, Any]:
             except (ValueError, TypeError):
                 cached = None
             if isinstance(cached, dict):
+                cached = _attach_hybrid_cuda_learning_status(cached, r)
                 cached = _attach_champion_challenger_status(cached, r)
                 cached = _attach_preemptive_feedback_status(cached, r)
                 _audit(
@@ -450,7 +674,7 @@ async def get_trainer_summary() -> dict[str, Any]:
                     payload=json.dumps(cached, sort_keys=True),
                     decision_id=decision_id,
                 )
-                return cached
+                return _with_control_center_contract(cached, source="trainer.summary.cache_hit")
 
     shape = _run_trainer_status()
 
@@ -459,6 +683,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         redis_shape = _redis_fallback_shape(r)
         if redis_shape is not None:
             shape = redis_shape
+    shape = _attach_hybrid_cuda_learning_status(shape, r)
     shape = _attach_champion_challenger_status(shape, r)
     shape = _attach_preemptive_feedback_status(shape, r)
 
@@ -475,4 +700,95 @@ async def get_trainer_summary() -> dict[str, Any]:
         except Exception:
             pass
 
-    return shape
+    return _with_control_center_contract(shape, source="trainer.summary.subprocess")
+
+
+PAPER_EXPLORATION_BRIDGE_KEYS = {
+    "supply_status": "v2:paper:exploration:supply_status",
+    "materialization_queue_status": "v2:paper:exploration:materialization_queue_status",
+    "materialization_status": "v2:paper:exploration:materialization_status",
+}
+PAPER_EXPLORATION_COUNTERFACTUAL_KEY = (
+    "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+)
+
+
+def _read_bridge_json(r: Any, key: str) -> dict[str, Any]:
+    if r is None:
+        return {}
+    try:
+        raw = r.get(key)
+    except Exception:
+        return {}
+    if not raw:
+        return {}
+    try:
+        payload = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+@router.get("/paper-exploration-bridge")
+async def get_paper_exploration_bridge_truth() -> dict[str, Any]:
+    """Supply-bridge truth: strategy supply -> materialization queue -> paper loop.
+
+    Read-only mirror of the three exploration bridge Redis statuses plus the
+    per-cycle counterfactual feedback rows, so the GUI can show why fresh
+    exploration candidates materialized or were rejected without guessing.
+    """
+    r = get_redis()
+    payloads = {
+        name: _read_bridge_json(r, key)
+        for name, key in PAPER_EXPLORATION_BRIDGE_KEYS.items()
+    }
+    counterfactual_rows: list[dict[str, Any]] = []
+    if r is not None:
+        try:
+            raw = r.get(PAPER_EXPLORATION_COUNTERFACTUAL_KEY)
+            parsed = json.loads(raw) if raw else []
+            if isinstance(parsed, list):
+                counterfactual_rows = [row for row in parsed if isinstance(row, dict)]
+        except Exception:
+            counterfactual_rows = []
+    supply = payloads["supply_status"]
+    queue_status = payloads["materialization_queue_status"]
+    compact_queue = {
+        key: value
+        for key, value in queue_status.items()
+        if key
+        not in {"active_rows", "expired_rows", "unsafe_rows", "rejected_after_queue_rows"}
+    }
+    return {
+        "schema_version": "paper_exploration_bridge_truth_api_v1",
+        "generated_utc": _utc_now(),
+        "available": bool(supply or queue_status),
+        "redis_keys": {
+            **PAPER_EXPLORATION_BRIDGE_KEYS,
+            "counterfactual_feedback": PAPER_EXPLORATION_COUNTERFACTUAL_KEY,
+        },
+        "supply_status": supply,
+        "materialization_queue_status": compact_queue,
+        "materialization_status": payloads["materialization_status"],
+        "counterfactual_feedback_row_count": len(counterfactual_rows),
+        "counterfactual_feedback_rows": counterfactual_rows[:25],
+        "funnel": {
+            "fresh_strategy_supply_rows": supply.get("fresh_strategy_supply_rows"),
+            "fresh_exploration_candidates": supply.get("fresh_exploration_candidates"),
+            "queued_count": queue_status.get("queued_count"),
+            "same_cycle_materialized_count": queue_status.get(
+                "same_cycle_materialized_count"
+            ),
+            "rejected_after_queue_count": queue_status.get("rejected_after_queue_count"),
+            "rejected_after_queue_reason_counts": queue_status.get(
+                "rejected_after_queue_reason_counts"
+            ),
+            "exact_no_fill_reason": queue_status.get("exact_no_fill_reason"),
+            "expired_count": queue_status.get("expired_count"),
+            "counterfactual_count": queue_status.get("counterfactual_count"),
+        },
+        "live_gate": supply.get("live_gate") or "blocked_human_only",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }

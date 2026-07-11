@@ -736,7 +736,7 @@ export function useTradeTerminal() {
     },
     mode: {
       label: 'Execution Restricted',
-      liveGate: 'Operator gated',
+      liveGate: 'Approval gated',
       traderState: 'Realtime Trading Workspace',
     },
     market: {
@@ -833,6 +833,12 @@ export function useTradeTerminal() {
     signal: {
       direction: hasSignal ? signal.selected_action ?? signal.action ?? signal.actionable_reason_code ?? 'Signal connecting' : 'Signal connecting',
       confidence: signal.confidence_calibrated ?? signal.confidence ?? null,
+      selectedConfidence: signal.confidence_selected_action ?? signal.confidence_calibrated ?? signal.confidence ?? null,
+      executableConfidence: signal.confidence_executable_trade ?? null,
+      confidenceLabel: signal.confidence_display_label ?? 'Unproven confidence',
+      confidenceTradeabilityBlockers: Array.isArray(signal.confidence_tradeability_block_reasons)
+        ? signal.confidence_tradeability_block_reasons.map(String)
+        : [],
       strategy: hasSignal ? signal.strategy ?? signal.strategy_id ?? 'Strategy connecting' : 'Strategy connecting',
       modelVersion: hasSignal ? signal.model_version ?? signal.model_source ?? 'Model connecting' : 'Model connecting',
       entry: signal.entry ?? signal.entry_price ?? null,

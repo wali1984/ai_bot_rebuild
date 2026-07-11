@@ -44,6 +44,9 @@ def test_trade_tape_run_cycle_publishes_required_artifact_proofs(monkeypatch) ->
     status = ingestor.run_cycle(fake, rotation_offset=0, max_symbols=1)
 
     assert status["symbols_ok"] == 1
+    assert status["transport_policy"] == "binance_public_agg_trade_websocket_primary_rest_fallback_only"
+    assert status["source_counts"][ingestor.WEBSOCKET_PRIMARY_SOURCE] == 1
+    assert status["fallback_symbol_count"] == 0
     assert status["ttl_seconds"] == 900
     assert status["symbols_per_cycle"] == 1
     assert status["signal_universe_symbols"] == 2
@@ -54,6 +57,9 @@ def test_trade_tape_run_cycle_publishes_required_artifact_proofs(monkeypatch) ->
     assert status["all_behavioral_proofs_passed"] is True
     assert status["places_real_order"] is False
     feature_payload = json.loads(fake.store["v2:market:trade_tape_features:BTCUSDT"])
+    assert feature_payload["source"] == ingestor.WEBSOCKET_PRIMARY_SOURCE
+    assert feature_payload["websocket_primary"] is True
+    assert feature_payload["fallback_used"] is False
     assert feature_payload["trade_tape_confirmation_score"] is not None
     assert feature_payload["aggressive_buy_volume"] == 6000.0
     assert feature_payload["aggressive_sell_volume"] == 1000.0

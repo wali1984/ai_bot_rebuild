@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_rest_fallback_decision,
     build_signed_ws_api_request,
     canonical_signature_payload,
     redact_ws_api_payload,
@@ -39,6 +40,16 @@ def _candidate() -> LiveOrderCandidate:
         expected_move_after_cost_bps=20.0,
         confidence=0.75,
         source_generated_est="2026-06-16T10:00:00-04:00",
+        position_side="LONG",
+        best_bid=50000.0,
+        best_ask=50001.0,
+        symbol_filters={
+            "tick_size": 0.1,
+            "step_size": 0.001,
+            "min_qty": 0.001,
+            "min_notional": 5.0,
+        },
+        hedge_mode=True,
     )
 
 
@@ -181,14 +192,142 @@ def test_websocket_primary_transport_submits_order_place_with_fake_sender() -> N
     assert result["rest_fallback_used"] is False
     assert sent[0]["endpoint"] == "wss://unit.test/ws-fapi/v1"
     assert sent[0]["payload"]["method"] == "order.place"
-    assert sent[0]["payload"]["params"]["type"] == "MARKET"
+    params = sent[0]["payload"]["params"]
+    assert params["type"] == "LIMIT"
+    assert params["timeInForce"] == "GTX"
+    assert params["positionSide"] == "LONG"
+    assert params["selfTradePreventionMode"] == "EXPIRE_TAKER"
+    assert params["newClientOrderId"].startswith("v2live")
+    assert "reduceOnly" not in params
     serialized_result = json.dumps(result)
     assert "secret" not in serialized_result
     assert '"apiKey": "key"' not in serialized_result
 
 
-def test_legacy_rest_order_transport_is_disabled_by_default(monkeypatch: Any) -> None:
-    monkeypatch.delenv("V2_BINANCE_REST_ORDER_FALLBACK_ENABLED", raising=False)
+def test_websocket_primary_transport_blocks_order_place_without_maker_context() -> None:
+    sent: list[dict[str, Any]] = []
+
+    def fake_sender(*, endpoint: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        sent.append({"endpoint": endpoint, "payload": payload, "timeout": timeout})
+        raise AssertionError("WebSocket sender should not run without maker context")
+
+    transport = BinanceUsdMWebSocketPrimaryTransport(
+        ws_api_url="wss://unit.test/ws-fapi/v1",
+        ws_sender=fake_sender,
+        clock_ms=lambda: 1700000000000,
+    )
+    candidate = LiveOrderCandidate(
+        symbol="BTCUSDT",
+        side="BUY",
+        quantity=0.001,
+        requested_notional_usdt=50.0,
+        price_reference=50000.0,
+        prediction_id="pred_1",
+        risk_decision_id="risk_1",
+        orchestrator_decision_id="orch_1",
+        signal_id="sig_1",
+        live_gate_audit_id="gate_1",
+        risk_profile_audit_id="risk_profile_1",
+        symbols_audit_id="symbols_1",
+        final_approval_audit_id="approval_1",
+        expected_move_after_cost_bps=20.0,
+        confidence=0.75,
+        source_generated_est="2026-06-16T10:00:00-04:00",
+    )
+
+    result = transport.submit_market_order(
+        candidate=candidate,
+        api_key="key",
+        api_secret="secret",
+    )
+
+    assert result["submitted"] is False
+    assert result["error_type"] == "MAKER_FIRST_SYMBOL_FILTERS_MISSING"
+    assert result["endpoint"] == "WS order.place"
+    assert result["order_type"] == "LIMIT"
+    assert result["timeInForce"] == "GTX"
+    assert result["maker_first"] is True
+    assert sent == []
+
+
+def test_websocket_primary_transport_reads_symbol_filters_from_cache_before_rest() -> None:
+    class RedisLike:
+        def get(self, key: str) -> str | None:
+            assert key == "v2:exchange:symbol_filters:BTCUSDT"
+            return json.dumps(
+                {
+                    "symbol": "BTCUSDT",
+                    "status": "TRADING",
+                    "min_qty": "0.001",
+                    "step_size": "0.001",
+                    "tick_size": "0.10",
+                    "min_notional": "5",
+                }
+            )
+
+    class RestFallbackShouldNotRun:
+        def fetch_symbol_filters(self, symbol: str) -> dict[str, Any]:
+            raise AssertionError("REST exchangeInfo fallback should not run with cache filters present")
+
+    transport = BinanceUsdMWebSocketPrimaryTransport(
+        redis_client=RedisLike(),
+        rest_metadata_transport=RestFallbackShouldNotRun(),  # type: ignore[arg-type]
+    )
+
+    filters = transport.fetch_symbol_filters("btcusdt")
+
+    assert filters["ok"] is True
+    assert filters["symbol"] == "BTCUSDT"
+    assert filters["source"] == "binance_symbol_filter_cache_primary"
+    assert filters["transport"] == "websocket_cache_primary"
+    assert filters["endpoint"] == "redis:v2:exchange:symbol_filters:BTCUSDT"
+    assert filters["rest_fallback_used"] is False
+    assert filters["min_notional"] == "5"
+    assert filters["step_size"] == "0.001"
+    assert filters["tick_size"] == "0.10"
+
+
+def test_websocket_primary_transport_reads_open_orders_over_ws() -> None:
+    sent: list[dict[str, Any]] = []
+
+    def fake_sender(*, endpoint: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        sent.append({"endpoint": endpoint, "payload": payload, "timeout": timeout})
+        return {
+            "ok": True,
+            "status_code": 200,
+            "error_type": None,
+            "response": {
+                "id": payload["id"],
+                "status": 200,
+                "result": [
+                    {"symbol": "BTCUSDT", "clientOrderId": "existing-open-order"},
+                ],
+            },
+        }
+
+    transport = BinanceUsdMWebSocketPrimaryTransport(
+        ws_api_url="wss://unit.test/ws-fapi/v1",
+        ws_sender=fake_sender,
+        clock_ms=lambda: 1700000000000,
+    )
+
+    result = transport.fetch_open_orders(api_key="key", api_secret="secret", symbol="BTCUSDT")
+
+    assert result["ok"] is True
+    assert result["endpoint"] == "WS openOrders.status"
+    assert result["transport"] == "websocket_api_primary"
+    assert result["rest_fallback_used"] is False
+    assert result["open_orders_count"] == 1
+    assert sent[0]["payload"]["method"] == "openOrders.status"
+    assert sent[0]["payload"]["params"]["symbol"] == "BTCUSDT"
+    serialized_result = json.dumps(result)
+    assert "secret" not in serialized_result
+    assert '"apiKey": "key"' not in serialized_result
+
+
+def test_legacy_rest_order_transport_cannot_submit_even_when_old_flags_enabled(monkeypatch: Any) -> None:
+    monkeypatch.setenv("V2_BINANCE_REST_ORDER_FALLBACK_ENABLED", "true")
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
 
     def fail_if_called(*_args: Any, **_kwargs: Any) -> None:
         raise AssertionError("REST order fallback should not open a network request")
@@ -201,8 +340,158 @@ def test_legacy_rest_order_transport_is_disabled_by_default(monkeypatch: Any) ->
     )
 
     assert result["submitted"] is False
-    assert result["error_type"] == "REST_ORDER_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"
-    assert result["rest_fallback_disabled"] is True
+    assert result["error_type"] == "REST_ORDER_SUBMIT_DISABLED_WEBSOCKET_API_REQUIRED"
+    assert result["endpoint"] == "WS order.place"
+    assert result["blocked_rest_endpoint"] == "POST /fapi/v1/order"
+    assert result["rest_fallback_used"] is False
+    assert result["rest_order_fallback_supported"] is False
+
+
+def test_legacy_rest_read_helpers_are_blocked_without_fallback_flag(monkeypatch: Any) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+
+    def fail_if_called(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("REST read fallback should not open a network request without the fallback flag")
+
+    transport = BinanceUsdMLiveOrderTransport(urlopen=fail_if_called)
+
+    position = transport.fetch_position_mode(api_key="key", api_secret="secret")
+    account = transport.fetch_account_margin_status(api_key="key", api_secret="secret")
+    filters = transport.fetch_symbol_filters("BTCUSDT")
+
+    for result in (position, account, filters):
+        assert result["ok"] is False
+        assert str(result["error_type"]).startswith("REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY")
+        assert result["transport"] == "rest_fallback_blocked_websocket_primary"
+        assert result["rest_fallback_used"] is False
+        assert result["required_env"] == "BINANCE_REST_FALLBACK_ALLOWED=true"
+        assert result["rest_used_as_primary"] is False
+
+
+def test_binance_rest_fallback_decision_requires_explicit_reason(monkeypatch: Any) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+
+    blocked = binance_rest_fallback_decision(
+        endpoint="GET /fapi/v1/depth",
+        fallback_reason=None,
+        role="public_market_data_recovery",
+    )
+    allowed = binance_rest_fallback_decision(
+        endpoint="GET /fapi/v1/depth",
+        fallback_reason="websocket_depth_cache_stale",
+        role="public_market_data_recovery",
+    )
+
+    assert blocked["request_allowed"] is False
+    assert blocked["rest_fallback_blocked_reason"] == "REST_FALLBACK_REASON_REQUIRED_WEBSOCKET_PRIMARY"
+    assert blocked["rest_used_as_primary"] is False
+    assert allowed["request_allowed"] is True
+    assert allowed["transport"] == "rest_fallback"
+    assert allowed["rest_fallback_reason"] == "websocket_depth_cache_stale"
+    assert allowed["rest_used_as_primary"] is False
+
+
+def test_legacy_rest_read_helpers_mark_success_as_fallback(monkeypatch: Any) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    calls: list[str] = []
+
+    class FakeResponse:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.payload = payload
+            self.status = 200
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: Any) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(self.payload).encode("utf-8")
+
+    def fake_urlopen(request: Any, timeout: float) -> FakeResponse:
+        url = str(getattr(request, "full_url", request))
+        calls.append(url)
+        assert "/fapi/v1/order" not in url
+        if "/positionSide/dual" in url:
+            return FakeResponse({"dualSidePosition": True})
+        if "/fapi/v3/account" in url:
+            return FakeResponse(
+                {
+                    "canTrade": True,
+                    "availableBalance": "25",
+                    "totalWalletBalance": "100",
+                    "totalUnrealizedProfit": "1.5",
+                    "assets": [],
+                }
+            )
+        if "/exchangeInfo" in url:
+            return FakeResponse(
+                {
+                    "symbols": [
+                        {
+                            "symbol": "BTCUSDT",
+                            "status": "TRADING",
+                            "quantityPrecision": 3,
+                            "pricePrecision": 2,
+                            "filters": [
+                                {"filterType": "LOT_SIZE", "minQty": "0.001", "maxQty": "100", "stepSize": "0.001"},
+                                {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
+                                {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                            ],
+                        }
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected URL {url}")
+
+    transport = BinanceUsdMLiveOrderTransport(urlopen=fake_urlopen, clock_ms=lambda: 1700000000000)
+
+    position = transport.fetch_position_mode(api_key="key", api_secret="secret")
+    account = transport.fetch_account_margin_status(api_key="key", api_secret="secret")
+    filters = transport.fetch_symbol_filters("BTCUSDT")
+
+    assert position["transport"] == "rest_fallback"
+    assert position["rest_fallback_used"] is True
+    assert position["rest_fallback_reason"] == "websocket_position_mode_read_unavailable"
+    assert account["transport"] == "rest_fallback"
+    assert account["rest_fallback_used"] is True
+    assert account["rest_fallback_reason"] == "websocket_account_status_read_unavailable"
+    assert filters["transport"] == "rest_fallback"
+    assert filters["rest_fallback_used"] is True
+    assert filters["rest_fallback_reason"] == "symbol_filter_cache_missing"
+    assert len(calls) == 3
+
+
+def test_binance_http_capable_app_and_script_files_require_rest_fallback_guard() -> None:
+    repo_root = Path(__file__).resolve().parents[6]
+    scan_roots = (
+        repo_root / "v2/backend/app",
+        repo_root / "v2/backend/scripts",
+        repo_root / "tools",
+    )
+    offenders: list[str] = []
+    for root in scan_roots:
+        if not root.exists():
+            continue
+        for path in sorted(root.rglob("*.py")):
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            if not any(token in text for token in ("fapi.binance.com", "dapi.binance.com", "api.binance.com", "/fapi/", "/dapi/")):
+                continue
+            if not any(token in text for token in ("urlopen", "httpx.Client", "requests.", "signed_get", "rest_get_json")):
+                continue
+            if not any(
+                token in text
+                for token in (
+                    "binance_rest_fallback_allowed",
+                    "binance_rest_fallback_decision",
+                    "require_binance_rest_fallback",
+                    "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                    "BINANCE_REST_FALLBACK_ALLOWED",
+                )
+            ):
+                offenders.append(str(path.relative_to(repo_root)))
+    assert offenders == []
 
 
 def test_transport_policy_keeps_rest_order_fallback_and_mutations_disabled() -> None:

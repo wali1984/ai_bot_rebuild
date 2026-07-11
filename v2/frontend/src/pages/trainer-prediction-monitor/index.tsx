@@ -369,7 +369,7 @@ export default function AIPredictionsPage(): JSX.Element {
       {/* Footer */}
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          Forecast source evidence for operator-gated execution workflows.
+          Forecast source evidence for approval-gated execution workflows.
         </p>
       </div>
     </div>

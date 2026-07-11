@@ -23,6 +23,7 @@ from typing import Any
 from v2.backend.app.services.full_talib_ta.service import (
     FULL_TALIB_TA_SCHEMA_VERSION,
     build_full_talib_ta_payload,
+    filter_closed_ohlcv_rows,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     is_valid_runtime_symbol,
@@ -291,6 +292,49 @@ def run_once(
                     source_ohlcv_key=source_key,
                 )
                 payload = result.to_payload(source_ohlcv_key=source_key)
+                # Confirmed-closed-candle variant: the live payload above
+                # includes the in-progress candle, which timestamp-integrity
+                # gates (ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED) must
+                # reject. Consumers that need repaint-free entry features read
+                # ta_closed instead; candle_closed_confirmed is only ever
+                # stamped here, from raw close-boundary proof.
+                closed_rows, closed_meta = filter_closed_ohlcv_rows(
+                    rows, timeframe=timeframe
+                )
+                if closed_rows:
+                    closed_result = build_full_talib_ta_payload(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        candles=closed_rows,
+                        source_ohlcv_key=source_key,
+                    )
+                    closed_payload = closed_result.to_payload(
+                        source_ohlcv_key=source_key
+                    )
+                    closed_payload.update(
+                        {
+                            "source_label": "V2_FULL_TALIB_TA_CLOSED_CANDLES_ONLY",
+                            "closed_candles_only": True,
+                            "candle_closed_confirmed": True,
+                            "last_closed_candle_open_ts_ms": closed_meta[
+                                "last_closed_candle_open_ts_ms"
+                            ],
+                            "last_closed_candle_close_ts_ms": closed_meta[
+                                "last_closed_candle_close_ts_ms"
+                            ],
+                            "in_progress_candles_dropped": closed_meta[
+                                "dropped_unclosed_count"
+                            ],
+                            "unprovable_candles_dropped": closed_meta[
+                                "dropped_unprovable_count"
+                            ],
+                        }
+                    )
+                    closed_key = f"v2:features:ta_closed:{symbol}:{timeframe}"
+                    if _safe_set_json(
+                        redis_client, closed_key, closed_payload, ttl_seconds
+                    ):
+                        keys_written.append(closed_key)
             ta_key = f"v2:features:ta:{symbol}:{timeframe}"
             full_key = f"v2:features:ta_full:{symbol}:{timeframe}"
             technical_key = f"v2:technical_analysis:{symbol}:{timeframe}"

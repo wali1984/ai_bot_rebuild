@@ -15,6 +15,7 @@ import { selectAccountMetric, selectSectionMetric } from '../../selectors/accoun
 import { selectPositionMetric, selectPositions } from '../../selectors/positionSelectors';
 import { selectRiskStatus } from '../../selectors/riskSelectors';
 import { sourceText } from '../../lib/traderPageHelpers';
+import type { PortfolioData } from '../../types/apiV2';
 import type { TraderRealtimeState } from '../../stores/traderRealtimeStore';
 import meta from './meta';
 import rbac from './rbac';
@@ -26,6 +27,7 @@ export { default as route } from './route';
 export { sourceText };
 
 type PositionTab = 'open' | 'closed' | 'historical';
+const PORTFOLIO_ENDPOINT = '/api/v2/portfolio';
 
 interface RuntimePositionEvidence {
   positions?: Array<Record<string, unknown>>;
@@ -77,6 +79,32 @@ function formatAgeSeconds(value: unknown): string {
 
 function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function firstNumber(...values: unknown[]): number | null {
+  for (const value of values) {
+    const n = finiteNumber(value);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+function firstText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return null;
+}
+
+function pnlTone(value: unknown): string {
+  const n = finiteNumber(value);
+  if (n === null) return 'var(--text-primary)';
+  return n >= 0 ? 'var(--buy)' : 'var(--sell)';
+}
+
+function statusText(value: unknown, fallback = 'Unavailable'): string {
+  if (value === null || value === undefined || value === '') return fallback;
+  return String(value).replace(/_/g, ' ').trim();
 }
 
 function positivePrice(value: unknown): number | null {
@@ -162,6 +190,64 @@ function PositionEvidenceCard({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function PortfolioCanonicalPnlPanel(): JSX.Element {
+  const { envelope, loading, error } = useRealtimeResource<PortfolioData>({
+    url: PORTFOLIO_ENDPOINT,
+    source: PORTFOLIO_ENDPOINT,
+    source_type: 'websocket',
+    pollIntervalMs: 8_000,
+    staleThresholdMs: 30_000,
+    mode: 'paper',
+  });
+  const data = envelope.data;
+  const realized = firstNumber(data?.paper_realized_pnl_usd, data?.realized_net_pnl_usd, data?.realized_pnl_usd, data?.realized_pnl);
+  const unrealized = firstNumber(data?.paper_unrealized_pnl_usd, data?.unrealized_pnl_usd, data?.unrealized_pnl);
+  const total = firstNumber(data?.paper_total_pnl_usd, data?.total_pnl_usd, realized !== null && unrealized !== null ? realized + unrealized : null);
+  const equity = firstNumber(data?.paper_equity_usd, data?.equity, data?.paper_equity, data?.paper_balance);
+  const generatedAt = firstText(data?.source_generated_utc, data?.generated_at, data?.generated_utc) ?? (typeof envelope.timestamp === 'number' ? new Date(envelope.timestamp).toISOString() : null);
+  const source = firstText(data?.data_source, data?.pnl_source_key, data?.pnl_source_route, envelope.source) ?? PORTFOLIO_ENDPOINT;
+  const sourceRoute = firstText(data?.pnl_source_route, envelope.endpoint) ?? PORTFOLIO_ENDPOINT;
+  const sourceType = firstText(data?.pnl_source_type, data?.source_type, envelope.source_type) ?? 'source pending';
+  const staleness = firstNumber(data?.staleness_seconds, envelope.lag_ms != null ? envelope.lag_ms / 1000 : null);
+  const conflict = data?.pnl_conflict_detected === true;
+
+  return (
+    <div style={{ padding: '0 24px 16px' }}>
+      <section
+        data-testid="portfolio-canonical-pnl-panel"
+        style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Canonical Paper PnL</h2>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+              Single source: {sourceRoute} · {statusText(sourceType)}
+            </p>
+          </div>
+          <span style={{ padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', background: conflict ? 'color-mix(in oklch, var(--sell) 14%, transparent)' : 'color-mix(in oklch, var(--buy) 12%, transparent)', color: conflict ? 'var(--sell)' : 'var(--buy)', border: `1px solid ${conflict ? 'color-mix(in oklch, var(--sell) 40%, var(--border))' : 'color-mix(in oklch, var(--buy) 36%, var(--border))'}` }}>
+            {conflict ? 'PNL CONFLICT' : 'PNL RECONCILED'}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+          <KV label="paper_realized_pnl_usd" value={formatMoney(realized)} color={pnlTone(realized)} />
+          <KV label="paper_unrealized_pnl_usd" value={formatMoney(unrealized)} color={pnlTone(unrealized)} />
+          <KV label="paper_total_pnl_usd" value={formatMoney(total)} color={pnlTone(total)} />
+          <KV label="paper_equity_usd" value={formatMoney(equity)} />
+          <KV label="paper_session_id" value={firstText(data?.paper_session_id) ?? 'paper_session_id unavailable'} />
+          <KV label="data_source" value={source} />
+          <KV label="generated_at" value={generatedAt ?? 'generated_at unavailable'} />
+          <KV label="staleness_seconds" value={staleness !== null ? `${Math.round(staleness)}s` : envelope.freshness_status} color={envelope.freshness_status === 'stale' ? 'var(--warn)' : undefined} />
+        </div>
+        <p style={{ margin: '12px 0 0', fontSize: 11, color: error ? 'var(--warn)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          {loading && !data ? 'Canonical PnL connecting' : `source=${source} · freshness=${data?.freshness_status ?? envelope.freshness_status} · live_gate=blocked_human_only`}
+          {data?.pnl_conflict_reason ? ` · ${statusText(data.pnl_conflict_reason)}` : ''}
+          {error ? ` · ${error}` : ''}
+        </p>
+      </section>
     </div>
   );
 }
@@ -255,6 +341,8 @@ export default function PortfolioPage(): JSX.Element {
           </div>
         </div>
       </div>
+
+      <PortfolioCanonicalPnlPanel />
 
       <div style={{ padding: '0 24px 16px' }}>
         <AdaptiveCapitalTelemetryPanel

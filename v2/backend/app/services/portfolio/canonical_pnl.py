@@ -117,48 +117,60 @@ def build_canonical_pnl(client: Any) -> dict[str, Any]:
 
     portfolio = _read_key(client, "v2:portfolio:state")
     session = _read_key(client, "v2:paper:session")
-    ledger = _read_key(client, "v2:paper:ledger")
-    present_sources = [
-        key for key, payload in (
-            ("v2:portfolio:state", portfolio),
-            ("v2:paper:session", session),
-            ("v2:paper:ledger", ledger),
-        )
-        if payload
-    ]
+    ledger: dict[str, Any] = {}
+    ledger_loaded = False
+
+    def _ledger() -> dict[str, Any]:
+        nonlocal ledger, ledger_loaded
+        if not ledger_loaded:
+            ledger = _read_key(client, "v2:paper:ledger")
+            ledger_loaded = True
+        return ledger
 
     starting_equity = _money(_first(
         session.get("starting_equity_usd"),
         portfolio.get("starting_equity_usd"),
         portfolio.get("initial_capital"),
-        ledger.get("starting_equity_usd"),
-        ledger.get("initial_capital"),
     ))
+    if starting_equity is None:
+        ledger_payload = _ledger()
+        starting_equity = _money(_first(
+            ledger_payload.get("starting_equity_usd"),
+            ledger_payload.get("initial_capital"),
+        ))
     realized_net = _money(_first(
         portfolio.get("realized_net_pnl_usd"),
         portfolio.get("clean_session_valid_realized_pnl_usd"),
         portfolio.get("realized_pnl_usd"),
         portfolio.get("realized_pnl"),
-        ledger.get("realized_net_pnl_usd"),
-        ledger.get("realized_pnl_usd"),
     ))
+    if realized_net is None:
+        ledger_payload = _ledger()
+        realized_net = _money(_first(
+            ledger_payload.get("realized_net_pnl_usd"),
+            ledger_payload.get("realized_pnl_usd"),
+        ))
     unrealized = _money(_first(
         portfolio.get("unrealized_pnl_usd"),
         portfolio.get("net_unrealized_pnl"),
         portfolio.get("unrealized_pnl"),
-        ledger.get("unrealized_pnl_usd"),
     ))
+    if unrealized is None:
+        ledger_payload = _ledger()
+        unrealized = _money(ledger_payload.get("unrealized_pnl_usd"))
+
+    ledger_payload = _ledger() if ledger_loaded or not portfolio else {}
     fees = _fee_total(
         portfolio.get("fees_usd"),
-        ledger.get("fees_usd"),
-        ledger.get("commission_usd"),
+        ledger_payload.get("fees_usd"),
+        ledger_payload.get("commission_usd"),
     )
-    slippage = _fee_total(portfolio.get("slippage_usd"), ledger.get("slippage_usd"))
-    funding = _fee_total(portfolio.get("funding_usd"), ledger.get("funding_usd"))
+    slippage = _fee_total(portfolio.get("slippage_usd"), ledger_payload.get("slippage_usd"))
+    funding = _fee_total(portfolio.get("funding_usd"), ledger_payload.get("funding_usd"))
     gross_pnl = _money(_first(
         portfolio.get("gross_pnl_usd"),
         portfolio.get("realized_gross_pnl_usd"),
-        ledger.get("gross_pnl_usd"),
+        ledger_payload.get("gross_pnl_usd"),
     ))
     net_pnl = _money(_first(
         portfolio.get("total_pnl_usd"),
@@ -173,16 +185,42 @@ def build_canonical_pnl(client: Any) -> dict[str, Any]:
     closed_trade_count = _integer(_first(
         portfolio.get("closed_trade_count"),
         portfolio.get("closed_positions_count"),
-        ledger.get("closed_trade_count"),
     ))
+    if closed_trade_count is None and not portfolio:
+        closed_trade_count = _integer(_ledger().get("closed_trade_count"))
     session_id = _first(
         session.get("paper_session_id"),
         portfolio.get("paper_session_id"),
-        ledger.get("paper_session_id"),
         session.get("session_id"),
         portfolio.get("session_id"),
-        ledger.get("session_id"),
     )
+    if session_id is None:
+        ledger_payload = _ledger()
+        session_id = _first(
+            ledger_payload.get("paper_session_id"),
+            ledger_payload.get("session_id"),
+        )
+
+    present_sources = [
+        key for key, payload in (
+            ("v2:portfolio:state", portfolio),
+            ("v2:paper:session", session),
+            ("v2:paper:ledger", ledger if ledger_loaded else {}),
+        )
+        if payload
+    ]
+
+    source_lag_seconds = _source_lag_seconds([
+        p for p in (portfolio, session, ledger if ledger_loaded else {}) if p
+    ])
+    freshness_status = (
+        "unavailable" if not present_sources
+        else "unknown" if source_lag_seconds is None
+        else "fresh" if source_lag_seconds <= 30
+        else "stale" if source_lag_seconds > 120
+        else "degraded"
+    )
+    source_name = "+".join(present_sources) if present_sources else "unavailable"
 
     missing_fields = [
         field for field, value in (
@@ -210,6 +248,10 @@ def build_canonical_pnl(client: Any) -> dict[str, Any]:
         "display_timezone": "America/New_York",
         "paper_session_id": session_id,
         "account_scope": "paper",
+        "paper_equity_usd": equity,
+        "paper_realized_pnl_usd": realized_net,
+        "paper_unrealized_pnl_usd": unrealized,
+        "paper_total_pnl_usd": net_pnl,
         "equity_usd": equity,
         "starting_equity_usd": starting_equity,
         "realized_net_pnl_usd": realized_net,
@@ -220,9 +262,13 @@ def build_canonical_pnl(client: Any) -> dict[str, Any]:
         "gross_pnl_usd": gross_pnl,
         "net_pnl_usd": net_pnl,
         "closed_trade_count": closed_trade_count or 0,
-        "source": "+".join(present_sources) if present_sources else "unavailable",
+        "data_source": source_name,
+        "source": source_name,
         "source_keys": present_sources,
-        "source_lag_seconds": _source_lag_seconds([p for p in (portfolio, session, ledger) if p]),
+        "source_lag_seconds": source_lag_seconds,
+        "staleness_seconds": source_lag_seconds,
+        "freshness_status": freshness_status,
+        "generated_at": _utc_now(),
         "reconciliation_status": reconciliation_status,
         "reconciliation_delta_usd": reconciliation_delta_usd,
         "missing_fields": missing_fields,

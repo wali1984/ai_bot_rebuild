@@ -35,6 +35,8 @@ public enum APIEndpoints {
 
     // MARK: - Trainer (v2)
     public static let trainerStatus = "/api/v2/trainer/status"
+    public static let replayBacktest = "/api/v2/replay/backtest"
+    public static let predictionsExplain = "/api/v2/predictions/explain"
     public static let providersStatus = "/api/v2/providers/status"
     public static let liveCanaryStatus = "/api/v2/live-canary/status"
     public static let aPlusInventory = "/api/v2/a-plus/inventory"

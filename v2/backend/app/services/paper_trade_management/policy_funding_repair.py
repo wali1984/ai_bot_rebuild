@@ -138,6 +138,10 @@ def _lineage_ids(row: dict[str, Any]) -> set[str]:
         "fill_id",
         "ledger_row_id",
         "intent_id",
+        "candidate_id",
+        "paper_exploration_candidate_id",
+        "materialization_queue_id",
+        "queue_id",
         "signal_id",
         "source_signal_id",
         "prediction_id",
@@ -247,6 +251,11 @@ def _safe_paper_row(row: dict[str, Any], *, require_paper_only_true: bool) -> tu
         "test_order",
         "test_orders",
         "exchange_order_allowed",
+        "routes_to_live",
+        "order_submitted",
+        "test_order_submitted",
+        "leverage_mutated",
+        "margin_mutated",
         "leverage_mutation",
         "margin_mode_mutation",
         "leverage_changed",
@@ -259,6 +268,130 @@ def _safe_paper_row(row: dict[str, Any], *, require_paper_only_true: bool) -> tu
         if _truthy(row.get(field)):
             reasons.append(f"UNSAFE_{field.upper()}")
     return not reasons, reasons
+
+
+PAPER_RISK_CONTROLLER_EXPLORATION_TIER = "PAPER_RISK_CONTROLLER_EXPLORATION"
+
+_EXPLORATION_LINEAGE_REPAIR_FIELDS = (
+    "tier",
+    "exploration_tier",
+    "paper_exploration_tier",
+    "paper_opportunity_tier",
+    "paper_opportunity_tier_reason",
+    "policy_tier",
+    "source_tier",
+    "preemptive_decision_id",
+    "runtime_revalidated_preemptive_decision_id",
+    "risk_decision_id",
+    "orchestrator_decision_id",
+    "allocator_decision_id",
+    "allocator_decision",
+    "materialization_queue_id",
+    "materialization_queue_accepted_at",
+    "materialization_queue_expires_at",
+    "feature_vector_hash",
+    "provider_hashes",
+    "confidence_executable_trade",
+    "dynamic_exploration_floor",
+    "dynamic_exploration_floor_formula",
+    "exploration_floor_inputs",
+    "floor_inputs",
+    "paper_risk_controller_exploration_above_floor",
+    "paper_risk_controller_exploration_eligible",
+    "bootstrap_exploration",
+    "bootstrap_overridden_blockers",
+)
+
+
+def _exploration_tier(row: dict[str, Any]) -> str | None:
+    for field in (
+        "tier",
+        "exploration_tier",
+        "paper_exploration_tier",
+        "paper_opportunity_tier",
+        "policy_tier",
+        "source_tier",
+    ):
+        value = row.get(field)
+        if value not in (None, "") and str(value).strip().upper() == PAPER_RISK_CONTROLLER_EXPLORATION_TIER:
+            return PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+    return None
+
+
+def _stable_value_key(value: Any) -> str:
+    try:
+        return json.dumps(value, sort_keys=True, separators=(",", ":"))
+    except TypeError:
+        return str(value)
+
+
+def _unique_match_value(matches: list[dict[str, Any]], field: str) -> Any:
+    values: list[Any] = [
+        match.get(field)
+        for match in matches
+        if match.get(field) not in (None, "", {}, [])
+    ]
+    if not values:
+        return None
+    unique = {_stable_value_key(value): value for value in values}
+    if len(unique) != 1:
+        return None
+    return next(iter(unique.values()))
+
+
+def _repair_exploration_lineage_fields(
+    repaired: dict[str, Any],
+    *,
+    matches: list[dict[str, Any]],
+    generated_at: str,
+) -> list[str]:
+    tier = _exploration_tier(repaired)
+    if tier is None:
+        for match in matches:
+            tier = _exploration_tier(match)
+            if tier is not None:
+                break
+    if tier != PAPER_RISK_CONTROLLER_EXPLORATION_TIER:
+        return []
+
+    changed_fields: list[str] = []
+    for field in _EXPLORATION_LINEAGE_REPAIR_FIELDS:
+        if repaired.get(field) not in (None, "", {}, []):
+            continue
+        value = _unique_match_value(matches, field)
+        if value in (None, "", {}, []):
+            continue
+        repaired[field] = value
+        changed_fields.append(field)
+
+    for field in ("tier", "exploration_tier", "paper_exploration_tier", "paper_opportunity_tier"):
+        if repaired.get(field) in (None, ""):
+            repaired[field] = PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+            changed_fields.append(field)
+    for field, value in (
+        ("paper_only", True),
+        ("routes_to_live", False),
+        ("places_real_order", False),
+        ("counts_as_A_plus", False),
+        ("counts_as_final_A_plus", False),
+        ("counts_as_final_a_plus", False),
+        ("counts_as_live_ready", False),
+        ("order_submitted", False),
+        ("test_order_submitted", False),
+        ("leverage_mutated", False),
+        ("margin_mutated", False),
+    ):
+        if repaired.get(field) is None:
+            repaired[field] = value
+            changed_fields.append(field)
+
+    if changed_fields:
+        repaired["paper_exploration_lineage_repair_status"] = (
+            "REPAIRED_FROM_SAFE_ACCEPTED_FILL_CONTEXT"
+        )
+        repaired["paper_exploration_lineage_repaired_at"] = generated_at
+        repaired["paper_exploration_lineage_repaired_fields"] = sorted(set(changed_fields))
+    return changed_fields
 
 
 def _event_time(row: dict[str, Any]) -> datetime | None:
@@ -467,6 +600,11 @@ def _repair_one_row(
 ) -> tuple[dict[str, Any], str, list[str]]:
     repaired = dict(row)
     matches, match_reject_reasons = _safe_matches(row, accepted_index)
+    lineage_changed_fields = _repair_exploration_lineage_fields(
+        repaired,
+        matches=matches,
+        generated_at=generated_at,
+    )
     matched_policy = [match for match in matches if _is_policy_row(match)]
     is_policy = _is_policy_row(row)
     if not is_policy and row.get("paper_exit_policy_version") == PAPER_EXIT_POLICY_VERSION and matched_policy:
@@ -479,9 +617,11 @@ def _repair_one_row(
         matches = matched_policy
         is_policy = True
     if not is_policy:
+        if lineage_changed_fields:
+            return repaired, "lineage_repaired", match_reject_reasons
         return repaired, "not_policy_scope", match_reject_reasons
 
-    changed_fields: list[str] = []
+    changed_fields: list[str] = list(lineage_changed_fields)
     missing_reasons: list[str] = []
     policy_activated_at, policy_source = _policy_activated_at(repaired, matches)
     if policy_activated_at:
@@ -496,6 +636,8 @@ def _repair_one_row(
     existing_funding_source = first_present(repaired.get("funding_pnl_source"), repaired.get("funding_source"))
     needs_funding = existing_funding_pnl is None or existing_funding_source in (None, "")
     if not needs_funding:
+        if lineage_changed_fields and set(changed_fields) == set(lineage_changed_fields):
+            return repaired, "lineage_repaired", missing_reasons
         if changed_fields:
             repaired["paper_policy_funding_repair_status"] = "REPAIRED_POLICY_ACTIVATION_ONLY"
             repaired["paper_policy_funding_repaired_at"] = generated_at
@@ -600,10 +742,10 @@ def repair_policy_funding_rows(
         status_counts[status] = status_counts.get(status, 0) + 1
         for reason in reasons:
             missing_reason_counts[reason] = missing_reason_counts.get(reason, 0) + 1
-        if status in {"repaired", "partially_repaired"}:
+        if status in {"repaired", "partially_repaired", "lineage_repaired"}:
             for token in _row_tokens(row):
                 repaired_by_token[token] = repaired
-        if status in {"repaired", "partially_repaired", "unrepairable"} and len(examples) < 20:
+        if status in {"repaired", "partially_repaired", "lineage_repaired", "unrepairable"} and len(examples) < 20:
             examples.append({
                 "symbol": repaired.get("symbol"),
                 "timeframe": repaired.get("timeframe"),
@@ -614,6 +756,9 @@ def repair_policy_funding_rows(
                 "policy_activated_at": repaired.get("policy_activated_at"),
                 "funding_pnl_usd": repaired.get("funding_pnl_usd"),
                 "funding_pnl_source": repaired.get("funding_pnl_source"),
+                "paper_exploration_lineage_repair_status": repaired.get(
+                    "paper_exploration_lineage_repair_status"
+                ),
                 "missing_reasons": sorted(set(reasons)),
             })
         repaired_rows.append(repaired)
@@ -660,6 +805,47 @@ def _update_matching_rows(
                     "realized_pnl_usd",
                     "realized_pnl_usdt",
                     "winner",
+                    "tier",
+                    "exploration_tier",
+                    "paper_exploration_tier",
+                    "paper_opportunity_tier",
+                    "paper_opportunity_tier_reason",
+                    "policy_tier",
+                    "source_tier",
+                    "preemptive_decision_id",
+                    "runtime_revalidated_preemptive_decision_id",
+                    "risk_decision_id",
+                    "orchestrator_decision_id",
+                    "allocator_decision_id",
+                    "allocator_decision",
+                    "materialization_queue_id",
+                    "materialization_queue_accepted_at",
+                    "materialization_queue_expires_at",
+                    "feature_vector_hash",
+                    "provider_hashes",
+                    "confidence_executable_trade",
+                    "dynamic_exploration_floor",
+                    "dynamic_exploration_floor_formula",
+                    "exploration_floor_inputs",
+                    "floor_inputs",
+                    "paper_risk_controller_exploration_above_floor",
+                    "paper_risk_controller_exploration_eligible",
+                    "bootstrap_exploration",
+                    "bootstrap_overridden_blockers",
+                    "paper_exploration_lineage_repair_status",
+                    "paper_exploration_lineage_repaired_at",
+                    "paper_exploration_lineage_repaired_fields",
+                    "paper_only",
+                    "routes_to_live",
+                    "places_real_order",
+                    "counts_as_A_plus",
+                    "counts_as_final_A_plus",
+                    "counts_as_final_a_plus",
+                    "counts_as_live_ready",
+                    "order_submitted",
+                    "test_order_submitted",
+                    "leverage_mutated",
+                    "margin_mutated",
                 }
             ):
                 merged[key] = value

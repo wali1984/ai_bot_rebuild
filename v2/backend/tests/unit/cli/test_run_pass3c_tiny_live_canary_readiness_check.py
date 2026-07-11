@@ -180,7 +180,7 @@ def pass3c_defaults(monkeypatch):
         },
     )
     monkeypatch.setattr(pass3c, "build_signed_read_context", lambda _symbol: signed_reads())
-    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol: mark_price())
+    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol, **_kwargs: mark_price())
 
 
 def run_report(tmp_path: Path, redis: FakeRedis, *, ack: bool = True) -> dict:
@@ -210,7 +210,7 @@ def test_readiness_blocked_when_available_balance_is_insufficient(tmp_path: Path
 
 
 def test_notional_mismatch_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -> None:
-    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol: mark_price(price=100000.0))
+    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol, **_kwargs: mark_price(price=100000.0))
 
     report = run_report(tmp_path, FakeRedis(), ack=True)
 
@@ -219,7 +219,7 @@ def test_notional_mismatch_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) 
 
 
 def test_stale_mark_price_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -> None:
-    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol: mark_price(age_ms=10_000))
+    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol, **_kwargs: mark_price(age_ms=10_000))
 
     report = run_report(tmp_path, FakeRedis(), ack=True)
 
@@ -228,12 +228,62 @@ def test_stale_mark_price_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -
 
 
 def test_missing_mark_price_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -> None:
-    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol: mark_price(available=False))
+    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol, **_kwargs: mark_price(available=False))
 
     report = run_report(tmp_path, FakeRedis(), ack=True)
 
     assert report["status"] == pass3c.STATUS_BLOCKED_CANDIDATE_NOTIONAL
     assert "SIGNED_MARK_PRICE_MISSING" in report["notional_validation"]["blockers"]
+
+
+def test_mark_price_uses_current_price_cache_when_websocket_position_lacks_mark_price(monkeypatch) -> None:
+    calls: list[tuple[str, object]] = []
+
+    class FakeAdapter:
+        def __init__(self, *, api_key: str, api_secret: str, base_url: str) -> None:
+            assert api_key == "key"
+            assert api_secret == "secret"
+            assert base_url == "https://fapi.binance.com"
+
+        def signed_ws_read(self, method: str, params: dict, *, execute: bool = False) -> dict[str, object]:
+            calls.append(("ws", method, dict(params), execute))
+            return {
+                "status": "SIGNED_WS_READ_ERROR",
+                "ws_status_code": 400,
+                "response_json": {"status": 400, "error": {"code": -1}},
+            }
+
+        def signed_get(self, path: str, params: dict, *, execute: bool, fallback_reason: str) -> dict[str, object]:
+            calls.append(("rest_fallback", path, dict(params), execute, fallback_reason))
+            raise AssertionError("signed REST must not be used for mark-price readiness")
+
+    monkeypatch.setattr(pass3c, "parse_env", lambda _path: {"BINANCE_API_KEY": "key", "BINANCE_API_SECRET": "secret"})
+    monkeypatch.setattr(pass3c, "BinanceUSDMAdapter", FakeAdapter)
+    monkeypatch.setattr(
+        pass3c,
+        "resolve_current_price",
+        lambda _redis, symbol: {
+            "symbol": symbol,
+            "price": 50000.0,
+            "source": "mark_price",
+            "available_at": "2026-07-09T12:00:00Z",
+            "staleness_seconds": 1.0,
+            "execution_grade": True,
+            "can_size_trade": True,
+            "fallback_used": False,
+        },
+    )
+
+    payload = pass3c.build_mark_price_context("BTCUSDT", redis_client=object())
+
+    assert payload["available"] is True
+    assert payload["signed_mark_price"] == 50000.0
+    assert payload["source"] == "current_price_resolver:mark_price"
+    assert payload["rest_fallback_used"] is False
+    assert payload["signed_rest_fallback_used"] is False
+    assert calls == [
+        ("ws", "account.position", {"symbol": "BTCUSDT", "recvWindow": 5000}, True),
+    ]
 
 
 def test_quantity_below_min_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -> None:
@@ -278,7 +328,7 @@ def test_below_exchange_min_notional_blocks(tmp_path: Path, monkeypatch, pass3c_
 
 
 def test_above_canary_cap_blocks(tmp_path: Path, monkeypatch, pass3c_defaults) -> None:
-    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol: mark_price(price=20000.0))
+    monkeypatch.setattr(pass3c, "build_mark_price_context", lambda _symbol, **_kwargs: mark_price(price=20000.0))
 
     report = run_report(tmp_path, FakeRedis(), ack=True)
 

@@ -450,7 +450,7 @@ struct PositionDetailView: View {
                         VStack(spacing: 10) {
                             SectionHeader(title: "AI Reasoning", accent: NerVyx.primary)
                             DataRow(label: "Action", value: reasoning.action ?? "Unavailable", mono: true)
-                            DataRow(label: "Confidence", value: reasoning.confidence.map { "\(Int(($0 * 100).rounded()))%" } ?? "Unavailable", mono: true)
+                            DataRow(label: "Decision Confidence", value: reasoning.confidence.map { "\(Int(($0 * 100).rounded()))%" } ?? "Unavailable", mono: true)
                             DataRow(label: "Reason", value: nervyxPublicRuntimeText(reasoning.reason ?? "Unavailable"), mono: false)
                             DataRow(label: "Risk", value: nervyxPublicRuntimeText(reasoning.risk_state ?? "Unavailable"), mono: true)
                             DataRow(label: "Regime", value: nervyxPublicRuntimeText(reasoning.market_regime ?? "Unavailable"), mono: true)

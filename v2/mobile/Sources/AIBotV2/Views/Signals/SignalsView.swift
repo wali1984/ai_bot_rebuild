@@ -151,11 +151,15 @@ struct SignalRowView: View {
                     )
                 }
                 HStack(spacing: 8) {
-                    ConfidenceBar(value: signal.confidence)
+                    ConfidenceBar(value: signal.executableConfidence)
                         .frame(width: 80)
-                    Text(signal.confidencePct)
+                    Text(signal.executableConfidencePct)
                         .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(NerVyx.confidenceColor(signal.confidence))
+                        .foregroundStyle(NerVyx.confidenceColor(signal.executableConfidence))
+                    Text(signal.paperExplorationTier)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(signal.paperExplorationTier == "NONE" ? NerVyx.textMuted : NerVyx.signal)
+                        .lineLimit(1)
                     Spacer()
                     if signal.actionable {
                         HStack(spacing: 3) {
@@ -218,15 +222,28 @@ struct SignalDetailView: View {
                         }
                         VStack(spacing: 4) {
                             HStack {
-                                Text("Confidence")
+                                Text("Executable confidence")
                                     .font(.system(size: 12))
                                     .foregroundStyle(NerVyx.textMuted)
                                 Spacer()
-                                Text(signal.confidencePct)
+                                Text(signal.executableConfidencePct)
                                     .font(.system(size: 14, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(NerVyx.confidenceColor(signal.confidence))
+                                    .foregroundStyle(NerVyx.confidenceColor(signal.executableConfidence))
                             }
-                            ConfidenceBar(value: signal.confidence)
+                            ConfidenceBar(value: signal.executableConfidence)
+                            HStack {
+                                Text("Selected action")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(NerVyx.textMuted)
+                                Spacer()
+                                Text(signal.selectedConfidencePct)
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundStyle(NerVyx.textSecondary)
+                            }
+                            Text(signal.confidenceDisplayLabel)
+                                .font(.system(size: 11))
+                                .foregroundStyle(NerVyx.textMuted)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .nerVyxElevatedCard(accent: NerVyx.actionColor(signal.action))
@@ -240,6 +257,39 @@ struct SignalDetailView: View {
                             valueColor: signal.actionable ? NerVyx.validation : NerVyx.warning
                         )
                         DataRow(label: "Risk State", value: signal.risk_state)
+                        DataRow(label: "Paper Exploration", value: signal.paperExplorationTier, valueColor: signal.paperExplorationTier == "NONE" ? NerVyx.textSecondary : NerVyx.signal)
+                        DataRow(
+                            label: "Exploration Blocker",
+                            value: nervyxPublicRuntimeText(signal.paperExplorationCurrentBlocker),
+                            valueColor: signal.paperExplorationCurrentBlocker == "PAPER_FILL_ALLOWED" ? NerVyx.validation : NerVyx.warning
+                        )
+                        if let fillAllowed = signal.paper_exploration_paper_fill_allowed {
+                            DataRow(
+                                label: "Paper Fill",
+                                value: fillAllowed ? "PAPER_FILL_ALLOWED" : "BLOCKED",
+                                valueColor: fillAllowed ? NerVyx.validation : NerVyx.warning
+                            )
+                        }
+                        if let expectedNet = signal.expected_net_pnl_usd {
+                            DataRow(label: "Expected Net USD", value: String(format: "$%.2f", expectedNet), valueColor: expectedNet > 0 ? NerVyx.validation : NerVyx.warning, mono: true)
+                        }
+                        if let maxLoss = signal.expected_max_loss_usd {
+                            DataRow(label: "Max Loss USD", value: String(format: "$%.2f", maxLoss), valueColor: NerVyx.warning, mono: true)
+                        }
+                        DataRow(label: "Why Not A+", value: signal.whyNotAPlus)
+                        DataRow(label: "Why Not Live", value: signal.whyNotLiveReady, valueColor: NerVyx.sell)
+                        if let risk = signal.paper_exploration_risk_controller_decision ?? signal.risk_controller_decision {
+                            DataRow(label: "Risk Controller", value: nervyxPublicRuntimeText(risk))
+                        }
+                        if let orchestrator = signal.paper_exploration_orchestrator_decision {
+                            DataRow(label: "Orchestrator", value: nervyxPublicRuntimeText(orchestrator))
+                        }
+                        if let allocator = signal.paper_exploration_allocator_decision ?? signal.allocator_decision {
+                            DataRow(label: "Allocator", value: nervyxPublicRuntimeText(allocator))
+                        }
+                        if let trainer = signal.trainer_feedback_status {
+                            DataRow(label: "Trainer Feedback", value: nervyxPublicRuntimeText(trainer))
+                        }
                         DataRow(label: "Fill Status", value: signal.shortFillStatus, valueColor: NerVyx.textSecondary)
                         if let coverage = signal.data_coverage {
                             DataRow(

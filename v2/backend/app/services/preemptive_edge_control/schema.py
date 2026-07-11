@@ -191,6 +191,11 @@ def canonicalize_preemptive_decision(
             "side": _side(candidate),
             "strategy_id": _first(candidate.get("strategy_id"), candidate.get("strategy_selected_mode"), candidate.get("strategy_mode")),
             "source_tier": candidate.get("source_tier") or candidate.get("paper_opportunity_tier"),
+            "strategy_supply_hypothesis": candidate.get("strategy_supply_hypothesis") is True,
+            "strategy_supply_hypothesis_id": _first(
+                candidate.get("strategy_supply_hypothesis_id"),
+                candidate.get("hypothesis_id"),
+            ),
             "paper_session_id": _first(paper_session_id, candidate.get("paper_session_id")),
             "pre_trade_expected_net_pnl_usd": expected_net,
             "pre_trade_expected_gross_pnl_usd": expected_gross,

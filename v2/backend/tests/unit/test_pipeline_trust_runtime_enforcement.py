@@ -761,6 +761,101 @@ def test_ppo_trainer_accepts_optional_masked_feature_gaps() -> None:
     assert "ROW_CLASSIFICATION_MISSING_MASKED" not in result.metrics["training_rejection_reason_counts"]
 
 
+def test_ppo_trainer_accepts_historical_replay_missing_mask_without_weakening_live_integrity() -> None:
+    trainer = V2HybridPPOTrainer(model=FakeModel())
+
+    result = trainer.train(
+        [
+            example(
+                row_source="trusted_replay_archive",
+                update_lane="OUTCOME_SUPERVISED_TRUSTED_REPLAY",
+                trainer_feedback_source="V2_DURABLE_FEATURE_SNAPSHOT_TRUSTED_REPLAY",
+                row_classification="MISSING_MASKED",
+                missing_feature_names=["critical_family_absent:orderbook_depth"],
+                missing_feature_count=1,
+                features={
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                    "ret_pct": 0.1,
+                },
+                safe_to_train_with_missing_mask=True,
+                safe_missing_mask_training_scope="HISTORICAL_REPLAY_ONLY",
+                feature_family_introduced_after_snapshot_time=True,
+                source_availability={"ohlcv": {"available_at": ISO_CLOSE}},
+                source_availability_recorded=True,
+                lineage_mask_present=True,
+                classification_mask_present=True,
+                historical_replay_row=True,
+                trusted_replay_row=True,
+                old_log_prob=-0.1,
+                old_value=0.0,
+                reward=0.2,
+                done=False,
+                rollout_id="rollout-1",
+                trajectory_index=0,
+            )
+        ],
+        batch_size=4,
+    )
+
+    assert result.status != "NO_TRUSTED_TRAINING_ROWS"
+    assert result.train_rows == 1
+    reasons = result.metrics["training_rejection_reason_counts"]
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in reasons
+    assert "ROW_CLASSIFICATION_MISSING_MASKED" not in reasons
+    assert result.metrics["trusted_replay_rows_loaded"] == 1
+    assert result.metrics["policy_sampled_rows_seen"] == 1
+
+
+def test_ppo_trainer_rejects_historical_missing_mask_when_stale() -> None:
+    trainer = V2HybridPPOTrainer(model=FakeModel())
+
+    result = trainer.train(
+        [
+            example(
+                row_source="trusted_replay_archive",
+                update_lane="OUTCOME_SUPERVISED_TRUSTED_REPLAY",
+                row_classification="MISSING_MASKED",
+                missing_feature_names=["critical_family_absent:orderbook_depth"],
+                missing_feature_count=1,
+                stale_feature_names=["funding_rate"],
+                stale_feature_count=1,
+                features={
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                    "ret_pct": 0.1,
+                },
+                safe_to_train_with_missing_mask=True,
+                safe_missing_mask_training_scope="HISTORICAL_REPLAY_ONLY",
+                feature_family_introduced_after_snapshot_time=True,
+                source_availability={"ohlcv": {"available_at": ISO_CLOSE}},
+                source_availability_recorded=True,
+                lineage_mask_present=True,
+                classification_mask_present=True,
+                historical_replay_row=True,
+                trusted_replay_row=True,
+                old_log_prob=-0.1,
+                old_value=0.0,
+                reward=0.2,
+                done=False,
+                rollout_id="rollout-1",
+                trajectory_index=0,
+            )
+        ],
+        batch_size=4,
+    )
+
+    assert result.status == "NO_TRUSTED_TRAINING_ROWS"
+    reasons = result.metrics["training_rejection_reason_counts"]
+    assert "STALE_FEATURE_FAMILY" in reasons
+    diagnostics = result.metrics["training_rejection_family_diagnostics"]
+    assert diagnostics[0]["unsafe_to_train_reason"] == "STALE_FEATURE_FAMILY"
+
+
 def model_output(**overrides: Any) -> SimpleNamespace:
     payload = {
         "selected_action": "hold",

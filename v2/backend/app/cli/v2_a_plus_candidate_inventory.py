@@ -1,7 +1,8 @@
 """Current-session A+ live-canary candidate inventory.
 
-Read-only. This command reads runtime Redis payloads and writes inventory
-artifacts. It does not submit orders, write Redis, or mutate exchange state.
+This command reads runtime Redis payloads, writes inventory artifacts, and
+publishes paper-only exploration materialization queue records. It does not
+submit orders or mutate exchange state.
 """
 from __future__ import annotations
 
@@ -10,20 +11,77 @@ import hashlib
 import json
 import math
 import os
+import re
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from dataclasses import asdict
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.domain.orchestrator_decision import (
+    DECISION_ACTION_OPEN_LONG,
+    DECISION_ACTION_OPEN_SHORT,
+)
+from v2.backend.app.domain.trainer_prediction_output import (
+    PREDICTION_DIRECTION_FLAT,
+    PREDICTION_DIRECTION_LONG,
+    PREDICTION_DIRECTION_SHORT,
+    PREDICTION_FRESHNESS_FRESH,
+    PREDICTION_FRESHNESS_MISSING,
+    PREDICTION_FRESHNESS_STALE,
+    TrainerPredictionRecord,
+)
 from v2.backend.app.services.allocator import build_allocator_simulation
+from v2.backend.app.services.orchestrator_decision import assemble_orchestrator_decision_record
+from v2.backend.app.services.paper_exploration import (
+    PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+    build_paper_exploration_exit_plan,
+    build_paper_exploration_safety_truth,
+    build_paper_exploration_row_resolution,
+    evaluate_paper_risk_controller_exploration,
+    exploration_paper_fill_gate,
+    exploration_sizing_controls,
+)
+from v2.backend.app.services.paper_trade_management.entry_gate import (
+    DEFAULT_PAPER_ENTRY_ALLOWED_TIMEFRAMES,
+    DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST,
+    expected_move_after_cost_favorable_for_side,
+)
 from v2.backend.app.services.preemptive_edge_control import evaluate_candidate
+from v2.backend.app.services.risk_gateway import assemble_risk_decision_record
 
 
 SCHEMA_VERSION = "v2_a_plus_candidate_inventory_v1"
 TARGET_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 PREEMPTIVE_MATRIX_KEY = "v2:paper:preemptive_candidate_decision_matrix"
 PREEMPTIVE_STATUS_KEY = "v2:paper:preemptive_edge_control_status"
+CONTINUOUS_GUARDIAN_GATE_KEY = "v2:continuous_edge_guardian:a_grade_execution_gate"
 LIVE_GATE_KEY = "v2:live_gate:state"
+EXPLORATION_MATERIALIZATION_QUEUE_KEY = "v2:paper:exploration:materialization_queue"
+EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY = (
+    "v2:paper:exploration:materialization_queue_status"
+)
+PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY = (
+    "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+)
+PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_KEY = (
+    "v2:paper:performance_circuit_breaker_status"
+)
+PAPER_TRAINING_EVIDENCE_TTL_SECONDS = 30 * 24 * 60 * 60
+ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE = 70.0
+DEFAULT_ORCHESTRATOR_LOW_CONFIDENCE_THRESHOLD = 0.55
+PAPER_SIGNAL_STALE_SECONDS = 900
+PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS = 120
+PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER = 1
+PAPER_EXPLORATION_MATERIALIZATION_ALLOWED_ENTRY_TIMEFRAMES = (
+    DEFAULT_PAPER_ENTRY_ALLOWED_TIMEFRAMES
+)
+PAPER_EXPLORATION_MATERIALIZATION_SYMBOL_EXCLUSION_LIST = (
+    DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST
+)
+PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT = int(
+    os.getenv("PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT", "2")
+)
 
 ALLOWED_BLOCKER_CLASSES = (
     "DATA_FRESHNESS_BLOCKER",
@@ -42,12 +100,27 @@ ALLOWED_BLOCKER_CLASSES = (
 )
 
 ALLOW_RISK_VALUES = {"PASS", "ALLOW", "ALLOWED", "APPROVE", "APPROVED"}
-ALLOW_ORCHESTRATOR_VALUES = {"PASS", "ALLOW", "ALLOWED", "APPROVE", "APPROVED"}
+ALLOW_ORCHESTRATOR_VALUES = {
+    "PASS",
+    "ALLOW",
+    "ALLOWED",
+    "APPROVE",
+    "APPROVED",
+    "OPEN_LONG",
+    "OPEN_SHORT",
+}
 ALLOW_ALLOCATOR_VALUES = {"PASS", "ALLOW", "ALLOWED", "APPROVE", "APPROVED", "ALLOW_WITH_SIZE"}
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _format_utc(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+        "+00:00",
+        "Z",
+    )
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
@@ -85,6 +158,55 @@ def _bool(value: Any) -> bool:
     return str(value).strip().lower() in {"1", "true", "yes", "y", "on", "pass", "allow", "allowed"}
 
 
+def _explicit_false(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value is False
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value == 0
+    return str(value).strip().lower() in {"0", "false", "no", "n", "off"}
+
+
+def _canonical_materialization_no_fill_reason(reason: Any) -> str | None:
+    mapping = {
+        "ALL_CURRENT_ROWS_MARKET_INTEGRITY_BLOCKED": "ALL_ROWS_MARKET_INTEGRITY_BLOCKED",
+        "ALL_CURRENT_ROWS_PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
+        "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE": "ALL_ROWS_TRUE_BUCKET_QUARANTINE",
+        "ALL_CURRENT_ROWS_TRUE_RISK_BLOCKED": "ALL_ROWS_TRUE_RISK_BLOCKED",
+        "ALL_CURRENT_ROWS_TRUE_ORCHESTRATOR_BLOCKED": "ALL_ROWS_TRUE_ORCHESTRATOR_BLOCKED",
+        "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED": "ALL_ROWS_TRUE_ALLOCATOR_BLOCKED",
+        "ALL_CURRENT_ROWS_EXPLORATION_POLICY_REVALIDATION_BLOCKED": "ALL_ROWS_TRUE_TRUST_UNSAFE",
+        "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED": "ALL_ROWS_TRUE_TRUST_UNSAFE",
+        "TRUE_ENTRY_GATE_BLOCKED_PREQUEUE": "ALL_ROWS_TRUE_TRUST_UNSAFE",
+        "TRUE_MARKET_INTEGRITY_BLOCKED_PREQUEUE": "ALL_ROWS_MARKET_INTEGRITY_BLOCKED",
+    }
+    if reason in (None, ""):
+        return None
+    return mapping.get(str(reason), str(reason))
+
+
+def _prequeue_materialization_no_fill_reason(
+    reason_counts: Mapping[str, int],
+) -> str | None:
+    reasons = [str(reason) for reason, count in reason_counts.items() if int(count or 0) > 0]
+    if not reasons:
+        return None
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:") for reason in reasons):
+        return "ALL_CURRENT_ROWS_TRUE_BUCKET_QUARANTINE"
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_ENTRY_GATE:") for reason in reasons):
+        return "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED"
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_SOURCE_") for reason in reasons):
+        return "ALL_CURRENT_ROWS_MARKET_INTEGRITY_BLOCKED"
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_RISK:") for reason in reasons):
+        return "ALL_CURRENT_ROWS_TRUE_RISK_BLOCKED"
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_ORCHESTRATOR:") for reason in reasons):
+        return "ALL_CURRENT_ROWS_TRUE_ORCHESTRATOR_BLOCKED"
+    if all(reason.startswith("MATERIALIZATION_PREQUEUE_ALLOCATOR:") for reason in reasons):
+        return "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED"
+    return "ALL_CURRENT_ROWS_PREQUEUE_BLOCKED_WITH_EXACT_REASONS"
+
+
 def _read_json(client: Any, key: str) -> Any:
     if client is None:
         return None
@@ -118,6 +240,438 @@ def _write_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
         for row in rows:
             handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
     tmp.replace(path)
+
+
+def _safe_redis_set(client: Any, key: str, payload: Any, *, ex: int) -> bool:
+    if client is None:
+        return False
+    try:
+        client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=ex)
+        return True
+    except Exception:
+        return False
+
+
+def _record_hash(payload: Mapping[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def _decision_record_key(kind: str, decision_id: Any) -> str:
+    return f"v2:decision:{kind}:{decision_id}"
+
+
+def _decision_index_key(kind: str, identity: Any) -> str:
+    return f"v2:decision:index:by_{kind}:{identity}"
+
+
+def _decision_record_matches_row(
+    record: Mapping[str, Any],
+    row: Mapping[str, Any],
+    *,
+    id_field: str,
+    decision_id: Any,
+) -> bool:
+    if str(record.get(id_field) or record.get("decision_id") or "") != str(decision_id):
+        return False
+    symbol = str(row.get("symbol") or "").upper()
+    if symbol and str(record.get("symbol") or "").upper() != symbol:
+        return False
+    timeframe = str(row.get("timeframe") or "")
+    if timeframe and str(record.get("timeframe") or "") != timeframe:
+        return False
+    candidate_id = _first_present(row.get("candidate_id"), row.get("prediction_id"))
+    record_candidate_id = record.get("candidate_id")
+    if candidate_id and record_candidate_id not in (None, "", candidate_id):
+        return False
+    return True
+
+
+def _paper_exploration_risk_decision_record(
+    row: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any] | None:
+    risk_decision_id = _first_present(
+        row.get("risk_decision_id"),
+        row.get("paper_exploration_risk_decision_id"),
+    )
+    if not risk_decision_id:
+        return None
+    existing_record = _as_dict(row.get("risk_decision_record"))
+    risk_action = str(
+        _first_present(
+            row.get("risk_action"),
+            row.get("risk_decision"),
+            existing_record.get("risk_action"),
+            "PASS",
+        )
+        or "PASS"
+    )
+    reasons = _as_list(
+        _first_present(
+            row.get("risk_block_reasons"),
+            row.get("risk_controller_block_reasons"),
+            existing_record.get("risk_block_reasons"),
+            existing_record.get("reasons"),
+        )
+    )
+    return {
+        **existing_record,
+        "schema_version": "paper_exploration_per_id_risk_decision_v1",
+        "record_kind": "risk_decision",
+        "record_source": "v2_a_plus_candidate_inventory_materialization_queue",
+        "risk_decision_id": str(risk_decision_id),
+        "candidate_id": _first_present(row.get("candidate_id"), row.get("prediction_id")),
+        "signal_id": row.get("signal_id"),
+        "prediction_id": row.get("prediction_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "decision": risk_action,
+        "risk_action": risk_action,
+        "status": "RECORDED_FOR_PAPER_EXPLORATION",
+        "reasons": reasons,
+        "risk_block_reasons": reasons,
+        "max_loss_usd": _first_present(row.get("expected_max_loss_usd"), row.get("max_loss_usd")),
+        "liquidation_buffer_usd": _first_present(
+            row.get("liquidation_buffer_usd"),
+            row.get("expected_liquidation_buffer_usd"),
+        ),
+        "position_limit": _first_present(
+            row.get("recommended_notional_usd"),
+            row.get("target_notional_usd"),
+            row.get("target_notional_usdt"),
+        ),
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "feature_cutoff": row.get("feature_cutoff"),
+        "available_at": row.get("available_at"),
+        "decision_time": row.get("decision_time"),
+        "created_at": generated_utc,
+        "generated_utc": generated_utc,
+        "expires_at": row.get("expires_at"),
+        "model_version": _first_present(row.get("model_version"), "strategy_supply_paper_exploration"),
+        "checkpoint_hash": _first_present(row.get("checkpoint_hash"), row.get("checkpoint_id")),
+        "provider_hashes": _first_present(
+            row.get("provider_hashes"),
+            row.get("provider_feature_hashes"),
+            row.get("source_hashes"),
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+
+
+def _paper_exploration_orchestrator_decision_record(
+    row: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any] | None:
+    orchestrator_decision_id = _first_present(
+        row.get("orchestrator_decision_id"),
+        row.get("paper_exploration_orchestrator_decision_id"),
+    )
+    if not orchestrator_decision_id:
+        return None
+    existing_record = _as_dict(row.get("orchestrator_decision_record"))
+    orchestrator_action = str(
+        _first_present(
+            row.get("orchestrator_action"),
+            row.get("orchestrator_decision"),
+            existing_record.get("decision_action"),
+            existing_record.get("input_decision_action"),
+            "PASS",
+        )
+        or "PASS"
+    )
+    reasons = _as_list(
+        _first_present(
+            row.get("orchestrator_block_reasons"),
+            existing_record.get("orchestrator_block_reasons"),
+            existing_record.get("reasons"),
+        )
+    )
+    return {
+        **existing_record,
+        "schema_version": "paper_exploration_per_id_orchestrator_decision_v1",
+        "record_kind": "orchestrator_decision",
+        "record_source": "v2_a_plus_candidate_inventory_materialization_queue",
+        "orchestrator_decision_id": str(orchestrator_decision_id),
+        "decision_id": str(orchestrator_decision_id),
+        "candidate_id": _first_present(row.get("candidate_id"), row.get("prediction_id")),
+        "signal_id": row.get("signal_id"),
+        "prediction_id": row.get("prediction_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "decision": orchestrator_action,
+        "orchestrator_action": orchestrator_action,
+        "input_decision_action": orchestrator_action,
+        "route": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "status": "RECORDED_FOR_PAPER_EXPLORATION",
+        "reasons": reasons,
+        "orchestrator_block_reasons": reasons,
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "feature_cutoff": row.get("feature_cutoff"),
+        "available_at": row.get("available_at"),
+        "decision_time": row.get("decision_time"),
+        "created_at": generated_utc,
+        "generated_utc": generated_utc,
+        "expires_at": row.get("expires_at"),
+        "model_version": _first_present(row.get("model_version"), "strategy_supply_paper_exploration"),
+        "checkpoint_hash": _first_present(row.get("checkpoint_hash"), row.get("checkpoint_id")),
+        "provider_hashes": _first_present(
+            row.get("provider_hashes"),
+            row.get("provider_feature_hashes"),
+            row.get("source_hashes"),
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+
+
+def _publish_materialization_decision_records(
+    client: Any,
+    rows: list[dict[str, Any]],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    status: dict[str, Any] = {
+        "implemented": True,
+        "write_mode": "WRITE_MISSING_ONLY_PRESERVE_EXISTING",
+        "risk_records_written": 0,
+        "risk_records_resolved": 0,
+        "risk_records_missing": 0,
+        "risk_records_mismatch": 0,
+        "orchestrator_records_written": 0,
+        "orchestrator_records_resolved": 0,
+        "orchestrator_records_missing": 0,
+        "orchestrator_records_mismatch": 0,
+        "candidate_indexes_written": 0,
+        "signal_indexes_written": 0,
+        "row_count": len(rows),
+        "row_status": [],
+    }
+    for row in rows:
+        candidate_id = _first_present(row.get("candidate_id"), row.get("prediction_id"))
+        signal_id = row.get("signal_id")
+        row_status: dict[str, Any] = {
+            "candidate_id": candidate_id,
+            "signal_id": signal_id,
+            "risk_decision_id": _first_present(
+                row.get("risk_decision_id"),
+                row.get("paper_exploration_risk_decision_id"),
+            ),
+            "orchestrator_decision_id": _first_present(
+                row.get("orchestrator_decision_id"),
+                row.get("paper_exploration_orchestrator_decision_id"),
+            ),
+            "risk_decision_record_resolved": False,
+            "orchestrator_decision_record_resolved": False,
+            "decision_record_missing_reasons": [],
+        }
+
+        risk_record = _paper_exploration_risk_decision_record(row, generated_utc=generated_utc)
+        if risk_record is None:
+            status["risk_records_missing"] += 1
+            row_status["decision_record_missing_reasons"].append("RISK_DECISION_ID_MISSING")
+        else:
+            risk_key = _decision_record_key("risk", risk_record["risk_decision_id"])
+            existing = _read_json(client, risk_key)
+            if isinstance(existing, Mapping) and existing:
+                if _decision_record_matches_row(
+                    existing,
+                    row,
+                    id_field="risk_decision_id",
+                    decision_id=risk_record["risk_decision_id"],
+                ):
+                    risk_record = dict(existing)
+                    status["risk_records_resolved"] += 1
+                    row_status["risk_decision_record_resolved"] = True
+                else:
+                    status["risk_records_mismatch"] += 1
+                    row_status["decision_record_missing_reasons"].append(
+                        "RISK_DECISION_RECORD_EXISTING_MISMATCH"
+                    )
+            elif _safe_redis_set(
+                client,
+                risk_key,
+                risk_record,
+                ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+            ):
+                status["risk_records_written"] += 1
+                status["risk_records_resolved"] += 1
+                row_status["risk_decision_record_resolved"] = True
+            else:
+                status["risk_records_missing"] += 1
+                row_status["decision_record_missing_reasons"].append(
+                    "RISK_DECISION_RECORD_WRITE_FAILED"
+                )
+            if row_status["risk_decision_record_resolved"]:
+                row_status["risk_decision_record_key"] = risk_key
+                row_status["risk_decision_record_hash"] = _record_hash(risk_record)
+                row["risk_decision_record_key"] = risk_key
+                row["risk_decision_record_hash"] = row_status["risk_decision_record_hash"]
+                row["risk_decision_record_resolved"] = True
+                row["risk_decision_source"] = "PER_ID_DECISION_RECORD"
+
+        orchestrator_record = _paper_exploration_orchestrator_decision_record(
+            row,
+            generated_utc=generated_utc,
+        )
+        if orchestrator_record is None:
+            status["orchestrator_records_missing"] += 1
+            row_status["decision_record_missing_reasons"].append(
+                "ORCHESTRATOR_DECISION_ID_MISSING"
+            )
+        else:
+            orchestrator_key = _decision_record_key(
+                "orchestrator",
+                orchestrator_record["orchestrator_decision_id"],
+            )
+            existing = _read_json(client, orchestrator_key)
+            if isinstance(existing, Mapping) and existing:
+                if _decision_record_matches_row(
+                    existing,
+                    row,
+                    id_field="orchestrator_decision_id",
+                    decision_id=orchestrator_record["orchestrator_decision_id"],
+                ):
+                    orchestrator_record = dict(existing)
+                    status["orchestrator_records_resolved"] += 1
+                    row_status["orchestrator_decision_record_resolved"] = True
+                else:
+                    status["orchestrator_records_mismatch"] += 1
+                    row_status["decision_record_missing_reasons"].append(
+                        "ORCHESTRATOR_DECISION_RECORD_EXISTING_MISMATCH"
+                    )
+            elif _safe_redis_set(
+                client,
+                orchestrator_key,
+                orchestrator_record,
+                ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+            ):
+                status["orchestrator_records_written"] += 1
+                status["orchestrator_records_resolved"] += 1
+                row_status["orchestrator_decision_record_resolved"] = True
+            else:
+                status["orchestrator_records_missing"] += 1
+                row_status["decision_record_missing_reasons"].append(
+                    "ORCHESTRATOR_DECISION_RECORD_WRITE_FAILED"
+                )
+            if row_status["orchestrator_decision_record_resolved"]:
+                row_status["orchestrator_decision_record_key"] = orchestrator_key
+                row_status["orchestrator_decision_record_hash"] = _record_hash(
+                    orchestrator_record
+                )
+                row["orchestrator_decision_record_key"] = orchestrator_key
+                row["orchestrator_decision_record_hash"] = row_status[
+                    "orchestrator_decision_record_hash"
+                ]
+                row["orchestrator_decision_record_resolved"] = True
+                row["orchestrator_decision_source"] = "PER_ID_DECISION_RECORD"
+
+        index_payload = {
+            "schema_version": "paper_exploration_decision_index_v1",
+            "generated_utc": generated_utc,
+            "candidate_id": candidate_id,
+            "signal_id": signal_id,
+            "prediction_id": row.get("prediction_id"),
+            "symbol": row.get("symbol"),
+            "timeframe": row.get("timeframe"),
+            "side": row.get("side"),
+            "risk_decision_id": row_status["risk_decision_id"],
+            "risk_decision_record_key": row_status.get("risk_decision_record_key"),
+            "risk_decision_record_hash": row_status.get("risk_decision_record_hash"),
+            "orchestrator_decision_id": row_status["orchestrator_decision_id"],
+            "orchestrator_decision_record_key": row_status.get(
+                "orchestrator_decision_record_key"
+            ),
+            "orchestrator_decision_record_hash": row_status.get(
+                "orchestrator_decision_record_hash"
+            ),
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+        if candidate_id and _safe_redis_set(
+            client,
+            _decision_index_key("candidate", candidate_id),
+            index_payload,
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
+            status["candidate_indexes_written"] += 1
+        if signal_id and _safe_redis_set(
+            client,
+            _decision_index_key("signal", signal_id),
+            index_payload,
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        ):
+            status["signal_indexes_written"] += 1
+        row["decision_record_missing_reasons"] = row_status[
+            "decision_record_missing_reasons"
+        ]
+        status["row_status"].append(row_status)
+
+    status["missing_record_count"] = (
+        status["risk_records_missing"]
+        + status["orchestrator_records_missing"]
+        + status["risk_records_mismatch"]
+        + status["orchestrator_records_mismatch"]
+    )
+    return status
+
+
+def _counterfactual_feedback_identity(row: Mapping[str, Any]) -> str:
+    for field in (
+        "trainer_feedback_id",
+        "paper_exploration_candidate_id",
+        "prediction_id",
+        "signal_id",
+    ):
+        value = row.get(field)
+        if value not in (None, ""):
+            return str(value)
+    return "|".join(
+        str(row.get(field) or "")
+        for field in ("feedback_type", "symbol", "timeframe", "side")
+    )
+
+
+def _merge_counterfactual_feedback_rows(
+    existing_payload: Any,
+    new_rows: list[Mapping[str, Any]],
+    *,
+    limit: int = 1_000,
+) -> list[dict[str, Any]]:
+    if isinstance(existing_payload, Mapping):
+        existing_rows = existing_payload.get("rows")
+    else:
+        existing_rows = existing_payload
+    merged_by_id: dict[str, dict[str, Any]] = {}
+    if isinstance(existing_rows, list):
+        for row in existing_rows:
+            if not isinstance(row, Mapping):
+                continue
+            merged = dict(row)
+            merged_by_id[_counterfactual_feedback_identity(merged)] = merged
+    for row in new_rows:
+        if not isinstance(row, Mapping):
+            continue
+        merged = dict(row)
+        merged_by_id[_counterfactual_feedback_identity(merged)] = merged
+    return list(merged_by_id.values())[-limit:]
 
 
 def _redis_client(redis_url: str | None = None) -> Any:
@@ -208,6 +762,14 @@ def _has_named_feature(
 
 def _provider_presence(prediction: Mapping[str, Any] | None) -> dict[str, Any]:
     features, feature_names, source_labels = _feature_values(prediction)
+    prediction = prediction if isinstance(prediction, Mapping) else {}
+
+    def _explicit_bool(name: str) -> bool | None:
+        value = prediction.get(name)
+        if isinstance(value, bool):
+            return value
+        return None
+
     coinank = _has_named_feature(
         features=features,
         feature_names=feature_names,
@@ -250,7 +812,50 @@ def _provider_presence(prediction: Mapping[str, Any] | None) -> dict[str, Any]:
         source_labels=source_labels,
         needles=("fvg", "liquidity_zone", "nearest_liquidity", "liquidity_sweep"),
     )
-    entry_snapshot = _as_dict(prediction.get("entry_feature_snapshot")) if isinstance(prediction, Mapping) else {}
+    explicit_provider_flags = {
+        "coinank": _explicit_bool("CoinAnk_features_present"),
+        "coinglass": _explicit_bool("CoinGlass_features_present"),
+        "moralis": _explicit_bool("Moralis_features_present"),
+        "ta": _explicit_bool("TA_features_present"),
+        "micro": _explicit_bool("microstructure_features_present"),
+        "advanced": _explicit_bool("advanced_indicator_features_present"),
+        "fvg_liquidity": _explicit_bool("FVG_liquidity_zone_features_present"),
+    }
+    microstructure_evidence_present = any(
+        _float(prediction.get(field)) is not None
+        for field in (
+            "microstructure_trust_score",
+            "composite_microstructure_trust_score",
+            "trade_tape_confirmation_score",
+            "orderbook_depth_usd",
+            "liquidity_exit_depth",
+            "expected_exit_depth_usd",
+        )
+    )
+    coinank = explicit_provider_flags["coinank"] if explicit_provider_flags["coinank"] is not None else coinank
+    coinglass = (
+        explicit_provider_flags["coinglass"]
+        if explicit_provider_flags["coinglass"] is not None
+        else coinglass
+    )
+    moralis = explicit_provider_flags["moralis"] if explicit_provider_flags["moralis"] is not None else moralis
+    ta = explicit_provider_flags["ta"] if explicit_provider_flags["ta"] is not None else ta
+    micro = (
+        bool(explicit_provider_flags["micro"] or microstructure_evidence_present)
+        if explicit_provider_flags["micro"] is not None
+        else bool(micro or microstructure_evidence_present)
+    )
+    advanced = (
+        explicit_provider_flags["advanced"]
+        if explicit_provider_flags["advanced"] is not None
+        else advanced
+    )
+    fvg_liquidity = (
+        explicit_provider_flags["fvg_liquidity"]
+        if explicit_provider_flags["fvg_liquidity"] is not None
+        else fvg_liquidity
+    )
+    entry_snapshot = _as_dict(prediction.get("entry_feature_snapshot"))
     missing_names = [
         str(item)
         for item in _as_list(
@@ -341,7 +946,11 @@ def _orchestrator_status(row: Mapping[str, Any]) -> str:
         row.get("orchestrator_decision"),
         row.get("orchestrator_result"),
         row.get("orchestrator_action"),
+        row.get("decision_action"),
+        row.get("orchestrator_decision_action"),
         _as_dict(row.get("orchestrator")).get("decision"),
+        _as_dict(row.get("orchestrator")).get("decision_action"),
+        _as_dict(row.get("orchestrator_decision_record")).get("decision_action"),
     )
     if value is None:
         return "MISSING"
@@ -431,35 +1040,1031 @@ def _no_side_reason(
     return f"UNSUPPORTED_ACTION_{str(raw_action).upper()}"
 
 
+_NO_TRADE_STRATEGY_TOKENS = {
+    "hold",
+    "no_trade",
+    "no_trade_mode",
+    "no_trade_expert",
+    "risk_off_no_trade",
+}
+
+_LIFECYCLE_STRATEGY_TOKENS = {
+    "close",
+    "close_only",
+    "close_or_reduce_only",
+    "reduce",
+    "reduce_only",
+    "reduce_size",
+    "reduce_size_mode",
+    "reduce_only_recovery",
+}
+
+
+def _split_strategy_tokens(value: Any) -> list[str]:
+    if value in (None, ""):
+        return []
+    if isinstance(value, (list, tuple, set)):
+        tokens: list[str] = []
+        for item in value:
+            tokens.extend(_split_strategy_tokens(item))
+        return tokens
+    text = str(value).strip().lower()
+    if not text:
+        return []
+    return [
+        token
+        for token in re.split(r"[^a-z0-9_]+", text)
+        if token
+    ] or [text]
+
+
+def _materialization_no_trade_entry_evidence_reasons(
+    row: Mapping[str, Any],
+) -> list[str]:
+    reasons: list[str] = []
+    fields = (
+        "strategy_id",
+        "strategy_family",
+        "strategy_subtype",
+        "strategy_mode",
+        "strategy_canonical_mode",
+        "strategy_selected_mode",
+        "strategy_router_selected_mode",
+        "entry_reason",
+    )
+    for field in fields:
+        for token in _split_strategy_tokens(row.get(field)):
+            if token in _NO_TRADE_STRATEGY_TOKENS:
+                reasons.append(f"{field}=NO_TRADE")
+            elif token in _LIFECYCLE_STRATEGY_TOKENS:
+                reasons.append(f"{field}=LIFECYCLE_ACTION")
+    for token in _split_strategy_tokens(
+        _first_present(
+            row.get("strategy_regime_labels"),
+            row.get("market_regime"),
+            row.get("market_regime_at_entry"),
+        )
+    ):
+        if token in _NO_TRADE_STRATEGY_TOKENS or token == "no_trade":
+            reasons.append("strategy_regime_labels_include_NO_TRADE")
+    return sorted(set(reasons))
+
+
+def _selected_side_economics_consistency(row: Mapping[str, Any]) -> dict[str, Any]:
+    side = str(row.get("side") or row.get("selected_action") or "").strip().lower()
+    expected_move = _float(row.get("expected_move_after_cost_bps"))
+    if side not in {"long", "short"}:
+        return {
+            "status": "UNKNOWN_SIDE",
+            "side": side or None,
+            "expected_move_after_cost_bps": expected_move,
+            "selected_side_expected_net_pnl_usd": None,
+            "selected_side_expected_net_edge_bps": None,
+            "contradiction_reasons": ["SELECTED_SIDE_MISSING"],
+        }
+
+    selected_net = _float(
+        _first_present(
+            row.get(f"{side}_expected_net_pnl_usd"),
+            row.get(f"expected_{side}_net_pnl_usd"),
+            row.get("expected_net_pnl_usd"),
+        )
+    )
+    selected_edge = _float(
+        _first_present(
+            row.get(f"{side}_expected_net_edge_bps"),
+            row.get(f"expected_{side}_net_edge_bps"),
+        )
+    )
+    signed_move_favorable = expected_move_after_cost_favorable_for_side(
+        side=side,
+        expected_move_after_cost_bps=expected_move,
+    )
+    contradiction_reasons: list[str] = []
+    if (
+        expected_move is not None
+        and not signed_move_favorable
+        and selected_net is not None
+        and selected_net > 0.0
+    ):
+        contradiction_reasons.append(
+            "SELECTED_SIDE_NET_USD_POSITIVE_WHILE_SIGNED_MOVE_UNFAVORABLE"
+        )
+    if selected_edge is not None and selected_net is not None:
+        if selected_edge <= 0.0 < selected_net:
+            contradiction_reasons.append(
+                "SELECTED_SIDE_NET_USD_POSITIVE_WHILE_EDGE_BPS_NON_POSITIVE"
+            )
+        elif selected_edge > 0.0 and selected_net <= 0.0:
+            contradiction_reasons.append(
+                "SELECTED_SIDE_NET_USD_NON_POSITIVE_WHILE_EDGE_BPS_POSITIVE"
+            )
+
+    return {
+        "status": "CONFLICT" if contradiction_reasons else "CONSISTENT",
+        "side": side,
+        "expected_move_after_cost_bps": expected_move,
+        "expected_move_after_cost_favorable_for_side": signed_move_favorable,
+        "selected_side_expected_net_pnl_usd": selected_net,
+        "selected_side_expected_net_edge_bps": selected_edge,
+        "contradiction_reasons": contradiction_reasons,
+    }
+
+
+def _materialization_source_freshness(
+    row: Mapping[str, Any],
+    *,
+    accepted_at: Any,
+) -> dict[str, Any]:
+    accepted_dt = _parse_utc(accepted_at)
+    adaptive_seconds = _adaptive_stale_seconds(row)
+    source_candidates: list[tuple[str, datetime]] = []
+    for field, value in (
+        ("available_at", _first_present(row.get("source_available_at"), row.get("available_at"), row.get("entry_feature_available_at"))),
+        ("decision_time", _first_present(row.get("source_decision_time"), row.get("decision_time"), row.get("entry_feature_decision_time"))),
+        ("generated_utc", _first_present(row.get("source_generated_utc"), row.get("generated_utc"), row.get("generated_at"))),
+        ("feature_cutoff", row.get("feature_cutoff")),
+    ):
+        parsed = _parse_utc(value)
+        if parsed is not None:
+            source_candidates.append((field, parsed))
+
+    if accepted_dt is None:
+        return {
+            "source_freshness_basis": None,
+            "source_freshness_time": None,
+            "source_expires_at": None,
+            "source_age_seconds_at_acceptance": None,
+            "source_stale_seconds": adaptive_seconds,
+            "source_stale_at_acceptance": True,
+            "source_future_at_acceptance": False,
+            "source_freshness_reasons": ["MATERIALIZATION_PREQUEUE_ACCEPTED_AT_INVALID"],
+        }
+
+    if not source_candidates:
+        return {
+            "source_freshness_basis": None,
+            "source_freshness_time": None,
+            "source_expires_at": None,
+            "source_age_seconds_at_acceptance": None,
+            "source_stale_seconds": adaptive_seconds,
+            "source_stale_at_acceptance": True,
+            "source_future_at_acceptance": False,
+            "source_freshness_reasons": ["MATERIALIZATION_PREQUEUE_SOURCE_TIME_MISSING"],
+        }
+
+    basis_field, basis_dt = max(source_candidates, key=lambda item: item[1])
+    source_expires_at = basis_dt + timedelta(seconds=adaptive_seconds)
+    age_seconds = int(round((accepted_dt - basis_dt).total_seconds()))
+    source_future = basis_dt > accepted_dt
+    source_stale = source_expires_at < accepted_dt
+    reasons: list[str] = []
+    if source_future:
+        reasons.append(
+            f"MATERIALIZATION_PREQUEUE_SOURCE_TIME_AFTER_ACCEPTED_AT:{basis_field}"
+        )
+    if source_stale:
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_SOURCE_STALE:"
+            f"{max(0, age_seconds)}>{adaptive_seconds}:{basis_field}"
+        )
+    return {
+        "source_freshness_basis": basis_field,
+        "source_freshness_time": _format_utc(basis_dt),
+        "source_expires_at": _format_utc(source_expires_at),
+        "source_age_seconds_at_acceptance": age_seconds,
+        "source_stale_seconds": adaptive_seconds,
+        "source_stale_at_acceptance": source_stale,
+        "source_future_at_acceptance": source_future,
+        "source_freshness_reasons": reasons,
+    }
+
+
+def _materialization_prequeue_block_reasons(
+    row: Mapping[str, Any],
+    *,
+    accepted_at: Any | None = None,
+) -> list[str]:
+    reasons: list[str] = []
+    if accepted_at not in (None, ""):
+        source_freshness = _materialization_source_freshness(
+            row,
+            accepted_at=accepted_at,
+        )
+        reasons.extend(
+            str(reason)
+            for reason in source_freshness.get("source_freshness_reasons") or []
+            if reason
+            and not str(reason).startswith(
+                "MATERIALIZATION_PREQUEUE_SOURCE_TIME_AFTER_ACCEPTED_AT:"
+            )
+        )
+    no_trade_entry_reasons = _materialization_no_trade_entry_evidence_reasons(row)
+    if no_trade_entry_reasons:
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_LIFECYCLE_OR_NO_TRADE_STRATEGY_NOT_ENTRY_EVIDENCE"
+        )
+        reasons.extend(
+            f"MATERIALIZATION_PREQUEUE_NO_TRADE_ENTRY_EVIDENCE:{reason}"
+            for reason in no_trade_entry_reasons
+        )
+    symbol = str(row.get("symbol") or "").strip().upper()
+    timeframe = str(row.get("timeframe") or "").strip().lower()
+    if symbol in PAPER_EXPLORATION_MATERIALIZATION_SYMBOL_EXCLUSION_LIST:
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_ENTRY_GATE:"
+            f"SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:{symbol}"
+        )
+    if (
+        timeframe
+        and timeframe not in PAPER_EXPLORATION_MATERIALIZATION_ALLOWED_ENTRY_TIMEFRAMES
+    ):
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_ENTRY_GATE:"
+            f"TIMEFRAME_BLOCKED:{timeframe}"
+        )
+    side = str(row.get("side") or row.get("selected_action") or "").strip().lower()
+    expected_move = _float(row.get("expected_move_after_cost_bps"))
+    if not expected_move_after_cost_favorable_for_side(
+        side=side,
+        expected_move_after_cost_bps=expected_move,
+    ):
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE:"
+            f"{side or 'missing'}:{expected_move}"
+        )
+    side_economics_consistency = _selected_side_economics_consistency(row)
+    for reason in side_economics_consistency.get("contradiction_reasons") or []:
+        reasons.append(
+            "MATERIALIZATION_PREQUEUE_SELECTED_SIDE_ECONOMICS_CONFLICT:"
+            f"{side or 'missing'}:{reason}"
+        )
+    if row.get("current_price_can_size_trade") is False:
+        reasons.append("MATERIALIZATION_PREQUEUE_CURRENT_PRICE_NOT_TRADE_SIZE_SAFE")
+    quarantine = _as_dict(row.get("paper_exploration_quarantine"))
+    if quarantine.get("should_block_this_row") is True:
+        reasons.append("MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE")
+    return sorted(set(reasons))
+
+
+def _inventory_confidence_bucket(value: Any) -> str:
+    confidence = _float(value)
+    if confidence is None:
+        return "MISSING"
+    bounded = max(0.0, min(1.0, confidence))
+    low_index = min(9, max(0, int(bounded * 10.0)))
+    low = low_index / 10.0
+    high = 1.0 if low_index == 9 else (low_index + 1) / 10.0
+    return f"{low:.1f}-{high:.1f}"
+
+
+def _inventory_regime_from_labels(value: Any) -> str | None:
+    if isinstance(value, str):
+        labels = [item.strip() for item in value.split(",") if item.strip()]
+    elif isinstance(value, (list, tuple, set)):
+        labels = [str(item).strip() for item in value if str(item).strip()]
+    else:
+        labels = []
+    normalized = [label.upper() for label in labels if label]
+    if not normalized:
+        return None
+    non_no_trade = [label for label in normalized if label != "NO_TRADE"]
+    return ",".join(non_no_trade or normalized)
+
+
+def _inventory_regime_value(row: Mapping[str, Any]) -> str:
+    raw_regime = _first_present(
+        row.get("market_regime_at_entry"),
+        row.get("market_regime"),
+        row.get("market_regime_at_exit"),
+    )
+    if raw_regime not in (None, ""):
+        if isinstance(raw_regime, (list, tuple, set)):
+            derived = _inventory_regime_from_labels(raw_regime)
+            if derived:
+                return derived
+        return str(raw_regime)
+    return _inventory_regime_from_labels(row.get("strategy_regime_labels")) or "UNKNOWN"
+
+
+def _inventory_known_bucket_value(value: Any) -> bool:
+    text = str(value or "").strip()
+    return bool(text) and text.upper() != "UNKNOWN"
+
+
+def _inventory_candidate_quarantine_keys(row: Mapping[str, Any]) -> set[str]:
+    symbol = str(row.get("symbol") or "UNKNOWN")
+    timeframe = str(row.get("timeframe") or "UNKNOWN")
+    side = str(_first_present(row.get("side"), row.get("selected_action"), row.get("action")) or "UNKNOWN").lower()
+    strategy = str(
+        _first_present(
+            row.get("strategy_mode"),
+            row.get("strategy_canonical_mode"),
+            row.get("strategy_id"),
+            row.get("strategy_family"),
+            row.get("strategy_subtype"),
+            row.get("strategy_selected_mode"),
+            row.get("strategy_router_selected_mode"),
+        )
+        or "UNKNOWN"
+    )
+    regime = _inventory_regime_value(row)
+    confidence_bucket = _inventory_confidence_bucket(
+        _first_present(
+            row.get("confidence_calibrated"),
+            row.get("selected_action_probability"),
+            row.get("confidence_raw"),
+        )
+    )
+    keys: set[str] = {"|".join((symbol, timeframe, strategy, regime))}
+    if _inventory_known_bucket_value(side):
+        keys.add(f"side:{side}")
+    if _inventory_known_bucket_value(regime):
+        keys.add(f"regime:{regime}")
+    if _inventory_known_bucket_value(timeframe):
+        keys.add(f"timeframe:{timeframe}")
+    if _inventory_known_bucket_value(side) and _inventory_known_bucket_value(timeframe):
+        keys.add(f"side_timeframe:{side}|{timeframe}")
+    if _inventory_known_bucket_value(strategy) and _inventory_known_bucket_value(regime):
+        keys.add(f"strategy_regime:{strategy}|{regime}")
+    if (
+        _inventory_known_bucket_value(strategy)
+        and _inventory_known_bucket_value(side)
+        and _inventory_known_bucket_value(timeframe)
+    ):
+        keys.add(f"strategy_side_timeframe:{strategy}|{side}|{timeframe}")
+    if _inventory_known_bucket_value(confidence_bucket) and _inventory_known_bucket_value(regime):
+        keys.add(f"confidence_regime:{confidence_bucket}|{regime}")
+    return keys
+
+
+def _inventory_specific_quarantine_key(key: str) -> bool:
+    normalized = str(key or "")
+    return not normalized.startswith(("side:", "timeframe:", "regime:"))
+
+
+_INVENTORY_REGIME_BUCKET_TYPES = {
+    "regime",
+    "confidence_regime",
+    "strategy_regime",
+}
+
+
+def _inventory_quarantine_bucket_metadata(
+    status: Mapping[str, Any],
+) -> dict[str, Mapping[str, Any]]:
+    nested_status = _as_dict(status.get("bucket_quarantine_status"))
+    rows = status.get("quarantined_buckets")
+    if not isinstance(rows, list):
+        rows = nested_status.get("quarantined_buckets")
+    if not isinstance(rows, list):
+        return {}
+    return {
+        str(bucket.get("bucket_key")): bucket
+        for bucket in rows
+        if isinstance(bucket, Mapping) and bucket.get("bucket_key") not in (None, "")
+    }
+
+
+def _inventory_quarantine_min_count(status: Mapping[str, Any]) -> int:
+    nested_status = _as_dict(status.get("bucket_quarantine_status"))
+    configured = _float(
+        _first_present(
+            status.get("negative_bucket_min_count"),
+            nested_status.get("negative_bucket_min_count"),
+            PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT,
+        )
+    )
+    if configured is None:
+        return PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT
+    return max(1, int(configured))
+
+
+def _inventory_bucket_proof_rows(
+    keys: Iterable[str],
+    status: Mapping[str, Any],
+    *,
+    classification: str,
+) -> list[dict[str, Any]]:
+    metadata = _inventory_quarantine_bucket_metadata(status)
+    min_count = _inventory_quarantine_min_count(status)
+    proof_rows: list[dict[str, Any]] = []
+    for key in keys:
+        bucket = metadata.get(str(key or ""))
+        if bucket is None:
+            proof_rows.append(
+                {
+                    "bucket_key": key,
+                    "proof_status": "MISSING_BUCKET_METADATA_FAIL_CLOSED",
+                    "classification": classification,
+                    "negative_bucket_min_count": min_count,
+                }
+            )
+            continue
+        proof_rows.append(
+            {
+                "bucket_key": bucket.get("bucket_key"),
+                "bucket_type": bucket.get("bucket_type"),
+                "state": bucket.get("state"),
+                "candidate_blocking": bucket.get("candidate_blocking"),
+                "block_reasons": list(bucket.get("block_reasons") or []),
+                "closed_outcome_count": bucket.get("closed_outcome_count"),
+                "profit_factor": bucket.get("profit_factor"),
+                "notional_weighted_expectancy_bps": bucket.get(
+                    "notional_weighted_expectancy_bps"
+                ),
+                "high_confidence_loss_rate": bucket.get("high_confidence_loss_rate"),
+                "high_confidence_loss_count": bucket.get("high_confidence_loss_count"),
+                "high_confidence_outcome_count": bucket.get(
+                    "high_confidence_outcome_count"
+                ),
+                "ATR_stop_loss_count": bucket.get("ATR_stop_loss_count"),
+                "negative_bucket_min_count": _first_present(
+                    bucket.get("negative_bucket_min_count"),
+                    min_count,
+                ),
+                "proof_status": "BUCKET_METADATA_PRESENT",
+                "classification": classification,
+            }
+        )
+    return proof_rows
+
+
+def _inventory_hard_quarantine_key_for_paper_exploration(
+    key: str,
+    status: Mapping[str, Any],
+) -> bool:
+    if not _inventory_specific_quarantine_key(key):
+        return False
+    bucket = _inventory_quarantine_bucket_metadata(status).get(str(key or ""))
+    if bucket is None:
+        return True
+    bucket_type = str(bucket.get("bucket_type") or "")
+    if bucket_type not in _INVENTORY_REGIME_BUCKET_TYPES:
+        return True
+    closed_count = int(_float(bucket.get("closed_outcome_count")) or 0)
+    min_count = _inventory_quarantine_min_count(status)
+    reasons = [str(reason) for reason in (bucket.get("block_reasons") or [])]
+    profit_factor = _float(bucket.get("profit_factor"))
+    expectancy_bps = _float(bucket.get("notional_weighted_expectancy_bps"))
+    severe = any(
+        "ATR_STOP" in reason
+        or "CATASTROPHIC" in reason
+        or "HIGH_CONFIDENCE_LOSS_RATE" in reason
+        for reason in reasons
+    )
+    negative_evidence = any(reason.startswith("NEGATIVE_") for reason in reasons) and (
+        (profit_factor is not None and profit_factor < 1.0)
+        or (expectancy_bps is not None and expectancy_bps <= 0.0)
+    )
+    mature = closed_count >= min_count
+    return mature or severe or negative_evidence
+
+
+def _inventory_specific_loss_cluster_key(key: str) -> bool:
+    normalized = str(key or "")
+    return not normalized.startswith(
+        ("loss_cluster_side:", "loss_cluster_timeframe:")
+    )
+
+
+def _inventory_high_confidence_loss_cluster_matches(
+    row: Mapping[str, Any],
+    performance_status: Mapping[str, Any],
+) -> list[str]:
+    cluster = _as_dict(performance_status.get("recovery_high_confidence_loss_cluster_status"))
+    if cluster.get("cluster_detected") is not True:
+        return []
+    symbol = str(row.get("symbol") or "").strip().upper()
+    side = str(_first_present(row.get("side"), row.get("selected_action"), row.get("action")) or "").strip().lower()
+    timeframe = str(row.get("timeframe") or "").strip()
+    strategy = str(
+        _first_present(
+            row.get("strategy_selected_mode"),
+            row.get("strategy_mode"),
+            row.get("strategy_id"),
+            row.get("strategy_family"),
+        )
+        or ""
+    ).strip()
+    affected_symbols = {
+        str(value or "").upper()
+        for value in (cluster.get("affected_symbols") or [])
+        if value not in (None, "")
+    }
+    quarantined_sides = {
+        str(value or "").lower()
+        for value in (cluster.get("quarantined_sides") or [])
+        if value not in (None, "")
+    }
+    quarantined_timeframes = {
+        str(value or "")
+        for value in (cluster.get("quarantined_timeframes") or [])
+        if value not in (None, "")
+    }
+    quarantined_strategy_modes = {
+        str(value or "")
+        for value in (cluster.get("quarantined_strategy_modes") or [])
+        if value not in (None, "")
+    }
+    matches: list[str] = []
+    if symbol and symbol in affected_symbols:
+        matches.append(f"loss_cluster_symbol:{symbol}")
+    if side and side in quarantined_sides:
+        matches.append(f"loss_cluster_side:{side}")
+    if timeframe and timeframe in quarantined_timeframes:
+        matches.append(f"loss_cluster_timeframe:{timeframe}")
+    if strategy and strategy in quarantined_strategy_modes:
+        matches.append(f"loss_cluster_strategy:{strategy}")
+    return sorted(set(matches))
+
+
+def _materialization_prequeue_performance_block_reasons(
+    row: Mapping[str, Any],
+    performance_status: Mapping[str, Any] | None,
+) -> tuple[list[str], dict[str, Any]]:
+    status = _as_dict(performance_status)
+    if not status:
+        return [], {}
+    candidate_keys = _inventory_candidate_quarantine_keys(row)
+    blocked_keys = {
+        str(key)
+        for key in (status.get("blocked_bucket_keys") or [])
+        if key not in (None, "")
+    }
+    matched_bucket_keys = sorted(candidate_keys & blocked_keys)
+    matched_loss_cluster_keys = _inventory_high_confidence_loss_cluster_matches(
+        row,
+        status,
+    )
+    hard_bucket_keys = [
+        key
+        for key in matched_bucket_keys
+        if _inventory_hard_quarantine_key_for_paper_exploration(key, status)
+    ]
+    hard_loss_cluster_keys = [
+        key
+        for key in matched_loss_cluster_keys
+        if _inventory_specific_loss_cluster_key(key)
+    ]
+    advisory_bucket_keys = [
+        key for key in matched_bucket_keys if key not in hard_bucket_keys
+    ]
+    advisory_loss_cluster_keys = [
+        key for key in matched_loss_cluster_keys if key not in hard_loss_cluster_keys
+    ]
+    reasons = [
+        f"MATERIALIZATION_PREQUEUE_ACTIVE_BUCKET_QUARANTINE:{key}"
+        for key in hard_bucket_keys
+    ] + [
+        f"MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:{key}"
+        for key in hard_loss_cluster_keys
+    ]
+    evidence = {
+        "paper_performance_circuit_breaker_state": status.get("state") or status.get("status"),
+        "paper_performance_circuit_breaker_observed_reasons": list(
+            status.get("block_reasons") or []
+        ),
+        "paper_performance_circuit_breaker_candidate_bucket_keys": sorted(
+            candidate_keys
+        ),
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": hard_bucket_keys,
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": hard_loss_cluster_keys,
+        "paper_performance_circuit_breaker_advisory_bucket_keys": advisory_bucket_keys,
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": advisory_loss_cluster_keys,
+        "paper_performance_circuit_breaker_matched_blocked_bucket_proof": (
+            _inventory_bucket_proof_rows(
+                hard_bucket_keys,
+                status,
+                classification="HARD_BLOCK_FOR_PAPER_EXPLORATION",
+            )
+        ),
+        "paper_performance_circuit_breaker_advisory_bucket_proof": (
+            _inventory_bucket_proof_rows(
+                advisory_bucket_keys,
+                status,
+                classification="ADVISORY_SIZE_CAP_FOR_PAPER_EXPLORATION",
+            )
+        ),
+        "paper_performance_circuit_global_halt_only": (
+            status.get("new_entries_allowed") is not True
+            and not hard_bucket_keys
+            and not hard_loss_cluster_keys
+        ),
+        "paper_risk_controller_exploration_global_halt_bucket_clean_allowed": (
+            status.get("new_entries_allowed") is not True
+            and not hard_bucket_keys
+            and not hard_loss_cluster_keys
+        ),
+        "paper_risk_controller_exploration_circuit_breaker_size_cap_required": (
+            status.get("new_entries_allowed") is not True
+        ),
+    }
+    return sorted(set(reasons)), evidence
+
+
+def _with_selected_side_diagnostic_usd(
+    row: Mapping[str, Any],
+    prediction: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Expose selected-side USD economics before allocator simulation.
+
+    Some publisher rows provide only a signed move/edge and a directional side.
+    The inventory later derives long/short USD diagnostics, but allocator
+    simulation runs first. This bridge keeps USD primary by converting the
+    selected signed edge into diagnostic USD at the candidate notional when
+    available, otherwise at a unit USD notional until allocator sizing exists.
+    """
+    enriched = dict(row)
+    side = _side(enriched, prediction)
+    if side not in {"long", "short"}:
+        return enriched
+    selected_net_field = f"{side}_expected_net_pnl_usd"
+    alternate_selected_net_field = f"expected_{side}_net_pnl_usd"
+    if _float(_candidate_value(enriched, prediction, selected_net_field, alternate_selected_net_field)) is not None:
+        return enriched
+    expected_move = _float(
+        _candidate_value(
+            enriched,
+            prediction,
+            "expected_move_bps",
+            "native_expected_move_bps",
+            "expected_gross_move_bps",
+        )
+    )
+    if expected_move is None:
+        expected_move = _float(
+            _candidate_value(
+                enriched,
+                prediction,
+                "expected_move_after_cost_bps",
+                "expected_edge_after_cost_bps",
+                "pre_trade_expected_edge_after_cost_bps",
+                "edge_after_cost_bps",
+            )
+        )
+    if expected_move is None:
+        return enriched
+    cost_bps = sum(
+        component or 0.0
+        for component in (
+            _float(_candidate_value(enriched, prediction, "actual_observed_spread_entry_bps", "spread_bps")),
+            _float(_candidate_value(enriched, prediction, "expected_slippage_bps", "slippage_bps")),
+            _float(_candidate_value(enriched, prediction, "fee_bps", "taker_fee_bps", "expected_fee_bps")),
+            _float(_candidate_value(enriched, prediction, "expected_funding_bps", "funding_bps")),
+        )
+    )
+    edge_bps = expected_move - cost_bps if side == "long" else -expected_move - cost_bps
+    notional = _float(
+        _first_present(
+            enriched.get("target_notional_usd"),
+            enriched.get("gross_notional_usd"),
+            prediction.get("notional_usd") if isinstance(prediction, Mapping) else None,
+        )
+    )
+    if notional is None or notional <= 0.0:
+        notional = 1.0
+    net_usd = round(notional * edge_bps / 10000.0, 8)
+    enriched[selected_net_field] = net_usd
+    enriched[alternate_selected_net_field] = net_usd
+    enriched[f"expected_{side}_net_edge_bps"] = edge_bps
+    enriched[f"{side}_expected_net_edge_bps"] = edge_bps
+    return enriched
+
+
+def _reason_tokens(upper: str) -> set[str]:
+    normalized = upper.replace("-", "_").replace(":", "_").replace("/", "_")
+    return {part for part in normalized.split("_") if part}
+
+
+def _has_token(tokens: set[str], *needles: str) -> bool:
+    return any(needle in tokens for needle in needles)
+
+
+def _has_phrase(upper: str, *needles: str) -> bool:
+    return any(needle in upper for needle in needles)
+
+
 def _blocker_class(reason: str) -> str:
     upper = reason.upper()
-    if any(token in upper for token in ("STALE", "FRESHNESS", "AVAILABLE_AT_AFTER_DECISION", "CUTOFF_AFTER_DECISION")):
+    tokens = _reason_tokens(upper)
+    if _has_phrase(upper, "STALE", "FRESHNESS", "AVAILABLE_AT_AFTER_DECISION", "CUTOFF_AFTER_DECISION"):
         return "DATA_FRESHNESS_BLOCKER"
-    if any(token in upper for token in ("FEATURE", "HASH_MISSING", "TA_", "LINEAGE_FEATURE", "ADVANCED_INDICATOR_DECISION_MISSING")):
+    if _has_token(tokens, "FEATURE", "HASH", "TA", "LINEAGE", "ADVANCED", "INDICATOR", "CONTEXT"):
         return "FEATURE_COVERAGE_BLOCKER"
-    if any(token in upper for token in ("MICROSTRUCTURE", "ORDERBOOK", "TAPE", "PUBLIC_BOOK", "TRUST_LOW")):
+    if _has_token(tokens, "MICROSTRUCTURE", "ORDERBOOK", "TAPE", "PUBLIC", "TRUST") or _has_phrase(upper, "PUBLIC_BOOK"):
         return "MICROSTRUCTURE_TRUST_BLOCKER"
-    if any(token in upper for token in ("PROVIDER", "COINANK", "COINGLASS", "MORALIS")):
+    if _has_token(tokens, "PROVIDER", "COINANK", "COINGLASS", "MORALIS"):
         return "PROVIDER_MISSING_BLOCKER"
-    if any(token in upper for token in ("CONFIDENCE", "TRAINER", "SIDE_MISSING", "NO_TRADE_MODE")):
-        return "TRAINER_CONFIDENCE_BLOCKER"
-    if any(token in upper for token in ("EXPECTED", "EDGE", "PNL", "BPS_ONLY", "COST")):
-        return "EXPECTED_NET_EDGE_BLOCKER"
-    if any(token in upper for token in ("LOSS_PROBABILITY", "LOSS_RATE", "HIGH_CONFIDENCE_LOSS", "ATR_STOP")):
+    if _has_token(tokens, "LOSS", "LOSSPROBABILITY", "PROBABILITY", "RATE") or _has_phrase(
+        upper,
+        "LOSS_PROBABILITY",
+        "LOSS_RATE",
+        "HIGH_CONFIDENCE_LOSS",
+    ):
         return "PREEMPTIVE_LOSS_PROBABILITY_BLOCKER"
-    if any(token in upper for token in ("RISK_", "MAX_LOSS", "LIQUIDATION_BUFFER", "GUARDIAN")):
+    if _has_token(tokens, "RISK", "GUARDIAN", "LIQUIDATION", "STOP", "ATR", "MFE", "EXIT", "HEDGE", "BUFFER") or _has_phrase(
+        upper,
+        "MAX_LOSS",
+        "EXIT_FEASIBILITY",
+        "EXIT_DEPTH",
+    ):
         return "RISK_GATEWAY_BLOCKER"
-    if "ORCHESTRATOR" in upper:
+    if "ORCHESTRATOR" in tokens:
         return "ORCHESTRATOR_BLOCKER"
+    if _has_token(tokens, "POSITION", "EXPOSURE", "NOTIONAL", "STEP", "TICK"):
+        return "POSITION_LIMIT_BLOCKER"
+    if _has_token(tokens, "EXPECTED", "EDGE", "PNL", "BPS", "COST", "FUNDING", "SLIPPAGE", "SPREAD") or _has_phrase(upper, "BPS_ONLY"):
+        return "EXPECTED_NET_EDGE_BLOCKER"
+    if _has_token(tokens, "CONFIDENCE", "TRAINER", "SIDE", "BUCKET", "REGIME", "STRATEGY", "RAW", "CALIBRATED", "BREAKOUT", "TREND", "FVG", "EXPECTANCY") or _has_phrase(
+        upper,
+        "NO_TRADE_MODE",
+        "SIDE_MISSING",
+    ):
+        return "TRAINER_CONFIDENCE_BLOCKER"
     if "ALLOCATOR" in upper:
         return "ALLOCATOR_BLOCKER"
-    if any(token in upper for token in ("POSITION", "EXPOSURE_CAP", "MIN_NOTIONAL", "STEP_SIZE", "TICK_SIZE")):
-        return "POSITION_LIMIT_BLOCKER"
-    if any(token in upper for token in ("LIVE_DRY_RUN", "PACKET", "SYMBOL_FILTER")):
+    if _has_phrase(upper, "LIVE_DRY_RUN", "PACKET", "SYMBOL_FILTER"):
         return "LIVE_DRY_RUN_PACKET_BLOCKER"
     if "SIGNED" in upper:
         return "SIGNED_READ_OPERATOR_BLOCKER"
-    return "EXPECTED_NET_EDGE_BLOCKER"
+    return "TRAINER_CONFIDENCE_BLOCKER"
+
+
+def _action_probability_map(
+    row: Mapping[str, Any],
+    prediction: Mapping[str, Any],
+) -> dict[str, float] | None:
+    raw = _first_present(
+        row.get("action_probabilities"),
+        prediction.get("action_probabilities"),
+        row.get("action_probability_by_label"),
+        prediction.get("action_probability_by_label"),
+        prediction.get("policy_action_probabilities"),
+    )
+    if isinstance(raw, Mapping):
+        out = {
+            str(key).strip().lower(): numeric
+            for key, value in raw.items()
+            if (numeric := _float(value)) is not None
+        }
+        return out or None
+    if isinstance(raw, list):
+        labels = prediction.get("action_labels")
+        if not isinstance(labels, list) or len(labels) != len(raw):
+            labels = ["hold", "long", "short", "close", "hedge_reserved_fail_closed"][: len(raw)]
+        out = {
+            str(label).strip().lower(): numeric
+            for label, value in zip(labels, raw)
+            if (numeric := _float(value)) is not None
+        }
+        return out or None
+    return None
+
+
+def _confidence_truth_fields(
+    *,
+    row: Mapping[str, Any],
+    prediction: Mapping[str, Any],
+    action: Any,
+    side: str | None,
+    confidence_raw: float | None,
+    confidence_calibrated: float | None,
+    expected_long_net: float | None,
+    expected_short_net: float | None,
+    loss_probability: float | None,
+    block_reasons: list[str],
+) -> dict[str, Any]:
+    normalized_action = str(action or "hold").strip().lower()
+    probabilities = _action_probability_map(row, prediction) or {}
+    selected_action_probability = _float(
+        _first_present(
+            row.get("selected_action_probability"),
+            prediction.get("selected_action_probability"),
+            row.get("opening_policy_argmax_probability"),
+            prediction.get("opening_policy_argmax_probability"),
+            probabilities.get(normalized_action),
+        )
+    )
+    confidence_selected_action = _float(
+        _first_present(selected_action_probability, confidence_calibrated, confidence_raw)
+    )
+    confidence_directional_long = _float(
+        _first_present(
+            row.get("confidence_directional_long"),
+            prediction.get("confidence_directional_long"),
+            probabilities.get("long"),
+            confidence_selected_action if normalized_action == "long" else None,
+        )
+    )
+    confidence_directional_short = _float(
+        _first_present(
+            row.get("confidence_directional_short"),
+            prediction.get("confidence_directional_short"),
+            probabilities.get("short"),
+            confidence_selected_action if normalized_action == "short" else None,
+        )
+    )
+    confidence_hold = _float(
+        _first_present(
+            row.get("confidence_hold"),
+            prediction.get("confidence_hold"),
+            probabilities.get("hold"),
+            confidence_selected_action if normalized_action in {"hold", "no_trade", "flat"} else None,
+        )
+    )
+    confidence_post_cost_long = (
+        confidence_directional_long
+        if confidence_directional_long is not None
+        and expected_long_net is not None
+        and expected_long_net > 0.0
+        else 0.0
+    )
+    confidence_post_cost_short = (
+        confidence_directional_short
+        if confidence_directional_short is not None
+        and expected_short_net is not None
+        and expected_short_net > 0.0
+        else 0.0
+    )
+    reasons_upper = " ".join(str(reason).upper() for reason in block_reasons)
+    missing_matured_labels = (
+        "BUCKET_EVIDENCE_INSUFFICIENT" in reasons_upper
+        or "GUARDIAN_HALTED" in reasons_upper
+        or "MISSING_MATURED" in reasons_upper
+    )
+    confidence_blockers: list[str] = []
+    if normalized_action in {"hold", "no_trade", "none", "flat", "0"} or side is None:
+        confidence_executable_trade: float | None = 0.0
+        confidence_display_label = "Hold confidence"
+        confidence_type = "hold_not_trade"
+        confidence_blockers.append("selected_action_hold_not_executable_trade")
+    elif side == "long":
+        confidence_executable_trade = confidence_post_cost_long
+        confidence_display_label = (
+            "Post-cost executable confidence"
+            if confidence_post_cost_long > 0.0
+            else "Blocked by cost"
+        )
+        confidence_type = "directional_long_post_cost"
+    elif side == "short":
+        confidence_executable_trade = confidence_post_cost_short
+        confidence_display_label = (
+            "Post-cost executable confidence"
+            if confidence_post_cost_short > 0.0
+            else "Blocked by cost"
+        )
+        confidence_type = "directional_short_post_cost"
+    else:
+        confidence_executable_trade = 0.0
+        confidence_display_label = "Unproven confidence"
+        confidence_type = "not_side_specific"
+        confidence_blockers.append("selected_action_not_side_specific")
+    if loss_probability is not None and loss_probability >= 0.65:
+        confidence_blockers.append("pre_trade_loss_probability_high")
+        if confidence_executable_trade is not None:
+            confidence_executable_trade = min(
+                confidence_executable_trade,
+                max(0.0, 1.0 - loss_probability),
+            )
+        confidence_display_label = "Blocked by loss probability"
+    if missing_matured_labels:
+        confidence_blockers.append("missing_matured_labels")
+        if confidence_display_label == "Post-cost executable confidence":
+            confidence_display_label = "Unproven confidence"
+    confidence_a_plus_eligible = (
+        confidence_executable_trade is not None
+        and confidence_executable_trade > 0.0
+        and not confidence_blockers
+        and not missing_matured_labels
+    )
+    return {
+        "selected_action_probability": selected_action_probability,
+        "action_probabilities": probabilities or None,
+        "confidence_directional_long": confidence_directional_long,
+        "confidence_directional_short": confidence_directional_short,
+        "confidence_hold": confidence_hold,
+        "confidence_selected_action": confidence_selected_action,
+        "confidence_post_cost_long": confidence_post_cost_long,
+        "confidence_post_cost_short": confidence_post_cost_short,
+        "confidence_executable_trade": confidence_executable_trade,
+        "confidence_display_label": confidence_display_label,
+        "confidence_type": confidence_type,
+        "confidence_a_plus_eligible": confidence_a_plus_eligible,
+        "confidence_tradeability_block_reasons": list(dict.fromkeys(confidence_blockers)),
+    }
+
+
+def _paper_exploration_projection_hash(row: Mapping[str, Any], stage: str) -> str:
+    payload = {
+        "stage": stage,
+        "candidate_id": row.get("candidate_id"),
+        "prediction_id": row.get("prediction_id"),
+        "signal_id": row.get("signal_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "decision_time": row.get("decision_time"),
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:24]
+
+
+def _project_paper_exploration_decision_coverage(
+    row: Mapping[str, Any],
+    *,
+    above_floor: bool,
+    resolution: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return a paper-only view with deterministic risk/orchestrator decisions.
+
+    This is inventory evidence only. It never writes Redis and never changes
+    exchange-routing behavior.
+    """
+
+    projected = dict(row)
+    current_blocker = str(resolution.get("current_blocker") or "EXPLORATION_ROW_BLOCKED")
+    blockers = [
+        str(reason)
+        for reason in _as_list(resolution.get("row_blockers"))
+        if str(reason).strip()
+    ] or [current_blocker]
+    record: dict[str, Any] = {
+        "projection_source": "paper_exploration_inventory_dry_run",
+        "projection_live_blocked": True,
+        "missing_decision_reason": None,
+        "risk_input_written": False,
+        "risk_input_hash": None,
+        "risk_decision_id": _first_present(row.get("risk_decision_id"), row.get("paper_exploration_risk_decision_id")),
+        "risk_decision": _first_present(row.get("risk_decision"), row.get("risk_action")),
+        "risk_block_reasons": _as_list(_first_present(row.get("risk_block_reasons"), row.get("risk_controller_block_reasons"))),
+        "orchestrator_input_written": False,
+        "orchestrator_input_hash": None,
+        "orchestrator_decision_id": _first_present(row.get("orchestrator_decision_id"), row.get("paper_exploration_orchestrator_decision_id")),
+        "orchestrator_decision": _first_present(row.get("orchestrator_decision"), row.get("orchestrator_action")),
+        "orchestrator_block_reasons": _as_list(row.get("orchestrator_block_reasons")),
+    }
+    if not above_floor:
+        return {"row": projected, **record}
+
+    timestamp = _as_dict(resolution.get("timestamp_integrity"))
+    if timestamp.get("real_lookahead_block") is True:
+        record["missing_decision_reason"] = "REAL_LOOKAHEAD_BLOCK_BEFORE_RISK"
+        return {"row": projected, **record}
+
+    risk_text = str(record["risk_decision"] or "").strip().upper()
+    risk_missing = risk_text in {"", "MISSING"}
+    risk_input_hash = _paper_exploration_projection_hash(projected, "risk")
+    record["risk_input_written"] = True
+    record["risk_input_hash"] = risk_input_hash
+    if risk_missing:
+        risk_decision_id = str(record["risk_decision_id"] or f"paperexp_risk_{risk_input_hash}")
+        projected["risk_decision"] = "BLOCKED"
+        projected["risk_action"] = "blocked"
+        projected["risk_decision_id"] = risk_decision_id
+        projected["risk_block_reasons"] = blockers
+        projected["risk_decision_record"] = {
+            "risk_decision_id": risk_decision_id,
+            "risk_action": "blocked",
+            "risk_reason_code": current_blocker,
+            "risk_block_reasons": blockers,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "projection_source": "paper_exploration_inventory_dry_run",
+        }
+        record["risk_decision_id"] = risk_decision_id
+        record["risk_decision"] = "BLOCKED"
+        record["risk_block_reasons"] = blockers
+
+    orch_text = str(record["orchestrator_decision"] or "").strip().upper()
+    orch_missing = orch_text in {"", "MISSING"}
+    orch_input_hash = _paper_exploration_projection_hash(projected, "orchestrator")
+    record["orchestrator_input_written"] = True
+    record["orchestrator_input_hash"] = orch_input_hash
+    if orch_missing:
+        orchestrator_decision_id = str(
+            record["orchestrator_decision_id"] or f"paperexp_orch_{orch_input_hash}"
+        )
+        projected["orchestrator_decision"] = "BLOCKED"
+        projected["orchestrator_action"] = "blocked"
+        projected["orchestrator_decision_id"] = orchestrator_decision_id
+        projected["orchestrator_block_reasons"] = blockers
+        projected["orchestrator_decision_record"] = {
+            "decision_id": orchestrator_decision_id,
+            "decision_action": "blocked",
+            "decision_reason_code": current_blocker,
+            "orchestrator_block_reasons": blockers,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "projection_source": "paper_exploration_inventory_dry_run",
+        }
+        record["orchestrator_decision_id"] = orchestrator_decision_id
+        record["orchestrator_decision"] = "BLOCKED"
+        record["orchestrator_block_reasons"] = blockers
+
+    return {"row": projected, **record}
 
 
 def _normalize_candidate(
@@ -469,9 +2074,40 @@ def _normalize_candidate(
     generated_utc: str,
 ) -> dict[str, Any]:
     prediction = prediction if isinstance(prediction, Mapping) else {}
-    allocator_packet = build_allocator_simulation(row, prediction=prediction, generated_utc=generated_utc)
+    original_row = _with_selected_side_diagnostic_usd(row, prediction)
+    preemptive_context = str(
+        _first_present(
+            original_row.get("preemptive_action"),
+            original_row.get("preemptive_decision"),
+            original_row.get("paper_opportunity_tier"),
+            original_row.get("paper_exploration_tier"),
+        )
+        or ""
+    ).upper()
+    recalculate_incomplete_existing_allocation = (
+        original_row.get("paper_risk_controller_exploration") is True
+        or "PAPER_RISK_CONTROLLER_EXPLORATION" in preemptive_context
+        or "GUARDIAN_HALTED" in preemptive_context
+    )
+    allocator_packet = build_allocator_simulation(
+        original_row,
+        prediction=prediction,
+        generated_utc=generated_utc,
+        recalculate_incomplete_existing_allocation=recalculate_incomplete_existing_allocation,
+    )
+    original_max_loss = _float(
+        _first_present(
+            original_row.get("expected_max_loss_usd"),
+            original_row.get("max_loss_usd"),
+            original_row.get("pre_trade_max_loss_usd"),
+        )
+    )
+    allocator_max_loss = _float(allocator_packet.get("expected_max_loss_usd"))
+    conservative_max_loss = max(
+        value for value in (original_max_loss, allocator_max_loss) if value is not None
+    ) if any(value is not None for value in (original_max_loss, allocator_max_loss)) else None
     row = {
-        **dict(row),
+        **original_row,
         "allocation": allocator_packet,
         "allocator_simulation": allocator_packet,
         "allocator_decision_id": allocator_packet.get("allocator_decision_id"),
@@ -483,9 +2119,16 @@ def _normalize_candidate(
         "recommended_margin_mode_source": allocator_packet.get("recommended_margin_mode_source"),
         "gross_notional_usd": allocator_packet.get("gross_notional_usd"),
         "target_notional_usd": allocator_packet.get("target_notional_usd"),
+        "target_notional_usdt": allocator_packet.get("target_notional_usdt"),
+        "recommended_notional_usd": _first_present(
+            allocator_packet.get("recommended_notional_usd"),
+            allocator_packet.get("target_notional_usd"),
+            allocator_packet.get("gross_notional_usd"),
+        ),
         "allocated_margin_usd": allocator_packet.get("allocated_margin_usd"),
-        "max_loss_usd": allocator_packet.get("max_loss_usd"),
-        "expected_max_loss_usd": allocator_packet.get("expected_max_loss_usd"),
+        "risk_budget_usd": allocator_packet.get("risk_budget_usd"),
+        "max_loss_usd": conservative_max_loss if conservative_max_loss is not None else allocator_packet.get("max_loss_usd"),
+        "expected_max_loss_usd": conservative_max_loss if conservative_max_loss is not None else allocator_packet.get("expected_max_loss_usd"),
         "expected_net_pnl_usd": allocator_packet.get("expected_net_pnl_usd"),
         "expected_fee_usd": allocator_packet.get("expected_fee_usd"),
         "expected_fees_usd": allocator_packet.get("expected_fees_usd"),
@@ -535,8 +2178,20 @@ def _normalize_candidate(
         prediction.get("market_data_source"),
         "candidate_payload" if current_price is not None else None,
     )
+    price_missing_reason = _first_present(
+        row.get("price_missing_reason"),
+        row.get("current_price_missing_reason"),
+        prediction.get("price_missing_reason"),
+        prediction.get("current_price_missing_reason"),
+    )
+    current_price_can_size_trade = row.get("can_size_trade")
+    if current_price_can_size_trade is None:
+        current_price_can_size_trade = row.get("current_price_can_size_trade")
+    if current_price_can_size_trade is None and current_price is not None:
+        current_price_can_size_trade = True
     price_available_at = _first_present(
         row.get("price_available_at"),
+        row.get("current_price_available_at"),
         row.get("market_price_available_at"),
         prediction.get("price_available_at"),
         prediction.get("market_data_available_at"),
@@ -581,6 +2236,9 @@ def _normalize_candidate(
             exit_failure_reserve,
         )
     )
+    explicit_expected_cost = _float(_candidate_value(row, prediction, "expected_cost_usd", "pre_trade_expected_cost_usd"))
+    if explicit_expected_cost is not None:
+        expected_cost = max(expected_cost, explicit_expected_cost)
     expected_gross = _float(
         _first_present(
             row.get("expected_gross_pnl_usd"),
@@ -644,14 +2302,26 @@ def _normalize_candidate(
         prediction.get("entry_feature_snapshot_id"),
         _as_dict(prediction.get("entry_feature_snapshot")).get("feature_snapshot_id"),
     )
-    available_at = _lineage_value(row, prediction, "available_at")
+    available_at = _first_present(
+        _lineage_value(row, prediction, "available_at"),
+        price_available_at,
+        _as_dict(row.get("entry_zone")).get("available_at"),
+        _as_dict(prediction.get("entry_zone")).get("available_at"),
+    )
     decision_time = _first_present(row.get("decision_time"), row.get("preemptive_decision_time"), prediction.get("decision_time"), prediction.get("generated_at"), generated_utc)
+    prediction_age_seconds = _candidate_age_seconds(row, prediction)
+    stale_prediction = (
+        prediction_age_seconds is None
+        or prediction_age_seconds > SESSION_MAX_PREDICTION_AGE_SECONDS
+    )
     preemptive_action = str(row.get("preemptive_action") or "")
     preemptive_decision = str(row.get("preemptive_decision") or "")
     action = _first_present(row.get("action"), row.get("selected_action"), prediction.get("selected_action"), prediction.get("ppo_action"))
     side = _side(row, prediction)
-    expected_long_net = _float(_candidate_value(row, prediction, "expected_long_net_pnl_usd", "long_expected_net_pnl_usd"))
-    expected_short_net = _float(_candidate_value(row, prediction, "expected_short_net_pnl_usd", "short_expected_net_pnl_usd"))
+    explicit_expected_long_net = _float(_candidate_value(row, prediction, "expected_long_net_pnl_usd", "long_expected_net_pnl_usd"))
+    explicit_expected_short_net = _float(_candidate_value(row, prediction, "expected_short_net_pnl_usd", "short_expected_net_pnl_usd"))
+    expected_long_net = explicit_expected_long_net
+    expected_short_net = explicit_expected_short_net
     expected_long_net_edge_bps = _float(_candidate_value(row, prediction, "expected_long_net_edge_bps", "long_expected_net_edge_bps"))
     expected_short_net_edge_bps = _float(_candidate_value(row, prediction, "expected_short_net_edge_bps", "short_expected_net_edge_bps"))
     if expected_long_net_edge_bps is None and expected_move is not None:
@@ -675,11 +2345,90 @@ def _normalize_candidate(
         expected_long_net = round(per_side_notional * expected_long_net_edge_bps / 10000.0, 8)
     if expected_short_net is None and expected_short_net_edge_bps is not None:
         expected_short_net = round(per_side_notional * expected_short_net_edge_bps / 10000.0, 8)
+    explicit_long_cost = _float(_candidate_value(row, prediction, "long_expected_cost_usd", "expected_long_cost_usd"))
+    explicit_short_cost = _float(_candidate_value(row, prediction, "short_expected_cost_usd", "expected_short_cost_usd"))
+    long_expected_cost = explicit_long_cost
+    short_expected_cost = explicit_short_cost
+    if long_expected_cost is None:
+        long_expected_cost = expected_cost
+    if short_expected_cost is None:
+        short_expected_cost = expected_cost
+    explicit_long_gross = _float(_candidate_value(row, prediction, "long_expected_gross_pnl_usd", "expected_long_gross_pnl_usd"))
+    explicit_short_gross = _float(_candidate_value(row, prediction, "short_expected_gross_pnl_usd", "expected_short_gross_pnl_usd"))
+    long_expected_gross = (
+        explicit_long_gross
+        if explicit_long_gross is not None
+        else
+        round(expected_long_net + long_expected_cost, 8)
+        if expected_long_net is not None
+        else None
+    )
+    short_expected_gross = (
+        explicit_short_gross
+        if explicit_short_gross is not None
+        else
+        round(expected_short_net + short_expected_cost, 8)
+        if expected_short_net is not None
+        else None
+    )
+    long_expected_max_loss = expected_max_loss
+    short_expected_max_loss = expected_max_loss
+    long_loss_probability = _float(_candidate_value(row, prediction, "long_loss_probability"))
+    short_loss_probability = _float(_candidate_value(row, prediction, "short_loss_probability"))
+    raw_market_state_integrity_score = _float(
+        _candidate_value(row, prediction, "market_state_integrity_score")
+    )
+    allocator_market_state_integrity_score = _float(
+        allocator_packet.get("market_state_integrity_score")
+    )
+    microstructure_trust_score = _float(
+        _candidate_value(row, prediction, "microstructure_trust_score")
+    )
+    if microstructure_trust_score is None and raw_market_state_integrity_score is not None:
+        microstructure_trust_score = (
+            raw_market_state_integrity_score / 100.0
+            if raw_market_state_integrity_score > 1.0
+            else raw_market_state_integrity_score
+        )
+    composite_microstructure_trust_score = _float(
+        _candidate_value(row, prediction, "composite_microstructure_trust_score")
+    )
+    if composite_microstructure_trust_score is None:
+        composite_microstructure_trust_score = microstructure_trust_score
+    if raw_market_state_integrity_score is not None:
+        market_state_integrity_score = (
+            raw_market_state_integrity_score * 100.0
+            if raw_market_state_integrity_score <= 1.0
+            else raw_market_state_integrity_score
+        )
+    elif composite_microstructure_trust_score is not None:
+        market_state_integrity_score = (
+            composite_microstructure_trust_score * 100.0
+            if composite_microstructure_trust_score <= 1.0
+            else composite_microstructure_trust_score
+        )
+    else:
+        market_state_integrity_score = allocator_market_state_integrity_score
+    market_state_integrity_source = _first_present(
+        _candidate_value(row, prediction, "market_state_integrity_source"),
+        allocator_packet.get("market_state_integrity_source"),
+    )
+    trade_tape_confirmation_score = _float(
+        _candidate_value(row, prediction, "trade_tape_confirmation_score", "tape_confirmation_score")
+    )
+    expected_exit_depth_usd = _float(
+        _candidate_value(row, prediction, "expected_exit_depth_usd", "liquidity_exit_depth", "orderbook_depth_usd", "top_of_book_depth_usd")
+    )
+    exit_feasible_raw = _candidate_value(row, prediction, "exit_feasible")
+    exit_feasible = None if exit_feasible_raw is None else _bool(exit_feasible_raw)
+    exit_feasibility_score = _float(_candidate_value(row, prediction, "exit_feasibility_score"))
     best_side = None
+    best_side_expected_net = None
     if expected_long_net is not None or expected_short_net is not None:
         long_value = expected_long_net if expected_long_net is not None else float("-inf")
         short_value = expected_short_net if expected_short_net is not None else float("-inf")
         best_side = "long" if long_value >= short_value else "short"
+        best_side_expected_net = long_value if best_side == "long" else short_value
     no_side_reason = _no_side_reason(
         row,
         prediction,
@@ -701,6 +2450,24 @@ def _normalize_candidate(
                 best_side_rejected_reason = f"selected_hold_best_side_{best_side}_diagnostic_net_pnl_usd_{best_value:.8f}"
         if best_side_rejected_reason is None:
             best_side_rejected_reason = no_side_reason
+    elif side == "long":
+        promote_selected_side_net = explicit_expected_long_net is not None or expected_net is None or expected_net <= 0.0
+        promote_selected_side_details = expected_net is None or expected_net <= 0.0
+        if promote_selected_side_net and expected_long_net is not None:
+            expected_net = expected_long_net
+        if (explicit_long_cost is not None or promote_selected_side_details) and long_expected_cost is not None:
+            expected_cost = long_expected_cost
+        if (explicit_long_gross is not None or promote_selected_side_details) and long_expected_gross is not None:
+            expected_gross = long_expected_gross
+    elif side == "short":
+        promote_selected_side_net = explicit_expected_short_net is not None or expected_net is None or expected_net <= 0.0
+        promote_selected_side_details = expected_net is None or expected_net <= 0.0
+        if promote_selected_side_net and expected_short_net is not None:
+            expected_net = expected_short_net
+        if (explicit_short_cost is not None or promote_selected_side_details) and short_expected_cost is not None:
+            expected_cost = short_expected_cost
+        if (explicit_short_gross is not None or promote_selected_side_details) and short_expected_gross is not None:
+            expected_gross = short_expected_gross
     raw_reasons = [
         str(reason)
         for reason in _as_list(
@@ -714,6 +2481,8 @@ def _normalize_candidate(
         block_reasons.append("LINEAGE_PREEMPTIVE_DECISION_ID_MISSING")
     if not feature_vector_hash:
         block_reasons.append("LINEAGE_FEATURE_VECTOR_HASH_MISSING")
+    if stale_prediction:
+        block_reasons.append("STALE_PREDICTION_NOT_CURRENT_SESSION")
     if expected_net is None:
         if _float(row.get("expected_edge_after_cost_bps")) is not None:
             block_reasons.append("ECONOMICS_BPS_ONLY")
@@ -724,7 +2493,13 @@ def _normalize_candidate(
         block_reasons.append("ECONOMICS_EXPECTED_GROSS_PNL_USD_MISSING")
     if current_price is None:
         block_reasons.append("CURRENT_PRICE_MISSING")
+    elif current_price_can_size_trade is False:
+        block_reasons.append("CURRENT_PRICE_FALLBACK_NOT_EXECUTION_GRADE")
     loss_probability = _float(row.get("pre_trade_loss_probability"))
+    if long_loss_probability is None:
+        long_loss_probability = loss_probability
+    if short_loss_probability is None:
+        short_loss_probability = loss_probability
     if loss_probability is None:
         block_reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING")
     elif loss_probability >= 0.80:
@@ -752,6 +2527,11 @@ def _normalize_candidate(
         block_reasons.append("FEATURE_COVERAGE_ADVANCED_INDICATOR_MISSING")
     if not provider["CoinAnk_features_present"]:
         block_reasons.append("PROVIDER_COINANK_REQUIRED_FEATURES_MISSING")
+    if any(
+        _explicit_false(row.get(field))
+        for field in ("counts_as_final_A_plus", "counts_as_final_a_plus")
+    ):
+        block_reasons.append("COUNTS_AS_FINAL_A_PLUS_FALSE")
     if _is_probation(row):
         block_reasons.append("PROBATION_ROW_NOT_FINAL_A_PLUS")
     if _is_reconstructed(row):
@@ -767,8 +2547,20 @@ def _normalize_candidate(
         unique_reasons.append("LIVE_DRY_RUN_PACKET_INCOMPLETE")
         reason_classes = sorted({_blocker_class(reason) for reason in unique_reasons})
         a_plus = False
+    confidence_truth = _confidence_truth_fields(
+        row=row,
+        prediction=prediction,
+        action=action,
+        side=side,
+        confidence_raw=confidence_raw,
+        confidence_calibrated=confidence_calibrated,
+        expected_long_net=expected_long_net,
+        expected_short_net=expected_short_net,
+        loss_probability=loss_probability,
+        block_reasons=unique_reasons,
+    )
 
-    return {
+    normalized = {
         "candidate_id": _first_present(row.get("candidate_id"), prediction.get("candidate_id"), prediction.get("decision_id"), _candidate_hash_basis(row, prediction)),
         "symbol": _first_present(row.get("symbol"), prediction.get("symbol")),
         "timeframe": _first_present(row.get("timeframe"), prediction.get("timeframe")),
@@ -778,20 +2570,106 @@ def _normalize_candidate(
         "best_side": best_side,
         "best_side_rejected_reason": best_side_rejected_reason,
         "strategy_id": _first_present(row.get("strategy_id"), prediction.get("strategy_id"), _as_dict(prediction.get("strategy_router")).get("selected_mode")),
+        "strategy_family": _first_present(row.get("strategy_family"), prediction.get("strategy_family")),
+        "strategy_selected_mode": _first_present(row.get("strategy_selected_mode"), prediction.get("strategy_selected_mode")),
+        "strategy_router_selected_mode": _first_present(
+            row.get("strategy_router_selected_mode"),
+            prediction.get("strategy_router_selected_mode"),
+            _as_dict(prediction.get("strategy_router")).get("selected_mode"),
+        ),
+        "strategy_regime_labels": _as_list(
+            _first_present(
+                row.get("strategy_regime_labels"),
+                prediction.get("strategy_regime_labels"),
+            )
+        ),
+        "market_regime": _first_present(row.get("market_regime"), prediction.get("market_regime")),
+        "market_regime_at_entry": _first_present(
+            row.get("market_regime_at_entry"),
+            prediction.get("market_regime_at_entry"),
+        ),
+        "entry_reason": _first_present(row.get("entry_reason"), prediction.get("entry_reason")),
+        "strategy_supply_hypothesis": bool(_first_present(row.get("strategy_supply_hypothesis"), prediction.get("strategy_supply_hypothesis"), False)),
+        "strategy_supply_hypothesis_id": _first_present(
+            row.get("strategy_supply_hypothesis_id"),
+            prediction.get("strategy_supply_hypothesis_id"),
+            row.get("hypothesis_id"),
+            prediction.get("hypothesis_id"),
+            row.get("strategy_id"),
+            prediction.get("strategy_id"),
+        ),
+        "strategy_supply_stage_rejected_reason": _first_present(
+            row.get("strategy_supply_stage_rejected_reason"),
+            prediction.get("strategy_supply_stage_rejected_reason"),
+        ),
+        "strategy_supply_gate_clean": _first_present(
+            row.get("strategy_supply_gate_clean"),
+            prediction.get("strategy_supply_gate_clean"),
+        ),
+        "strategy_supply_positive_net_usd": _first_present(
+            row.get("strategy_supply_positive_net_usd"),
+            prediction.get("strategy_supply_positive_net_usd"),
+        ),
+        "source_tier": _first_present(row.get("source_tier"), prediction.get("source_tier")),
+        "source_runtime_key": _first_present(row.get("source_runtime_key"), prediction.get("redis_key")),
+        "entry_feature_candle_closed_confirmed": _first_present(
+            row.get("entry_feature_candle_closed_confirmed"),
+            prediction.get("entry_feature_candle_closed_confirmed"),
+        ),
+        "candle_closed_confirmed": _first_present(
+            row.get("candle_closed_confirmed"),
+            prediction.get("candle_closed_confirmed"),
+        ),
+        "last_closed_candle_open_ts_ms": _first_present(
+            row.get("last_closed_candle_open_ts_ms"),
+            prediction.get("last_closed_candle_open_ts_ms"),
+        ),
+        "last_closed_candle_close_ts_ms": _first_present(
+            row.get("last_closed_candle_close_ts_ms"),
+            prediction.get("last_closed_candle_close_ts_ms"),
+        ),
+        "ta_source_key": _first_present(
+            row.get("ta_source_key"),
+            prediction.get("ta_source_key"),
+        ),
         "prediction_id": _first_present(row.get("prediction_id"), prediction.get("prediction_id")),
         "signal_id": _first_present(row.get("signal_id"), prediction.get("signal_id")),
         "preemptive_decision_id": row.get("preemptive_decision_id"),
         "trainer_prediction_id": prediction.get("prediction_id") or row.get("prediction_id"),
         "feature_snapshot_id": feature_snapshot_id,
         "feature_vector_hash": feature_vector_hash,
+        "provider_feature_hashes": _as_dict(
+            _first_present(
+                row.get("provider_feature_hashes"),
+                prediction.get("provider_feature_hashes"),
+                row.get("source_hashes"),
+                prediction.get("source_hashes"),
+            )
+        ),
+        "source_hashes": _as_dict(
+            _first_present(
+                row.get("source_hashes"),
+                prediction.get("source_hashes"),
+                row.get("provider_feature_hashes"),
+                prediction.get("provider_feature_hashes"),
+            )
+        ),
         "feature_cutoff": feature_cutoff,
         "available_at": available_at,
         "decision_time": decision_time,
+        "source_available_at": _first_present(row.get("source_available_at"), row.get("available_at"), prediction.get("source_available_at"), prediction.get("available_at"), available_at),
+        "source_decision_time": _first_present(row.get("source_decision_time"), row.get("decision_time"), row.get("preemptive_decision_time"), prediction.get("source_decision_time"), prediction.get("decision_time"), prediction.get("generated_at"), decision_time),
+        "source_generated_utc": _first_present(row.get("source_generated_utc"), row.get("generated_utc"), row.get("generated_at"), prediction.get("source_generated_utc"), prediction.get("generated_utc"), prediction.get("generated_at")),
+        "inventory_generated_utc": generated_utc,
+        "prediction_age_seconds": prediction_age_seconds,
+        "stale_prediction": stale_prediction,
         "confidence": _float(_first_present(row.get("confidence"), row.get("calibrated_confidence"), prediction.get("confidence_calibrated"), prediction.get("confidence_raw"))),
         "confidence_raw": confidence_raw,
         "confidence_calibrated": confidence_calibrated,
+        **confidence_truth,
         "current_price": current_price,
-        "price_missing_reason": None if current_price is not None else "NO_MARK_INDEX_LAST_BID_ASK_OR_CLOSE_PRICE_AVAILABLE",
+        "price_missing_reason": None if current_price is not None else str(price_missing_reason or "NO_EXCHANGE_MARKET"),
+        "current_price_can_size_trade": bool(current_price_can_size_trade) if current_price_can_size_trade is not None else None,
         "mark_price": mark_price,
         "index_price": index_price,
         "last_trade_price": last_trade_price,
@@ -816,6 +2694,19 @@ def _normalize_candidate(
         "expected_slippage_usd": expected_slippage,
         "expected_funding_usd": expected_funding,
         "expected_max_loss_usd": expected_max_loss,
+        "long_expected_gross_pnl_usd": long_expected_gross,
+        "long_expected_cost_usd": round(long_expected_cost, 8),
+        "long_expected_net_pnl_usd": expected_long_net,
+        "long_expected_max_loss_usd": long_expected_max_loss,
+        "long_loss_probability": long_loss_probability,
+        "short_expected_gross_pnl_usd": short_expected_gross,
+        "short_expected_cost_usd": round(short_expected_cost, 8),
+        "short_expected_net_pnl_usd": expected_short_net,
+        "short_expected_max_loss_usd": short_expected_max_loss,
+        "short_loss_probability": short_loss_probability,
+        "best_side_expected_net_pnl_usd": best_side_expected_net if best_side_expected_net != float("-inf") else None,
+        "selected_action": action,
+        "hold_no_trade_reason": no_side_reason if side is None else None,
         "expected_long_net_pnl_usd": expected_long_net,
         "expected_short_net_pnl_usd": expected_short_net,
         "expected_long_net_edge_bps": expected_long_net_edge_bps,
@@ -824,8 +2715,53 @@ def _normalize_candidate(
         "per_side_usd_notional_basis": per_side_notional_basis,
         "expected_liquidation_buffer_usd": liquidation_buffer_usd,
         "pre_trade_loss_probability": loss_probability,
+        "loss_probability_reason": _first_present(
+            row.get("loss_probability_reason"),
+            prediction.get("loss_probability_reason"),
+        ),
+        "loss_probability_reasons": _as_list(
+            _first_present(
+                row.get("loss_probability_reasons"),
+                prediction.get("loss_probability_reasons"),
+            )
+        ),
+        "loss_probability_calibration": _as_dict(
+            _first_present(
+                row.get("loss_probability_calibration"),
+                prediction.get("loss_probability_calibration"),
+            )
+        ),
+        "microstructure_trust_score": microstructure_trust_score,
+        "composite_microstructure_trust_score": composite_microstructure_trust_score,
+        "market_state_integrity_score": None
+        if market_state_integrity_score is None
+        else round(market_state_integrity_score, 8),
+        "market_state_integrity_minimum_score": ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+        "market_state_integrity_source": market_state_integrity_source,
+        "market_state_integrity_evidence_present": allocator_packet.get(
+            "market_state_integrity_evidence_present"
+        ),
+        "trade_tape_confirmation_score": trade_tape_confirmation_score,
+        "expected_exit_depth_usd": expected_exit_depth_usd,
+        "liquidity_exit_depth": expected_exit_depth_usd,
+        "orderbook_depth_usd": expected_exit_depth_usd,
+        "exit_feasible": exit_feasible,
+        "exit_feasibility_score": exit_feasibility_score,
         "preemptive_action": preemptive_action or None,
+        "orchestrator_decision_id": row.get("orchestrator_decision_id"),
+        "orchestrator_action": row.get("orchestrator_action"),
+        "orchestrator_reason_code": row.get("orchestrator_reason_code"),
+        "orchestrator_live_blocked": row.get("orchestrator_live_blocked"),
+        "orchestrator_decision_record": row.get("orchestrator_decision_record"),
         "risk_decision": risk_decision,
+        "risk_decision_id": row.get("risk_decision_id"),
+        "risk_action": row.get("risk_action"),
+        "risk_reason_code": row.get("risk_reason_code"),
+        "risk_live_blocked": row.get("risk_live_blocked"),
+        "risk_decision_record": row.get("risk_decision_record"),
+        "risk_orchestrator_projection_source": row.get("risk_orchestrator_projection_source"),
+        "risk_orchestrator_projection_live_blocked": row.get("risk_orchestrator_projection_live_blocked"),
+        "risk_orchestrator_projection_error": row.get("risk_orchestrator_projection_error"),
         "orchestrator_decision": orchestrator_decision,
         "allocator_decision": allocator_decision,
         "allocator_decision_id": row.get("allocator_decision_id"),
@@ -838,7 +2774,10 @@ def _normalize_candidate(
         "recommended_margin_mode_source": row.get("recommended_margin_mode_source"),
         "gross_notional_usd": row.get("gross_notional_usd"),
         "target_notional_usd": row.get("target_notional_usd"),
+        "target_notional_usdt": row.get("target_notional_usdt"),
+        "recommended_notional_usd": row.get("recommended_notional_usd"),
         "allocated_margin_usd": row.get("allocated_margin_usd"),
+        "risk_budget_usd": row.get("risk_budget_usd"),
         "max_loss_usd": row.get("max_loss_usd"),
         "liquidation_buffer_usd": row.get("liquidation_buffer_usd"),
         "liquidation_buffer_pct": row.get("liquidation_buffer_pct"),
@@ -862,6 +2801,192 @@ def _normalize_candidate(
         "source_runtime_key": _first_present(row.get("source_runtime_key"), prediction.get("redis_key")),
         "generated_utc": generated_utc,
     }
+    initial_exploration_policy = evaluate_paper_risk_controller_exploration(normalized)
+    initial_resolution = build_paper_exploration_row_resolution(normalized)
+    exploration_projection = _project_paper_exploration_decision_coverage(
+        normalized,
+        above_floor=bool(initial_exploration_policy.get("above_dynamic_floor")),
+        resolution=initial_resolution,
+    )
+    exploration_view = _as_dict(exploration_projection.get("row")) or normalized
+    exploration_policy = evaluate_paper_risk_controller_exploration(exploration_view)
+    exploration_resolution = build_paper_exploration_row_resolution(exploration_view)
+    exploration_fill_gate = exploration_paper_fill_gate(exploration_view)
+    exploration_sizing = exploration_sizing_controls(exploration_view)
+    selected_side_economics_consistency = _selected_side_economics_consistency(
+        exploration_view
+    )
+    exploration_eligible = bool(exploration_policy.get("eligible"))
+    exploration_above_floor = bool(exploration_policy.get("above_dynamic_floor"))
+    projected_risk_decision = exploration_fill_gate.get("risk_controller_decision")
+    projected_orchestrator_decision = exploration_fill_gate.get("orchestrator_decision")
+    exploration_fill_allowed = bool(
+        exploration_above_floor and exploration_fill_gate.get("paper_fill_allowed")
+    )
+    prequeue_block_reasons: list[str] = []
+    if exploration_fill_allowed:
+        prequeue_source = {**normalized, **exploration_view}
+        prequeue_block_reasons = _materialization_prequeue_block_reasons(
+            prequeue_source,
+            accepted_at=generated_utc,
+        )
+        if prequeue_block_reasons:
+            exploration_fill_allowed = False
+    exploration_current_blocker = (
+        "PAPER_FILL_ALLOWED"
+        if exploration_fill_allowed
+        else "MATERIALIZATION_PREQUEUE_BLOCKED"
+        if prequeue_block_reasons
+        else exploration_resolution.get("current_blocker")
+    )
+    normalized.update(
+        {
+            "paper_exploration_tier": (
+                PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+                if exploration_above_floor
+                else None
+            ),
+            "exploration_tier": (
+                PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+                if exploration_above_floor
+                else None
+            ),
+            "paper_risk_controller_exploration_eligible": exploration_eligible,
+            "paper_risk_controller_exploration_above_floor": exploration_above_floor,
+            "dynamic_exploration_floor": exploration_policy.get(
+                "dynamic_exploration_floor"
+            ),
+            "dynamic_exploration_floor_formula": exploration_policy.get(
+                "dynamic_exploration_floor_formula"
+            ),
+            "exploration_floor_inputs": exploration_policy.get("floor_inputs"),
+            "exploration_floor_range": exploration_policy.get("floor_range"),
+            "exploration_floor_reason_counts": exploration_policy.get(
+                "reason_counts"
+            ),
+            "paper_risk_controller_exploration_reasons": exploration_policy.get(
+                "eligibility_reasons"
+            ),
+            "paper_risk_controller_exploration_block_reasons": exploration_policy.get(
+                "eligibility_block_reasons"
+            ),
+            "paper_exploration_risk_controller_input_written": bool(
+                exploration_projection.get("risk_input_written")
+            ),
+            "paper_exploration_risk_controller_input_hash": exploration_projection.get(
+                "risk_input_hash"
+            ),
+            "paper_exploration_risk_decision_id": exploration_projection.get(
+                "risk_decision_id"
+            ),
+            "paper_exploration_orchestrator_input_written": bool(
+                exploration_projection.get("orchestrator_input_written")
+            ),
+            "paper_exploration_orchestrator_input_hash": exploration_projection.get(
+                "orchestrator_input_hash"
+            ),
+            "paper_exploration_orchestrator_decision_id": exploration_projection.get(
+                "orchestrator_decision_id"
+            ),
+            "paper_exploration_allocator_input_written": bool(
+                exploration_above_floor and exploration_policy.get("allocator_seen")
+            ),
+            "paper_exploration_risk_controller_decision": exploration_fill_gate.get(
+                "risk_controller_decision"
+            ),
+            "paper_exploration_risk_controller_block_reasons": exploration_projection.get(
+                "risk_block_reasons"
+            ),
+            "paper_exploration_orchestrator_decision": exploration_fill_gate.get(
+                "orchestrator_decision"
+            ),
+            "paper_exploration_orchestrator_block_reasons": exploration_projection.get(
+                "orchestrator_block_reasons"
+            ),
+            "paper_exploration_allocator_decision": exploration_fill_gate.get(
+                "allocator_decision"
+            ),
+            "paper_exploration_paper_fill_allowed": bool(
+                exploration_fill_allowed
+            ),
+            "paper_exploration_paper_fill_block_reasons": (
+                exploration_fill_gate.get("paper_fill_block_reasons")
+                or prequeue_block_reasons
+            ),
+            "paper_exploration_prequeue_block_reasons": prequeue_block_reasons,
+            "paper_exploration_materialization_prequeue_block_reasons": (
+                prequeue_block_reasons
+            ),
+            "paper_exploration_materialization_queue_ready": bool(
+                exploration_fill_allowed
+            ),
+            "paper_exploration_sizing": exploration_sizing,
+            "paper_exploration_selected_side_economics_consistency": (
+                selected_side_economics_consistency
+            ),
+            "paper_exploration_timestamp_integrity": exploration_policy.get(
+                "timestamp_integrity"
+            ),
+            "paper_exploration_timestamp_integrity_status": exploration_policy.get(
+                "timestamp_integrity_status"
+            ),
+            "paper_exploration_earliest_eligible_decision_time": exploration_policy.get(
+                "earliest_eligible_decision_time"
+            ),
+            "paper_exploration_requeue_for_next_cycle": bool(
+                exploration_policy.get("requeue_for_next_cycle")
+            ),
+            "paper_exploration_real_lookahead_block": bool(
+                exploration_policy.get("real_lookahead_block")
+            ),
+            "paper_exploration_market_integrity": exploration_resolution.get(
+                "market_integrity"
+            ),
+            "paper_exploration_quarantine": exploration_resolution.get("quarantine"),
+            "paper_exploration_risk_block_resolution": exploration_resolution.get(
+                "risk_block_resolution"
+            ),
+            "paper_exploration_missing_decision_reason": exploration_projection.get(
+                "missing_decision_reason"
+            ),
+            "paper_exploration_current_blocker": exploration_current_blocker,
+            "paper_exploration_unknown_resolution": False
+            if exploration_fill_allowed
+            else bool(exploration_resolution.get("unknown")),
+            "paper_exploration_decision_projection_source": exploration_projection.get(
+                "projection_source"
+            ),
+            "paper_exploration_decision_projection_live_blocked": bool(
+                exploration_projection.get("projection_live_blocked")
+            ),
+            "paper_exploration_counts_as_A_plus": False,
+            "paper_exploration_counts_as_live_ready": False,
+            "paper_exploration_routes_to_live": False,
+            "paper_exploration_places_real_order": False,
+        }
+    )
+    if exploration_above_floor:
+        if normalized.get("risk_decision") in (None, "", "MISSING") and projected_risk_decision not in (
+            None,
+            "",
+            "MISSING",
+        ):
+            normalized["risk_decision"] = projected_risk_decision
+        if normalized.get("orchestrator_decision") in (
+            None,
+            "",
+            "MISSING",
+        ) and projected_orchestrator_decision not in (None, "", "MISSING"):
+            normalized["orchestrator_decision"] = projected_orchestrator_decision
+        normalized["risk_decision_id"] = _first_present(
+            normalized.get("risk_decision_id"),
+            exploration_projection.get("risk_decision_id"),
+        )
+        normalized["orchestrator_decision_id"] = _first_present(
+            normalized.get("orchestrator_decision_id"),
+            exploration_projection.get("orchestrator_decision_id"),
+        )
+    return normalized
 
 
 SESSION_MAX_PREDICTION_AGE_SECONDS = 6 * 3600
@@ -872,6 +2997,8 @@ def _prediction_age_seconds(prediction: Mapping[str, Any]) -> float | None:
         prediction.get("generated_at"),
         prediction.get("decision_time"),
         prediction.get("generated_utc"),
+        prediction.get("created_at"),
+        prediction.get("available_at"),
     )
     if not stamp:
         return None
@@ -880,6 +3007,1146 @@ def _prediction_age_seconds(prediction: Mapping[str, Any]) -> float | None:
     except ValueError:
         return None
     return (datetime.now(timezone.utc) - parsed).total_seconds()
+
+
+def _candidate_age_seconds(row: Mapping[str, Any], prediction: Mapping[str, Any]) -> float | None:
+    stamp = _first_present(
+        prediction.get("generated_at"),
+        prediction.get("decision_time"),
+        prediction.get("generated_utc"),
+        prediction.get("created_at"),
+        prediction.get("available_at"),
+        row.get("generated_at"),
+        row.get("decision_time"),
+        row.get("generated_utc"),
+        row.get("available_at"),
+    )
+    if not stamp:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (datetime.now(timezone.utc) - parsed).total_seconds()
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _timeframe_seconds(timeframe: Any) -> int | None:
+    text = str(timeframe or "").strip().lower()
+    if not text:
+        return None
+    unit = text[-1]
+    try:
+        amount = int(text[:-1])
+    except ValueError:
+        return None
+    unit_seconds = {"m": 60, "h": 3600, "d": 86400}.get(unit)
+    if unit_seconds is None:
+        return None
+    return amount * unit_seconds
+
+
+def _adaptive_stale_seconds(row: Mapping[str, Any]) -> int:
+    timeframe_seconds = _timeframe_seconds(
+        _first_present(row.get("timeframe"), row.get("thesis_timeframe"))
+    )
+    if timeframe_seconds is None:
+        return PAPER_SIGNAL_STALE_SECONDS
+    adaptive = min(
+        PAPER_SIGNAL_STALE_SECONDS,
+        timeframe_seconds * PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER,
+    )
+    adaptive = max(PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS, int(adaptive))
+    return min(PAPER_SIGNAL_STALE_SECONDS, adaptive)
+
+
+def _queue_row_identity(row: Mapping[str, Any]) -> str:
+    return str(
+        _first_present(
+            row.get("candidate_id"),
+            row.get("prediction_id"),
+            row.get("signal_id"),
+            row.get("row_uid"),
+            f"{row.get('symbol')}:{row.get('timeframe')}:{row.get('side')}",
+        )
+    )
+
+
+def _timestamp_not_after(value: Any, decision_time: Any) -> bool:
+    parsed = _parse_utc(value)
+    decision = _parse_utc(decision_time)
+    if parsed is None or decision is None:
+        return False
+    return parsed <= decision
+
+
+def _entry_feature_generated_at_payload(
+    row: Mapping[str, Any],
+    *,
+    entry_feature_available_at: Any,
+    entry_feature_decision_time: Any,
+    source_generated_utc: Any,
+) -> tuple[Any, str | None, list[str]]:
+    rejected: list[str] = []
+    candidates: list[tuple[Any, str]] = [
+        (row.get("entry_feature_generated_at"), "entry_feature_generated_at"),
+        (row.get("feature_generated_at"), "feature_generated_at"),
+        (row.get("generated_at"), "generated_at"),
+        (source_generated_utc, "source_generated_utc"),
+        (entry_feature_available_at, "entry_feature_available_at_fallback"),
+    ]
+    for value, source in candidates:
+        if value in (None, ""):
+            continue
+        if _timestamp_not_after(value, entry_feature_decision_time):
+            return value, source, rejected
+        rejected.append(f"{source}_after_entry_feature_decision_time")
+    return None, None, rejected
+
+
+def _expected_funding_bps_payload(row: Mapping[str, Any]) -> tuple[float | None, str | None]:
+    explicit = _float(
+        _first_present(
+            row.get("expected_funding_bps"),
+            row.get("funding_bps"),
+            row.get("funding_rate_bps"),
+            row.get("actual_funding_bps"),
+        )
+    )
+    if explicit is not None:
+        return explicit, "strategy_supply_explicit_funding_bps"
+    funding_rate = _float(row.get("funding_rate"))
+    if funding_rate is not None:
+        return funding_rate * 10_000.0, "strategy_supply_funding_rate_to_bps"
+    expected_funding_usd = _float(
+        _first_present(row.get("expected_funding_usd"), row.get("funding_usd"))
+    )
+    notional = _float(
+        _first_present(
+            row.get("recommended_notional_usd"),
+            row.get("target_notional_usd"),
+            row.get("target_notional_usdt"),
+            row.get("gross_notional_usd"),
+        )
+    )
+    if expected_funding_usd is not None and notional is not None and abs(notional) > 0.0:
+        return expected_funding_usd / abs(notional) * 10_000.0, "strategy_supply_expected_funding_usd_to_bps"
+    return None, None
+
+
+def _loss_probability_reason_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    reasons: list[str] = []
+    explicit_reason = str(row.get("loss_probability_reason") or "").strip()
+    if explicit_reason:
+        reasons.append(explicit_reason)
+    for reason in _as_list(row.get("loss_probability_reasons")):
+        text = str(reason or "").strip()
+        if text:
+            reasons.append(text)
+
+    calibration = _as_dict(row.get("loss_probability_calibration"))
+    if calibration:
+        reasons.append("STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY")
+        penalties = _as_dict(calibration.get("penalties"))
+        for penalty in sorted(str(key) for key in penalties if str(key)):
+            reasons.append(f"CALIBRATION_PENALTY:{penalty}")
+
+    stage_reason = str(
+        _first_present(row.get("reason_if_rejected"), row.get("why_rejected")) or ""
+    ).strip()
+    if stage_reason:
+        reasons.append(f"STRATEGY_SUPPLY_STAGE_REJECTED:{stage_reason}")
+
+    if not reasons and _float(row.get("loss_probability")) is not None:
+        reasons.append("STRATEGY_SUPPLY_LOSS_PROBABILITY")
+
+    unique_reasons = list(dict.fromkeys(reasons))
+    return {
+        "loss_probability_reason": unique_reasons[0] if unique_reasons else None,
+        "loss_probability_reasons": unique_reasons,
+        "loss_probability_calibration": calibration,
+    }
+
+
+def _queue_signal_payload(
+    row: Mapping[str, Any],
+    *,
+    accepted_at: str | None = None,
+) -> dict[str, Any]:
+    signal = dict(row)
+    exit_plan = build_paper_exploration_exit_plan(row, generated_utc=accepted_at)
+    identity = _first_present(
+        row.get("feature_vector_hash"),
+        row.get("feature_snapshot_id"),
+        row.get("candidate_id"),
+        row.get("prediction_id"),
+        row.get("signal_id"),
+        row.get("symbol"),
+    )
+    source_generated_utc = _first_present(
+        row.get("source_generated_utc"),
+        row.get("generated_utc"),
+        row.get("generated_at"),
+    )
+    market_state_id = _first_present(
+        row.get("market_state_id"),
+        row.get("entry_market_state_id"),
+        f"strategy_supply_market_state:{identity}" if identity else None,
+    )
+    entry_feature_cutoff = _first_present(
+        row.get("entry_feature_cutoff"),
+        row.get("feature_cutoff"),
+        source_generated_utc,
+    )
+    entry_feature_available_at = _first_present(
+        row.get("entry_feature_available_at"),
+        row.get("available_at"),
+    )
+    entry_feature_decision_time = _first_present(
+        row.get("entry_feature_decision_time"),
+        row.get("decision_time"),
+    )
+    (
+        entry_feature_generated_at,
+        entry_feature_generated_at_source,
+        entry_feature_generated_at_rejections,
+    ) = _entry_feature_generated_at_payload(
+        row,
+        entry_feature_available_at=entry_feature_available_at,
+        entry_feature_decision_time=entry_feature_decision_time,
+        source_generated_utc=source_generated_utc,
+    )
+    entry_feature_candle_closed_confirmed = _first_present(
+        row.get("entry_feature_candle_closed_confirmed"),
+        row.get("candle_closed_confirmed"),
+    )
+    expected_funding_bps, expected_funding_bps_source = _expected_funding_bps_payload(row)
+    signal.update(
+        {
+            "generated_utc": _first_present(accepted_at, source_generated_utc),
+            "source_generated_utc": source_generated_utc,
+            "source_available_at": _first_present(row.get("source_available_at"), row.get("available_at")),
+            "source_decision_time": _first_present(row.get("source_decision_time"), row.get("decision_time")),
+            "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
+            "paper_fill_allowed": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "test_order": False,
+            "live_order": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+            "counts_as_A_plus": False,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+            "paper_opportunity_tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+            "exploration_tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+            "paper_exploration_tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+            "paper_risk_controller_exploration": True,
+            "paper_fill_allowed_source": "PAPER_EXPLORATION_MATERIALIZATION_QUEUE",
+            "materialization_queue_source": "v2_a_plus_candidate_inventory",
+            "exit_plan": exit_plan,
+            "market_state_id": market_state_id,
+            "entry_market_state_id": market_state_id,
+            "valid_for_paper": _first_present(row.get("valid_for_paper"), True),
+            "market_state_integrity_score": row.get("market_state_integrity_score"),
+            "market_state_reject_reasons": list(row.get("market_state_reject_reasons") or []),
+            "entry_feature_snapshot_id": _first_present(
+                row.get("entry_feature_snapshot_id"),
+                row.get("feature_snapshot_id"),
+            ),
+            "entry_feature_available_at": entry_feature_available_at,
+            "entry_feature_generated_at": entry_feature_generated_at,
+            "entry_feature_generated_at_source": entry_feature_generated_at_source,
+            "entry_feature_generated_at_rejections": entry_feature_generated_at_rejections,
+            "entry_feature_cutoff": entry_feature_cutoff,
+            "entry_feature_decision_time": entry_feature_decision_time,
+            "entry_feature_source": _first_present(
+                row.get("entry_feature_source"),
+                "strategy_supply_inventory_row",
+            ),
+            "loss_probability_reason": row.get("loss_probability_reason"),
+            "loss_probability_reasons": row.get("loss_probability_reasons"),
+            "loss_probability_calibration": row.get("loss_probability_calibration"),
+        }
+    )
+    if entry_feature_candle_closed_confirmed is not None:
+        signal["entry_feature_candle_closed_confirmed"] = (
+            entry_feature_candle_closed_confirmed
+        )
+    if expected_funding_bps is not None:
+        signal["expected_funding_bps"] = expected_funding_bps
+        signal["funding_bps"] = expected_funding_bps
+        signal["expected_funding_bps_source"] = expected_funding_bps_source
+        signal["expected_funding_bps_fallback"] = False
+        signal["expected_funding_bps_unavailable_reason"] = None
+    if signal.get("selected_action") in (None, ""):
+        signal["selected_action"] = _first_present(row.get("side"), row.get("action"))
+    if signal.get("action") in (None, ""):
+        signal["action"] = _first_present(row.get("selected_action"), row.get("side"))
+    return signal
+
+
+def _build_materialization_queue_row(
+    row: Mapping[str, Any],
+    *,
+    accepted_at: str,
+    inventory_generated_utc: str | None = None,
+) -> dict[str, Any]:
+    adaptive_seconds = _adaptive_stale_seconds(row)
+    accepted_dt = _parse_utc(accepted_at) or datetime.now(timezone.utc)
+    source_freshness = _materialization_source_freshness(row, accepted_at=accepted_at)
+    source_freshness_reasons = [
+        str(reason)
+        for reason in source_freshness.get("source_freshness_reasons") or []
+        if reason
+    ]
+    source_pending_reasons = [
+        reason
+        for reason in source_freshness_reasons
+        if reason.startswith("MATERIALIZATION_PREQUEUE_SOURCE_TIME_AFTER_ACCEPTED_AT:")
+    ]
+    source_hard_reasons = [
+        reason for reason in source_freshness_reasons if reason not in source_pending_reasons
+    ]
+    source_expires_at = _parse_utc(source_freshness.get("source_expires_at"))
+    expires_at = source_expires_at or (accepted_dt + timedelta(seconds=adaptive_seconds))
+    signal = _queue_signal_payload(row, accepted_at=accepted_at)
+    safety_truth = build_paper_exploration_safety_truth(signal)
+    return {
+        "queue_id": f"paper_exploration_materialize_{_queue_row_identity(row)}",
+        "candidate_id": _first_present(row.get("candidate_id"), row.get("prediction_id")),
+        "prediction_id": row.get("prediction_id"),
+        "signal_id": row.get("signal_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": row.get("side"),
+        "strategy_supply_hypothesis": row.get("strategy_supply_hypothesis") is True,
+        "strategy_supply_hypothesis_id": _first_present(
+            row.get("strategy_supply_hypothesis_id"),
+            row.get("hypothesis_id"),
+        ),
+        "tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+        "accepted_at": accepted_at,
+        "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+        "queue_published_at": accepted_at,
+        "inventory_generated_utc": inventory_generated_utc,
+        "available_at": row.get("available_at"),
+        "decision_time": row.get("decision_time"),
+        "queue_freshness_basis": (
+            "source_time"
+            if source_freshness.get("source_freshness_time")
+            else "accepted_at_fallback_no_source_time"
+        ),
+        "source_available_at": _first_present(row.get("source_available_at"), row.get("available_at")),
+        "source_decision_time": _first_present(row.get("source_decision_time"), row.get("decision_time")),
+        "source_generated_utc": _first_present(
+            row.get("source_generated_utc"),
+            row.get("generated_utc"),
+            row.get("generated_at"),
+        ),
+        **source_freshness,
+        "source_freshness_pending": bool(source_pending_reasons),
+        "source_freshness_pending_reasons": source_pending_reasons,
+        "source_freshness_hard_reasons": source_hard_reasons,
+        "earliest_eligible_decision_time": (
+            source_freshness.get("source_freshness_time")
+            if source_pending_reasons
+            else None
+        ),
+        "expires_at": _format_utc(expires_at),
+        "adaptive_stale_seconds": adaptive_seconds,
+        "risk_decision_id": row.get("risk_decision_id")
+        or row.get("paper_exploration_risk_decision_id"),
+        "orchestrator_decision_id": row.get("orchestrator_decision_id")
+        or row.get("paper_exploration_orchestrator_decision_id"),
+        "allocator_decision_id": row.get("allocator_decision_id"),
+        "preemptive_decision_id": row.get("preemptive_decision_id"),
+        "pre_trade_loss_probability": row.get("pre_trade_loss_probability"),
+        "loss_probability_reason": row.get("loss_probability_reason"),
+        "loss_probability_reasons": row.get("loss_probability_reasons"),
+        "loss_probability_calibration": row.get("loss_probability_calibration"),
+        "confidence_executable_trade": row.get("confidence_executable_trade"),
+        "dynamic_exploration_floor": row.get("dynamic_exploration_floor"),
+        "dynamic_exploration_floor_formula": row.get(
+            "dynamic_exploration_floor_formula"
+        ),
+        "exploration_floor_inputs": row.get("exploration_floor_inputs"),
+        "exploration_floor_range": row.get("exploration_floor_range"),
+        "paper_risk_controller_exploration_eligible": row.get(
+            "paper_risk_controller_exploration_eligible"
+        ),
+        "paper_risk_controller_exploration_above_floor": row.get(
+            "paper_risk_controller_exploration_above_floor"
+        ),
+        "paper_risk_controller_exploration_reasons": row.get(
+            "paper_risk_controller_exploration_reasons"
+        ),
+        "paper_risk_controller_exploration_block_reasons": row.get(
+            "paper_risk_controller_exploration_block_reasons"
+        ),
+        "expected_net_pnl_usd": row.get("expected_net_pnl_usd"),
+        "expected_max_loss_usd": row.get("expected_max_loss_usd"),
+        "current_price": row.get("current_price"),
+        "recommended_notional_usd": _first_present(
+            row.get("recommended_notional_usd"),
+            row.get("target_notional_usd"),
+            row.get("target_notional_usdt"),
+        ),
+        "gross_notional_usd": row.get("gross_notional_usd"),
+        "target_notional_usd": row.get("target_notional_usd"),
+        "target_notional_usdt": row.get("target_notional_usdt"),
+        "allocated_margin_usd": row.get("allocated_margin_usd"),
+        "risk_budget_usd": row.get("risk_budget_usd"),
+        "recommended_leverage": row.get("recommended_leverage"),
+        "recommended_margin_mode": row.get("recommended_margin_mode"),
+        "liquidation_buffer_usd": _first_present(
+            row.get("liquidation_buffer_usd"),
+            row.get("expected_liquidation_buffer_usd"),
+        ),
+        "exit_plan": signal.get("exit_plan"),
+        "hedge_plan": _first_present(row.get("hedge_plan"), row.get("hedge_plan_if_any")),
+        "provider_hashes": _first_present(
+            row.get("provider_hashes"),
+            row.get("provider_feature_hashes"),
+            row.get("source_hashes"),
+        ),
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "raw_safety_fields": safety_truth["raw_fields"],
+        "invariant_checks": safety_truth["invariant_checks"],
+        "raw_paper_only": safety_truth["raw_paper_only"],
+        "raw_routes_to_live": safety_truth["raw_routes_to_live"],
+        "raw_places_real_order": safety_truth["raw_places_real_order"],
+        "raw_counts_as_A_plus": safety_truth["raw_counts_as_A_plus"],
+        "raw_counts_as_live_ready": safety_truth["raw_counts_as_live_ready"],
+        "routes_to_live_false": safety_truth["routes_to_live_false"],
+        "places_real_order_false": safety_truth["places_real_order_false"],
+        "counts_as_A_plus_false": safety_truth["counts_as_A_plus_false"],
+        "counts_as_live_ready_false": safety_truth["counts_as_live_ready_false"],
+        "safety_hard_fail": safety_truth["hard_fail"],
+        "safety_hard_fail_reasons": safety_truth["hard_fail_reasons"],
+        "source_freshness_hard_fail": bool(source_hard_reasons),
+        "paper_signal": signal,
+    }
+
+
+def _build_materialization_prequeue_counterfactual_row(
+    row: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    signal = _queue_signal_payload(row, accepted_at=generated_utc)
+    safety_truth = build_paper_exploration_safety_truth(signal)
+    exact_reasons = [
+        str(reason)
+        for reason in row.get("paper_exploration_materialization_prequeue_block_reasons")
+        or row.get("paper_exploration_prequeue_block_reasons")
+        or ["MATERIALIZATION_PREQUEUE_BLOCKED"]
+        if reason
+    ]
+    if not exact_reasons:
+        exact_reasons = ["MATERIALIZATION_PREQUEUE_BLOCKED"]
+    identity = _queue_row_identity(row)
+    risk_decision_id = _first_present(
+        row.get("risk_decision_id"),
+        row.get("paper_exploration_risk_decision_id"),
+        signal.get("risk_decision_id"),
+    )
+    orchestrator_decision_id = _first_present(
+        row.get("orchestrator_decision_id"),
+        row.get("paper_exploration_orchestrator_decision_id"),
+        signal.get("orchestrator_decision_id"),
+    )
+    allocator_decision_id = _first_present(
+        row.get("allocator_decision_id"),
+        signal.get("allocator_decision_id"),
+    )
+    return {
+        "schema_version": "paper_exploration_materialization_counterfactual_v1",
+        "trainer_feedback_id": f"cf_materialization_prequeue_{identity}",
+        "paper_exploration_candidate_id": _first_present(
+            row.get("candidate_id"),
+            row.get("prediction_id"),
+            row.get("signal_id"),
+        ),
+        "prediction_id": row.get("prediction_id"),
+        "signal_id": row.get("signal_id"),
+        "symbol": row.get("symbol"),
+        "timeframe": row.get("timeframe"),
+        "side": _first_present(row.get("side"), row.get("selected_action")),
+        "exploration_tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+        "feedback_type": (
+            "PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_PREQUEUE_NO_FILL"
+        ),
+        "counterfactual_feedback_source": "v2_a_plus_candidate_inventory_prequeue",
+        "block_reason_if_rejected": "MATERIALIZATION_PREQUEUE_BLOCKED",
+        "block_reasons_if_rejected": exact_reasons,
+        "rejection_reason": "MATERIALIZATION_PREQUEUE_BLOCKED",
+        "exact_reasons": exact_reasons,
+        "paper_performance_circuit_breaker_candidate_bucket_keys": row.get(
+            "paper_performance_circuit_breaker_candidate_bucket_keys"
+        )
+        or [],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": row.get(
+            "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+        )
+        or [],
+        "paper_performance_circuit_breaker_matched_blocked_bucket_proof": row.get(
+            "paper_performance_circuit_breaker_matched_blocked_bucket_proof"
+        )
+        or [],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": row.get(
+            "paper_performance_circuit_breaker_matched_loss_cluster_keys"
+        )
+        or [],
+        "paper_performance_circuit_breaker_advisory_bucket_keys": row.get(
+            "paper_performance_circuit_breaker_advisory_bucket_keys"
+        )
+        or [],
+        "paper_performance_circuit_breaker_advisory_bucket_proof": row.get(
+            "paper_performance_circuit_breaker_advisory_bucket_proof"
+        )
+        or [],
+        "paper_performance_circuit_breaker_advisory_loss_cluster_keys": row.get(
+            "paper_performance_circuit_breaker_advisory_loss_cluster_keys"
+        )
+        or [],
+        "risk_decision": _first_present(
+            row.get("risk_decision"),
+            signal.get("risk_decision"),
+            "PASS" if risk_decision_id else None,
+        ),
+        "risk_decision_id": risk_decision_id,
+        "orchestrator_decision": _first_present(
+            row.get("orchestrator_decision"),
+            signal.get("orchestrator_decision"),
+            "PASS" if orchestrator_decision_id else None,
+        ),
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "allocator_decision": _first_present(
+            row.get("allocator_decision"),
+            signal.get("allocator_decision"),
+            "PASS" if allocator_decision_id else None,
+        ),
+        "allocator_decision_id": allocator_decision_id,
+        "preemptive_decision_id": _first_present(
+            row.get("preemptive_decision_id"),
+            signal.get("preemptive_decision_id"),
+        ),
+        "confidence_executable_trade": row.get("confidence_executable_trade"),
+        "dynamic_exploration_floor": row.get("dynamic_exploration_floor"),
+        "dynamic_exploration_floor_formula": row.get(
+            "dynamic_exploration_floor_formula"
+        ),
+        "exploration_floor_inputs": row.get("exploration_floor_inputs"),
+        "expected_net_pnl_usd": row.get("expected_net_pnl_usd"),
+        "expected_max_loss_usd": row.get("expected_max_loss_usd"),
+        "current_price": row.get("current_price"),
+        "recommended_notional_usd": _first_present(
+            row.get("recommended_notional_usd"),
+            row.get("target_notional_usd"),
+            row.get("target_notional_usdt"),
+        ),
+        "recommended_leverage": row.get("recommended_leverage"),
+        "recommended_margin_mode": row.get("recommended_margin_mode"),
+        "liquidation_buffer_usd": _first_present(
+            row.get("liquidation_buffer_usd"),
+            row.get("expected_liquidation_buffer_usd"),
+        ),
+        "provider_hashes": _first_present(
+            row.get("provider_hashes"),
+            row.get("provider_feature_hashes"),
+            row.get("source_hashes"),
+        ),
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "raw_safety_fields": safety_truth["raw_fields"],
+        "invariant_checks": safety_truth["invariant_checks"],
+        "future_label_pending": True,
+        "trainer_consumable": False,
+        "trainer_consumable_block_reason": "FUTURE_LABEL_PENDING_NO_PAPER_FILL_OPENED",
+        "dirty_flag": False,
+        "dirty_reasons": [],
+        "paper_materialized": False,
+        "paper_fill_allowed": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_live_ready": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "generated_utc": generated_utc,
+    }
+
+
+def _publish_materialization_queue(
+    client: Any,
+    rows: list[Mapping[str, Any]],
+    *,
+    generated_utc: str,
+    queue_published_at: str | None = None,
+) -> dict[str, Any]:
+    queue_generated_utc = queue_published_at or _utc_now()
+    accepted_rows = [
+        row
+        for row in rows
+        if row.get("paper_exploration_paper_fill_allowed") is True
+    ]
+    queue_rows = [
+        _build_materialization_queue_row(
+            row,
+            accepted_at=queue_generated_utc,
+            inventory_generated_utc=generated_utc,
+        )
+        for row in accepted_rows
+    ]
+    now = _parse_utc(queue_generated_utc) or datetime.now(timezone.utc)
+    current_queue_identities = {
+        str(_first_present(row.get("queue_id"), row.get("candidate_id")))
+        for row in queue_rows
+        if _first_present(row.get("queue_id"), row.get("candidate_id"))
+    }
+    previous_queue_payload = _read_json(
+        client,
+        EXPLORATION_MATERIALIZATION_QUEUE_KEY,
+    )
+    preserved_previous_queue_rows: list[dict[str, Any]] = []
+    if isinstance(previous_queue_payload, Mapping):
+        for previous_row in previous_queue_payload.get("rows") or []:
+            if not isinstance(previous_row, Mapping):
+                continue
+            previous_identity = str(
+                _first_present(
+                    previous_row.get("queue_id"),
+                    previous_row.get("candidate_id"),
+                    previous_row.get("prediction_id"),
+                    previous_row.get("signal_id"),
+                )
+                or ""
+            )
+            if not previous_identity or previous_identity in current_queue_identities:
+                continue
+            preserved_previous_queue_rows.append(
+                {
+                    **previous_row,
+                    "materialization_queue_preserved_from_previous_queue": True,
+                    "previous_materialization_queue_generated_utc": (
+                        previous_queue_payload.get("generated_utc")
+                    ),
+                }
+            )
+            current_queue_identities.add(previous_identity)
+    if preserved_previous_queue_rows:
+        queue_rows = [*queue_rows, *preserved_previous_queue_rows]
+    pending_source_rows = [
+        {
+            **row,
+            "materialization_queue_result": "PENDING_SOURCE_TIME_NEXT_CYCLE",
+            "materialization_no_fill_reason": "PENDING_SOURCE_TIME_NEXT_CYCLE",
+        }
+        for row in queue_rows
+        if row.get("source_freshness_pending") is True
+        and (_parse_utc(row.get("source_freshness_time")) or now) > now
+        and row.get("safety_hard_fail") is not True
+        and row.get("source_freshness_hard_fail") is not True
+    ]
+    pending_source_queue_ids = {
+        str(row.get("queue_id")) for row in pending_source_rows if row.get("queue_id")
+    }
+    active_rows = [
+        row
+        for row in queue_rows
+        if (_parse_utc(row.get("expires_at")) or now) >= now
+        and row.get("safety_hard_fail") is not True
+        and row.get("source_freshness_hard_fail") is not True
+        and str(row.get("queue_id")) not in pending_source_queue_ids
+    ]
+    expired_rows = [
+        row
+        for row in queue_rows
+        if (_parse_utc(row.get("expires_at")) or now) < now
+        or row.get("source_stale_at_acceptance") is True
+    ]
+    source_rejected_rows = [
+        row
+        for row in queue_rows
+        if row.get("source_freshness_hard_fail") is True
+        and row not in expired_rows
+    ]
+    unsafe_rows = [row for row in queue_rows if row.get("safety_hard_fail") is True]
+    expired_counterfactual_rows = [
+        _build_materialization_prequeue_counterfactual_row(
+            {
+                **row,
+                "paper_exploration_materialization_prequeue_block_reasons": (
+                    row.get("source_freshness_reasons")
+                    or ["MATERIALIZATION_PREQUEUE_SOURCE_EXPIRED_BEFORE_QUEUE"]
+                ),
+            },
+            generated_utc=queue_generated_utc,
+        )
+        for row in expired_rows
+    ] + [
+        _build_materialization_prequeue_counterfactual_row(
+            {
+                **row,
+                "paper_exploration_materialization_prequeue_block_reasons": (
+                    row.get("source_freshness_reasons")
+                    or ["MATERIALIZATION_PREQUEUE_SOURCE_REJECTED_BEFORE_QUEUE"]
+                ),
+            },
+            generated_utc=queue_generated_utc,
+        )
+        for row in source_rejected_rows
+    ]
+    prequeue_rejected_rows = [
+        row
+        for row in rows
+        if row.get("paper_exploration_paper_fill_allowed") is not True
+        and row.get("paper_exploration_materialization_prequeue_block_reasons")
+    ]
+    prequeue_counterfactual_rows = [
+        _build_materialization_prequeue_counterfactual_row(
+            row,
+            generated_utc=queue_generated_utc,
+        )
+        for row in prequeue_rejected_rows
+    ] + expired_counterfactual_rows
+    prequeue_reason_counts = Counter(
+        str(reason)
+        for row in prequeue_rejected_rows
+        for reason in row.get("paper_exploration_materialization_prequeue_block_reasons")
+        or []
+        if reason
+    )
+    queued_count = len(active_rows) + len(pending_source_rows)
+    prequeue_exact_no_fill_reason = _prequeue_materialization_no_fill_reason(
+        prequeue_reason_counts,
+    )
+    if queued_count == 0 and prequeue_rejected_rows:
+        exact_no_fill_reason = (
+            prequeue_exact_no_fill_reason
+            or "ALL_CURRENT_ROWS_PREQUEUE_BLOCKED_WITH_EXACT_REASONS"
+        )
+    elif pending_source_rows and queued_count == len(pending_source_rows):
+        exact_no_fill_reason = "PAPER_EXPLORATION_PENDING_SOURCE_TIME_NEXT_CYCLE"
+    elif active_rows or pending_source_rows:
+        exact_no_fill_reason = "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
+    elif expired_rows or source_rejected_rows:
+        exact_no_fill_reason = "ALL_QUEUE_ROWS_EXPIRED_BEFORE_PAPER_LOOP"
+    else:
+        exact_no_fill_reason = "NO_CURRENT_EXPLORATION_CANDIDATES"
+    per_id_decision_store_status = _publish_materialization_decision_records(
+        client,
+        [*active_rows, *pending_source_rows],
+        generated_utc=queue_generated_utc,
+    )
+    queue_payload = {
+        "schema_version": "paper_exploration_materialization_queue_v1",
+        "generated_utc": queue_generated_utc,
+        "queue_published_at": queue_generated_utc,
+        "inventory_generated_utc": generated_utc,
+        "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+        "queue_key": EXPLORATION_MATERIALIZATION_QUEUE_KEY,
+        "rows": [*active_rows, *pending_source_rows],
+        "pending_source_rows": pending_source_rows,
+        "expired_rows": expired_rows,
+        "unsafe_rows": unsafe_rows,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    wrote_queue = _safe_redis_set(
+        client,
+        EXPLORATION_MATERIALIZATION_QUEUE_KEY,
+        queue_payload,
+        ex=2 * 60 * 60,
+    )
+    status = {
+        "schema_version": "paper_exploration_materialization_queue_status_v1",
+        "generated_utc": queue_generated_utc,
+        "queue_published_at": queue_generated_utc,
+        "inventory_generated_utc": generated_utc,
+        "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+        "queue_key": EXPLORATION_MATERIALIZATION_QUEUE_KEY,
+        "queue_status_key": EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY,
+        "accepted_dry_run_rows": len(accepted_rows),
+        "queued_count": queued_count,
+        "active_count": len(active_rows),
+        "pending_source_time_count": len(pending_source_rows),
+        "expired_count": len(expired_rows),
+        "expired_counterfactual_count": len(expired_counterfactual_rows),
+        "source_rejected_count": len(source_rejected_rows),
+        "unsafe_count": len(unsafe_rows),
+        "prequeue_rejected_count": len(prequeue_rejected_rows),
+        "prequeue_counterfactual_count": len(prequeue_counterfactual_rows),
+        "preserved_previous_queue_count": len(preserved_previous_queue_rows),
+        "prequeue_counterfactual_key": (
+            PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY
+        ),
+        "prequeue_rejected_reason_counts": dict(
+            prequeue_reason_counts.most_common()
+        ),
+        "prequeue_exact_no_fill_reason": prequeue_exact_no_fill_reason,
+        "exact_no_fill_reason": exact_no_fill_reason,
+        "canonical_exact_no_fill_reason": (
+            _canonical_materialization_no_fill_reason(exact_no_fill_reason)
+        ),
+        "prequeue_rejected_rows": [
+            {
+                "candidate_id": _first_present(
+                    row.get("candidate_id"),
+                    row.get("prediction_id"),
+                    row.get("signal_id"),
+                ),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "side": row.get("side"),
+                "block_reasons": (
+                    row.get("paper_exploration_materialization_prequeue_block_reasons")
+                    or []
+                ),
+                "paper_performance_circuit_breaker_candidate_bucket_keys": row.get(
+                    "paper_performance_circuit_breaker_candidate_bucket_keys"
+                )
+                or [],
+                "paper_performance_circuit_breaker_matched_blocked_bucket_keys": (
+                    row.get(
+                        "paper_performance_circuit_breaker_matched_blocked_bucket_keys"
+                    )
+                    or []
+                ),
+                "paper_performance_circuit_breaker_matched_blocked_bucket_proof": (
+                    row.get(
+                        "paper_performance_circuit_breaker_matched_blocked_bucket_proof"
+                    )
+                    or []
+                ),
+                "paper_performance_circuit_breaker_matched_loss_cluster_keys": (
+                    row.get(
+                        "paper_performance_circuit_breaker_matched_loss_cluster_keys"
+                    )
+                    or []
+                ),
+                "paper_performance_circuit_breaker_advisory_bucket_keys": row.get(
+                    "paper_performance_circuit_breaker_advisory_bucket_keys"
+                )
+                or [],
+                "paper_performance_circuit_breaker_advisory_bucket_proof": row.get(
+                    "paper_performance_circuit_breaker_advisory_bucket_proof"
+                )
+                or [],
+                "paper_performance_circuit_breaker_advisory_loss_cluster_keys": (
+                    row.get(
+                        "paper_performance_circuit_breaker_advisory_loss_cluster_keys"
+                    )
+                    or []
+                ),
+            }
+            for row in prequeue_rejected_rows[:25]
+        ],
+        "per_id_decision_store": {
+            key: value
+            for key, value in per_id_decision_store_status.items()
+            if key != "row_status"
+        },
+        "per_id_decision_store_rows": per_id_decision_store_status["row_status"][:25],
+        "active_rows": [
+            {
+                "candidate_id": _first_present(
+                    row.get("candidate_id"),
+                    row.get("prediction_id"),
+                    row.get("signal_id"),
+                ),
+                "queue_id": row.get("queue_id"),
+                "materialization_queue_preserved_from_previous_queue": row.get(
+                    "materialization_queue_preserved_from_previous_queue"
+                )
+                is True,
+                "previous_materialization_queue_generated_utc": row.get(
+                    "previous_materialization_queue_generated_utc"
+                ),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "side": row.get("side"),
+                "tier": row.get("tier"),
+                "accepted_at": row.get("accepted_at"),
+                "accepted_at_semantics": row.get("accepted_at_semantics"),
+                "queue_published_at": row.get("queue_published_at"),
+                "inventory_generated_utc": row.get("inventory_generated_utc"),
+                "available_at": row.get("available_at"),
+                "decision_time": row.get("decision_time"),
+                "expires_at": row.get("expires_at"),
+                "adaptive_stale_seconds": row.get("adaptive_stale_seconds"),
+                "confidence_executable_trade": row.get(
+                    "confidence_executable_trade"
+                ),
+                "dynamic_exploration_floor": row.get("dynamic_exploration_floor"),
+                "paper_risk_controller_exploration_above_floor": row.get(
+                    "paper_risk_controller_exploration_above_floor"
+                ),
+                "paper_risk_controller_exploration_eligible": row.get(
+                    "paper_risk_controller_exploration_eligible"
+                ),
+                "risk_decision_id": row.get("risk_decision_id"),
+                "risk_decision_record_key": row.get("risk_decision_record_key"),
+                "risk_decision_record_hash": row.get("risk_decision_record_hash"),
+                "risk_decision_record_resolved": row.get(
+                    "risk_decision_record_resolved"
+                )
+                is True,
+                "orchestrator_decision_id": row.get("orchestrator_decision_id"),
+                "orchestrator_decision_record_key": row.get(
+                    "orchestrator_decision_record_key"
+                ),
+                "orchestrator_decision_record_hash": row.get(
+                    "orchestrator_decision_record_hash"
+                ),
+                "orchestrator_decision_record_resolved": row.get(
+                    "orchestrator_decision_record_resolved"
+                )
+                is True,
+                "decision_record_missing_reasons": row.get(
+                    "decision_record_missing_reasons"
+                )
+                or [],
+                "allocator_decision_id": row.get("allocator_decision_id"),
+                "preemptive_decision_id": row.get("preemptive_decision_id"),
+                "expected_net_pnl_usd": row.get("expected_net_pnl_usd"),
+                "expected_max_loss_usd": row.get("expected_max_loss_usd"),
+                "current_price": row.get("current_price"),
+                "recommended_notional_usd": row.get("recommended_notional_usd"),
+                "gross_notional_usd": row.get("gross_notional_usd"),
+                "target_notional_usd": row.get("target_notional_usd"),
+                "target_notional_usdt": row.get("target_notional_usdt"),
+                "allocated_margin_usd": row.get("allocated_margin_usd"),
+                "risk_budget_usd": row.get("risk_budget_usd"),
+                "paper_signal": {
+                    key: row.get("paper_signal", {}).get(key)
+                    for key in (
+                        "recommended_notional_usd",
+                        "gross_notional_usd",
+                        "target_notional_usd",
+                        "target_notional_usdt",
+                        "allocated_margin_usd",
+                        "risk_budget_usd",
+                    )
+                    if isinstance(row.get("paper_signal"), Mapping)
+                    and key in row.get("paper_signal", {})
+                },
+                "recommended_leverage": row.get("recommended_leverage"),
+                "recommended_margin_mode": row.get("recommended_margin_mode"),
+                "liquidation_buffer_usd": row.get("liquidation_buffer_usd"),
+                "feature_vector_hash": row.get("feature_vector_hash"),
+                "provider_hashes_present": bool(row.get("provider_hashes")),
+                "raw_safety_fields": row.get("raw_safety_fields"),
+                "invariant_checks": row.get("invariant_checks"),
+            }
+            for row in active_rows[:25]
+        ],
+        "pending_source_rows": [
+            {
+                "candidate_id": _first_present(
+                    row.get("candidate_id"),
+                    row.get("prediction_id"),
+                    row.get("signal_id"),
+                ),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "side": row.get("side"),
+                "earliest_eligible_decision_time": row.get(
+                    "earliest_eligible_decision_time"
+                ),
+                "source_freshness_pending_reasons": row.get(
+                    "source_freshness_pending_reasons"
+                )
+                or [],
+            }
+            for row in pending_source_rows[:25]
+        ],
+        "queue_written": wrote_queue,
+        "dry_run_accepted_row_exists_without_queue_record": bool(
+            accepted_rows and not queue_rows
+        ),
+        "hard_fail": bool(unsafe_rows),
+        "hard_fail_reasons": sorted(
+            {
+                reason
+                for row in unsafe_rows
+                for reason in row.get("safety_hard_fail_reasons") or []
+            }
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_gate": "blocked_human_only",
+    }
+    if prequeue_counterfactual_rows:
+        merged_counterfactual_rows = _merge_counterfactual_feedback_rows(
+            _read_json(client, PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY),
+            prequeue_counterfactual_rows,
+        )
+        _safe_redis_set(
+            client,
+            PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY,
+            merged_counterfactual_rows,
+            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        )
+    _safe_redis_set(
+        client,
+        EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY,
+        status,
+        ex=2 * 60 * 60,
+    )
+    return status
+
+
+def _iso_to_epoch_ms(value: Any, *, fallback_utc: str) -> int:
+    stamp = _first_present(value, fallback_utc, _utc_now())
+    try:
+        parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+    except ValueError:
+        parsed = datetime.now(timezone.utc)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return int(parsed.astimezone(timezone.utc).timestamp() * 1000)
+
+
+def _freshness_flag_for_projection(
+    prediction: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> tuple[str, int | None]:
+    feature_cutoff = _first_present(prediction.get("feature_cutoff"), prediction.get("generated_at"))
+    decision_time = _first_present(prediction.get("decision_time"), prediction.get("generated_at"), generated_utc)
+    if not feature_cutoff or not decision_time:
+        return PREDICTION_FRESHNESS_MISSING, None
+    try:
+        cutoff_dt = datetime.fromisoformat(str(feature_cutoff).replace("Z", "+00:00"))
+        decision_dt = datetime.fromisoformat(str(decision_time).replace("Z", "+00:00"))
+    except ValueError:
+        return PREDICTION_FRESHNESS_MISSING, None
+    if cutoff_dt.tzinfo is None:
+        cutoff_dt = cutoff_dt.replace(tzinfo=timezone.utc)
+    if decision_dt.tzinfo is None:
+        decision_dt = decision_dt.replace(tzinfo=timezone.utc)
+    cutoff_dt = cutoff_dt.astimezone(timezone.utc)
+    decision_dt = decision_dt.astimezone(timezone.utc)
+    age_ms = max(0, int((decision_dt - cutoff_dt).total_seconds() * 1000))
+    if cutoff_dt > decision_dt:
+        return PREDICTION_FRESHNESS_STALE, age_ms
+    if age_ms > SESSION_MAX_PREDICTION_AGE_SECONDS * 1000:
+        return PREDICTION_FRESHNESS_STALE, age_ms
+    return PREDICTION_FRESHNESS_FRESH, age_ms
+
+
+def _strategy_supply_decision_projection(
+    prediction: Mapping[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    side = str(_first_present(prediction.get("selected_action"), prediction.get("side")) or "").lower()
+    if side == "long":
+        direction = PREDICTION_DIRECTION_LONG
+    elif side == "short":
+        direction = PREDICTION_DIRECTION_SHORT
+    else:
+        direction = PREDICTION_DIRECTION_FLAT
+    prediction_id = str(_first_present(prediction.get("prediction_id"), prediction.get("signal_id"), "strategy_supply_prediction"))
+    feature_hash = str(_first_present(prediction.get("feature_vector_hash"), prediction_id))
+    feature_snapshot_id = str(
+        _first_present(
+            prediction.get("feature_snapshot_id"),
+            prediction.get("entry_feature_snapshot_id"),
+            "snap_" + hashlib.sha256(feature_hash.encode("utf-8")).hexdigest()[:32],
+        )
+    )
+    confidence_calibrated = _float(prediction.get("confidence_calibrated"))
+    if confidence_calibrated is None:
+        confidence_calibrated = 0.0
+    confidence_calibrated = min(1.0, max(0.0, confidence_calibrated))
+    confidence_raw = _float(prediction.get("confidence_raw"))
+    if confidence_raw is None:
+        confidence_raw = confidence_calibrated
+    confidence_raw = min(1.0, max(0.0, confidence_raw))
+    freshness_flag, freshness_age_ms = _freshness_flag_for_projection(
+        prediction,
+        generated_utc=generated_utc,
+    )
+    feature_codes = tuple(
+        str(item)[:64]
+        for item in _as_list(prediction.get("source_labels"))
+        if str(item or "").strip()
+    )[:8]
+    if not feature_codes:
+        feature_codes = ("strategy_supply",)
+    record = TrainerPredictionRecord(
+        prediction_id=prediction_id,
+        feature_snapshot_id=feature_snapshot_id,
+        symbol=str(prediction.get("symbol") or "").upper(),
+        model_version="strategy_supply_dry_run_v1",
+        checkpoint_id="strategy_supply_hypothesis_engine",
+        prediction_ts_ms=_iso_to_epoch_ms(
+            _first_present(prediction.get("decision_time"), prediction.get("generated_at")),
+            fallback_utc=generated_utc,
+        ),
+        direction=direction,
+        confidence_raw=float(confidence_raw),
+        confidence_calibrated=float(confidence_calibrated),
+        worker_id="strategy_supply",
+        worker_health_status=str(prediction.get("worker_health_status") or "HEALTHY").upper(),
+        freshness_flag=freshness_flag,
+        source_freshness_age_ms=freshness_age_ms,
+        top_positive_feature_codes=feature_codes,
+        top_negative_feature_codes=(),
+    )
+    now_ms = _iso_to_epoch_ms(
+        _first_present(prediction.get("decision_time"), prediction.get("generated_at")),
+        fallback_utc=generated_utc,
+    )
+    orchestrator_record = assemble_orchestrator_decision_record(
+        prediction=record,
+        low_confidence_threshold=DEFAULT_ORCHESTRATOR_LOW_CONFIDENCE_THRESHOLD,
+        now_ms_clock=lambda: now_ms,
+    )
+    risk_record = assemble_risk_decision_record(
+        decision=orchestrator_record,
+        now_ms_clock=lambda: now_ms,
+    )
+    return {
+        "feature_snapshot_id": feature_snapshot_id,
+        "orchestrator_decision_id": orchestrator_record.decision_id,
+        "orchestrator_decision": orchestrator_record.decision_action,
+        "orchestrator_action": orchestrator_record.decision_action,
+        "orchestrator_decision_action": orchestrator_record.decision_action,
+        "orchestrator_reason_code": orchestrator_record.decision_reason_code,
+        "orchestrator_decision_reason_code": orchestrator_record.decision_reason_code,
+        "orchestrator_live_blocked": orchestrator_record.live_blocked,
+        "orchestrator_decision_record": asdict(orchestrator_record),
+        "risk_decision_id": risk_record.risk_decision_id,
+        "risk_decision": risk_record.risk_action,
+        "risk_action": risk_record.risk_action,
+        "risk_reason_code": risk_record.risk_reason_code,
+        "risk_live_blocked": risk_record.live_blocked,
+        "risk_decision_record": asdict(risk_record),
+        "risk_orchestrator_projection_source": "strategy_supply_inventory_dry_run",
+        "risk_orchestrator_projection_live_blocked": True,
+    }
 
 
 def _prediction_candidate(
@@ -929,12 +4196,20 @@ def build_inventory(
     generated = _utc_now()
     matrix = _as_dict(_read_json(client, PREEMPTIVE_MATRIX_KEY))
     status_payload = _as_dict(_read_json(client, PREEMPTIVE_STATUS_KEY))
+    guardian_payload = _as_dict(_read_json(client, CONTINUOUS_GUARDIAN_GATE_KEY))
     live_gate_payload = _as_dict(_read_json(client, LIVE_GATE_KEY))
-    guardian = {
-        "status": _first_present(status_payload.get("status"), live_gate_payload.get("guardian_state"), "A_GRADE_HALTED_PERFORMANCE"),
-        "a_grade_new_entries_allowed": False,
-        "new_entries_allowed": False,
-    }
+    performance_circuit_status = _as_dict(
+        _read_json(client, PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_KEY)
+    )
+    guardian = (
+        guardian_payload
+        if guardian_payload
+        else {
+            "status": _first_present(status_payload.get("status"), live_gate_payload.get("guardian_state"), "A_GRADE_HALTED_PERFORMANCE"),
+            "a_grade_new_entries_allowed": False,
+            "new_entries_allowed": False,
+        }
+    )
     matrix_rows = [_as_dict(row) for row in _as_list(matrix.get("rows"))]
     rows_by_prediction_id: dict[str, dict[str, Any]] = {
         str(row["prediction_id"]): dict(row)
@@ -962,38 +4237,53 @@ def build_inventory(
     # only, so inject the live V2 market price (read-only public data already
     # in Redis) per symbol before normalization — a candidate without any
     # market price is still honestly rejected.
-    price_cache: dict[str, float | None] = {}
+    price_cache: dict[str, dict[str, Any]] = {}
 
-    def _live_market_price(symbol: str) -> float | None:
+    def _resolved_price(symbol: str) -> dict[str, Any]:
         if symbol in price_cache:
             return price_cache[symbol]
-        price: float | None = None
-        prices_payload = _read_json(client, f"v2:market:prices:{symbol}")
-        if isinstance(prices_payload, Mapping):
-            ticker = prices_payload.get("ticker_24hr")
-            price = _float(
-                _first_present(
-                    prices_payload.get("price"),
-                    prices_payload.get("lastPrice"),
-                    isinstance(ticker, Mapping) and ticker.get("lastPrice"),
+        payload = _read_json(client, f"v2:market:current_price:{symbol}")
+        if not (isinstance(payload, Mapping) and _float(payload.get("price"))):
+            try:
+                from v2.backend.app.services.market_data.current_price_resolver import (
+                    resolve_current_price,
                 )
-            )
-        if price is None or price <= 0:
-            ohlcv = _read_json(client, f"v2:market:ohlcv_closed:binance:{symbol}:1m")
-            if isinstance(ohlcv, list) and ohlcv and isinstance(ohlcv[-1], Mapping):
-                price = _float(_first_present(ohlcv[-1].get("close"), ohlcv[-1].get("close_price")))
-        price_cache[symbol] = price if price is not None and price > 0 else None
+
+                payload = resolve_current_price(client, symbol)
+            except Exception:
+                payload = {}
+        price_cache[symbol] = dict(payload) if isinstance(payload, Mapping) else {}
         return price_cache[symbol]
 
     def _with_price(row: dict[str, Any]) -> dict[str, Any]:
         if _float(_first_present(row.get("current_price"), row.get("entry_price"), row.get("price"))):
             return row
         symbol = str(row.get("symbol") or "").upper()
-        price = _live_market_price(symbol) if symbol else None
-        if price is not None:
-            row = dict(row)
+        resolved = _resolved_price(symbol) if symbol else {}
+        row = dict(row)
+        price = _float(resolved.get("price"))
+        if price is not None and price > 0:
             row["current_price"] = price
-            row["current_price_source"] = "v2_market_redis_read_only"
+            row["current_price_source"] = str(resolved.get("source") or "current_price_resolver")
+            row["price_source"] = str(resolved.get("source") or "current_price_resolver")
+            row["price_available_at"] = resolved.get("available_at")
+            row["current_price_staleness_seconds"] = resolved.get("staleness_seconds")
+            row["current_price_fallback_used"] = resolved.get("fallback_used")
+            row["can_size_trade"] = resolved.get("can_size_trade")
+            row["current_price_can_size_trade"] = resolved.get("can_size_trade")
+            row["best_bid"] = resolved.get("bid")
+            row["best_ask"] = resolved.get("ask")
+            if str(resolved.get("source") or "").startswith("mark_price"):
+                row["mark_price"] = price
+            if str(resolved.get("source") or "").startswith("index_price"):
+                row["index_price"] = price
+            if "trade" in str(resolved.get("source") or "") or "kline" in str(resolved.get("source") or ""):
+                row["last_trade_price"] = price
+        else:
+            row["current_price_missing_reason"] = str(
+                resolved.get("reason_if_missing") or "NO_EXCHANGE_MARKET"
+            )
+            row["can_size_trade"] = False
         return row
 
     normalized: list[dict[str, Any]] = []
@@ -1037,6 +4327,458 @@ def build_inventory(
             _normalize_candidate(_with_price(dict(decision)), prediction=prediction, generated_utc=generated)
         )
 
+    # Strategy-supply hypotheses: positive-USD rule-based candidates that must
+    # still pass every gate (preemptive/risk/orchestrator/allocator). They can
+    # never shortcut to A+; missing bucket evidence keeps them honest.
+    hypothesis_keys: list[str] = []
+    try:
+        for key in client.scan_iter(match="v2:strategy_supply:hypotheses:*", count=500):
+            hypothesis_keys.append(key.decode() if isinstance(key, bytes) else str(key))
+            if len(hypothesis_keys) >= 1_000:
+                break
+    except Exception:
+        hypothesis_keys = []
+    for key in sorted(hypothesis_keys):
+        payload = _as_dict(_read_json(client, key))
+        for hyp in _as_list(payload.get("rows")):
+            if not isinstance(hyp, Mapping) or not hyp.get("side"):
+                continue
+            entry_zone = _as_dict(hyp.get("entry_zone"))
+            notional = _float(hyp.get("reference_notional_usd")) or 200.0
+            net_usd = _float(hyp.get("expected_net_pnl_usd"))
+            supply_stage_rejected_reason = str(hyp.get("why_rejected") or "").strip() or None
+            if supply_stage_rejected_reason and (net_usd is None or net_usd <= 0.0):
+                continue
+            target_move_bps = _float(hyp.get("debug_target_move_bps"))
+            stop_move_bps = _float(hyp.get("debug_stop_move_bps"))
+            hypothesis_side = str(hyp.get("side") or "").strip().lower()
+            cost_bps = (
+                _float(hyp.get("debug_cost_bps"))
+                or _float(hyp.get("debug_round_trip_cost_bps"))
+                or 10.0
+            )
+            selected_side_net_edge_bps = _float(
+                _first_present(
+                    hyp.get("selected_side_expected_net_edge_bps"),
+                    hyp.get(f"expected_{hypothesis_side}_net_edge_bps"),
+                    hyp.get(f"{hypothesis_side}_expected_net_edge_bps"),
+                )
+            )
+            if selected_side_net_edge_bps is None and target_move_bps is not None:
+                selected_side_net_edge_bps = target_move_bps - cost_bps
+            signed_expected_move_bps = _float(hyp.get("expected_move_bps"))
+            if signed_expected_move_bps is None and target_move_bps is not None:
+                signed_expected_move_bps = (
+                    -target_move_bps if hypothesis_side == "short" else target_move_bps
+                )
+            signed_expected_move_after_cost_bps = _float(
+                hyp.get("expected_move_after_cost_bps")
+            )
+            if signed_expected_move_after_cost_bps is None and selected_side_net_edge_bps is not None:
+                signed_expected_move_after_cost_bps = (
+                    -selected_side_net_edge_bps
+                    if hypothesis_side == "short"
+                    else selected_side_net_edge_bps
+                )
+            explicit_long_net = _float(
+                _first_present(
+                    hyp.get("long_expected_net_pnl_usd"),
+                    hyp.get("expected_long_net_pnl_usd"),
+                )
+            )
+            explicit_short_net = _float(
+                _first_present(
+                    hyp.get("short_expected_net_pnl_usd"),
+                    hyp.get("expected_short_net_pnl_usd"),
+                )
+            )
+            if explicit_long_net is None and hypothesis_side == "long":
+                explicit_long_net = net_usd
+            if explicit_short_net is None and hypothesis_side == "short":
+                explicit_short_net = net_usd
+            explicit_long_net_edge_bps = _float(
+                _first_present(
+                    hyp.get("expected_long_net_edge_bps"),
+                    hyp.get("long_expected_net_edge_bps"),
+                )
+            )
+            explicit_short_net_edge_bps = _float(
+                _first_present(
+                    hyp.get("expected_short_net_edge_bps"),
+                    hyp.get("short_expected_net_edge_bps"),
+                )
+            )
+            if explicit_long_net_edge_bps is None and hypothesis_side == "long":
+                explicit_long_net_edge_bps = selected_side_net_edge_bps
+            if explicit_short_net_edge_bps is None and hypothesis_side == "short":
+                explicit_short_net_edge_bps = selected_side_net_edge_bps
+            provider_labels = [str(item) for item in _as_list(hyp.get("provider_features_used"))]
+            if hyp.get("ta_context"):
+                provider_labels.append("ta_atr")
+            if hyp.get("microstructure_context") or hyp.get("orderbook_context"):
+                provider_labels.append("microstructure_orderbook_depth")
+            if hyp.get("fvg_context") or hyp.get("liquidity_context"):
+                provider_labels.append("fvg_liquidity_zone_structure")
+            if hyp.get("coinglass_context"):
+                provider_labels.append("coinglass_derivatives")
+            if hyp.get("moralis_context"):
+                provider_labels.append("moralis_onchain")
+            advanced_context = _as_dict(hyp.get("advanced_indicator_context"))
+            hypothesis_composite_trust = _float(
+                _first_present(
+                    hyp.get("composite_microstructure_trust_score"),
+                    hyp.get("microstructure_trust_score"),
+                )
+            )
+            hypothesis_market_state_integrity = _float(hyp.get("market_state_integrity_score"))
+            if hypothesis_market_state_integrity is None and hypothesis_composite_trust is not None:
+                hypothesis_market_state_integrity = (
+                    hypothesis_composite_trust * 100.0
+                    if hypothesis_composite_trust <= 1.0
+                    else hypothesis_composite_trust
+                )
+            loss_probability_reason_payload = _loss_probability_reason_payload(hyp)
+            pseudo_prediction = {
+                "prediction_id": str(hyp.get("hypothesis_id") or hyp.get("strategy_id") or ""),
+                "signal_id": str(hyp.get("hypothesis_id") or hyp.get("strategy_id") or ""),
+                "hypothesis_id": hyp.get("hypothesis_id"),
+                "strategy_supply_hypothesis_id": hyp.get("hypothesis_id") or hyp.get("strategy_id"),
+                "symbol": hyp.get("symbol"),
+                "timeframe": hyp.get("timeframe"),
+                "generated_at": hyp.get("generated_utc"),
+                "decision_time": hyp.get("generated_utc"),
+                "available_at": _first_present(
+                    entry_zone.get("available_at"),
+                    hyp.get("available_at"),
+                    hyp.get("generated_utc"),
+                ),
+                "selected_action": hyp.get("side"),
+                "confidence_raw": max(0.0, 1.0 - (_float(hyp.get("loss_probability")) or 1.0)),
+                "confidence_calibrated": max(0.0, 1.0 - (_float(hyp.get("loss_probability")) or 1.0)),
+                "expected_move_bps": signed_expected_move_bps,
+                "expected_move_after_cost_bps": signed_expected_move_after_cost_bps,
+                "stop_distance_bps": stop_move_bps,
+                "atr_bps": _float(hyp.get("debug_atr_bps")),
+                "entry_atr_bps": _float(hyp.get("debug_atr_bps")),
+                "observed_spread_bps": _float(hyp.get("debug_spread_bps")) or 0.6,
+                "expected_slippage_bps": _float(hyp.get("debug_slippage_bps")) or 5.4,
+                "fee_bps": _float(hyp.get("debug_fee_bps")) or 4.0,
+                "funding_bps": _float(hyp.get("debug_funding_bps")) or 0.0,
+                "gross_notional_usd": notional,
+                "target_notional_usd": notional,
+                "notional_usd": notional,
+                "expected_net_pnl_usd": net_usd,
+                "expected_gross_pnl_usd": _float(hyp.get("expected_gross_pnl_usd")),
+                "expected_cost_usd": _float(hyp.get("expected_cost_usd")),
+                "expected_fees_usd": _float(hyp.get("fees_usd")),
+                "expected_slippage_usd": _float(hyp.get("slippage_usd")),
+                "expected_funding_usd": _float(hyp.get("funding_usd")),
+                "fees_usd": _float(hyp.get("fees_usd")),
+                "slippage_usd": _float(hyp.get("slippage_usd")),
+                "funding_usd": _float(hyp.get("funding_usd")),
+                "latency_reserve_usd": _float(hyp.get("latency_reserve_usd")),
+                "liquidation_risk_reserve_usd": _float(hyp.get("liquidation_risk_reserve_usd")),
+                "exit_failure_reserve_usd": _float(hyp.get("exit_failure_reserve_usd")),
+                "expected_max_loss_usd": _float(hyp.get("expected_max_loss_usd")),
+                "expected_liquidation_buffer_usd": _float(hyp.get("expected_liquidation_buffer_usd")),
+                "liquidation_buffer_usd": _float(hyp.get("liquidation_buffer_usd")),
+                "liquidation_buffer_bps": _float(hyp.get("liquidation_buffer_bps")),
+                "liquidation_buffer_source": hyp.get("liquidation_buffer_source"),
+                "liquidation_buffer_signed_read_verified": hyp.get("liquidation_buffer_signed_read_verified"),
+                "live_liquidation_buffer_requires_signed_read": hyp.get("live_liquidation_buffer_requires_signed_read"),
+                "pre_trade_loss_probability": _float(hyp.get("loss_probability")),
+                "loss_probability_reason": loss_probability_reason_payload.get(
+                    "loss_probability_reason"
+                ),
+                "loss_probability_reasons": loss_probability_reason_payload.get(
+                    "loss_probability_reasons"
+                ),
+                "loss_probability_calibration": loss_probability_reason_payload.get(
+                    "loss_probability_calibration"
+                ),
+                "long_expected_net_pnl_usd": explicit_long_net,
+                "short_expected_net_pnl_usd": explicit_short_net,
+                "expected_long_net_edge_bps": explicit_long_net_edge_bps,
+                "expected_short_net_edge_bps": explicit_short_net_edge_bps,
+                "long_expected_max_loss_usd": _float(hyp.get("expected_max_loss_usd")) if hypothesis_side == "long" else None,
+                "short_expected_max_loss_usd": _float(hyp.get("expected_max_loss_usd")) if hypothesis_side == "short" else None,
+                "long_loss_probability": _float(hyp.get("loss_probability")) if hypothesis_side == "long" else None,
+                "short_loss_probability": _float(hyp.get("loss_probability")) if hypothesis_side == "short" else None,
+                "current_price": _float(entry_zone.get("price")),
+                "entry_price": _float(entry_zone.get("price")),
+                "price_source": _first_present(entry_zone.get("source"), hyp.get("price_source"), "strategy_supply_entry_zone"),
+                "price_available_at": _first_present(entry_zone.get("available_at"), hyp.get("generated_utc")),
+                "current_price_can_size_trade": True,
+                "can_size_trade": True,
+                "liquidity_exit_depth": _float(hyp.get("expected_exit_depth_usd")),
+                "orderbook_depth_usd": _float(hyp.get("expected_exit_depth_usd")),
+                "exit_feasible": hyp.get("exit_feasible"),
+                "exit_feasibility_score": _float(hyp.get("exit_feasibility_score")),
+                "microstructure_trust_score": _float(hyp.get("microstructure_trust_score")),
+                "composite_microstructure_trust_score": hypothesis_composite_trust,
+                "market_state_integrity_score": hypothesis_market_state_integrity,
+                "market_state_integrity_minimum_score": _float(
+                    hyp.get("market_state_integrity_minimum_score")
+                )
+                or ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+                "market_state_integrity_source": hyp.get("market_state_integrity_source"),
+                "trade_tape_confirmation_score": _float(hyp.get("trade_tape_confirmation_score")),
+                "advanced_indicator_context": advanced_context,
+                "features": {
+                    name: 1.0
+                    for name in provider_labels
+                    if name
+                },
+                "source_labels": provider_labels,
+                "provider_feature_hashes": _as_dict(hyp.get("provider_feature_hashes")),
+                "source_hashes": _as_dict(hyp.get("provider_feature_hashes")),
+                "TA_features_present": bool(hyp.get("ta_context")),
+                "microstructure_features_present": bool(hyp.get("microstructure_context") or hyp.get("orderbook_context")),
+                "advanced_indicator_features_present": bool(hyp.get("advanced_indicator_context") or hyp.get("fvg_context") or hyp.get("liquidity_context")),
+                "FVG_liquidity_zone_features_present": bool(hyp.get("fvg_context") or hyp.get("liquidity_context")),
+                "CoinGlass_features_present": bool(hyp.get("coinglass_context")),
+                "Moralis_features_present": bool(hyp.get("moralis_context")),
+                "CoinAnk_features_present": bool(hyp.get("coinank_context")),
+                "coinank_context_missing_reason": hyp.get("coinank_context_missing_reason"),
+                "liquidation_context_source": hyp.get("liquidation_context_source"),
+                "strategy_selected_mode": str(hyp.get("strategy_family") or "strategy_supply"),
+                "market_regime": hyp.get("market_regime"),
+                "market_regime_at_entry": hyp.get("market_regime_at_entry"),
+                "strategy_market_regime": hyp.get("strategy_market_regime"),
+                "source_tier": "STRATEGY_SUPPLY_HYPOTHESIS",
+                "strategy_supply_stage_rejected_reason": supply_stage_rejected_reason,
+                "strategy_supply_gate_clean": supply_stage_rejected_reason is None,
+                "strategy_supply_positive_net_usd": net_usd is not None and net_usd > 0.0,
+                "redis_key": key,
+                # Closed-candle confirmation is stamped at the TA/generator
+                # boundary from raw close-boundary proof; carry it through so
+                # the paper-loop market-evidence gate sees the truthful value
+                # (never synthesized here).
+                "entry_feature_candle_closed_confirmed": hyp.get(
+                    "entry_feature_candle_closed_confirmed"
+                ),
+                "candle_closed_confirmed": hyp.get("candle_closed_confirmed"),
+                "last_closed_candle_open_ts_ms": hyp.get(
+                    "last_closed_candle_open_ts_ms"
+                ),
+                "last_closed_candle_close_ts_ms": hyp.get(
+                    "last_closed_candle_close_ts_ms"
+                ),
+                "ta_source_key": hyp.get("ta_source_key"),
+                # Lineage: the hypothesis was built from live Redis context at
+                # generated_utc; its hash binds this exact row content.
+                "feature_cutoff": hyp.get("generated_utc"),
+                "feature_snapshot_id": "snap_"
+                + hashlib.sha256(
+                    json.dumps(dict(hyp), sort_keys=True, default=str).encode("utf-8")
+                ).hexdigest()[:32],
+                "feature_vector_hash": "strategy_supply_"
+                + hashlib.sha256(
+                    json.dumps(dict(hyp), sort_keys=True, default=str).encode("utf-8")
+                ).hexdigest()[:32],
+            }
+            decision = _prediction_candidate(
+                pseudo_prediction,
+                guardian,
+                altdata_confluence=_confluence_for(
+                    str(hyp.get("symbol") or "").upper(),
+                    str(hyp.get("timeframe") or "1m"),
+                ),
+            )
+            decision["source_runtime_key"] = key
+            decision["strategy_supply_hypothesis"] = True
+            decision["strategy_family"] = hyp.get("strategy_family")
+            if supply_stage_rejected_reason:
+                reasons = list(decision.get("preemptive_decision_reasons") or [])
+                reasons.append(f"STRATEGY_SUPPLY_STAGE_REJECTED:{supply_stage_rejected_reason}")
+                decision["preemptive_decision_reasons"] = list(
+                    dict.fromkeys(str(reason) for reason in reasons if reason)
+                )
+            # evaluate_candidate returns a gate decision, not a full candidate
+            # economic packet. Preserve the rule-engine USD evidence before
+            # allocator normalization so rejects stay explainable without
+            # promoting the row to A+.
+            decision.update(
+                {
+                    field: value
+                    for field, value in pseudo_prediction.items()
+                    if field
+                    in {
+                        "gross_notional_usd",
+                        "target_notional_usd",
+                        "notional_usd",
+                        "expected_net_pnl_usd",
+                        "expected_gross_pnl_usd",
+                        "expected_cost_usd",
+                        "expected_fees_usd",
+                        "expected_slippage_usd",
+                        "expected_funding_usd",
+                        "fees_usd",
+                        "slippage_usd",
+                        "funding_usd",
+                        "latency_reserve_usd",
+                        "liquidation_risk_reserve_usd",
+                        "exit_failure_reserve_usd",
+                        "expected_max_loss_usd",
+                        "expected_liquidation_buffer_usd",
+                        "liquidation_buffer_usd",
+                        "liquidation_buffer_bps",
+                        "liquidation_buffer_source",
+                        "liquidation_buffer_signed_read_verified",
+                        "live_liquidation_buffer_requires_signed_read",
+                        "pre_trade_loss_probability",
+                        "loss_probability_reason",
+                        "loss_probability_reasons",
+                        "loss_probability_calibration",
+                        "long_expected_net_pnl_usd",
+                        "short_expected_net_pnl_usd",
+                        "expected_long_net_edge_bps",
+                        "expected_short_net_edge_bps",
+                        "long_expected_max_loss_usd",
+                        "short_expected_max_loss_usd",
+                        "long_loss_probability",
+                        "short_loss_probability",
+                        "expected_move_bps",
+                        "expected_move_after_cost_bps",
+                        "stop_distance_bps",
+                        "observed_spread_bps",
+                        "expected_slippage_bps",
+                        "fee_bps",
+                        "funding_bps",
+                        "current_price",
+                        "entry_price",
+                        "price_source",
+                        "price_available_at",
+                        "current_price_can_size_trade",
+                        "can_size_trade",
+                        "liquidity_exit_depth",
+                        "orderbook_depth_usd",
+                        "exit_feasible",
+                        "exit_feasibility_score",
+                        "microstructure_trust_score",
+                        "composite_microstructure_trust_score",
+                        "market_state_integrity_score",
+                        "market_state_integrity_minimum_score",
+                        "market_state_integrity_source",
+                        "entry_feature_candle_closed_confirmed",
+                        "candle_closed_confirmed",
+                        "last_closed_candle_open_ts_ms",
+                        "last_closed_candle_close_ts_ms",
+                        "ta_source_key",
+                        "trade_tape_confirmation_score",
+                        "advanced_indicator_context",
+                        "features",
+                        "source_labels",
+                        "provider_feature_hashes",
+                        "source_hashes",
+                        "TA_features_present",
+                        "microstructure_features_present",
+                        "advanced_indicator_features_present",
+                        "FVG_liquidity_zone_features_present",
+                        "CoinGlass_features_present",
+                        "Moralis_features_present",
+                        "CoinAnk_features_present",
+                        "coinank_context_missing_reason",
+                        "liquidation_context_source",
+                        "strategy_selected_mode",
+                        "market_regime",
+                        "market_regime_at_entry",
+                        "strategy_market_regime",
+                        "source_tier",
+                        "strategy_supply_stage_rejected_reason",
+                        "strategy_supply_gate_clean",
+                        "strategy_supply_positive_net_usd",
+                        "feature_snapshot_id",
+                        "feature_cutoff",
+                        "feature_vector_hash",
+                    }
+                    and value is not None
+                }
+            )
+            try:
+                decision.update(
+                    _strategy_supply_decision_projection(
+                        pseudo_prediction,
+                        generated_utc=generated,
+                    )
+                )
+            except Exception as exc:
+                reasons = list(decision.get("preemptive_decision_reasons") or [])
+                reasons.append(f"RISK_ORCHESTRATOR_DRY_RUN_PROJECTION_FAILED:{type(exc).__name__}")
+                decision["preemptive_decision_reasons"] = reasons
+                decision["risk_orchestrator_projection_source"] = "strategy_supply_inventory_dry_run"
+                decision["risk_orchestrator_projection_error"] = type(exc).__name__
+            normalized.append(
+                _normalize_candidate(
+                    _with_price(dict(decision)),
+                    prediction=pseudo_prediction,
+                    generated_utc=generated,
+                )
+            )
+
+    stale_filtered_count = 0
+    if session == "current":
+        before_filter_count = len(normalized)
+        normalized = [row for row in normalized if not row.get("stale_prediction")]
+        stale_filtered_count = before_filter_count - len(normalized)
+
+    exploration_prequeue_performance_block_counts: Counter[str] = Counter()
+    exploration_prequeue_performance_advisory_rows = 0
+    for row in normalized:
+        block_reasons, performance_evidence = (
+            _materialization_prequeue_performance_block_reasons(
+                row,
+                performance_circuit_status,
+            )
+        )
+        if performance_evidence:
+            row.update(performance_evidence)
+        if (
+            not block_reasons
+            and row.get("paper_risk_controller_exploration_above_floor") is True
+            and performance_evidence.get(
+                "paper_risk_controller_exploration_global_halt_bucket_clean_allowed"
+            )
+            is True
+        ):
+            exploration_prequeue_performance_advisory_rows += 1
+        if not block_reasons or row.get("paper_exploration_paper_fill_allowed") is not True:
+            continue
+        combined_prequeue = sorted(
+            set(
+                str(reason)
+                for reason in (
+                    list(row.get("paper_exploration_prequeue_block_reasons") or [])
+                    + block_reasons
+                )
+                if reason
+            )
+        )
+        row["paper_exploration_prequeue_block_reasons"] = combined_prequeue
+        row["paper_exploration_materialization_prequeue_block_reasons"] = (
+            combined_prequeue
+        )
+        row["paper_exploration_performance_prequeue_block_reasons"] = (
+            block_reasons
+        )
+        row["paper_exploration_paper_fill_block_reasons"] = sorted(
+            set(
+                str(reason)
+                for reason in (
+                    list(row.get("paper_exploration_paper_fill_block_reasons") or [])
+                    + block_reasons
+                )
+                if reason
+            )
+        )
+        row["paper_exploration_paper_fill_allowed"] = False
+        row["paper_exploration_materialization_queue_ready"] = False
+        row["paper_exploration_current_blocker"] = (
+            "MATERIALIZATION_PREQUEUE_BLOCKED"
+        )
+        for reason in block_reasons:
+            exploration_prequeue_performance_block_counts[reason] += 1
+
     normalized.sort(key=lambda item: (str(item.get("timeframe")), str(item.get("symbol")), str(item.get("prediction_id"))))
     reason_counts: Counter[str] = Counter()
     class_counts: Counter[str] = Counter()
@@ -1056,6 +4798,51 @@ def build_inventory(
     risk_decision_status_counts = Counter(str(row.get("risk_decision") or "MISSING") for row in normalized)
     orchestrator_decision_status_counts = Counter(str(row.get("orchestrator_decision") or "MISSING") for row in normalized)
     preemptive_decision_status_counts = Counter(str(row.get("preemptive_action") or "MISSING") for row in normalized)
+    exploration_rows = [
+        row
+        for row in normalized
+        if row.get("paper_risk_controller_exploration_eligible") is True
+    ]
+    exploration_above_floor_rows = [
+        row
+        for row in normalized
+        if row.get("paper_risk_controller_exploration_above_floor") is True
+    ]
+    exploration_floor_rejection_counts = Counter(
+        str(reason)
+        for row in normalized
+        for reason in row.get("paper_risk_controller_exploration_block_reasons") or []
+    )
+    exploration_risk_controller_seen_rows = sum(
+        1
+        for row in exploration_above_floor_rows
+        if row.get("paper_exploration_risk_controller_input_written") is True
+    )
+    exploration_orchestrator_seen_rows = sum(
+        1
+        for row in exploration_above_floor_rows
+        if row.get("paper_exploration_orchestrator_input_written") is True
+    )
+    exploration_allocator_seen_rows = sum(
+        1
+        for row in exploration_above_floor_rows
+        if row.get("paper_exploration_allocator_input_written") is True
+    )
+    exploration_paper_accepted_rows = sum(
+        1
+        for row in exploration_above_floor_rows
+        if row.get("paper_exploration_paper_fill_allowed") is True
+    )
+    materialization_queue_status = _publish_materialization_queue(
+        client,
+        exploration_above_floor_rows,
+        generated_utc=generated,
+    )
+    exploration_unknown_rows = sum(
+        1
+        for row in exploration_above_floor_rows
+        if row.get("paper_exploration_unknown_resolution") is True
+    )
     allocator_decision_missing_count = allocator_decision_status_counts.get("MISSING", 0)
     allocator_decision_pass_count = allocator_decision_status_counts.get("PASS", 0)
     allocator_decision_reject_count = sum(
@@ -1118,6 +4905,7 @@ def build_inventory(
         "matrix_candidate_count": matrix.get("candidate_count"),
         "matrix_materialized_row_count": len(matrix_rows),
         "prediction_key_count": len(prediction_keys),
+        "stale_current_session_rows_filtered_count": stale_filtered_count,
         "total_candidate_count": len(normalized),
         "a_plus_candidate_count": len(a_plus_rows),
         "live_ready_candidate_count": len(live_ready_rows),
@@ -1130,6 +4918,44 @@ def build_inventory(
         "risk_decision_status_counts": dict(risk_decision_status_counts),
         "orchestrator_decision_status_counts": dict(orchestrator_decision_status_counts),
         "preemptive_decision_status_counts": dict(preemptive_decision_status_counts),
+        "paper_risk_controller_exploration_tier": PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
+        "paper_risk_controller_exploration_eligible_count": len(exploration_rows),
+        "paper_risk_controller_exploration_above_floor_count": len(exploration_above_floor_rows),
+        "paper_risk_controller_exploration_rejection_counts": dict(
+            exploration_floor_rejection_counts.most_common()
+        ),
+        "paper_risk_controller_exploration_risk_controller_seen_rows": (
+            exploration_risk_controller_seen_rows
+        ),
+        "paper_risk_controller_exploration_orchestrator_seen_rows": (
+            exploration_orchestrator_seen_rows
+        ),
+        "paper_risk_controller_exploration_allocator_seen_rows": (
+            exploration_allocator_seen_rows
+        ),
+        "paper_risk_controller_exploration_paper_accepted_rows": (
+            exploration_paper_accepted_rows
+        ),
+        "paper_risk_controller_exploration_prequeue_performance_block_counts": dict(
+            exploration_prequeue_performance_block_counts.most_common()
+        ),
+        "paper_risk_controller_exploration_prequeue_performance_advisory_rows": (
+            exploration_prequeue_performance_advisory_rows
+        ),
+        "paper_performance_circuit_breaker_state_seen_by_inventory": (
+            performance_circuit_status.get("state")
+            or performance_circuit_status.get("status")
+        ),
+        "paper_exploration_materialization_queue_status": (
+            materialization_queue_status
+        ),
+        "paper_exploration_materialization_queue_rows": (
+            materialization_queue_status.get("queued_count")
+        ),
+        "paper_exploration_materialization_queue_expired_rows": (
+            materialization_queue_status.get("expired_count")
+        ),
+        "paper_risk_controller_exploration_unknown_rows": exploration_unknown_rows,
         "expected_liquidation_buffer_usd_missing_count": hard_failures["expected_liquidation_buffer_usd_missing_count"],
         "expected_max_loss_usd_missing_count": hard_failures["expected_max_loss_usd_missing_count"],
         "expected_net_pnl_usd_missing_count": hard_failures["missing_expected_net_pnl_usd_count"],
@@ -1151,6 +4977,10 @@ def build_inventory(
         _write_json(output_dir / "candidate_rejection_matrix.json", rejection_matrix)
         _write_jsonl(output_dir / "a_plus_candidate_rows.jsonl", a_plus_rows)
         _write_jsonl(output_dir / "near_a_plus_candidate_rows.jsonl", near_rows)
+        _write_json(
+            output_dir / "paper_exploration_materialization_queue_status.json",
+            materialization_queue_status,
+        )
     return {
         "rows": normalized,
         "summary": summary,

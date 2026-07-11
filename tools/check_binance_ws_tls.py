@@ -14,6 +14,7 @@ WS_TARGETS = [
     ("stream.binance.com",  9443),
     ("fstream.binance.com", 443),
     ("ws-api.binance.com",  443),
+    ("ws-fapi.binance.com", 443),
 ]
 
 TIMEOUT = 10

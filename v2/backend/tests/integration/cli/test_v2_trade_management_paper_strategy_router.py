@@ -497,6 +497,7 @@ def test_paper_loop_builds_enriched_trainer_feedback_rows() -> None:
         "major_move_context": {"source": "test", "status": "not_major_move_trade"},
         "future_window_label_source": "closed_trade_outcome",
         "drawdown_at_entry": 0.0,
+        "source_fill_ids": ["fill_risk_explore_1"],
         **_audit_quality_fields(),
     }
     outcome_label = {
@@ -526,12 +527,58 @@ def test_paper_loop_builds_enriched_trainer_feedback_rows() -> None:
     rows = paper._build_trainer_feedback_rows(  # noqa: SLF001
         close_events=[close_event],
         outcome_labels=[outcome_label],
+        entry_context_rows=[
+            {
+                "fill_id": "fill_risk_explore_1",
+                "paper_opportunity_tier": paper.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+                "paper_opportunity_tier_reason": (
+                    "DYNAMIC_EVIDENCE_AWARE_PAPER_RISK_CONTROLLER_EXPLORATION"
+                ),
+                "paper_risk_controller_exploration": True,
+                "allow_paper_risk_controller_exploration": True,
+                "paper_risk_controller_exploration_budget_cap_applied": True,
+                "paper_risk_controller_exploration_max_risk_fraction_of_normal": (
+                    paper.PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+                ),
+                "paper_risk_controller_exploration_loss_probability_bound": (
+                    paper.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+                ),
+                "paper_risk_controller_exploration_min_exit_feasibility": (
+                    paper.PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY
+                ),
+                "calibration_label_purpose": (
+                    paper.PAPER_RISK_CONTROLLER_EXPLORATION_OUTCOME_LABEL
+                ),
+            }
+        ],
         predictions_by_id={"pred_1": prediction},
     )
 
     assert len(rows) == 1
     assert rows[0]["trainer_consumable"] is True
     assert rows[0]["strategy_id"] == "trend_following_v1"
+    assert rows[0]["paper_opportunity_tier"] == paper.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    assert rows[0]["paper_risk_controller_exploration"] is True
+    assert rows[0]["allow_paper_risk_controller_exploration"] is True
+    assert rows[0]["paper_risk_controller_exploration_budget_cap_applied"] is True
+    assert rows[0]["paper_risk_controller_exploration_max_risk_fraction_of_normal"] == (
+        paper.PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
+    )
+    assert rows[0]["paper_risk_controller_exploration_loss_probability_bound"] == (
+        paper.PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+    )
+    assert rows[0]["paper_risk_controller_exploration_min_exit_feasibility"] == (
+        paper.PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY
+    )
+    assert rows[0]["calibration_label_purpose"] == (
+        paper.PAPER_RISK_CONTROLLER_EXPLORATION_OUTCOME_LABEL
+    )
+    assert rows[0]["counts_as_A_plus"] is False
+    assert rows[0]["counts_as_final_a_plus"] is False
+    assert rows[0]["counts_as_live_ready"] is False
+    assert rows[0]["routes_to_live"] is False
+    assert rows[0]["places_real_order"] is False
+    assert rows[0]["paper_only"] is True
     assert rows[0]["missing_feedback_fields"] == []
 
 

@@ -169,7 +169,7 @@ export default function UserStatusPage(): ReactElement {
       <footer style={{ marginTop: 24, opacity: 0.7, fontSize: '0.8rem' }}>
         <p>
           This page shows live account telemetry. It does not place orders, change leverage, or change live status.
-          Order submission remains operator gated.
+          Order submission remains approval gated.
           Source: {PUBLIC_STATUS_SOURCE}.
         </p>
       </footer>

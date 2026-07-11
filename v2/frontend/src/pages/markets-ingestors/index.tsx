@@ -67,6 +67,65 @@ interface IngestorMetricsData {
   row_count: number;
 }
 
+interface ProviderCard {
+  provider: string;
+  display_name?: string;
+  subscription_tier?: string | null;
+  status?: string | null;
+  dashboard_color?: string | null;
+  dashboard_color_reason?: string | null;
+  actual_payload_count?: number | null;
+  feature_count?: number | null;
+  consumer_count?: number | null;
+  consumer_roles?: string[] | null;
+  symbols_covered?: string[] | null;
+  endpoints_active?: string[] | null;
+  endpoints_disabled?: string[] | null;
+  last_success_utc?: string | null;
+  last_error_utc?: string | null;
+  source_lag_seconds?: number | null;
+  rate_limit_used?: number | null;
+  rate_limit_remaining?: number | null;
+  daily_quota_used?: number | null;
+  monthly_quota_used?: number | null;
+  heartbeat_only?: boolean | null;
+  actual_payload_present?: boolean | null;
+  raw_key_exposed?: boolean | null;
+  routes_to_live?: boolean | null;
+  places_real_order?: boolean | null;
+  watchlist_count?: number | null;
+  smart_wallet_candidate_count?: number | null;
+  verified_smart_wallet_count?: number | null;
+  token_map_count?: number | null;
+  metric_count?: number | null;
+  missing_high_value_metrics?: string[] | null;
+  disabled_heatmap_endpoint?: boolean | null;
+}
+
+interface ProviderStatusData {
+  providers?: ProviderCard[];
+  provider_count?: number;
+  heartbeat_only_green_count?: number;
+  live_gate?: string;
+  routes_to_live?: boolean;
+  places_real_order?: boolean;
+}
+
+const REQUIRED_PROVIDER_ORDER = [
+  ['binance', 'Binance WSS/REST'],
+  ['kucoin', 'KuCoin WSS/REST'],
+  ['coinank', 'CoinAnk'],
+  ['coinglass', 'CoinGlass Standard'],
+  ['moralis', 'Moralis Starter'],
+  ['santiment', 'Santiment / Sanbase Pro'],
+  ['ta', 'TA pipeline'],
+  ['microstructure', 'Microstructure trust'],
+  ['liquidations', 'Liquidations'],
+  ['orderbook', 'Orderbook recorder'],
+  ['feature_snapshot_builder', 'Feature Snapshot Builder'],
+  ['trainer_feed', 'Trainer Feed'],
+] as const;
+
 const panelStyle: React.CSSProperties = {
   background: 'var(--bg-panel)',
   border: '1px solid var(--border)',
@@ -95,6 +154,90 @@ function fmtAge(seconds: number | null | undefined): string {
   if (seconds < 90) return `${Math.round(seconds)}s`;
   if (seconds < 5400) return `${Math.round(seconds / 60)}m`;
   return `${(seconds / 3600).toFixed(1)}h`;
+}
+
+function fmtCount(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString('en-US');
+}
+
+function joinPreview(values: string[] | null | undefined, fallback = '—', limit = 4): string {
+  if (!Array.isArray(values) || values.length === 0) return fallback;
+  const head = values.slice(0, limit).join(', ');
+  return values.length > limit ? `${head} +${values.length - limit}` : head;
+}
+
+function providerTone(provider: ProviderCard | undefined): string {
+  const color = String(provider?.dashboard_color ?? '').toLowerCase();
+  if (color === 'green') return 'var(--buy, #21C784)';
+  if (color === 'yellow') return '#A8841F';
+  if (color === 'red') return 'var(--sell, #FF5D7A)';
+  return 'var(--text-muted)';
+}
+
+function providerById(providers: ProviderCard[] | undefined): Map<string, ProviderCard> {
+  const map = new Map<string, ProviderCard>();
+  for (const provider of providers ?? []) {
+    map.set(provider.provider.toLowerCase(), provider);
+  }
+  return map;
+}
+
+function ProviderTruthPanel({ providers }: { providers: ProviderStatusData | null | undefined }) {
+  const byId = useMemo(() => providerById(providers?.providers), [providers?.providers]);
+  const cards = REQUIRED_PROVIDER_ORDER.map(([id, label]) => ({ id, label, provider: byId.get(id) }));
+  return (
+    <div data-testid="provider-truth-panel" style={{ ...panelStyle, marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <PanelTitle>Provider truth · canonical contract</PanelTitle>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          /api/v2/providers/status · live_gate {providers?.live_gate ?? 'blocked_human_only'} · read-only
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+        {cards.map(({ id, label, provider }) => {
+          const tone = providerTone(provider);
+          const missing = !provider;
+          return (
+            <div
+              key={id}
+              data-testid={`provider-card-${id}`}
+              style={{
+                border: `1px solid ${missing ? 'var(--border)' : tone}`,
+                borderRadius: 'var(--radius-sm, 8px)',
+                padding: '12px 13px',
+                background: missing ? 'var(--bg-elevated)' : 'color-mix(in oklch, var(--bg-elevated) 94%, transparent)',
+                minWidth: 0,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</strong>
+                <span style={{ color: tone, fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+                  {missing ? 'MISSING' : String(provider?.dashboard_color ?? provider?.status ?? 'gray').toUpperCase()}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gap: 5, fontSize: 11, color: 'var(--text-secondary)' }}>
+                <span>tier <b>{provider?.subscription_tier ?? 'unknown'}</b> · status <b>{provider?.status ?? 'missing evidence'}</b></span>
+                <span>payloads <b>{fmtCount(provider?.actual_payload_count)}</b> · features <b>{fmtCount(provider?.feature_count)}</b> · consumers <b>{fmtCount(provider?.consumer_count)}</b></span>
+                <span>actual data <b>{provider?.actual_payload_present ? 'yes' : 'no'}</b> · heartbeat only <b>{provider?.heartbeat_only ? 'yes' : 'no'}</b></span>
+                <span>symbols <b>{joinPreview(provider?.symbols_covered)}</b></span>
+                <span>active endpoints <b>{joinPreview(provider?.endpoints_active)}</b></span>
+                <span>disabled endpoints <b>{joinPreview(provider?.endpoints_disabled, 'none')}</b></span>
+                <span>consumer roles <b>{joinPreview(provider?.consumer_roles)}</b></span>
+                {id === 'coinglass' ? <span>heatmap disabled <b>{provider?.disabled_heatmap_endpoint === true ? 'yes' : 'no'}</b> · rate remaining <b>{fmtCount(provider?.rate_limit_remaining)}</b></span> : null}
+                {id === 'moralis' ? <span>watchlist <b>{fmtCount(provider?.watchlist_count)}</b> · candidates <b>{fmtCount(provider?.smart_wallet_candidate_count)}</b> · token map <b>{fmtCount(provider?.token_map_count)}</b></span> : null}
+                {id === 'santiment' ? <span>metrics <b>{fmtCount(provider?.metric_count)}</b> · missing high value <b>{joinPreview(provider?.missing_high_value_metrics, 'none')}</b></span> : null}
+                <span>last success <b>{provider?.last_success_utc ?? '—'}</b> · age <b>{fmtAge(provider?.source_lag_seconds)}</b></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+        Retired non-current sources are not active panels here; this grid only shows canonical runtime providers and required internal pipelines.
+      </p>
+    </div>
+  );
 }
 
 function StatusLegend({ rows }: { rows: IngestorRow[] }) {
@@ -383,6 +526,12 @@ export default function MarketsIngestorsPage() {
     pollIntervalMs: 5000,
     unwrapEnvelopeData: 'contract',
   });
+  const providerStatus = useRealtimeResource<ProviderStatusData>({
+    url: '/api/v2/providers/status',
+    source: 'control center provider truth',
+    pollIntervalMs: 10000,
+    unwrapEnvelopeData: 'contract',
+  });
   const rows = useMemo(() => status.envelope.data?.ingestors ?? [], [status.envelope.data]);
   const active = name && rows.find((row) => row.name === name);
 
@@ -437,6 +586,7 @@ export default function MarketsIngestorsPage() {
       </div>
 
       <div style={{ padding: '18px 24px' }}>
+        <ProviderTruthPanel providers={providerStatus.envelope.data} />
         {name ? (
           <IngestorDetail name={name} />
         ) : (

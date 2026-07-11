@@ -141,7 +141,45 @@ def test_fresh_non_wss_cache_uses_labeled_cache_backup_before_rest() -> None:
     assert snapshot.last_event_at and snapshot.last_event_at.endswith("-04:00")
 
 
-def test_stale_non_wss_cache_uses_labeled_rest_backup() -> None:
+def test_stale_non_wss_cache_blocks_rest_backup_without_operator_flag(monkeypatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    symbol = "SOLUSDT"
+    now_ms = 1_781_545_600_000
+    redis = FakeRedis(
+        {
+            current_candle_key("binance", symbol, "1m"): {
+                "source": "binance_rest",
+                "event_time": now_ms - 600_000,
+                "close": 100.0,
+            },
+            closed_candle_key("binance", symbol, "1m"): [
+                {
+                    **_closed_row(symbol, now_ms - (index + 11) * 60_000, 100.0 + index),
+                    "source": "binance_rest",
+                }
+                for index in range(6)
+            ],
+        }
+    )
+
+    def fail_rest(_path: str, _params: dict[str, str]) -> Any:
+        raise AssertionError("REST backup must stay blocked unless the fallback flag is true")
+
+    snapshot = BinanceUnifiedMarketDataClient(
+        redis_client=redis,
+        rest_get_json=fail_rest,
+        clock_ms=lambda: now_ms,
+    ).fetch_snapshot(symbol, timeframe="1m", limit=6)
+
+    assert snapshot.source == "binance_usdm_rest_backup_blocked_websocket_primary"
+    assert snapshot.cache_backup_used is False
+    assert snapshot.rest_backup_used is False
+    assert snapshot.price is None
+    assert "binance_usdm_rest_backup_blocked:BINANCE_REST_FALLBACK_ALLOWED_not_true" in snapshot.errors
+
+
+def test_stale_non_wss_cache_uses_labeled_rest_backup_when_operator_flag_is_set(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
     symbol = "SOLUSDT"
     now_ms = 1_781_545_600_000
     redis = FakeRedis(

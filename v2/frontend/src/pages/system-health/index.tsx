@@ -3,6 +3,9 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { healthStatusTone } from '../../components/system/healthStatus';
 import { SystemResourcesPanel } from '../../components/system/SystemResourcesPanel';
 
+const AUTH_HEALTH_ENDPOINT = '/api/auth/health';
+const DATA_HEALTH_ENDPOINT = '/api/v2/data-health';
+
 interface HealthSurface {
   name: string;
   endpoint: string;
@@ -22,11 +25,118 @@ interface DataHealthPayload {
   count?: number;
 }
 
+interface AuthHealthPayload {
+  schema_version?: string;
+  status?: string;
+  freshness_status?: string;
+  data_quality_status?: string;
+  auth_store_backend?: string | null;
+  durable_user_store_configured?: boolean | null;
+  production_ready?: boolean | null;
+  login_endpoint_available?: boolean | null;
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  contains_secret_values?: boolean | null;
+  raw_credential_value_exposed?: boolean | null;
+  session_security?: {
+    status?: string | null;
+    cookie_httponly?: boolean | null;
+    cookie_secure?: boolean | null;
+    cookie_samesite?: string | null;
+    revocation_store_kind?: string | null;
+    auth_user_store?: {
+      backend?: string | null;
+      production_ready?: boolean | null;
+      missing_fields?: string[];
+    } | null;
+    revocation_store?: {
+      backend?: string | null;
+      production_ready?: boolean | null;
+      missing_fields?: string[];
+    } | null;
+  } | null;
+  warnings?: string[];
+}
+
 function fmtLag(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return '—';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${Math.round(ms / 1000)}s`;
   return `${Math.round(ms / 60_000)}m`;
+}
+
+function yesNo(value: boolean | null | undefined): string {
+  if (value == null) return 'not reported';
+  return value ? 'yes' : 'no';
+}
+
+function statusLabel(value: string | null | undefined): string {
+  return value ? value.replace(/_/g, ' ') : 'not reported';
+}
+
+function TruthCell({ label, value, tone = 'neutral' }: { label: string; value: string; tone?: 'ok' | 'warn' | 'error' | 'neutral' }): JSX.Element {
+  const color = tone === 'ok'
+    ? 'var(--buy,#10b981)'
+    : tone === 'warn'
+      ? '#f59e0b'
+      : tone === 'error'
+        ? 'var(--sell,#ef4444)'
+        : 'var(--text-primary)';
+  return (
+    <div style={{ padding: '8px 10px', borderRadius: 7, background: 'var(--bg-base)', border: '1px solid var(--line-soft)' }}>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>{label}</div>
+      <div style={{ fontSize: 12, color, fontFamily: 'var(--font-mono)', fontWeight: 700, overflowWrap: 'anywhere' }}>{value}</div>
+    </div>
+  );
+}
+
+function RuntimeAuthPanel(): JSX.Element {
+  const auth = useRealtimeResource<AuthHealthPayload>({
+    url: AUTH_HEALTH_ENDPOINT,
+    source: AUTH_HEALTH_ENDPOINT,
+    source_type: 'api',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    initialFetch: true,
+    httpFallback: true,
+    mode: 'read_only',
+  });
+  const data = auth.envelope.data;
+  const tone = healthStatusTone(data?.status ?? auth.envelope.freshness_status);
+  const authStore = data?.session_security?.auth_user_store;
+  const revocationStore = data?.session_security?.revocation_store;
+  const liveBlocked = data?.places_real_order !== true && data?.routes_to_live !== true;
+
+  return (
+    <section data-testid="system-auth-runtime-panel" style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Auth, Backend, Redis</h2>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+            Login reachability, session hardening, Redis-backed feed health, and live-gate safety from canonical read-only contracts.
+          </p>
+        </div>
+        <span style={{ padding: '3px 9px', borderRadius: 5, background: tone.bg, color: tone.color, fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          {tone.label}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(175px, 1fr))', gap: 8, padding: 12 }}>
+        <TruthCell label="Auth endpoint" value={AUTH_HEALTH_ENDPOINT} tone={data?.status === 'ok' ? 'ok' : 'warn'} />
+        <TruthCell label="Backend session" value={data?.login_endpoint_available ? 'login endpoint online' : 'login endpoint unavailable'} tone={data?.login_endpoint_available ? 'ok' : 'error'} />
+        <TruthCell label="Auth backend" value={statusLabel(data?.auth_store_backend ?? authStore?.backend)} tone={data?.durable_user_store_configured ? 'ok' : 'warn'} />
+        <TruthCell label="Redis feed" value={`${DATA_HEALTH_ENDPOINT} · redis_live surfaces`} tone="ok" />
+        <TruthCell label="Cookie security" value={`httpOnly ${yesNo(data?.session_security?.cookie_httponly)} · secure ${yesNo(data?.session_security?.cookie_secure)}`} tone={data?.session_security?.cookie_httponly && data.session_security.cookie_secure ? 'ok' : 'warn'} />
+        <TruthCell label="Revocation store" value={statusLabel(data?.session_security?.revocation_store_kind ?? revocationStore?.backend)} tone={revocationStore?.production_ready ? 'ok' : 'warn'} />
+        <TruthCell label="Live gate" value={statusLabel(data?.live_gate ?? 'blocked_human_only')} tone={liveBlocked ? 'ok' : 'error'} />
+        <TruthCell label="Secrets exposed" value={data?.contains_secret_values || data?.raw_credential_value_exposed ? 'yes' : 'no'} tone={data?.contains_secret_values || data?.raw_credential_value_exposed ? 'error' : 'ok'} />
+      </div>
+      <div style={{ padding: '0 12px 12px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+        Data health source: {DATA_HEALTH_ENDPOINT}. Production auth readiness: {data?.production_ready ? 'ready' : 'not ready'}.
+        {data?.warnings?.length ? ` Missing: ${data.warnings.slice(0, 4).join(', ')}` : ''}
+      </div>
+    </section>
+  );
 }
 
 function SurfaceRow({ surface }: { surface: HealthSurface }): JSX.Element {
@@ -81,8 +191,8 @@ function SurfaceRow({ surface }: { surface: HealthSurface }): JSX.Element {
 
 function DataFeedsPanel(): JSX.Element {
   const health = useRealtimeResource<DataHealthPayload>({
-    url: '/api/v2/data-health',
-    source: '/api/v2/data-health',
+    url: DATA_HEALTH_ENDPOINT,
+    source: DATA_HEALTH_ENDPOINT,
     source_type: 'websocket',
     pollIntervalMs: 10_000,
     staleThresholdMs: 45_000,
@@ -123,6 +233,7 @@ export default function SystemHealthPage(): JSX.Element {
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{meta.title}</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{meta.description}</p>
       </div>
+      <RuntimeAuthPanel />
       <DataFeedsPanel />
       <section>
         <h2 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>

@@ -35,6 +35,7 @@ from v2.backend.app.services.market_structure.decision_context import (
 
 PREEMPTIVE_DECISIONS = {
     "ALLOW",
+    "PAPER_RISK_CONTROLLER_EXPLORATION",
     "POSITIVE_EDGE_PROBATION_PAPER",
     "REDUCE_SIZE_PAPER_ONLY",
     "SHADOW_ONLY",
@@ -44,8 +45,11 @@ PREEMPTIVE_DECISIONS = {
 
 POSITIVE_EDGE_PROBATION_LOSS_PROBABILITY_BOUND = 0.65
 POSITIVE_EDGE_PROBATION_MIN_EXIT_FEASIBILITY = 0.55
+PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND = 0.72
+PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY = 0.50
 
 SCHEMA_VERSION = "preemptive_edge_control_decision_v1"
+PAPER_RISK_CONTROLLER_EXPLORATION_TIER = "PAPER_RISK_CONTROLLER_EXPLORATION"
 
 
 def _f(value: Any) -> float | None:
@@ -105,6 +109,56 @@ def _guardian_halted(guardian: dict[str, Any] | None) -> bool:
     return False
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _is_paper_risk_controller_exploration_candidate(candidate: dict[str, Any]) -> bool:
+    tier = str(
+        _first_present(
+            candidate.get("paper_opportunity_tier"),
+            candidate.get("tier"),
+            candidate.get("exploration_tier"),
+            candidate.get("paper_exploration_tier"),
+        )
+        or ""
+    ).strip().upper()
+    return (
+        tier == PAPER_RISK_CONTROLLER_EXPLORATION_TIER
+        or candidate.get("paper_risk_controller_exploration") is True
+        or candidate.get("allow_paper_risk_controller_exploration") is True
+    )
+
+
+def _paper_exploration_specific_quarantine_key(key: Any) -> bool:
+    normalized = str(key or "")
+    return bool(normalized) and not normalized.startswith(
+        ("side:", "timeframe:", "regime:")
+    )
+
+
+def _paper_exploration_bucket_quarantine_split(
+    candidate: dict[str, Any],
+    matched: list[str],
+) -> tuple[list[str], list[str]]:
+    if not _is_paper_risk_controller_exploration_candidate(candidate):
+        return matched, []
+    exact_from_paper_loop = {
+        str(key)
+        for key in candidate.get("paper_exploration_exact_blocked_bucket_keys") or []
+    }
+    if exact_from_paper_loop:
+        hard = sorted(set(matched) & exact_from_paper_loop)
+        advisory = sorted(set(matched) - set(hard))
+        return hard, advisory
+    hard = [key for key in matched if _paper_exploration_specific_quarantine_key(key)]
+    advisory = [key for key in matched if key not in hard]
+    return hard, advisory
+
+
 def _decision_id(candidate: dict[str, Any], decision: str, reasons: list[str]) -> str:
     basis = {
         "symbol": candidate.get("symbol"),
@@ -128,6 +182,7 @@ def evaluate_candidate(
     continuous_edge_guardian_gate: dict[str, Any] | None = None,
     bucket_quarantine_status: dict[str, Any] | None = None,
     allow_positive_edge_probation: bool = False,
+    allow_paper_risk_controller_exploration: bool = False,
     allow_reduce_or_close: bool = False,
     altdata_confluence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -198,7 +253,12 @@ def evaluate_candidate(
         expected_edge_after_cost_bps=cost.get("expected_edge_after_cost_bps"),
         bucket_profit_factor=bucket.get("bucket_profit_factor"),
     )
-    advanced = evaluate_advanced_indicator_context(candidate)
+    advanced_candidate = dict(candidate)
+    advanced_candidate["exit_feasibility_score"] = exit_plan.get("exit_feasibility_score")
+    advanced_candidate["liquidity_exit_depth"] = exit_plan.get("liquidity_exit_depth")
+    advanced_candidate["MFE_required_to_profit"] = exit_plan.get("MFE_required_to_profit")
+    advanced_candidate["stop_distance_vs_noise"] = exit_plan.get("stop_distance_vs_noise")
+    advanced = evaluate_advanced_indicator_context(advanced_candidate)
     loss = assess_candidate_loss_risk(
         cost_edge=cost,
         confidence=confidence,
@@ -224,9 +284,15 @@ def evaluate_candidate(
     if isinstance(bucket_quarantine_status, dict):
         blocked = set(str(x) for x in bucket_quarantine_status.get("blocked_bucket_keys") or [])
         matched = sorted(blocked & set(bucket.get("candidate_bucket_keys") or []))
-        if matched:
+        hard_matched, advisory_matched = _paper_exploration_bucket_quarantine_split(
+            candidate,
+            matched,
+        )
+        if hard_matched:
             reasons.append("BUCKET_QUARANTINE_MATCH")
-            bucket["matched_quarantined_bucket_keys"] = matched
+            bucket["matched_quarantined_bucket_keys"] = hard_matched
+        elif advisory_matched:
+            bucket["advisory_quarantined_bucket_keys"] = advisory_matched
 
     guardian_halted = _guardian_halted(continuous_edge_guardian_gate)
     if guardian_halted:
@@ -272,6 +338,12 @@ def evaluate_candidate(
         reasons.append("ALTDATA_LIQUIDATION_SWEEP_RISK_HIGH")
     if altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70:
         reasons.append("ALTDATA_SOCIAL_EUPHORIA_RISK_HIGH")
+    altdata_high_risk_conflict = (
+        altdata_block_hit
+        or altdata_distribution_conflict
+        or (altdata_present and altdata_sweep is not None and altdata_sweep >= 0.70)
+        or (altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70)
+    )
 
     loss_probability = _f(loss.get("pre_trade_loss_probability")) or 1.0
     confidence_risk = _f(confidence.get("confidence_overstatement_risk")) or 0.0
@@ -300,6 +372,22 @@ def evaluate_candidate(
         and not advanced_block
         and not advanced_shadow
     )
+    paper_risk_controller_exploration_eligible = (
+        allow_paper_risk_controller_exploration
+        and
+        guardian_halted
+        and not bucket.get("bucket_negative")
+        and not matched_quarantine
+        and not atr_stop_cluster
+        and expected_edge is not None
+        and expected_edge > 0.0
+        and loss_probability < PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND
+        and confidence_risk < 0.75
+        and exit_score >= PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY
+        and trust_not_no_trade
+        and not advanced_block
+        and not altdata_high_risk_conflict
+    )
 
     if (
         bucket.get("bucket_negative")
@@ -312,6 +400,9 @@ def evaluate_candidate(
     elif positive_edge_probation_eligible:
         decision = "POSITIVE_EDGE_PROBATION_PAPER"
         reasons.append("GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_PROBATION")
+    elif paper_risk_controller_exploration_eligible:
+        decision = "PAPER_RISK_CONTROLLER_EXPLORATION"
+        reasons.append("GLOBAL_GUARDIAN_HALT_SCOPED_TO_PAPER_RISK_CONTROLLER_EXPLORATION")
     elif expected_edge is None or expected_edge <= 0:
         decision = "NO_TRADE"
     elif exit_score < 0.35:
@@ -405,13 +496,25 @@ def evaluate_candidate(
         "negative_buckets": bucket.get("negative_buckets"),
         "insufficient_evidence_buckets": bucket.get("insufficient_evidence_buckets"),
         "matched_quarantined_bucket_keys": bucket.get("matched_quarantined_bucket_keys", []),
+        "advisory_quarantined_bucket_keys": bucket.get("advisory_quarantined_bucket_keys", []),
         "admission_confidence": confidence.get("admission_confidence"),
         "raw_confidence": confidence.get("raw_confidence"),
         "calibrated_confidence": confidence.get("calibrated_confidence"),
         "allow_paper_fill": decision
-        in {"ALLOW", "REDUCE_SIZE_PAPER_ONLY", "POSITIVE_EDGE_PROBATION_PAPER"},
+        in {
+            "ALLOW",
+            "REDUCE_SIZE_PAPER_ONLY",
+            "POSITIVE_EDGE_PROBATION_PAPER",
+            "PAPER_RISK_CONTROLLER_EXPLORATION",
+        },
         "allow_positive_edge_probation_paper": (
             decision == "POSITIVE_EDGE_PROBATION_PAPER"
+        ),
+        "allow_paper_risk_controller_exploration": (
+            decision == "PAPER_RISK_CONTROLLER_EXPLORATION"
+        ),
+        "paper_risk_controller_exploration": (
+            decision == "PAPER_RISK_CONTROLLER_EXPLORATION"
         ),
         "allow_reduced_size_paper_only": decision == "REDUCE_SIZE_PAPER_ONLY",
         "allow_live_dry_run": decision == "ALLOW",

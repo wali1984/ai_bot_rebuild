@@ -43,6 +43,7 @@ SERVICE_ID = "v2_all_timeframe_prediction_signal_price_target_publisher"
 GATE_READY = "V2_ALL_SYMBOL_ALL_TIMEFRAME_FEATURE_TRAINER_SIGNAL_GPU_PARITY_READY"
 GATE_BLOCKED = "V2_ALL_SYMBOL_ALL_TIMEFRAME_FEATURE_TRAINER_SIGNAL_GPU_PARITY_BLOCKED"
 LIVE_GATE = "blocked_human_only"
+GUARDIAN_PIT_OBSERVATION_LIST_KEY = "v2:guardian:pit_prediction_observations"
 REQUIRED_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 DEFAULT_STALE_SECONDS = 900
 EST = ZoneInfo("America/New_York")
@@ -189,6 +190,13 @@ def as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
+def first_present(*values: Any) -> Any:
+    for value in values:
+        if value is not None and value != "":
+            return value
+    return None
+
+
 def _runtime_paper_thesis_timeframe(signal: Mapping[str, Any]) -> str | None:
     for field in ("thesis_timeframe", "prediction_timeframe", "expected_move_timeframe", "timeframe"):
         value = signal.get(field)
@@ -293,6 +301,17 @@ def hold_zero_after_cost_diagnostic(
         if expected_short_net_edge_bps is None
         else round(notional * expected_short_net_edge_bps / 10000.0, 8)
     )
+    expected_cost_usd = round(notional * cost / 10000.0, 8)
+    long_expected_gross_pnl_usd = (
+        None
+        if expected_long_net_pnl_usd is None
+        else round(expected_long_net_pnl_usd + expected_cost_usd, 8)
+    )
+    short_expected_gross_pnl_usd = (
+        None
+        if expected_short_net_pnl_usd is None
+        else round(expected_short_net_pnl_usd + expected_cost_usd, 8)
+    )
     best_side = None
     best_side_net_edge_bps = None
     if expected_long_net_edge_bps is not None and expected_short_net_edge_bps is not None:
@@ -324,6 +343,17 @@ def hold_zero_after_cost_diagnostic(
         "expected_short_net_edge_bps": expected_short_net_edge_bps,
         "expected_long_net_pnl_usd": expected_long_net_pnl_usd,
         "expected_short_net_pnl_usd": expected_short_net_pnl_usd,
+        "long_expected_gross_pnl_usd": long_expected_gross_pnl_usd,
+        "long_expected_cost_usd": expected_cost_usd,
+        "long_expected_net_pnl_usd": expected_long_net_pnl_usd,
+        "short_expected_gross_pnl_usd": short_expected_gross_pnl_usd,
+        "short_expected_cost_usd": expected_cost_usd,
+        "short_expected_net_pnl_usd": expected_short_net_pnl_usd,
+        "best_side_expected_net_pnl_usd": (
+            expected_long_net_pnl_usd if best_side == "long" else expected_short_net_pnl_usd
+        ),
+        "selected_action": normalized_action,
+        "hold_no_trade_reason": no_side_reason,
         "per_side_usd_notional_basis": notional_source,
         "per_side_usd_notional": notional,
         "best_side": best_side,
@@ -1136,6 +1166,135 @@ def selected_action_index(prediction: Mapping[str, Any], action: str) -> int | N
     return {"hold": 0, "long": 1, "short": 2}.get(action)
 
 
+def confidence_truth_fields(
+    prediction: Mapping[str, Any],
+    *,
+    action: str,
+    action_edge_diagnostic: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Separate generic model confidence from executable trade confidence."""
+    normalized_action = str(action or "hold").strip().lower()
+    probabilities = action_probability_map(prediction) or as_dict(
+        prediction.get("action_probability_by_label")
+    )
+    confidence_raw = to_float(prediction.get("confidence_raw"))
+    confidence_calibrated = to_float(prediction.get("confidence_calibrated"))
+    selected_action_probability = to_float(prediction.get("selected_action_probability"))
+    if selected_action_probability is None:
+        selected_action_probability = to_float(probabilities.get(normalized_action))
+    confidence_selected_action = (
+        selected_action_probability
+        if selected_action_probability is not None
+        else confidence_calibrated
+        if confidence_calibrated is not None
+        else confidence_raw
+    )
+    confidence_directional_long = to_float(
+        first_present(
+            prediction.get("confidence_directional_long"),
+            probabilities.get("long"),
+            confidence_selected_action if normalized_action == "long" else None,
+        )
+    )
+    confidence_directional_short = to_float(
+        first_present(
+            prediction.get("confidence_directional_short"),
+            probabilities.get("short"),
+            confidence_selected_action if normalized_action == "short" else None,
+        )
+    )
+    confidence_hold = to_float(
+        first_present(
+            prediction.get("confidence_hold"),
+            probabilities.get("hold"),
+            confidence_selected_action if normalized_action in {"hold", "no_trade"} else None,
+        )
+    )
+    long_net_edge = to_float(action_edge_diagnostic.get("expected_long_net_edge_bps"))
+    short_net_edge = to_float(action_edge_diagnostic.get("expected_short_net_edge_bps"))
+    confidence_post_cost_long = (
+        confidence_directional_long
+        if confidence_directional_long is not None
+        and long_net_edge is not None
+        and long_net_edge > 0.0
+        else 0.0
+    )
+    confidence_post_cost_short = (
+        confidence_directional_short
+        if confidence_directional_short is not None
+        and short_net_edge is not None
+        and short_net_edge > 0.0
+        else 0.0
+    )
+    loss_probability = to_float(prediction.get("pre_trade_loss_probability"))
+    matured_evidence_count = to_float(
+        first_present(
+            prediction.get("matured_evidence_count"),
+            prediction.get("bucket_closed_outcome_count"),
+            prediction.get("closed_outcome_count"),
+        )
+    )
+    block_reasons: list[str] = []
+    if normalized_action in {"hold", "no_trade", "none", "flat"}:
+        confidence_executable_trade: float | None = 0.0
+        display_label = "Hold confidence"
+        confidence_type = "hold_not_trade"
+        block_reasons.append("selected_action_hold_not_executable_trade")
+    elif normalized_action == "long":
+        confidence_executable_trade = confidence_post_cost_long
+        display_label = (
+            "Post-cost executable confidence"
+            if confidence_post_cost_long > 0.0
+            else "Blocked by cost"
+        )
+        confidence_type = "directional_long_post_cost"
+    elif normalized_action == "short":
+        confidence_executable_trade = confidence_post_cost_short
+        display_label = (
+            "Post-cost executable confidence"
+            if confidence_post_cost_short > 0.0
+            else "Blocked by cost"
+        )
+        confidence_type = "directional_short_post_cost"
+    else:
+        confidence_executable_trade = 0.0
+        display_label = "Unproven confidence"
+        confidence_type = "not_side_specific"
+        block_reasons.append("selected_action_not_side_specific")
+    if loss_probability is not None and loss_probability >= 0.65:
+        block_reasons.append("pre_trade_loss_probability_high")
+        if confidence_executable_trade is not None:
+            confidence_executable_trade = min(
+                confidence_executable_trade,
+                max(0.0, 1.0 - loss_probability),
+            )
+        display_label = "Blocked by loss probability"
+    matured_evidence_missing = matured_evidence_count is None or matured_evidence_count <= 0.0
+    if matured_evidence_missing:
+        block_reasons.append("matured_label_evidence_missing")
+        if display_label == "Post-cost executable confidence":
+            display_label = "Unproven confidence"
+    confidence_a_plus_eligible = (
+        confidence_executable_trade is not None
+        and confidence_executable_trade > 0.0
+        and not matured_evidence_missing
+        and not block_reasons
+    )
+    return {
+        "confidence_directional_long": confidence_directional_long,
+        "confidence_directional_short": confidence_directional_short,
+        "confidence_hold": confidence_hold,
+        "confidence_selected_action": confidence_selected_action,
+        "confidence_post_cost_long": confidence_post_cost_long,
+        "confidence_post_cost_short": confidence_post_cost_short,
+        "confidence_executable_trade": confidence_executable_trade,
+        "confidence_display_label": display_label,
+        "confidence_type": confidence_type,
+        "confidence_a_plus_eligible": confidence_a_plus_eligible,
+        "confidence_tradeability_block_reasons": list(dict.fromkeys(block_reasons)),
+    }
+
+
 def extract_last_price(price_payload: Mapping[str, Any]) -> tuple[float | None, str | None]:
     ticker = as_dict(price_payload.get("ticker_24hr"))
     funding = as_dict(price_payload.get("funding"))
@@ -1344,6 +1503,31 @@ class V2KeyValueStore:
         except Exception as exc:  # noqa: BLE001
             self.audit.writes_failed += 1
             self.audit.errors.append(f"set_failed:{key}:{type(exc).__name__}")
+            return False
+        self.audit.writes_succeeded += 1
+        self.audit.keys_written.append(key)
+        return True
+
+    def rpush_json(self, key: str, payload: Mapping[str, Any]) -> bool:
+        self.audit.writes_attempted += 1
+        if not key.startswith("v2:"):
+            self.audit.old_redis_write_attempts += 1
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"blocked_non_v2_key:{key}")
+            return False
+        if self.client is None:
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"no_client:{key}")
+            return False
+        if not hasattr(self.client, "rpush"):
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"rpush_unavailable:{key}")
+            return False
+        try:
+            self.client.rpush(key, json.dumps(payload, sort_keys=True, default=str))
+        except Exception as exc:  # noqa: BLE001
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"rpush_failed:{key}:{type(exc).__name__}")
             return False
         self.audit.writes_succeeded += 1
         self.audit.keys_written.append(key)
@@ -1657,6 +1841,11 @@ def build_prediction_row(
         round_trip_cost_bps=round_trip_cost_bps,
         diagnostic_notional_usd=diagnostic_notional_usd,
     )
+    confidence_truth = confidence_truth_fields(
+        prediction,
+        action=action,
+        action_edge_diagnostic=action_edge_diagnostic,
+    )
     return {
         "prediction_id": prediction_id,
         "signal_id": signal_id,
@@ -1715,6 +1904,7 @@ def build_prediction_row(
         "action_probabilities": action_probability_map(prediction),
         "confidence_raw": to_float(prediction.get("confidence_raw")),
         "confidence_calibrated": to_float(prediction.get("confidence_calibrated")),
+        **confidence_truth,
         "expected_move_bps": expected_move,
         "expected_move_after_cost_bps": expected_after_cost,
         "policy_value": to_float(prediction.get("policy_value")),
@@ -2594,6 +2784,19 @@ def build_signal_from_row(
         "take_profit_reference": row.get("take_profit_reference"),
         "confidence": row.get("confidence_calibrated"),
         "confidence_calibrated": row.get("confidence_calibrated"),
+        "confidence_directional_long": row.get("confidence_directional_long"),
+        "confidence_directional_short": row.get("confidence_directional_short"),
+        "confidence_hold": row.get("confidence_hold"),
+        "confidence_selected_action": row.get("confidence_selected_action"),
+        "confidence_post_cost_long": row.get("confidence_post_cost_long"),
+        "confidence_post_cost_short": row.get("confidence_post_cost_short"),
+        "confidence_executable_trade": row.get("confidence_executable_trade"),
+        "confidence_display_label": row.get("confidence_display_label"),
+        "confidence_type": row.get("confidence_type"),
+        "confidence_a_plus_eligible": row.get("confidence_a_plus_eligible"),
+        "confidence_tradeability_block_reasons": as_list(
+            row.get("confidence_tradeability_block_reasons")
+        ),
         "expected_move_bps": row.get("expected_move_bps"),
         "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
         "expected_net_edge_bps": row.get("expected_move_after_cost_bps"),
@@ -4296,12 +4499,72 @@ def retire_stale_routeable_prediction_keys(
     return retired
 
 
+def guardian_pit_observation_payload(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    if row.get("status") not in CURRENT_PREDICTION_STATUSES:
+        return None
+    prediction_id = str(row.get("prediction_id") or "").strip()
+    symbol = str(row.get("symbol") or "").strip().upper()
+    timeframe = str(row.get("timeframe") or "").strip()
+    if not prediction_id or not symbol or not timeframe:
+        return None
+    if row.get("prediction_temporal_block_reasons"):
+        return None
+    feature_cutoff = iso_utc(row.get("feature_cutoff"))
+    decision_time = iso_utc(row.get("decision_time") or row.get("generated_est"))
+    available_at = iso_utc(row.get("available_at"))
+    if feature_cutoff is None or decision_time is None:
+        return None
+    feature_dt = parse_ts(feature_cutoff)
+    decision_dt = parse_ts(decision_time)
+    available_dt = parse_ts(available_at)
+    if feature_dt is not None and decision_dt is not None and feature_dt > decision_dt:
+        return None
+    if available_dt is not None and decision_dt is not None and available_dt > decision_dt:
+        return None
+    return {
+        "schema_version": "v2_guardian_pit_prediction_observation_append_v1",
+        "producer": SERVICE_ID,
+        "source": "all_timeframe_prediction_signal_price_target_publisher",
+        "source_redis_key": row.get("prediction_redis_key") or prediction_key(symbol, timeframe),
+        "prediction_id": prediction_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "selected_action": row.get("selected_action"),
+        "decision_time": decision_time,
+        "feature_cutoff": feature_cutoff,
+        "available_at": available_at,
+        "generated_at": iso_utc(row.get("generated_est")) or decision_time,
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "future_labels_used_as_features": False,
+        "counts_as_a_grade_evidence": False,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "test_order_submitted": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+    }
+
+
+def append_guardian_pit_observations(store: V2KeyValueStore, prediction_rows: Iterable[Mapping[str, Any]]) -> int:
+    appended = 0
+    for row in prediction_rows:
+        payload = guardian_pit_observation_payload(row)
+        if payload is None:
+            continue
+        if store.rpush_json(GUARDIAN_PIT_OBSERVATION_LIST_KEY, payload):
+            appended += 1
+    return appended
+
+
 def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any], signal_status: Mapping[str, Any]) -> dict[str, Any]:
     blocker_writes = 0
     blocker_suppressed = 0
     signal_writes = 0
     integrity_writes = 0
     retired_stale_prediction_writes = 0
+    guardian_pit_observation_appends = 0
     protected_current_prediction_keys = {
         str(as_dict(row).get("prediction_redis_key"))
         for row in as_list(prediction_status.get("prediction_rows"))
@@ -4356,6 +4619,10 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
     for symbol, signal in latest_by_symbol.items():
         if store.set_json(signal_latest_key(symbol), signal):
             signal_writes += 1
+    guardian_pit_observation_appends = append_guardian_pit_observations(
+        store,
+        as_list(prediction_status.get("prediction_rows")),
+    )
     return {
         "redis_writes_performed": store.audit.writes_succeeded > 0,
         "blocker_prediction_key_writes": blocker_writes,
@@ -4363,6 +4630,8 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
         "market_state_integrity_key_writes": integrity_writes,
         "retired_stale_prediction_key_writes": retired_stale_prediction_writes,
         "signal_key_writes": signal_writes,
+        "guardian_pit_observation_appends": guardian_pit_observation_appends,
+        "guardian_pit_observation_list_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": list(store.audit.keys_written),
         "errors": list(store.audit.errors),
@@ -4612,6 +4881,8 @@ def build_packet(
         "blocker_prediction_key_writes": 0,
         "retired_stale_prediction_key_writes": 0,
         "signal_key_writes": 0,
+        "guardian_pit_observation_appends": 0,
+        "guardian_pit_observation_list_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": [],
         "errors": [],

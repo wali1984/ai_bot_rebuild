@@ -2,6 +2,10 @@
 
 This is not an L2 orderbook replay source. It is a price/trade/candle backfill
 tool for regimes before the direct orderbook recorder start date.
+
+Runtime market data is WebSocket/cache primary. Binance archive HTTP downloads
+are allowed only as an explicit REST fallback/backfill operation when
+``BINANCE_REST_FALLBACK_ALLOWED=true`` is set.
 """
 from __future__ import annotations
 
@@ -9,6 +13,7 @@ import argparse
 import hashlib
 import json
 import sys
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -19,6 +24,11 @@ from typing import Any, Iterable
 from v2.backend.app.services.orderbook_recorder.features import utc_now_iso
 from v2.backend.app.services.orderbook_recorder.status import GOAL_ID, LIVE_GATE, status_output_dirs
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -133,6 +143,19 @@ def build_archive_requests(
 
 
 def _download(url: str, target: Path, *, timeout: float = 30.0) -> int:
+    try:
+        require_binance_rest_fallback(
+            endpoint=urllib.parse.urlparse(url).path or url,
+            fallback_reason="operator_requested_public_archive_backfill",
+            role="public_archive_backfill_recovery",
+        )
+    except RuntimeError as exc:
+        message = str(exc).replace(
+            "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            1,
+        )
+        raise RuntimeError(message) from exc
     target.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, method="GET", headers={"User-Agent": "ai-bot-v2-binance-public-backfill"})
     with urllib.request.urlopen(req, timeout=timeout) as response:
@@ -231,6 +254,11 @@ def run_backfill(args: argparse.Namespace) -> dict[str, Any]:
         "generated_at": utc_now_iso(),
         "worker_id": "v2_binance_public_data_backfill",
         "download_enabled": bool(args.download),
+        "transport_policy": "binance_public_archive_backfill_rest_fallback_only",
+        "websocket_primary_runtime_market_data": True,
+        "rest_fallback_allowed": binance_rest_fallback_allowed(),
+        "rest_fallback_env": REST_FALLBACK_ENV,
+        "download_requires_env": f"{REST_FALLBACK_ENV}=true",
         "market": args.market,
         "frequency": args.frequency,
         "symbols_backfilled": sorted({row["symbol"] for row in rows if row.get("downloaded")}),

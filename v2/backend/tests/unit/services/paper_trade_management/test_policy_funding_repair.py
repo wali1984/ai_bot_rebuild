@@ -103,6 +103,76 @@ def test_repairs_policy_activation_and_funding_from_safe_accepted_fill():
     assert "close-1" in repaired_by_token
 
 
+def test_repairs_paper_exploration_lineage_from_safe_accepted_fill_without_pnl_change():
+    closed = _closed(
+        policy_activated_at="2026-06-20T00:00:05Z",
+        funding_pnl_usd=0.0,
+        funding_pnl_source="EXPECTED_FUNDING_BPS",
+        realized_pnl_usd=1.23,
+        realized_pnl_usdt=1.23,
+        realized_pnl=1.23,
+    )
+    accepted = _accepted(
+        paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        exploration_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        paper_exploration_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        preemptive_decision_id="pec_fill_1",
+        risk_decision_id="rd_fill_1",
+        orchestrator_decision_id="dec_fill_1",
+        allocator_decision_id="alloc_fill_1",
+        materialization_queue_id="paper_exploration_materialize_fill_1",
+        feature_vector_hash="strategy_supply_fill_1",
+        provider_hashes={"latest": "provider-hash"},
+        confidence_executable_trade=0.84,
+        dynamic_exploration_floor=0.66,
+        dynamic_exploration_floor_formula="formula-test",
+        exploration_floor_inputs={"provider_confluence": 0.75},
+        paper_risk_controller_exploration_above_floor=True,
+        paper_risk_controller_exploration_eligible=True,
+        bootstrap_exploration=False,
+        routes_to_live=False,
+        counts_as_A_plus=False,
+        counts_as_live_ready=False,
+    )
+
+    rows, report, repaired_by_token = repair_policy_funding_rows(
+        [closed],
+        accepted_rows=[accepted],
+        generated_at="2026-06-21T00:00:00Z",
+    )
+
+    repaired = rows[0]
+    assert report["status_counts"] == {"lineage_repaired": 1}
+    assert repaired["realized_pnl_usd"] == 1.23
+    assert repaired["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert repaired["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert repaired["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert repaired["paper_opportunity_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert repaired["preemptive_decision_id"] == "pec_fill_1"
+    assert repaired["risk_decision_id"] == "rd_fill_1"
+    assert repaired["orchestrator_decision_id"] == "dec_fill_1"
+    assert repaired["allocator_decision_id"] == "alloc_fill_1"
+    assert repaired["materialization_queue_id"] == "paper_exploration_materialize_fill_1"
+    assert repaired["feature_vector_hash"] == "strategy_supply_fill_1"
+    assert repaired["provider_hashes"] == {"latest": "provider-hash"}
+    assert repaired["confidence_executable_trade"] == 0.84
+    assert repaired["dynamic_exploration_floor"] == 0.66
+    assert repaired["dynamic_exploration_floor_formula"] == "formula-test"
+    assert repaired["exploration_floor_inputs"] == {"provider_confluence": 0.75}
+    assert repaired["paper_risk_controller_exploration_above_floor"] is True
+    assert repaired["paper_risk_controller_exploration_eligible"] is True
+    assert repaired["bootstrap_exploration"] is False
+    assert repaired["routes_to_live"] is False
+    assert repaired["places_real_order"] is False
+    assert repaired["counts_as_A_plus"] is False
+    assert repaired["counts_as_live_ready"] is False
+    assert repaired["paper_exploration_lineage_repair_status"] == (
+        "REPAIRED_FROM_SAFE_ACCEPTED_FILL_CONTEXT"
+    )
+    assert "close-1" in repaired_by_token
+
+
 def test_missing_funding_rate_is_left_unaccounted_but_timestamp_can_be_repaired():
     rows, report, _repaired_by_token = repair_policy_funding_rows(
         [_closed(source_fill_ids=["missing-fill"], entry_signal_id="missing-fill")],

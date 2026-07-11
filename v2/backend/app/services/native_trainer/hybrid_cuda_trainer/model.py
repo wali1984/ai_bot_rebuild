@@ -4,7 +4,9 @@ from __future__ import annotations
 import hashlib
 import importlib
 import math
+import os
 import random
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -43,14 +45,22 @@ class V2HybridPolicyModel:
     def __init__(self, *, input_dim: int, seed: int = 0xC0DE_55) -> None:
         self.input_dim = int(input_dim)
         self.seed = int(seed)
-        self.hidden_size = 1024
-        self.residual_block_count = 3
-        self.dropout = 0.05
+        # Legacy-trainer alignment: the legacy hybrid trainer saturated the RTX
+        # GPU with a much larger encoder (LSTM 512x2 + attention backbone).
+        # Width/depth are env-tunable so capacity can scale with the 1.7M-row
+        # replay archive; an architecture change invalidates old weight blobs,
+        # which the checkpoint manager handles as a graceful fresh init.
+        self.hidden_size = max(128, int(os.getenv("V2_TRAINER_HIDDEN_SIZE", "1024") or 1024))
+        self.residual_block_count = max(1, int(os.getenv("V2_TRAINER_RESIDUAL_BLOCKS", "3") or 3))
+        # Dropout is env-tunable regularization. Raised from 0.05 -> 0.10 default to
+        # counter the observed train/serve overfit gap (in-sample backtest edge that
+        # collapses out-of-sample). Set V2_TRAINER_DROPOUT=0.05 to restore prior value.
+        self.dropout = max(0.0, min(0.9, float(os.getenv("V2_TRAINER_DROPOUT", "0.10") or 0.10)))
         self._torch = None
         self._net = None
         self._device = "cpu"
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
-            f"{input_dim}|{seed}".encode()
+            f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}".encode()
         ).hexdigest()[:24]
         self._fallback_weights = self._make_fallback_weights()
         self._masa = V2MASAAdapter()
@@ -90,6 +100,32 @@ class V2HybridPolicyModel:
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if device.type == "cuda":
                 self._apply_cuda_memory_cap(torch)
+                # Legacy-trainer CUDA alignment (legacy_reference/rl/hybrid_trainer.py
+                # GPUForcedPPO init): TF32 matmul via the PyTorch 2.9+ API with
+                # legacy setters for older builds, cuDNN autotune for fixed input
+                # shapes, flash/mem-efficient SDP, and more CPU threads for the
+                # data-prep side that currently bottlenecks the GPU.
+                try:
+                    torch.set_float32_matmul_precision("high")
+                    if hasattr(torch.backends.cuda.matmul, "fp32_precision"):
+                        torch.backends.cuda.matmul.fp32_precision = "tf32"
+                    if hasattr(torch.backends.cudnn, "conv") and hasattr(
+                        torch.backends.cudnn.conv, "fp32_precision"
+                    ):
+                        torch.backends.cudnn.conv.fp32_precision = "tf32"
+                    torch.backends.cuda.matmul.allow_tf32 = True
+                    torch.backends.cudnn.allow_tf32 = True
+                    torch.backends.cudnn.benchmark = True
+                    torch.backends.cudnn.deterministic = False
+                    if hasattr(torch.backends.cuda, "enable_flash_sdp"):
+                        torch.backends.cuda.enable_flash_sdp(True)
+                    if hasattr(torch.backends.cuda, "enable_mem_efficient_sdp"):
+                        torch.backends.cuda.enable_mem_efficient_sdp(True)
+                    torch.set_num_threads(
+                        max(4, int(os.getenv("V2_TRAINER_CPU_THREADS", "8") or 8))
+                    )
+                except Exception:
+                    pass
 
             class _ResidualBlock(torch.nn.Module):
                 def __init__(self, hidden: int, dropout: float) -> None:
@@ -244,10 +280,21 @@ class V2HybridPolicyModel:
                 payload[f"torch::{name}"] = tensor.detach().cpu().numpy()
         else:
             payload["fallback::weights"] = np.asarray(self._fallback_weights, dtype=np.float64)
-        tmp = target.with_suffix(target.suffix + ".tmp")
-        with tmp.open("wb") as handle:
-            np.savez_compressed(handle, **payload)
-        tmp.replace(target)
+        tmp: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "wb",
+                dir=target.parent,
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+                delete=False,
+            ) as handle:
+                tmp = Path(handle.name)
+                np.savez_compressed(handle, **payload)
+            tmp.replace(target)
+        finally:
+            if tmp is not None and tmp.exists():
+                tmp.unlink()
         return {
             "weight_file_path": str(target),
             "weight_file_format": "npz",

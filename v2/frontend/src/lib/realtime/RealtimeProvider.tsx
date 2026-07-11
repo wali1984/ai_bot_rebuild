@@ -6,7 +6,9 @@ import {
   type EnterpriseResourceName,
   type EnterpriseUiSnapshot,
   fetchRealtimeBootstrap,
+  loadCachedRealtimeBootstrap,
   realtimeWebSocketUrl,
+  saveCachedRealtimeBootstrap,
 } from './resourceClient';
 
 type RealtimeState = {
@@ -32,6 +34,7 @@ const DEFAULT_RESOURCES: EnterpriseResourceName[] = [
   'system_health',
   'trader_cockpit',
 ];
+const INITIAL_SOCKET_CONNECT_DELAY_MS = 350;
 
 function resourcesFromBootstrap(bootstrap: EnterpriseRealtimeBootstrap): Partial<Record<EnterpriseResourceName, EnterpriseUiSnapshot>> {
   return bootstrap.resources ?? {};
@@ -46,12 +49,15 @@ function samePaths(left: string[], right: string[]): boolean {
 }
 
 export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Element {
-  const [bootstrap, setBootstrap] = useState<EnterpriseRealtimeBootstrap | null>(null);
-  const [resources, setResources] = useState<Partial<Record<EnterpriseResourceName, EnterpriseUiSnapshot>>>({});
-  const [status, setStatus] = useState<RealtimeState['status']>('connecting');
+  const [bootstrap, setBootstrap] = useState<EnterpriseRealtimeBootstrap | null>(() => loadCachedRealtimeBootstrap());
+  const [resources, setResources] = useState<Partial<Record<EnterpriseResourceName, EnterpriseUiSnapshot>>>(() => {
+    const cached = loadCachedRealtimeBootstrap();
+    return cached ? resourcesFromBootstrap(cached) : {};
+  });
+  const [status, setStatus] = useState<RealtimeState['status']>(() => loadCachedRealtimeBootstrap() ? 'degraded' : 'connecting');
   const [error, setError] = useState<string | null>(null);
   const [sequence, setSequence] = useState(0);
-  const [lastGoodAt, setLastGoodAt] = useState<number | null>(null);
+  const [lastGoodAt, setLastGoodAt] = useState<number | null>(() => loadCachedRealtimeBootstrap() ? Date.now() : null);
   const [resourcePaths, setResourcePaths] = useState<string[]>([]);
   const socketRef = useRef<WebSocket | null>(null);
   const resourcePathSubscribersRef = useRef(new Map<string, Set<(payload: Record<string, unknown>) => void>>());
@@ -61,17 +67,23 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
     setResources((previous) => ({ ...previous, ...resourcesFromBootstrap(payload) }));
     setLastGoodAt(Date.now());
     setError(null);
+    saveCachedRealtimeBootstrap(payload);
   }, []);
 
   const refetch = useCallback(async () => {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 4_000);
+    let timeout: number | null = null;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeout = window.setTimeout(() => resolve(null), 4_000);
+    });
     try {
-      const payload = await fetchRealtimeBootstrap(controller.signal);
+      const payload = await Promise.race([fetchRealtimeBootstrap(), timeoutPromise]);
+      if (!payload) {
+        throw new Error('realtime_bootstrap_timeout');
+      }
       applyBootstrap(payload);
       setStatus((current) => current === 'offline' ? 'degraded' : current);
     } finally {
-      window.clearTimeout(timeout);
+      if (timeout !== null) window.clearTimeout(timeout);
     }
   }, [applyBootstrap]);
 
@@ -110,6 +122,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
 
   useEffect(() => {
     let cancelled = false;
+    let initialConnectTimer: number | null = null;
     let reconnectTimer: number | null = null;
     let fallbackTimer: number | null = null;
     let reconnectAttempt = 0;
@@ -127,6 +140,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
       if (!socketUrl) {
         setStatus('degraded');
         return;
+      }
+      const previousSocket = socketRef.current;
+      if (previousSocket && previousSocket.readyState !== WebSocket.CLOSED) {
+        previousSocket.onclose = null;
+        previousSocket.onerror = null;
+        previousSocket.onmessage = null;
+        previousSocket.onopen = null;
+        previousSocket.close();
       }
       setStatus((current) => current === 'connected' ? current : 'connecting');
       const socket = new WebSocket(socketUrl);
@@ -169,6 +190,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
       };
       socket.onclose = () => {
         if (cancelled) return;
+        if (socketRef.current !== socket) return;
         setStatus((current) => current === 'connected' ? 'degraded' : current);
         const delay = Math.min(30_000, 1_000 * (2 ** reconnectAttempt));
         reconnectAttempt += 1;
@@ -176,7 +198,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
       };
     };
 
-    connect();
+    initialConnectTimer = window.setTimeout(connect, INITIAL_SOCKET_CONNECT_DELAY_MS);
     fallbackTimer = window.setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       void refetch().catch((err) => {
@@ -188,6 +210,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }): JSX.Ele
     return () => {
       cancelled = true;
       socketRef.current?.close();
+      if (initialConnectTimer) window.clearTimeout(initialConnectTimer);
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
       if (fallbackTimer) window.clearInterval(fallbackTimer);
     };

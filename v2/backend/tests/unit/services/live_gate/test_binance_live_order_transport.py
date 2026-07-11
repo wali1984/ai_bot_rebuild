@@ -11,6 +11,7 @@ from v2.backend.app.services.live_gate.binance_live_order_transport import (
     KEY_DEDUPE,
     KEY_KILL_SWITCH,
     LiveOrderCandidate,
+    _position_read_ready,
     est_now,
     evaluate_live_order_transport,
 )
@@ -154,7 +155,31 @@ def _signal(generated_est: str | None = None) -> dict[str, Any]:
 
 
 def _trader_status() -> dict[str, Any]:
-    return {"binance_private_readonly": {"position_read_status": "HTTP_200"}}
+    return {
+        "binance_private_readonly": {
+            "position_read_status": "WEBSOCKET_PRIMARY_READY",
+            "position_read_endpoint": "WS account.position",
+            "account_read_status": "WEBSOCKET_PRIMARY_READY",
+            "account_read_endpoint": "WS account.status",
+            "rest_fallback_used": False,
+        }
+    }
+
+
+def test_position_read_ready_does_not_accept_plain_http_200_as_primary() -> None:
+    assert _position_read_ready({"position_read_status": "WEBSOCKET_PRIMARY_READY"}) is True
+    assert _position_read_ready({"position_read_status": "SIGNED_WS_READ_EXECUTED"}) is True
+    assert _position_read_ready({"position_read_status": "HTTP_200"}) is False
+    assert (
+        _position_read_ready(
+            {
+                "position_read_status": "HTTP_200",
+                "position_read_endpoint": "GET /fapi/v3/positionRisk",
+                "rest_fallback_used": True,
+            }
+        )
+        is True
+    )
 
 
 def _write_env(root: Path) -> None:

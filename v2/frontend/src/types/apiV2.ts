@@ -269,6 +269,11 @@ export interface AlertsData {
 
 export interface PortfolioData extends AccountTruthFields {
   equity: number | null;
+  paper_equity?: number | null;
+  paper_balance?: number | null;
+  initial_capital?: number | null;
+  paper_initial_capital?: number | null;
+  starting_equity_usd?: number | null;
   realized_pnl: number | null;
   realized_pnl_usd?: number | null;
   realized_net_pnl_usd?: number | null;
@@ -277,9 +282,23 @@ export interface PortfolioData extends AccountTruthFields {
   unrealized_pnl_usd?: number | null;
   clean_session_valid_unrealized_pnl_usd?: number | null;
   total_pnl_usd?: number | null;
+  paper_equity_usd?: number | null;
+  paper_realized_pnl_usd?: number | null;
+  paper_unrealized_pnl_usd?: number | null;
+  paper_total_pnl_usd?: number | null;
+  paper_session_id?: string | null;
+  data_source?: string | null;
+  source_generated_utc?: string | null;
+  generated_at?: string | null;
+  generated_utc?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
   pnl_source_key?: string | null;
   pnl_source_route?: string | null;
   pnl_source_type?: string | null;
+  pnl_conflict_detected?: boolean | null;
+  pnl_conflict_reason?: string | null;
+  pnl_conflict_sources?: unknown;
   positions: unknown[];
   mode: 'paper';
   trader_id?: string | null;

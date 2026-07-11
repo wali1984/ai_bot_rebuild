@@ -4,7 +4,8 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-from datetime import datetime, timezone
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -1368,6 +1369,36 @@ class V2HybridPredictionPublisher:
         signal_payload["input_feature_hash"] = prediction_payload.get("input_feature_hash")
         signal_payload["replay_snapshot_key"] = prediction_payload.get("replay_snapshot_key")
         signal_payload["replay_snapshot_write_success"] = prediction_payload.get("replay_snapshot_write_success")
+        # PPO on-policy lineage: entry-time policy outputs from the SAME
+        # forward pass that produced selected_action. Never recomputed
+        # post-hoc; downstream paper fills copy these so closed rows can
+        # become on-policy PPO training rows (old_log_prob/old_value).
+        _entry_action_probabilities = list(
+            prediction_payload.get("action_probabilities") or []
+        )
+        _entry_selected_probability = _finite_float(
+            prediction_payload.get("selected_action_probability")
+        )
+        signal_payload["action_labels"] = list(
+            prediction_payload.get("action_labels") or list(ACTION_LABELS)
+        )
+        signal_payload["action_probabilities"] = _entry_action_probabilities
+        signal_payload["selected_action_index"] = prediction_payload.get(
+            "selected_action_index"
+        )
+        signal_payload["selected_action_probability"] = _entry_selected_probability
+        signal_payload["selected_action_log_prob"] = (
+            math.log(_entry_selected_probability)
+            if _entry_selected_probability is not None
+            and _entry_selected_probability > 0.0
+            else None
+        )
+        signal_payload["policy_value"] = _finite_float(
+            prediction_payload.get("policy_value")
+        )
+        signal_payload["entry_policy_fields_source"] = (
+            "V2_NATIVE_CUDA_TRAINER_ENTRY_FORWARD_PASS"
+        )
         signal_payload["trust_gate_result"] = lineage_contract.to_dict()
         for field in PROVIDER_LINEAGE_FIELDS:
             if field in prediction_payload:
@@ -1376,6 +1407,111 @@ class V2HybridPredictionPublisher:
             signal_payload = mark_runtime_trust_denied(signal_payload, lineage_contract)
         self.io.set_json(ORCHESTRATOR_DECISIONS_KEY, orchestrator_dict)
         self.io.set_json(RISK_DECISIONS_KEY, risk_dict)
+        # Per-ID immutable decision records + candidate/signal indexes.
+        # Last-write-wins preview keys above stay for dashboards only; the
+        # paper fill gate dereferences THESE by the exact IDs the signal
+        # carries (operator mission 2026-07-10). TTL outlives the 900s signal
+        # staleness window with margin.
+        _decision_record_ttl = 2 * 60 * 60
+        _decision_expires_at = (
+            datetime.now(timezone.utc) + timedelta(seconds=_decision_record_ttl)
+        ).isoformat(timespec="seconds").replace("+00:00", "Z")
+        _decision_common = {
+            "candidate_id": (
+                signal_payload.get("candidate_id")
+                or prediction_record.prediction_id
+            ),
+            "signal_id": signal_id,
+            "prediction_id": prediction_record.prediction_id,
+            "symbol": prediction_payload.get("symbol"),
+            "timeframe": prediction_payload.get("timeframe"),
+            "side": prediction_payload.get("selected_action"),
+            "feature_vector_hash": prediction_payload.get("feature_vector_hash"),
+            "feature_cutoff": prediction_payload.get("feature_cutoff"),
+            "available_at": prediction_payload.get("available_at"),
+            "decision_time": prediction_payload.get("decision_time"),
+            "generated_utc": prediction_payload.get("generated_utc"),
+            "expires_at": _decision_expires_at,
+            "model_version": prediction_payload.get("model_version"),
+            "checkpoint_hash": prediction_payload.get("checkpoint_id"),
+            "provider_hashes": dict(prediction_payload.get("source_hashes") or {}),
+            "routes_to_live": False,
+            "places_real_order": False,
+            "live_gate": LIVE_GATE_BLOCKED,
+        }
+        risk_per_id_record = {
+            **risk_dict,
+            **_decision_common,
+            "schema_version": "v2_per_id_risk_decision_record_v1",
+            "risk_decision_id": risk_record.risk_decision_id,
+            "decision": risk_dict.get("risk_action") or risk_dict.get("decision"),
+            "status": risk_dict.get("status") or risk_dict.get("risk_action"),
+            "reasons": list(
+                risk_dict.get("reasons")
+                or risk_dict.get("risk_reasons")
+                or []
+            ),
+            "max_loss_usd": risk_dict.get("max_loss_usd"),
+            "liquidation_buffer_usd": risk_dict.get("liquidation_buffer_usd"),
+            "position_limit": risk_dict.get("position_limit"),
+        }
+        orchestrator_per_id_record = {
+            **orchestrator_dict,
+            **_decision_common,
+            "schema_version": "v2_per_id_orchestrator_decision_record_v1",
+            "orchestrator_decision_id": orchestrator_record.decision_id,
+            "decision": orchestrator_dict.get("orchestrator_action")
+            or orchestrator_dict.get("decision"),
+            "orchestrator_action": orchestrator_dict.get("orchestrator_action")
+            or orchestrator_dict.get("decision_action")
+            or orchestrator_dict.get("decision"),
+            "status": orchestrator_dict.get("status")
+            or orchestrator_dict.get("orchestrator_action"),
+            "reasons": list(orchestrator_dict.get("reasons") or []),
+            "route": orchestrator_dict.get("route") or "paper_only",
+        }
+        self.io.set_json(
+            f"v2:decision:risk:{risk_record.risk_decision_id}",
+            risk_per_id_record,
+            ex=_decision_record_ttl,
+        )
+        # Legacy lineage surfaces stamp the same decision as
+        # rd_{prediction_hash} (no dec_ segment); publish the identical
+        # immutable record under that alias so every stamped id dereferences.
+        if str(risk_record.risk_decision_id).startswith("rd_dec_"):
+            _risk_alias_id = "rd_" + str(risk_record.risk_decision_id)[len("rd_dec_"):]
+            self.io.set_json(
+                f"v2:decision:risk:{_risk_alias_id}",
+                {**risk_per_id_record, "alias_of": risk_record.risk_decision_id},
+                ex=_decision_record_ttl,
+            )
+        self.io.set_json(
+            f"v2:decision:orchestrator:{orchestrator_record.decision_id}",
+            orchestrator_per_id_record,
+            ex=_decision_record_ttl,
+        )
+        _decision_index = {
+            "risk_decision_key": f"v2:decision:risk:{risk_record.risk_decision_id}",
+            "orchestrator_decision_key": (
+                f"v2:decision:orchestrator:{orchestrator_record.decision_id}"
+            ),
+            "risk_decision_id": risk_record.risk_decision_id,
+            "orchestrator_decision_id": orchestrator_record.decision_id,
+            "prediction_id": prediction_record.prediction_id,
+            "signal_id": signal_id,
+            "generated_utc": prediction_payload.get("generated_utc"),
+            "expires_at": _decision_expires_at,
+        }
+        self.io.set_json(
+            f"v2:decision:index:by_candidate:{_decision_common['candidate_id']}",
+            _decision_index,
+            ex=_decision_record_ttl,
+        )
+        self.io.set_json(
+            f"v2:decision:index:by_signal:{signal_id}",
+            _decision_index,
+            ex=_decision_record_ttl,
+        )
         self.io.set_json(PAPER_LEDGER_KEY, paper_entry_dict)
         self.io.set_json(PAPER_INTENTS_KEY, signal_payload)
         self.io.set_json(PAPER_POSITIONS_KEY, {"generated_est": _est_iso(), "paper_shadow_only": True})

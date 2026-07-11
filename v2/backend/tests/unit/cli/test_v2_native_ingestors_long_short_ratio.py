@@ -16,6 +16,8 @@ class FakeRedis:
 
 
 def test_fetch_long_short_ratio_normalizes_binance_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+
     def fake_get(url: str):
         assert "globalLongShortAccountRatio" in url
         return [
@@ -36,12 +38,14 @@ def test_fetch_long_short_ratio_normalizes_binance_row(monkeypatch: pytest.Monke
     assert payload["long_short_ratio"] == 1.25
     assert payload["long_account_ratio"] == 0.555
     assert payload["short_account_ratio"] == 0.445
-    assert payload["source"] == "binance_global_long_short_account_ratio"
+    assert payload["source"] == "binance_global_long_short_account_ratio_rest_fallback"
+    assert payload["transport"] == "rest_fallback"
 
 
 def test_fetch_long_short_ratio_restricted_binance_payload_is_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
     monkeypatch.setattr(
         loop,
         "_http_get_json",
@@ -77,12 +81,12 @@ def test_write_symbol_bundle_adds_orderbook_temporal_fields(
     assert f"{loop.V2_REDIS_PREFIX}market:orderbook:BTCUSDT" in keys_written
     assert f"{loop.V2_REDIS_PREFIX}market:orderbook:binance:BTCUSDT" in keys_written
     payload = json.loads(fake.store[f"{loop.V2_REDIS_PREFIX}market:orderbook:BTCUSDT"])
-    assert payload["source"] == "binance_public_rest_depth_snapshot"
+    assert payload["source"] == "binance_public_websocket_cache_primary"
     assert payload["exchange"] == "binance"
     assert payload["transaction_time"] == "2026-07-05T23:44:00Z"
     assert payload["received_at"] == "2026-07-05T23:44:00Z"
     assert payload["available_at"] == "2026-07-05T23:44:00Z"
     assert payload["event_time"] is None
     assert payload["event_time_missing_reason"] == (
-        "BINANCE_REST_DEPTH_SNAPSHOT_HAS_NO_EXCHANGE_EVENT_TIME"
+        "BINANCE_ORDERBOOK_CACHE_EVENT_TIME_MISSING"
     )

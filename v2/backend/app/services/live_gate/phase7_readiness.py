@@ -20,7 +20,7 @@ SCHEMA_VERSION = "phase7_real_trader_readiness_v1"
 LIVE_GATE_ENABLED = "enabled_operator_approved"
 LIVE_GATE_BLOCKED = "blocked_human_only"
 OPERATOR_GATE_BLOCKERS = frozenset({"LIVE_GATE_NOT_ENABLED", "RELEASE_MODE_NON_LIVE", "OPERATOR_APPROVAL_REQUIRED"})
-ALLOW_ALLOCATOR_DECISIONS = frozenset({"ALLOW_WITH_SIZE", "REDUCE_SIZE"})
+ALLOW_ALLOCATOR_DECISIONS = frozenset({"ALLOW_WITH_SIZE", "PASS", "REDUCE_SIZE"})
 HARD_SAFETY_FALSE_FLAGS = (
     "order_submitted",
     "test_order_submitted",
@@ -273,10 +273,79 @@ def _risk_profile_fields(runtime_payload: Mapping[str, Any]) -> dict[str, Any]:
     return _as_dict(profile.get("fields"))
 
 
-def _live_canary_config(runtime_payload: Mapping[str, Any]) -> LiveCanaryConfig:
+def _explicit_live_canary_mapping(runtime_payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     explicit = runtime_payload.get("live_canary_config") or runtime_payload.get("live_canary")
     if isinstance(explicit, Mapping):
-        return LiveCanaryConfig.from_mapping(explicit)
+        return explicit
+    return None
+
+
+def _hedge_mode_adjusted_config(
+    config: LiveCanaryConfig,
+    *,
+    runtime_payload: Mapping[str, Any],
+    observed_hedge_mode: bool | None = None,
+) -> tuple[LiveCanaryConfig, dict[str, Any]]:
+    explicit = _explicit_live_canary_mapping(runtime_payload)
+    explicit_allow = isinstance(explicit, Mapping) and "allow_hedge_mode" in explicit
+    explicit_expected = isinstance(explicit, Mapping) and "expected_hedge_mode" in explicit
+    policy = {
+        "observed_hedge_mode": observed_hedge_mode,
+        "allow_hedge_mode": config.allow_hedge_mode,
+        "expected_hedge_mode": config.expected_hedge_mode,
+        "explicit_allow_hedge_mode": explicit_allow,
+        "explicit_expected_hedge_mode": explicit_expected,
+        "derived_from_signed_read": False,
+    }
+    if observed_hedge_mode is not True:
+        return config, policy
+    if explicit_allow and not _bool(explicit.get("allow_hedge_mode")):
+        return config, policy
+    if explicit_expected and not _bool(explicit.get("expected_hedge_mode")):
+        return config, policy
+    payload = config.to_dict()
+    if not explicit_allow:
+        payload["allow_hedge_mode"] = True
+    if not explicit_expected:
+        payload["expected_hedge_mode"] = True
+    adjusted = LiveCanaryConfig.from_mapping(payload)
+    policy.update(
+        {
+            "allow_hedge_mode": adjusted.allow_hedge_mode,
+            "expected_hedge_mode": adjusted.expected_hedge_mode,
+            "derived_from_signed_read": (
+                adjusted.allow_hedge_mode != config.allow_hedge_mode
+                or adjusted.expected_hedge_mode != config.expected_hedge_mode
+            ),
+        }
+    )
+    return adjusted, policy
+
+
+def _live_canary_config(
+    runtime_payload: Mapping[str, Any],
+    *,
+    observed_hedge_mode: bool | None = None,
+) -> LiveCanaryConfig:
+    return _live_canary_config_with_policy(
+        runtime_payload,
+        observed_hedge_mode=observed_hedge_mode,
+    )[0]
+
+
+def _live_canary_config_with_policy(
+    runtime_payload: Mapping[str, Any],
+    *,
+    observed_hedge_mode: bool | None = None,
+) -> tuple[LiveCanaryConfig, dict[str, Any]]:
+    explicit = _explicit_live_canary_mapping(runtime_payload)
+    if isinstance(explicit, Mapping):
+        config = LiveCanaryConfig.from_mapping(explicit)
+        return _hedge_mode_adjusted_config(
+            config,
+            runtime_payload=runtime_payload,
+            observed_hedge_mode=observed_hedge_mode,
+        )
     fields = _risk_profile_fields(runtime_payload)
     max_notional = _float(_first_present(fields.get("max_notional_per_trade"), fields.get("max_symbol_exposure")))
     max_daily_loss = _float(_first_present(fields.get("max_daily_loss"), fields.get("max_daily_loss_usd")))
@@ -291,12 +360,17 @@ def _live_canary_config(runtime_payload: Mapping[str, Any]) -> LiveCanaryConfig:
         )
         if str(symbol).strip()
     )
-    return LiveCanaryConfig(
+    config = LiveCanaryConfig(
         live_canary_enabled=runtime_payload.get("live_gate") == LIVE_GATE_ENABLED,
         allowed_symbols=allowed_symbols,
         max_open_positions=max_open_positions,
         max_notional_usd=float(max_notional if max_notional is not None else 10.0),
         max_daily_loss_usd=float(max_daily_loss if max_daily_loss is not None else 10.0),
+    )
+    return _hedge_mode_adjusted_config(
+        config,
+        runtime_payload=runtime_payload,
+        observed_hedge_mode=observed_hedge_mode,
     )
 
 
@@ -411,15 +485,20 @@ def build_live_position_reconciliation_status(
             _epoch_ms(account.get("signed_read_generated_est")),
         )
     )
+    observed_hedge_mode = hedge_mode if hedge_mode is None else _bool(hedge_mode)
+    config, position_mode_policy = _live_canary_config_with_policy(
+        runtime,
+        observed_hedge_mode=observed_hedge_mode,
+    )
     reconciliation = reconcile_exchange_local_state(
         exchange_position=exchange_position,
         local_position=local_position,
         open_orders=open_orders,
-        hedge_mode=hedge_mode if hedge_mode is None else _bool(hedge_mode),
+        hedge_mode=observed_hedge_mode,
         margin_mode=str(margin_mode or ""),
         signed_read_ts_ms=signed_read_ts_ms,
         now_ms=now_ms,
-        config=_live_canary_config(runtime),
+        config=config,
     )
     blockers = list(reconciliation.get("blockers") or [])
     if not signed_ok:
@@ -445,6 +524,7 @@ def build_live_position_reconciliation_status(
         "signed_account_read_ok": signed_ok,
         "candidate_symbol": symbol,
         "exchange_local_reconciliation": reconciliation,
+        "position_mode_policy": position_mode_policy,
         "blockers": unique,
         "no_live_mutation": True,
         **_safety_flags(),
@@ -564,6 +644,11 @@ def build_live_pre_submit_dry_run_status(
         blockers.append("PRE_TRADE_LOSS_PROBABILITY_MISSING")
     elif pre_trade_loss_probability >= 0.80:
         blockers.append("PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND")
+    liquidation_buffer_usd = _float(candidate.get("liquidation_buffer_usd"))
+    if liquidation_buffer_usd is None:
+        blockers.append("LIQUIDATION_BUFFER_MISSING")
+    elif liquidation_buffer_usd <= 0.0:
+        blockers.append("LIQUIDATION_BUFFER_BELOW_MINIMUM")
 
     available_margin = _float(_first_present(account.get("available_margin"), runtime.get("available_margin"), truth.get("available_margin")))
     required_margin = _float(_first_present(candidate.get("margin"), runtime.get("required_initial_margin"), truth.get("required_initial_margin")))
@@ -706,6 +791,27 @@ def build_live_pre_submit_dry_run_status(
             "static_stop_final_output_allowed": False,
             "static_take_profit_final_output_allowed": False,
         }
+    execution_payload_preview = {
+        "local_payload_only": True,
+        "exchange_endpoint": None,
+        "exchange_transport": None,
+        "order_type": "LIMIT",
+        "time_in_force": "GTX",
+        "post_only": True,
+        "maker_first": True,
+        "taker_fallback_allowed_without_operator": False,
+        "taker_fallback_condition": "only_if_waiting_worsens_expected_net_and_operator_approves",
+        "internal_stop_management": True,
+        "stop_order_submitted": False,
+        "reduce_only_emergency_supported": True,
+        "reduce_only_emergency_path": reduce_only_emergency_path,
+        "dry_run_only": True,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "exchange_leverage_mutated": False,
+        "exchange_margin_mutated": False,
+        "places_real_order": False,
+    }
     pass_conditions = {
         "dry_run_only": True,
         "live_gate_enabled": live_gate == LIVE_GATE_ENABLED,
@@ -727,6 +833,8 @@ def build_live_pre_submit_dry_run_status(
         and "PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND" not in unique
         and "PRE_TRADE_LOSS_PROBABILITY_MISSING" not in unique
         and "LIVE_PRE_SUBMIT_PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW" not in unique,
+        "liquidation_buffer_present": "LIQUIDATION_BUFFER_MISSING" not in unique,
+        "liquidation_buffer_positive": "LIQUIDATION_BUFFER_BELOW_MINIMUM" not in unique,
         "advanced_indicator_evidence_pass": "ADVANCED_INDICATOR_DECISION_MISSING" not in unique
         and "LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_BLOCK" not in unique
         and "LIVE_PRE_SUBMIT_ADVANCED_INDICATOR_SHADOW_ONLY" not in unique,
@@ -795,6 +903,8 @@ def build_live_pre_submit_dry_run_status(
         "hedge_required": candidate.get("hedge_required"),
         "hedge_plan": candidate.get("hedge_plan"),
         "exit_plan": exit_plan,
+        "maker_first_execution_policy": execution_payload_preview,
+        "execution_payload_preview": execution_payload_preview,
         "kill_switch_status": kill_switch,
         "position_reconciliation_status": position_status,
         "position_transition": transition.to_dict(),
@@ -968,6 +1078,8 @@ def build_first_live_canary_operator_packet(
             "candidate_reduce_only": _bool(_first_present(candidate_signal and candidate_signal.get("reduce_only"), False)),
             "close_only_capability_required": True,
         },
+        "maker_first_execution_policy": _as_dict(pre_submit.get("maker_first_execution_policy")),
+        "execution_payload_preview": _as_dict(pre_submit.get("execution_payload_preview")),
         "reduce_only_supported": pre_submit.get("reduce_only_supported"),
         "reduce_only_emergency_path": pre_submit.get("reduce_only_emergency_path"),
         "symbol_filter_status": symbol_filter_status,

@@ -9,16 +9,6 @@
  * source key, never silently hidden.
  */
 import { useMemo } from 'react';
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 
 const SERIES = ['#219E94', '#8B6EFF', '#CC7D22', '#C95F84', '#4E92DE', '#41AC7C'] as const;
@@ -26,7 +16,6 @@ const UP = 'var(--buy, #21C784)';
 const DOWN = 'var(--sell, #FF5D7A)';
 const WARN = 'var(--warn, #FFB547)';
 const MUTED = 'var(--text-muted, #94A3B8)';
-const GRID = 'var(--chart-grid, #1F2937)';
 
 interface IntelSection {
   data: Record<string, unknown> | null;
@@ -41,14 +30,6 @@ interface SymbolIntelData {
   present_count: number;
   section_count: number;
 }
-
-const tooltipStyle: React.CSSProperties = {
-  background: 'var(--bg-elevated, #171E2E)',
-  border: `1px solid ${GRID}`,
-  borderRadius: 6,
-  fontSize: 12,
-  color: 'var(--text-primary)',
-};
 
 function num(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -154,6 +135,41 @@ function Chip({ text, tone }: { text: string; tone: 'up' | 'down' | 'warn' | 'mu
   );
 }
 
+function fmtCompactUsd(value: number): string {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `$${(value / 1_000).toFixed(1)}K`;
+  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
+function MiniHorizontalBars({
+  rows,
+}: {
+  rows: Array<{ name: string; value: number; color: string }>;
+}): JSX.Element {
+  const max = rows.reduce((best, row) => Math.max(best, Math.abs(row.value)), 0);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {rows.map((row) => {
+        const width = max > 0 ? Math.max(4, Math.min(100, (Math.abs(row.value) / max) * 100)) : 0;
+        return (
+          <div key={row.name}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+              <span style={{ fontSize: 10, color: MUTED }}>{row.name}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                {fmtCompactUsd(row.value)}
+              </span>
+            </div>
+            <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-elevated)', overflow: 'hidden' }}>
+              <div style={{ width: `${width}%`, height: '100%', borderRadius: 4, background: row.color }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element {
   const intel = useRealtimeResource<SymbolIntelData>({
     url: `/api/v2/market/${symbol}/intel`,
@@ -239,19 +255,7 @@ export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
         <IntelCard title="Trade tape pressure" section={tape}>
           {tapeBars.length > 0 && (
-            <ResponsiveContainer width="100%" height={110}>
-              <BarChart data={tapeBars} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
-                <CartesianGrid stroke={GRID} strokeDasharray="2 4" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: MUTED }} tickFormatter={(v: number) => `${(v / 1e6).toFixed(1)}M`} />
-                <YAxis type="category" dataKey="name" width={104} tick={{ fontSize: 10, fill: MUTED }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value) => `$${(Number(value) / 1e6).toFixed(2)}M`} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]}>
-                  {tapeBars.map((row) => (
-                    <Cell key={row.name} fill={row.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <MiniHorizontalBars rows={tapeBars} />
           )}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
             {tape?.data?.basis_confirmation != null && (
@@ -282,19 +286,7 @@ export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element 
 
         <IntelCard title="Whale walls" section={whale}>
           {wallBars.length > 0 && (
-            <ResponsiveContainer width="100%" height={Math.max(96, wallBars.length * 26)}>
-              <BarChart data={wallBars} layout="vertical" margin={{ left: 4, right: 40, top: 2, bottom: 2 }}>
-                <CartesianGrid stroke={GRID} strokeDasharray="2 4" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: MUTED }} tickFormatter={(v: number) => `${(v / 1e3).toFixed(0)}K`} />
-                <YAxis type="category" dataKey="name" width={104} tick={{ fontSize: 10, fill: MUTED }} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value) => `$${Number(value).toLocaleString()}`} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-                <Bar dataKey="value" barSize={14} radius={[0, 4, 4, 0]}>
-                  {wallBars.map((row) => (
-                    <Cell key={row.name} fill={row.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <MiniHorizontalBars rows={wallBars} />
           )}
         </IntelCard>
 

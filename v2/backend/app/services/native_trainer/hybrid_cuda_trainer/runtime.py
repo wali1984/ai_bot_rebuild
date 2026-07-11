@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import hashlib
+import math
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -22,6 +24,7 @@ from .config import (
 )
 from .data_loader import V2HybridTrainerDataLoader
 from .environment import V2PaperShadowHybridEnv
+from .policy_backtest import run_policy_archive_backtest
 from .model import V2HybridPolicyModel
 from .parallel_env import run_parallel_env_rollout_proof
 from .ppo_trainer import V2HybridPPOTrainer
@@ -120,6 +123,127 @@ def _sha256_file(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
+def _bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() not in {"0", "false", "no", "off", ""}
+
+
+def _float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return float(default)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return float(default)
+    return value if math.isfinite(value) else float(default)
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+# Process-local consecutive checkpoint-promotion rejection counter. The persistent
+# trainer loop is one long-running process, so this survives across cycles and does
+# not depend on Redis. It backs the rejection-streak escape that guarantees durable
+# learning can never be permanently frozen by the validation guard.
+_PROMOTION_REJECTION_STREAK: dict[str, int] = {"count": 0}
+
+
+def _checkpoint_promotion_decision(
+    *,
+    training_metrics: dict[str, Any],
+    checkpoint_load: dict[str, Any],
+) -> dict[str, Any]:
+    guard_active = _bool_env("V2_TRAINER_VALIDATION_CHECKPOINT_GUARD", True)
+    reject_overfit_gap = _bool_env("V2_TRAINER_REJECT_OVERFIT_CHECKPOINTS", True)
+    # Tolerance = max(absolute floor, relative fraction of the prior loss). A purely
+    # absolute 0.02 tolerance is far too tight at the real supervised-loss scale
+    # (~8-10): it rejects EVERY promotion once the entropy floor makes the policy
+    # explore (exploration raises supervised CE loss by design), which deadlocks
+    # durable learning (online_learning_status=BLOCKED_NO_DURABLE_WEIGHT_UPDATE and
+    # the weights never persist). The relative term lets the model promote/learn
+    # while still catching a large (default 15%) genuine validation regression.
+    abs_loss_increase_floor = max(
+        0.0,
+        _float_env("V2_TRAINER_VALIDATION_MAX_LOSS_INCREASE", 0.02),
+    )
+    rel_loss_increase_frac = max(
+        0.0,
+        _float_env("V2_TRAINER_VALIDATION_MAX_LOSS_INCREASE_FRAC", 0.15),
+    )
+    prior_checkpoint_loadable = bool(
+        checkpoint_load.get("latest_checkpoint_loadable")
+        and checkpoint_load.get("model_state_restored")
+    )
+    decision = {
+        "checkpoint_promotion_guard_active": bool(guard_active),
+        "checkpoint_promotion_allowed": True,
+        "checkpoint_promotion_rejected": False,
+        "checkpoint_promotion_reason": "VALIDATION_GUARD_PASS",
+        "prior_checkpoint_loadable": prior_checkpoint_loadable,
+        "max_validation_loss_increase": abs_loss_increase_floor,
+        "max_validation_loss_increase_frac": rel_loss_increase_frac,
+        "reject_overfit_gap": bool(reject_overfit_gap),
+        "validation_rows_evaluated": int(training_metrics.get("validation_rows_evaluated") or 0),
+        "validation_supervised_loss_before": _finite_float(
+            training_metrics.get("validation_supervised_loss_before")
+        ),
+        "validation_supervised_loss_after": _finite_float(
+            training_metrics.get("validation_supervised_loss_after")
+            if training_metrics.get("validation_supervised_loss_after") is not None
+            else training_metrics.get("validation_supervised_loss")
+        ),
+        "train_val_generalization_gap": _finite_float(
+            training_metrics.get("train_val_generalization_gap")
+        ),
+        "overfit_gap_warning": bool(training_metrics.get("overfit_gap_warning") is True),
+    }
+    if not guard_active:
+        decision["checkpoint_promotion_reason"] = "VALIDATION_GUARD_DISABLED"
+        return decision
+    if not prior_checkpoint_loadable:
+        decision["checkpoint_promotion_reason"] = "NO_PRIOR_CHECKPOINT_TO_RESTORE"
+        return decision
+    if decision["validation_rows_evaluated"] <= 0:
+        decision["checkpoint_promotion_reason"] = "NO_VALIDATION_ROWS"
+        return decision
+    before = decision["validation_supervised_loss_before"]
+    after = decision["validation_supervised_loss_after"]
+    if before is None or after is None:
+        decision["checkpoint_promotion_reason"] = "VALIDATION_SIGNAL_UNAVAILABLE"
+        return decision
+    loss_delta = after - before
+    decision["validation_loss_delta"] = round(loss_delta, 8)
+    effective_tolerance = max(abs_loss_increase_floor, rel_loss_increase_frac * abs(before))
+    decision["max_validation_loss_increase"] = round(effective_tolerance, 8)
+    if loss_delta > effective_tolerance:
+        decision.update(
+            {
+                "checkpoint_promotion_allowed": False,
+                "checkpoint_promotion_rejected": True,
+                "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+            }
+        )
+        return decision
+    if reject_overfit_gap and decision["overfit_gap_warning"]:
+        decision.update(
+            {
+                "checkpoint_promotion_allowed": False,
+                "checkpoint_promotion_rejected": True,
+                "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+            }
+        )
+        return decision
+    return decision
+
+
 def _increment_rejection_reason(counts: dict[str, int], reason: Any) -> None:
     text = str(reason or "").strip()
     if not text or text.upper() == "NONE":
@@ -167,17 +291,22 @@ def run_hybrid_trainer_cycle(
     publish: bool = True,
     replay_buffer: Any | None = None,
     trusted_replay_archive_root: "Path | None" = None,
+    prefetched_backfill_examples: list[Any] | None = None,
 ) -> HybridRuntimeResult:
     config.validate_safety()
     safe_io = io or V2OnlyJsonIO(client=None)
     loader = V2HybridTrainerDataLoader(io=safe_io, trusted_replay_archive_root=trusted_replay_archive_root)
-    prediction_examples = loader.load_training_examples(
+    data_loader_started = time.perf_counter()
+    _stage_started = time.perf_counter()
+    prediction_examples = loader.load_prediction_grid_examples(
         symbols=config.symbols,
         timeframes=config.timeframes,
         limit=config.max_training_rows_per_cycle,
-        trusted_only=False,
         snapshot_fast_path=True,
+        max_workers=min(max(1, int(config.parallel_env_workers)), 16),
     )
+    prediction_load_ms = round((time.perf_counter() - _stage_started) * 1000.0, 3)
+    _stage_started = time.perf_counter()
     fresh_examples = loader.load_training_examples(
         symbols=config.symbols,
         timeframes=config.timeframes,
@@ -185,17 +314,52 @@ def run_hybrid_trainer_cycle(
         trusted_only=True,
         closed_trade_only=True,
     )
+    fresh_load_ms = round((time.perf_counter() - _stage_started) * 1000.0, 3)
+    _stage_started = time.perf_counter()
     trusted_replay_examples = loader.load_trusted_replay_examples(
         limit=_trusted_replay_load_limit_for_cycle(
             max_training_rows_per_cycle=config.max_training_rows_per_cycle,
             replay_buffer=replay_buffer,
         ),
     )
+    frontier_load_ms = round((time.perf_counter() - _stage_started) * 1000.0, 3)
+    _stage_started = time.perf_counter()
+    # Historical backfill lane: when the in-memory buffer is under half full
+    # (e.g. after a restart) the frontier lane alone refills it only at live
+    # production rate while ~1.7M labelable archive rows sit behind the
+    # frontier cursor. Top up from history with a separate cursor that never
+    # touches the frontier cursor.
+    backfill_examples: list[Any] = []
+    buffer_maxlen = getattr(replay_buffer, "maxlen", None) if replay_buffer is not None else None
+    if prefetched_backfill_examples:
+        # Resident pipeline mode: a background prefetcher built these rows
+        # WHILE the previous cycle trained on GPU, so the cycle no longer pays
+        # the archive tensor-build cost synchronously.
+        backfill_examples = list(prefetched_backfill_examples)
+    elif buffer_maxlen:
+        # Cold start (empty prefetch queue) or non-resident mode: fall back to
+        # the synchronous backfill so the buffer never starves.
+        occupancy = len(replay_buffer) + len(trusted_replay_examples)
+        if occupancy < int(buffer_maxlen) // 2:
+            backfill_examples = loader.load_trusted_replay_examples(
+                limit=max(0, int(buffer_maxlen) - occupancy),
+                backfill=True,
+            )
+    backfill_load_ms = round((time.perf_counter() - _stage_started) * 1000.0, 3)
+    data_loader_elapsed_ms = round((time.perf_counter() - data_loader_started) * 1000.0, 3)
+    data_loader_stage_ms = {
+        "prediction_load_ms": prediction_load_ms,
+        "fresh_load_ms": fresh_load_ms,
+        "frontier_load_ms": frontier_load_ms,
+        "backfill_load_ms": backfill_load_ms,
+        "prefetched_backfill_rows": len(prefetched_backfill_examples or []),
+        "prediction_grid_load": dict(getattr(loader, "last_prediction_grid_load", {}) or {}),
+    }
     # Feed loader-approved trusted rows into the replay buffer, but keep each
     # resident cycle bounded so current prediction publication stays fresh.
     # Prediction publication stays on the fresh current grid, not replayed rows.
     training_examples = _select_training_examples_for_cycle(
-        fresh_examples=[*trusted_replay_examples, *fresh_examples],
+        fresh_examples=[*backfill_examples, *trusted_replay_examples, *fresh_examples],
         replay_buffer=replay_buffer,
         max_training_rows_per_cycle=config.max_training_rows_per_cycle,
     )
@@ -207,6 +371,16 @@ def run_hybrid_trainer_cycle(
     checkpoint_manager = V2HybridCheckpointManager(config.model_dir)
     checkpoint_load = checkpoint_manager.load_latest_weights(model)
     trainer = V2HybridPPOTrainer(model=model, clip_epsilon=config.ppo_clip_epsilon)
+    checkpoint_promotion = {
+        "checkpoint_promotion_guard_active": _bool_env("V2_TRAINER_VALIDATION_CHECKPOINT_GUARD", True),
+        "checkpoint_promotion_allowed": False,
+        "checkpoint_promotion_rejected": False,
+        "checkpoint_promotion_reason": "NO_TRAINING_EXAMPLES",
+        "prior_checkpoint_loadable": bool(
+            checkpoint_load.get("latest_checkpoint_loadable")
+            and checkpoint_load.get("model_state_restored")
+        ),
+    }
     if training_examples:
         training = trainer.train(
             training_examples,
@@ -214,21 +388,84 @@ def run_hybrid_trainer_cycle(
             batch_size=config.batch_size,
             validation_fraction=config.validation_fraction,
         )
-        checkpoint = checkpoint_manager.write_checkpoint(
-            model=model,
-            input_dim=input_dim,
-            device=model.device,
-            cuda_active=model.cuda_active,
-            write_weight_blob=config.allow_weight_artifact_write,
+        checkpoint_promotion = _checkpoint_promotion_decision(
+            training_metrics=training.metrics,
+            checkpoint_load=checkpoint_load,
         )
+        # Rejection-streak escape: the validation guard must never freeze durable
+        # learning indefinitely. After N consecutive rejections force one promotion
+        # so the brain persists (avoids a permanent BLOCKED_NO_DURABLE_WEIGHT_UPDATE
+        # deadlock), then the streak resets. State is process-local (the persistent
+        # loop is one long-running process) so it does not depend on Redis IO.
+        _prior_reject_streak = int(_PROMOTION_REJECTION_STREAK.get("count", 0))
+        _max_promotion_reject_streak = max(
+            1, int(_float_env("V2_TRAINER_MAX_PROMOTION_REJECTION_STREAK", 3))
+        )
+        checkpoint_promotion["prior_promotion_rejection_streak"] = _prior_reject_streak
+        checkpoint_promotion["max_promotion_rejection_streak"] = _max_promotion_reject_streak
+        if (
+            checkpoint_promotion.get("checkpoint_promotion_rejected")
+            and _prior_reject_streak + 1 >= _max_promotion_reject_streak
+        ):
+            checkpoint_promotion.update(
+                {
+                    "checkpoint_promotion_allowed": True,
+                    "checkpoint_promotion_rejected": False,
+                    "checkpoint_promotion_reason": "FORCED_PROMOTE_AFTER_REJECTION_STREAK",
+                    "forced_promote_after_rejection_streak": _prior_reject_streak + 1,
+                }
+            )
+        _new_reject_streak = (
+            0 if checkpoint_promotion["checkpoint_promotion_allowed"] else _prior_reject_streak + 1
+        )
+        _PROMOTION_REJECTION_STREAK["count"] = _new_reject_streak
+        checkpoint_promotion["promotion_rejection_streak_after"] = _new_reject_streak
+        if checkpoint_promotion["checkpoint_promotion_allowed"]:
+            checkpoint = checkpoint_manager.write_checkpoint(
+                model=model,
+                input_dim=input_dim,
+                device=model.device,
+                cuda_active=model.cuda_active,
+                write_weight_blob=config.allow_weight_artifact_write,
+            )
+            checkpoint_reload = checkpoint_manager.load_latest_weights(
+                V2HybridPolicyModel(input_dim=input_dim)
+            )
+            checkpoint_weight_blob_written_this_cycle = bool(checkpoint.weight_blob_written)
+        else:
+            restore_after_rejection = checkpoint_manager.load_latest_weights(model)
+            checkpoint_promotion["checkpoint_restore_after_rejection_status"] = (
+                restore_after_rejection.get("load_status")
+            )
+            checkpoint_promotion["checkpoint_restore_after_rejection_verified"] = bool(
+                restore_after_rejection.get("latest_checkpoint_loadable")
+                and restore_after_rejection.get("model_state_restored")
+            )
+            if not checkpoint_promotion["checkpoint_restore_after_rejection_verified"]:
+                raise RuntimeError(
+                    "validation checkpoint promotion rejected and prior checkpoint restore failed"
+                )
+            checkpoint = checkpoint_manager.latest_manifest(input_dim=input_dim) or CheckpointManifest(
+                checkpoint_id=f"v2_hybrid_rejected_candidate_{model.model_id[-24:]}",
+                checkpoint_source=CHECKPOINT_SOURCE,
+                path="",
+                generated_utc=_utc_iso(),
+                model_id=model.model_id,
+                input_dim=input_dim,
+                device=model.device,
+                cuda_active=model.cuda_active,
+                weight_blob_written=False,
+                weight_file_path=None,
+                weight_file_format=None,
+                weight_file_size_bytes=None,
+            )
+            checkpoint_reload = restore_after_rejection
+            checkpoint_weight_blob_written_this_cycle = False
         checkpoint_hash = _sha256_file(checkpoint.weight_file_path)
-        reload_probe = V2HybridPolicyModel(input_dim=input_dim)
-        checkpoint_reload = checkpoint_manager.load_latest_weights(reload_probe)
         checkpoint_reload_verified = bool(
             checkpoint_reload.get("latest_checkpoint_loadable")
             and checkpoint_reload.get("model_state_restored")
         )
-        checkpoint_weight_blob_written_this_cycle = bool(checkpoint.weight_blob_written)
     else:
         training = trainer.train(
             [],
@@ -254,6 +491,20 @@ def run_hybrid_trainer_cycle(
         checkpoint_reload = checkpoint_load
         checkpoint_reload_verified = False
         checkpoint_weight_blob_written_this_cycle = False
+    # GPU-fast policy backtest: one batched eval pass of the CURRENT policy
+    # over the labeled replay rows already in memory. Readiness evidence only;
+    # never A+ evidence (see policy_backtest module contract).
+    policy_backtest_report = run_policy_archive_backtest(
+        model=model,
+        examples=training_examples,
+    )
+    if safe_io is not None:
+        try:
+            safe_io.set_json(
+                "v2:trainer:hybrid_cuda:policy_backtest_report", policy_backtest_report
+            )
+        except Exception:
+            pass
     env_examples = training_examples if training_examples else prediction_examples
     env = V2PaperShadowHybridEnv(env_examples[: min(8, len(env_examples))])
     env_obs, env_info = env.reset()
@@ -336,11 +587,13 @@ def run_hybrid_trainer_cycle(
         and parameter_hash_before != parameter_hash_after
         and float(training_metrics.get("weight_delta_norm") or 0.0) > 0.0
     )
-    generated_weight_update_at = (
-        checkpoint.generated_utc
-        if weight_mutated and checkpoint.weight_blob_written and checkpoint_reload_verified
-        else None
+    checkpoint_promoted_this_cycle = bool(
+        weight_mutated
+        and checkpoint_promotion.get("checkpoint_promotion_allowed") is True
+        and checkpoint.weight_blob_written
+        and checkpoint_reload_verified
     )
+    generated_weight_update_at = checkpoint.generated_utc if checkpoint_promoted_this_cycle else None
     rows_rejected_by_reason = dict(training_metrics.get("training_rejection_reason_counts") or {})
     if not rows_rejected_by_reason and int(training_metrics.get("trusted_rows_loaded") or 0) <= 0:
         rows_rejected_by_reason.update(_feedback_quarantine_rejection_counts(safe_io))
@@ -361,10 +614,18 @@ def run_hybrid_trainer_cycle(
             "optimizer_steps_total": optimizer_steps_this_cycle,
             "optimizer_steps_last_hour": optimizer_steps_this_cycle,
             "checkpoint_weight_blob_written": checkpoint_weight_blob_written_this_cycle,
+            "checkpoint_candidate_weight_mutated": weight_mutated,
+            "checkpoint_promoted_this_cycle": checkpoint_promoted_this_cycle,
             "checkpoint_path": checkpoint.weight_file_path,
             "checkpoint_hash": checkpoint_hash,
             "checkpoint_reload_verified": checkpoint_reload_verified,
             "last_successful_weight_update_at": generated_weight_update_at,
+            "data_loader_time_ms": data_loader_elapsed_ms,
+            "data_loader_stage_ms": data_loader_stage_ms,
+            "trusted_replay_frontier_scan": dict(getattr(loader, "last_trusted_replay_scan", {}) or {}),
+            "trusted_replay_backfill_scan": dict(
+                getattr(loader, "last_trusted_replay_backfill_scan", {}) or {}
+            ),
         }
     )
     readiness = build_learning_readiness(
@@ -410,7 +671,19 @@ def run_hybrid_trainer_cycle(
         "throughput_predictions_per_second": round(len(predictions) / prediction_elapsed, 6),
         "training_steps_per_minute": training_metrics.get("training_steps_per_minute"),
         "tensor_rows_per_second": training_metrics.get("tensor_rows_per_second"),
-        "backtest_rows_per_second": None,
+        "data_loader_time_ms": training_metrics.get("data_loader_time_ms"),
+        "gpu_train_time_ms": training_metrics.get("gpu_train_time_ms"),
+        "cpu_train_time_ms": training_metrics.get("cpu_train_time_ms"),
+        "backtest_rows_per_second": policy_backtest_report.get("backtest_rows_per_second"),
+        "policy_backtest": {
+            "status": policy_backtest_report.get("status"),
+            "rows_evaluated": policy_backtest_report.get("rows_evaluated"),
+            "win_rate": policy_backtest_report.get("win_rate"),
+            "expectancy_after_cost_bps": policy_backtest_report.get("expectancy_after_cost_bps"),
+            "profit_factor_proxy": policy_backtest_report.get("profit_factor_proxy"),
+            "a_plus_readiness_signal": policy_backtest_report.get("a_plus_readiness_signal"),
+            "evidence_class": policy_backtest_report.get("evidence_class"),
+        },
         "oom_count": training_metrics.get("oom_count", 0),
         "vram_target_mb": training_metrics.get("vram_target_mb"),
         "vram_reserved_mb": training_metrics.get("vram_reserved_mb"),
@@ -428,6 +701,10 @@ def run_hybrid_trainer_cycle(
         "fresh_examples_built": len(fresh_examples),
         "trusted_replay_examples_built": len(trusted_replay_examples),
         "trusted_replay_scan": dict(getattr(loader, "last_trusted_replay_scan", {}) or {}),
+        "trusted_replay_backfill_examples_built": len(backfill_examples),
+        "trusted_replay_backfill_scan": dict(
+            getattr(loader, "last_trusted_replay_backfill_scan", {}) or {}
+        ),
         "prediction_examples_built": len(prediction_examples),
         "prediction_failure_count": len(prediction_failure_rows),
         "prediction_failure_rows_sample": prediction_failure_rows[:10],
@@ -445,6 +722,24 @@ def run_hybrid_trainer_cycle(
         "checkpoint_guard_active": True,
         "stale_checkpoints_rejected": True,
         "checkpoint_shape_guard": "latest_manifest(input_dim=runtime_input_dim)",
+        "checkpoint_promotion_guard_active": checkpoint_promotion.get(
+            "checkpoint_promotion_guard_active"
+        ),
+        "checkpoint_promotion_allowed": checkpoint_promotion.get(
+            "checkpoint_promotion_allowed"
+        ),
+        "checkpoint_promotion_rejected": checkpoint_promotion.get(
+            "checkpoint_promotion_rejected"
+        ),
+        "checkpoint_promotion_reason": checkpoint_promotion.get(
+            "checkpoint_promotion_reason"
+        ),
+        "checkpoint_candidate_weight_mutated": training_metrics.get(
+            "checkpoint_candidate_weight_mutated"
+        ),
+        "checkpoint_promoted_this_cycle": training_metrics.get(
+            "checkpoint_promoted_this_cycle"
+        ),
         "ppo_provider_feature_mask_count": len(_provider_feature_names()),
         "masa_provider_feature_mask_count": len(_provider_feature_names()),
         "provider_feature_names": _provider_feature_names(),
@@ -460,6 +755,67 @@ def run_hybrid_trainer_cycle(
         "online_learning_status": training_metrics["online_learning_status"],
         "effective_trainer_mode": training_metrics["effective_trainer_mode"],
         "last_successful_weight_update_at": training_metrics["last_successful_weight_update_at"],
+        "learning_metrics": {
+            "training_steps": training.training_steps,
+            "optimizer_steps_this_cycle": training_metrics.get(
+                "optimizer_steps_this_cycle"
+            ),
+            "loss_before": training.loss_before,
+            "loss_after": training.loss_after,
+            "weight_delta_norm": training_metrics.get("weight_delta_norm"),
+            "parameter_hash_before": training_metrics.get("parameter_hash_before"),
+            "parameter_hash_after": training_metrics.get("parameter_hash_after"),
+            "learning_update_lane": training_metrics.get("learning_update_lane"),
+            "ppo_objective_used": training_metrics.get("ppo_objective_used"),
+            "ppo_policy_loss": training_metrics.get("ppo_policy_loss"),
+            "ppo_value_loss": training_metrics.get("ppo_value_loss"),
+            "ppo_entropy": training_metrics.get("ppo_entropy"),
+            "masa_loss": training_metrics.get("masa_loss"),
+            "expected_move_loss": training_metrics.get("expected_move_loss"),
+            "confidence_loss": training_metrics.get("confidence_loss"),
+            # Out-of-sample generalization signal + tunable regularization knobs
+            # (edge-recovery repair: the held-out split is now actually evaluated).
+            "validation_supervised_loss": training_metrics.get("validation_supervised_loss"),
+            "validation_supervised_loss_before": training_metrics.get(
+                "validation_supervised_loss_before"
+            ),
+            "validation_supervised_loss_after": training_metrics.get(
+                "validation_supervised_loss_after"
+            ),
+            "validation_loss_delta": training_metrics.get("validation_loss_delta"),
+            "validation_improved": training_metrics.get("validation_improved"),
+            "validation_rows_evaluated": training_metrics.get("validation_rows_evaluated"),
+            "train_val_generalization_gap": training_metrics.get("train_val_generalization_gap"),
+            "overfit_gap_warning": training_metrics.get("overfit_gap_warning"),
+            "checkpoint_promotion_guard_active": checkpoint_promotion.get(
+                "checkpoint_promotion_guard_active"
+            ),
+            "checkpoint_promotion_allowed": checkpoint_promotion.get(
+                "checkpoint_promotion_allowed"
+            ),
+            "checkpoint_promotion_rejected": checkpoint_promotion.get(
+                "checkpoint_promotion_rejected"
+            ),
+            "checkpoint_promotion_reason": checkpoint_promotion.get(
+                "checkpoint_promotion_reason"
+            ),
+            "checkpoint_candidate_weight_mutated": training_metrics.get(
+                "checkpoint_candidate_weight_mutated"
+            ),
+            "checkpoint_promoted_this_cycle": training_metrics.get(
+                "checkpoint_promoted_this_cycle"
+            ),
+            "checkpoint_restore_after_rejection_status": checkpoint_promotion.get(
+                "checkpoint_restore_after_rejection_status"
+            ),
+            "checkpoint_restore_after_rejection_verified": checkpoint_promotion.get(
+                "checkpoint_restore_after_rejection_verified"
+            ),
+            "entropy_coefficient": training_metrics.get("entropy_coefficient"),
+            "supervised_entropy_bonus": training_metrics.get("supervised_entropy_bonus"),
+            "weight_decay": training_metrics.get("weight_decay"),
+            "model_dropout": training_metrics.get("model_dropout"),
+        },
         "risk_caps_configured": config.risk_caps_configured,
         "legacy_behavior_references": LEGACY_BEHAVIOR_REFERENCES,
         "legacy_hybrid_parity_claim": "V2_FULL_FUNCTION_PARITY_BY_NATIVE_TRAINER_AND_V2_RUNTIME_OWNERSHIP",
@@ -489,6 +845,13 @@ def run_hybrid_trainer_cycle(
             "batch_covers_available_examples": training.metrics.get("batch_covers_available_examples", False),
             "available_examples": training.metrics.get("available_examples", len(training_examples)),
             "selected_examples": training.metrics.get("selected_examples", training.train_rows + training.validation_rows),
+            "data_loader_time_ms": data_loader_elapsed_ms,
+            "gpu_train_time_ms": training_metrics.get("gpu_train_time_ms"),
+            "cpu_prep_bottleneck": bool(
+                data_loader_elapsed_ms
+                > float(training_metrics.get("train_elapsed_ms") or 0.0)
+                and training_metrics.get("gpu_train_time_ms") is not None
+            ),
         },
         "cuda_cpu_resource_utilization": resource_utilization,
         "model_architecture": model.architecture_status(),
@@ -509,6 +872,7 @@ def run_hybrid_trainer_cycle(
         "checkpoint": checkpoint_manager.status(checkpoint),
         "checkpoint_load": checkpoint_load,
         "checkpoint_reload": checkpoint_reload,
+        "checkpoint_promotion": checkpoint_promotion,
         "checkpoint_hash": checkpoint_hash,
         "checkpoint_reload_verified": checkpoint_reload_verified,
         "data_coverage_min": min((p["data_coverage_percent"] for p in predictions), default=0.0),

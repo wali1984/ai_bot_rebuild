@@ -1,7 +1,7 @@
 export const pwaManifest = {
   name: "NERVYX ONE",
   short_name: "NERVYX ONE",
-  description: "Adaptive Market Intelligence with operator-gated execution controls.",
+  description: "Adaptive Market Intelligence with approval-gated execution controls.",
   display: "standalone",
   start_url: "/",
   scope: "/",

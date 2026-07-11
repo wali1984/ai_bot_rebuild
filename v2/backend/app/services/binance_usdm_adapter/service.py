@@ -66,14 +66,19 @@ CREDENTIAL_ENV_KEYS: Tuple[str, ...] = tuple(
     dict.fromkeys(name for pair in CREDENTIAL_ENV_KEY_PAIRS for name in pair)
 )
 
-# Documented audit-only legacy REST paths. The stub never opens a
-# network connection to these endpoints; they appear here as audit
-# strings so the GUI and audit ledger can link the refusal surface to
-# the legacy operation it replaces.
-LEGACY_READONLY_REST_PATHS: Tuple[str, ...] = (
+# Documented audit-only WebSocket API methods and legacy REST fallback paths.
+# The stub never opens a network connection; these appear here as audit strings
+# so the GUI and audit ledger can link the refusal surface to the operation it
+# replaces.
+READONLY_WEBSOCKET_API_METHODS: Tuple[str, ...] = (
+    "account.status",
+    "account.position",
+)
+LEGACY_READONLY_REST_FALLBACK_PATHS: Tuple[str, ...] = (
     "/fapi/v3/account",
     "/fapi/v2/positionRisk",
 )
+LEGACY_READONLY_REST_PATHS = LEGACY_READONLY_REST_FALLBACK_PATHS
 
 
 class BlockedGateNotApprovedError(RuntimeError):

@@ -51,7 +51,7 @@ function resolveGateLabel(p: LiveGateRuntimePayload | null | undefined): string 
   if (p.live_order_submit_allowed === false || p.live_blocked === true) {
     return p.live_blocker ?? 'BLOCKED';
   }
-  return p.live_gate ?? 'operator gated';
+  return p.live_gate ?? 'approval gated';
 }
 
 interface TrainingMetrics {
@@ -269,6 +269,17 @@ interface TrainerPayload {
 }
 
 interface EnterpriseAiPageContract {
+  ppo_on_policy?: {
+    objective_used?: boolean;
+    clipped_surrogate_active?: boolean;
+    why_surrogate_inactive?: string | null;
+    rows_pending?: number | null;
+    rows_consumed?: number | null;
+    learning_update_lane?: string | null;
+    open_positions_waiting_for_close?: number | null;
+    closed_positions_ready_for_ppo?: number | null;
+    last_consumed_utc?: string | null;
+  };
   ppo_tensor_provider_features?: boolean;
   masa_tensor_provider_features?: boolean;
   provider_feature_count_by_provider?: Record<string, number>;
@@ -311,7 +322,7 @@ function runtimeLabel(value: unknown, fallback = 'current runtime pending'): str
   const text = String(value);
   const sanitized = text
     .replace(/payload/gi, 'source')
-    .replace(/operator_dashboard/gi, 'operator monitor')
+    .replace(/operator_dashboard/gi, 'approval monitor')
     .replace(/operator_runtime/gi, 'runtime source')
     .replace(/paper/gi, 'runtime');
   const labels: Record<string, string> = {
@@ -787,6 +798,24 @@ export default function AiBrainPage(): JSX.Element {
       >
         <div className="cockpit-analytics-grid">
           <Metric label="PPO tensor" value={aiPageContract?.ppo_tensor_provider_features ? 'provider features visible' : 'pending'} />
+          <Metric
+            label="PPO clipped-surrogate"
+            value={aiPageContract?.ppo_on_policy?.clipped_surrogate_active
+              ? 'active'
+              : `inactive — ${aiPageContract?.ppo_on_policy?.why_surrogate_inactive ?? 'no on-policy rows consumed yet'}`}
+          />
+          <Metric
+            label="PPO rows pending / consumed"
+            value={`${aiPageContract?.ppo_on_policy?.rows_pending ?? 0} / ${aiPageContract?.ppo_on_policy?.rows_consumed ?? 0}`}
+          />
+          <Metric
+            label="Learning lane"
+            value={runtimeLabel(aiPageContract?.ppo_on_policy?.learning_update_lane ?? 'outcome_supervised')}
+          />
+          <Metric
+            label="Policy positions open / closed-ready"
+            value={`${aiPageContract?.ppo_on_policy?.open_positions_waiting_for_close ?? 0} / ${aiPageContract?.ppo_on_policy?.closed_positions_ready_for_ppo ?? 0}`}
+          />
           <Metric label="MASA tensor" value={aiPageContract?.masa_tensor_provider_features ? 'provider features visible' : 'pending'} />
           <Metric label="Confluence" value={enterpriseAiPayload?.provider_confluence_available ? 'available' : 'pending'} />
           <Metric label="Last 50 contribution" value={String((aiPageContract?.provider_contribution_last_50 as { status?: string } | undefined)?.status ?? 'not available')} />
@@ -974,7 +1003,7 @@ export default function AiBrainPage(): JSX.Element {
           <Metric label="Live blocker" value={runtimeLabel(actionabilityPayload?.live?.live_order_submit_blocker ?? payload?.live_order_submit_blocker)} />
         </div>
         <p className="cockpit-evidence-note">
-          Current actionability is running under operator-governed execution. Live thresholds and live submit remain unchanged.
+          Current actionability is running under approval-governed execution. Live thresholds and live submit remain unchanged.
         </p>
       </Panel>
 

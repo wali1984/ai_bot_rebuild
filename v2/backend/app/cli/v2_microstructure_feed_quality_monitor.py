@@ -283,6 +283,47 @@ def _read_trades(redis_client: Any, symbol: str) -> list[Mapping[str, Any]]:
     return []
 
 
+def _open_interest_hist_change_pct(payload: Any) -> float | None:
+    if isinstance(payload, Mapping):
+        direct = _float(
+            _first_present(
+                payload.get("change_pct"),
+                payload.get("oi_change_pct"),
+                payload.get("open_interest_change_pct"),
+            )
+        )
+        if direct is not None:
+            return direct
+        rows = payload.get("rows") or payload.get("data") or payload.get("items")
+    else:
+        rows = payload
+    if not isinstance(rows, list) or len(rows) < 2:
+        return None
+    first = next((row for row in rows if isinstance(row, Mapping)), None)
+    last = next((row for row in reversed(rows) if isinstance(row, Mapping)), None)
+    if first is None or last is None:
+        return None
+    first_oi = _float(
+        _first_present(
+            first.get("sumOpenInterest"),
+            first.get("openInterest"),
+            first.get("open_interest"),
+            first.get("sumOpenInterestValue"),
+        )
+    )
+    last_oi = _float(
+        _first_present(
+            last.get("sumOpenInterest"),
+            last.get("openInterest"),
+            last.get("open_interest"),
+            last.get("sumOpenInterestValue"),
+        )
+    )
+    if first_oi is None or last_oi is None or first_oi <= 0:
+        return None
+    return (last_oi - first_oi) / first_oi
+
+
 def _read_context(redis_client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
     normalized = symbol.upper()
     liquidation = {}
@@ -298,12 +339,62 @@ def _read_context(redis_client: Any, symbol: str, timeframe: str) -> dict[str, A
     long_short_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:long_short:{normalized}")
     funding_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:funding:{normalized}")
     oi_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest:{normalized}")
+    oi_hist_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest_hist:{normalized}:5m")
     price_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}market:prices:{normalized}")
+    coinglass_payload = _safe_get_json(redis_client, f"{V2_REDIS_PREFIX}features:coinglass:{normalized}:1m")
+    coinglass_features = (
+        coinglass_payload.get("features")
+        if isinstance(coinglass_payload, Mapping) and isinstance(coinglass_payload.get("features"), Mapping)
+        else {}
+    )
+    long_short_ratio = _float(
+        _first_present(
+            (long_short_payload or {}).get("long_short_ratio") if isinstance(long_short_payload, dict) else None,
+            (long_short_payload or {}).get("longShortRatio") if isinstance(long_short_payload, dict) else None,
+        )
+    )
+    if long_short_ratio is None:
+        cg_long = _float(coinglass_features.get("coinglass_long_ratio"))
+        cg_short = _float(coinglass_features.get("coinglass_short_ratio"))
+        if cg_long is not None and cg_short is not None and cg_short > 0:
+            long_short_ratio = cg_long / cg_short
+    funding_rate = _float(
+        _first_present(
+            (funding_payload or {}).get("funding_rate") if isinstance(funding_payload, dict) else None,
+            (funding_payload or {}).get("lastFundingRate") if isinstance(funding_payload, dict) else None,
+            (funding_payload or {}).get("fundingRate") if isinstance(funding_payload, dict) else None,
+        )
+    )
+    if funding_rate is None:
+        cg_funding = _float(coinglass_features.get("coinglass_funding_rate"))
+        if cg_funding is not None:
+            funding_rate = cg_funding / 100.0 if abs(cg_funding) > 0.01 else cg_funding
+    oi_change = _float(
+        _first_present(
+            (oi_payload or {}).get("open_interest_change_pct") if isinstance(oi_payload, dict) else None,
+            (oi_payload or {}).get("openInterestChangePct") if isinstance(oi_payload, dict) else None,
+            coinglass_features.get("coinglass_open_interest_change_pct"),
+            coinglass_features.get("coinglass_open_interest_delta_pct_5m"),
+            coinglass_features.get("coinglass_open_interest_delta_pct_1h"),
+        )
+    )
+    if oi_change is None:
+        oi_change = _open_interest_hist_change_pct(oi_hist_payload)
+    if oi_change is None:
+        oi_delta = _float(
+            _first_present(
+                coinglass_features.get("coinglass_open_interest_delta_usd_5m"),
+                coinglass_features.get("coinglass_open_interest_delta_usd_1h"),
+            )
+        )
+        oi_usd = _float(coinglass_features.get("coinglass_open_interest_usd"))
+        if oi_delta is not None and oi_usd is not None and oi_usd > 0:
+            oi_change = oi_delta / oi_usd
     return {
         "liquidation": liquidation if isinstance(liquidation, dict) else {},
-        "long_short_ratio": _float((long_short_payload or {}).get("long_short_ratio") if isinstance(long_short_payload, dict) else None),
-        "funding_rate": _float((funding_payload or {}).get("funding_rate") if isinstance(funding_payload, dict) else None),
-        "open_interest_change_pct": _float((oi_payload or {}).get("open_interest_change_pct") if isinstance(oi_payload, dict) else None),
+        "long_short_ratio": long_short_ratio,
+        "funding_rate": funding_rate,
+        "open_interest_change_pct": oi_change,
         "mark_price": _float((price_payload or {}).get("mark_price") if isinstance(price_payload, dict) else None),
         "index_price": _float((price_payload or {}).get("index_price") if isinstance(price_payload, dict) else None),
         "basis_bps": _float((price_payload or {}).get("basis_bps") if isinstance(price_payload, dict) else None),
@@ -316,28 +407,56 @@ def _book_imbalance(payload: Mapping[str, Any] | None) -> float | None:
     return _float(_first_present(payload.get("depth_imbalance"), payload.get("orderbook_imbalance")))
 
 
+_HARD_COMBINED_FEED_FAIL_REASONS = {
+    "AVAILABLE_AT_AFTER_DECISION_TIME",
+    "UNREPAIRED_SEQUENCE_GAP",
+    "OUT_OF_ORDER_UPDATES_PRESENT",
+}
+
+
 def _combine_feed_quality(rows: list[Mapping[str, Any]]) -> dict[str, Any]:
     if not rows:
         row = evaluate_feed_quality(exchange="none", symbol="UNKNOWN", update_count=0)
         row["fail_reasons"] = sorted(set(list(row.get("fail_reasons") or []) + ["NO_EXCHANGE_FEED_ROWS"]))
         row["fail_closed"] = True
         return row
-    scores = [_float(row.get("feed_quality_score")) for row in rows]
+    usable_rows = [row for row in rows if row.get("fail_closed") is not True]
+    hard_fail_rows = [
+        row
+        for row in rows
+        if any(str(reason) in _HARD_COMBINED_FEED_FAIL_REASONS for reason in (row.get("fail_reasons") or []))
+    ]
+    scoring_rows = usable_rows if usable_rows and not hard_fail_rows else rows
+    scores = [_float(row.get("feed_quality_score")) for row in scoring_rows]
     scores = [score for score in scores if score is not None]
-    latencies = [_float(row.get("latency_ms")) for row in rows]
+    latencies = [_float(row.get("latency_ms")) for row in scoring_rows]
     latencies = [latency for latency in latencies if latency is not None]
+    all_fail_reasons = sorted({str(reason) for row in rows for reason in (row.get("fail_reasons") or [])})
+    warning_reasons = sorted(
+        {
+            f"{row.get('exchange') or 'unknown'}:{reason}"
+            for row in rows
+            if row not in scoring_rows
+            for reason in (row.get("fail_reasons") or [])
+        }
+    )
+    fail_closed = bool(hard_fail_rows) or not bool(usable_rows)
     combined = dict(rows[0])
     combined.update(
         {
             "schema_version": "microstructure_feed_quality_combined_v1",
             "exchange": "multi",
             "source_exchanges": [row.get("exchange") for row in rows],
+            "usable_source_exchanges": [row.get("exchange") for row in usable_rows],
+            "combined_fail_policy": "hard_temporal_or_all_venues_failed",
             "feed_quality_score": min(scores) if scores else 0.0,
             "latency_ms": max(latencies) if latencies else None,
             "local_latency_ms": max(latencies) if latencies else None,
             "sequence_gap_count": sum(int(row.get("sequence_gap_count") or 0) for row in rows),
-            "fail_closed": any(row.get("fail_closed") is True for row in rows),
-            "fail_reasons": sorted({str(reason) for row in rows for reason in (row.get("fail_reasons") or [])}),
+            "fail_closed": fail_closed,
+            "fail_reasons": all_fail_reasons if fail_closed else [],
+            "secondary_feed_warning_reasons": warning_reasons,
+            "all_feed_fail_reasons": all_fail_reasons,
             "generated_at": iso_now(),
         }
     )
@@ -560,6 +679,10 @@ def _build_symbol_rows(
             "direct_binance_kucoin_active": bool(direct_orderbook_sources),
             "feed_quality_fail_closed": bool(combined_feed.get("fail_closed")),
             "feed_quality_fail_reasons": combined_feed.get("fail_reasons") or [],
+            "all_feed_fail_reasons": combined_feed.get("all_feed_fail_reasons") or [],
+            "secondary_feed_warning_reasons": combined_feed.get("secondary_feed_warning_reasons") or [],
+            "usable_source_exchanges": combined_feed.get("usable_source_exchanges") or [],
+            "combined_feed_fail_policy": combined_feed.get("combined_fail_policy"),
             **venue_unavailability,
             "source_availability": {
                 "direct_binance_or_kucoin": bool(direct_orderbook_sources),

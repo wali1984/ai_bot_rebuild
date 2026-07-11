@@ -35,9 +35,16 @@ def simulate_cross_margin_stress(
     hedge = dict(hedge_plan or {})
     hedge_margin = _f(hedge.get("hedge_margin_usd"))
     hedge_cost = _f(hedge.get("hedge_cost_usd"))
+    hedge_risk_reduction = (
+        _f(hedge.get("hedge_expected_risk_reduction_usd"))
+        if hedge.get("hedge_required") is True
+        and hedge.get("hedge_increases_liquidation_risk") is not True
+        else 0.0
+    )
     maintenance = notional * max(0.0, maintenance_margin_rate)
-    stress_used = loss + maintenance + hedge_margin + hedge_cost
-    worst_case_loss = loss + hedge_cost
+    stressed_loss = max(0.0, loss - hedge_risk_reduction)
+    stress_used = stressed_loss + maintenance + hedge_margin + hedge_cost
+    worst_case_loss = stressed_loss + hedge_cost
     buffer = max(0.0, available - stress_used)
     liquidation_buffer_usd = max(0.0, equity - stress_used)
     margin_call_risk = "HIGH" if buffer <= max(1.0, equity * 0.02) else ("MEDIUM" if buffer <= equity * 0.08 else "LOW")
@@ -69,6 +76,7 @@ def simulate_cross_margin_stress(
         "recommended_margin_mode": recommended_margin_mode,
         "isolated_margin_required_usd": round(isolated_margin, 8),
         "cross_margin_stress_used_usd": round(stress_used, 8),
+        "cross_margin_hedge_risk_reduction_usd": round(hedge_risk_reduction, 8),
         "cross_margin_available_buffer_usd": round(buffer, 8),
         "portfolio_liquidation_buffer_usd": round(liquidation_buffer_usd, 8),
         "worst_case_portfolio_loss_usd": round(worst_case_loss, 8),

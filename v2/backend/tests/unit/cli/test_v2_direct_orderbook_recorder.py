@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
@@ -13,10 +14,16 @@ class FakeRedis:
     def __init__(self, store: dict[str, object]):
         self.store = store
         self.read_keys: list[str] = []
+        self.write_calls: list[tuple[str, int | None]] = []
 
     def get(self, key: str):
         self.read_keys.append(key)
         return self.store.get(key)
+
+    def set(self, key: str, value: object, ex: int | None = None):
+        self.write_calls.append((key, ex))
+        self.store[key] = value
+        return True
 
 
 def test_snapshot_seed_limit_reserves_budget_for_live_updates() -> None:
@@ -38,6 +45,42 @@ def test_binance_seed_limit_skips_rest_seed_without_diff_depth() -> None:
         max_messages=120,
         include_diff_depth=True,
     ) == 24
+
+
+def test_binance_websocket_startup_seed_uses_cache_not_rest(monkeypatch, tmp_path) -> None:
+    def fail_rest_seed(*_args, **_kwargs):
+        raise AssertionError("REST depth must not be used as WebSocket startup seed")
+
+    def cached_seed(symbol: str, *, redis_client=None):
+        return {
+            "exchange": "binance",
+            "symbol": symbol.upper(),
+            "type": "websocket_cache_snapshot",
+            "bids": [["100", "1"]],
+            "asks": [["101", "1"]],
+            "sequence_id": 100,
+            "is_snapshot": True,
+            "raw": {"transport": "websocket_cache_primary"},
+        }
+
+    monkeypatch.setattr(recorder, "fetch_binance_snapshot", fail_rest_seed)
+    monkeypatch.setattr(recorder, "_binance_snapshot_from_cache", cached_seed)
+    store = LocalReplayStore(tmp_path / "orderbook_replay")
+
+    rows = asyncio.run(
+        recorder._run_binance_ws(
+            symbols=["BTCUSDT"],
+            books={},
+            replay_store=store,
+            redis_client=None,
+            max_messages=1,
+            speed="100ms",
+            include_diff_depth=True,
+        )
+    )
+
+    assert rows[0]["update_type"] == "websocket_cache_snapshot_seed"
+    assert rows[0]["rest_fallback_used"] is False
 
 
 def test_redis_feature_freshness_status_reports_fresh_key() -> None:
@@ -372,6 +415,48 @@ def test_binance_book_ticker_stream_requires_explicit_flag(monkeypatch, tmp_path
     assert "btcusdt@bookTicker" in opt_in_output["binance_streams"]
 
 
+def test_binance_book_ticker_only_removes_partial_depth_streams(monkeypatch, tmp_path, capsys) -> None:
+    calls: list[dict[str, object]] = []
+
+    async def fake_binance_ws(**kwargs):
+        calls.append(
+            {
+                "include_book_ticker": kwargs["include_book_ticker"],
+                "include_diff_depth": kwargs["include_diff_depth"],
+                "partial_levels": kwargs["partial_levels"],
+            }
+        )
+        return [{"exchange": "binance", "symbol": "BTCUSDT", "update_type": "book_ticker"}]
+
+    monkeypatch.setattr(recorder, "_run_binance_ws", fake_binance_ws)
+
+    assert recorder.main(
+        [
+            "--symbols",
+            "BTCUSDT,ETHUSDT",
+            "--exchange",
+            "binance",
+            "--max-messages",
+            "3",
+            "--binance-book-ticker-only",
+            "--replay-root",
+            str(tmp_path / "replay-book-ticker-only"),
+        ]
+    ) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert calls == [
+        {
+            "include_book_ticker": True,
+            "include_diff_depth": False,
+            "partial_levels": (),
+        }
+    ]
+    assert output["binance_book_ticker_only"] is True
+    assert output["binance_partial_depth_levels"] == []
+    assert output["binance_streams"] == ["btcusdt@bookTicker", "ethusdt@bookTicker"]
+
+
 def test_websocket_close_timeout_is_passed_to_exchange_runner(monkeypatch, tmp_path, capsys) -> None:
     calls: list[float] = []
 
@@ -565,6 +650,8 @@ def test_exchange_both_filters_unsupported_symbols_when_status_enabled(monkeypat
 
 
 def test_fetch_binance_snapshot_rejects_empty_book(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+
     class FakeResponse:
         def __enter__(self):
             return self
@@ -579,6 +666,149 @@ def test_fetch_binance_snapshot_rejects_empty_book(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="binance_snapshot_empty_book"):
         recorder.fetch_binance_snapshot("IPUSDT")
+
+
+def test_fetch_binance_snapshot_blocks_rest_when_fallback_disabled(monkeypatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    monkeypatch.setattr(
+        recorder.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: pytest.fail("REST fallback should be blocked before urlopen"),
+    )
+
+    with pytest.raises(RuntimeError, match="BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY"):
+        recorder.fetch_binance_snapshot("IPUSDT")
+
+
+def test_fetch_binance_snapshot_uses_websocket_cache_before_rest(monkeypatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    monkeypatch.setattr(
+        recorder.urllib.request,
+        "urlopen",
+        lambda *args, **kwargs: pytest.fail("REST fallback should not run when cache has book data"),
+    )
+    redis = FakeRedis(
+        {
+            recorder._depth_key("binance", "IPUSDT"): json.dumps(
+                {
+                    "bids": [["1.00", "10"]],
+                    "asks": [["1.01", "11"]],
+                    "sequence_id": 123,
+                    "source": "binance_public_websocket_orderbook_cache_primary",
+                }
+            )
+        }
+    )
+
+    snapshot = recorder.fetch_binance_snapshot("IPUSDT", redis_client=redis)
+
+    assert snapshot["type"] == "websocket_cache_snapshot"
+    assert snapshot["sequence_id"] == 123
+    assert snapshot["bids"] == [["1.00", "10"]]
+    assert redis.read_keys == [recorder._depth_key("binance", "IPUSDT")]
+
+
+def test_fetch_provider_symbol_support_uses_binance_cache_before_exchangeinfo(monkeypatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+
+    def fake_urlopen(request, *args, **kwargs):
+        url = getattr(request, "full_url", str(request))
+        if "fapi.binance.com" in url:
+            pytest.fail("Binance exchangeInfo REST fallback should not run when cache covers symbol")
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return b'{"data":[]}'
+
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+    redis = FakeRedis(
+        {
+            "v2:exchange:symbol_filters:IPUSDT": json.dumps(
+                {
+                    "symbol": "IPUSDT",
+                    "status": "TRADING",
+                    "contractType": "PERPETUAL",
+                    "baseAsset": "IP",
+                    "quoteAsset": "USDT",
+                }
+            )
+        }
+    )
+
+    support = recorder.fetch_provider_symbol_support(["IPUSDT"], redis_client=redis)
+
+    assert support["binance_cache_primary_count"] == 1
+    assert support["binance"]["IPUSDT"]["orderbook_supported"] is True
+    assert support["binance"]["IPUSDT"]["transport"] == "websocket_cache_primary"
+
+
+def test_fetch_provider_symbol_support_can_seed_filter_cache_from_rest_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+
+    class FakeResponse:
+        def __init__(self, body: bytes):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self._body
+
+    def fake_urlopen(request, *args, **kwargs):
+        url = getattr(request, "full_url", str(request))
+        if "fapi.binance.com" in url:
+            return FakeResponse(
+                json.dumps(
+                    {
+                        "symbols": [
+                            {
+                                "symbol": "IPUSDT",
+                                "status": "TRADING",
+                                "contractType": "PERPETUAL",
+                                "baseAsset": "IP",
+                                "quoteAsset": "USDT",
+                                "filters": [
+                                    {"filterType": "MIN_NOTIONAL", "notional": "5"},
+                                    {"filterType": "LOT_SIZE", "minQty": "1", "stepSize": "1"},
+                                    {"filterType": "PRICE_FILTER", "tickSize": "0.0001"},
+                                ],
+                            }
+                        ]
+                    }
+                ).encode()
+            )
+        return FakeResponse(b'{"data":[]}')
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+    redis = FakeRedis({})
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+    )
+
+    seed = support["symbol_filter_cache_seed"]
+    assert seed["attempted"] is True
+    assert set(seed["written_keys"]) == {
+        "v2:exchange:binance:exchangeInfo",
+        "v2:exchange:symbol_filters",
+        "v2:exchange:symbol_filters:IPUSDT",
+    }
+    assert seed["write_errors"] == []
+    assert "v2:exchange:symbol_filters:IPUSDT" in redis.store
+    assert support["binance"]["IPUSDT"]["transport"] == "rest_fallback"
 
 
 def test_fetch_kucoin_snapshot_rejects_error_payload(monkeypatch) -> None:

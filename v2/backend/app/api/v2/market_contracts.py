@@ -53,6 +53,7 @@ from app.services.market_stream_alert_history import (
 )
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
 from app.services.paper_audit_ledger import local_paper_audit_ledger_metadata, read_local_paper_audit_events
+from app.services.portfolio import build_canonical_pnl
 from app.services.trader_account_repository import TraderPaperAccount, get_trader_account_repository
 from app.services.backend_shutdown import (
     SERVICE_RESTART_CLOSE_CODE,
@@ -65,6 +66,10 @@ from app.services.coinglass_provider import build_coinglass_health
 from app.services.hedge_engine import compute_portfolio_exposure, simulate_cross_margin_stress
 from app.services.provider_features import build_provider_actual_data_panel
 from app.services.smart_money_wallets import build_moralis_health
+from app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_decision,
+)
 
 router = APIRouter(tags=["v2-market-contracts"])
 stream_router = APIRouter(tags=["v2-market-streams"])
@@ -85,11 +90,25 @@ BINANCE_PUBLIC_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_BINANCE_PUBL
 BINANCE_PUBLIC_CACHE_STALE_MAX_SECONDS = float(
     os.environ.get("ALPHAFORGE_BINANCE_PUBLIC_CACHE_STALE_MAX_SECONDS", "60")
 )
+MARKET_OVERVIEW_REDIS_LIMIT = int(os.environ.get("ALPHAFORGE_MARKET_OVERVIEW_REDIS_LIMIT", "250"))
+MARKET_OVERVIEW_REDIS_SYMBOLS = tuple(
+    symbol.strip().upper()
+    for symbol in os.environ.get(
+        "ALPHAFORGE_MARKET_OVERVIEW_REDIS_SYMBOLS",
+        "BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,BNBUSDT,DOGEUSDT,ADAUSDT,LINKUSDT,AVAXUSDT,LTCUSDT,BCHUSDT,DOTUSDT,UNIUSDT,AAVEUSDT,OPUSDT,ARBUSDT,PEPEUSDT",
+    ).split(",")
+    if symbol.strip()
+)
 BINANCE_PUBLIC_JSON_CACHE_LOCK = threading.Lock()
 BINANCE_PUBLIC_JSON_CACHE: dict[str, tuple[float, Any, str]] = {}
 _BINANCE_REFRESH_IN_FLIGHT: set[str] = set()
 READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_READONLY_RESOURCE_RESOLVE_TIMEOUT_SECONDS", "2.5"))
 WEBSOCKET_DISCONNECT_POLL_SECONDS = float(os.environ.get("ALPHAFORGE_WEBSOCKET_DISCONNECT_POLL_SECONDS", "0.25"))
+WEBSOCKET_SEND_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_WEBSOCKET_SEND_TIMEOUT_SECONDS", "0.75"))
+PAPER_ACTIVITY_WS_MAX_ACTIVE = int(os.environ.get("ALPHAFORGE_PAPER_ACTIVITY_WS_MAX_ACTIVE", "16"))
+PAPER_ACTIVITY_WS_MAX_ACTIVE_PER_CLIENT = int(
+    os.environ.get("ALPHAFORGE_PAPER_ACTIVITY_WS_MAX_ACTIVE_PER_CLIENT", "3")
+)
 SIGNALS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_SIGNALS_MATRIX_CACHE_TTL_SECONDS", "2"))
 SIGNALS_MATRIX_CACHE_LOCK = threading.Lock()
 SIGNALS_MATRIX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -97,6 +116,8 @@ PREDICTIONS_MATRIX_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_PREDICTI
 PREDICTIONS_MATRIX_CACHE_LOCK = threading.Lock()
 PREDICTIONS_MATRIX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 PAPER_ACTIVITY_CACHE_LOCK = threading.Lock()
+PAPER_ACTIVITY_WS_LOCK = threading.Lock()
+PAPER_ACTIVITY_WS_BY_CLIENT: dict[str, int] = {}
 PAPER_ACTIVITY_LAST_NON_EMPTY_POSITIONS: dict[str, Any] = {
     "positions": [],
     "updated_monotonic": 0.0,
@@ -443,6 +464,73 @@ def _compact_paper_runtime_contract(payload: dict[str, Any]) -> dict[str, Any]:
             continue
         compact[key] = value
     compact["sample_rows_omitted_from_api"] = True
+    return compact
+
+
+PAPER_RUNTIME_RESPONSE_LIST_LIMIT = 20
+PAPER_RUNTIME_RESPONSE_DICT_LIMIT = 80
+PAPER_RUNTIME_RESPONSE_HEAVY_KEYS = PAPER_RUNTIME_STATUS_SAMPLE_KEYS | {
+    "rows",
+    "source_rows",
+    "sample_decisions",
+    "sample_rows",
+    "sample_reasons",
+    "failed_forward_canary_blocker_details",
+}
+PAPER_RUNTIME_RESPONSE_PRIORITY_KEYS = (
+    "preemptive_edge_control",
+    "preemptive_edge_control_status",
+    "paper_preemptive_admission_status",
+    "paper_no_bad_entry_runtime_status",
+    "positive_edge_probation",
+    "positive_edge_probation_runtime_status",
+    "probation_5_trade_gate",
+    "probation_20_trade_gate",
+    "probation_50_trade_gate",
+)
+
+
+def _compact_paper_runtime_response(value: Any, *, depth: int = 0) -> Any:
+    if isinstance(value, list):
+        if not value:
+            return []
+        trimmed = [
+            _compact_paper_runtime_response(item, depth=depth + 1)
+            for item in value[:PAPER_RUNTIME_RESPONSE_LIST_LIMIT]
+        ]
+        if len(value) > PAPER_RUNTIME_RESPONSE_LIST_LIMIT:
+            trimmed.append({
+                "omitted_count": len(value) - PAPER_RUNTIME_RESPONSE_LIST_LIMIT,
+                "omitted_reason": "primary_api_payload_compaction",
+            })
+        return trimmed
+    if not isinstance(value, dict):
+        return value
+
+    compact: dict[str, Any] = {}
+    items = list(value.items())
+    if depth == 0:
+        priority = [(key, value[key]) for key in PAPER_RUNTIME_RESPONSE_PRIORITY_KEYS if key in value]
+        priority_names = {key for key, _ in priority}
+        items = priority + [(key, item) for key, item in items if key not in priority_names]
+    for index, (key, item) in enumerate(items):
+        if index >= PAPER_RUNTIME_RESPONSE_DICT_LIMIT:
+            compact["omitted_key_count"] = len(items) - PAPER_RUNTIME_RESPONSE_DICT_LIMIT
+            compact["omitted_reason"] = "primary_api_payload_compaction"
+            break
+        if key in PAPER_RUNTIME_RESPONSE_HEAVY_KEYS:
+            if isinstance(item, (list, dict)):
+                compact[f"{key}_count"] = len(item)
+                compact[f"{key}_omitted_from_primary_api"] = True
+                continue
+        if depth >= 6 and isinstance(item, (list, dict)):
+            compact[f"{key}_omitted_from_primary_api"] = True
+            compact[f"{key}_count"] = len(item)
+            continue
+        compact[key] = _compact_paper_runtime_response(item, depth=depth + 1)
+    if depth == 0:
+        compact["primary_api_payload_compacted"] = True
+        compact["debug_detail_route"] = "/api/v2/paper/runtime-status?debug=true"
     return compact
 
 
@@ -836,6 +924,46 @@ async def _close_websocket_for_service_restart(websocket: WebSocket) -> None:
         await websocket.close(code=SERVICE_RESTART_CLOSE_CODE)
 
 
+async def _send_websocket_json_bounded(websocket: WebSocket, payload: Any) -> bool:
+    try:
+        await asyncio.wait_for(
+            websocket.send_json(payload),
+            timeout=max(0.1, WEBSOCKET_SEND_TIMEOUT_SECONDS),
+        )
+        return True
+    except (WebSocketDisconnect, RuntimeError, asyncio.TimeoutError):
+        with contextlib.suppress(Exception):
+            await websocket.close(code=1011)
+        return False
+
+
+def _websocket_client_id(websocket: WebSocket) -> str:
+    if websocket.client and websocket.client.host:
+        return str(websocket.client.host)
+    return "unknown"
+
+
+def _try_register_paper_activity_websocket(client_id: str) -> tuple[bool, int, int]:
+    max_total = max(1, PAPER_ACTIVITY_WS_MAX_ACTIVE)
+    max_client = max(1, PAPER_ACTIVITY_WS_MAX_ACTIVE_PER_CLIENT)
+    with PAPER_ACTIVITY_WS_LOCK:
+        total = sum(PAPER_ACTIVITY_WS_BY_CLIENT.values())
+        client_count = PAPER_ACTIVITY_WS_BY_CLIENT.get(client_id, 0)
+        if total >= max_total or client_count >= max_client:
+            return False, total, client_count
+        PAPER_ACTIVITY_WS_BY_CLIENT[client_id] = client_count + 1
+        return True, total + 1, client_count + 1
+
+
+def _unregister_paper_activity_websocket(client_id: str) -> None:
+    with PAPER_ACTIVITY_WS_LOCK:
+        current = PAPER_ACTIVITY_WS_BY_CLIENT.get(client_id, 0)
+        if current <= 1:
+            PAPER_ACTIVITY_WS_BY_CLIENT.pop(client_id, None)
+        else:
+            PAPER_ACTIVITY_WS_BY_CLIENT[client_id] = current - 1
+
+
 async def _watch_websocket_disconnect(websocket: WebSocket) -> str:
     try:
         while not shutdown_started():
@@ -932,6 +1060,10 @@ def _float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return number if number == number and abs(number) != float("inf") else None
+
+
+def _as_list(value: Any) -> list[Any]:
+    return list(value) if isinstance(value, list) else []
 
 
 def _integer(value: Any) -> int | None:
@@ -1225,7 +1357,213 @@ def _market_stream_alert(telemetry: dict[str, Any]) -> dict[str, Any]:
     return market_stream_alert_from_telemetry(telemetry)
 
 
+def _json_from_redis_raw(raw: Any) -> Any:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except ValueError:
+            return None
+    return raw
+
+
+def _redis_sync_get_json(key: str) -> Any:
+    try:
+        client = get_redis()
+    except Exception:
+        return None
+    if client is None:
+        return None
+    try:
+        return _json_from_redis_raw(client.get(key))
+    except Exception:
+        return None
+
+
+def _redis_sync_scan(pattern: str, *, limit: int = 256) -> list[str]:
+    try:
+        client = get_redis()
+    except Exception:
+        return []
+    if client is None or not hasattr(client, "scan_iter"):
+        return []
+    keys: list[str] = []
+    try:
+        for key in client.scan_iter(match=pattern, count=500):
+            keys.append(key.decode("utf-8", errors="replace") if isinstance(key, bytes) else str(key))
+            if len(keys) >= limit:
+                break
+    except Exception:
+        return []
+    return keys
+
+
+def _ms_from_any(value: Any) -> int | None:
+    number = _float(value)
+    if number is not None:
+        return int(number * 1000) if number < 10_000_000_000 else int(number)
+    if isinstance(value, str):
+        try:
+            return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000)
+        except ValueError:
+            return None
+    return None
+
+
+def _redis_kline_to_binance_row(row: Any) -> list[Any] | None:
+    if isinstance(row, list) and len(row) >= 11:
+        return row
+    if not isinstance(row, dict):
+        return None
+    ohlcv = row.get("ohlcv") if isinstance(row.get("ohlcv"), dict) else {}
+    open_ms = _ms_from_any(row.get("open_time_ms") or row.get("candle_open_time") or row.get("open_time") or row.get("time"))
+    close_ms = _ms_from_any(row.get("close_time_ms") or row.get("candle_close_time") or row.get("close_time"))
+    open_price = row.get("open", ohlcv.get("open"))
+    high = row.get("high", ohlcv.get("high"))
+    low = row.get("low", ohlcv.get("low"))
+    close = row.get("close", ohlcv.get("close"))
+    volume = row.get("volume", ohlcv.get("volume"))
+    if open_ms is None or close_ms is None:
+        return None
+    if any(_float(value) is None for value in (open_price, high, low, close, volume)):
+        return None
+    return [
+        open_ms,
+        str(open_price),
+        str(high),
+        str(low),
+        str(close),
+        str(volume),
+        close_ms,
+        str(row.get("quote_volume") or row.get("quoteVolume") or ohlcv.get("quote_volume") or 0),
+        int(_float(row.get("trade_count") or row.get("number_of_trades") or 0) or 0),
+        str(row.get("taker_buy_base_volume") or 0),
+        str(row.get("taker_buy_quote_volume") or 0),
+        "0",
+    ]
+
+
+def _redis_trade_to_binance_recent_trade(row: Any) -> dict[str, Any] | None:
+    if not isinstance(row, dict):
+        return None
+    price = row.get("price") or row.get("p")
+    qty = row.get("qty") or row.get("q") or row.get("size")
+    ts = _ms_from_any(row.get("time") or row.get("T") or row.get("event_time") or row.get("E"))
+    if _float(price) is None or _float(qty) is None or ts is None:
+        return None
+    return {
+        "id": row.get("id") or row.get("a"),
+        "price": str(price),
+        "qty": str(qty),
+        "time": ts,
+        "isBuyerMaker": bool(row.get("isBuyerMaker", row.get("m", False))),
+    }
+
+
+def _binance_public_json_from_redis(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
+    symbol = str(params.get("symbol") or "").upper()
+    if path == "/fapi/v1/ticker/24hr" and symbol:
+        payload = _redis_sync_get_json(f"v2:market:prices:{symbol}")
+        ticker = payload.get("ticker_24hr") if isinstance(payload, dict) and isinstance(payload.get("ticker_24hr"), dict) else payload
+        if isinstance(ticker, dict):
+            return (
+                {**ticker, "symbol": ticker.get("symbol") or symbol},
+                f"redis:v2:market:prices:{symbol}",
+                "Binance public WebSocket/cache primary; REST not used",
+            )
+    if path == "/fapi/v1/ticker/24hr" and not symbol:
+        rows: list[dict[str, Any]] = []
+        for key in _redis_sync_scan("v2:market:prices:*", limit=512):
+            payload = _redis_sync_get_json(key)
+            if not isinstance(payload, dict):
+                continue
+            row_symbol = key.rsplit(":", 1)[-1].upper()
+            ticker = payload.get("ticker_24hr") if isinstance(payload.get("ticker_24hr"), dict) else payload
+            if isinstance(ticker, dict):
+                rows.append({**ticker, "symbol": ticker.get("symbol") or row_symbol})
+        if rows:
+            return rows, "redis:v2:market:prices:*", "Binance public WebSocket/cache primary; REST not used"
+    if path == "/fapi/v1/premiumIndex" and symbol:
+        funding = _redis_sync_get_json(f"v2:market:funding:{symbol}")
+        prices = _redis_sync_get_json(f"v2:market:prices:{symbol}")
+        nested = prices.get("funding") if isinstance(prices, dict) and isinstance(prices.get("funding"), dict) else {}
+        source = funding if isinstance(funding, dict) and funding else nested if isinstance(nested, dict) else {}
+        if source:
+            return (
+                {
+                    "symbol": source.get("symbol") or symbol,
+                    "markPrice": source.get("markPrice") or source.get("mark_price"),
+                    "indexPrice": source.get("indexPrice") or source.get("index_price"),
+                    "estimatedSettlePrice": source.get("estimatedSettlePrice"),
+                    "lastFundingRate": source.get("lastFundingRate") or source.get("funding_rate") or source.get("last_funding_rate"),
+                    "nextFundingTime": source.get("nextFundingTime") or source.get("next_funding_time_ms"),
+                    "interestRate": source.get("interestRate"),
+                    "time": source.get("time") or source.get("event_time"),
+                },
+                f"redis:v2:market:funding:{symbol}",
+                "Binance mark-price WebSocket/cache primary; REST not used",
+            )
+    if path == "/fapi/v1/openInterest" and symbol:
+        payload = _redis_sync_get_json(f"v2:market:open_interest:{symbol}")
+        if isinstance(payload, dict):
+            return (
+                {
+                    "symbol": payload.get("symbol") or symbol,
+                    "openInterest": payload.get("openInterest") or payload.get("open_interest") or payload.get("open_interest_contracts"),
+                    "time": payload.get("time") or payload.get("timestamp") or payload.get("event_time"),
+                },
+                f"redis:v2:market:open_interest:{symbol}",
+                "Binance open-interest WebSocket/cache primary; REST not used",
+            )
+    if path == "/futures/data/openInterestHist" and symbol:
+        payload = _redis_sync_get_json(f"v2:market:open_interest_hist:{symbol}:{params.get('period') or '5m'}")
+        if isinstance(payload, list) and payload:
+            return payload, f"redis:v2:market:open_interest_hist:{symbol}:{params.get('period') or '5m'}", "Binance open-interest history cache primary; REST not used"
+    if path == "/futures/data/globalLongShortAccountRatio" and symbol:
+        payload = _redis_sync_get_json(f"v2:market:long_short:{symbol}")
+        if isinstance(payload, dict):
+            return [payload], f"redis:v2:market:long_short:{symbol}", "Binance long/short cache primary; REST not used"
+    if path == "/fapi/v1/depth" and symbol:
+        for key in (f"v2:market:orderbook:binance:{symbol}", f"v2:market:orderbook:{symbol}", f"v2:orderbook:top:binance:{symbol}"):
+            payload = _redis_sync_get_json(key)
+            if not isinstance(payload, dict):
+                continue
+            bids = payload.get("bids") if isinstance(payload.get("bids"), list) else []
+            asks = payload.get("asks") if isinstance(payload.get("asks"), list) else []
+            if bids or asks:
+                return {"lastUpdateId": payload.get("lastUpdateId") or payload.get("update_id"), "bids": bids, "asks": asks}, f"redis:{key}", "Binance depth WebSocket/cache primary; REST not used"
+    if path == "/fapi/v1/klines" and symbol:
+        timeframe = str(params.get("interval") or "1m")
+        payload = _redis_sync_get_json(f"v2:market:ohlcv:binance:{symbol}:{timeframe}")
+        if isinstance(payload, list):
+            rows = [converted for row in payload if (converted := _redis_kline_to_binance_row(row)) is not None]
+            if rows:
+                return rows, f"redis:v2:market:ohlcv:binance:{symbol}:{timeframe}", "Binance kline WebSocket/cache primary; REST not used"
+    if path == "/fapi/v1/trades" and symbol:
+        payload = _redis_sync_get_json(f"v2:market:agg_trades:{symbol}")
+        rows_source = payload.get("trades") if isinstance(payload, dict) and isinstance(payload.get("trades"), list) else payload
+        if isinstance(rows_source, list):
+            rows = [converted for row in rows_source if (converted := _redis_trade_to_binance_recent_trade(row)) is not None]
+            if rows:
+                return rows[-int(_float(params.get("limit")) or 80):], f"redis:v2:market:agg_trades:{symbol}", "Binance aggTrade WebSocket/cache primary; REST not used"
+    return None, "redis:v2:market:*", None
+
+
 def _binance_fetch_and_cache(url: str, cache_key: str) -> tuple[Any | None, str, str | None]:
+    fallback = binance_rest_fallback_decision(
+        endpoint=urllib.parse.urlparse(url).path or url,
+        fallback_reason=f"market_contracts_websocket_cache_miss:{cache_key}",
+        role="market_contracts_public_json_recovery",
+    )
+    if not fallback["request_allowed"]:
+        return (
+            None,
+            "binance_rest_fallback_blocked_websocket_primary",
+            f"Binance REST fallback blocked: {REST_FALLBACK_ENV}=true is required after WebSocket/cache miss",
+        )
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "alphaforge-v2-public-market-readonly/1.0"},
@@ -1249,6 +1587,10 @@ def _binance_public_json(path: str, params: dict[str, Any]) -> tuple[Any | None,
     query = urllib.parse.urlencode({key: value for key, value in params.items() if value is not None})
     url = f"{BINANCE_FAPI_BASE}{path}" + (f"?{query}" if query else "")
     cache_key = f"{path}?{query}"
+    if "binance.com" in BINANCE_FAPI_BASE:
+        redis_payload, redis_source, redis_warning = _binance_public_json_from_redis(path, params)
+        if redis_payload is not None:
+            return redis_payload, redis_source, redis_warning
     now = time.monotonic()
     if BINANCE_PUBLIC_CACHE_TTL_SECONDS > 0:
         with BINANCE_PUBLIC_JSON_CACHE_LOCK:
@@ -1747,17 +2089,41 @@ def _base_response(
 ) -> dict[str, Any]:
     lag = _lag_ms(timestamp)
     unavailable = source_type == "unavailable"
+    staleness_seconds = round(lag / 1000, 3) if lag is not None else None
+    freshness_status = (
+        "unavailable" if unavailable
+        else "unknown" if staleness_seconds is None
+        else "fresh" if staleness_seconds <= 30
+        else "stale" if staleness_seconds > 120
+        else "degraded"
+    )
+    data_quality_status = (
+        "unavailable" if unavailable
+        else "partial" if missing_fields
+        else "fresh" if freshness_status == "fresh"
+        else freshness_status
+    )
     response = {
+        "schema_version": "api_v2_readonly_envelope_v1",
         "data": data,
         "source": source,
         "source_type": source_type,
         "endpoint": endpoint,
         "timestamp": timestamp,
         "timestamp_et": _to_et(timestamp),
+        "generated_at_utc": timestamp,
+        "generated_at_et": _to_et(timestamp),
         "generated_et": _to_et(timestamp),
         "received_at": _utc_now(),
         "received_et": _et_now(),
         "lag_ms": lag,
+        "staleness_seconds": staleness_seconds,
+        "freshness_status": freshness_status,
+        "canonical_owner": endpoint,
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "data_quality_status": data_quality_status,
         "stale": unavailable or lag is None or lag > 120_000,
         "missing_fields": missing_fields,
         "warnings": warnings or [],
@@ -3123,6 +3489,26 @@ def _runtime_signal_response(
         "stop": _float(row.get("stop") or row.get("stop_reference")),
         "confidence": confidence,
         "confidence_calibrated": confidence,
+        "confidence_directional_long": _float(row.get("confidence_directional_long")),
+        "confidence_directional_short": _float(row.get("confidence_directional_short")),
+        "confidence_hold": _float(row.get("confidence_hold")),
+        "confidence_selected_action": _float(row.get("confidence_selected_action")),
+        "confidence_post_cost_long": _float(row.get("confidence_post_cost_long")),
+        "confidence_post_cost_short": _float(row.get("confidence_post_cost_short")),
+        "confidence_executable_trade": _float(row.get("confidence_executable_trade")),
+        "confidence_display_label": row.get("confidence_display_label"),
+        "confidence_type": row.get("confidence_type"),
+        "confidence_a_plus_eligible": row.get("confidence_a_plus_eligible") is True,
+        "confidence_tradeability_block_reasons": _as_list(row.get("confidence_tradeability_block_reasons")),
+        "paper_exploration_tier": row.get("paper_exploration_tier") or row.get("exploration_tier"),
+        "exploration_tier": row.get("exploration_tier") or row.get("paper_exploration_tier"),
+        "expected_net_pnl_usd": _float(row.get("expected_net_pnl_usd")),
+        "expected_max_loss_usd": _float(row.get("expected_max_loss_usd") or row.get("max_loss_usd")),
+        "why_not_a_plus": _as_list(row.get("block_reasons")),
+        "why_not_live_ready": _as_list(row.get("live_ready_block_reasons") or row.get("block_reasons")),
+        "risk_controller_decision": row.get("risk_decision") or row.get("risk_state"),
+        "allocator_decision": row.get("allocator_decision"),
+        "trainer_feedback_status": row.get("trainer_feedback_status"),
         "expected_move": _float(row.get("expected_move_bps")),
         "expected_move_after_cost_bps": _float(row.get("expected_move_after_cost_bps")),
         "risk_reward": None,
@@ -3241,7 +3627,6 @@ def _runtime_canonical_paper_account(client: Any | None) -> dict[str, Any]:
         for key, target in (
             ("v2:portfolio:state", portfolio),
             ("v2:paper:session", session),
-            ("v2:paper:ledger", ledger),
         ):
             try:
                 payload = _json_object_from_redis_raw(client.get(key))
@@ -3250,44 +3635,100 @@ def _runtime_canonical_paper_account(client: Any | None) -> dict[str, Any]:
             if isinstance(payload, dict):
                 target.update(payload)
 
+    ledger_loaded = False
+
+    def _ledger() -> dict[str, Any]:
+        nonlocal ledger, ledger_loaded
+        if ledger_loaded:
+            return ledger
+        ledger_loaded = True
+        if client is None:
+            return ledger
+        try:
+            payload = _json_object_from_redis_raw(client.get("v2:paper:ledger"))
+        except Exception:
+            payload = None
+        if isinstance(payload, dict):
+            ledger.update(payload)
+        return ledger
+
+    def _first_present(*values: Any) -> Any:
+        for value in values:
+            if value is not None and value != "":
+                return value
+        return None
+
     starting_equity = _float(
-        session.get("starting_equity_usd")
-        or portfolio.get("starting_equity_usd")
-        or portfolio.get("initial_capital")
-        or ledger.get("starting_equity_usd")
-        or ledger.get("initial_capital")
+        _first_present(
+            session.get("starting_equity_usd"),
+            portfolio.get("starting_equity_usd"),
+            portfolio.get("initial_capital"),
+        )
     )
+    if starting_equity is None:
+        ledger_payload = _ledger()
+        starting_equity = _float(
+            _first_present(
+                ledger_payload.get("starting_equity_usd"),
+                ledger_payload.get("initial_capital"),
+            )
+        )
     equity = _float(portfolio.get("equity"))
     realized_pnl = _float(
-        portfolio.get("realized_pnl_usd")
-        or portfolio.get("realized_pnl")
-        or ledger.get("realized_pnl_usd")
-        or 0.0
+        _first_present(
+            portfolio.get("realized_net_pnl_usd"),
+            portfolio.get("clean_session_valid_realized_pnl_usd"),
+            portfolio.get("realized_pnl_usd"),
+            portfolio.get("realized_pnl"),
+        )
     )
+    if realized_pnl is None:
+        realized_pnl = _float(_first_present(_ledger().get("realized_pnl_usd"), 0.0))
     unrealized_pnl = _float(
-        portfolio.get("unrealized_pnl_usd")
-        or portfolio.get("unrealized_pnl")
-        or ledger.get("unrealized_pnl_usd")
-        or 0.0
+        _first_present(
+            portfolio.get("unrealized_pnl_usd"),
+            portfolio.get("unrealized_pnl"),
+        )
     )
+    if unrealized_pnl is None:
+        unrealized_pnl = _float(_first_present(_ledger().get("unrealized_pnl_usd"), 0.0))
     open_positions = _integer(
         portfolio.get("open_positions_count")
-        or ledger.get("open_position_count")
-        or len(ledger.get("open_positions") or [])
     )
+    if open_positions is None:
+        ledger_payload = _ledger()
+        open_position_count = _first_present(ledger_payload.get("open_position_count"))
+        if open_position_count is None:
+            open_position_count = len(ledger_payload.get("open_positions") or [])
+        open_positions = _integer(open_position_count)
     closed_trades = _integer(
-        portfolio.get("closed_trade_count")
-        or portfolio.get("closed_positions_count")
-        or ledger.get("closed_trade_count")
+        _first_present(
+            portfolio.get("closed_trade_count"),
+            portfolio.get("closed_positions_count"),
+        )
     )
+    if closed_trades is None:
+        closed_trades = _integer(_ledger().get("closed_trade_count"))
     paper_session_id = (
         session.get("paper_session_id")
         or portfolio.get("paper_session_id")
-        or ledger.get("paper_session_id")
         or session.get("session_id")
         or portfolio.get("session_id")
-        or ledger.get("session_id")
     )
+    if paper_session_id is None:
+        ledger_payload = _ledger()
+        paper_session_id = (
+            ledger_payload.get("paper_session_id")
+            or ledger_payload.get("session_id")
+        )
+    source_keys = [
+        key for key, payload in (
+            ("v2:portfolio:state", portfolio),
+            ("v2:paper:session", session),
+            ("v2:paper:ledger", ledger if ledger_loaded else {}),
+        )
+        if payload
+    ]
     return {
         "currency": "USDT",
         "paper_session_id": paper_session_id,
@@ -3307,7 +3748,8 @@ def _runtime_canonical_paper_account(client: Any | None) -> dict[str, Any]:
         "open_position_count": open_positions or 0,
         "closed_trade_count": closed_trades or 0,
         "position_source": "redis:v2:portfolio:state",
-        "source": "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger",
+        "source": "redis:" + "+".join(source_keys) if source_keys else "unavailable",
+        "source_keys": source_keys,
         "account_scope": "PAPER_SIM_ACCOUNT",
         "paper_or_live": "paper",
         "contains_simulated_positions": True,
@@ -3530,13 +3972,11 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
     if redis_client is None or not ticker_rows:
         return
     try:
-        tracked: set[str] = set()
-        for key in redis_client.scan_iter(match="v2:market:funding:*", count=500):
-            name = key.decode() if isinstance(key, bytes) else str(key)
-            tracked.add(name.rsplit(":", 1)[-1])
-            if len(tracked) >= 256:
-                break
-        rows_by_symbol = {row["symbol"]: row for row in ticker_rows if row["symbol"] in tracked}
+        rows_by_symbol = {
+            row["symbol"]: row
+            for row in ticker_rows[:256]
+            if isinstance(row.get("symbol"), str)
+        }
         if not rows_by_symbol:
             return
         ordered_symbols = list(rows_by_symbol)
@@ -3568,9 +4008,125 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
         return
 
 
+def _epoch_ms_to_utc(value: Any) -> str | None:
+    number = _float(value)
+    if number is None:
+        return None
+    seconds = number / 1000.0 if number > 10_000_000_000 else number
+    try:
+        return datetime.fromtimestamp(seconds, UTC).isoformat().replace("+00:00", "Z")
+    except (OSError, OverflowError, ValueError):
+        return None
+
+
+def _redis_market_overview_rows(limit: int = MARKET_OVERVIEW_REDIS_LIMIT) -> tuple[list[dict[str, Any]], str | None]:
+    if not (_repo_root() / "v2" / "backend" / "app").exists():
+        return [], None
+    redis_client = get_redis()
+    if redis_client is None:
+        return [], None
+    bounded_limit = max(1, min(500, int(limit)))
+    symbols = [symbol for symbol in MARKET_OVERVIEW_REDIS_SYMBOLS if _strict_market_symbol(symbol)]
+    if not symbols:
+        return [], None
+    keys = [f"v2:market:kline_current:binance:{symbol}:1m" for symbol in symbols[:bounded_limit]]
+    try:
+        pipe = redis_client.pipeline()
+        for key in keys:
+            pipe.get(key)
+        raw_rows = pipe.execute()
+    except Exception:
+        return [], None
+
+    rows: list[dict[str, Any]] = []
+    newest_ms: float | None = None
+    for raw in raw_rows:
+        if raw is None:
+            continue
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(str(raw))
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        symbol = _strict_market_symbol(str(payload.get("symbol") or ""))
+        if not symbol or not symbol.endswith("USDT"):
+            continue
+        ohlcv = payload.get("ohlcv") if isinstance(payload.get("ohlcv"), dict) else {}
+        quote_volume = _float(payload.get("quote_volume") or ohlcv.get("quote_volume"))
+        event_ms = _float(
+            payload.get("available_at")
+            or payload.get("ingested_at")
+            or payload.get("event_time")
+            or payload.get("ts")
+        )
+        if event_ms is not None:
+            newest_ms = event_ms if newest_ms is None else max(newest_ms, event_ms)
+        rows.append({
+            "symbol": symbol,
+            "last_price": _float(payload.get("close") or ohlcv.get("close")),
+            "change_24h": None,
+            "high_24h": None,
+            "low_24h": None,
+            "volume_24h": None,
+            "turnover_24h": quote_volume,
+            "trade_count_24h": int(_float(payload.get("num_trades") or ohlcv.get("num_trades")) or 0),
+            "weighted_avg_price": None,
+            "funding_rate": None,
+            "mark_price": None,
+            "open_interest": None,
+            "long_short_ratio": None,
+            "source": payload.get("source") or "redis:v2:market:kline_current",
+            "event_time": _epoch_ms_to_utc(payload.get("event_time")),
+            "available_at": _epoch_ms_to_utc(payload.get("available_at") or payload.get("ingested_at")),
+            "feature_cutoff": _epoch_ms_to_utc(payload.get("candle_close_time") or payload.get("close_time")),
+            "candle_closed_confirmed": bool(
+                payload.get("candle_closed_confirmed")
+                or payload.get("closed_candle")
+                or payload.get("is_closed")
+            ),
+            "feature_eligible": bool(payload.get("feature_eligible")),
+            "display_only_current_candle": not bool(
+                payload.get("candle_closed_confirmed")
+                or payload.get("closed_candle")
+                or payload.get("is_closed")
+            ),
+        })
+    rows.sort(key=lambda item: (_float(item.get("turnover_24h")) or 0.0, item["symbol"]), reverse=True)
+    _enrich_overview_rows_from_redis(rows)
+    return rows, _epoch_ms_to_utc(newest_ms) or _utc_now()
+
+
 @router.get("/market/overview")
 async def get_market_overview() -> dict[str, Any]:
     endpoint = "/api/v2/market/overview"
+    redis_rows, redis_timestamp = _redis_market_overview_rows()
+    if redis_rows:
+        symbols = [row["symbol"] for row in redis_rows]
+        return _base_response(
+            endpoint=endpoint,
+            data={
+                "symbols": symbols,
+                "count": len(symbols),
+                "timeframes": ["1m", "3m", "5m", "15m", "1h", "4h", "1d", "1w"],
+                "tickers": redis_rows,
+                "canonical_runtime_source": "redis:v2:market:kline_current:binance:*:1m",
+                "display_rows_are_current_candles": True,
+                "feature_inputs_must_use_closed_candles": True,
+            },
+            source="redis:v2:market:kline_current:binance:*:1m",
+            source_type="redis_live",
+            timestamp=redis_timestamp,
+            missing_fields=[],
+            warnings=[
+                "Market overview served from native ingestor Redis for control-center latency",
+                "Rows are display-only current candles; feature/training paths must use closed-candle gates",
+                "Live trading and exchange mutation remain disabled",
+            ],
+            mode="read_only",
+        )
     tickers, api_source, api_warning = await _binance_public_json_async("/fapi/v1/ticker/24hr", {})
     if isinstance(tickers, list):
         ticker_rows = sorted(
@@ -5031,11 +5587,12 @@ async def _market_data_websocket(websocket: WebSocket) -> None:
         requested_interval = 2000
     timeframe = _strict_timeframe(str(websocket.query_params.get("timeframe", "1m") or "1m"))
     if symbol is None or timeframe is None:
-        await websocket.send_json(await _market_stream_snapshot(symbol or "", timeframe or ""))
+        await _send_websocket_json_bounded(websocket, await _market_stream_snapshot(symbol or "", timeframe or ""))
         await websocket.close(code=1008)
         return
 
-    await websocket.send_json(await _market_stream_snapshot(symbol, timeframe))
+    if not await _send_websocket_json_bounded(websocket, await _market_stream_snapshot(symbol, timeframe)):
+        return
 
     interval_seconds = max(1.0, min(15.0, requested_interval / 1000))
     used_native_stream = await _native_market_data_websocket(websocket, symbol, timeframe)
@@ -5048,7 +5605,8 @@ async def _market_data_websocket(websocket: WebSocket) -> None:
                 source="safe_api_contract_stream",
                 event="fallback_snapshot",
             )
-            await websocket.send_json(await _market_stream_snapshot(symbol, timeframe))
+            if not await _send_websocket_json_bounded(websocket, await _market_stream_snapshot(symbol, timeframe)):
+                return
             await asyncio.sleep(interval_seconds)
     except WebSocketDisconnect:
         return
@@ -5098,7 +5656,11 @@ async def _native_market_data_websocket(websocket: WebSocket, symbol: str, timef
                         source="binance_usdm_public_websocket_adapter",
                         event="native_frame",
                     )
-                    await websocket.send_json(_native_stream_snapshot(safe_symbol, state))
+                    if not await _send_websocket_json_bounded(
+                        websocket,
+                        _native_stream_snapshot(safe_symbol, state),
+                    ):
+                        return True
     except WebSocketDisconnect:
         return True
     except Exception as exc:
@@ -5189,6 +5751,10 @@ async def get_market_stream_status(symbol: str) -> dict[str, Any]:
 @router.get("/portfolio")
 async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
     endpoint = "/api/v2/portfolio"
+    try:
+        canonical_pnl_payload = build_canonical_pnl(get_redis())
+    except Exception:
+        canonical_pnl_payload = {}
     repository_account = _repository_account(actor)
     if actor and repository_account is not None:
         positions, position_missing, position_warnings = _repository_scoped_rows(repository_account, actor, "positions")
@@ -5347,10 +5913,26 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "initial_capital": _paper_initial_capital,
             "starting_equity_usd": _paper_initial_capital,
             "paper_session_id": _paper_session_id,
+            "paper_equity_usd": (
+                canonical_pnl_payload.get("paper_equity_usd")
+                if portfolio_state else equity
+            ),
             # Net PnL (primary economic metric)
             "realized_net_pnl_usd": _clamp_pnl(realized_pnl),
             "realized_gross_pnl_usd": _clamp_pnl(realized_gross_pnl),
             "total_pnl_usd": _clamp_pnl(total_pnl),
+            "paper_realized_pnl_usd": (
+                canonical_pnl_payload.get("paper_realized_pnl_usd")
+                if portfolio_state else _clamp_pnl(realized_pnl)
+            ),
+            "paper_unrealized_pnl_usd": (
+                canonical_pnl_payload.get("paper_unrealized_pnl_usd")
+                if portfolio_state else _clamp_pnl(unrealized_pnl)
+            ),
+            "paper_total_pnl_usd": (
+                canonical_pnl_payload.get("paper_total_pnl_usd")
+                if portfolio_state else _clamp_pnl(total_pnl)
+            ),
             # Legacy aliases (for backwards compatibility)
             "realized_pnl": _clamp_pnl(realized_pnl),
             "realized_pnl_usd": _clamp_pnl(realized_pnl),
@@ -5364,7 +5946,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "mode": "paper",
             "trader_id": repository_account.get("trader_id"),
             "paper_account_id": repository_account.get("paper_account_id"),
-            "account_scope": portfolio_state.get("account_scope") or "PAPER_SIM_ACCOUNT",
+            "account_scope": "authenticated_trader",
             "source_type": portfolio_state.get("source_type") or portfolio_state_source_type or "paper_sim_repository",
             "paper_or_live": "paper",
             "contains_simulated_positions": True,
@@ -5379,6 +5961,18 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "pnl_conflict_detected": portfolio_state.get("pnl_conflict_detected", False),
             "pnl_conflict_reason": portfolio_state.get("pnl_conflict_reason"),
             "pnl_conflict_sources": portfolio_state.get("pnl_conflict_sources", []),
+            "data_source": (
+                canonical_pnl_payload.get("data_source")
+                if portfolio_state else portfolio_state.get("pnl_source_key", "v2:portfolio:state")
+            ),
+            "staleness_seconds": (
+                canonical_pnl_payload.get("staleness_seconds")
+                if portfolio_state else portfolio_state.get("freshness_seconds")
+            ),
+            "freshness_status": (
+                canonical_pnl_payload.get("freshness_status")
+                if portfolio_state else None
+            ),
             "closed_ledger_net_pnl_usd": portfolio_state.get("closed_ledger_net_pnl_usd"),
             "portfolio_realized_matches_closed_ledger": portfolio_state.get("portfolio_realized_matches_closed_ledger"),
             "equity_reconciles_within_1_cent": portfolio_state.get("equity_reconciles_within_1_cent"),
@@ -5562,6 +6156,10 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "initial_capital": _public_initial_capital,
         "starting_equity_usd": _public_initial_capital,
         "paper_session_id": _public_session_id,
+        "paper_equity_usd": canonical_pnl_payload.get("paper_equity_usd", base_equity),
+        "paper_realized_pnl_usd": canonical_pnl_payload.get("paper_realized_pnl_usd", _clamp(base_realized)),
+        "paper_unrealized_pnl_usd": canonical_pnl_payload.get("paper_unrealized_pnl_usd", _clamp(base_unrealized)),
+        "paper_total_pnl_usd": canonical_pnl_payload.get("paper_total_pnl_usd", _clamp(base_total_pnl)),
         "open_position_count": _first_public_not_none(
             _ps_open_count,
             _integer(redis_hb_public.get("open_position_count")),
@@ -5590,6 +6188,9 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "pnl_source_key": pub_portfolio_state.get("pnl_source_key", "v2:portfolio:state"),
         "pnl_source_route": pub_portfolio_state.get("pnl_source_route", "/api/v2/portfolio"),
         "pnl_source_type": pub_portfolio_state.get("pnl_source_type", "CANONICAL_CURRENT_SESSION_RUNTIME"),
+        "data_source": canonical_pnl_payload.get("data_source") or "redis:v2:portfolio:state",
+        "staleness_seconds": canonical_pnl_payload.get("staleness_seconds"),
+        "freshness_status": canonical_pnl_payload.get("freshness_status"),
         "pnl_conflict_detected": pub_portfolio_state.get("pnl_conflict_detected", False),
         "pnl_conflict_reason": pub_portfolio_state.get("pnl_conflict_reason"),
         "pnl_conflict_sources": pub_portfolio_state.get("pnl_conflict_sources", []),
@@ -5729,6 +6330,7 @@ async def get_account_summary(actor: UserRecord | None = Depends(optional_auth))
         "reason_if_untrusted": portfolio_data.get("reason_if_untrusted"),
         "equity": portfolio_data.get("equity"),
         "paper_equity": portfolio_data.get("paper_equity"),
+        "paper_equity_usd": portfolio_data.get("paper_equity_usd"),
         "paper_session_id": portfolio_data.get("paper_session_id"),
         "initial_capital": portfolio_data.get("initial_capital")
         or portfolio_data.get("paper_initial_capital"),
@@ -5742,7 +6344,13 @@ async def get_account_summary(actor: UserRecord | None = Depends(optional_auth))
         "available_balance_source": portfolio_data.get("available_balance_source")
         or "paper_equity_from_v2_portfolio_state_not_live_signed_account",
         "realized_pnl": portfolio_data.get("realized_pnl"),
+        "paper_realized_pnl_usd": portfolio_data.get("paper_realized_pnl_usd"),
         "unrealized_pnl": portfolio_data.get("unrealized_pnl"),
+        "paper_unrealized_pnl_usd": portfolio_data.get("paper_unrealized_pnl_usd"),
+        "paper_total_pnl_usd": portfolio_data.get("paper_total_pnl_usd"),
+        "data_source": portfolio_data.get("data_source"),
+        "staleness_seconds": portfolio_data.get("staleness_seconds"),
+        "freshness_status": portfolio_data.get("freshness_status"),
         "open_position_count": portfolio_data.get("open_position_count"),
         "closed_trade_count": portfolio_data.get("closed_trade_count"),
         "live_gate": "blocked_human_only",
@@ -6484,6 +7092,30 @@ async def get_signals(
     )
 
 
+@router.get("/signals/current")
+async def get_current_signal(
+    symbol: str | None = Query(default=None),
+    timeframe: str = Query(default="5m"),
+    actor: UserRecord | None = Depends(optional_auth),
+) -> dict[str, Any]:
+    payload = await get_signals(symbol=symbol, timeframe=timeframe, actor=actor)
+    endpoint_params: dict[str, str] = {}
+    requested_symbol = _strict_market_symbol(symbol) if symbol else None
+    safe_timeframe = _strict_timeframe(timeframe) or "5m"
+    if requested_symbol:
+        endpoint_params["symbol"] = requested_symbol
+    if safe_timeframe != "5m":
+        endpoint_params["timeframe"] = safe_timeframe
+    endpoint = "/api/v2/signals/current" + (
+        f"?{urllib.parse.urlencode(endpoint_params)}" if endpoint_params else ""
+    )
+    if isinstance(payload, dict):
+        payload = dict(payload)
+        payload["endpoint"] = endpoint
+        payload["canonical_owner"] = "/api/v2/signals/current"
+    return payload
+
+
 def _scan_redis_prefix(prefix: str, match: str) -> list[str]:
     """Safely scan Redis keys matching a pattern using SCAN (not KEYS)."""
     client = get_redis()
@@ -6517,6 +7149,26 @@ def _compact_signal_row(symbol: str, timeframe: str, payload: dict[str, Any]) ->
         "action": action or None,
         "side": action.title() if action else None,
         "confidence": confidence,
+        "confidence_directional_long": _float(payload.get("confidence_directional_long")),
+        "confidence_directional_short": _float(payload.get("confidence_directional_short")),
+        "confidence_hold": _float(payload.get("confidence_hold")),
+        "confidence_selected_action": _float(payload.get("confidence_selected_action")),
+        "confidence_post_cost_long": _float(payload.get("confidence_post_cost_long")),
+        "confidence_post_cost_short": _float(payload.get("confidence_post_cost_short")),
+        "confidence_executable_trade": _float(payload.get("confidence_executable_trade")),
+        "confidence_display_label": payload.get("confidence_display_label"),
+        "confidence_type": payload.get("confidence_type"),
+        "confidence_a_plus_eligible": payload.get("confidence_a_plus_eligible") is True,
+        "confidence_tradeability_block_reasons": _as_list(payload.get("confidence_tradeability_block_reasons")),
+        "paper_exploration_tier": payload.get("paper_exploration_tier") or payload.get("exploration_tier"),
+        "exploration_tier": payload.get("exploration_tier") or payload.get("paper_exploration_tier"),
+        "expected_net_pnl_usd": _float(payload.get("expected_net_pnl_usd")),
+        "expected_max_loss_usd": _float(payload.get("expected_max_loss_usd") or payload.get("max_loss_usd")),
+        "why_not_a_plus": _as_list(payload.get("block_reasons")),
+        "why_not_live_ready": _as_list(payload.get("live_ready_block_reasons") or payload.get("block_reasons")),
+        "risk_controller_decision": payload.get("risk_decision") or payload.get("risk_state"),
+        "allocator_decision": payload.get("allocator_decision"),
+        "trainer_feedback_status": payload.get("trainer_feedback_status"),
         "live_gate": payload.get("live_gate"),
         "actionable": payload.get("paper_fill_allowed") is True,
         "risk_state": payload.get("risk_state"),
@@ -6596,6 +7248,17 @@ def _compact_prediction_row(symbol: str, timeframe: str, payload: dict[str, Any]
         # Both calibrated and raw confidence — explicit field names
         "confidence_calibrated": confidence_calibrated,
         "confidence_raw": confidence_raw,
+        "confidence_directional_long": _float(payload.get("confidence_directional_long")),
+        "confidence_directional_short": _float(payload.get("confidence_directional_short")),
+        "confidence_hold": _float(payload.get("confidence_hold")),
+        "confidence_selected_action": _float(payload.get("confidence_selected_action")),
+        "confidence_post_cost_long": _float(payload.get("confidence_post_cost_long")),
+        "confidence_post_cost_short": _float(payload.get("confidence_post_cost_short")),
+        "confidence_executable_trade": _float(payload.get("confidence_executable_trade")),
+        "confidence_display_label": payload.get("confidence_display_label"),
+        "confidence_type": payload.get("confidence_type"),
+        "confidence_a_plus_eligible": payload.get("confidence_a_plus_eligible") is True,
+        "confidence_tradeability_block_reasons": _as_list(payload.get("confidence_tradeability_block_reasons")),
         "temperature": temperature,
         "coverage_factor": coverage_factor,
         # Top/second action for quick display
@@ -6678,6 +7341,26 @@ def _signal_matrix_prediction_runtime_rows(
             "action": action,
             "side": action.title() if action else None,
             "confidence": _float(raw.get("confidence_calibrated") or raw.get("confidence_raw")),
+            "confidence_directional_long": _float(raw.get("confidence_directional_long")),
+            "confidence_directional_short": _float(raw.get("confidence_directional_short")),
+            "confidence_hold": _float(raw.get("confidence_hold")),
+            "confidence_selected_action": _float(raw.get("confidence_selected_action")),
+            "confidence_post_cost_long": _float(raw.get("confidence_post_cost_long")),
+            "confidence_post_cost_short": _float(raw.get("confidence_post_cost_short")),
+            "confidence_executable_trade": _float(raw.get("confidence_executable_trade")),
+            "confidence_display_label": raw.get("confidence_display_label") if isinstance(raw.get("confidence_display_label"), str) else None,
+            "confidence_type": raw.get("confidence_type") if isinstance(raw.get("confidence_type"), str) else None,
+            "confidence_a_plus_eligible": raw.get("confidence_a_plus_eligible") is True,
+            "confidence_tradeability_block_reasons": _as_list(raw.get("confidence_tradeability_block_reasons")),
+            "paper_exploration_tier": raw.get("paper_exploration_tier") or raw.get("exploration_tier"),
+            "exploration_tier": raw.get("exploration_tier") or raw.get("paper_exploration_tier"),
+            "expected_net_pnl_usd": _float(raw.get("expected_net_pnl_usd")),
+            "expected_max_loss_usd": _float(raw.get("expected_max_loss_usd") or raw.get("max_loss_usd")),
+            "why_not_a_plus": _as_list(raw.get("block_reasons")),
+            "why_not_live_ready": _as_list(raw.get("live_ready_block_reasons") or raw.get("block_reasons")),
+            "risk_controller_decision": raw.get("risk_decision") or raw.get("risk_state"),
+            "allocator_decision": raw.get("allocator_decision"),
+            "trainer_feedback_status": raw.get("trainer_feedback_status"),
             "live_gate": raw.get("live_gate") if isinstance(raw.get("live_gate"), str) else None,
             "actionable": bool(paper_allowed) if isinstance(paper_allowed, bool) else False,
             "risk_state": paper_status if isinstance(paper_status, str) else None,
@@ -8477,6 +9160,21 @@ def _build_explanation(
 
     confidence_calibrated = _float(p.get("confidence_calibrated"))
     confidence_raw = _float(p.get("confidence_raw"))
+    confidence_selected_action = _float(
+        p.get("confidence_selected_action") or s.get("confidence_selected_action")
+    )
+    confidence_executable_trade = _float(
+        p.get("confidence_executable_trade") or s.get("confidence_executable_trade")
+    )
+    confidence_display_label = str(
+        p.get("confidence_display_label")
+        or s.get("confidence_display_label")
+        or "Unproven confidence"
+    )
+    confidence_tradeability_block_reasons = _as_list(
+        p.get("confidence_tradeability_block_reasons")
+        or s.get("confidence_tradeability_block_reasons")
+    )
     calibration: dict[str, Any] = p.get("confidence_calibration") or {}
     temperature = _float(calibration.get("temperature"))
     coverage_factor = _float(calibration.get("coverage_factor"))
@@ -8512,9 +9210,14 @@ def _build_explanation(
     secondary_clause = ""
     if secondary_action and secondary_prob is not None:
         secondary_clause = f" (vs {secondary_action} {sec_pct})"
+    executable_pct = (
+        f"{confidence_executable_trade * 100:.1f}%"
+        if confidence_executable_trade is not None
+        else "N/A"
+    )
     summary = (
-        f"The model predicted {selected_action} with {dom_pct} confidence{secondary_clause}. "
-        f"This is a {conviction} directional call."
+        f"The model selected {selected_action} with {dom_pct} selected-action confidence{secondary_clause}. "
+        f"Executable post-cost confidence is {executable_pct} ({confidence_display_label})."
     )
 
     signal_strength = conviction
@@ -8544,6 +9247,12 @@ def _build_explanation(
             f"Raw model confidence was {conf_raw_pct}, calibrated to {conf_cal_pct} "
             f"(source: {cal_source})."
         )
+    if confidence_tradeability_block_reasons:
+        confidence_narrative += (
+            " Tradeability blockers: "
+            + ", ".join(str(reason) for reason in confidence_tradeability_block_reasons[:6])
+            + "."
+        )
 
     # --- Data quality narrative ---
     feature_groups = _group_missing_features(missing_feature_names)
@@ -8560,10 +9269,16 @@ def _build_explanation(
     if alt_count:
         alt_names = feature_groups["alternative_data"]
         providers: list[str] = []
+        if any("coinglass" in n.lower() for n in alt_names):
+            providers.append("CoinGlass")
+        if any("moralis" in n.lower() for n in alt_names):
+            providers.append("Moralis")
+        if any(("santiment" in n.lower()) or ("sanbase" in n.lower()) for n in alt_names):
+            providers.append("Santiment/Sanbase")
         if any("nansen" in n.lower() for n in alt_names):
-            providers.append("Nansen")
+            providers.append("legacy Nansen inactive")
         if any("lunarcrush" in n.lower() for n in alt_names):
-            providers.append("LunarCrush")
+            providers.append("legacy LunarCrush inactive")
         if any("aicoin" in n.lower() for n in alt_names):
             providers.append("AICoin")
         provider_str = ", ".join(providers) if providers else "external alt-data"
@@ -8697,6 +9412,10 @@ def _build_explanation(
         "action": selected_action,
         "confidence_calibrated": confidence_calibrated,
         "confidence_raw": confidence_raw,
+        "confidence_selected_action": confidence_selected_action,
+        "confidence_executable_trade": confidence_executable_trade,
+        "confidence_display_label": confidence_display_label,
+        "confidence_tradeability_block_reasons": confidence_tradeability_block_reasons,
         "dominant_prob": dominant_prob,
         "expected_move_bps": expected_move_bps,
         "expected_move_after_cost_bps": expected_move_after_cost,
@@ -8708,6 +9427,47 @@ def _build_explanation(
         "policy_value": policy_value,
         "missing_feature_count": missing_feature_count,
         "stale_feature_count": stale_feature_count,
+    }
+
+    # --- Structured missing-feature alert (renderable by web + iOS AI pages) ---
+    # The prediction is ALWAYS produced (features that are absent are masked, not
+    # zero-filled), so the system stays operational end-to-end. This block tells
+    # the UI exactly what is degraded and how severe, without blocking anything.
+    missing_by_category = {
+        "liquidation": liq_count,
+        "alternative_data": alt_count,
+        "paper_state": paper_count,
+        "htf": htf_count,
+        "orchestrator_feedback": orc_count,
+        "other": other_count,
+    }
+    if data_coverage is None:
+        _alert_severity = "unknown"
+    elif data_coverage >= 95.0 and missing_feature_count == 0:
+        _alert_severity = "none"
+    elif data_coverage >= 80.0:
+        _alert_severity = "info"
+    elif data_coverage >= 60.0:
+        _alert_severity = "warn"
+    else:
+        _alert_severity = "critical"
+    missing_feature_alert = {
+        "active": _alert_severity not in ("none", "unknown"),
+        "severity": _alert_severity,
+        "operational": True,
+        "prediction_still_produced": True,
+        "data_coverage_pct": data_coverage,
+        "missing_feature_count": missing_feature_count,
+        "stale_feature_count": stale_feature_count,
+        "missing_by_category": {k: v for k, v in missing_by_category.items() if v},
+        "missing_provider_names": sorted(
+            {
+                name
+                for names in (feature_groups.get("alternative_data") or [],)
+                for name in names
+            }
+        ),
+        "message": dq_narrative,
     }
 
     return {
@@ -8724,6 +9484,7 @@ def _build_explanation(
             "full_text": full_text,
         },
         "key_numbers": key_numbers,
+        "missing_feature_alert": missing_feature_alert,
     }
 
 
@@ -8732,6 +9493,9 @@ def _build_signal_explanation(sig_payload: dict[str, Any] | None) -> dict[str, A
     s = sig_payload or {}
     action = str(s.get("action") or "UNKNOWN").strip().upper()
     confidence = _float(s.get("confidence"))
+    confidence_executable_trade = _float(s.get("confidence_executable_trade"))
+    confidence_display_label = str(s.get("confidence_display_label") or "Unproven confidence")
+    confidence_tradeability_block_reasons = _as_list(s.get("confidence_tradeability_block_reasons"))
     live_gate = str(s.get("live_gate") or "blocked_human_only")
     orchestrator_state = str(s.get("orchestrator_state") or "UNKNOWN")
     risk_state = str(s.get("risk_state") or "UNKNOWN")
@@ -8744,6 +9508,11 @@ def _build_signal_explanation(sig_payload: dict[str, Any] | None) -> dict[str, A
     data_coverage = _float(s.get("data_coverage_percent"))
 
     conf_str = f"{confidence * 100:.1f}%" if confidence is not None else "N/A"
+    exec_conf_str = (
+        f"{confidence_executable_trade * 100:.1f}%"
+        if confidence_executable_trade is not None
+        else "N/A"
+    )
     move_str = f"{expected_move_bps:+.0f} bps" if expected_move_bps is not None else "N/A"
     pt_str = f"${price_target_after_cost:,.2f}" if price_target_after_cost is not None else "N/A"
     int_str = f"{integrity_score:.1f}/100" if integrity_score is not None else "N/A"
@@ -8763,16 +9532,24 @@ def _build_signal_explanation(sig_payload: dict[str, Any] | None) -> dict[str, A
     orch_note = f"Orchestrator: {orchestrator_state.replace('_', ' ').title()}."
 
     summary = (
-        f"Signal: {action} at {conf_str} confidence. "
+        f"Signal: {action}. Selected-action confidence: {conf_str}. "
+        f"Executable post-cost confidence: {exec_conf_str} ({confidence_display_label}). "
         f"Expected move after cost: {move_str}. After-cost price target: {pt_str}. "
         f"Market integrity: {int_str}. Data coverage: {cov_str}. "
         f"{gate_note} {paper_note} {risk_note} {orch_note} "
         f"Paper state: {paper_state.replace('_', ' ').title()}."
     )
+    if confidence_tradeability_block_reasons:
+        summary += " Confidence blockers: " + ", ".join(
+            str(reason) for reason in confidence_tradeability_block_reasons[:6]
+        ) + "."
     return {
         "summary": summary,
         "action": action,
         "confidence": confidence,
+        "confidence_executable_trade": confidence_executable_trade,
+        "confidence_display_label": confidence_display_label,
+        "confidence_tradeability_block_reasons": confidence_tradeability_block_reasons,
         "live_gate": live_gate,
         "paper_fill_allowed": paper_fill_allowed,
         "paper_fill_status": paper_fill_status,
@@ -8984,6 +9761,104 @@ def _risk_runtime_decision_row(decision: dict[str, Any]) -> dict[str, Any]:
         "required_blocks_checked": decision.get("required_blocks_checked") or [],
         "generated_at": decision.get("generated_at"),
     }
+
+
+PREEMPTIVE_MATRIX_API_ROW_LIMIT = 5
+PREEMPTIVE_MATRIX_API_LIST_PREVIEW_LIMIT = 8
+PREEMPTIVE_MATRIX_API_ROW_FIELDS = (
+    "preemptive_decision_id",
+    "preemptive_decision",
+    "preemptive_action",
+    "preemptive_allowed",
+    "preemptive_shadow_only",
+    "preemptive_reduce_size_required",
+    "symbol",
+    "side",
+    "timeframe",
+    "strategy_id",
+    "source_tier",
+    "pre_trade_expected_net_pnl_usd",
+    "pre_trade_expected_gross_pnl_usd",
+    "pre_trade_expected_cost_usd",
+    "pre_trade_max_loss_usd",
+    "pre_trade_loss_probability",
+    "pre_trade_profit_probability",
+    "confidence_overstatement_risk",
+    "regime_compatibility_score",
+    "exit_feasibility_score",
+    "bucket_profit_factor",
+    "guardian_new_entries_allowed",
+    "continuous_edge_guardian_status",
+    "reduce_size_guardian_approved",
+    "reduce_size_guardian_approval_reason",
+    "advanced_indicator_status",
+    "advanced_indicator_confluence_score",
+    "fvg_present",
+    "fvg_side_aligned",
+    "liquidity_sweep_state",
+    "microstructure_trust_state",
+    "microstructure_trust_score",
+    "altdata_confluence_present",
+    "altdata_trade_block_score",
+    "altdata_reduce_size_score",
+    "altdata_hedge_required_score",
+    "altdata_wallet_distribution_score",
+    "altdata_liquidation_sweep_risk_score",
+    "altdata_social_euphoria_risk_score",
+    "preemptive_decision_time",
+    "preemptive_decision_time_et",
+    "paper_session_id",
+    "routes_to_live",
+    "places_real_order",
+)
+
+
+def _compact_preemptive_matrix_row(row: dict[str, Any]) -> dict[str, Any]:
+    compact = {key: row.get(key) for key in PREEMPTIVE_MATRIX_API_ROW_FIELDS if key in row}
+    for key in (
+        "preemptive_block_reasons",
+        "preemptive_decision_reasons",
+        "advanced_indicator_block_reasons",
+        "advanced_indicator_caution_reasons",
+        "provider_features_used",
+        "provider_features_missing",
+        "candidate_bucket_keys",
+        "matched_quarantined_bucket_keys",
+    ):
+        value = row.get(key)
+        if not isinstance(value, list):
+            continue
+        compact[f"{key}_count"] = len(value)
+        compact[key] = value[:PREEMPTIVE_MATRIX_API_LIST_PREVIEW_LIMIT]
+        if len(value) > PREEMPTIVE_MATRIX_API_LIST_PREVIEW_LIMIT:
+            compact[f"{key}_omitted_count"] = len(value) - PREEMPTIVE_MATRIX_API_LIST_PREVIEW_LIMIT
+    return compact
+
+
+def _compact_preemptive_candidate_decision_matrix(matrix: dict[str, Any]) -> dict[str, Any]:
+    rows = matrix.get("rows") or matrix.get("sample_decisions") or []
+    rows = rows if isinstance(rows, list) else []
+    compact = {
+        key: value
+        for key, value in matrix.items()
+        if key not in {"rows", "sample_decisions"}
+    }
+    preview_rows = [
+        _compact_preemptive_matrix_row(row)
+        for row in rows[:PREEMPTIVE_MATRIX_API_ROW_LIMIT]
+        if isinstance(row, dict)
+    ]
+    compact["rows"] = preview_rows
+    compact["sample_decisions"] = preview_rows
+    compact["full_row_count"] = len(rows)
+    compact["preview_row_count"] = len(preview_rows)
+    compact["payload_compacted"] = len(rows) > PREEMPTIVE_MATRIX_API_ROW_LIMIT
+    compact["omitted_row_count"] = max(0, len(rows) - PREEMPTIVE_MATRIX_API_ROW_LIMIT)
+    compact["debug_detail_source"] = "redis:v2:paper:preemptive_candidate_decision_matrix"
+    compact.setdefault("paper_only", True)
+    compact.setdefault("routes_to_live", False)
+    compact.setdefault("places_real_order", False)
+    return compact
 
 
 def _risk_status_from_runtime_artifacts(endpoint: str) -> dict[str, Any] | None:
@@ -9226,6 +10101,9 @@ async def get_risk_status() -> dict[str, Any]:
         or []
     )
     preemptive_rows = preemptive_rows if isinstance(preemptive_rows, list) else []
+    preemptive_candidate_decision_matrix_api = _compact_preemptive_candidate_decision_matrix(
+        preemptive_candidate_decision_matrix
+    )
     first_preemptive_sample = (
         preemptive_rows[0]
         if preemptive_rows and isinstance(preemptive_rows[0], dict)
@@ -9519,7 +10397,7 @@ async def get_risk_status() -> dict[str, Any]:
             "top_blockers": top_blockers,
             "recovery_high_confidence_loss_cluster_status": cluster_status,
             "preemptive_edge_control_status": preemptive_edge_control_status,
-            "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix,
+            "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix_api,
             "paper_preemptive_admission_status": paper_preemptive_admission_status,
             "positive_edge_probation": positive_edge_probation_summary,
             "advanced_indicators": advanced_indicator_summary,
@@ -9676,7 +10554,7 @@ async def get_risk_status() -> dict[str, Any]:
     _resp["new_entries_allowed"] = governor.get("new_entries_allowed")
     _resp["recovery_high_confidence_loss_cluster_status"] = cluster_status
     _resp["preemptive_edge_control_status"] = preemptive_edge_control_status
-    _resp["preemptive_candidate_decision_matrix"] = preemptive_candidate_decision_matrix
+    _resp["preemptive_candidate_decision_matrix"] = preemptive_candidate_decision_matrix_api
     _resp["paper_preemptive_admission_status"] = paper_preemptive_admission_status
     _resp["positive_edge_probation"] = positive_edge_probation_summary
     _resp["advanced_indicators"] = advanced_indicator_summary
@@ -11316,7 +12194,10 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
 
 
 @router.get("/paper/runtime-status")
-async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
+async def get_paper_runtime_status(
+    actor: UserRecord | None = Depends(optional_auth),
+    debug: bool = False,
+) -> dict[str, Any]:
     """Real-time paper runtime status synthesized from Redis — replaces stale static file."""
 
     def _coinapi_provider_unusable_status(client: Any, source: Any) -> str | None:
@@ -11369,6 +12250,295 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
         if not sampled:
             return "COINAPI_STATUS_PAYLOADS_UNREADABLE_NOT_CURRENT_SOURCE"
         return None
+
+    def _build_primary() -> dict[str, Any]:
+        try:
+            client = get_redis()
+            now = _utc_now()
+            if client is None:
+                raise RuntimeError("redis_unavailable")
+
+            def _read(key: str) -> dict[str, Any]:
+                try:
+                    return _json_object_from_redis_raw(client.get(key)) or {}
+                except Exception:
+                    return {}
+
+            hb = _read("v2:paper:heartbeat")
+            tm = _read("v2:paper:trade_management:status")
+
+            def _contract(key: str, embedded_key: str, fallback: dict[str, Any]) -> dict[str, Any]:
+                payload = _read(key)
+                if not payload:
+                    embedded = tm.get(embedded_key)
+                    payload = embedded if isinstance(embedded, dict) else {}
+                payload = _compact_paper_runtime_contract(payload) if payload else dict(fallback)
+                payload.setdefault("available", bool(payload))
+                payload.setdefault("source", f"redis:{key}")
+                payload.setdefault("paper_only", True)
+                payload.setdefault("routes_to_live", False)
+                payload.setdefault("places_real_order", False)
+                return _compact_paper_runtime_response(payload)
+
+            preemptive_status = _contract(
+                "v2:paper:preemptive_edge_control_status",
+                "preemptive_edge_control_status",
+                {
+                    "schema_version": "preemptive_edge_control_status_v1",
+                    "status": "PREEMPTIVE_EDGE_CONTROL_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "candidate_count": 0,
+                    "accepted_count": 0,
+                    "decision_counts": {},
+                },
+            )
+            preemptive_matrix = _contract(
+                "v2:paper:preemptive_candidate_decision_matrix",
+                "preemptive_candidate_decision_matrix",
+                {
+                    "schema_version": "preemptive_candidate_decision_matrix_v1",
+                    "status": "PREEMPTIVE_CANDIDATE_DECISION_MATRIX_UNAVAILABLE",
+                    "available": False,
+                    "candidate_count": 0,
+                    "sample_decisions": [],
+                },
+            )
+            probation_runtime = _contract(
+                "v2:paper:positive_edge_probation_runtime_status",
+                "positive_edge_probation_runtime_status",
+                {
+                    "schema_version": "positive_edge_probation_runtime_status_v1",
+                    "status": "POSITIVE_EDGE_PROBATION_RUNTIME_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "current_candidate_count": 0,
+                    "current_accepted_count": 0,
+                    "closed_probation_trade_count": 0,
+                    "counts_as_final_a_plus": False,
+                    "counts_as_live_ready": False,
+                },
+            )
+            probation_5_gate = _contract(
+                "v2:paper:probation_5_trade_gate",
+                "probation_5_trade_gate",
+                {
+                    "schema_version": "positive_edge_probation_trade_gate_v1",
+                    "status": "PROBATION_5_TRADE_GATE_WAITING_OR_BLOCKED",
+                    "available": False,
+                    "closed_count": 0,
+                },
+            )
+            paper_no_bad_entry_runtime_status = _contract(
+                "v2:paper:no_bad_entry_runtime_status",
+                "paper_no_bad_entry_runtime_status",
+                {
+                    "schema_version": "paper_no_bad_entry_runtime_status_v1",
+                    "status": "PAPER_NO_BAD_ENTRY_RUNTIME_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "hard_fail": True,
+                    "generated_at": now,
+                },
+            )
+            paper_entry_freeze = _read("v2:paper:entry_freeze")
+            hb_ts = hb.get("heartbeat_generated_at") or hb.get("started_at") or now
+            hb_age = _lag_ms(hb_ts if isinstance(hb_ts, str) else None)
+            heartbeat_fresh = hb_age is not None and hb_age < 900_000
+            probation_candidates = _integer(probation_runtime.get("current_candidate_count")) or 0
+            probation_accepted = _integer(probation_runtime.get("current_accepted_count")) or 0
+            closed_probation = _integer(probation_runtime.get("closed_probation_trade_count")) or 0
+            preemptive_rows = preemptive_matrix.get("sample_decisions")
+            if not isinstance(preemptive_rows, list):
+                preemptive_rows = []
+            first_preemptive = preemptive_rows[0] if preemptive_rows and isinstance(preemptive_rows[0], dict) else {}
+            account = _runtime_canonical_paper_account(client)
+            runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_STALE_HEARTBEAT"
+            blockers: list[dict[str, Any]] = []
+            if probation_candidates <= 0:
+                blockers.append({
+                    "id": "POSITIVE_EDGE_PROBATION_SUPPLY_ZERO",
+                    "severity": "runtime_blocker",
+                    "detail": "No current positive-edge probation candidates are available.",
+                    "source": probation_runtime.get("source"),
+                })
+            if paper_entry_freeze.get("new_entries_allowed") is False:
+                blockers.append({
+                    "id": "PAPER_ENTRY_FREEZE",
+                    "severity": "runtime_blocker",
+                    "detail": "Paper new entries are currently frozen by runtime gate.",
+                    "source": "redis:v2:paper:entry_freeze",
+                })
+            return {
+                "schema_version": "paper_runtime_status_primary_v1",
+                "generated_at": now,
+                "generated_at_utc": now,
+                "generated_at_et": _to_et(now) or _et_now(),
+                "timestamp_et": _to_et(now) or _et_now(),
+                "received_at": now,
+                "received_et": _et_now(),
+                "endpoint": "/api/v2/paper/runtime-status",
+                "source": "redis_live",
+                "source_type": "paper_runtime_redis_live",
+                "canonical_owner": "/api/v2/paper/runtime-status",
+                "staleness_seconds": round(hb_age / 1000, 3) if hb_age is not None else None,
+                "freshness_status": "fresh" if heartbeat_fresh else "stale",
+                "data_quality_status": "fresh" if heartbeat_fresh else "degraded",
+                "runtime": hb.get("worker_id", "v2_trade_management_paper_loop"),
+                "runtime_state": runtime_state,
+                "account_scope": "PAPER_SIM_ACCOUNT",
+                "paper_or_live": "paper",
+                "contains_simulated_positions": True,
+                "contains_live_positions": False,
+                "contains_quarantined_positions": False,
+                "equity_trusted": False,
+                "pnl_trusted": False,
+                "reason_if_untrusted": "PAPER_RUNTIME_STATUS_IS_OPERATIONAL_HEALTH_NOT_PORTFOLIO_EQUITY_TRUTH",
+                "live_gate": "blocked_human_only",
+                "live_gate_status": "blocked_human_only",
+                "places_real_order": False,
+                "routes_to_live": False,
+                "mode": "paper",
+                "continuous_loop_available": heartbeat_fresh,
+                "loop_interval_seconds": 10,
+                "writes_only_local_v2_artifacts": True,
+                "legacy_redis_writes": bool(hb.get("writes_legacy_redis", False)),
+                "exchange_orders": False,
+                "leverage_changes": False,
+                "margin_mode_changes": False,
+                "redis_trim_approval_created": False,
+                "preemptive_edge_control": {
+                    "status": (
+                        "PREEMPTIVE_EDGE_CONTROL_ACTIVE"
+                        if preemptive_status.get("available") is True
+                        else "PREEMPTIVE_EDGE_CONTROL_NOT_YET_PUBLISHED"
+                    ),
+                    "decision_counts": preemptive_status.get("decision_counts") or {},
+                    "action_counts": preemptive_status.get("action_counts") or {},
+                    "preemptive_decision_id": first_preemptive.get("preemptive_decision_id"),
+                    "preemptive_action": first_preemptive.get("preemptive_action"),
+                    "preemptive_allowed": first_preemptive.get("preemptive_allowed") is True,
+                    "preemptive_block_reasons": (
+                        first_preemptive.get("preemptive_block_reasons")
+                        or first_preemptive.get("preemptive_decision_reasons")
+                        or []
+                    ),
+                    "candidate_count": preemptive_status.get("candidate_count"),
+                    "accepted_count": preemptive_status.get("accepted_count"),
+                    "hard_fail": preemptive_status.get("hard_fail") is True,
+                    "positive_edge_probation_status": probation_runtime.get("status"),
+                    "positive_edge_probation_supply_state": (
+                        "NO_SAFE_TRADE_SUPPLY"
+                        if probation_candidates <= 0
+                        else "POSITIVE_EDGE_PROBATION_SUPPLY_AVAILABLE"
+                    ),
+                    "positive_edge_probation_candidates": probation_candidates,
+                    "positive_edge_probation_accepted": probation_accepted,
+                    "closed_probation_trade_count": closed_probation,
+                    "probation_5_trade_gate_status": probation_gate_display_status(probation_5_gate),
+                    "probation_counts_as_final_a_plus": False,
+                    "probation_counts_as_live_ready": False,
+                    "why_trade_was_prevented": [
+                        item.get("id")
+                        for item in blockers
+                        if isinstance(item, dict)
+                    ],
+                    "governor_auto_action": (
+                        "halt_new_entries"
+                        if paper_entry_freeze.get("new_entries_allowed") is False
+                        else "evaluate_preemptive_candidate"
+                    ),
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                },
+                "preemptive_edge_control_status": preemptive_status,
+                "preemptive_candidate_decision_matrix": preemptive_matrix,
+                "positive_edge_probation": {
+                    "status": probation_runtime.get("status"),
+                    "current_candidate_count": probation_candidates,
+                    "current_accepted_count": probation_accepted,
+                    "closed_probation_trade_count": closed_probation,
+                    "probation_5_trade_gate_status": probation_gate_display_status(probation_5_gate),
+                    "counts_as_final_a_plus": False,
+                    "counts_as_live_ready": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                },
+                "positive_edge_probation_runtime_status": probation_runtime,
+                "probation_5_trade_gate": probation_5_gate,
+                "paper_no_bad_entry_runtime_status": paper_no_bad_entry_runtime_status,
+                "paper_loop": {
+                    "state": hb.get("cycle_state", "RUNNING_CYCLE"),
+                    "tick_id": hb.get("candidate_id", ""),
+                    "candidate_id": hb.get("candidate_id"),
+                    "policy_id": hb.get("policy_id"),
+                    "paper_policy_owner": hb.get("paper_policy_owner"),
+                    "current_allowed_paper_owner": hb.get("current_allowed_paper_owner"),
+                    "policy_fingerprint": hb.get("policy_fingerprint") or hb.get("selector_policy_fingerprint"),
+                    "model_source": hb.get("model_source"),
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "paper_entry_freeze": paper_entry_freeze,
+                    "paper_new_entries_halted": paper_entry_freeze.get("new_entries_allowed") is False,
+                    "last_tick_at": hb_ts or now,
+                    "paper_event_count": _integer(
+                        hb.get("paper_event_count")
+                        or hb.get("persistent_accepted_fill_count")
+                        or hb.get("accepted_count")
+                    ) or 0,
+                    "preemptive_edge_control_status": preemptive_status,
+                    "preemptive_candidate_decision_matrix": preemptive_matrix,
+                    "positive_edge_probation": probation_runtime,
+                    "probation_5_trade_gate": probation_5_gate,
+                    "paper_no_bad_entry_runtime_status": paper_no_bad_entry_runtime_status,
+                },
+                "paper_account": account,
+                "safety": {
+                    "live_trading_enabled": False,
+                    "exchange_orders_enabled": False,
+                    "leverage_changes_enabled": False,
+                    "margin_mode_changes_enabled": False,
+                    "legacy_redis_writes_enabled": False,
+                    "live_gate_status": "blocked_human_only",
+                },
+                "blockers": blockers,
+                "freshness": {
+                    "status": "REALTIME_RUNTIME_EVIDENCE" if heartbeat_fresh else "STALE_HEARTBEAT",
+                    "generated_at": now,
+                    "runtime_age_seconds": int(hb_age / 1000) if hb_age is not None else None,
+                    "source_type": "redis_live",
+                },
+                "primary_api_payload_compacted": True,
+                "debug_detail_route": "/api/v2/paper/runtime-status?debug=true",
+            }
+        except Exception as exc:
+            now = _utc_now()
+            return {
+                "schema_version": "paper_runtime_status_primary_v1",
+                "generated_at": now,
+                "generated_at_utc": now,
+                "generated_at_et": _to_et(now) or _et_now(),
+                "runtime": "v2_trade_management_paper_loop",
+                "runtime_state": "PAPER_RUNTIME_EVIDENCE_ERROR",
+                "account_scope": "PAPER_SIM_ACCOUNT",
+                "source": "redis_live",
+                "source_type": "paper_runtime_error",
+                "canonical_owner": "/api/v2/paper/runtime-status",
+                "freshness_status": "unavailable",
+                "data_quality_status": "unavailable",
+                "live_gate": "blocked_human_only",
+                "places_real_order": False,
+                "routes_to_live": False,
+                "mode": "paper",
+                "error": str(exc),
+                "exchange_orders": False,
+                "legacy_redis_writes": False,
+                "leverage_changes": False,
+                "margin_mode_changes": False,
+                "continuous_loop_available": False,
+                "primary_api_payload_compacted": True,
+                "debug_detail_route": "/api/v2/paper/runtime-status?debug=true",
+            }
 
     def _build() -> dict[str, Any]:
         try:
@@ -12904,7 +14074,7 @@ async def get_paper_runtime_status(actor: UserRecord | None = Depends(optional_a
                 "continuous_loop_available": False,
             }
 
-    data = await run_in_threadpool(_build)
+    data = await run_in_threadpool(_build if debug else _build_primary)
     generated_at = data.get("generated_at") if isinstance(data, dict) else None
     if isinstance(data, dict):
         data.setdefault("generated_et", _to_et(generated_at) or _et_now())
@@ -12983,7 +14153,31 @@ async def get_paper_activity(actor: UserRecord | None = Depends(optional_auth)) 
 
 async def _paper_activity_websocket(websocket: WebSocket) -> None:
     async with track_current_task("websocket:paper-activity"):
+        client_id = _websocket_client_id(websocket)
+        registered, total_count, client_count = _try_register_paper_activity_websocket(client_id)
         await websocket.accept()
+        if not registered:
+            await _send_websocket_json_bounded(websocket, {
+                "data": None,
+                "source": "v2:paper:* Redis",
+                "source_type": "unavailable",
+                "endpoint": "/api/v2/ws/paper-activity",
+                "timestamp": _utc_now(),
+                "received_at": _utc_now(),
+                "lag_ms": None,
+                "stale": True,
+                "missing_fields": ["paper_activity_websocket_capacity"],
+                "warnings": ["Paper activity websocket capacity limit reached; use enterprise realtime multiplexing or HTTP fallback"],
+                "mode": "paper",
+                "transport": "websocket",
+                "active_websocket_count": total_count,
+                "active_websocket_count_for_client": client_count,
+                "max_active_websocket_count": max(1, PAPER_ACTIVITY_WS_MAX_ACTIVE),
+                "max_active_websocket_count_per_client": max(1, PAPER_ACTIVITY_WS_MAX_ACTIVE_PER_CLIENT),
+            })
+            with contextlib.suppress(Exception):
+                await websocket.close(code=1013)
+            return
         try:
             requested_interval = int(websocket.query_params.get("interval_ms", "1000"))
         except ValueError:
@@ -13026,9 +14220,7 @@ async def _paper_activity_websocket(websocket: WebSocket) -> None:
                         "warnings": [str(exc)],
                         "mode": "paper",
                     }
-                try:
-                    await websocket.send_json(payload)
-                except Exception:
+                if not await _send_websocket_json_bounded(websocket, payload):
                     return
                 wait_result = await _wait_for_next_websocket_iteration(interval_seconds, disconnect_task)
                 if wait_result in {"shutdown", "disconnect"}:
@@ -13040,6 +14232,7 @@ async def _paper_activity_websocket(websocket: WebSocket) -> None:
         except asyncio.CancelledError:
             raise
         finally:
+            _unregister_paper_activity_websocket(client_id)
             await _cancel_websocket_disconnect_task(disconnect_task)
 
 
@@ -13063,7 +14256,7 @@ async def _readonly_resource_websocket(websocket: WebSocket) -> None:
             requested_interval = 15000
         interval_seconds = max(0.5, min(120.0, requested_interval / 1000))
         if target is None:
-            await websocket.send_json({
+            await _send_websocket_json_bounded(websocket, {
                 "data": None,
                 "source": "readonly_resource_websocket",
                 "source_type": "unavailable",
@@ -13108,9 +14301,7 @@ async def _readonly_resource_websocket(websocket: WebSocket) -> None:
                         "transport": "websocket",
                         "resource_path": target,
                     }
-                try:
-                    await websocket.send_json(payload)
-                except Exception:
+                if not await _send_websocket_json_bounded(websocket, payload):
                     return
                 wait_result = await _wait_for_next_websocket_iteration(interval_seconds, disconnect_task)
                 if wait_result in {"shutdown", "disconnect"}:

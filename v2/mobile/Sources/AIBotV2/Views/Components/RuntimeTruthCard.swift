@@ -27,8 +27,15 @@ private func runtimeBool(_ value: Bool?, trueText: String, falseText: String) ->
     return value ? trueText : falseText
 }
 
-private func providerActualText(color: String?, actual: Bool?, status: String?) -> String {
-    let marker = color ?? status
+private func providerActualText(color: String?, actual: Bool?, heartbeatOnly: Bool? = nil, status: String?) -> String {
+    let marker: String?
+    if heartbeatOnly == true {
+        marker = "heartbeat only"
+    } else if actual == true {
+        marker = status ?? color ?? "actual payload"
+    } else {
+        marker = color ?? status
+    }
     let actualText = runtimeBool(actual, trueText: "actual", falseText: "no actual")
     return "\(runtimeText(marker))/\(actualText)"
 }
@@ -168,11 +175,13 @@ struct RuntimeTruthDisplay {
             coinglassStatus: providerActualText(
                 color: summary.provider_readiness?.coinglass_dashboard_color,
                 actual: summary.provider_readiness?.coinglass_actual_payload_present,
+                heartbeatOnly: summary.provider_readiness?.coinglass_heartbeat_only,
                 status: summary.provider_readiness?.coinglass_status
             ),
             moralisStatus: providerActualText(
                 color: summary.provider_readiness?.moralis_dashboard_color,
                 actual: summary.provider_readiness?.moralis_actual_payload_present,
+                heartbeatOnly: summary.provider_readiness?.moralis_heartbeat_only,
                 status: summary.provider_readiness?.moralis_status
             ),
             santimentStatus: santimentRuntimeText(
@@ -252,11 +261,13 @@ struct RuntimeTruthDisplay {
             coinglassStatus: providerActualText(
                 color: paper.provider_readiness?.coinglass_dashboard_color,
                 actual: paper.provider_readiness?.coinglass_actual_payload_present,
+                heartbeatOnly: paper.provider_readiness?.coinglass_heartbeat_only,
                 status: paper.provider_readiness?.coinglass_status
             ),
             moralisStatus: providerActualText(
                 color: paper.provider_readiness?.moralis_dashboard_color,
                 actual: paper.provider_readiness?.moralis_actual_payload_present,
+                heartbeatOnly: paper.provider_readiness?.moralis_heartbeat_only,
                 status: paper.provider_readiness?.moralis_status
             ),
             santimentStatus: santimentRuntimeText(
@@ -336,11 +347,13 @@ struct RuntimeTruthDisplay {
             coinglassStatus: providerActualText(
                 color: risk.provider_readiness?.coinglass_dashboard_color,
                 actual: risk.provider_readiness?.coinglass_actual_payload_present,
+                heartbeatOnly: risk.provider_readiness?.coinglass_heartbeat_only,
                 status: risk.provider_readiness?.coinglass_status
             ),
             moralisStatus: providerActualText(
                 color: risk.provider_readiness?.moralis_dashboard_color,
                 actual: risk.provider_readiness?.moralis_actual_payload_present,
+                heartbeatOnly: risk.provider_readiness?.moralis_heartbeat_only,
                 status: risk.provider_readiness?.moralis_status
             ),
             santimentStatus: santimentRuntimeText(

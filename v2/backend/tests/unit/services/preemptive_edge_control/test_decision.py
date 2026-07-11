@@ -241,3 +241,69 @@ def test_preemptive_blocks_bucket_quarantine() -> None:
     assert decision["bucket_quarantine_active"] is True
     assert decision["preemptive_action"] == "BLOCK_BUCKET_QUARANTINE"
     assert decision["preemptive_allowed"] is False
+
+
+def test_paper_exploration_treats_broad_quarantine_as_advisory_only() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+            paper_only=True,
+            routes_to_live=False,
+            places_real_order=False,
+            paper_risk_controller_exploration=True,
+            microstructure_action="ALLOW",
+            composite_microstructure_trust_score=0.84,
+            expected_move_after_cost_bps=60.0,
+            stop_distance_bps=24.0,
+            ATR_bps=12.0,
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(
+            status="HALTED_AFTER_PIT_THRESHOLD_MET",
+            a_grade_new_entries_allowed=False,
+            new_entries_allowed=False,
+        ),
+        bucket_quarantine_status={"blocked_bucket_keys": ["side:long"]},
+        allow_paper_risk_controller_exploration=True,
+    )
+
+    assert decision["preemptive_decision"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert "BUCKET_QUARANTINE_MATCH" not in decision["preemptive_decision_reasons"]
+    assert decision["bucket_quarantine_active"] is False
+    assert decision["matched_quarantined_bucket_keys"] == []
+    assert decision["advisory_quarantined_bucket_keys"] == ["side:long"]
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False
+
+
+def test_paper_exploration_exact_quarantine_still_blocks() -> None:
+    decision = evaluate_candidate(
+        _candidate(
+            tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+            paper_only=True,
+            routes_to_live=False,
+            places_real_order=False,
+            paper_risk_controller_exploration=True,
+            microstructure_action="ALLOW",
+            composite_microstructure_trust_score=0.84,
+            expected_move_after_cost_bps=60.0,
+            stop_distance_bps=24.0,
+            ATR_bps=12.0,
+        ),
+        closed_rows=[],
+        continuous_edge_guardian_gate=_guardian(
+            status="HALTED_AFTER_PIT_THRESHOLD_MET",
+            a_grade_new_entries_allowed=False,
+            new_entries_allowed=False,
+        ),
+        bucket_quarantine_status={"blocked_bucket_keys": ["symbol:BTCUSDT"]},
+        allow_paper_risk_controller_exploration=True,
+    )
+
+    assert decision["preemptive_decision"] == "NO_TRADE"
+    assert "BUCKET_QUARANTINE_MATCH" in decision["preemptive_decision_reasons"]
+    assert decision["bucket_quarantine_active"] is True
+    assert decision["matched_quarantined_bucket_keys"] == ["symbol:BTCUSDT"]
+    assert decision["advisory_quarantined_bucket_keys"] == []
+    assert decision["routes_to_live"] is False
+    assert decision["places_real_order"] is False

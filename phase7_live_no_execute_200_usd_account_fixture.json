@@ -1,0 +1,90 @@
+{
+  "marker": "PHASE7_LIVE_NO_EXECUTE_200_USD_ACCOUNT_FIXTURE",
+  "generated_utc": "2026-07-11T23:15:23Z",
+  "runtime_signed_read_generated_utc": "2026-07-11T23:12:38Z",
+  "runtime_dry_run_generated_utc": "2026-07-11T23:12:38.824Z",
+  "live_gate": "blocked_human_only",
+  "release_mode": "NON_LIVE",
+  "operator_approved": false,
+  "binance_signed_read_ok": true,
+  "signed_read_transport": "websocket_api_primary",
+  "signed_read_methods": {
+    "account.status": "SIGNED_WS_READ_EXECUTED",
+    "account.balance": "SIGNED_WS_READ_EXECUTED",
+    "account.position": "SIGNED_WS_READ_EXECUTED"
+  },
+  "account_truth": {
+    "account_fixture_usd": 200.0,
+    "runtime_available_balance_usd": 0.0,
+    "open_positions_count": 0,
+    "open_orders_count": 0,
+    "hedge_mode_status": true,
+    "cross_margin_status": "derived_from_signed_read",
+    "multi_assets_margin_status": "derived_from_signed_read",
+    "portfolio_liquidation_buffer_usd": null
+  },
+  "symbol_filter_truth": {
+    "symbol_filters_loaded": false,
+    "min_notional_loaded": false,
+    "tick_size_loaded": false,
+    "step_size_loaded": false,
+    "block_reason": "CANDIDATE_SYMBOL_MISSING"
+  },
+  "local_200_usd_canary_simulations": {
+    "micro_canary_min_notional_case": "covered_by_live_canary_symbol_filter_tests",
+    "post_only_entry_case": "covered_by_maker_first_no_execute_preview",
+    "reduce_only_exit_case": "covered_by_reduce_only_emergency_preview",
+    "hedge_case": "covered_by_hedge_first_fixture",
+    "emergency_exit_case": "covered_by_reduce_only_emergency_preview",
+    "insufficient_margin_case": "covered_by_200_usd_fixture_candidate_exceeds_margin_budget",
+    "min_notional_reject_case": "blocked_until_candidate_symbol_and_filters_present",
+    "liquidation_buffer_reject_case": "blocked_until_candidate_liquidation_buffer_present"
+  },
+  "dry_run_packet": {
+    "candidate_present": false,
+    "status": "FIRST_LIVE_CANARY_PACKET_BLOCKED",
+    "signed_account_read_status": "PASS",
+    "read_only_signed_account_check": true,
+    "available_balance_check": true,
+    "open_orders_check": true,
+    "position_mode_check": true,
+    "live_ready": false,
+    "submit_allowed": false,
+    "would_submit_if_operator_approved": false,
+    "non_operator_blockers": [
+      "CANDIDATE_SYMBOL_MISSING",
+      "CANDIDATE_SIDE_MISSING",
+      "CANDIDATE_QUANTITY_NOT_POSITIVE",
+      "CANDIDATE_NOTIONAL_NOT_POSITIVE",
+      "LIVE_PRE_SUBMIT_ALLOCATOR_NOT_ALLOWING_SIZE",
+      "PREEMPTIVE_EDGE_CONTROL_DECISION_MISSING",
+      "LIVE_PRE_SUBMIT_PREEMPTIVE_EDGE_CONTROL_NOT_ALLOW",
+      "LIVE_PRE_SUBMIT_PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW",
+      "ADVANCED_INDICATOR_DECISION_MISSING",
+      "PRE_TRADE_LOSS_PROBABILITY_MISSING",
+      "LIQUIDATION_BUFFER_MISSING",
+      "SYMBOL_FILTERS_NOT_VERIFIED",
+      "MIN_NOTIONAL_MISSING",
+      "STEP_SIZE_MISSING",
+      "TICK_SIZE_MISSING",
+      "SYMBOL_MISSING",
+      "QUANTITY_NOT_POSITIVE",
+      "NOTIONAL_NOT_POSITIVE",
+      "ACTION_NOT_SUPPORTED"
+    ]
+  },
+  "no_execute_truth": {
+    "order_endpoint_called": false,
+    "test_order_endpoint_called": false,
+    "leverage_endpoint_called": false,
+    "margin_endpoint_called": false,
+    "transfer_endpoint_called": false,
+    "withdraw_endpoint_called": false,
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "places_real_order": false
+  },
+  "status": "SIGNED_READ_OK_NO_EXECUTE_PACKET_BLOCKED_NO_CANDIDATE"
+}

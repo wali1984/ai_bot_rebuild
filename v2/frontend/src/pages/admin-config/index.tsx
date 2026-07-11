@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
+import { DangerousControlPanel } from '../../components/controls/DangerousControlPanel';
+import meta from './meta';
 
 const CONFIG_ENDPOINT = '/api/v2/config/current';
 const PIPELINE_ENDPOINT = '/api/v2/pipeline/status';
@@ -49,6 +51,8 @@ export default function AdminConfigPage(): JSX.Element {
           {cfg?.last_changed_at && <span style={{ padding: '3px 10px', borderRadius: 5, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', fontSize: 11, color: 'var(--text-muted)' }}>{relativeAge(cfg.last_changed_at)}</span>}
         </div>
       )}
+
+      <DangerousControlPanel controlIds={meta.dangerousControlIds} />
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line-soft)' }}>

@@ -3,19 +3,18 @@
 This module is artifact and read-only-probe oriented. It never places,
 cancels, or modifies exchange orders; never changes leverage or margin mode;
 never writes old Redis; and never exposes raw credentials. Binance private
-access is limited to signed read-only GET endpoints from ``v2/.env.local``.
+account reads are WebSocket API primary; REST is fallback-only for public
+metadata when explicitly enabled.
 """
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import math
 import os
 import subprocess
 import time
 import urllib.error
-import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -23,6 +22,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
+
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_decision,
+    binance_rest_fallback_allowed,
+)
+from v2.backend.app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
 
 LIVE_GATE_BLOCKED = "blocked_human_only"
 GATE_READY = "V2_CUDA_TRAINER_GPU_TRADER_BINANCE_LIVE_GATE_SINGLE_PASS_READY"
@@ -57,9 +63,8 @@ REQUIRED_PREDICTION_FIELDS = (
 BINANCE_BASE_URL = "https://fapi.binance.com"
 BINANCE_ALLOWED_READONLY_ENDPOINTS = (
     "/fapi/v1/exchangeInfo",
-    "/fapi/v3/account",
-    "/fapi/v2/positionRisk",
 )
+BINANCE_SIGNED_WS_READ_METHODS = ("account.status", "account.position")
 BINANCE_FORBIDDEN_MUTATIONS = (
     "new order",
     "test order",
@@ -659,35 +664,42 @@ def build_runtime_lineage_status(
     }
 
 
-def _signed_get(
+def _signed_ws_read(
     api_key: str,
     api_secret: str,
-    path: str,
-    *,
-    timeout: float = 10.0,
-) -> tuple[int, str]:
-    if path not in BINANCE_ALLOWED_READONLY_ENDPOINTS:
-        return 0, "READONLY_ENDPOINT_DENIED"
-    params = {
-        "timestamp": str(int(time.time() * 1000)),
-        "recvWindow": "5000",
+    method: str,
+) -> dict[str, Any]:
+    if method not in BINANCE_SIGNED_WS_READ_METHODS:
+        return {
+            "ok": False,
+            "status": "SIGNED_WS_READ_DENIED",
+            "ws_status_code": None,
+            "error_type": "READONLY_METHOD_DENIED",
+            "response_json": None,
+        }
+    adapter = BinanceUSDMAdapter(api_key=api_key, api_secret=api_secret)
+    result = adapter.signed_ws_read(method, execute=True)
+    return {
+        "ok": result.get("status") == "SIGNED_WS_READ_EXECUTED",
+        "status": result.get("status"),
+        "ws_status_code": result.get("ws_status_code"),
+        "error_type": result.get("error_type"),
+        "response_json": result.get("response_json"),
+        "endpoint": result.get("endpoint"),
+        "transport": result.get("transport"),
     }
-    query = urllib.parse.urlencode(params)
-    signature = hmac.new(api_secret.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
-    url = f"{BINANCE_BASE_URL}{path}?{query}&signature={signature}"
-    req = urllib.request.Request(url, headers={"X-MBX-APIKEY": api_key}, method="GET")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.status, resp.read().decode("utf-8")
-    except urllib.error.HTTPError as exc:
-        return exc.code, ""
-    except Exception as exc:
-        return 0, f"ERROR:{type(exc).__name__}"
 
 
 def _public_get(path: str, *, timeout: float = 10.0) -> tuple[int, str]:
     if path not in BINANCE_ALLOWED_READONLY_ENDPOINTS:
         return 0, "READONLY_ENDPOINT_DENIED"
+    fallback = binance_rest_fallback_decision(
+        endpoint=path,
+        fallback_reason="live_gate_single_pass_public_metadata_cache_missing",
+        role="live_gate_single_pass_public_metadata_recovery",
+    )
+    if not fallback["request_allowed"]:
+        return 0, f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
     try:
         with urllib.request.urlopen(f"{BINANCE_BASE_URL}{path}", timeout=timeout) as resp:
             return resp.status, resp.read().decode("utf-8")
@@ -713,22 +725,24 @@ def build_binance_connectivity_status(
         blockers.append(f"{key_name}_ABSENT_IN_ENV_LOCAL")
     if not api_secret:
         blockers.append(f"{secret_name}_ABSENT_IN_ENV_LOCAL")
-    exchange_info_status = "NOT_CHECKED_NETWORK_DISABLED"
+    exchange_info_status = "NOT_CHECKED_TRADER_WEBSOCKET_PRIMARY"
     account_status = "NOT_CHECKED_NETWORK_DISABLED"
     position_status = "NOT_CHECKED_NETWORK_DISABLED"
     account_summary: dict[str, Any] = {"balances_redacted": True}
     position_summary: dict[str, Any] = {}
     if network_probe_enabled:
-        status, body = _public_get("/fapi/v1/exchangeInfo")
-        exchange_info_status = "OK" if status == 200 else f"HTTP_{status}"
-        if status != 200:
-            blockers.append(f"EXCHANGE_INFO_READ_FAILED:{exchange_info_status}")
+        exchange_info_status = "NOT_CALLED_REST_PUBLIC_METADATA_FALLBACK_ONLY"
         if api_key and api_secret:
-            status, body = _signed_get(api_key, api_secret, "/fapi/v3/account")
-            account_status = "OK" if status == 200 else f"HTTP_{status}"
-            if status == 200:
+            account_ws = _signed_ws_read(api_key, api_secret, "account.status")
+            account_status = (
+                "OK"
+                if account_ws.get("ok")
+                else f"WS_{account_ws.get('ws_status_code') or account_ws.get('error_type') or 'ERROR'}"
+            )
+            if account_ws.get("ok"):
                 try:
-                    account = _as_dict(json.loads(body))
+                    response = _as_dict(account_ws.get("response_json"))
+                    account = _as_dict(response.get("result"))
                     account_summary = {
                         "balances_redacted": True,
                         "can_trade": account.get("canTrade"),
@@ -741,11 +755,20 @@ def build_binance_connectivity_status(
                     account_summary["parse_status"] = "PARSE_ERROR"
             else:
                 blockers.append(f"ACCOUNT_READ_FAILED:{account_status}")
-            status, body = _signed_get(api_key, api_secret, "/fapi/v2/positionRisk")
-            position_status = "OK" if status == 200 else f"HTTP_{status}"
-            if status == 200:
+            position_ws = _signed_ws_read(api_key, api_secret, "account.position")
+            position_status = (
+                "OK"
+                if position_ws.get("ok")
+                else f"WS_{position_ws.get('ws_status_code') or position_ws.get('error_type') or 'ERROR'}"
+            )
+            if position_ws.get("ok"):
                 try:
-                    positions = [row for row in _as_list(json.loads(body)) if isinstance(row, dict)]
+                    response = _as_dict(position_ws.get("response_json"))
+                    positions = [
+                        row
+                        for row in _as_list(response.get("result"))
+                        if isinstance(row, dict)
+                    ]
                     open_positions = [
                         row
                         for row in positions
@@ -777,9 +800,9 @@ def build_binance_connectivity_status(
         "raw_credential_in_payload": "NEVER",
         "network_probe_enabled": network_probe_enabled,
         "allowed_private_readonly_actions": [
-            "account status",
+            "websocket account status",
             "balances redacted",
-            "positions",
+            "websocket positions",
             "open orders read-only",
             "permissions",
             "exchange filters",
@@ -789,10 +812,15 @@ def build_binance_connectivity_status(
         ],
         "forbidden_until_live_gate_passes": list(BINANCE_FORBIDDEN_MUTATIONS),
         "readonly_endpoints_called": [
-            "/fapi/v1/exchangeInfo",
-            "/fapi/v3/account" if api_key and api_secret and network_probe_enabled else None,
-            "/fapi/v2/positionRisk" if api_key and api_secret and network_probe_enabled else None,
+            "WS_API:account.status" if api_key and api_secret and network_probe_enabled else None,
+            "WS_API:account.position" if api_key and api_secret and network_probe_enabled else None,
         ],
+        "signed_read_transport_primary": "binance_usdm_websocket_api",
+        "public_metadata_rest_fallback_only": True,
+        "trader_rest_primary_disabled": True,
+        "trader_signed_rest_fallback_supported": False,
+        "rest_fallback_required_env": f"{REST_FALLBACK_ENV}=true",
+        "rest_fallback_currently_allowed": binance_rest_fallback_allowed(),
         "test_order_endpoint_attempted": False,
         "real_order_attempted": False,
         "leverage_changed": False,

@@ -124,3 +124,54 @@ def test_fvg_alone_cannot_override_bad_after_cost_edge() -> None:
 
     assert result["preemptive_decision"] == "NO_TRADE"
     assert result["fvg_standalone_allows_trade"] is False
+
+
+def test_fvg_confluence_uses_computed_exit_feasibility_score() -> None:
+    result = evaluate_candidate(
+        _candidate(
+            expected_move_after_cost_bps=50.0,
+            advanced_indicator_context={
+                "bullish_fvg_present": True,
+                "fvg_trade_tape_confirmation": 0.9,
+                "fvg_orderbook_trust_confluence": 0.9,
+                "fvg_expected_edge_after_cost": 50.0,
+            },
+        ),
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate=GUARDIAN_ALLOW,
+    )
+
+    assert "FVG_CONFLUENCE_WITHOUT_VALID_EXIT_FEASIBILITY" not in result["preemptive_decision_reasons"]
+    assert result["advanced_indicator_shadow"] is False
+
+
+def test_guardian_halted_executable_candidate_routes_to_paper_risk_controller_exploration_only() -> None:
+    result = evaluate_candidate(
+        _candidate(
+            expected_move_after_cost_bps=60.0,
+            exit_feasibility_score=0.82,
+            advanced_indicator_context={
+                "bullish_fvg_present": True,
+                "fvg_trade_tape_confirmation": 0.9,
+                "fvg_orderbook_trust_confluence": 0.9,
+                "fvg_expected_edge_after_cost": 60.0,
+            },
+        ),
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate={
+            "status": "HALTED_AFTER_PIT_THRESHOLD_MET",
+            "a_grade_new_entries_allowed": False,
+            "new_entries_allowed": False,
+        },
+        allow_paper_risk_controller_exploration=True,
+    )
+
+    assert result["preemptive_decision"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert result["preemptive_action"] == "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert result["allow_paper_risk_controller_exploration"] is True
+    assert result["paper_risk_controller_exploration"] is True
+    assert result["preemptive_counts_as_a_plus"] is False
+    assert result["preemptive_counts_as_live_ready"] is False
+    assert result["routes_to_live"] is False
+    assert result["places_real_order"] is False
+    assert result["allow_live_dry_run"] is False

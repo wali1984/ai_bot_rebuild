@@ -16,6 +16,7 @@ import math
 import os
 import signal
 import subprocess
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -96,6 +97,7 @@ TRAINER_RAM_LIMIT_GB = 75.0
 EST = ZoneInfo("America/New_York")
 DEFAULT_HOLDOUT_CALIBRATION_SCAN_LIMIT = 100_000
 DEFAULT_HOLDOUT_CALIBRATION_EVAL_LIMIT = 512
+DEFAULT_HOLDOUT_CALIBRATION_MIN_INTERVAL_SECONDS = 900
 _HOLDOUT_EXAMPLE_CACHE: dict[str, Any] = {}
 
 
@@ -163,6 +165,13 @@ def as_dict(value: Any) -> dict[str, Any]:
 
 def as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list) else []
+
+
+def first_non_empty(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
 
 
 def finite_float(value: Any) -> float | None:
@@ -1007,6 +1016,10 @@ def build_confidence_artifacts(
     current_gate: float = 0.55,
     repo_root: Path | None = None,
     model_dir: Path | None = None,
+    run_holdout_calibration: bool = True,
+    previous_trusted_confidence_calibration: Mapping[str, Any] | None = None,
+    holdout_calibration_reuse_age_seconds: float | None = None,
+    holdout_calibration_min_interval_seconds: int | None = None,
 ) -> dict[str, dict[str, Any]]:
     rows = _prediction_rows(prediction_public)
     raw_values = [value for row in rows if (value := finite_float(row.get("confidence_raw"))) is not None]
@@ -1023,11 +1036,40 @@ def build_confidence_artifacts(
         else "CONFIDENCE_GATE_UNREACHABLE_BY_CURRENT_CALIBRATION"
     )
     feedback_metrics = _trusted_feedback_metric_rows(_redis_json_list("v2:trainer:feedback:outcomes"))
-    holdout_artifact = build_trusted_replay_holdout_calibration(
-        repo_root=repo_root,
-        model_dir=model_dir,
-        generated_utc=generated_utc,
-    )
+    previous_calibration = as_dict(previous_trusted_confidence_calibration)
+    if run_holdout_calibration:
+        holdout_artifact = build_trusted_replay_holdout_calibration(
+            repo_root=repo_root,
+            model_dir=model_dir,
+            generated_utc=generated_utc,
+        )
+        reused_holdout_calibration = False
+    else:
+        previous_status = str(previous_calibration.get("status") or "")
+        holdout_artifact = {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": previous_calibration.get("trusted_replay_holdout_status")
+            or previous_status
+            or "BLOCKED_TRUSTED_HOLDOUT_CALIBRATION_CADENCE_DEFERRED",
+            "confidence_outcome_join_available": previous_calibration.get("confidence_outcome_join_available"),
+            "trusted_holdout_rows": previous_calibration.get("trusted_holdout_rows"),
+            "evaluated_rows": previous_calibration.get("trusted_replay_holdout_evaluated_rows"),
+            "calibration_source": previous_calibration.get("trusted_replay_holdout_source")
+            or "RECENT_PUBLISHED_TRUSTED_HOLDOUT_CALIBRATION_REUSED",
+            "checkpoint_hash": previous_calibration.get("trusted_replay_holdout_checkpoint_hash"),
+            "checkpoint_id": previous_calibration.get("trusted_replay_holdout_checkpoint_id"),
+            "rows_rejected_by_reason": previous_calibration.get("trusted_replay_holdout_rows_rejected_by_reason")
+            or {},
+            "future_labels_used_as_features": previous_calibration.get("future_labels_used_as_features"),
+            "uses_expected_move_as_realized_reward": previous_calibration.get("uses_expected_move_as_realized_reward"),
+            "reason": "recent trusted replay holdout calibration reused to protect trainer cadence"
+            if previous_status == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+            else "trusted replay holdout calibration deferred by cadence control",
+            "_calibration_rows": [],
+            "_expected_move_rows": [],
+        }
+        reused_holdout_calibration = bool(previous_calibration)
     holdout_calibration_rows = [
         dict(row)
         for row in as_list(holdout_artifact.get("_calibration_rows"))
@@ -1036,21 +1078,36 @@ def build_confidence_artifacts(
     public_holdout_artifact = {
         key: value for key, value in holdout_artifact.items() if not str(key).startswith("_")
     }
+    reused_active_holdout = (
+        reused_holdout_calibration
+        and str(previous_calibration.get("status") or "") == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+    )
     holdout_active = (
         holdout_artifact.get("status") == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
         and bool(holdout_calibration_rows)
     )
+    public_holdout_active = holdout_active or reused_active_holdout
     calibration_rows = holdout_calibration_rows if holdout_active else list(feedback_metrics["calibration_rows"])
     ece, buckets = _expected_calibration_error(calibration_rows)
     brier = _brier_score(calibration_rows)
+    if reused_active_holdout and not calibration_rows:
+        brier = finite_float(previous_calibration.get("brier_score"))
+        ece = finite_float(previous_calibration.get("ece"))
     confidence_join_available = bool(calibration_rows)
-    trusted_holdout_available = bool(feedback_metrics["holdout_rows"]) or holdout_active
+    trusted_holdout_available = bool(feedback_metrics["holdout_rows"]) or public_holdout_active
     trusted_holdout_rows = (
-        int(finite_float(holdout_artifact.get("trusted_holdout_rows")) or 0)
-        if holdout_active
+        int(
+            finite_float(holdout_artifact.get("trusted_holdout_rows"))
+            or finite_float(previous_calibration.get("trusted_holdout_rows"))
+            or 0
+        )
+        if public_holdout_active
         else feedback_metrics["holdout_rows"]
     )
-    if holdout_active:
+    if reused_active_holdout:
+        calibration_status = "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+        calibration_reason = "recent trusted replay holdout calibration reused to protect trainer cadence"
+    elif holdout_active:
         calibration_status = "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
         calibration_reason = None
     elif confidence_join_available:
@@ -1105,6 +1162,9 @@ def build_confidence_artifacts(
             "trusted_replay_holdout_rows_rejected_by_reason": as_dict(
                 holdout_artifact.get("rows_rejected_by_reason")
             ),
+            "holdout_calibration_reused": reused_active_holdout,
+            "holdout_calibration_reuse_age_seconds": holdout_calibration_reuse_age_seconds,
+            "holdout_calibration_min_interval_seconds": holdout_calibration_min_interval_seconds,
             "reason": calibration_reason,
         },
         "confidence_reliability_matrix.json": {
@@ -1124,6 +1184,32 @@ def build_confidence_artifacts(
         },
         "trusted_replay_holdout_calibration_status.json": public_holdout_artifact,
     }
+
+
+def holdout_calibration_min_interval_seconds() -> int:
+    return _bounded_env_int(
+        "V2_TRUSTED_REPLAY_HOLDOUT_MIN_INTERVAL_SECONDS",
+        DEFAULT_HOLDOUT_CALIBRATION_MIN_INTERVAL_SECONDS,
+        minimum=60,
+        maximum=86_400,
+    )
+
+
+def holdout_calibration_due(
+    previous_calibration: Mapping[str, Any] | None,
+    *,
+    generated_utc: str,
+    min_interval_seconds: int,
+) -> tuple[bool, float | None]:
+    previous = as_dict(previous_calibration)
+    if str(previous.get("status") or "") != "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION":
+        return True, None
+    previous_time = parse_runtime_time(previous.get("generated_utc"))
+    current_time = parse_runtime_time(generated_utc)
+    if previous_time is None or current_time is None:
+        return True, None
+    age_seconds = max(0.0, (current_time - previous_time).total_seconds())
+    return age_seconds >= int(min_interval_seconds), age_seconds
 
 
 def build_trainer_quality_artifact(*, generated_utc: str) -> dict[str, Any]:
@@ -1666,12 +1752,46 @@ def build_resource_status(
     mem = memory_status()
     cpu = cpu_utilization_percent()
     training = as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {}
+    nested_training_metrics = as_dict(training.get("metrics"))
     resource = as_dict(as_dict(getattr(trainer_result, "status", {})).get("cuda_cpu_resource_utilization"))
     vram_used = finite_float(gpu.get("vram_used_mb")) or finite_float(resource.get("current_vram_used_mb"))
     vram_total = finite_float(gpu.get("vram_total_mb")) or finite_float(resource.get("vram_total_mb"))
+    current_gpu_utilization = finite_float(gpu.get("gpu_utilization_percent"))
+    training_window_gpu_utilization = finite_float(
+        nested_training_metrics.get("training_window_gpu_utilization_avg_percent")
+    )
+    workload_gpu_utilization = (
+        training_window_gpu_utilization
+        if training_window_gpu_utilization is not None
+        else current_gpu_utilization
+    )
     samples_per_second = finite_float(resource.get("tensor_rows_per_second"))
     target_batch_size = int(finite_float(resource.get("target_batch_size")) or DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE)
     actual_batch_size = int(finite_float(resource.get("actual_batch_size")) or finite_float(training.get("batch_size")) or 0)
+    accepted_training_rows = int(
+        finite_float(nested_training_metrics.get("accepted_training_rows"))
+        or finite_float(nested_training_metrics.get("training_trusted_rows"))
+        or 0
+    )
+    available_examples = int(finite_float(nested_training_metrics.get("available_examples")) or 0)
+    data_loader_time_ms = finite_float(resource.get("data_loader_time_ms")) or finite_float(
+        nested_training_metrics.get("data_loader_time_ms")
+    )
+    gpu_train_time_ms = finite_float(resource.get("gpu_train_time_ms")) or finite_float(
+        nested_training_metrics.get("gpu_train_time_ms")
+    )
+    cpu_prep_bottleneck = bool(
+        data_loader_time_ms is not None
+        and gpu_train_time_ms is not None
+        and data_loader_time_ms > gpu_train_time_ms
+    )
+    data_starved = bool(
+        accepted_training_rows > 0
+        and (
+            (actual_batch_size > 0 and accepted_training_rows < actual_batch_size)
+            or accepted_training_rows < 8192
+        )
+    )
     configured_vram_target_mb = (
         min(float(TRAINER_VRAM_LIMIT_MB), float(vram_total) * (TRAINER_GPU_UTILIZATION_LIMIT_PERCENT / 100.0))
         if vram_total
@@ -1684,6 +1804,8 @@ def build_resource_status(
     low_vram = bool(vram_used is not None and vram_total and (vram_used / vram_total) < 0.25)
     if training_blocker_reason:
         bottleneck = training_blocker_reason
+    elif data_starved:
+        bottleneck = "DATA_STARVED"
     elif actual_batch_size and actual_batch_size < target_batch_size:
         bottleneck = "APPROVED_SAMPLE_SET_BELOW_TARGET_BATCH"
     elif low_vram and samples_per_second:
@@ -1700,17 +1822,55 @@ def build_resource_status(
         "dataloader_workers_before": resource.get("dataloader_workers"),
         "dataloader_workers_after": resource.get("dataloader_workers"),
         "action": (
-            "TARGET_BATCH_ALREADY_EXCEEDS_AVAILABLE_APPROVED_SAMPLES"
+            "REPORT_DATA_STARVED_DO_NOT_RAISE_BATCH_FOR_COSMETIC_VRAM"
+            if data_starved
+            else "INCREASE_DATALOADER_WORKERS_PREFETCH_PINNED_MEMORY"
+            if cpu_prep_bottleneck
+            else "TARGET_BATCH_ALREADY_EXCEEDS_AVAILABLE_APPROVED_SAMPLES"
             if actual_batch_size and actual_batch_size < target_batch_size
             else "KEEP_CURRENT_SAFE_CUDA_SETTINGS"
         ),
         "throughput_improved": None,
     }
+    adaptive_controller = {
+        "enabled": True,
+        "target_gpu_utilization_pct": {"low": 65, "high": 75},
+        "target_vram_utilization_pct": {"low": 60, "high": 75},
+        "oom_backoff_enabled": True,
+        "cycle_timeout_safe": True,
+        "accepted_training_rows": accepted_training_rows or None,
+        "available_examples": available_examples or None,
+        "data_loader_time_ms": data_loader_time_ms,
+        "gpu_train_time_ms": gpu_train_time_ms,
+        "cpu_prep_bottleneck": cpu_prep_bottleneck,
+        "data_starved": data_starved,
+        "decision": tuning["action"],
+        "batch_size_before": actual_batch_size or None,
+        "batch_size_after": actual_batch_size or None,
+        "model_dim_after": nested_training_metrics.get("model_dim_after"),
+        "parallel_rollouts_after": resource.get("parallel_rollouts_after"),
+        "oom_events": nested_training_metrics.get("oom_count") or resource.get("oom_count") or 0,
+    }
     return {
         "schema_version": "native_cuda_trainer_resource_utilization_status_v1",
         "generated_est": est_now(),
         "gpu_name": gpu.get("gpu_name") or resource.get("gpu_name"),
-        "gpu_utilization_percent": gpu.get("gpu_utilization_percent"),
+        "gpu_utilization_percent": workload_gpu_utilization,
+        "gpu_utilization_source": (
+            "training_window_nvidia_smi_sampler"
+            if training_window_gpu_utilization is not None
+            else "post_cycle_nvidia_smi_snapshot"
+            if current_gpu_utilization is not None
+            else None
+        ),
+        "current_gpu_utilization_percent": current_gpu_utilization,
+        "training_window_gpu_utilization_avg_percent": training_window_gpu_utilization,
+        "training_window_gpu_utilization_max_percent": nested_training_metrics.get(
+            "training_window_gpu_utilization_max_percent"
+        ),
+        "training_window_gpu_utilization_sample_count": nested_training_metrics.get(
+            "training_window_gpu_utilization_sample_count"
+        ),
         "gpu_utilization_limit_percent": TRAINER_GPU_UTILIZATION_LIMIT_PERCENT,
         "vram_used_mb": vram_used,
         "vram_total_mb": vram_total,
@@ -1728,6 +1888,13 @@ def build_resource_status(
         "pinned_memory": bool(resource.get("pinned_memory")),
         "amp_enabled": bool(resource.get("mixed_precision_enabled")),
         "samples_per_second": samples_per_second,
+        "accepted_training_rows": accepted_training_rows or None,
+        "available_examples": available_examples or None,
+        "data_starved": data_starved,
+        "data_loader_time_ms": data_loader_time_ms,
+        "gpu_train_time_ms": gpu_train_time_ms,
+        "cpu_prep_bottleneck": cpu_prep_bottleneck,
+        "adaptive_gpu_saturation_controller": adaptive_controller,
         "predictions_per_second": resource.get("throughput_predictions_per_second"),
         "training_steps_per_minute": resource.get("training_steps_per_minute"),
         "bottleneck_reason": bottleneck,
@@ -2354,9 +2521,15 @@ def refresh_all_timeframe_payload(repo_root: Path) -> dict[str, Any]:
 
 # Module-level in-memory replay buffer. Keep it tightly bounded so a resident
 # trainer cannot retain enough examples to pressure system RAM after restarts.
-_REPLAY_BUFFER: deque = deque(maxlen=4_096)
+# 16384 rows of ~374-float tensors is ~25MB of feature data - RAM-safe while
+# letting the GPU train on full batches instead of starving at 4096 examples.
+_REPLAY_BUFFER: deque = deque(maxlen=16_384)
 RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE = 64
 RESIDENT_TRAIN_ROWS_PER_STEP = 512
+# Upper bound on a single optimizer-step batch. Keeps each native CUDA op
+# short enough for the SIGALRM cycle timeout to interrupt an overrun, so an
+# oversized --max-rows can never wedge the resident trainer mid-cycle again.
+RESIDENT_MAX_BATCH_SIZE = 4096
 RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS = 600
 
 
@@ -2390,23 +2563,266 @@ def resident_train_steps_for_max_rows(max_rows: int) -> int:
     return max(1, min(RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE, row_scaled_steps))
 
 
+# ── Adaptive GPU saturation controller (actuation) ──────────────────────────
+# Complements the resource-status reporting layer: when the GPU is idle
+# relative to CPU data prep and rows are plentiful, train MORE optimizer
+# epochs per cycle over the already-assembled buffer (real learning work, no
+# synthetic load). Backs off on OOM or when GPU/VRAM reach the target band.
+# The per-step batch freeze cap (RESIDENT_MAX_BATCH_SIZE) is never touched.
+RESIDENT_GPU_SATURATION_CONTROLLER_KEY = "v2:trainer:gpu_saturation_controller"
+RESIDENT_GPU_TARGET_SHARE_LOW = 0.50
+RESIDENT_GPU_TARGET_SHARE_HIGH = 0.75
+RESIDENT_VRAM_TARGET_HIGH_FRACTION = 0.75
+RESIDENT_STEPS_MULTIPLIER_MIN = 1
+RESIDENT_STEPS_MULTIPLIER_MAX = 4
+RESIDENT_TRAIN_STEPS_HARD_CEILING = 128
+RESIDENT_DATA_STARVED_ROW_FLOOR = 2048
+RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA = 0.02
+
+
+def _adaptive_gpu_controller_enabled() -> bool:
+    return os.getenv("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", "").strip() == "1"
+
+
+# ── Background backfill prefetcher (pipelined data loading) ──────────────────
+# The GPU finishes its 128 optimizer steps in seconds and then idled while the
+# cycle synchronously rebuilt archive tensors (~2-3 minutes). This daemon
+# thread builds the next backfill chunk WHILE the GPU trains, so each cycle
+# drains ready rows instantly. It owns its own Redis client + loader (no
+# shared mutable state with the main thread beyond the locked queue) and only
+# it advances the backfill cursor, so there is no cursor contention.
+_PREFETCH_QUEUE: deque = deque()
+_PREFETCH_LOCK = threading.Lock()
+_PREFETCH_THREAD: threading.Thread | None = None
+_PREFETCH_STOP = threading.Event()
+_PREFETCH_CHUNK_ROWS = 2_048
+_PREFETCH_IDLE_SLEEP_SECONDS = 10.0
+
+
+def _prefetch_backfill_worker() -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+        V2HybridTrainerDataLoader,
+    )
+
+    loader = None
+    while not _PREFETCH_STOP.is_set():
+        try:
+            with _PREFETCH_LOCK:
+                queued = len(_PREFETCH_QUEUE)
+            buffered = len(_REPLAY_BUFFER)
+            capacity = int(_REPLAY_BUFFER.maxlen or 0)
+            if capacity and buffered + queued >= capacity:
+                _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+                continue
+            if loader is None:
+                loader = V2HybridTrainerDataLoader(
+                    io=V2OnlyJsonIO(client=connect_redis())
+                )
+            examples = loader.load_trusted_replay_examples(
+                limit=_PREFETCH_CHUNK_ROWS, backfill=True
+            )
+            if examples:
+                with _PREFETCH_LOCK:
+                    _PREFETCH_QUEUE.extend(examples)
+            else:
+                _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+        except Exception:
+            loader = None
+            _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+
+
+def _ensure_prefetch_thread_started() -> None:
+    global _PREFETCH_THREAD
+    if _PREFETCH_THREAD is not None and _PREFETCH_THREAD.is_alive():
+        return
+    _PREFETCH_STOP.clear()
+    _PREFETCH_THREAD = threading.Thread(
+        target=_prefetch_backfill_worker,
+        name="v2-trainer-backfill-prefetch",
+        daemon=True,
+    )
+    _PREFETCH_THREAD.start()
+
+
+def _drain_prefetched_backfill_examples() -> list[Any]:
+    with _PREFETCH_LOCK:
+        drained = list(_PREFETCH_QUEUE)
+        _PREFETCH_QUEUE.clear()
+    return drained
+
+
+def _cuda_total_vram_mb() -> float | None:
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            return float(torch.cuda.get_device_properties(0).total_memory) / (1024 * 1024)
+    except Exception:
+        return None
+    return None
+
+
+def adaptive_gpu_saturation_decision(
+    *,
+    state: Mapping[str, Any],
+    accepted_rows: int,
+    data_loader_time_ms: float | None,
+    gpu_train_time_ms: float | None,
+    vram_reserved_mb: float | None,
+    vram_total_mb: float | None,
+    oom_occurred: bool,
+    checkpoint_promotion_rejected: bool = False,
+    checkpoint_promotion_reason: str | None = None,
+    validation_loss_delta: float | None = None,
+    overfit_gap_warning: bool = False,
+) -> dict[str, Any]:
+    """Pure controller step: telemetry in, next steps-multiplier + class out."""
+    multiplier = int(state.get("steps_multiplier") or RESIDENT_STEPS_MULTIPLIER_MIN)
+    multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, min(RESIDENT_STEPS_MULTIPLIER_MAX, multiplier))
+    oom_events = int(state.get("oom_events") or 0)
+    gpu_share = None
+    if gpu_train_time_ms is not None and data_loader_time_ms is not None:
+        denominator = float(gpu_train_time_ms) + float(data_loader_time_ms)
+        if denominator > 0:
+            gpu_share = float(gpu_train_time_ms) / denominator
+    vram_fraction = None
+    if vram_reserved_mb is not None and vram_total_mb:
+        vram_fraction = float(vram_reserved_mb) / float(vram_total_mb)
+    validation_regressed = bool(
+        validation_loss_delta is not None
+        and float(validation_loss_delta) > RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA
+    )
+    if oom_occurred:
+        classification = "OOM_BACKOFF"
+        multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
+        oom_events += 1
+    elif checkpoint_promotion_rejected or validation_regressed or overfit_gap_warning:
+        classification = "VALIDATION_CHECKPOINT_BACKOFF"
+        multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
+    elif accepted_rows < RESIDENT_DATA_STARVED_ROW_FLOOR:
+        classification = "DATA_STARVED_NOT_GPU_CONFIG_BLOCKED"
+    elif vram_fraction is not None and vram_fraction > RESIDENT_VRAM_TARGET_HIGH_FRACTION:
+        classification = "VRAM_AT_TARGET_HOLD"
+        multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier - 1)
+    elif gpu_share is not None and gpu_share < RESIDENT_GPU_TARGET_SHARE_LOW:
+        classification = "CPU_PREP_BOTTLENECK_RAISING_EPOCHS"
+        multiplier = min(RESIDENT_STEPS_MULTIPLIER_MAX, multiplier + 1)
+    elif gpu_share is not None and gpu_share > RESIDENT_GPU_TARGET_SHARE_HIGH:
+        classification = "GPU_AT_TARGET_BACKING_OFF"
+        multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier - 1)
+    else:
+        classification = "IN_TARGET_BAND_OR_TELEMETRY_PENDING"
+    return {
+        "schema_version": "resident_gpu_saturation_controller_v1",
+        "steps_multiplier": multiplier,
+        "classification": classification,
+        "gpu_time_share": round(gpu_share, 6) if gpu_share is not None else None,
+        "gpu_target_share_band": [RESIDENT_GPU_TARGET_SHARE_LOW, RESIDENT_GPU_TARGET_SHARE_HIGH],
+        "vram_fraction": round(vram_fraction, 6) if vram_fraction is not None else None,
+        "vram_target_high_fraction": RESIDENT_VRAM_TARGET_HIGH_FRACTION,
+        "accepted_rows": int(accepted_rows),
+        "data_starved_row_floor": RESIDENT_DATA_STARVED_ROW_FLOOR,
+        "data_loader_time_ms": data_loader_time_ms,
+        "gpu_train_time_ms": gpu_train_time_ms,
+        "oom_events": oom_events,
+        "checkpoint_promotion_rejected": bool(checkpoint_promotion_rejected),
+        "checkpoint_promotion_reason": checkpoint_promotion_reason,
+        "validation_loss_delta": validation_loss_delta,
+        "validation_loss_backoff_delta": RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA,
+        "validation_regressed": validation_regressed,
+        "overfit_gap_warning": bool(overfit_gap_warning),
+        "artificial_load_added": False,
+        "per_step_batch_freeze_cap_unchanged": RESIDENT_MAX_BATCH_SIZE,
+    }
+
+
+def _read_gpu_saturation_state(client: Any) -> dict[str, Any]:
+    try:
+        raw = client.get(RESIDENT_GPU_SATURATION_CONTROLLER_KEY) if client is not None else None
+        payload = json.loads(raw) if raw else {}
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def update_gpu_saturation_controller(
+    *,
+    client: Any,
+    nested_training_metrics: Mapping[str, Any],
+    oom_occurred: bool,
+) -> dict[str, Any]:
+    state = _read_gpu_saturation_state(client)
+    decision = adaptive_gpu_saturation_decision(
+        state=state,
+        accepted_rows=int(finite_float(nested_training_metrics.get("accepted_training_rows")) or 0),
+        data_loader_time_ms=finite_float(nested_training_metrics.get("data_loader_time_ms")),
+        gpu_train_time_ms=finite_float(nested_training_metrics.get("gpu_train_time_ms")),
+        vram_reserved_mb=finite_float(nested_training_metrics.get("vram_reserved_mb")),
+        vram_total_mb=_cuda_total_vram_mb(),
+        oom_occurred=oom_occurred,
+        checkpoint_promotion_rejected=(
+            nested_training_metrics.get("checkpoint_promotion_rejected") is True
+        ),
+        checkpoint_promotion_reason=(
+            str(nested_training_metrics.get("checkpoint_promotion_reason") or "")
+            or None
+        ),
+        validation_loss_delta=finite_float(nested_training_metrics.get("validation_loss_delta")),
+        overfit_gap_warning=nested_training_metrics.get("overfit_gap_warning") is True,
+    )
+    decision["generated_utc"] = (
+        datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    )
+    try:
+        if client is not None:
+            client.set(RESIDENT_GPU_SATURATION_CONTROLLER_KEY, json.dumps(decision, default=str))
+    except Exception:
+        pass
+    return decision
+
+
 def run_native_training_cycle(
     *,
     paths: PersistentTrainerPaths,
     max_rows: int,
     risk_caps_configured: bool,
 ) -> Any:
-    io = V2OnlyJsonIO(client=connect_redis())
+    client = connect_redis()
+    io = V2OnlyJsonIO(client=client)
     symbol_scope = trainer_symbol_scope_status()
+    train_steps = resident_train_steps_for_max_rows(max_rows)
+    if _adaptive_gpu_controller_enabled():
+        controller_state = _read_gpu_saturation_state(client)
+        multiplier = max(
+            RESIDENT_STEPS_MULTIPLIER_MIN,
+            min(
+                RESIDENT_STEPS_MULTIPLIER_MAX,
+                int(controller_state.get("steps_multiplier") or RESIDENT_STEPS_MULTIPLIER_MIN),
+            ),
+        )
+        train_steps = min(RESIDENT_TRAIN_STEPS_HARD_CEILING, train_steps * multiplier)
+    # Cap batch_size independently of max_rows. A batch equal to a very large
+    # max_rows (e.g. 32768) runs a single oversized native CUDA op that the
+    # SIGALRM-based cycle timeout cannot interrupt (SIGALRM only fires between
+    # Python bytecodes on the main thread), which previously wedged the
+    # resident daemon mid-cycle and froze weight updates. A bounded batch keeps
+    # each optimizer step short enough that the timeout can rescue an overrun.
     config = HybridTrainerConfig(
         symbols=tuple(symbol_scope["training_symbols"] or resolve_symbols()),
         timeframes=tuple(DEFAULT_TIMEFRAMES),
         max_training_rows_per_cycle=int(max_rows),
-        batch_size=max(1, int(max_rows)),
-        train_steps=resident_train_steps_for_max_rows(max_rows),
+        batch_size=max(1, min(int(max_rows), RESIDENT_MAX_BATCH_SIZE)),
+        train_steps=train_steps,
         risk_caps_configured=bool(risk_caps_configured),
     )
-    return run_hybrid_trainer_cycle(config=config, io=io, publish=True, replay_buffer=_REPLAY_BUFFER)
+    _ensure_prefetch_thread_started()
+    return run_hybrid_trainer_cycle(
+        config=config,
+        io=io,
+        publish=True,
+        replay_buffer=_REPLAY_BUFFER,
+        prefetched_backfill_examples=_drain_prefetched_backfill_examples(),
+    )
 
 
 def publish_persistent_payloads(
@@ -2655,6 +3071,45 @@ def publish_persistent_payloads(
         persistent_state=persistent,
         prediction_rows=current_prediction_rows,
     )
+    current_result_status = as_dict(getattr(trainer_result, "status", {})) if trainer_result is not None else {}
+    current_metric_fields = as_dict(as_dict(latest_training_metrics).get("metrics"))
+    active_checkpoint_path = first_non_empty(
+        current_metric_fields.get("checkpoint_path"),
+        online_learning.get("checkpoint_path"),
+        persistent.get("checkpoint_path"),
+        current_runtime.get("checkpoint_path"),
+    )
+    checkpoint_id_from_path = None
+    if active_checkpoint_path:
+        checkpoint_name = Path(str(active_checkpoint_path)).name
+        if checkpoint_name.endswith(".weights.npz"):
+            checkpoint_id_from_path = checkpoint_name[: -len(".weights.npz")]
+        elif checkpoint_name.endswith(".json"):
+            checkpoint_id_from_path = checkpoint_name[: -len(".json")]
+    active_checkpoint_id = first_non_empty(
+        current_result_status.get("checkpoint_id"),
+        checkpoint_id_from_path,
+        checkpoint.get("latest_checkpoint_id"),
+        current_runtime.get("checkpoint_id"),
+    )
+    active_checkpoint_hash = first_non_empty(
+        current_metric_fields.get("checkpoint_hash"),
+        online_learning.get("checkpoint_hash"),
+        persistent.get("checkpoint_hash"),
+        current_runtime.get("checkpoint_hash"),
+    )
+    active_checkpoint_weight_blob_written = first_non_empty(
+        current_metric_fields.get("checkpoint_weight_blob_written"),
+        online_learning.get("checkpoint_weight_blob_written"),
+        persistent.get("checkpoint_weight_blob_written"),
+        current_runtime.get("checkpoint_weight_blob_written"),
+    )
+    active_checkpoint_reload_verified = first_non_empty(
+        current_metric_fields.get("checkpoint_reload_verified"),
+        online_learning.get("checkpoint_reload_verified"),
+        persistent.get("checkpoint_reload_verified"),
+        current_runtime.get("checkpoint_reload_verified"),
+    )
     merged_runtime = {
         **current_runtime,
         "generated_est": generated_est,
@@ -2698,6 +3153,11 @@ def publish_persistent_payloads(
         "ram_used_gb": resource.get("ram_used_gb"),
         "ram_total_gb": resource.get("ram_total_gb"),
         "checkpoint_count": checkpoint.get("checkpoint_count"),
+        "checkpoint_id": active_checkpoint_id,
+        "checkpoint_path": active_checkpoint_path,
+        "checkpoint_hash": active_checkpoint_hash,
+        "checkpoint_weight_blob_written": active_checkpoint_weight_blob_written,
+        "checkpoint_reload_verified": active_checkpoint_reload_verified,
         "checkpoint_total_size_gb": checkpoint.get("checkpoint_total_size_gb"),
         "checkpoint_dir_size_bytes": checkpoint.get("checkpoint_dir_size_bytes"),
         "checkpoint_rollover_status": checkpoint.get("checkpoint_rollover_status"),
@@ -2864,6 +3324,15 @@ def publish_persistent_payloads(
         "realized_reward_source": latest_metrics.get("realized_reward_source"),
         "uses_expected_move_as_realized_reward": latest_metrics.get("uses_expected_move_as_realized_reward"),
     }
+    previous_confidence_calibration = as_dict(
+        read_json(paths.operator_dir / "trusted_confidence_calibration_status.json")
+    )
+    holdout_min_interval = holdout_calibration_min_interval_seconds()
+    run_holdout_calibration, holdout_reuse_age_seconds = holdout_calibration_due(
+        previous_confidence_calibration,
+        generated_utc=generated_utc,
+        min_interval_seconds=holdout_min_interval,
+    )
     followup_artifacts = {
         **build_paper_exploration_artifacts(
             prediction_public=prediction_public,
@@ -2874,6 +3343,10 @@ def publish_persistent_payloads(
             generated_utc=generated_utc,
             repo_root=paths.repo_root,
             model_dir=paths.model_dir,
+            run_holdout_calibration=run_holdout_calibration,
+            previous_trusted_confidence_calibration=previous_confidence_calibration,
+            holdout_calibration_reuse_age_seconds=holdout_reuse_age_seconds,
+            holdout_calibration_min_interval_seconds=holdout_min_interval,
         ),
         "fresh_online_feedback_end_to_end_status.json": {
             "schema_version": "fresh_online_feedback_end_to_end_status_v1",
@@ -2984,6 +3457,7 @@ def run_one_persistent_cycle(
     run_training: bool = True,
 ) -> dict[str, Any]:
     training_blocker_reason: str | None = None
+    cuda_oom_occurred = False
     state_before_cycle = as_dict(read_json(paths.state_path))
     publish_training_cycle_heartbeat(
         paths=paths,
@@ -3005,12 +3479,23 @@ def run_one_persistent_cycle(
         training_blocker_reason = f"NATIVE_CYCLE_TIMEOUT_{RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS}s"
     except (RuntimeError, ValueError) as exc:
         msg = str(exc).lower()
-        if not ("no trusted examples built" in msg or "min() arg is an empty sequence" in msg):
+        if "out of memory" in msg or "cuda oom" in msg:
+            trainer_result = None
+            training_blocker_reason = "CUDA_OOM_BACKOFF"
+            cuda_oom_occurred = True
+        elif not ("no trusted examples built" in msg or "min() arg is an empty sequence" in msg):
             raise
-        trainer_result = None
-        training_blocker_reason = "NO_TRUSTED_EXAMPLES_BUILT"
+        else:
+            trainer_result = None
+            training_blocker_reason = "NO_TRUSTED_EXAMPLES_BUILT"
     training_metrics = as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {}
     nested_training_metrics = as_dict(training_metrics.get("metrics"))
+    if _adaptive_gpu_controller_enabled():
+        update_gpu_saturation_controller(
+            client=connect_redis(),
+            nested_training_metrics=nested_training_metrics,
+            oom_occurred=cuda_oom_occurred,
+        )
     trusted_rows_loaded = int(
         finite_float(nested_training_metrics.get("trusted_rows_loaded"))
         or finite_float(training_metrics.get("trusted_rows_loaded"))

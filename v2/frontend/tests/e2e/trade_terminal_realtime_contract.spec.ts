@@ -69,4 +69,39 @@ test.describe('trade terminal realtime contract', () => {
     expect(clientSource).toContain("type: 'resource_path_delta'");
     expect(clientSource).toContain("url.searchParams.append('path', path)");
   });
+
+  test('shared realtime layer restores session last-known-good state without live routing', () => {
+    const providerSource = readFileSync(path.resolve(process.cwd(), 'src/lib/realtime/RealtimeProvider.tsx'), 'utf8');
+    const clientSource = readFileSync(path.resolve(process.cwd(), 'src/lib/realtime/resourceClient.ts'), 'utf8');
+    const resourceHookSource = readFileSync(path.resolve(process.cwd(), 'src/hooks/useRealtimeResource.ts'), 'utf8');
+
+    expect(providerSource).toContain('loadCachedRealtimeBootstrap()');
+    expect(providerSource).toContain('saveCachedRealtimeBootstrap(payload)');
+    expect(clientSource).toContain('window.sessionStorage');
+    expect(clientSource).toContain("payload.live_gate === 'blocked_human_only'");
+    expect(clientSource).toContain('payload.routes_to_live === false');
+    expect(clientSource).toContain('payload.places_real_order === false');
+    expect(clientSource).toContain('session_last_known_good');
+    expect(resourceHookSource).toContain('restoreLastKnownResourceEnvelope');
+    expect(resourceHookSource).toContain('persistLastKnownResourceEnvelope');
+    expect(resourceHookSource).toContain("source_type: 'cache'");
+    expect(resourceHookSource).toContain('Session last-known-good payload restored while realtime transport reconnects');
+  });
+
+  test('route registry lazy loads page components to keep initial control-center bundle small', () => {
+    const registrySource = readFileSync(path.resolve(process.cwd(), 'src/pages/registry.ts'), 'utf8');
+    const appSource = readFileSync(path.resolve(process.cwd(), 'src/App.tsx'), 'utf8');
+    const routerSource = readFileSync(path.resolve(process.cwd(), 'src/router.tsx'), 'utf8');
+
+    expect(registrySource).toContain("import { lazy } from 'react'");
+    expect(registrySource).toContain("Component: lazy(() => import('./dashboard'))");
+    expect(registrySource).toContain("Component: lazy(() => import('./signals'))");
+    expect(registrySource).toContain("Component: lazy(() => import('./markets'))");
+    expect(registrySource).toContain("Component: lazy(() => import('./admin-risk'))");
+    expect(registrySource).not.toContain("import DashboardPage from './dashboard'");
+    expect(registrySource).not.toContain("import SignalsPage from './signals'");
+    expect(registrySource).not.toContain("import MarketsPage from './markets'");
+    expect(appSource).toContain('<Suspense fallback={<RouteChunkFallback />}>');
+    expect(routerSource).toContain("const PublicLandingPage = lazy(() => import('./pages/public-landing-v2'))");
+  });
 });

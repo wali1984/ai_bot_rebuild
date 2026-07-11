@@ -692,6 +692,83 @@ def test_strategy_exit_pnl_fields_reach_trainer_feedback() -> None:
     assert row["realized_pnl"] < 0
 
 
+def test_paper_exploration_feedback_carries_phase6_economic_aliases() -> None:
+    fill = _fill(fill_id="exploration-phase6", qty=1, price=100)
+    fill.update(
+        {
+            "strategy_id": "microstructure_momentum",
+            "strategy_family": "microstructure_momentum",
+            "strategy_subtype": "microstructure_momentum",
+            "strategy_selected_mode": "microstructure_momentum",
+            "market_regime_at_entry": "MICROSTRUCTURE_MOMENTUM",
+            **_premium_ingestor_context_fields(),
+            **_audit_quality_fields(),
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "explicit_paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "exploration_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "paper_exploration_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "counts_as_A_plus": False,
+            "counts_as_live_ready": False,
+        }
+    )
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(take_profit_bps=100.0, stop_loss_bps=99999.0),
+        ),
+    )
+
+    htf_snapshot = {
+        "feature_snapshot_id": "snap_phase6_htf",
+        "available_at": "2026-06-11T09:59:00Z",
+        "feature_cutoff": "2026-06-11T09:55:00Z",
+        "features": {
+            "htf_4h_close": 101.0,
+            "bid_ask_spread_bps": 1.2,
+        },
+    }
+    row = build_strategy_hedge_exit_feedback(
+        close_event={
+            **result["closed_trades"][0],
+            "entry_feature_snapshot": htf_snapshot,
+            "entry_feature_snapshot_id": "snap_phase6_htf",
+            "feature_snapshot_id": "snap_phase6_htf",
+            "mtf_snapshot_id": None,
+        },
+        outcome_label={**result["outcome_labels"][0], "mtf_snapshot_id": None},
+    )
+
+    assert row["paper_opportunity_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert row["paper_only"] is True
+    assert row["routes_to_live"] is False
+    assert row["places_real_order"] is False
+    assert row["counts_as_A_plus"] is False
+    assert row["counts_as_live_ready"] is False
+    assert row["entry_time"] is not None
+    assert row["exit_time"] in {"2026-06-11T10:05:00Z", "2026-06-11T10:05:00.000Z"}
+    assert row["realized_gross_pnl_usd"] is not None
+    assert row["fees_usd"] == row["fees"]
+    assert row["slippage_usd"] == row["slippage"]
+    assert row["funding_usd"] == row["funding"]
+    assert row["max_adverse_usd"] == row["mae_usd"]
+    assert row["max_favorable_usd"] == row["mfe_usd"]
+    assert row["win_loss"] in {"win", "loss"}
+    assert row["dirty_flag"] is False
+    assert row["dirty_reasons"] == []
+    assert row["mtf_snapshot_id"] == "snap_phase6_htf"
+    assert row["mtf_snapshot_id_source"] == "ENTRY_FEATURE_SNAPSHOT_WITH_HTF_FEATURES"
+    assert "MISSING_TRUST_MTF_SNAPSHOT_ID" not in row["trust_envelope_rejection_reasons"]
+
+
 def test_major_move_fields_reach_trainer_feedback() -> None:
     fill = _fill(fill_id="major-move", qty=1, price=100)
     fill.update(
@@ -2504,6 +2581,60 @@ def test_position_from_fill_preserves_trainer_feedback_entry_context() -> None:
     assert position.microstructure_context == {"source": "test"}
 
 
+def test_position_from_fill_preserves_exploration_tier_and_preemptive_lineage() -> None:
+    position = position_from_fill(
+        {
+            "symbol": "KITEUSDT",
+            "signal_id": "hyp_fill",
+            "prediction_id": "hyp_fill",
+            "candidate_id": "hyp_fill",
+            "preemptive_decision_id": "pec_hyp_fill",
+            "risk_decision_id": "rd_hyp_fill",
+            "orchestrator_decision_id": "dec_hyp_fill",
+            "allocator_decision_id": "alloc_hyp_fill",
+            "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+            "paper_opportunity_tier_reason": (
+                "DYNAMIC_EVIDENCE_AWARE_PAPER_RISK_CONTROLLER_EXPLORATION"
+            ),
+            "confidence_executable_trade": 0.81,
+            "dynamic_exploration_floor": 0.66,
+            "dynamic_exploration_floor_formula": "formula-test",
+            "exploration_floor_inputs": {"microstructure_trust": 0.91},
+            "paper_risk_controller_exploration_above_floor": True,
+            "paper_risk_controller_exploration_eligible": True,
+            "bootstrap_exploration": False,
+            "feature_vector_hash": "strategy_supply_hyp_fill",
+            "provider_hashes": {"latest": "provider_hash"},
+            "generated_utc": "2026-06-11T10:00:00Z",
+        },
+        fill_id="fill",
+        side="long",
+        quantity=1.0,
+        price=0.12,
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.preemptive_decision_id == "pec_hyp_fill"
+    assert payload["preemptive_decision_id"] == "pec_hyp_fill"
+    assert payload["tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert payload["exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert payload["paper_exploration_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert payload["paper_opportunity_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+    assert payload["confidence_executable_trade"] == 0.81
+    assert payload["dynamic_exploration_floor"] == 0.66
+    assert payload["dynamic_exploration_floor_formula"] == "formula-test"
+    assert payload["exploration_floor_inputs"] == {"microstructure_trust": 0.91}
+    assert payload["paper_risk_controller_exploration_above_floor"] is True
+    assert payload["paper_risk_controller_exploration_eligible"] is True
+    assert payload["bootstrap_exploration"] is False
+    assert payload["paper_only"] is True
+    assert payload["routes_to_live"] is False
+    assert payload["places_real_order"] is False
+    assert payload["counts_as_A_plus"] is False
+    assert payload["counts_as_live_ready"] is False
+
+
 def test_position_from_fill_preserves_adaptive_capital_policy_version() -> None:
     position = position_from_fill(
         {
@@ -2612,6 +2743,226 @@ def test_lifecycle_writes_policy_activation_and_funding_terms_to_accepted_open_f
     assert accepted["funding_interval_seconds"] == 3600.0
 
 
+def test_lifecycle_preserves_paper_exploration_materialization_lineage() -> None:
+    fill = _fill(
+        fill_id="exploration-open",
+        symbol="ORDIUSDT",
+        side="long",
+        qty=2.0,
+        price=3.5,
+        timeframe="4h",
+    )
+    fill.update({
+        "candidate_id": "hyp_exploration_open",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "materialization_queue_id": "paper_exploration_materialize_hyp_exploration_open",
+        "materialization_queue_accepted_at": "2026-07-10T10:00:00Z",
+        "materialization_queue_expires_at": "2026-07-10T10:15:00Z",
+        "allocator_decision_id": "allocsim_hyp_exploration_open",
+        "confidence_executable_trade": 0.83,
+        "dynamic_exploration_floor": 0.64,
+        "dynamic_exploration_floor_formula": "formula-test",
+        "exploration_floor_inputs": {"provider_confluence": 0.8},
+        "paper_risk_controller_exploration_above_floor": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "bootstrap_exploration": False,
+        "provider_hashes": {"latest": "provider-hash"},
+        "feature_vector_hash": "feature-hash",
+        "checkpoint_id": "ckpt_exploration_open",
+        "checkpoint_id_source": "redis:v2:trainer:checkpoint:evidence.active_checkpoint_id",
+        "entry_prediction_snapshot": {
+            "prediction_id": "pred_exploration_open",
+            "signal_id": "sig_exploration_open",
+            "symbol": "ORDIUSDT",
+            "timeframe": "4h",
+            "selected_action": "long",
+            "feature_snapshot_id": "feat_exploration_open",
+            "checkpoint_id": "ckpt_exploration_open",
+        },
+        "risk_decision_record_key": "v2:decision:risk:rd_exploration_open",
+        "risk_decision_record_hash": "risk-record-hash",
+        "risk_decision_record_resolved": True,
+        "risk_decision_source": "PER_ID_DECISION_RECORD",
+        "orchestrator_decision_record_key": (
+            "v2:decision:orchestrator:orch_exploration_open"
+        ),
+        "orchestrator_decision_record_hash": "orch-record-hash",
+        "orchestrator_decision_record_resolved": True,
+        "orchestrator_decision_source": "PER_ID_DECISION_RECORD",
+        "decision_record_missing_reasons": [],
+        "expected_net_pnl_usd": 0.42,
+        "expected_max_loss_usd": 0.21,
+        "fill_price_utc": "2026-07-10T10:00:00Z",
+        "generated_utc": "2026-07-10T10:00:00Z",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_A_plus": False,
+        "counts_as_live_ready": False,
+    })
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"ORDIUSDT": 3.5},
+        generated_utc="2026-07-10T10:01:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    accepted = result["accepted_open_fills"][0]
+    position = result["open_positions"][0]
+    for row in (accepted, position):
+        assert row["paper_opportunity_tier"] == "PAPER_RISK_CONTROLLER_EXPLORATION"
+        assert (
+            row["materialization_queue_id"]
+            == "paper_exploration_materialize_hyp_exploration_open"
+        )
+        assert row["allocator_decision_id"] == "allocsim_hyp_exploration_open"
+        assert row["confidence_executable_trade"] == 0.83
+        assert row["dynamic_exploration_floor"] == 0.64
+        assert row["dynamic_exploration_floor_formula"] == "formula-test"
+        assert row["exploration_floor_inputs"] == {"provider_confluence": 0.8}
+        assert row["paper_risk_controller_exploration_above_floor"] is True
+        assert row["paper_risk_controller_exploration_eligible"] is True
+        assert row["bootstrap_exploration"] is False
+        assert row["provider_hashes"] == {"latest": "provider-hash"}
+        assert row["feature_vector_hash"] == "feature-hash"
+        assert row["checkpoint_id"] == "ckpt_exploration_open"
+        assert (
+            row["checkpoint_id_source"]
+            == "redis:v2:trainer:checkpoint:evidence.active_checkpoint_id"
+        )
+        assert row["entry_prediction_snapshot"]["prediction_id"] == "pred_exploration_open"
+        assert row["risk_decision_record_key"] == "v2:decision:risk:rd_exploration_open"
+        assert row["risk_decision_record_hash"] == "risk-record-hash"
+        assert row["risk_decision_record_resolved"] is True
+        assert row["risk_decision_source"] == "PER_ID_DECISION_RECORD"
+        assert (
+            row["orchestrator_decision_record_key"]
+            == "v2:decision:orchestrator:orch_exploration_open"
+        )
+        assert row["orchestrator_decision_record_hash"] == "orch-record-hash"
+        assert row["orchestrator_decision_record_resolved"] is True
+        assert row["orchestrator_decision_source"] == "PER_ID_DECISION_RECORD"
+        assert row["decision_record_missing_reasons"] == []
+        assert row["expected_net_pnl_usd"] == 0.42
+        assert row["expected_max_loss_usd"] == 0.21
+        assert row["paper_only"] is True
+        assert row["routes_to_live"] is False
+        assert row["places_real_order"] is False
+        assert row["raw_safety_fields"]["routes_to_live"] is False
+        assert row["invariant_checks"]["routes_to_live_is_false"] is True
+
+
+def test_lifecycle_rehydrates_exploration_lineage_from_replayed_open_position() -> None:
+    fill = _fill(
+        fill_id="paper_pos_ORDIUSDT",
+        symbol="ORDIUSDT",
+        side="long",
+        qty=2.0,
+        price=3.5,
+        timeframe="4h",
+    )
+    fill.update({
+        "candidate_id": "hyp_replayed_exploration",
+        "prediction_id": "hyp_replayed_exploration",
+        "signal_id": "hyp_replayed_exploration",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "risk_decision_id": "rd_dec_hyp_replayed_exploration",
+        "orchestrator_decision_id": "dec_hyp_replayed_exploration",
+        "confidence_executable_trade": 0.82,
+        "dynamic_exploration_floor": 0.65,
+        "dynamic_exploration_floor_formula": "formula-test",
+        "exploration_floor_inputs": {"symbol_timeframe_evidence_count": 25},
+        "paper_risk_controller_exploration_above_floor": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "bootstrap_exploration": False,
+        "adaptive_allocation": {
+            "allocation_id": "alloc_real_replayed_exploration",
+            "allocated_margin_usd": 3.0,
+            "gross_notional_usd": 7.0,
+        },
+        "source_hashes": {
+            "feature_vector_hash": "strategy_supply_replayed",
+            "latest": "latest-provider-hash",
+            "orderbook": "orderbook-provider-hash",
+        },
+        "expected_net_pnl_usd": 0.42,
+        "expected_max_loss_usd": 0.21,
+        "fill_price_utc": "2026-07-10T10:00:00Z",
+        "generated_utc": "2026-07-10T10:00:00Z",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    })
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"ORDIUSDT": 3.5},
+        generated_utc="2026-07-10T10:01:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    accepted = result["accepted_open_fills"][0]
+    position = result["open_positions"][0]
+    for row in (accepted, position):
+        assert (
+            row["materialization_queue_id"]
+            == "paper_exploration_materialize_hyp_replayed_exploration"
+        )
+        assert row["allocation_id"] == "alloc_real_replayed_exploration"
+        assert row["allocator_decision_id"] == "alloc_real_replayed_exploration"
+        assert row["allocator_decision_id_source"] == "adaptive_allocation.allocation_id"
+        assert row["confidence_executable_trade"] == 0.82
+        assert row["dynamic_exploration_floor"] == 0.65
+        assert row["dynamic_exploration_floor_formula"] == "formula-test"
+        assert row["exploration_floor_inputs"] == {
+            "symbol_timeframe_evidence_count": 25
+        }
+        assert row["paper_risk_controller_exploration_above_floor"] is True
+        assert row["paper_risk_controller_exploration_eligible"] is True
+        assert row["bootstrap_exploration"] is False
+        assert row["feature_vector_hash"] == "strategy_supply_replayed"
+        assert row["provider_hashes"] == {
+            "latest": "latest-provider-hash",
+            "orderbook": "orderbook-provider-hash",
+        }
+        assert row["paper_only"] is True
+        assert row["routes_to_live"] is False
+        assert row["places_real_order"] is False
+        assert row["counts_as_A_plus"] is False
+        assert row["counts_as_live_ready"] is False
+        assert row["raw_safety_fields"]["places_real_order"] is False
+        assert row["invariant_checks"]["places_real_order_is_false"] is True
+        assert row["paper_only"] is True
+        assert row["routes_to_live"] is False
+        assert row["places_real_order"] is False
+        assert row["live_order"] is False
+        assert row["test_order"] is False
+        assert row["counts_as_A_plus"] is False
+        assert row["counts_as_live_ready"] is False
+
+
 def test_lifecycle_enriches_previously_closed_accepted_fill_with_policy_and_funding_terms() -> None:
     fill = _fill(fill_id="policy-closed", qty=1.0, price=100.0)
     fill.update({
@@ -2639,7 +2990,8 @@ def test_lifecycle_enriches_previously_closed_accepted_fill_with_policy_and_fund
         config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
     )
 
-    accepted = result["accepted_open_fills"][0]
+    assert result["accepted_open_fills"] == []
+    accepted = result["closed_previously_fills"][0]
     assert accepted["paper_lifecycle_status"] == "CLOSED_PREVIOUSLY"
     assert accepted["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
     assert accepted["policy_activated_at"] == "2026-06-11T10:00:00Z"
@@ -2756,7 +3108,8 @@ def test_lifecycle_does_not_synthesize_policy_activation_for_timestampless_close
         config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
     )
 
-    accepted = result["accepted_open_fills"][0]
+    assert result["accepted_open_fills"] == []
+    accepted = result["closed_previously_fills"][0]
     assert accepted["paper_lifecycle_status"] == "CLOSED_PREVIOUSLY"
     assert accepted["adaptive_capital_policy_version"] == ADAPTIVE_CAPITAL_POLICY_VERSION
     assert "policy_activated_at" not in accepted

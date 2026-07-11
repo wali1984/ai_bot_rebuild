@@ -1,4 +1,4 @@
-"""Trade tape / order flow features from free Binance USD-M aggTrades.
+"""Trade tape / order flow features from Binance USD-M aggTrade streams.
 
 Public market data only. This module never places, cancels, or modifies
 exchange orders, never changes leverage or margin mode, and never writes
@@ -17,16 +17,27 @@ Phase 5):
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 import json
 import time
 import urllib.parse
 import urllib.request
 from typing import Any, Mapping, Sequence
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    BINANCE_USDM_MARKET_STREAM_URL,
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
+
 BINANCE_FAPI_AGG_TRADES_URL = "https://fapi.binance.com/fapi/v1/aggTrades"
+BINANCE_FAPI_AGG_TRADES_WS_URL = BINANCE_USDM_MARKET_STREAM_URL.rstrip("/") + "/market/stream?streams={stream}"
 AGG_TRADES_REDIS_KEY_TEMPLATE = "v2:market:agg_trades:{symbol}"
 TRADE_TAPE_FEATURES_REDIS_KEY_TEMPLATE = "v2:market:trade_tape_features:{symbol}"
 SCHEMA_VERSION = "v2_trade_tape_features_v1"
+WEBSOCKET_PRIMARY_SOURCE = "binance_usdm_public_agg_trade_websocket"
+REST_FALLBACK_SOURCE = "binance_fapi_public_agg_trades_rest_fallback"
 
 # A single aggTrades request carries request weight 20 on Binance USD-M.
 # Callers must budget symbol count per cycle against the 2400/min IP cap.
@@ -36,6 +47,68 @@ LARGE_TRADE_NOTIONAL_MULTIPLIER = 4.0
 MIN_TRADES_FOR_CONFIRMATION = 20
 ONE_MINUTE_MS = 60_000
 FIVE_MINUTES_MS = 5 * ONE_MINUTE_MS
+
+
+@dataclass(frozen=True)
+class BinanceAggTradesFetchResult:
+    symbol: str
+    trades: list[dict[str, Any]]
+    source: str
+    transport: str
+    websocket_primary: bool
+    fallback_used: bool
+    fallback_reason: str | None
+    rest_fallback_allowed: bool
+    websocket_url: str | None = None
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "source": self.source,
+            "transport": self.transport,
+            "websocket_primary": self.websocket_primary,
+            "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
+            "rest_fallback_allowed": self.rest_fallback_allowed,
+            "rest_fallback_env": REST_FALLBACK_ENV,
+            "trade_count": len(self.trades),
+            "websocket_url": self.websocket_url,
+            "places_real_order": False,
+            "writes_legacy_redis": False,
+        }
+
+
+@dataclass(frozen=True)
+class BinanceAggTradesBatchFetchResult:
+    symbols: list[str]
+    trades_by_symbol: dict[str, list[dict[str, Any]]]
+    source: str
+    transport: str
+    websocket_primary: bool
+    fallback_used: bool
+    fallback_reason: str | None
+    rest_fallback_allowed: bool
+    websocket_url: str | None = None
+    symbol_errors: dict[str, str] | None = None
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "symbols": self.symbols,
+            "source": self.source,
+            "transport": self.transport,
+            "websocket_primary": self.websocket_primary,
+            "fallback_used": self.fallback_used,
+            "fallback_reason": self.fallback_reason,
+            "rest_fallback_allowed": self.rest_fallback_allowed,
+            "rest_fallback_env": REST_FALLBACK_ENV,
+            "symbol_count": len(self.symbols),
+            "symbols_with_trades": sum(1 for rows in self.trades_by_symbol.values() if rows),
+            "trade_count": sum(len(rows) for rows in self.trades_by_symbol.values()),
+            "websocket_url": self.websocket_url,
+            "symbol_errors": dict(self.symbol_errors or {}),
+            "places_real_order": False,
+            "writes_legacy_redis": False,
+        }
 
 
 def _finite(value: Any) -> float | None:
@@ -50,17 +123,188 @@ def _finite(value: Any) -> float | None:
     return out
 
 
-def fetch_binance_agg_trades(
+def _parse_ws_agg_trade(raw: Any, *, expected_symbol: str) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict):
+        return None
+    event_type = str(data.get("e") or "")
+    symbol = str(data.get("s") or expected_symbol).upper()
+    if event_type and event_type != "aggTrade":
+        return None
+    if symbol != expected_symbol.upper():
+        return None
+    required = ("a", "p", "q", "f", "l", "T", "m")
+    if any(key not in data for key in required):
+        return None
+    return {
+        "a": data.get("a"),
+        "p": data.get("p"),
+        "q": data.get("q"),
+        "f": data.get("f"),
+        "l": data.get("l"),
+        "T": data.get("T"),
+        "m": data.get("m"),
+        "E": data.get("E"),
+        "s": symbol,
+        "source": WEBSOCKET_PRIMARY_SOURCE,
+    }
+
+
+def _parse_ws_agg_trade_for_symbols(raw: Any, *, allowed_symbols: set[str]) -> tuple[str, dict[str, Any]] | None:
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    if not isinstance(data, dict):
+        return None
+    symbol = str(data.get("s") or "").upper()
+    if not symbol or symbol not in allowed_symbols:
+        return None
+    row = _parse_ws_agg_trade(data, expected_symbol=symbol)
+    if row is None:
+        return None
+    return symbol, row
+
+
+def _fetch_binance_agg_trades_websocket(
+    symbol: str,
+    *,
+    limit: int = 1000,
+    timeout: float = 10.0,
+) -> tuple[list[dict[str, Any]], str]:
+    try:
+        from websockets.sync.client import connect  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("websockets_sync_client_unavailable") from exc
+    normalized = symbol.upper()
+    max_rows = max(1, min(int(limit), 1000))
+    stream = f"{normalized.lower()}@aggTrade"
+    url = BINANCE_FAPI_AGG_TRADES_WS_URL.format(stream=stream)
+    deadline = time.time() + max(0.25, float(timeout))
+    rows: list[dict[str, Any]] = []
+    with connect(url, open_timeout=max(0.25, min(float(timeout), 5.0)), close_timeout=1.0) as websocket:
+        while len(rows) < max_rows:
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                raw = websocket.recv(timeout=max(0.05, remaining))
+            except TimeoutError:
+                break
+            row = _parse_ws_agg_trade(raw, expected_symbol=normalized)
+            if row is not None:
+                rows.append(row)
+    if not rows:
+        raise TimeoutError(f"no_agg_trade_websocket_messages:{normalized}")
+    rows.sort(key=lambda item: int(item.get("T") or 0))
+    return rows[-max_rows:], url
+
+
+def fetch_binance_agg_trades_batch_with_source(
+    symbols: Sequence[str],
+    *,
+    limit_per_symbol: int = 200,
+    timeout: float = 20.0,
+) -> BinanceAggTradesBatchFetchResult:
+    """Collect aggTrade rows for many symbols through one combined WebSocket.
+
+    The batch path intentionally does not synthesize rows for quiet symbols.
+    Symbols with no messages within the bounded window are reported with
+    ``NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT`` so downstream gates can fail
+    closed on real missing tape evidence.
+    """
+    try:
+        from websockets.sync.client import connect  # type: ignore
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError("websockets_sync_client_unavailable") from exc
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols:
+        symbol = str(raw or "").upper().strip()
+        if symbol and symbol not in seen:
+            seen.add(symbol)
+            normalized.append(symbol)
+    if not normalized:
+        return BinanceAggTradesBatchFetchResult(
+            symbols=[],
+            trades_by_symbol={},
+            source=WEBSOCKET_PRIMARY_SOURCE,
+            transport="websocket_batch",
+            websocket_primary=True,
+            fallback_used=False,
+            fallback_reason=None,
+            rest_fallback_allowed=binance_rest_fallback_allowed(),
+            websocket_url=None,
+            symbol_errors={},
+        )
+    max_rows = max(1, min(int(limit_per_symbol), 1000))
+    stream = "/".join(f"{symbol.lower()}@aggTrade" for symbol in normalized)
+    url = BINANCE_FAPI_AGG_TRADES_WS_URL.format(stream=stream)
+    deadline = time.time() + max(0.25, float(timeout))
+    trades_by_symbol: dict[str, list[dict[str, Any]]] = {symbol: [] for symbol in normalized}
+    allowed = set(normalized)
+    with connect(url, open_timeout=max(0.25, min(float(timeout), 5.0)), close_timeout=1.0) as websocket:
+        while time.time() < deadline and any(len(rows) < max_rows for rows in trades_by_symbol.values()):
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                break
+            try:
+                raw = websocket.recv(timeout=max(0.05, remaining))
+            except TimeoutError:
+                break
+            parsed = _parse_ws_agg_trade_for_symbols(raw, allowed_symbols=allowed)
+            if parsed is None:
+                continue
+            symbol, row = parsed
+            rows = trades_by_symbol[symbol]
+            if len(rows) < max_rows:
+                rows.append(row)
+    for rows in trades_by_symbol.values():
+        rows.sort(key=lambda item: int(item.get("T") or 0))
+    symbol_errors = {
+        symbol: "NO_WEBSOCKET_AGG_TRADE_WITHIN_TIMEOUT"
+        for symbol, rows in trades_by_symbol.items()
+        if not rows
+    }
+    return BinanceAggTradesBatchFetchResult(
+        symbols=normalized,
+        trades_by_symbol=trades_by_symbol,
+        source=WEBSOCKET_PRIMARY_SOURCE,
+        transport="websocket_batch",
+        websocket_primary=True,
+        fallback_used=False,
+        fallback_reason=None,
+        rest_fallback_allowed=binance_rest_fallback_allowed(),
+        websocket_url=url,
+        symbol_errors=symbol_errors,
+    )
+
+
+def _fetch_binance_agg_trades_rest_fallback(
     symbol: str,
     *,
     limit: int = 1000,
     timeout: float = 10.0,
 ) -> list[dict[str, Any]]:
-    """Fetch recent aggregated trades from the free public fapi endpoint.
+    """Fetch recent aggregated trades from REST only when fallback is explicit.
 
     Returns rows shaped like Binance's payload:
     {"a": aggId, "p": price, "q": qty, "f": first, "l": last, "T": ms, "m": buyer_is_maker}
     """
+    require_binance_rest_fallback(
+        endpoint="/fapi/v1/aggTrades",
+        fallback_reason="agg_trade_websocket_stream_unavailable_or_empty",
+        role="trade_tape_agg_trade_recovery",
+    )
     params = urllib.parse.urlencode({"symbol": symbol.upper(), "limit": max(1, min(int(limit), 1000))})
     request = urllib.request.Request(
         f"{BINANCE_FAPI_AGG_TRADES_URL}?{params}",
@@ -72,6 +316,72 @@ def fetch_binance_agg_trades(
     if not isinstance(payload, list):
         raise ValueError(f"unexpected_agg_trades_payload_type:{type(payload).__name__}")
     return [row for row in payload if isinstance(row, dict)]
+
+
+def fetch_binance_agg_trades_with_source(
+    symbol: str,
+    *,
+    limit: int = 1000,
+    timeout: float = 10.0,
+) -> BinanceAggTradesFetchResult:
+    """Fetch aggTrade rows from WebSocket first; REST is an opt-in fallback only."""
+    normalized = symbol.upper()
+    rest_allowed = binance_rest_fallback_allowed()
+    try:
+        trades, websocket_url = _fetch_binance_agg_trades_websocket(
+            normalized,
+            limit=limit,
+            timeout=timeout,
+        )
+        return BinanceAggTradesFetchResult(
+            symbol=normalized,
+            trades=trades,
+            source=WEBSOCKET_PRIMARY_SOURCE,
+            transport="websocket",
+            websocket_primary=True,
+            fallback_used=False,
+            fallback_reason=None,
+            rest_fallback_allowed=rest_allowed,
+            websocket_url=websocket_url,
+        )
+    except Exception as exc:  # noqa: BLE001
+        fallback_reason = f"{type(exc).__name__}:{str(exc)[:160]}"
+        if not rest_allowed:
+            raise RuntimeError(
+                f"BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true:"
+                f"{fallback_reason}"
+            ) from exc
+        trades = _fetch_binance_agg_trades_rest_fallback(normalized, limit=limit, timeout=timeout)
+        return BinanceAggTradesFetchResult(
+            symbol=normalized,
+            trades=trades,
+            source=REST_FALLBACK_SOURCE,
+            transport="rest_fallback",
+            websocket_primary=True,
+            fallback_used=True,
+            fallback_reason=fallback_reason,
+            rest_fallback_allowed=rest_allowed,
+            websocket_url=BINANCE_FAPI_AGG_TRADES_WS_URL.format(stream=f"{normalized.lower()}@aggTrade"),
+        )
+
+
+def fetch_binance_agg_trades(
+    symbol: str,
+    *,
+    limit: int = 1000,
+    timeout: float = 10.0,
+) -> list[dict[str, Any]]:
+    """Fetch recent aggregated trades via WebSocket-primary transport.
+
+    REST is used only when ``BINANCE_REST_FALLBACK_ALLOWED=true`` and the
+    WebSocket stream cannot provide a bounded sample.
+    """
+    result = fetch_binance_agg_trades_with_source(symbol, limit=limit, timeout=timeout)
+    try:
+        setattr(fetch_binance_agg_trades, "last_fetch_metadata", result.status())
+    except Exception:
+        pass
+    return result.trades
 
 
 def _trade_fields(trade: Mapping[str, Any]) -> tuple[float, float, int, bool] | None:

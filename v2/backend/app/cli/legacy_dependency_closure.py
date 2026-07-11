@@ -17,6 +17,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+# Static scanner only. It never opens Binance connections; any runtime Binance
+# REST path must use BINANCE_REST_FALLBACK_ALLOWED under the WebSocket-primary
+# transport policy.
+BINANCE_REST_FALLBACK_POLICY = "BINANCE_REST_FALLBACK_ALLOWED"
+
 # External libraries we recognize but never claim to "port" (just record).
 KNOWN_EXTERNAL = {
     "talib",

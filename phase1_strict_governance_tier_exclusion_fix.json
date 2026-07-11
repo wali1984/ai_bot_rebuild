@@ -1,0 +1,71 @@
+{
+  "marker": "V2_STRICT_GOVERNANCE_TIER_EXCLUSION_ACTIVE",
+  "generated_utc": "2026-07-11T23:02:18Z",
+  "before_evidence_source": "operator_attachment_2026-07-11",
+  "current_runtime_evidence_source": "redis_snapshot_and_local_selector_recompute",
+  "patch_files": [
+    "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+    "v2/backend/tests/unit/cli/test_v2_trade_management_paper_loop.py"
+  ],
+  "required_behavior": {
+    "exclude_paper_risk_controller_exploration": true,
+    "exclude_a_plus_bootstrap_reduced_size_paper_only": true,
+    "exclude_reconstructed_rows": true,
+    "exclude_counts_as_strict_preemptive_evidence_false": true,
+    "exclude_counts_as_a_plus_evidence_false": true,
+    "exclude_counts_as_final_a_plus_false_for_a_plus_governance": true,
+    "preserve_trainer_feedback_rows": true,
+    "preserve_counterfactual_feedback_rows": true,
+    "preserve_paper_exploration_analytics": true
+  },
+  "proof": {
+    "source_closed_rows_before": 31,
+    "governed_closed_rows_before": 31,
+    "strict_governed_rows_after": 3,
+    "excluded_non_strict_rows_after": 28,
+    "excluded_reason_counts_after": {
+      "NON_STRICT_PAPER_TIER": 22,
+      "RECONSTRUCTED_OR_ARCHIVE_ROW": 13,
+      "COUNTS_AS_STRICT_PREEMPTIVE_EVIDENCE_FALSE": 13,
+      "COUNTS_AS_A_PLUS_EVIDENCE_FALSE": 13
+    },
+    "excluded_tier_counts_after": {
+      "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY": 7,
+      "PAPER_RISK_CONTROLLER_EXPLORATION": 15,
+      "UNKNOWN": 6
+    },
+    "strict_pf_before": 0.5986962074680745,
+    "strict_pf_after": 5.182660485863975,
+    "strict_expectancy_bps_before": -3.9136504005335424,
+    "strict_expectancy_bps_after": 72.17320559725019,
+    "strict_expectancy_usd_before": 0.30098178479899307,
+    "strict_expectancy_usd_after": 0.7017760857106842,
+    "bucket_quarantine_count_before_operator_reported": 29,
+    "bucket_quarantine_count_after_runtime": 7,
+    "pre_trade_loss_probability_mean_before_operator_reported": 0.92,
+    "pre_trade_loss_probability_mean_after_runtime": null,
+    "new_entries_allowed_before_operator_reported": false,
+    "new_entries_allowed_after_runtime": true,
+    "computed_state_after": "ACTIVE",
+    "computed_block_reasons_after": []
+  },
+  "regression_fixtures": {
+    "test_exploration_rows_do_not_govern_strict_performance": "passed",
+    "test_bootstrap_reduced_size_rows_do_not_govern_strict_performance": "passed",
+    "test_reconstructed_rows_do_not_govern_strict_performance": "passed",
+    "test_strict_rows_still_govern_strict_performance": "passed",
+    "test_non_strict_rows_still_feed_trainer_feedback": "passed",
+    "test_non_strict_rows_still_show_in_paper_analytics": "passed",
+    "test_a_plus_live_gates_unchanged": "passed",
+    "test_final_a_plus_false_rows_do_not_enter_a_plus_governance": "passed"
+  },
+  "safety": {
+    "live_gate": "blocked_human_only",
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "a_plus_gate_weakened": false,
+    "live_gate_weakened": false
+  }
+}

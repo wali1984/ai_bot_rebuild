@@ -47,6 +47,10 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     default_archive_root,
     iter_snapshots,
 )
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
 
 
 SCHEMA_VERSION = "challenger_v2_evidence_collector_v1"
@@ -8173,7 +8177,14 @@ def public_binance_1m_candles(symbol: str, *, start_ms: int, end_ms: int, now_ms
         }
     )
     url = f"https://fapi.binance.com/fapi/v1/klines?{params}"
+    if not binance_rest_fallback_allowed():
+        return []
     try:
+        require_binance_rest_fallback(
+            endpoint="/fapi/v1/klines",
+            fallback_reason="challenger_counterfactual_redis_ohlcv_gap",
+            role="challenger_counterfactual_label_recovery",
+        )
         with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception:

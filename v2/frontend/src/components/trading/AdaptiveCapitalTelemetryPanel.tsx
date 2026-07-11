@@ -434,14 +434,16 @@ function publicTelemetryText(value: string | null | undefined): string {
   if (upper.includes('NO_EVALUATED_OUTCOMES') || upper.includes('MISSING_EVALUATED_OUTCOMES')) return 'Needs evaluated outcomes';
   if (upper === 'NO_GO' || upper.startsWith('NO_GO_')) return 'Needs review';
   const cleaned = raw
+    .replace(/\bproof\b/gi, 'validation')
     .replace(/\bpaper\s*only\.?\s*/gi, '')
-    .replace(/\blive orders? and exchange mutation remain disabled\.?/gi, 'operator-gated execution controls')
-    .replace(/\blive orders? remain disabled\.?/gi, 'operator-gated execution controls')
+    .replace(/\blive orders? and exchange mutation remain disabled\.?/gi, 'approval-gated execution controls')
+    .replace(/\blive orders? remain disabled\.?/gi, 'approval-gated execution controls')
     .replace(/\bexchange mutation\b/gi, 'execution control')
     .replace(/\bpaper[_\s-]*signal\b/gi, 'runtime signal')
     .replace(/\bpaper\b/gi, 'runtime')
-    .replace(/no[_\s-]*data/gi, 'CONNECTING')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
+    .replace(/no[_\s-]*data/gi, 'Pending')
+    .replace(/operator/gi, 'approval')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'approval required')
     .replace(/\bno[_\s-]*directional[_\s-]*action[_\s-]*evidence\b/gi, 'Needs directional evidence')
     .replace(/\bno[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
     .replace(/\bmissing[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
@@ -938,7 +940,7 @@ export function AdaptiveCapitalTelemetryPanel({
     ?? [
       'Target requires ~7.98% compounded daily.',
       `Current A+ evidence: ${countText(runtimeTrajectoryAPlusRows)}.`,
-      'B-grade exploration does not count as 1000x proof.',
+      'B-grade exploration does not count as 1000x validation.',
     ];
   const runtimeTrajectoryActual1d = trajectoryBlocker?.actual_1d_return
     ?? paperTrajectory?.actual_1d_return
@@ -1010,7 +1012,7 @@ export function AdaptiveCapitalTelemetryPanel({
               color: adaptiveStatusColor(capital?.status ?? view.overallStatus),
               border: '1px solid var(--border,#1f2937)',
             }}>
-              {publicTelemetryText(capital?.status ?? view.overallStatus ?? (payload ? 'CONNECTING' : 'CONNECTING'))}
+              {publicTelemetryText(capital?.status ?? view.overallStatus ?? 'Pending')}
             </span>
           </div>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
@@ -1057,12 +1059,12 @@ export function AdaptiveCapitalTelemetryPanel({
         <HeaderMetric label="Failed Gates" value={countText(passConditions?.failed_conditions?.length)} color={adaptiveStatusColor(passConditions?.status)} />
         <HeaderMetric
           label="Trainer Learning"
-          value={guardianTruth?.online_learning_status ?? (guardianTruth?.WEIGHTS_UPDATING ? 'WEIGHTS_UPDATING' : 'CONNECTING')}
+          value={guardianTruth?.online_learning_status ?? (guardianTruth?.WEIGHTS_UPDATING ? 'WEIGHTS_UPDATING' : 'Pending')}
           color={guardianTruth?.WEIGHTS_UPDATING ? 'var(--buy,#10b981)' : '#f59e0b'}
         />
         <HeaderMetric
           label="Trainer Quality"
-          value={paperTrainerQuality?.status ?? 'CONNECTING'}
+          value={paperTrainerQuality?.status ?? 'Pending'}
           color={trainerQualityPassing ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1082,7 +1084,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="A-grade Gate"
-          value={guardian?.guardian_status ?? guardianGate?.status ?? 'CONNECTING'}
+          value={guardian?.guardian_status ?? guardianGate?.status ?? 'Pending'}
           color={guardianGate?.a_grade_new_entries_allowed ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1122,7 +1124,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="1000x B-grade"
-          value={runtimeTrajectoryOperatorText[2] ?? 'B-grade exploration does not count as 1000x proof.'}
+          value={publicTelemetryText(runtimeTrajectoryOperatorText[2] ?? 'B-grade exploration does not count as 1000x validation.')}
           color={(runtimeTrajectoryBGradeRows ?? 0) > 0 ? 'var(--text-secondary)' : 'var(--text-muted)'}
         />
         <HeaderMetric
@@ -1146,12 +1148,12 @@ export function AdaptiveCapitalTelemetryPanel({
           color={runtimeTrajectoryReady ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
-          label="Paper Owner"
-          value={paperLoop?.paper_policy_owner ?? 'CONNECTING'}
+          label="Runtime Owner"
+          value={publicTelemetryText(paperLoop?.paper_policy_owner ?? 'Pending')}
           color={paperLoop?.paper_policy_owner === 'challenger_v2' ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
-          label="Cost Coverage"
+          label="Cost Readiness"
           value={`${formatAdaptivePercent(paperLoop?.production_grade_cost_coverage)} · ${paperLoop?.production_grade_cost_coverage_basis ?? 'basis n/a'}`}
           color={(paperLoop?.production_grade_cost_coverage ?? 0) >= 0.95 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
@@ -1167,7 +1169,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="Churn Governor"
-          value={paperChurn?.status ?? paperChurn?.state ?? 'CONNECTING'}
+          value={paperChurn?.status ?? paperChurn?.state ?? 'Pending'}
           color={churnGovernorPassing ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1202,7 +1204,7 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="A-grade Source"
-          value={aGradeClosestGap ?? 'CONNECTING'}
+          value={aGradeClosestGap ?? 'Pending'}
           color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
@@ -1222,12 +1224,12 @@ export function AdaptiveCapitalTelemetryPanel({
         />
         <HeaderMetric
           label="A-grade Guardian"
-          value={`${aGradeGuardianStatus ?? 'CONNECTING'} / tier ${countText(aGradeSourceTierRows)}`}
+          value={`${aGradeGuardianStatus ?? 'Pending'} / tier ${countText(aGradeSourceTierRows)}`}
           color={(paperAgradeRows ?? 0) > 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)'}
         />
         <HeaderMetric
-          label="Live Gate"
-          value={paperRuntime?.live_gate_status ?? 'blocked_human_only'}
+          label="Execution Guard"
+          value={publicTelemetryText(paperRuntime?.live_gate_status ?? 'blocked_human_only')}
           color="var(--sell,#ef4444)"
         />
       </div>
@@ -1301,7 +1303,7 @@ export function AdaptiveCapitalTelemetryPanel({
             Evidence To GO
           </span>
           <span style={{ fontSize: 10, color: adaptiveStatusColor(readiness?.status ?? readiness?.overall_status), fontFamily: 'var(--font-mono)' }}>
-            {publicTelemetryText(readiness?.status ?? readiness?.overall_status ?? (payload ? 'CONNECTING' : 'CONNECTING'))}
+            {publicTelemetryText(readiness?.status ?? readiness?.overall_status ?? 'Pending')}
           </span>
         </div>
         <div style={{
@@ -1421,7 +1423,7 @@ export function AdaptiveCapitalTelemetryPanel({
             Prediction Readiness Probe
           </span>
           <span style={{ fontSize: 10, color: adaptiveStatusColor(predictionProbe?.status), fontFamily: 'var(--font-mono)' }}>
-            {predictionProbe ? (predictionProbe.probe_participates_in_counterfactual_pass_gate ? 'GATING' : 'NON-GATING') : 'CONNECTING'}
+            {predictionProbe ? (predictionProbe.probe_participates_in_counterfactual_pass_gate ? 'GATING' : 'NON-GATING') : 'Pending'}
           </span>
         </div>
         <div style={{
@@ -1477,7 +1479,7 @@ export function AdaptiveCapitalTelemetryPanel({
         }}>
           <HeaderMetric
             label="Selection Gate"
-            value={selectionAttribution?.status ?? 'CONNECTING'}
+            value={selectionAttribution?.status ?? 'Pending'}
             color={adaptiveStatusColor(selectionAttribution?.status)}
           />
           <HeaderMetric
@@ -1548,7 +1550,7 @@ export function AdaptiveCapitalTelemetryPanel({
           {view.matrixRows.length > 0 ? (
             <AccuracyHeatmap rows={view.matrixRows} compact={compact} maxHeight={matrixHeight} />
           ) : (
-            <TelemetrySection title="All Symbol/TF Accuracy" meta="CONNECTING">
+            <TelemetrySection title="All Symbol/TF Accuracy" meta="Pending">
               <TelemetryEmptyState message="Awaiting realtime symbol/timeframe accuracy cells. Missing values remain unavailable until a sourced frame arrives." />
             </TelemetrySection>
           )}

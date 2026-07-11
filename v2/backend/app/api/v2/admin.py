@@ -11,15 +11,19 @@ Safety boundaries (CLAUDE.md):
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import secrets
 import subprocess
+import threading
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
+from starlette.concurrency import run_in_threadpool
 
 from app.api.v2._common import get_redis
 from app.auth.security import require_admin, require_auth
@@ -32,6 +36,10 @@ router = APIRouter(prefix="/admin", tags=["v2-admin-aggregation"])
 
 _REQUIRE_ADMIN = require_admin
 _REQUIRE_OPERATOR = require_admin
+ADMIN_OVERVIEW_BUILD_TIMEOUT_SECONDS = float(os.environ.get("ALPHAFORGE_ADMIN_OVERVIEW_BUILD_TIMEOUT_SECONDS", "1.5"))
+ADMIN_OVERVIEW_CACHE_TTL_SECONDS = float(os.environ.get("ALPHAFORGE_ADMIN_OVERVIEW_CACHE_TTL_SECONDS", "2.0"))
+_ADMIN_OVERVIEW_CACHE_LOCK = threading.Lock()
+_ADMIN_OVERVIEW_CACHE: tuple[float, dict[str, Any]] | None = None
 
 
 def _utc_now() -> str:
@@ -89,12 +97,56 @@ def _safe_int(value: Any, fallback: int = 0) -> int:
         return fallback
 
 
+def _admin_overview_fallback(reason: str) -> dict[str, Any]:
+    return {
+        "generated_at": _utc_now(),
+        "status": "degraded",
+        "live_gate": "blocked_human_only",
+        "live_blocked": True,
+        "services": [],
+        "active_incidents": [{"status": "investigating", "summary": reason}],
+        "data_health": "degraded",
+        "intelligence_health": "unknown",
+        "orchestration_health": "unknown",
+        "risk_status": "block",
+        "execution_status": "blocked",
+        "exchange_status": "unknown",
+        "trainer": {"state": "unknown", "checkpoint_id": None, "cuda_active": False, "data_coverage": None},
+        "risk": {"profile_name": "unknown", "live_blocked": True, "decisions_total": 0, "last_at": None},
+        "pipeline": {"live_gate": "blocked_human_only", "symbol_count": 0, "allowed_run_types": []},
+        "portfolio": {},
+        "warnings": [reason],
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
+async def _admin_overview_payload_bounded() -> dict[str, Any]:
+    global _ADMIN_OVERVIEW_CACHE  # noqa: PLW0603
+    now = time.monotonic()
+    with _ADMIN_OVERVIEW_CACHE_LOCK:
+        cached = _ADMIN_OVERVIEW_CACHE
+        if cached is not None and now - cached[0] <= ADMIN_OVERVIEW_CACHE_TTL_SECONDS:
+            return dict(cached[1])
+    try:
+        payload = await asyncio.wait_for(
+            run_in_threadpool(_build_admin_overview_payload),
+            timeout=max(0.1, ADMIN_OVERVIEW_BUILD_TIMEOUT_SECONDS),
+        )
+    except asyncio.TimeoutError:
+        return _admin_overview_fallback("Admin overview read exceeded bounded runtime budget")
+    except Exception as exc:
+        return _admin_overview_fallback(f"Admin overview read unavailable: {type(exc).__name__}")
+    with _ADMIN_OVERVIEW_CACHE_LOCK:
+        _ADMIN_OVERVIEW_CACHE = (time.monotonic(), dict(payload))
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # /api/v2/admin/overview  — aggregated health snapshot for Overview page
 # ---------------------------------------------------------------------------
 
-@router.get("/overview")
-async def get_admin_overview(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, Any]:
+def _build_admin_overview_payload() -> dict[str, Any]:
     now = _utc_now()
 
     # ── Trainer — read from prediction key (summary key is rarely set) ───────
@@ -230,6 +282,7 @@ async def get_admin_overview(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[st
         }
 
     return {
+        "status": "available",
         "generated_at": now,
         "live_gate": live_gate,
         "live_blocked": live_blocked,
@@ -259,7 +312,14 @@ async def get_admin_overview(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[st
             "allowed_run_types": allowed_run_types,
         },
         "portfolio": portfolio_summary,
+        "routes_to_live": False,
+        "places_real_order": False,
     }
+
+
+@router.get("/overview")
+async def get_admin_overview(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, Any]:
+    return await _admin_overview_payload_bounded()
 
 
 # ---------------------------------------------------------------------------
@@ -556,7 +616,7 @@ async def get_admin_services(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict
     now = _utc_now()
     overview_data: dict[str, Any] = {}
     try:
-        overview_data = await get_admin_overview()
+        overview_data = await _admin_overview_payload_bounded()
     except Exception:
         pass
     services = overview_data.get("services", [])

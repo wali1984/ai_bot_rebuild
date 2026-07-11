@@ -1,10 +1,12 @@
+import { lazy } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminShell } from './components/layout/AdminShell';
 import { PublicShell } from './components/layout/PublicShell';
 import { TraderShell } from './components/layout/TraderShell';
 import { ADMIN_PAGES, PUBLIC_PAGES, APP_PAGES } from './pages/registry';
 import { MERGED_LEGACY_PATHS } from './pages/productNavigation';
-import PublicLandingPage from './pages/public-landing-v2';
+
+const PublicLandingPage = lazy(() => import('./pages/public-landing-v2'));
 
 const adminChildren = ADMIN_PAGES.map((p) => ({
   path: p.route.path,

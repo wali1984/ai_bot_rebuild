@@ -171,12 +171,12 @@ export function HourlyMonitorPanel(): JSX.Element {
 
       {/* ── Final Marker / Gate ── */}
       <SectionHead
-        title="Live Gate / Final Marker"
+        title="Execution Guard / Final Marker"
         badge={markerBlocked ? 'BLOCKED' : 'VALIDATED'}
         tone={markerBlocked ? 'block' : 'ok'}
       />
       <Row label="Final Marker" value={markerText.slice(0, 60)} tone={markerBlocked ? 'block' : 'ok'} />
-      <Row label="Live Gate" value={(d.live_gate ?? '—').replace(/_/g, ' ').toUpperCase()} tone="block" />
+      <Row label="Execution Guard" value={(d.live_gate ?? '—').replace(/_/g, ' ').toUpperCase()} tone="block" />
       <Row label="Exchange Mutation" value={d.mutates_exchange ? 'YES — ALERT' : 'FALSE (safe)'} tone={d.mutates_exchange ? 'block' : 'ok'} />
       <Row label="Live Mutation Count" value={num(pnl.live_mutation_count_must_be_zero)} tone={mutZero ? 'ok' : 'block'} />
       <Row label="Last Updated" value={d.generated_at ?? '—'} tone="neutral" />

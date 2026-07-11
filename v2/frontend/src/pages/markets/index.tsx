@@ -29,8 +29,140 @@ interface MarketOverviewData {
   tickers?: TickerRow[];
 }
 
+interface ProviderCard {
+  provider: string;
+  display_name?: string;
+  status?: string | null;
+  dashboard_color?: string | null;
+  actual_payload_count?: number | null;
+  feature_count?: number | null;
+  consumer_roles?: string[] | null;
+  heartbeat_only?: boolean | null;
+  actual_payload_present?: boolean | null;
+}
+
+interface ProviderStatusData {
+  providers?: ProviderCard[];
+  live_gate?: string;
+  places_real_order?: boolean;
+  routes_to_live?: boolean;
+}
+
 type TabId = 'overview' | 'gainers' | 'losers' | 'watchlist';
 type SortKey = 'symbol' | 'last_price' | 'change_24h' | 'turnover_24h' | 'volume_24h';
+
+const MARKET_PROVIDER_ORDER = [
+  ['binance', 'Binance'],
+  ['kucoin', 'KuCoin'],
+  ['coinank', 'CoinAnk'],
+  ['coinglass', 'CoinGlass'],
+  ['moralis', 'Moralis'],
+  ['santiment', 'Santiment / Sanbase'],
+  ['ta', 'TA Engine'],
+  ['feature_snapshot_builder', 'Feature Snapshots'],
+  ['microstructure', 'Microstructure'],
+  ['liquidations', 'Liquidations'],
+  ['orderbook', 'Orderbook'],
+  ['trainer_feed', 'Trainer Feed'],
+] as const;
+
+interface IngestorRow {
+  name: string;
+  title?: string | null;
+  redis_pattern?: string | null;
+  key_count?: number | null;
+  sampled_payloads?: number | null;
+  newest_event_age_seconds?: number | null;
+  status?: string | null;
+  provider_current?: boolean | null;
+  provider_unusable_reason?: string | null;
+}
+
+interface IngestorsStatusData {
+  ingestors?: IngestorRow[];
+}
+
+function ingestorColor(status: string | null | undefined): string {
+  const value = String(status ?? '').toLowerCase();
+  if (value === 'live') return 'var(--buy, #10b981)';
+  if (value === 'stale') return 'var(--warn, #f59e0b)';
+  if (value === 'upstream_error' || value === 'down') return 'var(--sell, #ef4444)';
+  return 'var(--text-muted)';
+}
+
+function fmtAge(seconds: number | null | undefined): string {
+  if (seconds == null) return '—';
+  if (seconds < 90) return `${Math.round(seconds)}s`;
+  if (seconds < 5400) return `${Math.round(seconds / 60)}m`;
+  return `${(seconds / 3600).toFixed(1)}h`;
+}
+
+function MarketIngestorCoverage({ data }: { data: IngestorsStatusData | null | undefined }): JSX.Element {
+  const rows = data?.ingestors ?? [];
+  return (
+    <section
+      data-testid="market-ingestor-coverage"
+      style={{
+        marginTop: 14,
+        padding: '12px 14px',
+        borderRadius: 'var(--radius-md, 10px)',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 10 }}>
+        <div>
+          <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Ingestor coverage</strong>
+          <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            /api/v2/ingestors/status
+          </span>
+        </div>
+        <Link to="/markets/ingestors" style={{ fontSize: 12, color: 'var(--accent, #3b82f6)', textDecoration: 'none' }}>
+          Ingestor detail
+        </Link>
+      </div>
+      {rows.length === 0 ? (
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Loading ingestor registry…</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+          {rows.map((row) => {
+            const color = ingestorColor(row.status);
+            return (
+              <div
+                key={row.name}
+                data-testid={`market-ingestor-${row.name}`}
+                style={{
+                  border: `1px solid ${color}`,
+                  borderRadius: 'var(--radius-sm, 8px)',
+                  padding: '8px 10px',
+                  minWidth: 0,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                  <strong style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.title || row.name}
+                  </strong>
+                  <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color }}>
+                    {String(row.status ?? 'unknown').toUpperCase()}
+                  </span>
+                </div>
+                <div style={{ display: 'grid', gap: 3, fontSize: 10.5, color: 'var(--text-muted)' }}>
+                  <span>keys <b>{fmtSmallCount(row.key_count)}</b> · fresh <b>{fmtAge(row.newest_event_age_seconds)}</b></span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-mono)' }}>
+                    {row.redis_pattern || '—'}
+                  </span>
+                  {row.provider_unusable_reason ? (
+                    <span style={{ color: 'var(--warn, #f59e0b)' }}>{row.provider_unusable_reason}</span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
 
 function fmt(n: number | null | undefined, digits = 2): string {
   if (n == null) return '—';
@@ -47,6 +179,88 @@ function fmtCompact(n: number | null | undefined): string {
   if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
   if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
   return '$' + n.toFixed(2);
+}
+
+function fmtSmallCount(value: number | null | undefined): string {
+  if (value == null) return '—';
+  return value.toLocaleString('en-US');
+}
+
+function providerMap(providers: ProviderCard[] | undefined): Map<string, ProviderCard> {
+  const map = new Map<string, ProviderCard>();
+  for (const provider of providers ?? []) {
+    map.set(provider.provider.toLowerCase(), provider);
+  }
+  return map;
+}
+
+function providerColor(provider: ProviderCard | undefined): string {
+  const color = String(provider?.dashboard_color ?? '').toLowerCase();
+  if (color === 'green') return 'var(--buy, #10b981)';
+  if (color === 'yellow') return 'var(--warn, #f59e0b)';
+  if (color === 'red') return 'var(--sell, #ef4444)';
+  return 'var(--text-muted)';
+}
+
+function MarketProviderCoverage({ data }: { data: ProviderStatusData | null | undefined }): JSX.Element {
+  const byId = useMemo(() => providerMap(data?.providers), [data?.providers]);
+  return (
+    <section
+      data-testid="market-provider-coverage"
+      style={{
+        marginTop: 14,
+        padding: '12px 14px',
+        borderRadius: 'var(--radius-md, 10px)',
+        border: '1px solid var(--border)',
+        background: 'var(--bg-elevated)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 10 }}>
+        <div>
+          <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Provider coverage</strong>
+          <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            /api/v2/providers/status
+          </span>
+        </div>
+        <Link to="/providers" style={{ fontSize: 12, color: 'var(--accent, #3b82f6)', textDecoration: 'none' }}>
+          Provider truth
+        </Link>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+        {MARKET_PROVIDER_ORDER.map(([id, label]) => {
+          const provider = byId.get(id);
+          const color = providerColor(provider);
+          return (
+            <div
+              key={id}
+              data-testid={`market-provider-${id}`}
+              style={{
+                border: `1px solid ${color}`,
+                borderRadius: 'var(--radius-sm, 8px)',
+                padding: '8px 10px',
+                minWidth: 0,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>{label}</strong>
+                <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color }}>
+                  {String(provider?.dashboard_color ?? provider?.status ?? 'connecting').toUpperCase()}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gap: 3, fontSize: 10.5, color: 'var(--text-muted)' }}>
+                <span>samples <b>{fmtSmallCount(provider?.actual_payload_count)}</b> · features <b>{fmtSmallCount(provider?.feature_count)}</b></span>
+                <span>actual data <b>{provider?.actual_payload_present ? 'yes' : 'no'}</b> · heartbeat only <b>{provider?.heartbeat_only ? 'yes' : 'no'}</b></span>
+                <span>roles <b>{provider?.consumer_roles?.slice(0, 3).join(', ') || '—'}</b></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+        Market rows remain price-first; provider data is confluence and risk context only. Trading remains operator-blocked.
+      </p>
+    </section>
+  );
 }
 
 function ColHeader({
@@ -102,6 +316,22 @@ export default function MarketsPage(): JSX.Element {
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     mode: 'read_only',
+  });
+  const providerStatus = useRealtimeResource<ProviderStatusData>({
+    url: '/api/v2/providers/status',
+    source: '/api/v2/providers/status',
+    pollIntervalMs: 15_000,
+    staleThresholdMs: 45_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: 'contract',
+  });
+  const ingestorsStatus = useRealtimeResource<IngestorsStatusData>({
+    url: '/api/v2/ingestors/status',
+    source: '/api/v2/ingestors/status',
+    pollIntervalMs: 20_000,
+    staleThresholdMs: 60_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: 'contract',
   });
   const data = marketOverview.envelope.data;
   const loading = marketOverview.loading;
@@ -303,6 +533,9 @@ export default function MarketsPage(): JSX.Element {
           <CanonicalMetricCard label="BTCUSDT Mark Price" metric={canonicalMarketMetric('market.mark_price')} />
           <CanonicalMetricCard label="BTCUSDT Index Price" metric={canonicalMarketMetric('market.index_price')} />
         </div>
+
+        <MarketProviderCoverage data={providerStatus.envelope.data} />
+        <MarketIngestorCoverage data={ingestorsStatus.envelope.data} />
       </div>
 
       {/* Tabs + search */}

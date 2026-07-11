@@ -52,7 +52,9 @@ def _paper_economic_edge_after_cost_bps(row: AllocationInput, *, mode: str) -> f
     action = str(row.action or "").strip().lower()
     signed_edge = float(row.expected_move_after_cost_bps or 0.0)
     if action == "short":
-        return max(0.0, -signed_edge)
+        if signed_edge < 0.0:
+            return -signed_edge
+        return 0.0
     if action == "long":
         return max(0.0, signed_edge)
     return 0.0

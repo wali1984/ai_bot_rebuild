@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import re
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -24,7 +26,7 @@ from app.auth.security import (
     session_token_from_inputs,
     verify_admin_step_up_code,
 )
-from app.auth.users import UserRecord, UserStore, _verify_password, get_user_store, safe_exchange_accounts, safe_user
+from app.auth.users import UserRecord, UserStore, _verify_password, auth_user_store_status, get_user_store, safe_exchange_accounts, safe_user
 from app.services.audit_writer import admin_audit_status, append_admin_audit_event
 from app.services.credential_status import credential_vault_readiness_status
 from app.services.deployment_readiness import (
@@ -38,6 +40,28 @@ from app.services.trader_account_repository import TraderAccountRepository, get_
 router = APIRouter(prefix="/api", tags=["auth-rbac"])
 
 _ALLOWED_EXCHANGES = {"binance", "kucoin", "bybit"}
+OPERATOR_TZ = ZoneInfo("America/New_York")
+
+
+def _auth_login_timeout_seconds() -> float:
+    raw = os.environ.get("ALPHAFORGE_AUTH_LOGIN_TIMEOUT_SECONDS", "2.0").strip()
+    try:
+        return max(0.1, float(raw))
+    except ValueError:
+        return 2.0
+
+
+async def _authenticate_bounded(store: UserStore, email: str, password: str) -> UserRecord | None:
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(store.authenticate, email, password),
+            timeout=_auth_login_timeout_seconds(),
+        )
+    except TimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="auth_service_unavailable",
+        ) from exc
 
 
 def _now_utc() -> str:
@@ -189,12 +213,41 @@ def _clear_session_cookie(response: Response) -> None:
 
 @router.post("/auth/login")
 async def login(request: LoginRequest, response: Response, store: UserStore = Depends(get_user_store)) -> dict[str, Any]:
-    user = store.authenticate(request.email, request.password)
+    user = await _authenticate_bounded(store, request.email, request.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
     token = create_access_token(user)
     _set_session_cookie(response, token)
     return {"access_token": token, "token_type": "bearer", "user": safe_user(user)}
+
+
+@router.get("/auth/health")
+async def auth_health() -> dict[str, Any]:
+    store_status = auth_user_store_status()
+    now = _now_utc()
+    return {
+        "schema_version": "auth_health_v1",
+        "generated_at_utc": now,
+        "generated_at_et": datetime.now(OPERATOR_TZ).isoformat(timespec="seconds"),
+        "source": "auth_user_store_status",
+        "status": "ok",
+        "staleness_seconds": 0,
+        "freshness_status": "fresh",
+        "canonical_owner": "/api/auth/health",
+        "data_quality_status": "fresh" if store_status.get("production_ready") else "degraded",
+        "login_endpoint_available": True,
+        "auth_store_backend": store_status.get("backend"),
+        "durable_user_store_configured": store_status.get("durable_user_store_configured"),
+        "production_ready": store_status.get("production_ready"),
+        "contains_secret_values": False,
+        "raw_credential_value_exposed": False,
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "exchange_mutation_enabled": False,
+        "session_security": session_security_status(),
+        "warnings": store_status.get("missing_fields") or [],
+    }
 
 
 @router.post("/auth/logout")

@@ -21,6 +21,9 @@ class FakeRedis:
     def ping(self) -> bool:
         return True
 
+    def get(self, key: str) -> str | None:
+        return self.store.get(key)
+
     def set(self, key: str, value: str, ex: int | None = None) -> bool:
         self.store[key] = value
         self.write_log.append((key, value, ex))
@@ -181,3 +184,82 @@ def test_safe_redis_set_refuses_non_v2_and_unlisted_keys() -> None:
         "v2:altdata:coingecko:status",
         "v2:altdata:coingecko:symbol:BTCUSDT",
     ]
+
+
+def test_dynamic_discovery_reads_binance_cache_before_exchange_info_http(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    mod = _mod()
+    monkeypatch.setenv("COINGECKO_API_KEY", "raw_coingecko_value")
+    fake_redis = FakeRedis()
+    fake_redis.store["v2:exchange:binance:exchangeInfo"] = json.dumps(
+        {
+            "symbols": [
+                {
+                    "symbol": "BTCUSDT",
+                    "quoteAsset": "USDT",
+                    "contractType": "PERPETUAL",
+                    "status": "TRADING",
+                },
+                {
+                    "symbol": "SOLUSDT",
+                    "quoteAsset": "USDT",
+                    "contractType": "PERPETUAL",
+                    "status": "TRADING",
+                },
+            ],
+            "source": "binance_usdm_wss_exchange_info_cache",
+        }
+    )
+
+    def fake_http(url: str, _headers: Mapping[str, str], _timeout: float):
+        if "exchangeInfo" in url:
+            raise AssertionError("Binance exchangeInfo REST fallback should not run with cache coverage")
+        if "coins/markets" in url:
+            return mod.HttpResult(
+                200,
+                [
+                    {
+                        "id": "bitcoin",
+                        "symbol": "btc",
+                        "name": "Bitcoin",
+                        "current_price": 70000,
+                        "total_volume": 1000000000,
+                        "market_cap": 1400000000000,
+                        "market_cap_rank": 1,
+                        "price_change_percentage_1h_in_currency": 0.5,
+                    },
+                    {
+                        "id": "solana",
+                        "symbol": "sol",
+                        "name": "Solana",
+                        "current_price": 180,
+                        "total_volume": 600000000,
+                        "market_cap": 80000000000,
+                        "market_cap_rank": 5,
+                        "price_change_percentage_1h_in_currency": 0.4,
+                    },
+                ],
+            )
+        if "search/trending" in url:
+            return mod.HttpResult(200, {"coins": [{"item": {"symbol": "BTC"}}]})
+        if "asksurf" in url:
+            return mod.HttpResult(200, {"summary": {}, "data": []})
+        if "coinglass" in url:
+            return mod.HttpResult(200, {"code": "401", "msg": "Upgrade plan"})
+        raise AssertionError(url)
+
+    payload = mod.run_once(
+        redis_client_override=fake_redis,
+        http_get=fake_http,
+        max_symbols=10,
+        surf_symbol_limit=0,
+        public_paths=(tmp_path / "public_a.json", tmp_path / "public_b.json"),
+    )
+
+    assert payload["binance_usdm_status"]["provider"] == "binance_usdm_websocket_cache_primary"
+    assert payload["binance_usdm_status"]["network_call_attempted"] is False
+    assert payload["binance_usdm_status"]["rest_fallback_used"] is False
+    assert payload["binance_usdm_tradable_symbols"] == ["BTCUSDT", "SOLUSDT"]
+    assert "BTCUSDT" in payload["dynamic_discovered_symbols"]

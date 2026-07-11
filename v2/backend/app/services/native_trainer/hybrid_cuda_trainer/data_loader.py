@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -45,7 +46,7 @@ from .tensor_builder import FeatureTensorRecord, V2UnifiedFeatureTensorBuilder
 INVALID_PAPER_ADMISSION_REJECTION_REASON = (
     "P0_ENTRY_GATE_BLOCKED_NOT_EXPLORATION_RELAXABLE"
 )
-TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE = 8_192
+TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE = 16_384
 TRUSTED_REPLAY_MIN_SCAN_PER_CYCLE = 512
 TRUSTED_REPLAY_SCAN_MULTIPLIER = 4
 # Outcome labels need finalized candles up to 4h after decision_time; the
@@ -64,6 +65,23 @@ TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS = int(4.5 * 3600)
 # First-run cursor placement: closed-candle series from Redis cover ~25h at
 # 15m granularity, so labeling starts inside that window.
 TRUSTED_REPLAY_INITIAL_LOOKBACK_SECONDS = int(25 * 3600)
+TRAINER_FEEDBACK_OUTCOMES_KEY = "v2:trainer:feedback:outcomes"
+TRAINER_FEEDBACK_COUNTERFACTUALS_KEY = "v2:trainer:feedback:counterfactuals"
+TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY = (
+    "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+)
+COUNTERFACTUAL_TRAINER_FEEDBACK_SOURCES = {
+    "V2_CONTINUOUS_EDGE_FACTORY_COUNTERFACTUAL_CLOSED_WINDOW",
+    "V2_CONTINUOUS_EDGE_FACTORY_REPLAY_CLOSED_WINDOW",
+}
+PAPER_EXPLORATION_MATERIALIZATION_TRAINER_FEEDBACK_SOURCES = {
+    "PAPER_EXPLORATION_MATERIALIZATION_CLOSED_WINDOW",
+    "PAPER_RISK_CONTROLLER_EXPLORATION_CLOSED_WINDOW",
+}
+PAPER_EXPLORATION_MATERIALIZATION_CLOSED_FEEDBACK_TYPES = {
+    "PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_CLOSED",
+    "PAPER_EXPLORATION_MATERIALIZATION_CLOSED_OUTCOME",
+}
 
 
 def _parse_iso_utc(value: Any) -> datetime | None:
@@ -134,8 +152,6 @@ def _snapshot_decision_time_lineage(snapshot: Any) -> dict[str, Any] | None:
     """
     if not isinstance(snapshot, Mapping):
         return None
-    if "missing_feature_flags" not in snapshot and "missing_feature_count" not in snapshot:
-        return None
 
     def _names(value: Any) -> list[str]:
         if isinstance(value, Mapping):
@@ -144,13 +160,37 @@ def _snapshot_decision_time_lineage(snapshot: Any) -> dict[str, Any] | None:
             return [str(name) for name in value if str(name).strip()]
         return []
 
-    missing_names = _names(snapshot.get("missing_feature_flags"))
-    stale_names = _names(snapshot.get("stale_feature_flags"))
-    raw_count = snapshot.get("missing_feature_count")
-    try:
-        missing_count = int(raw_count) if raw_count is not None else len(missing_names)
-    except (TypeError, ValueError):
+    def _flagged_mask_names(value: Any) -> list[str]:
+        if not isinstance(value, Mapping):
+            return []
+        return [str(name) for name, flagged in value.items() if flagged and str(name).strip()]
+
+    def _source_availability(value: Any) -> Any:
+        for key in ("source_availability", "source_availability_vector", "source_inputs"):
+            source = value.get(key)
+            if isinstance(source, Mapping):
+                return {str(name): item for name, item in source.items()}
+            if isinstance(source, (list, tuple)):
+                return list(source)
+        return {}
+
+    if "missing_feature_flags" in snapshot or "missing_feature_count" in snapshot:
+        missing_names = _names(snapshot.get("missing_feature_flags"))
+        stale_names = _names(snapshot.get("stale_feature_flags"))
+        raw_count = snapshot.get("missing_feature_count")
+        try:
+            missing_count = int(raw_count) if raw_count is not None else len(missing_names)
+        except (TypeError, ValueError):
+            missing_count = len(missing_names)
+    elif isinstance(snapshot.get("missing_mask"), Mapping) or isinstance(snapshot.get("stale_mask"), Mapping):
+        # Durable archive blobs persist the same decision-time lineage as full
+        # boolean mask maps (missing_mask/stale_mask); a name was missing at
+        # decision time only when its flag is truthy.
+        missing_names = _flagged_mask_names(snapshot.get("missing_mask"))
+        stale_names = _flagged_mask_names(snapshot.get("stale_mask"))
         missing_count = len(missing_names)
+    else:
+        return None
     missing_count = max(missing_count, len(missing_names))
     # Guard against snapshots whose flags claim completeness while a whole
     # critical feature family is absent from the captured features dict.
@@ -167,6 +207,7 @@ def _snapshot_decision_time_lineage(snapshot: Any) -> dict[str, Any] | None:
         "missing_feature_count": missing_count,
         "stale_feature_names": stale_names,
         "stale_feature_count": len(stale_names),
+        "source_availability": _source_availability(snapshot),
         "lineage_source": "feature_snapshot_decision_time_flags",
     }
 
@@ -270,11 +311,15 @@ def _lineage_trust_fields(
     false positives.
     """
     if lineage is not None:
+        source_availability = lineage.get("source_availability")
+        source_availability_recorded = isinstance(source_availability, (Mapping, list, tuple))
         return {
             "missing_feature_names": list(lineage.get("missing_feature_names") or []),
             "missing_feature_count": int(lineage.get("missing_feature_count") or 0),
             "stale_feature_names": list(lineage.get("stale_feature_names") or []),
             "stale_feature_count": int(lineage.get("stale_feature_count") or 0),
+            "source_availability": source_availability if source_availability_recorded else {},
+            "source_availability_recorded": source_availability_recorded,
             "missing_reconciled_from_feedback_row": list(
                 lineage.get("missing_reconciled_from_feedback_row") or []
             ),
@@ -285,6 +330,7 @@ def _lineage_trust_fields(
             "tensor_missing_mask_preserved": True,
             "tensor_stale_mask_preserved": True,
             "source_availability_preserved": True,
+            "lineage_mask_present": True,
         }
     return {
         "missing_feature_names": list(tensor.missing_feature_names),
@@ -295,6 +341,8 @@ def _lineage_trust_fields(
         "tensor_missing_mask_preserved": True,
         "tensor_stale_mask_preserved": True,
         "source_availability_preserved": True,
+        "source_availability_recorded": True,
+        "lineage_mask_present": True,
     }
 
 
@@ -355,6 +403,52 @@ def _trainer_feedback_row_usable(row: Mapping[str, Any]) -> bool:
         if audit_quality_rejection_reasons(dict(row)):
             return False
     return True
+
+
+def _counterfactual_trainer_feedback_row_usable(row: Mapping[str, Any]) -> bool:
+    if row.get("trainer_feedback_source") not in COUNTERFACTUAL_TRAINER_FEEDBACK_SOURCES:
+        return False
+    if row.get("counterfactual_label_pending") is True:
+        return False
+    if row.get("trainer_consumable") is not True:
+        return False
+    if row.get("counts_as_a_plus") is True or row.get("counts_as_final_a_plus") is True:
+        return False
+    if row.get("counts_as_live_ready") is True or row.get("routes_to_live") is True:
+        return False
+    return _trainer_feedback_row_usable(row)
+
+
+def _paper_exploration_materialization_feedback_row_usable(row: Mapping[str, Any]) -> bool:
+    feedback_source = row.get("trainer_feedback_source")
+    feedback_type = row.get("feedback_type")
+    if (
+        feedback_source not in PAPER_EXPLORATION_MATERIALIZATION_TRAINER_FEEDBACK_SOURCES
+        and feedback_type not in PAPER_EXPLORATION_MATERIALIZATION_CLOSED_FEEDBACK_TYPES
+    ):
+        return False
+    if row.get("future_label_pending") is True or row.get("counterfactual_label_pending") is True:
+        return False
+    if row.get("trainer_consumable") is not True:
+        return False
+    if row.get("counts_as_a_plus") is True or row.get("counts_as_A_plus") is True:
+        return False
+    if row.get("counts_as_final_a_plus") is True or row.get("counts_as_final_A_plus") is True:
+        return False
+    if row.get("counts_as_live_ready") is True or row.get("routes_to_live") is True:
+        return False
+    if row.get("places_real_order") is True or row.get("order_submitted") is True:
+        return False
+    if row.get("test_order_submitted") is True:
+        return False
+    if (
+        row.get("realized_net_pnl_usd") in (None, "")
+        and row.get("realized_pnl_usd") in (None, "")
+        and row.get("realized_net_pnl_bps") in (None, "")
+        and row.get("realized_pnl_bps") in (None, "")
+    ):
+        return False
+    return _trainer_feedback_row_usable(row)
 
 
 def _paper_outcome_label_row_usable(row: Mapping[str, Any]) -> bool:
@@ -505,9 +599,18 @@ class V2HybridTrainerDataLoader:
         self.replay_bundle_paths = tuple(Path(p) for p in replay_bundle_paths)
         self.trusted_replay_archive_root = trusted_replay_archive_root or default_archive_root()
         self.last_trusted_replay_scan: dict[str, Any] = {}
+        self.last_trusted_replay_backfill_scan: dict[str, Any] = {}
+        self.last_prediction_grid_load: dict[str, Any] = {}
+        # Request-scoped batch cache: load_snapshot_payloads primes this with a
+        # single pipelined round-trip so the ~57 per-pair reads stop paying
+        # sequential Redis latency (the dominant prediction-grid cost).
+        self._request_key_cache: dict[str, Any] | None = None
 
     def _get(self, key: str) -> Any:
         assert_v2_key(key)
+        cache = self._request_key_cache
+        if cache is not None and key in cache:
+            return cache[key]
         return self.io.get_json(key)
 
     def _get_first(self, *keys: str) -> tuple[Any, str]:
@@ -670,7 +773,11 @@ class V2HybridTrainerDataLoader:
             "paper_positions": "v2:paper:positions",
             "paper_position_history": "v2:paper:position_history",
             "paper_outcome_labels": "v2:paper:outcome_labels",
-            "trainer_feedback_outcomes": "v2:trainer:feedback:outcomes",
+            "trainer_feedback_outcomes": TRAINER_FEEDBACK_OUTCOMES_KEY,
+            "trainer_feedback_counterfactuals": TRAINER_FEEDBACK_COUNTERFACTUALS_KEY,
+            "trainer_feedback_paper_exploration_materialization": (
+                TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY
+            ),
         }
         payloads = {name: self._get(key) for name, key in keys.items()}
         payloads["ohlcv"], keys["ohlcv"] = self._read_closed_candle_series(symbol=symbol, timeframe=timeframe)
@@ -778,6 +885,103 @@ class V2HybridTrainerDataLoader:
 
     def load_snapshot_payloads(self, *, symbol: str, timeframe: str) -> dict[str, Any] | None:
         latest_key = f"v2:features:latest:{symbol}:{timeframe}"
+        owns_cache = self._request_key_cache is None
+        if owns_cache:
+            self._prime_snapshot_request_cache(symbol=symbol, timeframe=timeframe, latest_key=latest_key)
+        try:
+            return self._load_snapshot_payloads_inner(
+                symbol=symbol, timeframe=timeframe, latest_key=latest_key
+            )
+        finally:
+            if owns_cache:
+                self._request_key_cache = None
+
+    def _snapshot_request_keys(self, *, symbol: str, timeframe: str, latest_key: str) -> list[str]:
+        batch: list[str] = [latest_key]
+        batch += [
+            f"v2:market:funding:{symbol}",
+            f"v2:market:open_interest:{symbol}",
+            f"v2:market:open_interest_hist:{symbol}:5m",
+            f"v2:market:long_short:{symbol}",
+            f"v2:market:orderbook:{symbol}",
+            f"v2:market:liquidations:aggregate:{symbol}",
+            f"v2:market:liquidation_levels:{symbol}",
+            f"v2:market:liquidity_zones:{symbol}",
+            f"v2:market:fvg:{symbol}:{timeframe}",
+            f"v2:market:structure:{symbol}:{timeframe}",
+            f"v2:market:sweep_risk:{symbol}:{timeframe}",
+            f"v2:market:vwap:{symbol}:{timeframe}",
+            f"v2:market:volume_profile:{symbol}:{timeframe}",
+            f"v2:market:cvd:{symbol}:{timeframe}",
+            f"v2:market:trade_tape_features:{symbol}",
+            f"v2:altdata:symbol_score:{symbol}",
+            f"v2:altdata:public_intel:symbol:{symbol}",
+            f"v2:altdata:aicoin:symbol:{symbol}",
+            f"v2:altdata:whale_walls:symbol:{symbol}",
+            f"v2:altdata:santiment:symbol:{symbol}",
+            f"v2:altdata:lunarcrush:symbol:{symbol}",
+            f"v2:altdata:nansen:symbol:{symbol}",
+            "v2:paper:positions",
+            "v2:risk:decisions",
+            "v2:orchestrator:decisions",
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:orderbook:depth:binance:{symbol}",
+            f"v2:orderbook:top:binance:{symbol}",
+            f"v2:orderbook:features:kucoin:{symbol}",
+            f"v2:orderbook:depth:kucoin:{symbol}",
+            f"v2:orderbook:top:kucoin:{symbol}",
+            f"v2:market:orderbook:binance:{symbol}",
+            f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:microstructure:feed_quality:binance:{symbol}",
+            f"v2:microstructure:feed_quality:kucoin:{symbol}",
+            f"v2:microstructure:adversarial_features:binance:{symbol}",
+            f"v2:microstructure:adversarial_features:kucoin:{symbol}",
+            f"v2:microstructure:trade_tape_confirmation:{symbol}",
+            f"v2:microstructure:cross_venue_confirmation:{symbol}",
+            f"v2:microstructure:sweep_risk:{symbol}:{timeframe}",
+            f"v2:market:microstructure:{symbol}",
+            f"v2:market:coinapi:wsds:{symbol}",
+            f"v2:features:microfeat:{symbol}:{timeframe}",
+        ]
+        for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
+            batch.append(f"v2:market:ohlcv_closed:binance:{symbol}:{snapshot_timeframe}")
+            batch.append(f"v2:market:ohlcv:binance:{symbol}:{snapshot_timeframe}")
+        return list(dict.fromkeys(batch))
+
+    def _prime_snapshot_request_cache(self, *, symbol: str, timeframe: str, latest_key: str) -> None:
+        """One pipelined round-trip for every key this snapshot build reads."""
+        getter = getattr(self.io, "get_json_many", None)
+        if getter is None:
+            return
+        batch = self._snapshot_request_keys(symbol=symbol, timeframe=timeframe, latest_key=latest_key)
+        try:
+            self._request_key_cache = dict(getter(batch))
+        except Exception:
+            self._request_key_cache = None
+
+    def _prime_prediction_grid_request_cache(self, pairs: Iterable[tuple[str, str]]) -> int:
+        getter = getattr(self.io, "get_json_many", None)
+        if getter is None:
+            return 0
+        batch: list[str] = []
+        for symbol, timeframe in pairs:
+            latest_key = f"v2:features:latest:{symbol}:{timeframe}"
+            batch.extend(
+                self._snapshot_request_keys(symbol=symbol, timeframe=timeframe, latest_key=latest_key)
+            )
+        unique = list(dict.fromkeys(batch))
+        if not unique:
+            return 0
+        try:
+            self._request_key_cache = dict(getter(unique))
+        except Exception:
+            self._request_key_cache = None
+            return 0
+        return len(unique)
+
+    def _load_snapshot_payloads_inner(
+        self, *, symbol: str, timeframe: str, latest_key: str
+    ) -> dict[str, Any] | None:
         latest = self._get(latest_key)
         if not isinstance(latest, Mapping):
             return None
@@ -868,6 +1072,39 @@ class V2HybridTrainerDataLoader:
             payloads = self.load_payloads(symbol=symbol, timeframe=timeframe)
         return self._build_example_from_payloads(symbol=symbol, timeframe=timeframe, payloads=payloads)
 
+    def build_prediction_snapshot_example(self, *, symbol: str, timeframe: str) -> TrainingExample:
+        """Build a current prediction row from the immutable feature snapshot.
+
+        This path is intentionally prediction-only. Training rows continue to
+        use the trusted replay/outcome loaders. The snapshot carries explicit
+        missing/stale lineage; closed candles are still read so MTF temporal
+        safety is validated without re-reading every supplemental source.
+        """
+        latest_key = f"v2:features:latest:{symbol}:{timeframe}"
+        latest = self.io.get_json_many([latest_key]).get(latest_key)
+        if not isinstance(latest, Mapping):
+            latest = self.io.get_json(latest_key)
+        if not isinstance(latest, Mapping):
+            return self.build_example(symbol=symbol, timeframe=timeframe, snapshot_fast_path=True)
+        features = latest.get("features") if isinstance(latest.get("features"), Mapping) else None
+        if not isinstance(features, Mapping) or not features:
+            return self.build_example(symbol=symbol, timeframe=timeframe, snapshot_fast_path=True)
+        if str(latest.get("symbol") or "").upper() not in {"", symbol.upper()}:
+            return self.build_example(symbol=symbol, timeframe=timeframe, snapshot_fast_path=True)
+        if str(latest.get("timeframe") or "") not in {"", timeframe}:
+            return self.build_example(symbol=symbol, timeframe=timeframe, snapshot_fast_path=True)
+
+        payloads = self._payloads_from_feature_snapshot(snapshot=latest, features=features, feedback_row={})
+        keys: dict[str, str] = {"features_latest": latest_key}
+        for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
+            payloads[f"ohlcv_closed_{snapshot_timeframe}"], key = self._read_closed_candle_series(
+                symbol=symbol,
+                timeframe=snapshot_timeframe,
+            )
+            keys[f"ohlcv_closed_{snapshot_timeframe}"] = key
+        payloads["_keys"] = keys
+        return self._build_example_from_payloads(symbol=symbol, timeframe=timeframe, payloads=payloads)
+
     def _build_example_from_payloads(
         self,
         *,
@@ -913,6 +1150,30 @@ class V2HybridTrainerDataLoader:
                     "directional_outcome": targets["directional_outcome"],
                     "trade_outcome": targets["trade_outcome"],
                     "action_was_profitable": targets["action_was_profitable"],
+                }
+            )
+            # PPO on-policy passthrough: entry-time policy fields captured on
+            # the paper fill (never fabricated here). Rows carrying the full
+            # contract are admitted by _has_on_policy_ppo_fields; incomplete
+            # rows stay outcome-supervised.
+            trust_row.update(
+                {
+                    field: outcome_row.get(field)
+                    for field in (
+                        "old_log_prob",
+                        "old_value",
+                        "reward",
+                        "done",
+                        "rollout_id",
+                        "trajectory_index",
+                        "action_probabilities",
+                        "selected_action_log_prob",
+                        "selected_action_probability",
+                        "ppo_on_policy_entry_fields_present",
+                        "ppo_on_policy_ineligible_reason",
+                        "entry_policy_fields_source",
+                    )
+                    if outcome_row.get(field) not in (None, "")
                 }
             )
         if _has_explicit_training_trust_evidence(trust_row):
@@ -1084,23 +1345,115 @@ class V2HybridTrainerDataLoader:
                     return examples
         return examples
 
-    def _trusted_replay_cursor_path(self) -> Path:
-        return Path(self.trusted_replay_archive_root) / "trusted_replay_cursor.json"
+    def load_prediction_grid_examples(
+        self,
+        *,
+        symbols: Iterable[str],
+        timeframes: Iterable[str],
+        limit: int | None = None,
+        snapshot_fast_path: bool = True,
+        max_workers: int = 1,
+    ) -> list[TrainingExample]:
+        """Build current-grid prediction examples concurrently.
 
-    def _read_trusted_replay_cursor(self) -> int:
+        This is a performance-only path for current prediction publication.
+        Each worker uses the same ``build_example`` logic and read-only IO as
+        the sequential loader, so feature_cutoff/available_at/decision_time
+        checks and row classification are unchanged.
+        """
+        pairs: list[tuple[str, str]] = []
+        max_count = int(limit) if limit is not None else None
+        for symbol in symbols:
+            for timeframe in timeframes:
+                if max_count is not None and len(pairs) >= max_count:
+                    break
+                pairs.append((str(symbol), str(timeframe)))
+            if max_count is not None and len(pairs) >= max_count:
+                break
+        if not pairs:
+            self.last_prediction_grid_load = {
+                "pair_count": 0,
+                "parallel_workers": 0,
+                "parallel_loader_used": False,
+            }
+            return []
+        workers = max(1, min(int(max_workers or 1), len(pairs)))
+        owns_cache = self._request_key_cache is None
+        cache_key_count = self._prime_prediction_grid_request_cache(pairs) if owns_cache and snapshot_fast_path else 0
+        if workers <= 1:
+            try:
+                examples = [
+                    self.build_example(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        snapshot_fast_path=snapshot_fast_path,
+                    )
+                    for symbol, timeframe in pairs
+                ]
+            finally:
+                if owns_cache:
+                    self._request_key_cache = None
+            self.last_prediction_grid_load = {
+                "pair_count": len(pairs),
+                "parallel_workers": 1,
+                "parallel_loader_used": False,
+                "grid_request_cache_key_count": cache_key_count,
+            }
+            return examples
+
+        def _build(pair: tuple[str, str]) -> TrainingExample:
+            symbol, timeframe = pair
+            return self.build_example(
+                symbol=symbol,
+                timeframe=timeframe,
+                snapshot_fast_path=snapshot_fast_path,
+            )
+
+        examples: list[TrainingExample] = []
         try:
-            payload = json.loads(self._trusted_replay_cursor_path().read_text(encoding="utf-8"))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                examples.extend(pool.map(_build, pairs))
+        finally:
+            if owns_cache:
+                self._request_key_cache = None
+        self.last_prediction_grid_load = {
+            "pair_count": len(pairs),
+            "parallel_workers": workers,
+            "parallel_loader_used": True,
+            "snapshot_fast_path": bool(snapshot_fast_path),
+            "grid_request_cache_key_count": cache_key_count,
+        }
+        return examples
+
+    def _trusted_replay_cursor_path(self, *, backfill: bool = False) -> Path:
+        name = "trusted_replay_backfill_cursor.json" if backfill else "trusted_replay_cursor.json"
+        return Path(self.trusted_replay_archive_root) / name
+
+    def _read_trusted_replay_cursor(self, *, backfill: bool = False) -> int:
+        try:
+            payload = json.loads(
+                self._trusted_replay_cursor_path(backfill=backfill).read_text(encoding="utf-8")
+            )
             return max(0, int(payload.get("manifest_offset") or 0))
         except (OSError, ValueError, TypeError):
             return -1
 
-    def _write_trusted_replay_cursor(self, offset: int, *, frontier_reached: bool) -> None:
+    def _write_trusted_replay_cursor(
+        self,
+        offset: int,
+        *,
+        frontier_reached: bool,
+        backfill: bool = False,
+        epoch_wrapped: bool = False,
+    ) -> None:
         try:
-            self._trusted_replay_cursor_path().write_text(
+            self._trusted_replay_cursor_path(backfill=backfill).write_text(
                 json.dumps(
                     {
                         "manifest_offset": int(offset),
                         "frontier_reached": bool(frontier_reached),
+                        "backfill_lane": bool(backfill),
+                        "epoch_wrapped": bool(epoch_wrapped),
                         "updated_utc": datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
                     }
                 ),
@@ -1109,7 +1462,12 @@ class V2HybridTrainerDataLoader:
         except OSError:
             return
 
-    def load_trusted_replay_examples(self, *, limit: int | None = None) -> list[TrainingExample]:
+    def load_trusted_replay_examples(
+        self,
+        *,
+        limit: int | None = None,
+        backfill: bool = False,
+    ) -> list[TrainingExample]:
         """Consume labelable snapshots from a persistent oldest-first cursor.
 
         F-0013: the previous newest-first bounded scan only ever inspected the
@@ -1119,6 +1477,14 @@ class V2HybridTrainerDataLoader:
         trainer stayed INFERENCE_ONLY. The cursor walks forward and stops at
         the embargo frontier (now - 4.5h); each cycle consumes snapshots that
         newly crossed the frontier, giving a continuous training stream.
+
+        ``backfill=True`` runs the historical epoch lane: a second cursor
+        re-consumes archive rows BEHIND the frontier cursor so a restarted
+        replay buffer can refill from the full archive instead of waiting on
+        live production rate. It stops at the frontier cursor (that region
+        belongs to the primary lane) and wraps to offset 0 when it catches up,
+        starting the next epoch over history. The frontier cursor is never
+        touched by this lane.
         """
         examples: list[TrainingExample] = []
         requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
@@ -1133,9 +1499,17 @@ class V2HybridTrainerDataLoader:
         embargo_cutoff = datetime.now(tz=timezone.utc) - timedelta(
             seconds=TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS
         )
-        cursor = self._read_trusted_replay_cursor()
+        backfill_stop_offset: int | None = None
+        epoch_wrapped = False
+        cursor = self._read_trusted_replay_cursor(backfill=backfill)
         if cursor < 0:
             cursor = 0
+        if backfill:
+            frontier_cursor = self._read_trusted_replay_cursor()
+            backfill_stop_offset = max(0, frontier_cursor)
+            if backfill_stop_offset and cursor >= backfill_stop_offset:
+                cursor = 0
+                epoch_wrapped = True
         rejections: dict[str, int] = {}
         scanned = 0
         frontier_reached = False
@@ -1151,6 +1525,10 @@ class V2HybridTrainerDataLoader:
             self.trusted_replay_archive_root, start_offset=cursor
         ):
             if scanned >= scan_limit:
+                break
+            if backfill_stop_offset is not None and next_offset > backfill_stop_offset:
+                # The region past the frontier cursor belongs to the primary lane.
+                frontier_reached = True
                 break
             decision_time = _parse_iso_utc(
                 snapshot.get("decision_time") or snapshot.get("generated_utc")
@@ -1210,14 +1588,62 @@ class V2HybridTrainerDataLoader:
                 continue
             snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
             classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
+            missing_feature_names = list(
+                (
+                    (snapshot_lineage or {}).get("missing_feature_names")
+                    if snapshot_lineage is not None
+                    else tensor.missing_feature_names
+                )
+                or []
+            )
+            stale_feature_names = list(
+                (
+                    (snapshot_lineage or {}).get("stale_feature_names")
+                    if snapshot_lineage is not None
+                    else tensor.stale_feature_names
+                )
+                or []
+            )
+            safe_missing_mask_replay_candidate = (
+                classification == "MISSING_MASKED"
+                and not stale_feature_names
+                and "critical_family_absent:ohlcv_core" not in missing_feature_names
+            )
             trust_row = dict(replay_row)
             trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
             trust_row.update(
                 {
+                    "row_source": "trusted_replay_archive",
+                    "trusted_replay_row": True,
+                    "historical_replay_row": True,
+                    "trusted_replay_backfill_lane": bool(backfill),
                     "row_classification": classification,
+                    "classification_mask_present": True,
                     "feature_vector_hash": tensor.tensor_id,
                     "market_state_integrity_score": replay_row.get("market_state_integrity_score"),
                     "reject_reasons": list(reasons),
+                    "safe_to_train_with_missing_mask": safe_missing_mask_replay_candidate,
+                    "safe_missing_mask_training_scope": (
+                        "HISTORICAL_REPLAY_ONLY"
+                        if safe_missing_mask_replay_candidate
+                        else None
+                    ),
+                    "feature_family_introduced_after_snapshot_time": safe_missing_mask_replay_candidate,
+                    "critical_missing_vs_optional_missing": (
+                        "HISTORICAL_SCHEMA_MISSING_MASKED"
+                        if safe_missing_mask_replay_candidate
+                        else "NONE"
+                    ),
+                    "safe_to_train_with_missing_mask_reason": (
+                        "PIT_REPLAY_ROW_WITH_EXPLICIT_MISSING_MASK_AND_NO_STALE_OR_FUTURE_LEAK_FLAGS"
+                        if safe_missing_mask_replay_candidate
+                        else None
+                    ),
+                    "unsafe_to_train_reason": (
+                        None
+                        if classification != "STALE_MASKED"
+                        else "STALE_FEATURE_FAMILY"
+                    ),
                     "source_lineage": {
                         "durable_feature_snapshot_archive": True,
                         "feature_snapshot_id": snapshot.get("snapshot_id"),
@@ -1256,12 +1682,22 @@ class V2HybridTrainerDataLoader:
                     for reason in sample_reject_reasons or ["sample_not_accepted"]:
                         rejections[f"sample:{reason}"] = rejections.get(f"sample:{reason}", 0) + 1
                     continue
+                trust_row["safe_to_train_with_missing_mask"] = True
+                trust_row["unsafe_to_train_reason"] = None
+                trust_row["accepted_for_training"] = True
+                trust_row["valid_for_training"] = True
+                trust_row["reject_reasons"] = []
                 rejections["sample_missing_family_accepted_for_replay"] = (
                     rejections.get("sample_missing_family_accepted_for_replay", 0) + 1
                 )
             examples.append(example)
-        self._write_trusted_replay_cursor(consumed_offset, frontier_reached=frontier_reached)
-        self.last_trusted_replay_scan = {
+        self._write_trusted_replay_cursor(
+            consumed_offset,
+            frontier_reached=frontier_reached,
+            backfill=backfill,
+            epoch_wrapped=epoch_wrapped,
+        )
+        scan_status = {
             "cursor_offset": consumed_offset,
             "snapshots_scanned": scanned,
             "examples_built": len(examples),
@@ -1269,19 +1705,36 @@ class V2HybridTrainerDataLoader:
             "embargo_seconds": TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS,
             "rejection_reasons": dict(sorted(rejections.items(), key=lambda kv: -kv[1])[:15]),
         }
+        if backfill:
+            scan_status["backfill_lane"] = True
+            scan_status["backfill_stop_offset"] = backfill_stop_offset
+            scan_status["epoch_wrapped"] = epoch_wrapped
+            self.last_trusted_replay_backfill_scan = scan_status
+        else:
+            self.last_trusted_replay_scan = scan_status
         return examples
 
     def _closed_trade_snapshot_training_examples(self) -> list[TrainingExample]:
-        payload = self._get("v2:trainer:feedback:outcomes")
-        if not isinstance(payload, list):
-            return []
         examples: list[TrainingExample] = []
-        for row in payload:
-            if not isinstance(row, Mapping) or not _trainer_feedback_row_usable(row):
+        for source_key, usable in (
+            (TRAINER_FEEDBACK_OUTCOMES_KEY, _trainer_feedback_row_usable),
+            (TRAINER_FEEDBACK_COUNTERFACTUALS_KEY, _counterfactual_trainer_feedback_row_usable),
+            (
+                TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY,
+                _paper_exploration_materialization_feedback_row_usable,
+            ),
+        ):
+            payload = self._get(source_key)
+            if not isinstance(payload, list):
                 continue
-            example = self._closed_trade_snapshot_training_example(row)
-            if example is not None:
-                examples.append(example)
+            for row in payload:
+                if not isinstance(row, Mapping) or not usable(row):
+                    continue
+                row_with_source = dict(row)
+                row_with_source.setdefault("trainer_feedback_source_key", source_key)
+                example = self._closed_trade_snapshot_training_example(row_with_source)
+                if example is not None:
+                    examples.append(example)
         return examples
 
     def _closed_trade_feature_snapshot(
@@ -1433,7 +1886,8 @@ class V2HybridTrainerDataLoader:
                 "replay_snapshot_id": row.get("replay_snapshot_id")
                 or row.get("decision_id")
                 or f"closed_trade:{feature_snapshot_id}",
-                "replay_snapshot_key": row.get("replay_snapshot_key") or f"v2:trainer:feedback:outcomes:{row.get('trainer_feedback_id')}",
+                "replay_snapshot_key": row.get("replay_snapshot_key")
+                or f"{row.get('trainer_feedback_source_key') or TRAINER_FEEDBACK_OUTCOMES_KEY}:{row.get('trainer_feedback_id')}",
                 "masa_feature_cutoff": row.get("masa_feature_cutoff") or feature_cutoff,
                 "ppo_feature_cutoff": row.get("ppo_feature_cutoff") or feature_cutoff,
                 "source_lineage": {
@@ -1453,7 +1907,7 @@ class V2HybridTrainerDataLoader:
             label_action_index=action,
             label_expected_move_after_cost_bps=directional_value,
             payload_keys=(
-                f"v2:trainer:feedback:outcomes:{row.get('trainer_feedback_id')}",
+                f"{row.get('trainer_feedback_source_key') or TRAINER_FEEDBACK_OUTCOMES_KEY}:{row.get('trainer_feedback_id')}",
                 f"v2:features:snapshot:{feature_snapshot_id}",
             ),
             row_classification=classification,
@@ -1520,13 +1974,34 @@ class V2HybridTrainerDataLoader:
             "microstructure": dict(features),
             "liquidation_levels": dict(features),
             "liquidity_zones": dict(features),
-            "liquidations": {},
+            "fvg": dict(features),
+            "market_structure": dict(features),
+            "structure": dict(features),
+            "sweep_risk": dict(features),
+            "vwap_features": dict(features),
+            "volume_profile": dict(features),
+            "cvd_features": dict(features),
+            "trade_tape": dict(features),
+            "trade_tape_features": dict(features),
+            "advanced_trade_tape": dict(features),
+            "microstructure_trust": dict(features),
+            "coinank_open_interest": dict(features),
+            "coinank_funding": dict(features),
+            "coinank_long_short": dict(features),
+            "coinank_liquidations": dict(features),
+            "coinank_market_order_flow": dict(features),
+            "liquidations": dict(features),
             "liquidations_agg": dict(features),
             "symbol_score": dict(features),
             "public_intel": dict(features),
             "aicoin": dict(features),
             "whale_walls": dict(features),
             "santiment": dict(features),
+            "lunarcrush": dict(features),
+            "nansen": dict(features),
+            "moralis_features": {"features": dict(features)},
+            "smart_money_signals": {"features": dict(features)},
+            "altdata_confluence": {"features": dict(features)},
             "paper_positions": {},
             "risk_decisions": {},
             "orchestrator_decisions": {},

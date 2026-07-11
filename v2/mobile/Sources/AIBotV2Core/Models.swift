@@ -383,11 +383,40 @@ public struct MobileSignal: Decodable, Sendable {
     public let timeframe: String
     public let action: String
     public let confidence: Double
+    public let confidence_selected_action: Double?
+    public let confidence_executable_trade: Double?
+    public let confidence_display_label: String?
+    public let confidence_type: String?
+    public let confidence_a_plus_eligible: Bool?
+    public let confidence_tradeability_block_reasons: [String]?
+    public let paper_exploration_tier: String?
+    public let exploration_tier: String?
+    public let paper_exploration_current_blocker: String?
+    public let paper_exploration_paper_fill_allowed: Bool?
+    public let paper_exploration_risk_controller_decision: String?
+    public let paper_exploration_orchestrator_decision: String?
+    public let paper_exploration_allocator_decision: String?
+    public let expected_net_pnl_usd: Double?
+    public let expected_max_loss_usd: Double?
+    public let why_not_a_plus: [String]?
+    public let why_not_live_ready: [String]?
+    public let risk_controller_decision: String?
+    public let allocator_decision: String?
+    public let trainer_feedback_status: String?
     public let actionable: Bool
     public let risk_state: String
     public let paper_fill_status: String
     public let published_at: String
     public var confidencePct: String { "\(Int(confidence * 100))%" }
+    public var selectedConfidence: Double { confidence_selected_action ?? confidence }
+    public var executableConfidence: Double { confidence_executable_trade ?? 0 }
+    public var selectedConfidencePct: String { "\(Int(selectedConfidence * 100))%" }
+    public var executableConfidencePct: String { "\(Int(executableConfidence * 100))%" }
+    public var confidenceDisplayLabel: String { confidence_display_label ?? "Unproven confidence" }
+    public var paperExplorationTier: String { paper_exploration_tier ?? exploration_tier ?? "NONE" }
+    public var paperExplorationCurrentBlocker: String { paper_exploration_current_blocker ?? "not above floor" }
+    public var whyNotAPlus: String { why_not_a_plus?.first ?? "A+ evidence not matured" }
+    public var whyNotLiveReady: String { why_not_live_ready?.first ?? "blocked_human_only" }
 }
 
 public struct MobileSignalsResponse: Decodable, Sendable {
@@ -807,6 +836,8 @@ public struct EnterpriseProviderCard: Decodable, Sendable, Equatable {
     public let status: String?
     public let dashboard_color: String?
     public let dashboard_color_reason: String?
+    public let freshness_status: String?
+    public let data_quality_status: String?
     public let actual_payload_count: Int?
     public let last_success_utc: String?
     public let last_error_utc: String?
@@ -834,6 +865,74 @@ public struct EnterpriseProviderCard: Decodable, Sendable, Equatable {
     public let metric_count: Int?
     public let missing_high_value_metrics: [String]?
     public let disabled_heatmap_endpoint: Bool?
+
+    public var providerDashboardTone: String {
+        let hasActualPayload = actual_payload_present == true || (actual_payload_count ?? 0) > 0 || (feature_count ?? 0) > 0
+        let dashboardTone = Self.normalizedProviderTone(dashboard_color)
+        let runtimeTone = Self.normalizedProviderTone(status)
+            ?? Self.normalizedProviderTone(subscription_tier)
+            ?? Self.normalizedProviderTone(data_quality_status)
+            ?? Self.normalizedProviderTone(freshness_status)
+
+        if dashboardTone == "red" || runtimeTone == "red" {
+            return "red"
+        }
+        if heartbeat_only == true {
+            return "yellow"
+        }
+        if hasActualPayload {
+            if dashboardTone == "yellow" || runtimeTone == "yellow" {
+                return "yellow"
+            }
+            if dashboardTone == "green" || runtimeTone == "green" {
+                return "green"
+            }
+            return "yellow"
+        }
+        if dashboardTone == "green" || runtimeTone == "green" {
+            return "yellow"
+        }
+        return dashboardTone ?? runtimeTone ?? "gray"
+    }
+
+    public var providerDashboardBadgeText: String {
+        providerDashboardTone.uppercased()
+    }
+
+    private static func normalizedProviderTone(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let value = raw
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        guard !value.isEmpty else { return nil }
+
+        if ["green", "ready", "healthy", "ok", "online", "connected", "active", "fresh", "pass", "passing"].contains(value) {
+            return "green"
+        }
+        if ["yellow", "partial", "degraded", "warning", "warn", "limited", "stale", "delayed", "pending", "recovering", "configured_no_watchlist", "partial_required_features_missing", "feature_bridge_partial"].contains(value) {
+            return "yellow"
+        }
+        if ["red", "error", "failed", "failure", "down", "offline", "invalid", "critical"].contains(value) {
+            return "red"
+        }
+        if ["gray", "grey", "unknown", "unavailable", "disabled", "not_configured", "unsupported", "plan_blocked", "no_key", "no_data"].contains(value) {
+            return "gray"
+        }
+        if value.contains("fail") || value.contains("error") || value.contains("invalid") || value.contains("critical") {
+            return "red"
+        }
+        if value.contains("partial") || value.contains("degraded") || value.contains("stale") || value.contains("pending") || value.contains("configured") {
+            return "yellow"
+        }
+        if value.contains("ready") || value.contains("healthy") || value.contains("connected") {
+            return "green"
+        }
+        if value.contains("disabled") || value.contains("unsupported") || value.contains("unknown") {
+            return "gray"
+        }
+        return nil
+    }
 }
 
 public struct EnterpriseProviderCards: Decodable, Sendable, Equatable {
@@ -1004,6 +1103,26 @@ public struct ControlCenterCurrentSignal: Decodable, Sendable, Equatable {
     public let signal_id: String?
     public let prediction_id: String?
     public let confidence: Double?
+    public let confidence_selected_action: Double?
+    public let confidence_executable_trade: Double?
+    public let confidence_display_label: String?
+    public let confidence_type: String?
+    public let confidence_a_plus_eligible: Bool?
+    public let confidence_tradeability_block_reasons: [String]?
+    public let paper_exploration_tier: String?
+    public let exploration_tier: String?
+    public let paper_exploration_current_blocker: String?
+    public let paper_exploration_paper_fill_allowed: Bool?
+    public let paper_exploration_risk_controller_decision: String?
+    public let paper_exploration_orchestrator_decision: String?
+    public let paper_exploration_allocator_decision: String?
+    public let expected_net_pnl_usd: Double?
+    public let expected_max_loss_usd: Double?
+    public let why_not_a_plus: [String]?
+    public let why_not_live_ready: [String]?
+    public let risk_controller_decision: String?
+    public let allocator_decision: String?
+    public let trainer_feedback_status: String?
     public let live_gate: String?
     public let exchange_action_taken: Bool?
     public let exchange_call_invariant: String?
@@ -1066,4 +1185,58 @@ public struct EnterpriseRealtimeFrame: Decodable, Sendable, Equatable {
     public let generated_utc: String
     public let display_time_et: String?
     public let payload: JSONValue?
+}
+
+// MARK: - AI prediction missing-feature alert (from /api/v2/predictions/explain)
+// The prediction is always produced (absent features are masked, not zero-filled).
+// This surfaces exactly what is degraded and how severe, without blocking anything.
+public struct AIPredictionMissingFeatureAlert: Decodable, Sendable, Equatable {
+    public let active: Bool
+    public let severity: String
+    public let operational: Bool
+    public let prediction_still_produced: Bool
+    public let data_coverage_pct: Double?
+    public let missing_feature_count: Int
+    public let stale_feature_count: Int
+    public let missing_by_category: [String: Int]
+    public let missing_provider_names: [String]
+    public let message: String
+}
+
+// MARK: - Backtest + replay-feedback results (from /api/v2/replay/backtest)
+public struct PolicyBacktest: Decodable, Sendable, Equatable {
+    public let win_rate: Double?
+    public let profit_factor_proxy: Double?
+    public let expectancy_after_cost_bps: Double?
+    public let rows_evaluated: Int?
+    public let status: String?
+    public let evidence_class: String?
+}
+
+public struct BacktestGeneralization: Decodable, Sendable, Equatable {
+    public let validation_supervised_loss: Double?
+    public let validation_rows_evaluated: Int?
+    public let train_val_generalization_gap: Double?
+    public let overfit_gap_warning: Bool?
+    public let loss_before: Double?
+    public let loss_after: Double?
+}
+
+public struct ReplayFeedback: Decodable, Sendable, Equatable {
+    public let existing_counterfactual_rows: Int?
+    public let new_matured_rows: Int?
+    public let pending_rows: Int?
+    public let trainer_loader_consumes: Bool?
+}
+
+public struct BacktestResults: Decodable, Sendable, Equatable {
+    public let available: Bool
+    public let generated_utc: String?
+    public let effective_trainer_mode: String?
+    public let replay_examples_built: Int?
+    public let backtest_is_a_plus_evidence: Bool
+    public let continuous_replay_active: Bool?
+    public let policy_backtest: PolicyBacktest?
+    public let generalization: BacktestGeneralization?
+    public let replay_feedback: ReplayFeedback?
 }

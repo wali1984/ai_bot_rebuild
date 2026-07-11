@@ -1,7 +1,8 @@
 """Read-only account and position evidence helpers for the V2 monitor.
 
-This module is intentionally narrow: it can fetch Binance USD-M account
-and position-risk snapshots, normalize them, and classify missing
+This module is intentionally narrow: it fetches Binance USD-M account and
+position snapshots through signed WebSocket API first, uses signed REST only as
+an explicit fallback, normalizes the snapshots, and classifies missing
 evidence. It does not expose mutating exchange operations.
 """
 from __future__ import annotations
@@ -17,6 +18,13 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Protocol, Tuple
+
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
+from v2.backend.app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
 
 
 ACCOUNT_ENDPOINT = "/fapi/v3/account"
@@ -94,7 +102,7 @@ class BinanceFuturesReadOnlyClient:
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
         self._recv_window = recv_window
-        self._request_func = request_func or self._default_request
+        self._request_func = request_func
 
     def _signed_query(self) -> str:
         params = {
@@ -110,6 +118,15 @@ class BinanceFuturesReadOnlyClient:
         return f"{query}&signature={signature}"
 
     def _default_request(self, url: str, timeout_seconds: float) -> Any:
+        if "binance.com" in url:
+            try:
+                require_binance_rest_fallback(
+                    endpoint=urllib.parse.urlparse(url).path or url,
+                    fallback_reason="signed_websocket_account_position_read_failed",
+                    role="signed_account_position_read_recovery",
+                )
+            except RuntimeError as exc:
+                raise ExchangeReadError(str(exc)) from exc
         request = urllib.request.Request(
             url,
             headers={"X-MBX-APIKEY": self._credentials.api_key},
@@ -135,16 +152,50 @@ class BinanceFuturesReadOnlyClient:
         if path not in READONLY_ENDPOINTS:
             raise ReadOnlyContractError("endpoint outside read-only allowlist")
         url = f"{self._base_url}{path}?{self._signed_query()}"
-        return self._request_func(url, self._timeout_seconds)
+        request_func = self._request_func or self._default_request
+        return request_func(url, self._timeout_seconds)
+
+    def _ws_result(self, method: str, params: Mapping[str, Any] | None = None) -> Any:
+        adapter = BinanceUSDMAdapter(
+            api_key=self._credentials.api_key,
+            api_secret=self._credentials.api_secret,
+            base_url=self._base_url,
+            timeout_seconds=self._timeout_seconds,
+        )
+        result = adapter.signed_ws_read(
+            method,
+            {"recvWindow": self._recv_window, **dict(params or {})},
+            execute=True,
+        )
+        response = result.get("response_json")
+        if not isinstance(response, Mapping) or int(response.get("status") or 0) != 200:
+            raise ExchangeReadError(f"websocket signed read failed:{method}:{result.get('status')}")
+        return response.get("result")
 
     def fetch_account(self) -> Mapping[str, Any]:
-        payload = self._get(ACCOUNT_ENDPOINT)
+        if self._request_func is None:
+            try:
+                payload = self._ws_result("account.status")
+            except ExchangeReadError:
+                if not binance_rest_fallback_allowed():
+                    raise
+                payload = self._get(ACCOUNT_ENDPOINT)
+        else:
+            payload = self._get(ACCOUNT_ENDPOINT)
         if not isinstance(payload, Mapping):
             raise ExchangeReadError("account payload was not an object")
         return payload
 
     def fetch_positions(self) -> List[Mapping[str, Any]]:
-        payload = self._get(POSITION_RISK_ENDPOINT)
+        if self._request_func is None:
+            try:
+                payload = self._ws_result("account.position")
+            except ExchangeReadError:
+                if not binance_rest_fallback_allowed():
+                    raise
+                payload = self._get(POSITION_RISK_ENDPOINT)
+        else:
+            payload = self._get(POSITION_RISK_ENDPOINT)
         if not isinstance(payload, list):
             raise ExchangeReadError("position-risk payload was not a list")
         return [item for item in payload if isinstance(item, Mapping)]

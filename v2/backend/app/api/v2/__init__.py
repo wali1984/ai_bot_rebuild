@@ -23,6 +23,7 @@ from app.api.v2 import (
     audit_ledger,
     brand,
     codex_reviews,
+    control_center_status,
     hourly_monitor,
     live_gate_status,
     live_readiness,
@@ -61,6 +62,8 @@ router.include_router(live_gate_status.router)
 router.include_router(public_status.router)
 router.include_router(ui.router)
 router.include_router(realtime.router)
+router.include_router(realtime.stream_router)
+router.include_router(control_center_status.router)
 router.include_router(monitoring_contracts.router)
 router.include_router(hourly_monitor.router)
 router.include_router(mobile.router)

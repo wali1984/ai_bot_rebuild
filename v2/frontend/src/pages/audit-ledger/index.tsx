@@ -8,15 +8,18 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 
+const AUDIT_ENDPOINT = '/api/v2/admin/audit/chain';
+
 export { default as meta } from './meta';
 export { default as rbac } from './rbac';
 export { default as route } from './route';
 
 interface AuditEvent {
-  id: string;
+  id?: string;
+  audit_id?: string;
   actor: string;
   action: string;
-  resource: string;
+  resource?: string;
   result: string;
   reason: string | null;
   evidence: string | null;
@@ -24,9 +27,13 @@ interface AuditEvent {
 }
 
 interface AuditData {
-  events: AuditEvent[];
-  total: number;
-  immutable: boolean;
+  events?: AuditEvent[];
+  entries?: AuditEvent[];
+  total?: number;
+  chain_length?: number;
+  last_entry_at?: string | null;
+  generated_at?: string | null;
+  immutable?: boolean;
 }
 
 function resultColor(r: string): string {
@@ -40,8 +47,8 @@ export default function AuditLedgerPage(): JSX.Element {
   const [actionFilter, setActionFilter] = useState('');
 
   const { envelope, loading, error, refetch } = useRealtimeResource<AuditData>({
-    url: '/api/v2/audit/events',
-    source: '/api/v2/audit/events',
+    url: AUDIT_ENDPOINT,
+    source: AUDIT_ENDPOINT,
     source_type: 'repository',
     pollIntervalMs: 30_000,
     staleThresholdMs: 120_000,
@@ -49,7 +56,9 @@ export default function AuditLedgerPage(): JSX.Element {
   });
 
   const data = envelope.data;
-  const allEvents = data?.events ?? [];
+  const allEvents = data?.events ?? data?.entries ?? [];
+  const eventTotal = data?.total ?? data?.chain_length ?? allEvents.length;
+  const immutable = data?.immutable ?? true;
   const filtered = allEvents.filter((e) => {
     if (actorFilter && !e.actor.toLowerCase().includes(actorFilter.toLowerCase())) return false;
     if (actionFilter && !e.action.toLowerCase().includes(actionFilter.toLowerCase())) return false;
@@ -70,8 +79,11 @@ export default function AuditLedgerPage(): JSX.Element {
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Audit Ledger</h1>
             <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              Immutable audit · Actor · Action · Reason · Result · Evidence · {data?.total ?? allEvents.length} events
-              {data?.immutable && <span style={{ marginLeft: 8, color: 'var(--buy)' }}>✓ Immutable</span>}
+              Immutable audit · Actor · Action · Reason · Result · Evidence · {eventTotal} events
+              {immutable && <span style={{ marginLeft: 8, color: 'var(--buy)' }}>✓ Immutable</span>}
+            </p>
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              Read-only source: {AUDIT_ENDPOINT}. High-privilege admin audit remains at /admin/audit.
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -106,7 +118,7 @@ export default function AuditLedgerPage(): JSX.Element {
       )}
       {!loading && !error && filtered.length === 0 && (
         <div style={{ padding: 24 }}>
-          <EmptyState title="No audit events" message={actorFilter || actionFilter ? 'No events match these filters.' : 'No audit events recorded yet.'} />
+          <EmptyState title="No audit events" message={actorFilter || actionFilter ? 'No events match these filters.' : 'Audit chain is reachable and empty. No records fabricated.'} />
         </div>
       )}
 
@@ -122,11 +134,11 @@ export default function AuditLedgerPage(): JSX.Element {
             </thead>
             <tbody>
               {filtered.map((ev, i) => (
-                <tr key={ev.id} style={{ background: i % 2 === 0 ? 'var(--bg-base)' : 'var(--bg-panel)' }}>
+                <tr key={ev.id ?? ev.audit_id ?? `${ev.timestamp}:${ev.action}:${i}`} style={{ background: i % 2 === 0 ? 'var(--bg-base)' : 'var(--bg-panel)' }}>
                   <td style={{ padding: '8px 12px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{new Date(ev.timestamp).toLocaleString()}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{ev.actor}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 600 }}>{ev.action}</td>
-                  <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{ev.resource}</td>
+                  <td style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>{ev.resource ?? ev.audit_id ?? 'audit-chain'}</td>
                   <td style={{ padding: '8px 12px', fontWeight: 700, color: resultColor(ev.result) }}>{ev.result.toUpperCase()}</td>
                   <td style={{ padding: '8px 12px', color: 'var(--text-muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.reason ?? '—'}</td>
                   <td style={{ padding: '8px 12px', color: 'var(--text-muted)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.evidence ?? '—'}</td>
@@ -139,7 +151,7 @@ export default function AuditLedgerPage(): JSX.Element {
 
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', marginTop: 8 }}>
         <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-          Immutable audit ledger — superadmin view. Source: {envelope.source ?? '/api/v2/audit/events'}
+          Immutable audit ledger — read-only authenticated view. Source: {envelope.source ?? AUDIT_ENDPOINT}
         </p>
       </div>
     </div>

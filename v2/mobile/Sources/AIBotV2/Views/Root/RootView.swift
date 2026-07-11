@@ -83,6 +83,7 @@ struct iPadLayout: View {
                 }
                 Section("NERVYX CORE") {
                     sidebarRow(.predictions, "Signal Matrix",   "waveform.path.ecg.rectangle")
+                    sidebarRow(.backtestReplay, "Backtest & Replay", "chart.xyaxis.line")
                     sidebarRow(.activity,    "Executions",      "clock.arrow.circlepath")
                 }
                 Section("NERVYX GUARD") {
@@ -139,6 +140,7 @@ struct iPadLayout: View {
         case .activity:    ActivityView()
         case .readiness:   LiveReadinessView()
         case .audit:       AuditLedgerView()
+        case .backtestReplay: BacktestReplayScreen()
         }
     }
 }
@@ -163,6 +165,7 @@ struct MoreView: View {
                 }
                 Section("NERVYX CORE") {
                     NavigationLink("Signal Matrix", destination: TrainerPredictionView())
+                    NavigationLink("Backtest & Replay", destination: BacktestReplayScreen())
                     NavigationLink("Executions", destination: ActivityView())
                 }
                 if auth.currentSession?.isAdmin == true {

@@ -38,6 +38,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 STATE_DB = Path.home() / ".config/Code/User/globalStorage/state.vscdb"
+CURSOR_STATE_DB = Path.home() / ".config/Cursor/User/globalStorage/state.vscdb"
 BACKUP_SUFFIX = ".pre-auto-trim.bak"
 
 # Thresholds
@@ -45,6 +46,7 @@ MAX_PROMPT_HISTORY_PROMPTS = 10   # per session key
 MAX_PROMPT_TEXT_LEN = 500         # chars per individual prompt
 MAX_KEY_SIZE_KB = 200             # keys larger than this get trimmed
 CRITICAL_SIZE_KB = 800            # alarm level — extension WILL crash above ~1MB
+CURSOR_VACUUM_THRESHOLD_MB = 500  # VACUUM Cursor DB when file exceeds this
 
 
 def get_key_size(conn: sqlite3.Connection, key: str) -> int:
@@ -181,10 +183,29 @@ def run_trim() -> None:
     )
 
 
+def run_cursor_vacuum() -> None:
+    """VACUUM Cursor state.vscdb when it exceeds the size threshold (SQLite page bloat)."""
+    if not CURSOR_STATE_DB.exists():
+        log.info("Cursor state.vscdb not found — skipping")
+        return
+    size_mb = CURSOR_STATE_DB.stat().st_size / (1024 * 1024)
+    if size_mb < CURSOR_VACUUM_THRESHOLD_MB:
+        log.info("Cursor state.vscdb %.0f MB — under threshold, skipping VACUUM", size_mb)
+        return
+    log.info("Cursor state.vscdb %.0f MB — running VACUUM (may take a minute)...", size_mb)
+    conn = sqlite3.connect(str(CURSOR_STATE_DB), timeout=120)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("VACUUM")
+    conn.close()
+    size_after_mb = CURSOR_STATE_DB.stat().st_size / (1024 * 1024)
+    log.info("Cursor VACUUM done: %.0f MB → %.0f MB", size_mb, size_after_mb)
+
+
 if __name__ == "__main__":
-    log.info("VSCode state.vscdb trimmer starting — %s", datetime.utcnow().isoformat())
+    log.info("VSCode/Cursor state.vscdb trimmer starting — %s", datetime.utcnow().isoformat())
     try:
         run_trim()
+        run_cursor_vacuum()
     except Exception as exc:
         log.exception("trim failed: %s", exc)
         sys.exit(1)

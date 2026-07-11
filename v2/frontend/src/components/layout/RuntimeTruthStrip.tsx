@@ -307,6 +307,95 @@ function governorLabel(value: unknown): string {
   return 'not reported';
 }
 
+function publicSafeRuntimeText(value: unknown, fallback = 'not reported'): string {
+  return text(value, fallback)
+    .replace(/\bpaper[_\s-]*/gi, 'runtime ')
+    .replace(/\boperator[_\s-]*/gi, 'approval ')
+    .replace(/\bpayload\b/gi, 'source')
+    .replace(/\bblocked[_\s-]*human[_\s-]*only\b/gi, 'approval gated')
+    .replace(/\bhuman[_\s-]*only\b/gi, 'approval gated')
+    .replace(/\benabled[_\s-]*approval[_\s-]*approved\b/gi, 'approval recorded')
+    .replace(/\benabled[_\s-]*operator[_\s-]*approved\b/gi, 'approval recorded')
+    .replace(/\bbucket[_\s-]*quarantine[_\s-]*active\b/gi, 'review hold active')
+    .replace(/\bquarantine\b/gi, 'review hold')
+    .replace(/\bbucket\b/gi, 'group')
+    .replace(/\brequired\b/gi, 'needed')
+    .replace(/\bREDUCE_SIZE\b/g, 'Reduce size')
+    .replace(/\bNO_TRADE\b/g, 'No trade')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function PublicRuntimeSummary({
+  surface,
+  background,
+  liveGate,
+  liveReady,
+  marketFeed,
+  finalAPlusRows,
+  evaluatedCandidates,
+  blockers,
+}: {
+  surface: Exclude<RuntimeTruthSurface, 'admin'>;
+  background: string;
+  liveGate: string;
+  liveReady: boolean | null | undefined;
+  marketFeed: RuntimeMarketFeed | null | undefined;
+  finalAPlusRows: number | null | undefined;
+  evaluatedCandidates: number | null | undefined;
+  blockers: string[];
+}): JSX.Element {
+  const gateText = publicSafeRuntimeText(liveGate, 'approval gated');
+  const currentSources = publicSafeRuntimeText(marketFeed?.freshness_state, 'connecting');
+  const topBlocker = blockers.length > 0
+    ? publicSafeRuntimeText(blockers[0], 'review needed')
+    : 'none reported';
+
+  return (
+    <section
+      aria-label="Runtime readiness"
+      data-testid={`runtime-truth-strip-${surface}`}
+      data-live-gate={liveGate}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
+        gap: '4px 12px',
+        alignItems: 'center',
+        padding: '7px 16px',
+        borderBottom: '1px solid var(--border)',
+        background,
+        color: 'var(--text-secondary)',
+        fontSize: 11,
+        lineHeight: 1.35,
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      <Item label="Execution" value="restricted" tone="bad" />
+      <Item label="Trading gate" value={gateText || 'approval gated'} tone="bad" />
+      <Item
+        label="Access"
+        value={surface === 'public' ? 'sign in needed' : 'trader account needed'}
+        tone="warn"
+      />
+      <Item
+        label="Market feeds"
+        value={`${currentSources || 'connecting'} · ${compactAge(marketFeed?.age_seconds)}`}
+      />
+      <Item
+        label="Candidate readiness"
+        value={`${text(finalAPlusRows, '0')} of ${text(evaluatedCandidates, '0')} final`}
+        tone={(num(finalAPlusRows) ?? 0) > 0 ? 'ok' : 'warn'}
+      />
+      <Item
+        label="Review state"
+        value={liveReady ? 'approval review needed' : topBlocker}
+        tone={liveReady ? 'warn' : blockers.length > 0 ? 'bad' : 'neutral'}
+      />
+    </section>
+  );
+}
+
 function Item({
   label,
   value,
@@ -423,6 +512,21 @@ export function RuntimeTruthStrip({ surface = 'trader' }: { surface?: RuntimeTru
     surface === 'admin'
       ? 'color-mix(in oklch, var(--bg-elevated) 90%, var(--admin-bg, var(--bg-base)))'
       : 'var(--bg-elevated)';
+
+  if (surface !== 'admin') {
+    return (
+      <PublicRuntimeSummary
+        surface={surface}
+        background={background}
+        liveGate={liveGate}
+        liveReady={liveReady}
+        marketFeed={marketFeed}
+        finalAPlusRows={num(finalAPlusRows)}
+        evaluatedCandidates={num(aPlusGate?.evaluated_candidates)}
+        blockers={blockers}
+      />
+    );
+  }
 
   return (
     <section

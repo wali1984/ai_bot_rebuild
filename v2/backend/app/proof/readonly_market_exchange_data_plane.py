@@ -10,6 +10,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
+
 
 GO_NO_GO_MARKER = "PHASE2Z_READONLY_MARKET_AND_EXCHANGE_DATA_PLANE_READY"
 LIVE_GATE_STATUS = "blocked_human_only"
@@ -165,6 +171,20 @@ class DesignOnlyReadonlyConnector(ReadonlyExchangeConnector):
 
 
 def _default_http_get(url: str) -> Any:
+    if "binance.com" in url:
+        try:
+            require_binance_rest_fallback(
+                endpoint=urllib.parse.urlparse(url).path or url,
+                fallback_reason="readonly_market_exchange_data_plane_operator_fetch_binance_requested",
+                role="readonly_market_data_recovery",
+            )
+        except RuntimeError as exc:
+            message = str(exc).replace(
+                "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                1,
+            )
+            raise RuntimeError(message) from exc
     request = urllib.request.Request(url, method="GET", headers={"User-Agent": "ai-bot-v2-readonly-data-plane"})
     with urllib.request.urlopen(request, timeout=8) as response:
         return json.loads(response.read().decode("utf-8"))

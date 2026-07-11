@@ -43,6 +43,9 @@ interface APlusInventoryData {
   evaluated_candidates?: number;
   a_plus_candidates?: number;
   live_ready_rows?: number;
+  exact_no_a_plus_reason?: string | null;
+  top_a_plus_blockers?: string[] | null;
+  rejected_reason_matrix?: Record<string, number> | null;
   counts_as_final_a_plus?: boolean;
   candidate_matrix_preview?: Array<{ symbol?: string; side?: string; timeframe?: string; failed_checks?: string[] }>;
   a_plus_preview?: Array<{ symbol?: string; side?: string; timeframe?: string }>;
@@ -62,6 +65,29 @@ function compactValue(value: unknown): string {
   } catch {
     return 'UNREADABLE_EVIDENCE';
   }
+}
+
+function firstText(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value;
+    if (Array.isArray(value)) {
+      const first = value.find((item) => typeof item === 'string' && item.trim());
+      if (typeof first === 'string') return first;
+    }
+  }
+  return null;
+}
+
+function aPlusWhyNone(liveCanary?: LiveCanaryStatusData | null, aPlus?: APlusInventoryData | null): string {
+  const previewFailedCheck = aPlus?.candidate_matrix_preview
+    ?.flatMap((row) => row.failed_checks ?? [])
+    .find((reason) => typeof reason === 'string' && reason.trim());
+  return firstText(
+    liveCanary?.why_none,
+    aPlus?.exact_no_a_plus_reason,
+    aPlus?.top_a_plus_blockers,
+    previewFailedCheck,
+  ) ?? 'A_PLUS_GATE_REASON_UNAVAILABLE';
 }
 
 function mutationSafe(flags?: NoMutationFlags): boolean {
@@ -112,7 +138,7 @@ export default function LiveCanaryPage(): JSX.Element {
   const aPlus = aPlusEnvelope.data;
   const flags = liveCanary?.no_mutation_flags;
   const selectedCandidate = compactValue(liveCanary?.selected_a_plus_candidate);
-  const whyNone = liveCanary?.why_none ?? (aPlus?.a_plus_candidates === 0 ? 'NO_A_PLUS_CANDIDATE' : 'MISSING_EVIDENCE');
+  const whyNone = aPlusWhyNone(liveCanary, aPlus);
   const safe = mutationSafe(flags);
 
   return (

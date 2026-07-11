@@ -37,7 +37,8 @@ function publicSourceLabel(value: string | undefined): string {
   return (value ?? '')
     .replace(/paper/gi, 'runtime')
     .replace(/read[_\s-]*only/gi, 'account access')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated');
+    .replace(/operator/gi, 'approval')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'approval required');
 }
 
 export function SourceBadge({ sourceType, source, endpoint, compact = false }: Props) {

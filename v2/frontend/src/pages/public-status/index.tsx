@@ -197,7 +197,7 @@ export default function PublicStatusPage(): JSX.Element {
             }}
           />
           <span style={{ fontSize: 14, fontWeight: 600, color: apiUp ? 'var(--ok)' : 'var(--error)' }}>
-            {loading ? 'Checking platform status…' : overallHealthy ? 'Platform telemetry available' : 'Checking system availability'}
+            {loading ? 'Checking telemetry…' : overallHealthy ? 'Platform telemetry available' : 'Checking system availability'}
           </span>
         </div>
 

@@ -560,6 +560,10 @@
     margin-left: auto;
   }
 
+  .topbar-symbol-search {
+    display: none;
+  }
+
   .platform-topbar {
     top: 0;
     gap: 10px;
@@ -678,10 +682,21 @@
 }
 
 @media (max-width: 560px) {
+  .topbar-shell {
+    grid-template-areas:
+      "brand"
+      "actions"
+      "nav";
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
   .topbar-actions {
     flex: 1 0 100%;
     justify-content: flex-start;
     overflow-x: auto;
+    width: 100%;
+    max-width: 100%;
     padding-bottom: 2px;
     scrollbar-width: none;
   }
@@ -692,5 +707,10 @@
 
   .nervyx-brand-lockup__stack {
     display: none;
+  }
+
+  .nervyx-brand-lockup,
+  .topbar-primary-nav {
+    max-width: 100%;
   }
 }

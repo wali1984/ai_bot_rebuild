@@ -177,8 +177,6 @@ export interface WarRoomGapMatrix extends SafetyEnvelope {
     v2_prediction_present?: boolean;
     feature_freshness_state?: string;
     price_track_missing_flags?: string[];
-    nansen_payload_present?: boolean;
-    lunarcrush_payload_present?: boolean;
     held_by_paper_fill_gate?: boolean;
   }>;
   aggregated_classification_counts?: Record<string, number>;
@@ -249,37 +247,23 @@ export interface Top10BinanceDashboardFeedStatus extends SafetyEnvelope {
   >;
 }
 
-export interface AltDataNansenStatus extends SafetyEnvelope {
+export interface RetiredAltDataProviderStatus extends SafetyEnvelope {
   schema_version?: string;
   generated_utc?: string;
   provider?: string;
-  go_no_go?: string;
-  tier?: string;
-  paid_endpoints_enabled?: boolean;
-  key_present?: boolean;
-  credential_in_payload?: string;
-  auth_header_name_documented_only?: string;
-  api_docs_url_documented?: string;
-  rate_limit_state?: { daily_budget_internal?: number; daily_budget_remaining?: number; last_response_status?: string; consecutive_failures?: number };
-  symbol_count?: number;
-  successful_symbol_count?: number;
-  source_status_counts?: Record<string, number>;
-}
-
-export interface AltDataLunarCrushStatus extends AltDataNansenStatus {
-  auth_header_scheme_documented_only?: string;
+  status_present?: boolean;
+  active_ingestor?: false;
+  retired_from_active_panels?: boolean;
+  retained_for_historical_payload_decode?: boolean;
 }
 
 export interface AltDataProviderRuntimeStatus extends SafetyEnvelope {
   schema_version?: string;
   generated_utc?: string;
-  providers?: {
-    nansen?: AltDataNansenStatus & { status_present?: boolean };
-    lunarcrush?: AltDataLunarCrushStatus & { status_present?: boolean };
-    arkham_future?: { status_present?: boolean; future_only_no_integration_today?: boolean; credential_absent_until_operator_provides_it?: boolean };
-  };
+  providers?: Record<string, RetiredAltDataProviderStatus | { status_present?: boolean } | undefined>;
   do_not_daemonize_yet?: boolean;
   paid_endpoints_enabled?: boolean;
+  active_panel_provider_source?: 'retired_historical_payload_only';
 }
 
 export interface AltDataSymbolUniverseGapMatrix extends SafetyEnvelope {
@@ -296,8 +280,6 @@ export interface AltDataSymbolUniverseGapMatrix extends SafetyEnvelope {
       altdata_freshness_score?: number | null;
       providers_consulted?: string[];
       missing_reasons?: string[];
-      nansen_payload_present?: boolean;
-      lunarcrush_payload_present?: boolean;
     }
   >;
   candidate_payload_state?: {

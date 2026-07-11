@@ -1,10 +1,11 @@
 """V2 native dynamic runtime + trainer bridge-exit execution.
 
-This is a bounded one-shot paper/read-only execution lane. It performs
-public Binance USD-M market-data reads, publishes only ``v2:*`` Redis keys
-when Redis is available, computes V2-native feature/TA payloads only from
-observed inputs, and emits blocked trainer bridge-exit prediction payloads
-without claiming native trainer readiness.
+This is a bounded one-shot paper/read-only execution lane. It reads Binance
+USD-M WebSocket/cache market data first, uses public REST only as an explicit
+fallback, publishes only ``v2:*`` Redis keys when Redis is available, computes
+V2-native feature/TA payloads only from observed inputs, and emits blocked
+trainer bridge-exit prediction payloads without claiming native trainer
+readiness.
 
 No credentials are loaded. No private or order endpoint is called. No legacy
 Redis key can be written through this module.
@@ -22,6 +23,11 @@ from typing import Any, Callable
 
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
     FeaturePipelineAndTAService,
+)
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
 )
 from v2.backend.app.services.feature_pipeline_native.service import (
     FeaturePipelineNativeService,
@@ -122,7 +128,11 @@ class BinancePublicReadError(RuntimeError):
 
 
 class BinanceUsdMPublicClient:
-    """Tiny public-read Binance USD-M REST client with injectable HTTP."""
+    """Tiny Binance USD-M public fallback client with injectable HTTP.
+
+    Runtime callers must try WebSocket/cache data before this client. The
+    default HTTP path fails closed unless BINANCE_REST_FALLBACK_ALLOWED=true.
+    """
 
     def __init__(
         self,
@@ -134,6 +144,15 @@ class BinanceUsdMPublicClient:
         self._timeout_seconds = timeout_seconds
 
     def _default_http_get(self, url: str) -> Any:
+        if "binance.com" in url:
+            try:
+                require_binance_rest_fallback(
+                    endpoint=urllib.parse.urlparse(url).path or url,
+                    fallback_reason="native_dynamic_runtime_websocket_market_cache_missing",
+                    role="native_dynamic_runtime_market_data_recovery",
+                )
+            except RuntimeError as exc:
+                raise BinancePublicReadError(str(exc)) from exc
         request = urllib.request.Request(
             url,
             method="GET",

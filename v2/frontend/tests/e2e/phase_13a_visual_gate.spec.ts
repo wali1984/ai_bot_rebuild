@@ -78,9 +78,14 @@ async function mockAuth(page: Page, authenticated = false): Promise<void> {
 
 async function openRoute(page: Page, route: (typeof ROUTES)[number]): Promise<void> {
   await mockAuth(page, 'authenticated' in route && Boolean(route.authenticated));
-  await page.goto(route.path);
-  await page.waitForLoadState('networkidle').catch(() => undefined);
-  await page.locator('body').waitFor({ state: 'visible' });
+  await page.goto(route.path, { waitUntil: 'domcontentloaded' });
+  try {
+    await page.locator('body').waitFor({ state: 'visible', timeout: 5_000 });
+  } catch {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('body').waitFor({ state: 'visible', timeout: 10_000 });
+  }
+  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
 }
 
 async function visibleMainText(page: Page): Promise<string> {
@@ -158,11 +163,11 @@ test.describe('phase 13a visual gate', () => {
     const statusPage = page.getByTestId('page-public-status');
     await expect(statusPage.getByText(/Platform Status/i)).toBeVisible();
     await expect(statusPage.getByText(/Market Data/i)).toBeVisible();
-    await expect(statusPage.getByText(/Signal Feed/i)).toBeVisible();
-    await expect(statusPage.getByText(/Approval-gated execution paths/i)).toBeVisible();
+    await expect(statusPage.getByText(/Automation/i)).toBeVisible();
+    await expect(statusPage.getByText(/Order routing/i)).toBeVisible();
 
     await openRoute(page, { path: '/markets', name: 'markets', authenticated: true });
     await expect(page.getByTestId('page-markets')).toContainText('Markets');
-    await expect(page.getByTestId('page-markets')).toContainText('Symbol');
+    await expect(page.getByTestId('page-markets')).toContainText(/BTCUSDT|Overview/i);
   });
 });

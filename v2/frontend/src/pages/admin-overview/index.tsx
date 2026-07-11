@@ -109,7 +109,7 @@ export default function AdminOverviewPage(): JSX.Element {
       </div>
 
       {/* Stat tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))', gap: 10 }}>
         {[
           { label: 'LIVE GATE', value: d?.live_gate?.replace(/_/g, ' ') || '—', accent: d?.live_blocked !== false ? SC.error : SC.ok },
           { label: 'SYMBOLS', value: String(pipelineSvc?.symbol_count ?? d?.pipeline?.symbol_count ?? '—') },

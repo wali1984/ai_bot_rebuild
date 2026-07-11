@@ -305,7 +305,7 @@ export default function MarketBrainPage(): JSX.Element {
 
       {/* Safety Banner */}
       <div style={S.safetyBanner}>
-        Platform status: realtime market intelligence and risk-governed execution workflows. HedgeLock requires explicit operator approval.
+        Platform status: realtime market intelligence and risk-governed execution workflows. HedgeLock requires explicit human approval.
       </div>
 
       {/* Overview Metrics */}
@@ -320,7 +320,7 @@ export default function MarketBrainPage(): JSX.Element {
             <Metric label="Danger Signals" value={dangers.length} color={dangers.length > 0 ? '#ef4444' : '#6b7280'} />
             <Metric label="Hedge-Locked Symbols" value={ov?.hedge_locked_symbols?.length ?? 0} color="#8b5cf6" />
             <Metric label="Real Orders Placed" value="NEVER" color="#10b981" />
-            <Metric label="Live Gate" value="BLOCKED" color="#ef4444" />
+            <Metric label="Execution Guard" value="BLOCKED" color="#ef4444" />
           </div>
           {ov?.state_distribution && Object.keys(ov.state_distribution).length > 0 && (
             <>
@@ -479,7 +479,7 @@ export default function MarketBrainPage(): JSX.Element {
             <Metric label="Active Pairs" value={hl?.total_active ?? 0} color="#8b5cf6" />
           </div>
           <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 8 }}>
-            HedgeLock is disabled by default. Enabling requires operator approval (dangerous setting per CLAUDE.md). Only activates after profitable excursion &gt;= 0.25%.
+            HedgeLock is disabled by default. Enabling requires explicit human approval. Only activates after profitable excursion &gt;= 0.25%.
           </div>
           {hl?.active_pairs?.length ? (
             <div style={S.tableWrap}>

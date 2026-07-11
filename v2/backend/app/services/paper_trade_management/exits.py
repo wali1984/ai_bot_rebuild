@@ -344,9 +344,40 @@ def evaluate_exit(
         # buffer. Deeper losses must fall through to real stops (LITUSDT
         # regression: this tier mislabelled a -286bps close as "breakeven
         # protection" because it was the only check that ever fired).
+        #
+        # 2026-07-10 loss-cluster root cause: an ARMED trailing stop can sit
+        # below entry (early activation x ATR-scaled distance), so a trade
+        # with MFE far above cost could still round-trip into a TIER_2
+        # trailing LOSS (KITEUSDT: MFE 92bps -> negative close). The guard
+        # therefore also fires when trailing is armed BUT the armed stop level
+        # does not lock at least ~breakeven — a profit-locking trail (stop at
+        # or above entry+buffer) keeps priority because its gap-close fills at
+        # the stop PRICE, which is strictly better than a breakeven close.
+        _trailing_stop_locks_profit = False
+        _armed_stop_price = getattr(position, "trailing_stop_price", None)
+        try:
+            _armed_stop = float(_armed_stop_price) if _armed_stop_price else None
+        except (TypeError, ValueError):
+            _armed_stop = None
+        if _armed_stop and _armed_stop > 0 and position.avg_entry_price:
+            if position.side == "long":
+                _locked_bps = (
+                    (_armed_stop - position.avg_entry_price)
+                    / position.avg_entry_price
+                    * 10000.0
+                )
+            else:
+                _locked_bps = (
+                    (position.avg_entry_price - _armed_stop)
+                    / position.avg_entry_price
+                    * 10000.0
+                )
+            _trailing_stop_locks_profit = _locked_bps >= -abs(
+                config.mfe_breakeven_cost_buffer_bps
+            )
         _mfe_breakeven_lower_bound = -abs(config.mfe_breakeven_cost_buffer_bps) * 3.0
         if (
-            not _trailing_already_armed
+            (not _trailing_already_armed or not _trailing_stop_locks_profit)
             and pnl_bps_value <= config.mfe_breakeven_cost_buffer_bps
             and pnl_bps_value >= _mfe_breakeven_lower_bound
         ):
@@ -370,6 +401,7 @@ def evaluate_exit(
                     "mfe_bps": _mfe_bps,
                     "mfe_breakeven_arm_threshold_bps": _arm_threshold_bps,
                     "mfe_breakeven_cost_buffer_bps": config.mfe_breakeven_cost_buffer_bps,
+                    "trailing_already_armed": _trailing_already_armed,
                     "atr_bps": atr_bps,
                 }
     # A+ goal Phase 8: when ATR is unavailable the volatility stop can never

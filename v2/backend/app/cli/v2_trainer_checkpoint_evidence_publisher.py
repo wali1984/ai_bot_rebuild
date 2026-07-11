@@ -85,6 +85,7 @@ def run_once(
     payload = build_trainer_checkpoint_evidence(
         roots,
         sha256_compute_max_bytes=sha256_compute_max_bytes,
+        native_model_dir=REPO_ROOT / ".local_models/v2_native_rl_masa_ppo",
     )
     payload["v2_redis_keys_written"] = []
     payload["v2_redis_keys_written_count"] = 0
@@ -136,6 +137,7 @@ def main(argv: list[str] | None = None) -> int:
                 "checkpoint_evidence_status": payload["checkpoint_evidence_status"],
                 "candidate_count": payload["candidate_count"],
                 "selected_checkpoint_id": payload["selected_checkpoint_id"],
+                "active_checkpoint_id": payload.get("active_checkpoint_id"),
                 "checkpoint_weight_status": payload["checkpoint_weight_status"],
                 "v2_redis_keys_written_count": payload["v2_redis_keys_written_count"],
             }, sort_keys=True))

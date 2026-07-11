@@ -24,6 +24,7 @@ const RESOLVED_PAGE_PATHS = new Set<string>([
   '/status-simple',
   '/login',
   '/markets',
+  '/markets/ingestors',
   '/market/:symbol?',
   // App surface
   '/dashboard',
@@ -36,6 +37,9 @@ const RESOLVED_PAGE_PATHS = new Set<string>([
   '/portfolio',
   '/portfolio/executions',
   '/portfolio/history',
+  '/risk',
+  '/audit-ledger',
+  '/live-canary',
   '/backtests',
   '/backtests/replay',
   '/research',
@@ -59,6 +63,7 @@ const RESOLVED_PAGE_PATHS = new Set<string>([
   '/admin/trainer',
   '/admin/orchestrator',
   '/admin/risk',
+  '/admin/live-readiness',
   '/admin/exchanges',
   '/admin/external-manual-position-quarantine',
   '/admin/config',
@@ -185,5 +190,8 @@ test.describe('Routing invariants (no browser)', () => {
   test('Phase 5 website aliases resolve to runtime truth surfaces', () => {
     expect(MERGED_LEGACY_PATHS['/ai']).toBe('/ai-predictions');
     expect(MERGED_LEGACY_PATHS['/system/model-state']).toBe('/admin/intelligence');
+    expect(MERGED_LEGACY_PATHS['/risk']).toBeUndefined();
+    expect(MERGED_LEGACY_PATHS['/live-canary']).toBeUndefined();
+    expect(MERGED_LEGACY_PATHS['/admin/live-readiness']).toBeUndefined();
   });
 });

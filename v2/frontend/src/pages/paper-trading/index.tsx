@@ -942,7 +942,7 @@ export default function PaperTradingPage(): JSX.Element {
             Execution Runtime
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-            Trainer-driven telemetry and operator-gated execution workflow
+            Trainer-driven telemetry and approval-gated execution workflow
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

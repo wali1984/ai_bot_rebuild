@@ -30,10 +30,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 REPLAY_ROOT = REPO_ROOT / "v2" / "runtime" / "orderbook_replay"
 KEEP_DAYS = 5  # keep today + previous KEEP_DAYS-1 day dirs per symbol
-MAX_REPLAY_TOTAL_GB = 500.0  # hard cap; prune oldest symbol-days over this
+MAX_REPLAY_TOTAL_GB = 300.0  # hard cap; prune oldest symbol-days over this
 
-FLOOR_FREE_GB = 150.0   # below this, prune extra oldest day dirs
-TARGET_FREE_GB = 250.0  # prune until at least this much is free
+FLOOR_FREE_GB = 200.0   # below this, prune extra oldest day dirs
+TARGET_FREE_GB = 300.0  # prune until at least this much is free
 
 # Append-only feeds that grow without bound: (glob-root, pattern, cap, keep-tail)
 GB = 1024 ** 3
@@ -231,6 +231,30 @@ def run_truncations(dry_run: bool) -> tuple[int, int]:
     return truncated, freed
 
 
+HOLDOUT_TMP_MAX_AGE_HOURS = 6  # trainer holdout tails older than this are orphaned
+
+
+def prune_tmp_holdout(dry_run: bool) -> tuple[int, int]:
+    """Delete /tmp/holdout_tail_* files older than HOLDOUT_TMP_MAX_AGE_HOURS."""
+    deleted = 0
+    freed = 0
+    cutoff = time.time() - HOLDOUT_TMP_MAX_AGE_HOURS * 3600
+    tmp = Path("/tmp")
+    for f in tmp.glob("holdout_tail_*"):
+        if not f.is_file() or f.is_symlink():
+            continue
+        try:
+            mtime = f.stat().st_mtime
+        except OSError:
+            continue
+        if mtime < cutoff:
+            freed += f.stat().st_size
+            if not dry_run:
+                f.unlink(missing_ok=True)
+            deleted += 1
+    return deleted, freed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true")
@@ -244,6 +268,7 @@ def main() -> int:
     floor_dirs, floor_bytes = prune_for_floor(args.dry_run)
     capped_files, capped_bytes = run_tail_caps(args.dry_run)
     truncated_files, truncated_bytes = run_truncations(args.dry_run)
+    holdout_files, holdout_bytes = prune_tmp_holdout(args.dry_run)
 
     status = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -255,13 +280,15 @@ def main() -> int:
         "replay_day_dirs_deleted_for_floor": floor_dirs,
         "jsonl_files_tail_capped": capped_files,
         "out_files_truncated": truncated_files,
-        "bytes_reclaimed": aged_bytes + cap_bytes + floor_bytes + capped_bytes + truncated_bytes,
+        "tmp_holdout_files_deleted": holdout_files,
+        "bytes_reclaimed": aged_bytes + cap_bytes + floor_bytes + capped_bytes + truncated_bytes + holdout_bytes,
         "duration_seconds": round(time.time() - started, 1),
         "config": {
             "keep_days": KEEP_DAYS,
             "max_replay_total_gb": MAX_REPLAY_TOTAL_GB,
             "floor_free_gb": FLOOR_FREE_GB,
             "target_free_gb": TARGET_FREE_GB,
+            "holdout_tmp_max_age_hours": HOLDOUT_TMP_MAX_AGE_HOURS,
         },
     }
 

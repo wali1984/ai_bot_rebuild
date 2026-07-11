@@ -4,6 +4,7 @@ from __future__ import annotations
 
 CANONICAL_PREEMPTIVE_ACTIONS: tuple[str, ...] = (
     "ALLOW_A_PLUS_CANDIDATE",
+    "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
     "ALLOW_PROBATION_PAPER",
     "ALLOW_REDUCE_SIZE_PAPER",
     "SHADOW_ONLY",
@@ -26,6 +27,7 @@ CANONICAL_PREEMPTIVE_ACTIONS: tuple[str, ...] = (
 ALLOW_ACTIONS: frozenset[str] = frozenset(
     {
         "ALLOW_A_PLUS_CANDIDATE",
+        "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
         "ALLOW_PROBATION_PAPER",
         "ALLOW_REDUCE_SIZE_PAPER",
     }
@@ -34,6 +36,7 @@ ALLOW_ACTIONS: frozenset[str] = frozenset(
 PAPER_ONLY_ALLOW_ACTIONS: frozenset[str] = frozenset(
     {
         "ALLOW_PROBATION_PAPER",
+        "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION",
         "ALLOW_REDUCE_SIZE_PAPER",
     }
 )
@@ -79,6 +82,8 @@ def canonical_block_action(
     decision = str(legacy_decision or "").upper()
     if decision == "ALLOW":
         return "ALLOW_A_PLUS_CANDIDATE"
+    if decision == "PAPER_RISK_CONTROLLER_EXPLORATION":
+        return "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
     if decision == "POSITIVE_EDGE_PROBATION_PAPER":
         return "ALLOW_PROBATION_PAPER"
     if decision == "REDUCE_SIZE_PAPER_ONLY":

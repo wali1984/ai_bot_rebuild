@@ -10,7 +10,9 @@ interface TopBarProps {
   showSymbolSearch?: boolean;
 }
 
-const TRADER_NAV_LINKS: Array<{ label: string; to: string; module: NervyxModuleId; minRole?: RoleLike }> = [
+type TopBarNavLink = { label: string; to: string; module: NervyxModuleId; minRole?: RoleLike; testId?: string };
+
+const TRADER_NAV_LINKS: TopBarNavLink[] = [
   { label: 'Dashboard', to: '/dashboard', module: 'sense' },
   { label: 'Markets', to: '/markets', module: 'sense' },
   { label: 'Trade', to: '/trade', module: 'execute', minRole: 'trader' },
@@ -18,14 +20,12 @@ const TRADER_NAV_LINKS: Array<{ label: string; to: string; module: NervyxModuleI
   { label: 'Signals', to: '/signals', module: 'sense' },
   { label: 'AI', to: '/ai-predictions', module: 'core' },
   { label: 'Portfolio', to: '/portfolio', module: 'execute', minRole: 'trader' },
-  { label: 'Backtests', to: '/backtests', module: 'replay', minRole: 'trader' },
-  { label: 'Replay', to: '/replay', module: 'replay', minRole: 'trader' },
-  { label: 'Research', to: '/research', module: 'sense' },
-  { label: 'Technical Analysis', to: '/technical-analysis', module: 'sense' },
+  { label: 'Backtests', to: '/replay', module: 'replay', minRole: 'trader', testId: 'nav-link-replay' },
+  { label: 'Research', to: '/technical-analysis', module: 'sense', testId: 'nav-link-technical-analysis' },
   { label: 'Alerts', to: '/alerts', module: 'observe', minRole: 'trader' },
 ];
 
-const PUBLIC_NAV_LINKS: Array<{ label: string; to: string; module: NervyxModuleId; minRole?: RoleLike }> = [
+const PUBLIC_NAV_LINKS: TopBarNavLink[] = [
   { label: 'Home', to: '/', module: 'sense' },
   { label: 'Markets', to: '/markets', module: 'sense' },
   { label: 'Status', to: '/status', module: 'observe' },
@@ -43,7 +43,7 @@ function SymbolSearch(): JSX.Element {
   }
 
   return (
-    <div style={{ position: 'relative', flex: '0 1 180px', minWidth: 0, maxWidth: '100%' }}>
+    <div className="topbar-symbol-search" style={{ position: 'relative', flex: '0 1 180px', minWidth: 0, maxWidth: '100%' }}>
       <input
         type="search"
         placeholder="Search symbol…"
@@ -288,7 +288,7 @@ export function TopBar({ surface, showSymbolSearch = true }: TopBarProps): JSX.E
               isActive ? 'topbar-primary-nav__link topbar-primary-nav__link--active' : 'topbar-primary-nav__link'
             )}
             data-nervyx-module={link.module}
-            data-testid={`nav-link-${link.to.replace(/\//g, '-').replace(/^-/, '')}`}
+            data-testid={link.testId ?? `nav-link-${link.to.replace(/\//g, '-').replace(/^-/, '')}`}
           >
             <span className="topbar-primary-nav__link-inner">
               <span className="topbar-primary-nav__label">{link.label}</span>

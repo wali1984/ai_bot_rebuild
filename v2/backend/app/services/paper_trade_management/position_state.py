@@ -132,8 +132,13 @@ class PaperNetPosition:
     opened_est: str
     source_signal_id: str | None = None
     prediction_id: str | None = None
+    preemptive_decision_id: str | None = None
     risk_decision_id: str | None = None
     orchestrator_decision_id: str | None = None
+    allocator_decision_id: str | None = None
+    materialization_queue_id: str | None = None
+    materialization_queue_accepted_at: str | None = None
+    materialization_queue_expires_at: str | None = None
     market_state_id: str | None = None
     trainer_source: str | None = None
     timeframe: str | None = None
@@ -146,14 +151,43 @@ class PaperNetPosition:
     selected_action: str | None = None
     model_version: str | None = None
     checkpoint_id: str | None = None
+    checkpoint_id_source: str | None = None
+    entry_prediction_snapshot: dict[str, Any] | None = None
+    risk_decision_record_key: str | None = None
+    risk_decision_record_hash: str | None = None
+    risk_decision_record_resolved: bool | None = None
+    risk_decision_source: str | None = None
+    orchestrator_decision_record_key: str | None = None
+    orchestrator_decision_record_hash: str | None = None
+    orchestrator_decision_record_resolved: bool | None = None
+    orchestrator_decision_source: str | None = None
+    decision_record_missing_reasons: list[Any] | None = None
     source_hashes: dict[str, Any] | None = None
+    feature_vector_hash: str | None = None
+    provider_hashes: dict[str, Any] | None = None
     confidence_raw: float | None = None
     confidence_calibrated: float | None = None
+    confidence_executable_trade: float | None = None
+    dynamic_exploration_floor: float | None = None
+    dynamic_exploration_floor_formula: str | None = None
+    exploration_floor_inputs: dict[str, Any] | None = None
+    paper_risk_controller_exploration_above_floor: bool | None = None
+    paper_risk_controller_exploration_eligible: bool | None = None
+    bootstrap_exploration: bool | None = None
+    bootstrap_overridden_blockers: list[Any] | None = None
     selected_action_probability: float | None = None
     expected_move_bps: float | None = None
     action_probabilities: Any | None = None
     policy_value: float | None = None
     value_baseline: float | None = None
+    selected_action_log_prob: float | None = None
+    old_log_prob: float | None = None
+    old_value: float | None = None
+    rollout_id: str | None = None
+    trajectory_index: int | None = None
+    ppo_on_policy_entry_fields_present: bool | None = None
+    entry_policy_fields_source: str | None = None
+    paper_learning_lane: str | None = None
     prediction_score_source: str | None = None
     prediction_score_missing_reason: str | None = None
     candidate_id: str | None = None
@@ -212,6 +246,7 @@ class PaperNetPosition:
     funding_interval_seconds: float | None = None
     expected_funding_usd: float | None = None
     expected_net_pnl_usd: float | None = None
+    expected_max_loss_usd: float | None = None
     expected_shortfall_usd: float | None = None
     hedge_budget_usd: float | None = None
     capital_allocation_reason: str | None = None
@@ -427,6 +462,58 @@ class PaperNetPosition:
             self.policy_activated_at,
             allocation.get("policy_activated_at"),
         )
+        allocation_id = first_present(
+            allocation.get("allocation_id"),
+            allocation.get("allocator_decision_id"),
+        )
+        allocator_decision_id = first_present(self.allocator_decision_id, allocation_id)
+        allocator_decision_id_source = (
+            "paper_position.allocator_decision_id"
+            if self.allocator_decision_id not in (None, "")
+            else "adaptive_allocation.allocation_id"
+            if allocation_id not in (None, "")
+            else None
+        )
+        provider_hashes = self.provider_hashes
+        if not provider_hashes and isinstance(self.source_hashes, dict):
+            provider_hashes = {
+                key: value
+                for key, value in self.source_hashes.items()
+                if key not in {"feature_vector_hash", "prediction_hash", "source_lineage_hash"}
+                and value not in (None, "")
+            } or None
+        feature_vector_hash = first_present(
+            self.feature_vector_hash,
+            self.source_hashes.get("feature_vector_hash") if isinstance(self.source_hashes, dict) else None,
+        )
+        raw_safety_fields = {
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "test_order": False,
+            "live_order": False,
+            "counts_as_A_plus": False,
+            "counts_as_final_A_plus": False,
+            "counts_as_live_ready": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+        invariant_checks = {
+            "paper_only_is_true": True,
+            "routes_to_live_is_false": True,
+            "places_real_order_is_false": True,
+            "test_order_is_false": True,
+            "live_order_is_false": True,
+            "counts_as_A_plus_is_false": True,
+            "counts_as_final_A_plus_is_false": True,
+            "counts_as_live_ready_is_false": True,
+            "order_submitted_is_false": True,
+            "test_order_submitted_is_false": True,
+            "leverage_mutated_is_false": True,
+            "margin_mutated_is_false": True,
+        }
         return {
             "position_id": self.position_id,
             "symbol": self.symbol,
@@ -460,6 +547,7 @@ class PaperNetPosition:
             "funding_interval_seconds": self.funding_interval_seconds,
             "expected_funding_usd": self.expected_funding_usd,
             "expected_net_pnl_usd": self.expected_net_pnl_usd,
+            "expected_max_loss_usd": self.expected_max_loss_usd,
             "expected_shortfall_usd": self.expected_shortfall_usd,
             "hedge_budget_usd": self.hedge_budget_usd,
             "capital_allocation_reason": self.capital_allocation_reason,
@@ -484,8 +572,15 @@ class PaperNetPosition:
             "entry_signal_id": self.source_signal_id,
             "prediction_id": self.prediction_id,
             "entry_prediction_id": self.prediction_id,
+            "preemptive_decision_id": self.preemptive_decision_id,
             "risk_decision_id": self.risk_decision_id,
             "orchestrator_decision_id": self.orchestrator_decision_id,
+            "allocator_decision_id": allocator_decision_id,
+            "allocator_decision_id_source": allocator_decision_id_source,
+            "allocation_id": allocation_id,
+            "materialization_queue_id": self.materialization_queue_id,
+            "materialization_queue_accepted_at": self.materialization_queue_accepted_at,
+            "materialization_queue_expires_at": self.materialization_queue_expires_at,
             "market_state_id": self.market_state_id,
             "entry_market_state_id": self.entry_market_state_id or self.market_state_id,
             "trainer_source": self.trainer_source,
@@ -500,15 +595,50 @@ class PaperNetPosition:
             "selected_action": self.selected_action or self.side,
             "model_version": self.model_version,
             "checkpoint_id": self.checkpoint_id,
+            "checkpoint_id_source": self.checkpoint_id_source,
+            "entry_prediction_snapshot": self.entry_prediction_snapshot,
+            "risk_decision_record_key": self.risk_decision_record_key,
+            "risk_decision_record_hash": self.risk_decision_record_hash,
+            "risk_decision_record_resolved": self.risk_decision_record_resolved,
+            "risk_decision_source": self.risk_decision_source,
+            "orchestrator_decision_record_key": self.orchestrator_decision_record_key,
+            "orchestrator_decision_record_hash": self.orchestrator_decision_record_hash,
+            "orchestrator_decision_record_resolved": self.orchestrator_decision_record_resolved,
+            "orchestrator_decision_source": self.orchestrator_decision_source,
+            "decision_record_missing_reasons": self.decision_record_missing_reasons,
             "source_hashes": self.source_hashes,
+            "feature_vector_hash": feature_vector_hash,
+            "provider_hashes": provider_hashes,
             "confidence_raw": self.confidence_raw,
             "confidence_calibrated": self.confidence_calibrated,
+            "confidence_executable_trade": self.confidence_executable_trade,
+            "dynamic_exploration_floor": self.dynamic_exploration_floor,
+            "dynamic_exploration_floor_formula": self.dynamic_exploration_floor_formula,
+            "exploration_floor_inputs": self.exploration_floor_inputs,
+            "paper_risk_controller_exploration_above_floor": (
+                self.paper_risk_controller_exploration_above_floor
+            ),
+            "paper_risk_controller_exploration_eligible": (
+                self.paper_risk_controller_exploration_eligible
+            ),
+            "bootstrap_exploration": self.bootstrap_exploration,
+            "bootstrap_overridden_blockers": self.bootstrap_overridden_blockers,
             "selected_action_probability": self.selected_action_probability,
             "expected_move_bps": self.expected_move_bps,
             "expected_move_after_cost_bps": self.expected_move_after_cost_bps,
             "action_probabilities": self.action_probabilities,
             "policy_value": self.policy_value,
             "value_baseline": self.value_baseline,
+            "selected_action_log_prob": self.selected_action_log_prob,
+            "old_log_prob": self.old_log_prob,
+            "old_value": self.old_value,
+            "rollout_id": self.rollout_id,
+            "trajectory_index": self.trajectory_index,
+            "ppo_on_policy_entry_fields_present": (
+                self.ppo_on_policy_entry_fields_present
+            ),
+            "entry_policy_fields_source": self.entry_policy_fields_source,
+            "paper_learning_lane": self.paper_learning_lane,
             "prediction_score_source": self.prediction_score_source,
             "prediction_score_missing_reason": self.prediction_score_missing_reason,
             "candidate_id": self.candidate_id,
@@ -522,6 +652,24 @@ class PaperNetPosition:
             "post_outcome_candidate_selection": self.post_outcome_candidate_selection,
             "future_labels_used_as_features": self.future_labels_used_as_features,
             "paper_opportunity_tier": self.paper_opportunity_tier,
+            "tier": (
+                self.paper_opportunity_tier
+                if str(self.paper_opportunity_tier or "").strip().upper()
+                == "PAPER_RISK_CONTROLLER_EXPLORATION"
+                else None
+            ),
+            "exploration_tier": (
+                self.paper_opportunity_tier
+                if str(self.paper_opportunity_tier or "").strip().upper()
+                == "PAPER_RISK_CONTROLLER_EXPLORATION"
+                else None
+            ),
+            "paper_exploration_tier": (
+                self.paper_opportunity_tier
+                if str(self.paper_opportunity_tier or "").strip().upper()
+                == "PAPER_RISK_CONTROLLER_EXPLORATION"
+                else None
+            ),
             "paper_opportunity_tier_reason": self.paper_opportunity_tier_reason,
             "explicit_paper_opportunity_tier": self.explicit_paper_opportunity_tier,
             "paper_fill_allowed_source": self.paper_fill_allowed_source,
@@ -673,6 +821,18 @@ class PaperNetPosition:
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
+            "live_order": False,
+            "test_order": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+            "counts_as_A_plus": False,
+            "counts_as_final_A_plus": False,
+            "counts_as_final_a_plus": False,
+            "counts_as_live_ready": False,
+            "raw_safety_fields": raw_safety_fields,
+            "invariant_checks": invariant_checks,
         }
 
 
@@ -835,6 +995,45 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
     )
     if not isinstance(action_probabilities, (dict, list, tuple)):
         action_probabilities = None
+    provider_hashes = (
+        fill.get("provider_hashes")
+        if isinstance(fill.get("provider_hashes"), dict)
+        else allocation.get("provider_hashes")
+        if isinstance(allocation.get("provider_hashes"), dict)
+        else None
+    )
+    if not provider_hashes and isinstance(source_hashes, dict):
+        provider_hashes = {
+            key: value
+            for key, value in source_hashes.items()
+            if key not in {"feature_vector_hash", "prediction_hash", "source_lineage_hash"}
+            and value not in (None, "")
+        } or None
+    feature_vector_hash = first_present(
+        fill.get("feature_vector_hash"),
+        fill.get("input_feature_hash"),
+        source_hashes.get("feature_vector_hash") if isinstance(source_hashes, dict) else None,
+        allocation.get("feature_vector_hash"),
+    )
+    candidate_id = first_present(fill.get("candidate_id"), allocation.get("candidate_id"))
+    paper_opportunity_tier = first_present(fill.get("paper_opportunity_tier"), allocation.get("paper_opportunity_tier"))
+    materialization_queue_id = first_present(
+        fill.get("materialization_queue_id"),
+        allocation.get("materialization_queue_id"),
+    )
+    if (
+        materialization_queue_id in (None, "")
+        and str(paper_opportunity_tier or "").strip().upper() == "PAPER_RISK_CONTROLLER_EXPLORATION"
+        and first_present(candidate_id, fill.get("prediction_id"), fill.get("signal_id")) not in (None, "")
+    ):
+        materialization_queue_id = (
+            "paper_exploration_materialize_"
+            + str(first_present(candidate_id, fill.get("prediction_id"), fill.get("signal_id")))
+        )
+    allocator_decision_id = first_present(
+        fill.get("allocator_decision_id"),
+        allocation.get("allocator_decision_id"),
+    )
     confidence_raw = first_number(
         fill.get("confidence_raw"),
         allocation.get("confidence_raw"),
@@ -848,6 +1047,33 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocation_model_inputs.get("confidence_calibrated"),
         allocation_model_inputs.get("confidence"),
     )
+    confidence_executable_trade = first_number(
+        fill.get("confidence_executable_trade"),
+        allocation.get("confidence_executable_trade"),
+        allocation_model_inputs.get("confidence_executable_trade"),
+    )
+    dynamic_exploration_floor = first_number(
+        fill.get("dynamic_exploration_floor"),
+        allocation.get("dynamic_exploration_floor"),
+        allocation_model_inputs.get("dynamic_exploration_floor"),
+    )
+    exploration_floor_inputs = first_present(
+        fill.get("exploration_floor_inputs"),
+        fill.get("floor_inputs"),
+        allocation.get("exploration_floor_inputs"),
+        allocation.get("floor_inputs"),
+        allocation_model_inputs.get("exploration_floor_inputs"),
+        allocation_model_inputs.get("floor_inputs"),
+    )
+    if not isinstance(exploration_floor_inputs, dict):
+        exploration_floor_inputs = None
+    bootstrap_overridden_blockers = first_present(
+        fill.get("bootstrap_overridden_blockers"),
+        allocation.get("bootstrap_overridden_blockers"),
+        allocation_model_inputs.get("bootstrap_overridden_blockers"),
+    )
+    if not isinstance(bootstrap_overridden_blockers, list):
+        bootstrap_overridden_blockers = None
     expected_move_bps = first_number(
         fill.get("expected_move_bps"),
         fill.get("price_target_bps"),
@@ -881,6 +1107,49 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocation.get("value_baseline"),
         allocation_model_inputs.get("value_baseline"),
     )
+    # PPO on-policy entry lineage: each field is recovered only under its own
+    # name from the entry fill record; no cross-field backfill here (the
+    # feedback builder owns its own eligibility fallbacks).
+    selected_action_log_prob = first_number(
+        fill.get("selected_action_log_prob"),
+        allocation.get("selected_action_log_prob"),
+        allocation_model_inputs.get("selected_action_log_prob"),
+    )
+    old_log_prob = first_number(
+        fill.get("old_log_prob"),
+        allocation.get("old_log_prob"),
+        allocation_model_inputs.get("old_log_prob"),
+    )
+    old_value = first_number(
+        fill.get("old_value"),
+        allocation.get("old_value"),
+        allocation_model_inputs.get("old_value"),
+    )
+    rollout_id = first_present(
+        fill.get("rollout_id"),
+        allocation.get("rollout_id"),
+        allocation_model_inputs.get("rollout_id"),
+    )
+    trajectory_index_raw = first_number(
+        fill.get("trajectory_index"),
+        allocation.get("trajectory_index"),
+        allocation_model_inputs.get("trajectory_index"),
+    )
+    ppo_on_policy_entry_fields_present = first_present(
+        fill.get("ppo_on_policy_entry_fields_present"),
+        allocation.get("ppo_on_policy_entry_fields_present"),
+        allocation_model_inputs.get("ppo_on_policy_entry_fields_present"),
+    )
+    entry_policy_fields_source = first_present(
+        fill.get("entry_policy_fields_source"),
+        allocation.get("entry_policy_fields_source"),
+        allocation_model_inputs.get("entry_policy_fields_source"),
+    )
+    paper_learning_lane = first_present(
+        fill.get("paper_learning_lane"),
+        allocation.get("paper_learning_lane"),
+        allocation_model_inputs.get("paper_learning_lane"),
+    )
     missing_score_fields = [
         field
         for field, value in (
@@ -908,8 +1177,26 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         opened_est=opened,
         source_signal_id=fill.get("signal_id"),
         prediction_id=fill.get("prediction_id") or fill.get("source_prediction_id"),
+        preemptive_decision_id=first_present(
+            fill.get("preemptive_decision_id"),
+            fill.get("runtime_revalidated_preemptive_decision_id"),
+            allocation.get("preemptive_decision_id"),
+            allocation.get("runtime_revalidated_preemptive_decision_id"),
+            allocation_model_inputs.get("preemptive_decision_id"),
+            allocation_model_inputs.get("runtime_revalidated_preemptive_decision_id"),
+        ),
         risk_decision_id=fill.get("risk_decision_id"),
         orchestrator_decision_id=fill.get("orchestrator_decision_id"),
+        allocator_decision_id=allocator_decision_id,
+        materialization_queue_id=materialization_queue_id,
+        materialization_queue_accepted_at=first_present(
+            fill.get("materialization_queue_accepted_at"),
+            allocation.get("materialization_queue_accepted_at"),
+        ),
+        materialization_queue_expires_at=first_present(
+            fill.get("materialization_queue_expires_at"),
+            allocation.get("materialization_queue_expires_at"),
+        ),
         market_state_id=fill.get("market_state_id"),
         trainer_source=fill.get("trainer_source"),
         timeframe=fill.get("timeframe"),
@@ -925,9 +1212,63 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         selected_action=fill.get("selected_action") or fill.get("side") or side,
         model_version=first_present(fill.get("model_version"), fill.get("model_source"), fill.get("model_id")),
         checkpoint_id=fill.get("checkpoint_id"),
+        checkpoint_id_source=fill.get("checkpoint_id_source"),
+        entry_prediction_snapshot=fill.get("entry_prediction_snapshot")
+        if isinstance(fill.get("entry_prediction_snapshot"), dict)
+        else None,
+        risk_decision_record_key=fill.get("risk_decision_record_key"),
+        risk_decision_record_hash=fill.get("risk_decision_record_hash"),
+        risk_decision_record_resolved=(
+            fill.get("risk_decision_record_resolved")
+            if isinstance(fill.get("risk_decision_record_resolved"), bool)
+            else None
+        ),
+        risk_decision_source=fill.get("risk_decision_source"),
+        orchestrator_decision_record_key=fill.get("orchestrator_decision_record_key"),
+        orchestrator_decision_record_hash=fill.get("orchestrator_decision_record_hash"),
+        orchestrator_decision_record_resolved=(
+            fill.get("orchestrator_decision_record_resolved")
+            if isinstance(fill.get("orchestrator_decision_record_resolved"), bool)
+            else None
+        ),
+        orchestrator_decision_source=fill.get("orchestrator_decision_source"),
+        decision_record_missing_reasons=(
+            list(fill.get("decision_record_missing_reasons"))
+            if isinstance(fill.get("decision_record_missing_reasons"), list)
+            else None
+        ),
         source_hashes=source_hashes or None,
+        feature_vector_hash=feature_vector_hash,
+        provider_hashes=dict(provider_hashes) if provider_hashes else None,
         confidence_raw=confidence_raw,
         confidence_calibrated=confidence_calibrated,
+        confidence_executable_trade=confidence_executable_trade,
+        dynamic_exploration_floor=dynamic_exploration_floor,
+        dynamic_exploration_floor_formula=first_present(
+            fill.get("dynamic_exploration_floor_formula"),
+            allocation.get("dynamic_exploration_floor_formula"),
+            allocation_model_inputs.get("dynamic_exploration_floor_formula"),
+        ),
+        exploration_floor_inputs=exploration_floor_inputs,
+        paper_risk_controller_exploration_above_floor=first_present(
+            fill.get("paper_risk_controller_exploration_above_floor"),
+            fill.get("above_dynamic_floor"),
+            allocation.get("paper_risk_controller_exploration_above_floor"),
+            allocation.get("above_dynamic_floor"),
+            allocation_model_inputs.get("paper_risk_controller_exploration_above_floor"),
+            allocation_model_inputs.get("above_dynamic_floor"),
+        ),
+        paper_risk_controller_exploration_eligible=first_present(
+            fill.get("paper_risk_controller_exploration_eligible"),
+            allocation.get("paper_risk_controller_exploration_eligible"),
+            allocation_model_inputs.get("paper_risk_controller_exploration_eligible"),
+        ),
+        bootstrap_exploration=first_present(
+            fill.get("bootstrap_exploration"),
+            allocation.get("bootstrap_exploration"),
+            allocation_model_inputs.get("bootstrap_exploration"),
+        ),
+        bootstrap_overridden_blockers=bootstrap_overridden_blockers,
         selected_action_probability=selected_action_probability,
         expected_move_bps=expected_move_bps,
         action_probabilities=(
@@ -937,9 +1278,23 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         ),
         policy_value=policy_value,
         value_baseline=value_baseline,
+        selected_action_log_prob=selected_action_log_prob,
+        old_log_prob=old_log_prob,
+        old_value=old_value,
+        rollout_id=str(rollout_id) if rollout_id is not None else None,
+        trajectory_index=(
+            int(trajectory_index_raw) if trajectory_index_raw is not None else None
+        ),
+        ppo_on_policy_entry_fields_present=(
+            bool(ppo_on_policy_entry_fields_present)
+            if ppo_on_policy_entry_fields_present is not None
+            else None
+        ),
+        entry_policy_fields_source=entry_policy_fields_source,
+        paper_learning_lane=paper_learning_lane,
         prediction_score_source=prediction_score_source,
         prediction_score_missing_reason=prediction_score_missing_reason,
-        candidate_id=first_present(fill.get("candidate_id"), allocation.get("candidate_id")),
+        candidate_id=candidate_id,
         paper_policy_owner=first_present(
             fill.get("paper_policy_owner"),
             allocation.get("paper_policy_owner"),
@@ -992,7 +1347,7 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         else allocation.get("future_labels_used_as_features")
         if isinstance(allocation.get("future_labels_used_as_features"), bool)
         else None,
-        paper_opportunity_tier=first_present(fill.get("paper_opportunity_tier"), allocation.get("paper_opportunity_tier")),
+        paper_opportunity_tier=paper_opportunity_tier,
         paper_opportunity_tier_reason=first_present(
             fill.get("paper_opportunity_tier_reason"),
             allocation.get("paper_opportunity_tier_reason"),
@@ -1074,6 +1429,12 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         funding_interval_seconds=funding_interval_seconds,
         expected_funding_usd=expected_funding_usd,
         expected_net_pnl_usd=expected_net_pnl_usd,
+        expected_max_loss_usd=first_number(
+            fill.get("expected_max_loss_usd"),
+            fill.get("max_loss_if_stop_hit"),
+            allocation.get("expected_max_loss_usd"),
+            allocation.get("max_loss_if_stop_hit"),
+        ),
         expected_shortfall_usd=expected_shortfall_usd,
         hedge_budget_usd=hedge_budget_usd,
         capital_allocation_reason=first_present(

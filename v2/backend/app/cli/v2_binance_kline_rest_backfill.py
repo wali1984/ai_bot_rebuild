@@ -1,12 +1,13 @@
-"""One-shot Binance REST kline backfill for symbols missing ohlcv_closed history.
+"""One-shot Binance kline cache backfill for symbols missing closed history.
 
-Reads public Binance FAPI klines (no auth) and writes to
+Reads Binance WebSocket-backed kline cache first and writes to
 v2:market:ohlcv_closed:binance:{symbol}:{timeframe} using the canonical format.
+Public REST is fallback-only and requires BINANCE_REST_FALLBACK_ALLOWED=true.
 
 Run once to seed missing 1h/4h closed-candle history so the feature pipeline
 can compute taker/HTF features for all 87 trainer symbols.
 
-Safe: read-only from public Binance endpoint. No orders. No credentials.
+Safe: read-only market data only. No orders. No credentials.
 """
 
 from __future__ import annotations
@@ -25,10 +26,16 @@ if str(_repo) not in sys.path:
 
 import redis  # noqa: E402
 
+from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
+    REST_FALLBACK_ENV,
+    binance_rest_fallback_allowed,
+    require_binance_rest_fallback,
+)
 from v2.backend.app.services.market_state_integrity.canonical_candles import (  # noqa: E402
     append_closed_candle,
     canonical_from_binance_rest,
     closed_candle_key,
+    current_candle_key,
 )
 
 BINANCE_FAPI = "https://fapi.binance.com"
@@ -43,6 +50,19 @@ def _redis_client() -> redis.Redis:
 
 
 def _http_get(url: str, *, retries: int = 3, backoff: float = 2.0) -> list:
+    try:
+        require_binance_rest_fallback(
+            endpoint=urllib.parse.urlparse(url).path or url,
+            fallback_reason="operator_requested_kline_gap_backfill",
+            role="kline_gap_backfill_recovery",
+        )
+    except RuntimeError as exc:
+        message = str(exc).replace(
+            "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+            1,
+        )
+        raise RuntimeError(message) from exc
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "v2-backfill/1.0"})
@@ -56,13 +76,37 @@ def _http_get(url: str, *, retries: int = 3, backoff: float = 2.0) -> list:
     return []
 
 
-def _fetch_klines(symbol: str, interval: str, limit: int = BACKFILL_LIMIT) -> list:
+def _read_json(r: redis.Redis, key: str):
+    raw = r.get(key)
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _fetch_klines(r: redis.Redis, symbol: str, interval: str, limit: int = BACKFILL_LIMIT) -> tuple[list, str]:
+    for key in (
+        closed_candle_key("binance", symbol, interval),
+        f"v2:market:ohlcv:binance:{symbol}:{interval}",
+    ):
+        cached = _read_json(r, key)
+        if isinstance(cached, list) and cached:
+            return cached[-max(1, min(int(limit), len(cached))) :], "websocket_cache_primary"
+    current = _read_json(r, current_candle_key("binance", symbol, interval))
+    if isinstance(current, dict) and (
+        current.get("is_closed") is True
+        or current.get("closed_candle") is True
+        or current.get("candle_closed_confirmed") is True
+    ):
+        return [current], "websocket_cache_primary"
     qs = urllib.parse.urlencode({"symbol": symbol, "interval": interval, "limit": limit})
     url = f"{BINANCE_FAPI}/fapi/v1/klines?{qs}"
     rows = _http_get(url)
     if not isinstance(rows, list):
         raise ValueError(f"Unexpected klines response type for {symbol}/{interval}: {type(rows)}")
-    return rows
+    return rows, "rest_fallback"
 
 
 def _missing_symbols(r: redis.Redis, timeframes: tuple[str, ...]) -> dict[str, list[str]]:
@@ -98,19 +142,34 @@ def _backfill_symbol_tf(r: redis.Redis, symbol: str, tf: str) -> dict:
     raw = r.get(key)
     existing = json.loads(raw) if raw else []
 
-    rows = _fetch_klines(symbol, tf, BACKFILL_LIMIT)
+    rows, source_transport = _fetch_klines(r, symbol, tf, BACKFILL_LIMIT)
     now_ms = int(time.time() * 1000)
-    closed_rows = [
-        row for row in rows
-        if isinstance(row, (list, tuple)) and len(row) >= 7 and int(row[6]) <= now_ms
-    ]
+    closed_rows = []
+    for row in rows:
+        if isinstance(row, (list, tuple)) and len(row) >= 7 and int(row[6]) <= now_ms:
+            closed_rows.append(row)
+        elif isinstance(row, dict) and (
+            row.get("is_closed") is True
+            or row.get("closed_candle") is True
+            or row.get("candle_closed_confirmed") is True
+        ):
+            close_ms = row.get("candle_close_time") or row.get("close_time")
+            try:
+                if close_ms is not None and int(float(close_ms)) <= now_ms:
+                    closed_rows.append(row)
+            except (TypeError, ValueError):
+                continue
 
     candles_added = 0
     for row in closed_rows:
-        candle = canonical_from_binance_rest(row, symbol=symbol, timeframe=tf)
-        if candle.is_closed:
-            existing = append_closed_candle(existing, candle.to_dict(), limit=1500)
+        if isinstance(row, dict):
+            existing = append_closed_candle(existing, row, limit=1500)
             candles_added += 1
+        else:
+            candle = canonical_from_binance_rest(row, symbol=symbol, timeframe=tf)
+            if candle.is_closed:
+                existing = append_closed_candle(existing, candle.to_dict(), limit=1500)
+                candles_added += 1
 
     if existing:
         r.set(key, json.dumps(existing, sort_keys=True, default=str))  # no TTL — permanent
@@ -121,12 +180,15 @@ def _backfill_symbol_tf(r: redis.Redis, symbol: str, tf: str) -> dict:
         "rows_fetched": len(rows),
         "closed_ingested": candles_added,
         "total_in_key": len(existing),
+        "transport": source_transport,
+        "rest_fallback_used": source_transport == "rest_fallback",
     }
 
 
 def main() -> None:
     r = _redis_client()
     print(f"[backfill] Connected to Redis. Scanning for symbols missing {BACKFILL_TIMEFRAMES} ohlcv_closed data...")
+    print(f"[backfill] transport=websocket_cache_primary rest_fallback_allowed={binance_rest_fallback_allowed()}")
     missing = _missing_symbols(r, BACKFILL_TIMEFRAMES)
     print(f"[backfill] {len(missing)} symbols need backfill:")
     for sym, tfs in sorted(missing.items()):

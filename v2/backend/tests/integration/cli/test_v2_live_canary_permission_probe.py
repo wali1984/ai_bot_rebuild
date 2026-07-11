@@ -7,8 +7,9 @@ ever placing a real order*. These tests cover:
 - credential presence checks
 - exchangeInfo (public) probe + per-symbol filter extraction
 - account-read permission (signed GET)
-- the documented no-fill endpoint stays NOT_CHECKED unless both
-  the Codex docs marker and the explicit env flag are set
+- the legacy no-fill REST endpoint stays NOT_CHECKED even if old
+  test-order gates are open, because trader/order readiness is
+  WebSocket API primary and REST is fallback-only for reads/metadata
 - READY transition when every check passes
 - BLOCKED transition for each missing precondition
 - the status payload NEVER contains raw credentials, NEVER claims
@@ -18,6 +19,7 @@ ever placing a real order*. These tests cover:
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 from pathlib import Path
 from typing import Any
 
@@ -115,6 +117,7 @@ def tmp_paths(tmp_path: Path) -> dict[str, Path]:
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("BINANCE_API_KEY", raising=False)
     monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
+    monkeypatch.delenv("BINANCE_TEST_ORDER_PROBE_ALLOWED", raising=False)
 
 
 def test_probe_blocked_when_no_env_file(tmp_paths: dict[str, Path]) -> None:
@@ -139,6 +142,30 @@ def test_probe_blocked_when_no_env_file(tmp_paths: dict[str, Path]) -> None:
     assert payload["margin_mode_changed"] is False
     assert payload["writes_legacy_redis"] is False
     assert payload["writes_exchange_orders"] is False
+
+
+def test_default_rest_helpers_are_fallback_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+
+    public_status, public_body = probe_mod._http_get_public_default(probe_mod.EXCHANGE_INFO_PATH)
+    signed_status, signed_body = probe_mod._http_get_signed_default(
+        "dummy-key",
+        "dummy-secret",
+        probe_mod.ACCOUNT_READ_PATH,
+    )
+    test_status, test_body = probe_mod._http_post_signed_test_default(
+        "dummy-key",
+        "dummy-secret",
+        probe_mod.TEST_ENDPOINT_PATH,
+        {"symbol": "BTCUSDT"},
+    )
+
+    assert public_status == 0
+    assert signed_status == 0
+    assert test_status == 0
+    assert public_body.startswith("REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY")
+    assert signed_body.startswith("REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY")
+    assert test_body == probe_mod.REST_TEST_ORDER_DISABLED_REASON
 
 
 def test_probe_blocked_when_credentials_absent_but_config_present(
@@ -193,6 +220,50 @@ def test_probe_ready_when_all_checks_pass(
     assert payload["tick_size_by_symbol"]["BTCUSDT"] == 0.10
     assert payload["test_order_endpoint_status"] == "NOT_CHECKED_FLAG_NOT_SET"
     assert payload["test_order_endpoint_attempted"] is False
+
+
+def test_probe_uses_canonical_local_binance_binding_without_exposing_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_paths: dict[str, Path]
+) -> None:
+    raw_key = "local-key-value-never-serialized"
+    raw_secret = "local-secret-value-never-serialized"
+    _write_env_file(tmp_paths["secrets"], symbols="BTCUSDT")
+    monkeypatch.setattr(probe_mod, "LOCAL_SECRETS_PATH", tmp_paths["secrets"])
+    monkeypatch.setattr(
+        probe_mod,
+        "resolve_binance_credential_binding",
+        lambda: SimpleNamespace(
+            api_key=raw_key,
+            api_secret=raw_secret,
+            api_key_source="v2/.env.local",
+            api_secret_source="v2/.env.local",
+            credential_ref="ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY",
+            account_specific=True,
+        ),
+    )
+
+    result = probe_mod.run_probe(
+        secrets_path=tmp_paths["secrets"],
+        approval_path=tmp_paths["approval"],
+        codex_pass_marker_path=tmp_paths["codex_marker"],
+        codex_test_order_marker_path=tmp_paths["codex_test_order_marker"],
+        network_probe_enabled=True,
+        http_get_public_fn=_stub_exchange_info_response([_good_symbol("BTCUSDT")]),
+        http_get_signed_fn=_stub_signed_response(200),
+    )
+    payload = result.as_payload()
+    flat = json.dumps(payload, sort_keys=True)
+
+    assert payload["exchange_credentials_present"] is True
+    assert payload["binance_credential_ref"] == "ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY"
+    assert payload["binance_api_key_source"] == "v2/.env.local"
+    assert payload["binance_api_secret_source"] == "v2/.env.local"
+    assert payload["binance_credential_account_specific"] is True
+    assert "BINANCE_API_KEY_ENV_VAR_ABSENT" not in payload["fail_blockers"]
+    assert "BINANCE_API_SECRET_ENV_VAR_ABSENT" not in payload["fail_blockers"]
+    assert raw_key not in flat
+    assert raw_secret not in flat
+    assert payload["raw_credential_in_payload"] == "NEVER"
 
 
 def test_probe_blocked_when_symbol_not_tradable(
@@ -322,11 +393,42 @@ def test_test_order_endpoint_blocked_when_codex_marker_absent(
     assert called == []
 
 
-def test_test_order_endpoint_called_only_when_both_gates_open(
+def test_test_order_endpoint_blocked_when_operator_probe_flag_absent(
     monkeypatch: pytest.MonkeyPatch, tmp_paths: dict[str, Path]
 ) -> None:
     monkeypatch.setenv("BINANCE_API_KEY", "dummy-key")
     monkeypatch.setenv("BINANCE_API_SECRET", "dummy-secret")
+    _write_env_file(tmp_paths["secrets"], allow_test_order="true")
+    tmp_paths["codex_test_order_marker"].parent.mkdir(parents=True, exist_ok=True)
+    tmp_paths["codex_test_order_marker"].write_text("codex-passes-docs", encoding="utf-8")
+    called: list[tuple] = []
+
+    def _no_call(api_key, api_secret, path, params=None, timeout=10):
+        called.append((path,))
+        return 200, "OK"
+
+    result = probe_mod.run_probe(
+        secrets_path=tmp_paths["secrets"],
+        codex_test_order_marker_path=tmp_paths["codex_test_order_marker"],
+        network_probe_enabled=True,
+        http_get_public_fn=_stub_exchange_info_response([_good_symbol("BTCUSDT")]),
+        http_get_signed_fn=_stub_signed_response(200),
+        http_post_signed_test_fn=_no_call,
+    )
+    payload = result.as_payload()
+    assert payload["test_order_endpoint_status"] == (
+        "NOT_CHECKED_BINANCE_TEST_ORDER_PROBE_ALLOWED_FLAG_NOT_SET"
+    )
+    assert payload["test_order_endpoint_attempted"] is False
+    assert called == []
+
+
+def test_test_order_endpoint_blocked_even_when_all_legacy_test_probe_gates_open(
+    monkeypatch: pytest.MonkeyPatch, tmp_paths: dict[str, Path]
+) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "dummy-key")
+    monkeypatch.setenv("BINANCE_API_SECRET", "dummy-secret")
+    monkeypatch.setenv("BINANCE_TEST_ORDER_PROBE_ALLOWED", "true")
     _write_env_file(tmp_paths["secrets"], allow_test_order="true")
     tmp_paths["codex_test_order_marker"].parent.mkdir(parents=True, exist_ok=True)
     tmp_paths["codex_test_order_marker"].write_text("codex-passes-docs", encoding="utf-8")
@@ -345,10 +447,9 @@ def test_test_order_endpoint_called_only_when_both_gates_open(
         http_post_signed_test_fn=_capture,
     )
     payload = result.as_payload()
-    assert payload["test_order_endpoint_status"] == "OK_VALIDATED_NO_FILL"
-    assert payload["test_order_endpoint_attempted"] is True
-    assert len(called) == 1
-    assert called[0][0] == probe_mod.TEST_ENDPOINT_PATH
+    assert payload["test_order_endpoint_status"] == probe_mod.REST_TEST_ORDER_DISABLED_REASON
+    assert payload["test_order_endpoint_attempted"] is False
+    assert called == []
 
 
 def test_payload_never_contains_raw_credentials(
@@ -437,8 +538,8 @@ def test_cli_run_once_writes_status_and_go_no_go(
     monkeypatch.setenv("BINANCE_API_KEY", "dummy")
     monkeypatch.setenv("BINANCE_API_SECRET", "dummy")
     _write_env_file(tmp_paths["secrets"])
-    # Monkeypatch the module-level default HTTP funcs the CLI path
-    # will reach when no override is passed in.
+    # Monkeypatch the module-level fallback HTTP funcs and the WebSocket signed
+    # read used by the CLI path when no override is passed in.
     monkeypatch.setattr(
         probe_mod,
         "_http_get_public_default",
@@ -447,6 +548,24 @@ def test_cli_run_once_writes_status_and_go_no_go(
     monkeypatch.setattr(
         probe_mod, "_http_get_signed_default", _stub_signed_response(200)
     )
+
+    def _signed_ws_read(self, method: str, params=None, *, execute: bool = False):
+        return {
+            "status": "SIGNED_WS_READ_EXECUTED",
+            "ws_status_code": 200,
+            "response_json": {
+                "status": 200,
+                "result": {
+                    "canTrade": True,
+                    "canDeposit": True,
+                    "canWithdraw": False,
+                    "assets": [],
+                    "positions": [],
+                },
+            },
+        }
+
+    monkeypatch.setattr(probe_mod.BinanceUSDMAdapter, "signed_ws_read", _signed_ws_read)
     payload = cli.run_once(
         secrets_path=tmp_paths["secrets"],
         codex_test_order_marker_path=tmp_paths["codex_test_order_marker"],

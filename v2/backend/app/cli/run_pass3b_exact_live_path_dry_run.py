@@ -7,25 +7,24 @@ training sample, leverage, margin, Redis, or exchange mutation is performed.
 from __future__ import annotations
 
 import argparse
-import hashlib
-import hmac
 import json
 import os
 import time
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
 from app.services.live_gate.binance_live_order_transport import (
     BinanceUsdMLiveOrderTransport,
+    BinanceUsdMWebSocketPrimaryTransport,
     evaluate_live_order_transport,
 )
+from app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
 from app.services.live_gate.live_position_state_machine import (
     LiveCanaryConfig,
     evaluate_live_canary_preflight,
 )
+from app.services.binance_unified_websocket_transport import binance_rest_fallback_decision
 from app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
 from app.services.provider_features import build_provider_consumer_context
 
@@ -62,8 +61,12 @@ class ReadOnlyRedisOverlay:
 
 
 class SubmitGuardTransport:
-    def __init__(self, delegate: BinanceUsdMLiveOrderTransport | None = None, signed_reads: Mapping[str, Any] | None = None) -> None:
-        self.delegate = delegate or BinanceUsdMLiveOrderTransport()
+    def __init__(
+        self,
+        delegate: BinanceUsdMWebSocketPrimaryTransport | None = None,
+        signed_reads: Mapping[str, Any] | None = None,
+    ) -> None:
+        self.delegate = delegate or BinanceUsdMWebSocketPrimaryTransport()
         self.signed_reads = dict(signed_reads or {})
         self.submit_function_called = False
 
@@ -145,7 +148,11 @@ def run_exact_live_path_dry_run(*, client: Any, redis_url: str, output_dir: Path
     if signed_read_available:
         trader_status = {
             "binance_private_readonly": {
-                "position_read_status": "HTTP_200",
+                "position_read_status": "WEBSOCKET_PRIMARY_READY",
+                "position_read_endpoint": "WS account.position",
+                "account_read_status": "WEBSOCKET_PRIMARY_READY",
+                "account_read_endpoint": "WS account.status",
+                "rest_fallback_used": bool(signed_reads.get("rest_fallback_used") is True),
                 "exchange_position": signed_reads["exchange_position"],
                 "open_orders": signed_reads["open_orders"],
                 "margin_mode": signed_reads["margin_mode"],
@@ -378,35 +385,70 @@ def build_signed_read_context(symbol: str) -> dict[str, Any]:
         return {"available": False, "reason": "BINANCE_CREDENTIALS_MISSING"}
     base = os.environ.get("V2_BINANCE_USDM_BASE_URL", "https://fapi.binance.com").rstrip("/")
     now_ms = int(time.time() * 1000)
-    try:
-        account = signed_get(base, "/fapi/v3/account", {}, api_key, api_secret)
-        open_orders = signed_get(base, "/fapi/v1/openOrders", {"symbol": symbol}, api_key, api_secret)
-        position_mode = signed_get(base, "/fapi/v1/positionSide/dual", {}, api_key, api_secret)
-    except Exception as exc:
-        return {"available": False, "reason": type(exc).__name__}
-    positions = account.get("positions") if isinstance(account, Mapping) else []
+    adapter = BinanceUSDMAdapter(api_key=api_key, api_secret=api_secret, base_url=base)
+    account_read = adapter.signed_ws_read("account.status", {"recvWindow": 5000}, execute=True)
+    position_read = adapter.signed_ws_read("account.position", {"symbol": symbol, "recvWindow": 5000}, execute=True)
+    open_orders_read = adapter.signed_ws_read("openOrders.status", {"symbol": symbol, "recvWindow": 5000}, execute=True)
+    account = _ws_api_result(account_read)
+    position_rows = _ws_api_result(position_read)
+    open_orders_payload = _ws_api_result(open_orders_read)
+    open_orders: list[Any] = open_orders_payload if isinstance(open_orders_payload, list) else []
+    open_orders_source = (
+        "binance_ws_api_openOrders.status"
+        if isinstance(open_orders_payload, list)
+        else "binance_ws_api_openOrders.status_unavailable"
+    )
+    position_mode: Mapping[str, Any] | None = None
+    signed_read_source = "binance_ws_api_account_status_and_account_position"
+    if not isinstance(account, Mapping):
+        return {
+            "available": False,
+            "reason": "BINANCE_WS_API_ACCOUNT_STATUS_REQUIRED_FOR_TRADER_READINESS",
+            "account_ws_status": account_read.get("status"),
+            "account_ws_status_code": account_read.get("ws_status_code"),
+            "position_ws_status": position_read.get("status"),
+            "position_ws_status_code": position_read.get("ws_status_code"),
+            "open_orders_ws_status": open_orders_read.get("status"),
+            "open_orders_ws_status_code": open_orders_read.get("ws_status_code"),
+            "signed_read_transport_primary": "binance_usdm_websocket_api",
+            "signed_rest_fallback_supported_for_trader": False,
+            "rest_api_role": "public_metadata_fallback_only",
+            "rest_fallback_used": False,
+        }
+    elif not isinstance(open_orders_payload, list):
+        open_orders_source = "binance_ws_api_openOrders.status_unavailable"
+    positions = position_rows if isinstance(position_rows, list) else account.get("positions") if isinstance(account, Mapping) else []
     exchange_position = position_for_symbol(positions if isinstance(positions, list) else [], symbol)
     current_positions = summarize_current_positions(positions if isinstance(positions, list) else [])
     margin_mode = str(exchange_position.get("margin_mode") or "cross").lower()
-    symbol_filters = BinanceUsdMLiveOrderTransport(base_url=base).fetch_symbol_filters(symbol)
-    dual_side_position = (
-        position_mode.get("dualSidePosition") is True
-        if isinstance(position_mode, Mapping)
-        else None
+    symbol_filter_transport = BinanceUsdMWebSocketPrimaryTransport(
+        rest_metadata_transport=BinanceUsdMLiveOrderTransport(base_url=base),
     )
+    symbol_filters = symbol_filter_transport.fetch_symbol_filters(symbol)
+    dual_side_position = _dual_side_position(position_mode, positions if isinstance(positions, list) else [])
     return {
         "available": True,
         "signed_read_ts_ms": now_ms,
+        "signed_read_source": signed_read_source,
+        "signed_ws_account_status": account_read.get("status"),
+        "signed_ws_position_status": position_read.get("status"),
+        "signed_ws_open_orders_status": open_orders_read.get("status"),
+        "signed_read_transport_primary": "binance_usdm_websocket_api",
+        "signed_rest_fallback_supported_for_trader": False,
+        "rest_api_role": "public_metadata_fallback_only",
+        "rest_fallback_used": False,
         "exchange_position": exchange_position,
         "current_positions": current_positions,
         "current_position_count": len(current_positions),
-        "open_orders": open_orders if isinstance(open_orders, list) else [],
+        "open_orders": open_orders,
+        "open_orders_source": open_orders_source,
+        "open_orders_rest_fallback_used": False,
         "margin_mode": margin_mode,
         "position_mode_status": {
-            "ok": isinstance(position_mode, Mapping) and dual_side_position is not None,
+            "ok": dual_side_position is not None,
             "dual_side_position": dual_side_position,
-            "source": "pass3b_signed_read",
-            "endpoint": "GET /fapi/v1/positionSide/dual",
+            "source": signed_read_source,
+            "endpoint": "WSS account.status/account.position",
         },
         "account_margin_status": {
             "ok": True,
@@ -419,20 +461,66 @@ def build_signed_read_context(symbol: str) -> dict[str, Any]:
             "_wallet_balance_usdt": numeric(account.get("totalWalletBalance"), 0.0) if isinstance(account, Mapping) else 0.0,
             "margin_mode": margin_mode,
             "signed_read_ts_ms": now_ms,
-            "endpoint": "GET /fapi/v3/account",
+            "endpoint": "WSS account.status",
         },
         "symbol_filter_status": symbol_filters,
     }
 
 
-def signed_get(base: str, path: str, params: Mapping[str, Any], api_key: str, api_secret: str) -> Any:
-    query = dict(params)
-    query["timestamp"] = str(int(time.time() * 1000))
-    body = urllib.parse.urlencode(query)
-    signature = hmac.new(api_secret.encode(), body.encode(), hashlib.sha256).hexdigest()
-    request = urllib.request.Request(f"{base}{path}?{body}&signature={signature}", headers={"X-MBX-APIKEY": api_key}, method="GET")
-    with urllib.request.urlopen(request, timeout=8.0) as response:
-        return json.loads(response.read().decode("utf-8", errors="replace"))
+def signed_rest_fallback_get(
+    adapter: BinanceUSDMAdapter,
+    path: str,
+    params: Mapping[str, Any],
+    *,
+    fallback_reason: str,
+) -> Any:
+    """Signed REST fallback wrapper.
+
+    The dry-run scripts must never hand-roll signed Binance REST calls. This
+    wrapper keeps REST behind the central adapter, which blocks unless the
+    caller supplies an explicit WebSocket failure reason and the operator has
+    set BINANCE_REST_FALLBACK_ALLOWED=true.
+    """
+    binance_rest_fallback_decision(
+        endpoint=f"GET {path}",
+        fallback_reason=fallback_reason,
+        role="pass3b_signed_read_recovery",
+    )
+    result = adapter.signed_get(
+        path,
+        params,
+        execute=True,
+        fallback_reason=fallback_reason,
+    )
+    if result.get("status") != "SIGNED_READ_EXECUTED":
+        raise RuntimeError(
+            str(result.get("status") or "BINANCE_SIGNED_REST_FALLBACK_FAILED")
+        )
+    return result.get("response_json")
+
+
+def _ws_api_result(read_status: Mapping[str, Any]) -> Any:
+    response = read_status.get("response_json")
+    if not isinstance(response, Mapping):
+        return None
+    if int(response.get("status") or 0) != 200:
+        return None
+    return response.get("result")
+
+
+def _dual_side_position(position_mode: Mapping[str, Any] | None, positions: list[Any]) -> bool | None:
+    if isinstance(position_mode, Mapping) and position_mode.get("dualSidePosition") is not None:
+        return position_mode.get("dualSidePosition") is True
+    sides = {
+        str(row.get("positionSide") or "").upper()
+        for row in positions
+        if isinstance(row, Mapping) and row.get("positionSide") not in (None, "")
+    }
+    if "LONG" in sides or "SHORT" in sides:
+        return True
+    if "BOTH" in sides:
+        return False
+    return None
 
 
 def position_for_symbol(positions: list[Any], symbol: str) -> dict[str, Any]:

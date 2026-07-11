@@ -126,7 +126,7 @@ function publicSafeText(value: string): string {
     .replace(/checkpoint/gi, 'model version')
     .replace(/runtime alpha/gi, 'AI forecast')
     .replace(/enabled operator approved/gi, 'approval gated')
-    .replace(/blocked human only/gi, 'operator-gated guard')
+    .replace(/blocked human only/gi, 'approval-gated guard')
     .replace(/\blive gate\b/gi, 'execution guard')
     .replace(/\bworker health\b/gi, 'service health')
     .replace(/\bsource pending\b/gi, 'data source connecting')

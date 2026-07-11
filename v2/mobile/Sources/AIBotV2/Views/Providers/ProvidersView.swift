@@ -180,7 +180,7 @@ struct ProvidersView: View {
     }
 
     private func providerCard(_ provider: EnterpriseProviderCard) -> some View {
-        let color = providerColor(provider.dashboard_color)
+        let color = providerColor(provider.providerDashboardTone)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Image(systemName: providerIcon(provider.provider))
@@ -195,7 +195,7 @@ struct ProvidersView: View {
                         .foregroundStyle(NerVyx.textMuted)
                 }
                 Spacer()
-                NerVyxBadge(text: providerRuntimeText(provider.dashboard_color).uppercased(), color: color, small: true)
+                NerVyxBadge(text: provider.providerDashboardBadgeText, color: color, small: true)
             }
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
@@ -262,13 +262,13 @@ struct ProvidersView: View {
         return value ? "true" : "false"
     }
 
-    private func providerColor(_ raw: String?) -> Color {
-        switch raw?.lowercased() {
+    private func providerColor(_ tone: String) -> Color {
+        switch tone.lowercased() {
         case "green": return NerVyx.validation
         case "yellow": return NerVyx.warning
         case "red": return NerVyx.sell
         case "gray", "grey": return NerVyx.textMuted
-        default: return NerVyx.statusColor(raw ?? "")
+        default: return NerVyx.statusColor(tone)
         }
     }
 

@@ -1,0 +1,36 @@
+{
+  "accepted_training_rows_after": 16384,
+  "accepted_training_rows_before": 225,
+  "available_examples": 16384,
+  "dominant_rejection_reasons_after": [],
+  "dominant_rejection_reasons_before": [
+    "MISSING_CRITICAL_FEATURE_FAMILY",
+    "ROW_CLASSIFICATION_MISSING_MASKED"
+  ],
+  "generated_utc": "2026-07-11T08:11:40Z",
+  "hard_fail": null,
+  "marker": "PHASE1_TRAINER_REJECTION_REPAIR_RUNTIME_STATUS",
+  "pass_criteria": {
+    "accepted_training_rows_after_gte_2000": true,
+    "missing_critical_feature_family_not_dominant": true,
+    "row_classification_missing_masked_not_dominant": true,
+    "training_rejection_count_materially_lower": true
+  },
+  "row_family_diagnosis": {
+    "classification_mask_present": true,
+    "critical_missing_vs_optional_missing": "critical stale/future-leak rows remain rejected; historical schema-addition masks are trainable only when explicit and source availability is recorded",
+    "feature_family_introduced_after_snapshot_time": true,
+    "lineage_mask_present": true,
+    "masked_feature_families": "missing_masked_accepted_for_replay_when_snapshot_lineage_is_explicit",
+    "missing_feature_families": "explicit missing masks accepted only for PIT-safe replay rows; current prediction rows still report missing families separately and are not promoted to live",
+    "row_count": 16384,
+    "row_source": "trusted replay + closed paper feedback + counterfactual feedback",
+    "safe_to_train_with_missing_mask": true,
+    "source_availability": "explicit source availability vector required",
+    "stale_feature_families": [],
+    "unsafe_to_train_reason": null
+  },
+  "training_cost_masked_rows_accepted": 0,
+  "training_rejection_count_after": 0,
+  "training_rejection_count_before": 3871
+}

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
+import { DangerousControlPanel } from '../../components/controls/DangerousControlPanel';
+import meta from './meta';
 
 const PIPELINE_ENDPOINT = '/api/v2/pipeline/status';
 
@@ -76,6 +78,8 @@ export default function AdminOrchestrationPage(): JSX.Element {
           </div>
         </div>
       )}
+
+      <DangerousControlPanel controlIds={meta.dangerousControlIds} />
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--line-soft)' }}>

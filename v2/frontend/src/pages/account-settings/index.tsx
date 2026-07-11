@@ -7,6 +7,7 @@ import { Panel, Metric } from '../cockpitComponents';
 import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { selectAccountMetric } from '../../selectors/accountSelectors';
 import { normalizeWatchlistInput } from '../../lib/traderPageHelpers';
+import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { ExchangeAccount } from '../../api/auth';
 import meta from './meta';
 import rbac from './rbac';
@@ -16,6 +17,26 @@ const SUPPORTED_EXCHANGES = ['binance', 'kucoin', 'bybit'] as const;
 type Exchange = (typeof SUPPORTED_EXCHANGES)[number];
 
 export { normalizeWatchlistInput };
+
+interface AuthHealthContract {
+  schema_version?: string;
+  source?: string | null;
+  canonical_owner?: string | null;
+  status?: string | null;
+  staleness_seconds?: number | null;
+  freshness_status?: string | null;
+  data_quality_status?: string | null;
+  login_endpoint_available?: boolean | null;
+  auth_store_backend?: string | null;
+  durable_user_store_configured?: boolean | null;
+  production_ready?: boolean | null;
+  contains_secret_values?: boolean | null;
+  raw_credential_value_exposed?: boolean | null;
+  live_gate?: string | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  exchange_mutation_enabled?: boolean | null;
+}
 
 function friendlyAccountError(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? '');
@@ -66,6 +87,71 @@ function accountModeLabel(value: string | null | undefined): string {
   if (/paper/i.test(value)) return 'Live account';
   if (/read/i.test(value)) return 'Live account';
   return 'Live account';
+}
+
+function accountRuntimeText(value: unknown, fallback = 'Unavailable'): string {
+  if (typeof value === 'string' && value.trim()) {
+    return value
+      .replace(/blocked_human_only/gi, 'LIVE BLOCKED')
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b[a-z0-9]/g, (char) => char.toUpperCase())
+      .replace(/\bUsd\b/g, 'USD');
+  }
+  if (typeof value === 'boolean') return value ? 'YES' : 'NO';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return fallback;
+}
+
+function AccountRuntimeSafetyPanel({
+  hasAccountScope,
+  hasTraderApproval,
+  canLinkExchange,
+}: {
+  hasAccountScope: boolean;
+  hasTraderApproval: boolean;
+  canLinkExchange: boolean;
+}): JSX.Element {
+  const { envelope } = useRealtimeResource<AuthHealthContract>({
+    url: '/api/auth/health',
+    source: '/api/auth/health',
+    source_type: 'api',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+    unwrapEnvelopeData: false,
+  });
+  const health = envelope.data;
+  const liveGate = health?.live_gate ?? 'blocked_human_only';
+  const liveBlocked = /blocked|human/i.test(liveGate);
+  const mutationSafe = health?.places_real_order !== true
+    && health?.routes_to_live !== true
+    && health?.exchange_mutation_enabled !== true
+    && health?.raw_credential_value_exposed !== true
+    && health?.contains_secret_values !== true;
+
+  return (
+    <Panel id="account-runtime-safety" title="Account Runtime Safety">
+      <div data-testid="account-settings-runtime-safety-panel">
+        <div className="cockpit-analytics-grid">
+          <Metric label="Canonical auth source" value={health?.canonical_owner ?? '/api/auth/health'} />
+          <Metric label="Sign-in service" value={health?.login_endpoint_available === false ? 'Unavailable' : 'Online'} />
+          <Metric label="Auth store" value={accountRuntimeText(health?.auth_store_backend ?? health?.source ?? 'pending')} />
+          <Metric label="Live gate" value={accountRuntimeText(liveGate)} />
+          <Metric label="Account scope" value={hasAccountScope ? 'Account scope complete' : 'Account scope incomplete'} />
+          <Metric label="Trader approval" value={hasTraderApproval ? 'Trader approval confirmed' : 'Trader approval required'} />
+          <Metric label="Exchange linking" value={canLinkExchange ? 'Metadata only' : 'Fail-closed'} />
+          <Metric label="Data freshness" value={health?.staleness_seconds != null ? `${Math.round(health.staleness_seconds)}s` : envelope.freshness_status} />
+        </div>
+        <div style={{ marginTop: 12, display: 'grid', gap: 6, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+          <span>source=/api/auth/health · freshness={health?.freshness_status ?? envelope.freshness_status} · data_quality={health?.data_quality_status ?? envelope.data_quality_status}</span>
+          <span>places_real_order={health?.places_real_order === true ? 'YES' : 'NO'} · routes_to_live={health?.routes_to_live === true ? 'YES' : 'NO'} · exchange_mutation_enabled={health?.exchange_mutation_enabled === true ? 'YES' : 'NO'}</span>
+          <span>raw_credential_value_exposed={health?.raw_credential_value_exposed === true ? 'YES' : 'NO'} · contains_secret_values={health?.contains_secret_values === true ? 'YES' : 'NO'} · safety={mutationSafe && liveBlocked ? 'NO LIVE ROUTING OR SECRET EXPOSURE' : 'REVIEW REQUIRED'}</span>
+        </div>
+      </div>
+    </Panel>
+  );
 }
 
 function AccountRow({ account, onRemove }: { account: ExchangeAccount; onRemove: (id: string) => void }): JSX.Element {
@@ -408,6 +494,12 @@ export default function AccountSettingsPage(): JSX.Element {
           <span className="chip solid-warn">Execution restricted</span>
         </div>
       </header>
+
+      <AccountRuntimeSafetyPanel
+        hasAccountScope={hasAccountScope}
+        hasTraderApproval={hasTraderApproval}
+        canLinkExchange={canLinkExchange}
+      />
 
       <Panel id="account-canonical-status" title="Trader Account Source">
         <div className="trader-metric-grid">

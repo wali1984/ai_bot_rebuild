@@ -347,6 +347,7 @@ export default function BacktestsPage(): JSX.Element {
     pollIntervalMs: 30_000,
     staleThresholdMs: 60_000,
     mode: 'read_only',
+    initialFetchWhenStreaming: true,
   });
 
   const results = envelope.data?.results ?? [];
@@ -423,8 +424,8 @@ export default function BacktestsPage(): JSX.Element {
             </h3>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
               {backtestSourceUnavailable
-                ? 'Paper account context only. No sourced backtest rows are available from the read-only endpoint; this is a source availability state, not backtest results.'
-                : 'Paper account context only. The sourced result set is empty; this is an empty source state, not backtest results. Use the Run form above to start a backtest. Results are stored in Redis for 7 days.'}
+                ? 'Read-only account context only. No sourced backtest rows are available from the read-only endpoint; this is a source availability state, not backtest results.'
+                : 'Read-only account context only. The sourced result set is empty; this is an empty source state, not backtest results. Use the Run form above to start a backtest. Results are stored in Redis for 7 days.'}
             </p>
           </div>
         )}

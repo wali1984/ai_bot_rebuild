@@ -1,0 +1,36 @@
+{
+  "marker": "V2_PAPER_UTILIZATION_RAMP_FIXTURE_READY_RUNTIME_ROWS_BLOCKED",
+  "generated_utc": "2026-07-11T23:02:18Z",
+  "paper_equity_usd_fixture": 1000.0,
+  "current_open_notional_usd": null,
+  "current_margin_used_usd": null,
+  "current_utilization_pct": null,
+  "current_max_leverage": null,
+  "target_utilization_by_state": {
+    "STRICT_UNKNOWN_OR_CONTAMINATED": "minimum_notional_only",
+    "PAPER_EXPLORATION_ACTIVE_HEALTHY_BUCKET": "adaptive_from_risk_budget",
+    "PROBATION_5_PASS": "bucket_specific_ramp",
+    "PROBATION_20_PASS": "larger_bucket_specific_ramp",
+    "STRICT_A_PLUS_CANDIDATE": "strict_allocator_simulation_only",
+    "LIVE_CANARY": "human_approved_micro_notional_only"
+  },
+  "actual_utilization_after_patch_fixture_pct": 8.0,
+  "actual_margin_utilization_after_patch_fixture_pct": 2.666666667,
+  "actual_leverage_after_patch_fixture": 3.0,
+  "paper_only_simulation_rows_with_recommended_leverage_gt_1x": 1,
+  "paper_only_simulation_rows_with_utilization_pct_gt_1": 1,
+  "runtime_projection": {
+    "rows": 520,
+    "allowed_paper_rows": 0,
+    "allowed_rows_with_leverage_gt_1": 0,
+    "allowed_rows_with_notional_margin_risk": 0,
+    "exact_reason": "NO_CURRENT_ELIGIBLE_PAPER_ROWS_AFTER_STRICT_GATES_IN_REDIS_SNAPSHOT"
+  },
+  "hard_safety": {
+    "live_gate": "blocked_human_only",
+    "order_endpoint_called": false,
+    "test_order_endpoint_called": false,
+    "leverage_endpoint_called": false,
+    "margin_endpoint_called": false
+  }
+}

@@ -29,20 +29,20 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
   signals: {
     source: 'RUNTIME_MONITOR_PAYLOAD / signal lineage',
     status: 'current runtime signal lineage required',
-    next: 'Connect current signal stream with prediction_id, signal_id, confidence, and risk result.',
-    data: ['signal_id', 'prediction_id', 'confidence', 'feature freshness', 'risk gate result'],
+    next: 'Connect current signal stream with prediction_id, signal_id, executable confidence, selected-action confidence, and risk result.',
+    data: ['signal_id', 'prediction_id', 'executable confidence', 'selected-action confidence', 'feature freshness', 'risk gate result'],
   },
   executions: {
     source: 'V2_PROOF_ARTIFACT / execution ledger',
-    status: 'operator-gated execution workflow',
+    status: 'approval-gated execution workflow',
     next: 'Wire current execution ledger and execution_intent_id evidence.',
-    data: ['execution_intent_id', 'risk_decision_id', 'execution fill state', 'PnL', 'operator gate reason'],
+    data: ['execution_intent_id', 'risk_decision_id', 'execution fill state', 'PnL', 'approval gate reason'],
   },
   positions: {
     source: 'ACCOUNT_FEED / position payload',
     status: 'live positions workspace',
     next: 'Wire execution/shadow positions and external/manual quarantine state.',
-    data: ['symbol', 'side', 'size', 'source', 'quarantine status', 'operator gate status'],
+    data: ['symbol', 'side', 'size', 'source', 'quarantine status', 'approval gate status'],
   },
   'strategy-admin': {
     source: 'V2 strategy registry',
@@ -64,9 +64,9 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
   },
   'execution-admin': {
     source: 'V2 execution adapter registry',
-    status: 'operator-governed execution; dangerous live methods approval-gated',
-    next: 'Expose execution adapter status and operator-gated method inventory.',
-    data: ['adapter', 'mode', 'execution capability', 'operator-gated method', 'approval requirement'],
+    status: 'approval-governed execution; dangerous live methods approval-gated',
+    next: 'Expose execution adapter status and approval-gated method inventory.',
+    data: ['adapter', 'mode', 'execution capability', 'approval-gated method', 'approval requirement'],
   },
   'audit-ledger': {
     source: 'V2 audit ledger',
@@ -75,9 +75,9 @@ const ROUTE_PROFILES: Record<string, { source: string; status: string; next: str
     data: ['event id', 'source', 'decision_id', 'risk_decision_id', 'chain status'],
   },
   'system-health': {
-    source: 'operator truth payload / monitor center',
+    source: 'approval truth payload / monitor center',
     status: 'current/stale/conflicting surfaced',
-    next: 'Keep build:operator-truth fresh and repair stale control-plane daemons separately.',
+    next: 'Keep approval-truth evidence fresh and repair stale control-plane daemons separately.',
     data: ['supervisor', 'market ingest', 'feature pipeline', 'orchestrator', 'trainer'],
   },
   'codex-review-center': {
@@ -116,7 +116,7 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
   const profile = ROUTE_PROFILES[meta.id] ?? {
     source: 'V2 runtime payload / route production contract',
     status: 'production surface with current runtime context',
-    next: `Keep ${meta.title} backed by current V2 execution/shadow, operator truth, and route-specific payloads.`,
+    next: `Keep ${meta.title} backed by current V2 execution/shadow, approval truth, and route-specific payloads.`,
     data: ['current data', 'freshness', 'source evidence', 'missing evidence', 'next task'],
   };
   const lineage = paperRuntime?.current_signal_lineage as Record<string, unknown> | undefined;
@@ -197,7 +197,8 @@ export function PageShell({ meta, rbac, route }: Props): JSX.Element {
           <div><span>execution_intent_id</span><strong>{valueText(lineageIds?.execution_intent_id ?? executionIntent?.execution_intent_id ?? 'loading')}</strong></div>
           <div><span>trainer state</span><strong>{valueText(trainerPrediction?.trainer_state ?? 'loading')}</strong></div>
           <div><span>signal action</span><strong>{valueText(signal?.proposed_action ?? 'loading')}</strong></div>
-          <div><span>confidence</span><strong>{valueText(signal?.confidence ?? trainerPrediction?.confidence_calibrated ?? 'loading')}</strong></div>
+          <div><span>executable confidence</span><strong>{valueText(signal?.confidence_executable_trade ?? 'loading')}</strong></div>
+          <div><span>selected confidence</span><strong>{valueText(signal?.confidence_selected_action ?? signal?.confidence ?? trainerPrediction?.confidence_calibrated ?? 'loading')}</strong></div>
           <div><span>risk result</span><strong>{valueText(currentRisk?.risk_result ?? 'loading')}</strong></div>
           <div><span>execution ledger event</span><strong>{publicRuntimeText(latestPaperEvent?.paper_ledger_entry_id ?? latestPaperEvent?.paper_event_id ?? 'loading')}</strong></div>
           <div><span>execution action</span><strong>{publicRuntimeText(latestPaperEvent?.paper_action ?? executionIntent?.intent_action ?? 'loading')}</strong></div>

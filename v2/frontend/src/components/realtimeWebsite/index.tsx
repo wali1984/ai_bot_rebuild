@@ -59,7 +59,7 @@ function runtimeStatusLabel(value: string | undefined | null): string {
   if (!value) return 'current runtime pending';
   return String(value)
     .replaceAll('enabled_operator_approved', 'gate approved')
-    .replaceAll('blocked_human_only', 'operator approval required')
+    .replaceAll('blocked_human_only', 'approval required')
     .replaceAll('LIVE_ARMED_BALANCE_HOLD', 'armed, balance hold')
     .replaceAll('LIVE_ARMED_COMPLIANCE_HOLD', 'armed, compliance hold')
     .replaceAll('INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER', 'held until available margin covers the minimum order')
@@ -73,7 +73,7 @@ function runtimeStatusLabel(value: string | undefined | null): string {
 function sourcePathLabel(path: string): string {
   if (path.includes('v2_alt_data_symbol_candidate_publisher')) return 'symbol candidate feed';
   if (path.includes('v2_live_gate_runtime')) return 'live gate runtime feed';
-  if (path.includes('operator_runtime')) return 'operator runtime feed';
+  if (path.includes('operator_runtime')) return 'runtime feed';
   if (path.includes('v2_report_center')) return 'report center feed';
   if (path.includes('public/')) return 'public evidence feed';
   return 'runtime evidence feed';

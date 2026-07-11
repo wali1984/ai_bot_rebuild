@@ -689,6 +689,10 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         "prediction_id",
         "risk_decision_id",
         "orchestrator_decision_id",
+        "allocator_decision_id",
+        "materialization_queue_id",
+        "materialization_queue_accepted_at",
+        "materialization_queue_expires_at",
         "market_state_id",
         "trainer_source",
         "timeframe",
@@ -705,7 +709,28 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         "paper_policy_owner",
         "policy_fingerprint",
         "checkpoint_id",
+        "checkpoint_id_source",
+        "entry_prediction_snapshot",
+        "risk_decision_record_key",
+        "risk_decision_record_hash",
+        "risk_decision_record_resolved",
+        "risk_decision_source",
+        "orchestrator_decision_record_key",
+        "orchestrator_decision_record_hash",
+        "orchestrator_decision_record_resolved",
+        "orchestrator_decision_source",
+        "decision_record_missing_reasons",
         "source_hashes",
+        "feature_vector_hash",
+        "provider_hashes",
+        "confidence_executable_trade",
+        "dynamic_exploration_floor",
+        "dynamic_exploration_floor_formula",
+        "exploration_floor_inputs",
+        "paper_risk_controller_exploration_above_floor",
+        "paper_risk_controller_exploration_eligible",
+        "bootstrap_exploration",
+        "bootstrap_overridden_blockers",
         "selector_policy_fingerprint",
         "frozen_selector_fingerprint",
         "candidate_selected_before_outcome",
@@ -739,6 +764,7 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         "funding_interval_seconds",
         "expected_funding_usd",
         "expected_net_pnl_usd",
+        "expected_max_loss_usd",
         "expected_shortfall_usd",
         "hedge_budget_usd",
         "capital_allocation_reason",
@@ -871,13 +897,73 @@ def _accepted_fill_with_position_metadata(
     position: PaperNetPosition,
 ) -> dict[str, Any]:
     row = _accepted_fill_with_entry_policy_metadata(fill, status=status)
+    allocation = position.adaptive_allocation if isinstance(position.adaptive_allocation, dict) else {}
+    allocation_id = first_present(
+        allocation.get("allocation_id"),
+        allocation.get("allocator_decision_id"),
+    )
+    allocator_decision_id = first_present(position.allocator_decision_id, allocation_id)
+    allocator_decision_id_source = (
+        "paper_position.allocator_decision_id"
+        if position.allocator_decision_id not in (None, "")
+        else "adaptive_allocation.allocation_id"
+        if allocation_id not in (None, "")
+        else None
+    )
+    provider_hashes = position.provider_hashes
+    if not provider_hashes and isinstance(position.source_hashes, dict):
+        provider_hashes = {
+            key: value
+            for key, value in position.source_hashes.items()
+            if key not in {"feature_vector_hash", "prediction_hash", "source_lineage_hash"}
+            and value not in (None, "")
+        } or None
+    feature_vector_hash = first_present(
+        position.feature_vector_hash,
+        position.source_hashes.get("feature_vector_hash") if isinstance(position.source_hashes, dict) else None,
+    )
+    raw_safety_fields = {
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "test_order": False,
+        "live_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_A_plus": False,
+        "counts_as_live_ready": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
+    invariant_checks = {
+        "paper_only_is_true": True,
+        "routes_to_live_is_false": True,
+        "places_real_order_is_false": True,
+        "test_order_is_false": True,
+        "live_order_is_false": True,
+        "counts_as_A_plus_is_false": True,
+        "counts_as_final_A_plus_is_false": True,
+        "counts_as_live_ready_is_false": True,
+        "order_submitted_is_false": True,
+        "test_order_submitted_is_false": True,
+        "leverage_mutated_is_false": True,
+        "margin_mutated_is_false": True,
+    }
     position_fields = {
         "signal_id": position.source_signal_id,
         "entry_signal_id": position.source_signal_id,
         "prediction_id": position.prediction_id,
         "entry_prediction_id": position.prediction_id,
+        "preemptive_decision_id": position.preemptive_decision_id,
         "risk_decision_id": position.risk_decision_id,
         "orchestrator_decision_id": position.orchestrator_decision_id,
+        "allocator_decision_id": allocator_decision_id,
+        "allocator_decision_id_source": allocator_decision_id_source,
+        "allocation_id": allocation_id,
+        "materialization_queue_id": position.materialization_queue_id,
+        "materialization_queue_accepted_at": position.materialization_queue_accepted_at,
+        "materialization_queue_expires_at": position.materialization_queue_expires_at,
         "decision_id": position.decision_id,
         "market_state_id": position.market_state_id,
         "entry_market_state_id": position.entry_market_state_id or position.market_state_id,
@@ -896,7 +982,32 @@ def _accepted_fill_with_position_metadata(
         "paper_policy_owner": position.paper_policy_owner,
         "policy_fingerprint": position.policy_fingerprint,
         "checkpoint_id": position.checkpoint_id,
+        "checkpoint_id_source": position.checkpoint_id_source,
+        "entry_prediction_snapshot": position.entry_prediction_snapshot,
+        "risk_decision_record_key": position.risk_decision_record_key,
+        "risk_decision_record_hash": position.risk_decision_record_hash,
+        "risk_decision_record_resolved": position.risk_decision_record_resolved,
+        "risk_decision_source": position.risk_decision_source,
+        "orchestrator_decision_record_key": position.orchestrator_decision_record_key,
+        "orchestrator_decision_record_hash": position.orchestrator_decision_record_hash,
+        "orchestrator_decision_record_resolved": position.orchestrator_decision_record_resolved,
+        "orchestrator_decision_source": position.orchestrator_decision_source,
+        "decision_record_missing_reasons": position.decision_record_missing_reasons,
         "source_hashes": position.source_hashes,
+        "feature_vector_hash": feature_vector_hash,
+        "provider_hashes": provider_hashes,
+        "confidence_executable_trade": position.confidence_executable_trade,
+        "dynamic_exploration_floor": position.dynamic_exploration_floor,
+        "dynamic_exploration_floor_formula": position.dynamic_exploration_floor_formula,
+        "exploration_floor_inputs": position.exploration_floor_inputs,
+        "paper_risk_controller_exploration_above_floor": (
+            position.paper_risk_controller_exploration_above_floor
+        ),
+        "paper_risk_controller_exploration_eligible": (
+            position.paper_risk_controller_exploration_eligible
+        ),
+        "bootstrap_exploration": position.bootstrap_exploration,
+        "bootstrap_overridden_blockers": position.bootstrap_overridden_blockers,
         "selector_policy_fingerprint": position.selector_policy_fingerprint,
         "frozen_selector_fingerprint": position.frozen_selector_fingerprint,
         "candidate_selected_before_outcome": position.candidate_selected_before_outcome,
@@ -904,6 +1015,24 @@ def _accepted_fill_with_position_metadata(
         "post_outcome_candidate_selection": position.post_outcome_candidate_selection,
         "future_labels_used_as_features": position.future_labels_used_as_features,
         "paper_opportunity_tier": position.paper_opportunity_tier,
+        "tier": (
+            position.paper_opportunity_tier
+            if str(position.paper_opportunity_tier or "").strip().upper()
+            == "PAPER_RISK_CONTROLLER_EXPLORATION"
+            else None
+        ),
+        "exploration_tier": (
+            position.paper_opportunity_tier
+            if str(position.paper_opportunity_tier or "").strip().upper()
+            == "PAPER_RISK_CONTROLLER_EXPLORATION"
+            else None
+        ),
+        "paper_exploration_tier": (
+            position.paper_opportunity_tier
+            if str(position.paper_opportunity_tier or "").strip().upper()
+            == "PAPER_RISK_CONTROLLER_EXPLORATION"
+            else None
+        ),
         "paper_opportunity_tier_reason": position.paper_opportunity_tier_reason,
         "explicit_paper_opportunity_tier": position.explicit_paper_opportunity_tier,
         "paper_fill_allowed_source": position.paper_fill_allowed_source,
@@ -953,6 +1082,25 @@ def _accepted_fill_with_position_metadata(
         "expected_funding_bps": position.expected_funding_bps,
         "funding_rate": position.funding_rate,
         "funding_interval_seconds": position.funding_interval_seconds,
+        "expected_funding_usd": position.expected_funding_usd,
+        "expected_net_pnl_usd": position.expected_net_pnl_usd,
+        "expected_max_loss_usd": position.expected_max_loss_usd,
+        "expected_shortfall_usd": position.expected_shortfall_usd,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_order": False,
+        "test_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "raw_safety_fields": raw_safety_fields,
+        "invariant_checks": invariant_checks,
         "holding_period_funding_bps": position.holding_period_funding_bps,
         "holding_period_funding_source": position.holding_period_funding_source,
         "latency_reserve_bps": position.latency_reserve_bps,
@@ -1338,6 +1486,7 @@ def reconcile_paper_lifecycle(
     closed_fill_ids = _closed_fill_ids(existing_ledger)
     blocked_entries: list[dict[str, Any]] = []
     accepted_open_fills: list[dict[str, Any]] = []
+    closed_previously_fills: list[dict[str, Any]] = []
     cap_evaluations: list[dict[str, Any]] = []
     netting_events: list[dict[str, Any]] = []
     exit_evaluations: list[dict[str, Any]] = []
@@ -1358,7 +1507,7 @@ def reconcile_paper_lifecycle(
                 fill,
                 status="CLOSED_PREVIOUSLY",
             )
-            accepted_open_fills.append(carried)
+            closed_previously_fills.append(carried)
             continue
         classified = classify_fill(fill)
         if not classified["economic"]:
@@ -1582,6 +1731,7 @@ def reconcile_paper_lifecycle(
     positions_by_symbol = {row["symbol"]: row for row in open_positions}
     policy_funding_repair_accepted_rows = [
         *accepted_open_fills,
+        *closed_previously_fills,
         *[dict(row) for row in accepted_fills if isinstance(row, dict)],
     ]
     closed_trades, policy_funding_repair_report, _closed_repair_by_token = repair_policy_funding_rows(
@@ -1632,6 +1782,7 @@ def reconcile_paper_lifecycle(
     return {
         "generated_utc": generated_utc,
         "accepted_open_fills": accepted_open_fills,
+        "closed_previously_fills": closed_previously_fills,
         "blocked_entries": blocked_entries,
         "open_positions": open_positions,
         "positions_by_symbol": positions_by_symbol,
@@ -1652,6 +1803,7 @@ def reconcile_paper_lifecycle(
             "open_positions_count": len(open_positions),
             "closed_positions_count": len(closed_trades),
             "new_close_event_count": len(new_close_events),
+            "closed_previously_fill_count": len(closed_previously_fills),
             "outcome_label_count": len(outcome_labels),
             "blocked_entry_count": len(blocked_entries),
             "dirty_close_block_count": len(dirty_close_blocks),

@@ -1,18 +1,16 @@
-"""V2 live-canary operator-gated execution adapter (private signed-post
-bypass remediated).
+"""V2 live-canary operator-gated execution adapter.
 
-Codex regression fix for
-`REAL_EXCHANGE_ADAPTER_PRIVATE_SIGNED_POST_BYPASSES_GATE_REVALIDATION`:
+Binance exchange transport is WebSocket API primary. REST is not the primary
+canary mutation path. The real transport still remains unreachable unless the
+existing 14-gate cascade passes at submission time.
 
 - The forgeable caller-supplied ``canary_signed_by_executor_gate_cascade``
   boolean field has been REMOVED from intent payloads. No
   caller-supplied flag of any shape can authorize a real order.
-- The prior private helper ``_perform_signed_post`` has been DELETED.
-  There is no separate method, no module-level helper, and no
-  static or class method that calls ``urllib.request.urlopen`` for
-  the real order endpoint. The gate revalidation and the inline
-  signed POST live in EXACTLY ONE function:
-  ``BinanceFuturesExchangeAdapter.submit_signed_canary_order``.
+- The old REST signed POST path has been replaced by Binance WebSocket API
+  ``order.place``. The signed WebSocket request is built and sent only inside
+  ``BinanceFuturesExchangeAdapter.submit_signed_canary_order`` after fresh gate
+  revalidation.
 - That single function:
   1. rejects non-``GateDecision`` arguments,
   2. rejects ``GateDecision`` whose ``_token`` is forged,
@@ -20,9 +18,9 @@ Codex regression fix for
   4. re-reads permission probe status file from disk,
   5. re-runs the shared 14-gate cascade against the freshly-read
      state via ``_evaluate_real_order_blockers``,
-  6. on ANY blocker, returns blocked WITHOUT calling urlopen,
-  7. only after the cascade clears, INLINE builds the signed body
-     and INLINE calls ``urllib.request.urlopen`` in the same scope.
+  6. on ANY blocker, returns blocked WITHOUT calling the WebSocket sender,
+  7. only after the cascade clears, builds a signed ``order.place`` request
+     and sends it through the configured WebSocket API sender.
 - A ``GateDecision`` dataclass carries the parameters needed for
   re-validation. Its ``_token`` field is a defense-in-depth check;
   the real safety guarantee is that the transport reads CURRENT
@@ -41,10 +39,9 @@ Default state at construction time:
 
 NEVER cancels orders. NEVER modifies orders. NEVER changes
 leverage. NEVER changes margin mode. NEVER writes legacy Redis.
-NEVER returns or logs raw API key/secret values. The only mutation
-surface anywhere in this module is a single signed POST to
-``/fapi/v1/order``, and that surface is gated by independent
-re-validation of all 14 gates.
+NEVER returns or logs raw API key/secret values. The only real exchange
+mutation surface anywhere in this module is WebSocket API ``order.place``, and
+that surface is gated by independent re-validation of all 14 gates.
 
 Allowed Redis writes (enforced by ``_safe_redis_set``):
 - ``v2:live_canary:intents``
@@ -56,17 +53,22 @@ Allowed Redis writes (enforced by ``_safe_redis_set``):
 from __future__ import annotations
 
 import dataclasses
-import hashlib
-import hmac
 import json
 import secrets as _secrets
 import time
-import urllib.error
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
+
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_ws_api_url,
+    build_signed_ws_api_request,
+    default_ws_api_sender,
+    redacted_json,
+)
+from v2.backend.app.services.execution.binance_order_builder import (
+    build_binance_order_plan,
+)
 
 V2_REDIS_PREFIX = "v2:"
 LIVE_CANARY_NAMESPACE = "v2:live_canary:"
@@ -237,6 +239,13 @@ class IntentCandidate:
     side: str
     requested_notional_usdt: float
     requested_quantity: float | None = None
+    current_price: float | None = None
+    best_bid: float | None = None
+    best_ask: float | None = None
+    symbol_filters: Mapping[str, Any] | None = None
+    hedge_mode: bool = True
+    maker_fee_bps: float = 2.0
+    taker_fee_bps: float = 4.0
     signal_source: str = "V2_NATIVE_SIGNAL_CANARY"
     expected_move_after_cost_bps: float | None = None
     paper_fill_gate_open: bool = False
@@ -249,6 +258,13 @@ class IntentCandidate:
             "side": self.side,
             "requested_notional_usdt": float(self.requested_notional_usdt),
             "requested_quantity": self.requested_quantity,
+            "current_price": self.current_price,
+            "best_bid": self.best_bid,
+            "best_ask": self.best_ask,
+            "symbol_filters": dict(self.symbol_filters or {}),
+            "hedge_mode": bool(self.hedge_mode),
+            "maker_fee_bps": float(self.maker_fee_bps),
+            "taker_fee_bps": float(self.taker_fee_bps),
             "signal_source": self.signal_source,
             "expected_move_after_cost_bps": self.expected_move_after_cost_bps,
             "paper_fill_gate_open": self.paper_fill_gate_open,
@@ -447,7 +463,7 @@ class FakeExchangeAdapter:
 
 
 class BinanceFuturesExchangeAdapter:
-    """Real Binance Futures transport.
+    """Real Binance Futures WebSocket API transport.
 
     The ONLY public method is ``submit_signed_canary_order``. That
     method INDEPENDENTLY re-reads operator approval file, Codex
@@ -460,27 +476,36 @@ class BinanceFuturesExchangeAdapter:
     leverage. NEVER changes margin mode. NEVER writes legacy Redis.
     """
 
-    NEW_ORDER_PATH = "/fapi/v1/order"
-    BASE_URL = "https://fapi.binance.com"
-    HTTP_TIMEOUT_SECONDS = 10
-    HTTP_RECV_WINDOW_MS = 5000
+    ORDER_METHOD = "order.place"
+    WS_TIMEOUT_SECONDS = 10.0
+    RECV_WINDOW_MS = 5000
 
-    def __init__(self, api_key: str, api_secret: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        api_secret: str,
+        *,
+        ws_api_url: str | None = None,
+        ws_sender: Callable[..., dict[str, Any]] | None = None,
+        clock_ms: Callable[[], int] | None = None,
+    ) -> None:
         if not api_key or not api_secret:
             raise ValueError(
                 "BINANCE_FUTURES_EXCHANGE_ADAPTER_REQUIRES_CREDENTIALS"
             )
         self._api_key = api_key
         self._api_secret = api_secret
+        self._ws_api_url = (ws_api_url or binance_ws_api_url()).rstrip("/")
+        self._ws_sender = ws_sender or default_ws_api_sender
+        self._clock_ms = clock_ms or (lambda: int(time.time() * 1000))
 
     def submit_signed_canary_order(
         self, *, gate_decision: GateDecision
     ) -> dict[str, Any]:
         """The ONLY method on this class that may reach
-        ``urllib.request.urlopen``. The 14-gate revalidation and the
-        signed POST are physically in the same function so that no
-        callable bypass exists (private or otherwise). Steps in
-        order:
+        WebSocket API sender. The 14-gate revalidation and signed
+        ``order.place`` submission are physically in the same function so that
+        no callable bypass exists (private or otherwise). Steps in order:
 
         1. Reject anything that is not a ``GateDecision`` instance.
         2. Reject a ``GateDecision`` whose ``_token`` does not equal
@@ -489,17 +514,14 @@ class BinanceFuturesExchangeAdapter:
         4. Re-read permission probe status file from disk.
         5. Re-run the shared 14-gate cascade against the freshly-read
            state.
-        6. On ANY blocker, return a blocked response WITHOUT calling
-           ``urlopen``.
-        7. Only after a clean re-validation, INLINE build the signed
-           request body, INLINE construct the urllib Request, and
-           INLINE call ``urllib.request.urlopen``.
+        6. On ANY blocker, return a blocked response WITHOUT calling the
+           WebSocket sender.
+        7. Only after a clean re-validation, build the signed WebSocket API
+           request and call the configured WebSocket sender.
 
-        There is no helper method that wraps the urlopen call. There
-        is no ``_perform_signed_post``. There is no ``_signed_post``,
-        ``_post_order``, ``_submit_order_raw``, ``_send_order``, or
-        ``submit_raw``. The gate revalidation and the network call
-        cannot be separated.
+        There is no ``_perform_signed_post``. There is no ``_signed_post``,
+        ``_post_order``, ``_submit_order_raw``, or ``submit_raw``. The gate
+        revalidation and the WebSocket network call cannot be separated.
         """
         # ------------------------------------------------------------------
         # Step 1: type-level rejection.
@@ -557,58 +579,90 @@ class BinanceFuturesExchangeAdapter:
                 ["MALFORMED_INTENT"], status_label="MALFORMED_INTENT"
             )
         # ------------------------------------------------------------------
-        # Step 6: build the signed body INLINE. No helper, no separate
-        # method, no module function. The body is constructed in the
-        # same function that calls urlopen, so there is no callable
-        # bypass.
+        # Step 6: build a maker-first LIMIT+GTX WebSocket order in this same
+        # function. No REST endpoint is primary for canary order submission,
+        # and a live canary entry must fail closed unless it carries enough
+        # current book/filter context to prove the post-only order will not
+        # cross the spread.
         # ------------------------------------------------------------------
-        params: dict[str, Any] = {
-            "symbol": str(symbol),
-            "side": str(side),
-            "type": "MARKET",
-            "quantity": str(quantity),
-            "timestamp": int(time.time() * 1000),
-            "recvWindow": self.HTTP_RECV_WINDOW_MS,
-        }
-        qs = urllib.parse.urlencode(params)
-        signature = hmac.new(
-            self._api_secret.encode(), qs.encode(), hashlib.sha256
-        ).hexdigest()
-        body = (qs + f"&signature={signature}").encode("utf-8")
-        req = urllib.request.Request(
-            f"{self.BASE_URL}{self.NEW_ORDER_PATH}",
-            data=body,
-            headers={"X-MBX-APIKEY": self._api_key},
-            method="POST",
+        symbol_filters = dict(candidate.symbol_filters or {})
+        if not symbol_filters:
+            return _blocked_response(
+                ["MAKER_FIRST_SYMBOL_FILTERS_MISSING"],
+                status_label="REJECTED_MAKER_FIRST_ORDER_PLAN",
+            )
+        plan = build_binance_order_plan(
+            symbol=str(symbol),
+            side=str(side),
+            symbol_filters=symbol_filters,
+            hedge_mode=bool(candidate.hedge_mode),
+            generated_utc=_utc_iso(),
+            current_price=candidate.current_price,
+            best_bid=candidate.best_bid,
+            best_ask=candidate.best_ask,
+            quantity=quantity,
+            notional_usd=candidate.requested_notional_usdt,
+            order_type="LIMIT",
+            time_in_force="GTX",
+            close_position=False,
+            reduce_only=False,
+            maker_fee_bps=candidate.maker_fee_bps,
+            taker_fee_bps=candidate.taker_fee_bps,
+        )
+        reject_reasons = list(plan.get("builder_reject_reasons") or [])
+        if not plan.get("symbol_filter_pass"):
+            reject_reasons.append("SYMBOL_FILTER_PASS_FALSE")
+        if not plan.get("maker_first") or plan.get("order_type") != "LIMIT":
+            reject_reasons.append("MAKER_FIRST_LIMIT_GTX_REQUIRED")
+        if plan.get("timeInForce") != "GTX":
+            reject_reasons.append("POST_ONLY_GTX_REQUIRED")
+        if plan.get("post_only_cross_spread_risk"):
+            reject_reasons.append("POST_ONLY_WOULD_CROSS_OR_BOOK_MISSING")
+        params = dict(plan.get("order_params") or {})
+        if reject_reasons or not params:
+            return _blocked_response(
+                sorted(set(reject_reasons or ["MAKER_FIRST_ORDER_PLAN_INVALID"])),
+                status_label="REJECTED_MAKER_FIRST_ORDER_PLAN",
+            )
+        params["recvWindow"] = self.RECV_WINDOW_MS
+        request_payload = build_signed_ws_api_request(
+            method=self.ORDER_METHOD,
+            params=params,
+            api_key=self._api_key,
+            api_secret=self._api_secret,
+            request_id=f"v2_canary_{int(self._clock_ms())}",
+            clock_ms=self._clock_ms,
         )
         # ------------------------------------------------------------------
-        # Step 7: INLINE urlopen call. This is the ONLY urlopen call
-        # site on the class and the ONLY urlopen call site in this
-        # module.
+        # Step 7: call the WebSocket API sender. This is the only real exchange
+        # network call site on the class.
         # ------------------------------------------------------------------
         try:
-            with urllib.request.urlopen(
-                req, timeout=self.HTTP_TIMEOUT_SECONDS
-            ) as resp:
-                _ = resp.read()
-                http_status = resp.status
+            response = self._ws_sender(
+                endpoint=self._ws_api_url,
+                payload=request_payload,
+                timeout=self.WS_TIMEOUT_SECONDS,
+            )
+            response_payload = (
+                response.get("response") if isinstance(response, Mapping) else None
+            )
+            ws_status = (
+                int(response.get("status_code") or 0)
+                if isinstance(response, Mapping)
+                else 0
+            )
+            submitted = bool(response.get("ok")) and ws_status == 200 if isinstance(response, Mapping) else False
             return {
-                "real_order_submitted": http_status == 200,
+                "real_order_submitted": submitted,
                 "real_order_attempted": True,
-                "places_real_order": http_status == 200,
-                "writes_exchange_orders": http_status == 200,
-                "exchange_response_status": f"HTTP_{http_status}",
-                "leverage_changed": False,
-                "margin_mode_changed": False,
-                "writes_legacy_redis": False,
-            }
-        except urllib.error.HTTPError as e:
-            return {
-                "real_order_submitted": False,
-                "real_order_attempted": True,
-                "places_real_order": False,
-                "writes_exchange_orders": False,
-                "exchange_response_status": f"HTTP_{e.code}",
+                "places_real_order": submitted,
+                "writes_exchange_orders": submitted,
+                "exchange_response_status": f"WS_{ws_status}" if ws_status else "WS_ERROR",
+                "websocket_api_url": self._ws_api_url,
+                "websocket_method": self.ORDER_METHOD,
+                "request_redacted": redacted_json(request_payload),
+                "response_redacted": redacted_json(response_payload or {}),
+                "rest_fallback_used": False,
                 "leverage_changed": False,
                 "margin_mode_changed": False,
                 "writes_legacy_redis": False,
@@ -619,7 +673,11 @@ class BinanceFuturesExchangeAdapter:
                 "real_order_attempted": True,
                 "places_real_order": False,
                 "writes_exchange_orders": False,
-                "exchange_response_status": f"ERROR:{type(e).__name__}",
+                "exchange_response_status": f"WS_ERROR:{type(e).__name__}",
+                "websocket_api_url": self._ws_api_url,
+                "websocket_method": self.ORDER_METHOD,
+                "request_redacted": redacted_json(request_payload),
+                "rest_fallback_used": False,
                 "leverage_changed": False,
                 "margin_mode_changed": False,
                 "writes_legacy_redis": False,

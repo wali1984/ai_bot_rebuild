@@ -1,5 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { CircleAlert, CircleCheck, Eye, EyeOff, LoaderCircle } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { fetchAuthHealth, type AuthHealth } from '../../api/auth';
 import meta from './meta';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -13,6 +15,48 @@ export default function LoginPage(): JSX.Element {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [authHealth, setAuthHealth] = useState<AuthHealth | null>(null);
+  const [authHealthError, setAuthHealthError] = useState<string | null>(null);
+  const [authHealthLoading, setAuthHealthLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    setAuthHealthLoading(true);
+    fetchAuthHealth()
+      .then((health) => {
+        if (!active) return;
+        setAuthHealth(health);
+        setAuthHealthError(null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setAuthHealth(null);
+        setAuthHealthError('Sign-in service health check failed');
+      })
+      .finally(() => {
+        if (!active) return;
+        setAuthHealthLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const authHealthOnline =
+    Boolean(authHealth?.login_endpoint_available) && authHealth?.status?.toLowerCase() === 'ok';
+  const authHealthDegraded = Boolean(
+    authHealthOnline && authHealth?.data_quality_status && authHealth.data_quality_status !== 'fresh',
+  );
+  const AuthHealthIcon = authHealthLoading ? LoaderCircle : authHealthOnline ? CircleCheck : CircleAlert;
+  const authHealthLabel = authHealthLoading
+    ? 'Checking sign-in service'
+    : authHealthOnline
+      ? 'Sign-in service online'
+      : 'Sign-in service issue';
+  const authHealthDetail = authHealthError
+    ?? (authHealthDegraded ? `Auth store ${authHealth?.data_quality_status}` : authHealth?.freshness_status)
+    ?? 'No health detail';
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -78,7 +122,7 @@ export default function LoginPage(): JSX.Element {
               fontSize: 26,
               fontWeight: 700,
               color: 'var(--text-primary)',
-              letterSpacing: '-0.02em',
+              letterSpacing: 0,
             }}
           >
             NERVYX ONE
@@ -120,7 +164,7 @@ export default function LoginPage(): JSX.Element {
                   fontWeight: 600,
                   color: 'var(--text-secondary)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  letterSpacing: 0,
                 }}
               >
                 Email address
@@ -176,7 +220,7 @@ export default function LoginPage(): JSX.Element {
                   fontWeight: 600,
                   color: 'var(--text-secondary)',
                   textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+                  letterSpacing: 0,
                 }}
               >
                 Password
@@ -238,7 +282,7 @@ export default function LoginPage(): JSX.Element {
                     lineHeight: 1,
                   }}
                 >
-                  {showPassword ? 'HIDE' : 'SHOW'}
+                  {showPassword ? <EyeOff size={15} strokeWidth={1.8} /> : <Eye size={15} strokeWidth={1.8} />}
                 </button>
               </div>
             </div>
@@ -315,6 +359,39 @@ export default function LoginPage(): JSX.Element {
           >
             Backend-authenticated access only. Session permissions are verified server-side.
           </p>
+          <div
+            data-testid="auth-health-status"
+            aria-live="polite"
+            style={{
+              margin: '12px 0 0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              minHeight: 18,
+              color: authHealthOnline
+                ? authHealthDegraded
+                  ? 'var(--warning, #b7791f)'
+                  : 'var(--success, #22c55e)'
+                : authHealthLoading
+                  ? 'var(--text-muted)'
+                  : 'var(--error)',
+              fontSize: 11,
+              textAlign: 'center',
+              lineHeight: 1.35,
+            }}
+          >
+            <AuthHealthIcon
+              aria-hidden="true"
+              size={13}
+              strokeWidth={2}
+              style={{ flex: '0 0 auto', animation: authHealthLoading ? 'af-spin 0.9s linear infinite' : undefined }}
+            />
+            <span>
+              <strong style={{ fontWeight: 600 }}>{authHealthLabel}</strong>
+              <span style={{ color: 'var(--text-muted)' }}> | {authHealthDetail}</span>
+            </span>
+          </div>
         </div>
 
       </div>

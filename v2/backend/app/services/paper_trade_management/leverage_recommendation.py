@@ -113,7 +113,18 @@ def recommend_leverage_for_signal(
     tf = timeframe.lower().strip()
 
     # Determine recommended leverage from confidence + volatility profile.
-    if direction == "flat" or confidence_calibrated < cfg.low_confidence_threshold:
+    # A non-positive after-cost expectation must never be levered: leverage is a
+    # derived value from *positive* risk-adjusted edge, so a negative/zero edge
+    # caps at 1x before confidence/volatility are even considered. (The composite
+    # allocator also caps small/negative edge to 1x; this keeps the standalone
+    # recommendation self-consistent for external verifiers.)
+    if (
+        expected_move_after_cost_bps is not None
+        and expected_move_after_cost_bps <= 0.0
+    ):
+        recommended_leverage = 1
+        reason_tier = "NON_POSITIVE_AFTER_COST_EDGE_1X"
+    elif direction == "flat" or confidence_calibrated < cfg.low_confidence_threshold:
         recommended_leverage = 1
         reason_tier = "FLAT_OR_LOW_CONFIDENCE_1X"
     elif (

@@ -76,10 +76,11 @@ test.describe('Admin Controls Security [COMPONENT_MOCK]', () => {
   test('Trader cannot access /admin (access-denied or login redirect)', async ({ page }) => {
     await mockAuth(page, 'trader');
     await page.goto('/admin');
-    // Either access-denied shown or redirect to /login
-    const hasAccessDenied = await page.getByTestId('access-denied').isVisible().catch(() => false);
-    const isOnLogin = page.url().includes('/login');
-    expect(hasAccessDenied || isOnLogin).toBe(true);
+    await expect.poll(async () => {
+      const hasAccessDenied = await page.getByTestId('access-denied').isVisible().catch(() => false);
+      const isOnLogin = page.url().includes('/login');
+      return hasAccessDenied || isOnLogin;
+    }, { timeout: 5_000 }).toBe(true);
   });
 
   test('Reviewer can access /admin/data without access-denied', async ({ page }) => {

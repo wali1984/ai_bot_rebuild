@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from app.api.v2 import market_contracts
+from app.api.v2 import market_contracts, mobile
 
 
 def _apply(state: dict, stream: str, data: dict) -> None:
@@ -13,6 +13,50 @@ def _apply(state: dict, stream: str, data: dict) -> None:
         symbol="BTCUSDT",
         timeframe="1m",
     )
+
+
+def test_preemptive_matrix_primary_api_compaction_bounds_rows_and_omits_debug_fields() -> None:
+    rows = [
+        {
+            "preemptive_decision_id": f"pec-{idx}",
+            "preemptive_decision": "NO_TRADE",
+            "preemptive_action": "BLOCK_BUCKET_QUARANTINE",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+            "pre_trade_loss_probability": 0.91,
+            "candidate_bucket_keys": [f"bucket-{n}" for n in range(20)],
+            "provider_features_missing": [f"feature-{n}" for n in range(12)],
+            "raw_debug_blob": "x" * 100_000,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+        for idx in range(12)
+    ]
+    matrix = {
+        "schema_version": "preemptive_candidate_decision_matrix_v1",
+        "generated_utc": "2026-07-09T20:00:00Z",
+        "candidate_count": 12,
+        "rows": rows,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+    web_compact = market_contracts._compact_preemptive_candidate_decision_matrix(matrix)
+    mobile_compact = mobile._compact_mobile_preemptive_candidate_decision_matrix(matrix)
+
+    for compact in (web_compact, mobile_compact):
+        assert compact["payload_compacted"] is True
+        assert compact["full_row_count"] == 12
+        assert compact["preview_row_count"] == 5
+        assert compact["omitted_row_count"] == 7
+        assert compact["sample_decisions"] == compact["rows"]
+        assert "raw_debug_blob" not in compact["rows"][0]
+        assert compact["rows"][0]["candidate_bucket_keys_count"] == 20
+        assert len(compact["rows"][0]["candidate_bucket_keys"]) == 8
+        assert compact["rows"][0]["provider_features_missing_count"] == 12
+        assert compact["routes_to_live"] is False
+        assert compact["places_real_order"] is False
 
 
 @pytest.mark.parametrize(
@@ -819,7 +863,7 @@ async def test_paper_runtime_status_exposes_owner_and_cost_coverage(monkeypatch:
 
     monkeypatch.setattr(market_contracts, "_read_json", fake_read_json)
 
-    payload = await market_contracts.get_paper_runtime_status(actor=None)
+    payload = await market_contracts.get_paper_runtime_status(actor=None, debug=True)
 
     assert payload["runtime"] == "v2_trade_management_paper_loop"
     assert payload["legacy_redis_writes"] is False
@@ -1113,7 +1157,9 @@ async def test_paper_runtime_status_uses_canonical_3000_portfolio_state(
     assert account["unrealized_pnl"] == 0.0
     assert account["open_position_count"] == 0
     assert account["closed_trade_count"] == 0
-    assert account["source"] == "redis:v2:portfolio:state+v2:paper:session+v2:paper:ledger"
+    assert account["source"] == "redis:v2:portfolio:state+v2:paper:session"
+    assert account["source_keys"] == ["v2:portfolio:state", "v2:paper:session"]
+    assert "v2:paper:ledger" not in client.get_calls
     assert "10000.0" not in json.dumps(account)
 
 

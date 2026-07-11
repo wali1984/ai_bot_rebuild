@@ -186,8 +186,38 @@ PAPER_EXECUTION_EVIDENCE_FIELDS: tuple[str, ...] = (
     "positive_edge_probation_max_risk_fraction_of_normal",
     "positive_edge_probation_budget_formula",
     "next_probation_gate",
+    "paper_risk_controller_exploration",
+    "allow_paper_risk_controller_exploration",
+    "paper_risk_controller_exploration_budget_cap_applied",
+    "paper_risk_controller_exploration_max_risk_fraction_of_normal",
+    "paper_risk_controller_exploration_budget_formula",
+    "paper_risk_controller_exploration_loss_probability_bound",
+    "paper_risk_controller_exploration_min_exit_feasibility",
+    "paper_risk_controller_exploration_eligible",
+    "paper_risk_controller_exploration_above_floor",
+    "paper_risk_controller_exploration_reasons",
+    "paper_risk_controller_exploration_block_reasons",
+    "paper_exploration_paper_fill_allowed",
+    "paper_exploration_paper_fill_block_reasons",
+    "paper_exploration_sizing",
+    "paper_exploration_counts_as_A_plus",
+    "paper_exploration_counts_as_live_ready",
+    "paper_exploration_routes_to_live",
+    "paper_exploration_places_real_order",
+    "dynamic_exploration_floor",
+    "dynamic_exploration_floor_formula",
+    "exploration_floor_inputs",
+    "exploration_floor_range",
+    "exploration_tier",
+    "exploration_reason",
+    "next_exploration_gate",
     "strict_paper_fill_allowed_upstream",
     "calibration_label_purpose",
+    "counts_as_A_plus",
+    "counts_as_final_a_plus",
+    "counts_as_live_ready",
+    "routes_to_live",
+    "places_real_order",
     "partial_fill_count",
     "partial_fills",
     "fill_count",
@@ -362,6 +392,82 @@ def _coerce_float(value: Any) -> float | None:
     return parsed if parsed == parsed else None
 
 
+def _utc_iso_from_value(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _apply_paper_exploration_feedback_economics_contract(row: dict[str, Any]) -> None:
+    tier = str(
+        _first_present(
+            row.get("paper_opportunity_tier"),
+            row.get("explicit_paper_opportunity_tier"),
+            row.get("tier"),
+            row.get("exploration_tier"),
+            row.get("paper_exploration_tier"),
+        )
+        or ""
+    ).strip().upper()
+    if tier != "PAPER_RISK_CONTROLLER_EXPLORATION":
+        return
+
+    if row.get("entry_time") in (None, ""):
+        row["entry_time"] = _first_present(
+            _utc_iso_from_value(row.get("entry_time_et")),
+            row.get("policy_activated_at"),
+            row.get("fill_price_utc"),
+            row.get("decision_time"),
+        )
+    if row.get("exit_time") in (None, ""):
+        row["exit_time"] = _first_present(
+            _utc_iso_from_value(row.get("exit_time_et")),
+            row.get("exit_price_utc"),
+        )
+    if row.get("realized_gross_pnl_usd") in (None, ""):
+        row["realized_gross_pnl_usd"] = _first_present(
+            row.get("gross_realized_pnl_usd"),
+            row.get("realized_pnl_usd"),
+            row.get("realized_pnl_usdt"),
+            row.get("realized_pnl"),
+        )
+    if row.get("fees_usd") in (None, ""):
+        row["fees_usd"] = _first_present(row.get("fees"), row.get("fee_usd"))
+    if row.get("slippage_usd") in (None, ""):
+        row["slippage_usd"] = _first_present(
+            row.get("slippage"),
+            row.get("realized_slippage_usd"),
+            row.get("implementation_shortfall_usd"),
+        )
+    if row.get("funding_usd") in (None, ""):
+        row["funding_usd"] = _first_present(row.get("funding"), row.get("funding_pnl_usd"))
+    if row.get("max_adverse_usd") in (None, ""):
+        row["max_adverse_usd"] = row.get("mae_usd")
+    if row.get("max_favorable_usd") in (None, ""):
+        row["max_favorable_usd"] = row.get("mfe_usd")
+    if row.get("win_loss") in (None, ""):
+        net = _coerce_float(row.get("realized_net_pnl_usd"))
+        if net is not None:
+            row["win_loss"] = "win" if net > 0 else "loss"
+    if row.get("dirty_reasons") is None:
+        row["dirty_reasons"] = []
+    if row.get("dirty_flag") is None:
+        row["dirty_flag"] = bool(row.get("dirty_reasons"))
+    row["paper_only"] = True
+    row["routes_to_live"] = False
+    row["places_real_order"] = False
+    row["counts_as_A_plus"] = False
+    row["counts_as_final_A_plus"] = False
+    row["counts_as_final_a_plus"] = False
+    row["counts_as_live_ready"] = False
+
+
 def _confidence_bucket(value: Any) -> str | None:
     confidence = _coerce_float(value)
     if confidence is None:
@@ -416,6 +522,33 @@ def _snapshot_features(snapshot: Any) -> dict[str, Any]:
         return {}
     features = snapshot.get("features")
     return features if isinstance(features, dict) else {}
+
+
+def _snapshot_has_higher_timeframe_features(snapshot: Any) -> bool:
+    features = _snapshot_features(snapshot)
+    return any(str(key).startswith("htf_") for key in features)
+
+
+def _apply_mtf_snapshot_alias_from_entry_features(row: dict[str, Any]) -> None:
+    if row.get("mtf_snapshot_id") not in (None, ""):
+        return
+    snapshot = _first_present(
+        row.get("entry_feature_snapshot") if isinstance(row.get("entry_feature_snapshot"), dict) else None,
+        row.get("feature_snapshot") if isinstance(row.get("feature_snapshot"), dict) else None,
+    )
+    if not isinstance(snapshot, dict) or not _snapshot_has_higher_timeframe_features(snapshot):
+        return
+    snapshot_id = _first_present(
+        snapshot.get("mtf_snapshot_id"),
+        snapshot.get("feature_snapshot_id"),
+        snapshot.get("snapshot_id"),
+        row.get("entry_feature_snapshot_id"),
+        row.get("feature_snapshot_id"),
+    )
+    if snapshot_id in (None, ""):
+        return
+    row["mtf_snapshot_id"] = snapshot_id
+    row["mtf_snapshot_id_source"] = "ENTRY_FEATURE_SNAPSHOT_WITH_HTF_FEATURES"
 
 
 def _snapshot_missing_features(snapshot: Any, *tokens: str) -> list[str]:
@@ -1431,6 +1564,8 @@ def build_strategy_hedge_exit_feedback(
     row["funding"] = _first_present(close_event.get("funding"), outcome_label.get("funding"), close_event.get("funding_pnl_usd"), outcome_label.get("funding_pnl_usd"))
     row["MFE"] = _first_present(close_event.get("MFE"), outcome_label.get("MFE"), close_event.get("mfe_bps"), outcome_label.get("mfe_bps"))
     row["MAE"] = _first_present(close_event.get("MAE"), outcome_label.get("MAE"), close_event.get("mae_bps"), outcome_label.get("mae_bps"))
+    _apply_mtf_snapshot_alias_from_entry_features(row)
+    _apply_paper_exploration_feedback_economics_contract(row)
     row["outcome_targets"] = _first_present(
         close_event.get("outcome_targets"),
         outcome_label.get("outcome_targets"),
@@ -1583,6 +1718,19 @@ def apply_trainer_feedback_field_contract(row: dict[str, Any]) -> dict[str, Any]
             row.get("calibration_label_purpose"),
             "positive_edge_probation_paper_outcome",
         )
+    if row.get("paper_risk_controller_exploration") is True:
+        row["allow_paper_risk_controller_exploration"] = True
+        row["counts_as_a_grade_evidence"] = False
+        row["counts_as_A_plus"] = False
+        row["counts_as_final_a_plus"] = False
+        row["counts_as_live_ready"] = False
+        row["routes_to_live"] = False
+        row["places_real_order"] = False
+        row["paper_only"] = True
+        row["calibration_label_purpose"] = _first_present(
+            row.get("calibration_label_purpose"),
+            "paper_risk_controller_exploration_outcome",
+        )
     if row.get("expected_edge") in (None, ""):
         row["expected_edge"] = _first_present(
             row.get("expected_edge_after_cost_bps"),
@@ -1593,6 +1741,7 @@ def apply_trainer_feedback_field_contract(row: dict[str, Any]) -> dict[str, Any]
             row.get("expected_move_after_cost_bps"),
             row.get("expected_edge"),
         )
+    _apply_mtf_snapshot_alias_from_entry_features(row)
     missing_contract_fields = [
         name for name in TRAINER_FEEDBACK_CONTRACT_FIELDS if row.get(name) in (None, "")
     ]

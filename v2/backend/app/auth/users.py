@@ -496,6 +496,10 @@ class UserStore:
                 if password
                 else None
             )
+            # Fresh bootstrap stores should mirror the production account
+            # contract: the initial trader is active and read-only scoped.
+            # Without an explicit seed password/hash, keep the generated
+            # high-entropy password hash so no known default login exists.
             users.append(
                 {
                     "id": "user-wajidali1984",
@@ -508,7 +512,7 @@ class UserStore:
                     "exchange_accounts": [exchange_account],
                     "watchlist": ["BTCUSDT", "ETHUSDT", "BNBUSDT"],
                     "alert_preferences": {},
-                    "is_active": bool(_resolved_hash),
+                    "is_active": True,
                     "created_at": now,
                     "updated_at": now,
                     "last_login": None,

@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const frontendRoot = __dirname;
+const frontendRoot = path.dirname(fileURLToPath(import.meta.url));
 if (process.cwd() !== frontendRoot) {
   process.chdir(frontendRoot);
 }

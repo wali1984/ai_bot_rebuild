@@ -1,0 +1,22 @@
+{
+  "allocator_blocks": null,
+  "bucket_quarantine_blocks": null,
+  "closed_positions": 27,
+  "counterfactual_rows": 41,
+  "exact_no_fill_reason": null,
+  "generated_utc": "2026-07-11T08:11:40Z",
+  "hard_fail": null,
+  "inventory_supply_rows": 747,
+  "marker": "PHASE4_PAPER_MATERIALIZATION_REPAIR_RUNTIME_STATUS",
+  "materialized_positions": 1,
+  "open_positions": 1,
+  "orchestrator_blocks": null,
+  "paper_loop_active": true,
+  "paper_loop_exploration_candidates": 2,
+  "paper_prefill_pass_rows": 91,
+  "performance_circuit_blocks": null,
+  "risk_blocks": null,
+  "status": "PAPER_MATERIALIZATION_ACTIVE",
+  "strategy_supply_rows": 26,
+  "trust_gate_blocks": null
+}

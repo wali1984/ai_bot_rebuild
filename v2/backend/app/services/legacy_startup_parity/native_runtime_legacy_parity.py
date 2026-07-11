@@ -932,12 +932,16 @@ _RAW_TRAINER_ORCH_TRADERS = [
         "health_check": "process_alive",
         "warmup_wait_seconds": 3,
         "v2_equivalent": (
-            "v2/backend/app/services/paper_mode/** runs paper-only "
-            "intents through the paper-fill gate. The legacy live "
-            "trader is not ported and must not be ported until the "
-            "live-readiness packet is operator-approved."
+            "v2/backend/app/cli/v2_trader_runtime_loop.py evaluates the "
+            "current trader path through BinanceUsdMWebSocketPrimaryTransport "
+            "with live still blocked by the V2 gate. Paper intents continue "
+            "through the paper-fill gate; the archived legacy REST trader is "
+            "reference-only and must not be restarted."
         ),
-        "next_action": "Keep V2 paper-only; legacy trader stays unported.",
+        "next_action": (
+            "Keep live disabled; use V2 WebSocket-primary trader dry-run and "
+            "paper-only management until operator review approves live."
+        ),
     },
     {
         "service_id": "trading_trader_asjad",

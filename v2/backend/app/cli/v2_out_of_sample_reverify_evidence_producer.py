@@ -100,6 +100,7 @@ PENDING_ELIGIBLE_SOURCE_KINDS = {
     "filesystem_runtime_snapshot",
     "redis_paper_intent",
     "redis_paper_signal",
+    "redis_paper_candidate_allocation",
     "redis_prediction",
     "redis_paper_ledger_accepted",
 }
@@ -287,6 +288,63 @@ def _iter_jsonl(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         "parse_error_count": len(parse_errors),
         "parse_error_sample": parse_errors,
         "sha256": _file_sha256(path),
+    }
+
+
+def _iter_jsonl_bounded(
+    path: Path,
+    *,
+    max_rows: int | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    if max_rows is None:
+        rows, source_status = _iter_jsonl(path)
+        source_status["bounded_reader_used"] = False
+        source_status["truncated_by_max_rows"] = False
+        return rows, source_status
+    rows: list[dict[str, Any]] = []
+    parse_errors: list[dict[str, Any]] = []
+    scanned = 0
+    limit = max(0, int(max_rows))
+    if not path.exists():
+        return rows, {
+            "path": str(path),
+            "exists": False,
+            "scanned_line_count": 0,
+            "parse_error_count": 0,
+            "parse_error_sample": [],
+            "sha256": None,
+            "bounded_reader_used": True,
+            "truncated_by_max_rows": False,
+            "max_rows": limit,
+        }
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if scanned >= limit:
+                break
+            stripped = line.strip()
+            if not stripped:
+                continue
+            scanned += 1
+            try:
+                payload = json.loads(stripped)
+            except Exception as exc:  # noqa: BLE001
+                if len(parse_errors) < 20:
+                    parse_errors.append({"line_number": line_number, "error": str(exc)})
+                continue
+            if isinstance(payload, dict):
+                payload.setdefault("_source_line_number", line_number)
+                rows.append(payload)
+    return rows, {
+        "path": str(path),
+        "exists": True,
+        "scanned_line_count": scanned,
+        "parse_error_count": len(parse_errors),
+        "parse_error_sample": parse_errors,
+        "sha256": None,
+        "sha256_omitted_reason": "bounded_summary_requested",
+        "bounded_reader_used": True,
+        "truncated_by_max_rows": True,
+        "max_rows": limit,
     }
 
 
@@ -762,6 +820,11 @@ def _paper_loop_once_allocation_row(
 
     for field in (
         "allocation_id",
+        "candidate_id",
+        "candidate_allocation_source",
+        "strategy_supply_hypothesis",
+        "strategy_supply_hypothesis_id",
+        "strategy_supply_shadow_evidence_only",
         "symbol",
         "timeframe",
         "side",
@@ -782,11 +845,39 @@ def _paper_loop_once_allocation_row(
         "expected_move_after_cost_bps",
         "expected_move_bps",
         "expected_net_edge_bps",
+        "expected_gross_pnl_usd",
+        "expected_cost_usd",
+        "expected_net_pnl_usd",
+        "expected_max_loss_usd",
+        "entry_price",
+        "entry_price_source",
+        "entry_price_utc",
+        "current_price",
         "signal_id",
         "prediction_id",
+        "preemptive_decision",
+        "preemptive_decision_id",
+        "allocator_decision_id",
         "risk_decision_id",
+        "orchestrator_decision",
+        "orchestrator_decision_id",
+        "guardian_decision",
+        "guardian_decision_id",
         "execution_intent_id",
         "feature_snapshot_id",
+        "entry_feature_snapshot_id",
+        "entry_feature_available_at",
+        "entry_feature_generated_at",
+        "entry_feature_cutoff",
+        "entry_feature_decision_time",
+        "entry_feature_source",
+        "entry_feature_candle_closed_confirmed",
+        "entry_feature_unavailable_reason",
+        "strategy_supply_trainer_feedback_ready",
+        "strategy_supply_trainer_feedback_blockers",
+        "feature_vector_hash",
+        "provider_feature_hashes",
+        "source_hashes",
         "model_version",
         "model_checkpoint",
         "trainer_source",
@@ -805,9 +896,15 @@ def _paper_loop_once_allocation_row(
         "pre_guardian_paper_fill_allowed_source",
         "continuous_edge_guardian_forced_shadow_only",
         "continuous_edge_guardian_status",
+        "continuous_edge_guardian_new_entries_allowed",
         "continuous_edge_guardian_block_reasons",
         "continuous_edge_guardian_allowed_runtime_actions",
+        "guardian_status",
+        "guardian_new_entries_allowed",
+        "guardian_block_reasons",
         "counts_as_a_grade_evidence",
+        "counts_as_final_a_plus",
+        "counts_as_live_ready",
         "admission_tier",
         "candidate_tier",
         "liquidity_adjustment",
@@ -822,9 +919,12 @@ def _paper_loop_once_allocation_row(
         "stop_reference",
         "take_profit_reference",
         "gross_notional_usd",
+        "notional_usd",
         "allocated_margin_usd",
+        "margin_usd",
         "recommended_leverage",
         "effective_leverage",
+        "leverage",
         "recommended_margin_mode",
         "margin_mode",
         "stop_distance_bps",
@@ -873,6 +973,8 @@ def _paper_loop_once_allocation_row(
     _set_if_present(row, "signal_id", lineage_ids.get("signal_id"))
     _set_if_present(row, "risk_decision_id", lineage_ids.get("risk_decision_id"))
     _set_if_present(row, "feature_snapshot_id", lineage_ids.get("feature_snapshot_id"))
+    if isinstance(allocation.get("entry_feature_snapshot"), dict):
+        row["entry_feature_snapshot"] = dict(allocation["entry_feature_snapshot"])
 
     paper_only = status_module._first_present(
         allocation.get("paper_only"),
@@ -5347,8 +5449,12 @@ def _selector_context_alias_summary(rows: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
-def _rejection_ledger_summary(rejected_path: Path) -> dict[str, Any]:
-    rows, source_status = _iter_jsonl(rejected_path)
+def _rejection_ledger_summary(
+    rejected_path: Path,
+    *,
+    max_rows: int | None = None,
+) -> dict[str, Any]:
+    rows, source_status = _iter_jsonl_bounded(rejected_path, max_rows=max_rows)
     reason_counts: dict[str, int] = {}
     source_kind_counts: dict[str, int] = {}
     source_kind_reason_counts: dict[str, dict[str, int]] = {}
@@ -6563,6 +6669,294 @@ def _paper_allocation_source_diagnostics(
     }
 
 
+def _strategy_supply_source_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        row
+        for row in rows
+        if row.get("strategy_supply_hypothesis") is True
+        or row.get("strategy_supply_hypothesis_id") not in (None, "")
+        or str(row.get("candidate_allocation_source") or "").startswith("strategy_supply_")
+    ]
+
+
+def _strategy_supply_provider_hashes(row: dict[str, Any]) -> dict[str, Any]:
+    for field in ("provider_hashes", "provider_feature_hashes", "source_hashes"):
+        value = row.get(field)
+        if isinstance(value, dict) and value:
+            return dict(value)
+    return {}
+
+
+def _strategy_supply_required_rejection_reasons(row: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    for field in ("decision_time", "feature_cutoff", "available_at"):
+        if row.get(field) in (None, ""):
+            reasons.append(f"STRATEGY_SUPPLY_MISSING_PIT_{field.upper()}")
+    for field in ("expected_net_pnl_usd", "expected_max_loss_usd"):
+        if row.get(field) in (None, ""):
+            reasons.append(f"STRATEGY_SUPPLY_MISSING_ACCOUNTING_{field.upper()}")
+    if _strategy_supply_provider_hashes(row) == {}:
+        reasons.append("STRATEGY_SUPPLY_MISSING_PROVIDER_HASHES")
+    for field in (
+        "preemptive_decision_id",
+        "allocator_decision_id",
+        "risk_decision_id",
+        "orchestrator_decision_id",
+    ):
+        if row.get(field) in (None, ""):
+            reasons.append(f"STRATEGY_SUPPLY_MISSING_DECISION_ID_{field.upper()}")
+    reasons.extend(_strategy_supply_feedback_blockers(row))
+    return reasons
+
+
+def _strategy_supply_pit_rejection_reason(reason: str) -> bool:
+    return (
+        "MISSING_PIT" in reason
+        or reason.startswith("FEATURE_")
+        or reason in {
+            "MISSING_PIT_ENTRY_FEATURE_SNAPSHOT",
+            "NON_CURRENT_V2_FEATURE_SNAPSHOT",
+            "UNFINISHED_CANDLE_FEATURE_SNAPSHOT_REJECTED",
+            "EMPTY_V2_FEATURE_SNAPSHOT",
+            "INVALID_V2_FEATURE_SNAPSHOT_JSON",
+            "INVALID_V2_FEATURE_SNAPSHOT_PAYLOAD",
+        }
+    )
+
+
+def _strategy_supply_feedback_blockers(row: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    entry_snapshot = row.get("entry_feature_snapshot")
+    if not isinstance(entry_snapshot, dict):
+        entry_snapshot = row.get("feature_snapshot") if isinstance(row.get("feature_snapshot"), dict) else None
+    features = entry_snapshot.get("features") if isinstance(entry_snapshot, dict) else {}
+    if not isinstance(features, dict) or not features:
+        blockers.append(
+            str(
+                row.get("entry_feature_unavailable_reason")
+                or "MISSING_PIT_ENTRY_FEATURE_SNAPSHOT"
+            )
+        )
+    if status_module._coerce_float(
+        status_module._first_present(row.get("entry_price"), row.get("current_price"))
+    ) is None:
+        blockers.append("MISSING_ENTRY_PRICE")
+    if status_module._coerce_float(row.get("notional_usd")) is None:
+        blockers.append("MISSING_NOTIONAL_USD")
+    if status_module._coerce_float(row.get("expected_cost_usd")) is None:
+        blockers.append("MISSING_EXPECTED_COST_USD")
+    return sorted(set(blockers))
+
+
+def _strategy_supply_pending_record(
+    row: dict[str, Any],
+    *,
+    generated_utc: str,
+) -> dict[str, Any]:
+    selection = _without_outcome_fields(dict(row))
+    decision_time = selection.get("decision_time") or selection.get("entry_feature_decision_time")
+    guardian_blocked = (
+        selection.get("continuous_edge_guardian_forced_shadow_only") is True
+        or selection.get("guardian_new_entries_allowed") is False
+        or str(selection.get("paper_opportunity_tier_reason") or "").startswith("CONTINUOUS_EDGE_GUARDIAN")
+    )
+    return {
+        "schema_version": "strategy_supply_pending_evidence_v1",
+        "generated_utc": generated_utc,
+        "hypothesis_id": status_module._first_present(
+            selection.get("strategy_supply_hypothesis_id"),
+            selection.get("hypothesis_id"),
+            selection.get("prediction_id"),
+        ),
+        "candidate_id": status_module._first_present(
+            selection.get("candidate_id"),
+            selection.get("allocation_id"),
+            selection.get("prediction_id"),
+        ),
+        "symbol": status_module._normalized_symbol(selection),
+        "timeframe": status_module._row_value(selection, "timeframe") or selection.get("timeframe"),
+        "side": status_module._directional_side(selection),
+        "strategy_id": status_module._first_present(
+            selection.get("strategy_id"),
+            selection.get("strategy_supply_hypothesis_id"),
+            selection.get("hypothesis_id"),
+        ),
+        "strategy_family": selection.get("strategy_family") or "strategy_supply_shadow",
+        "strategy_subtype": selection.get("strategy_subtype") or selection.get("strategy_selected_mode"),
+        "decision_time": decision_time,
+        "feature_cutoff": selection.get("feature_cutoff") or selection.get("entry_feature_cutoff"),
+        "available_at": selection.get("available_at") or selection.get("entry_feature_available_at"),
+        "expected_net_pnl_usd": selection.get("expected_net_pnl_usd"),
+        "expected_gross_pnl_usd": selection.get("expected_gross_pnl_usd"),
+        "expected_cost_usd": selection.get("expected_cost_usd"),
+        "expected_max_loss_usd": selection.get("expected_max_loss_usd"),
+        "notional_usd": status_module._first_present(
+            selection.get("notional_usd"),
+            selection.get("target_notional_usd"),
+            selection.get("gross_notional_usd"),
+        ),
+        "margin_usd": status_module._first_present(
+            selection.get("margin_usd"),
+            selection.get("allocated_margin_usd"),
+        ),
+        "entry_price": status_module._first_present(
+            selection.get("entry_price"),
+            selection.get("fill_price"),
+            selection.get("current_price"),
+        ),
+        "current_price": status_module._first_present(
+            selection.get("current_price"),
+            selection.get("mark_price"),
+            selection.get("entry_price"),
+        ),
+        "entry_price_source": selection.get("entry_price_source"),
+        "entry_price_utc": selection.get("entry_price_utc"),
+        "feature_snapshot_id": status_module._first_present(
+            selection.get("entry_feature_snapshot_id"),
+            selection.get("feature_snapshot_id"),
+        ),
+        "entry_feature_snapshot_id": status_module._first_present(
+            selection.get("entry_feature_snapshot_id"),
+            selection.get("feature_snapshot_id"),
+        ),
+        "entry_feature_available_at": selection.get("entry_feature_available_at"),
+        "entry_feature_generated_at": selection.get("entry_feature_generated_at"),
+        "entry_feature_cutoff": selection.get("entry_feature_cutoff"),
+        "entry_feature_decision_time": selection.get("entry_feature_decision_time"),
+        "entry_feature_source": selection.get("entry_feature_source"),
+        "entry_feature_candle_closed_confirmed": selection.get(
+            "entry_feature_candle_closed_confirmed"
+        ),
+        "entry_feature_unavailable_reason": selection.get("entry_feature_unavailable_reason"),
+        "entry_feature_snapshot": (
+            dict(selection.get("entry_feature_snapshot"))
+            if isinstance(selection.get("entry_feature_snapshot"), dict)
+            else None
+        ),
+        "provider_hashes": _strategy_supply_provider_hashes(selection),
+        "source_hashes": (
+            dict(selection.get("source_hashes"))
+            if isinstance(selection.get("source_hashes"), dict)
+            else _strategy_supply_provider_hashes(selection)
+        ),
+        "preemptive_decision_id": selection.get("preemptive_decision_id"),
+        "allocator_decision_id": selection.get("allocator_decision_id"),
+        "risk_decision_id": selection.get("risk_decision_id"),
+        "orchestrator_decision_id": selection.get("orchestrator_decision_id"),
+        "guardian_decision_id": selection.get("guardian_decision_id"),
+        "pending_label_window": {
+            "status": "PENDING_FUTURE_LABEL",
+            "decision_time": decision_time,
+            "source_timeframe": selection.get("timeframe"),
+        },
+        "trainer_feedback_blockers": _strategy_supply_feedback_blockers(selection),
+        "trainer_feedback_ready": not _strategy_supply_feedback_blockers(selection),
+        "guardian_blocked": guardian_blocked,
+        "countable_pending_evidence": not guardian_blocked,
+        "not_countable_reason": "guardian-blocked" if guardian_blocked else None,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+
+
+def _write_strategy_supply_evidence_sidecars(
+    *,
+    source_rows: list[dict[str, Any]],
+    rows_path: Path,
+    generated_utc: str,
+) -> dict[str, Any]:
+    pending_path = rows_path.with_name("strategy_supply_pending_evidence.jsonl")
+    matured_path = rows_path.with_name("strategy_supply_matured_evidence.jsonl")
+    rejected_path = rows_path.with_name("strategy_supply_rejected_evidence.jsonl")
+    _touch(pending_path)
+    _touch(matured_path)
+    _touch(rejected_path)
+    existing_pending = _existing_identities(pending_path)
+    existing_matured = _existing_identities(matured_path)
+    existing_rejected = _existing_identities(rejected_path)
+    pending = 0
+    matured = 0
+    rejected = 0
+    guardian_blocked = 0
+    missing_pit = 0
+    missing_accounting = 0
+    no_future_label = 0
+    strategy_rows = _strategy_supply_source_rows(source_rows)
+    for row in strategy_rows:
+        identity = _row_identity(row)
+        reasons = _strategy_supply_required_rejection_reasons(row)
+        if reasons:
+            if any(_strategy_supply_pit_rejection_reason(reason) for reason in reasons):
+                missing_pit += 1
+            if any("MISSING_ACCOUNTING" in reason for reason in reasons):
+                missing_accounting += 1
+            if identity not in existing_rejected:
+                rejection = {
+                    "schema_version": "strategy_supply_rejected_evidence_v1",
+                    "generated_utc": generated_utc,
+                    "candidate_identity": identity,
+                    "hypothesis_id": status_module._first_present(
+                        row.get("strategy_supply_hypothesis_id"),
+                        row.get("hypothesis_id"),
+                        row.get("prediction_id"),
+                    ),
+                    "candidate_id": status_module._first_present(
+                        row.get("candidate_id"),
+                        row.get("allocation_id"),
+                        row.get("prediction_id"),
+                    ),
+                    "symbol": status_module._normalized_symbol(row),
+                    "timeframe": status_module._row_value(row, "timeframe") or row.get("timeframe"),
+                    "side": status_module._directional_side(row),
+                    "decision_time": row.get("decision_time") or row.get("entry_feature_decision_time"),
+                    "reasons": reasons,
+                    "counts_as_a_plus": False,
+                    "counts_as_live_ready": False,
+                }
+                _append_jsonl(rejected_path, rejection)
+                existing_rejected.add(identity)
+                rejected += 1
+            continue
+        record = _strategy_supply_pending_record(row, generated_utc=generated_utc)
+        if record["guardian_blocked"]:
+            guardian_blocked += 1
+        if _has_realtime_outcome(row):
+            if identity not in existing_matured:
+                matured_row = {
+                    **record,
+                    "schema_version": "strategy_supply_matured_evidence_v1",
+                    "outcome_label_status": "MATURED_FROM_PREEXISTING_SOURCE_OUTCOME",
+                    "counts_as_a_plus": False,
+                    "counts_as_live_ready": False,
+                }
+                _append_jsonl(matured_path, matured_row)
+                existing_matured.add(identity)
+                matured += 1
+            continue
+        no_future_label += 1
+        if identity not in existing_pending:
+            _append_jsonl(pending_path, record)
+            existing_pending.add(identity)
+            pending += 1
+    return {
+        "schema_version": "strategy_supply_evidence_sidecar_status_v1",
+        "generated_utc": generated_utc,
+        "source_row_count": len(strategy_rows),
+        "pending_rows_appended": pending,
+        "matured_rows_appended": matured,
+        "rejected_rows_appended": rejected,
+        "guardian_blocked_row_count": guardian_blocked,
+        "missing_pit_row_count": missing_pit,
+        "missing_accounting_row_count": missing_accounting,
+        "no_future_label_row_count": no_future_label,
+        "pending_path": str(pending_path),
+        "matured_path": str(matured_path),
+        "rejected_path": str(rejected_path),
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+
+
 def _lineage_bridge_alias_values(row: dict[str, Any]) -> set[str]:
     aliases = {
         str(row.get(field))
@@ -7696,7 +8090,7 @@ def produce_holdout(
         generated_utc=generated_utc,
         scope="holdout",
     )
-    rejection_ledger = _rejection_ledger_summary(rejected_path)
+    rejection_ledger = _rejection_ledger_summary(rejected_path, max_rows=max_rows)
     candidate_audit_windows = [
         window
         for window in candidate_audit.get("windows") or []
@@ -8027,6 +8421,15 @@ def _realtime_rows_from_redis(*, scan_limit: int) -> tuple[list[dict[str, Any]],
         client,
         fallback_ledger=ledger if isinstance(ledger, dict) else None,
     )
+    adaptive_sizing_status = (
+        status_module._redis_json(client, "v2:paper:adaptive_sizing_runtime_status")
+        or {}
+    )
+    adaptive_sizing_rows = (
+        _paper_loop_once_allocation_rows(adaptive_sizing_status)
+        if isinstance(adaptive_sizing_status, dict)
+        else []
+    )
     counterfactual_paper_signals = status_module._counterfactual_signal_rows_with_prediction_temporal_context(
         paper_signals=paper_signals,
         prediction_rows=prediction_rows,
@@ -8047,6 +8450,11 @@ def _realtime_rows_from_redis(*, scan_limit: int) -> tuple[list[dict[str, Any]],
     source_groups: list[tuple[str, str, list[dict[str, Any]]]] = [
         ("redis_paper_intent", "v2:paper:intents+held", paper_intents),
         ("redis_paper_signal", "v2:signals:paper:*", counterfactual_paper_signals),
+        (
+            "redis_paper_candidate_allocation",
+            "v2:paper:adaptive_sizing_runtime_status.candidate_allocations",
+            adaptive_sizing_rows,
+        ),
         ("redis_prediction", "v2:prediction:*", prediction_rows),
         ("redis_paper_ledger_accepted", "v2:paper:ledger.accepted", durable_accepted_rows),
         ("redis_paper_ledger_open", "v2:paper:ledger.open_positions", open_positions),
@@ -8375,7 +8783,7 @@ def produce_realtime(
         generated_utc=generated_utc,
         scope="realtime",
     )
-    rejection_ledger = _rejection_ledger_summary(rejected_path)
+    rejection_ledger = _rejection_ledger_summary(rejected_path, max_rows=max_rows)
     source_gate_summary = _finalize_source_gate_breakdown(source_gate_breakdown)
     realtime_readiness_summary = _finalize_realtime_source_readiness_summary(
         source_readiness_summary,
@@ -8384,6 +8792,11 @@ def produce_realtime(
         source_rows,
         expected_fingerprint=expected_fingerprint,
         eligible_bucket_keys=eligible_keys,
+        generated_utc=generated_utc,
+    )
+    strategy_supply_evidence_sidecar_status = _write_strategy_supply_evidence_sidecars(
+        source_rows=source_rows,
+        rows_path=rows_path,
         generated_utc=generated_utc,
     )
     lineage_bridge_diagnostics = _low_fidelity_allocation_lineage_bridge_diagnostics(
@@ -8436,6 +8849,7 @@ def produce_realtime(
         ),
         "paper_event_source_diagnostics": _paper_event_source_diagnostics(source_rows),
         "paper_allocation_source_diagnostics": paper_allocation_diagnostics,
+        "strategy_supply_evidence_sidecar_status": strategy_supply_evidence_sidecar_status,
         "low_fidelity_allocation_lineage_bridge_diagnostics": lineage_bridge_diagnostics,
         "selector_bucket_diagnostics": selector_bucket_diagnostics,
         "selector_source_contract_diagnostics": selector_source_contract_diagnostics,
@@ -8552,7 +8966,38 @@ def produce_realtime_watch(
     }
 
 
-def regenerate_status(*, horizon_years: float) -> dict[str, Any]:
+def _run_status_regeneration_command(
+    command: list[str],
+    *,
+    log_path: Path,
+    timeout_seconds: float,
+) -> tuple[int | None, bool]:
+    timeout = max(1.0, float(timeout_seconds))
+    deadline = time.monotonic() + timeout
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("w", encoding="utf-8") as log_handle:
+        process = subprocess.Popen(  # noqa: S603 - command is a fixed Python module invocation.
+            command,
+            cwd=REPO_ROOT,
+            text=True,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+        )
+        while process.poll() is None:
+            if time.monotonic() >= deadline:
+                process.kill()
+                process.wait(timeout=5)
+                log_handle.write(f"\nSTATUS_REGENERATION_TIMEOUT_AFTER_SECONDS={timeout}\n")
+                return None, True
+            time.sleep(0.2)
+        return process.returncode, False
+
+
+def regenerate_status(
+    *,
+    horizon_years: float,
+    timeout_seconds: float = 120.0,
+) -> dict[str, Any]:
     command = [
         sys.executable,
         "-m",
@@ -8561,32 +9006,31 @@ def regenerate_status(*, horizon_years: float) -> dict[str, Any]:
         str(horizon_years),
     ]
     started = time.time()
-    completed = subprocess.run(
-        command,
-        cwd=REPO_ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
     log_path = DEFAULT_OUT_DIR / "out_of_sample_evidence_producer_status_regeneration.log"
-    log_path.write_text(completed.stdout + completed.stderr)
+    returncode, timed_out = _run_status_regeneration_command(
+        command,
+        log_path=log_path,
+        timeout_seconds=timeout_seconds,
+    )
     dashboard = _load_json(DEFAULT_OUT_DIR / "operator_dashboard_payload.json")
     dashboard = dashboard if isinstance(dashboard, dict) else {}
     out_of_sample = dashboard.get("out_of_sample_live_grade_reverify_status")
     out_of_sample = out_of_sample if isinstance(out_of_sample, dict) else {}
     overall_status = dashboard.get("overall_status")
-    regeneration_status = (
-        "PASSED_STATUS_REGENERATED"
-        if completed.returncode == 0
-        else "READY_STATUS_REGENERATED_WITH_NO_GO_GATE"
-        if completed.returncode == 2 and overall_status == "NO_GO"
-        else "NO_GO_STATUS_REGENERATION_COMMAND_FAILED"
-    )
+    if timed_out:
+        regeneration_status = "NO_GO_STATUS_REGENERATION_TIMEOUT"
+    elif returncode == 0:
+        regeneration_status = "PASSED_STATUS_REGENERATED"
+    elif returncode == 2 and overall_status == "NO_GO":
+        regeneration_status = "READY_STATUS_REGENERATED_WITH_NO_GO_GATE"
+    else:
+        regeneration_status = "NO_GO_STATUS_REGENERATION_COMMAND_FAILED"
     return {
         "status": regeneration_status,
         "command": command,
-        "returncode": completed.returncode,
+        "returncode": returncode,
+        "timed_out": timed_out,
+        "timeout_seconds": max(1.0, float(timeout_seconds)),
         "duration_seconds": round(time.time() - started, 8),
         "log_path": str(log_path),
         "dashboard_generated_utc": dashboard.get("generated_utc"),
@@ -8788,6 +9232,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-closed-without-pending", action="store_true")
     parser.add_argument("--verify-integrity", action="store_true")
     parser.add_argument("--regenerate-status", action="store_true")
+    parser.add_argument("--status-regeneration-timeout-seconds", type=float, default=120.0)
     parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--horizon-years", type=float, default=5.0)
     args = parser.parse_args(argv)
@@ -8963,7 +9408,10 @@ def main(argv: list[str] | None = None) -> int:
             holdout_registry=holdout_registry_for_integrity,
         )
     if args.regenerate_status:
-        summaries["status_regeneration"] = regenerate_status(horizon_years=args.horizon_years)
+        summaries["status_regeneration"] = regenerate_status(
+            horizon_years=args.horizon_years,
+            timeout_seconds=args.status_regeneration_timeout_seconds,
+        )
     _write_json(summary_path, summaries)
     printable = _compact_producer_summary(summaries) if args.summary_only else summaries
     print(json.dumps(printable, indent=2, sort_keys=False))

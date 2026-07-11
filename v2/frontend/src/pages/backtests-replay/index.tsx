@@ -43,6 +43,37 @@ interface ReplayStatus {
   bounded_events_count: number | null;
 }
 
+interface BacktestResults {
+  available: boolean;
+  generated_utc: string | null;
+  effective_trainer_mode: string | null;
+  replay_examples_built: number | null;
+  backtest_is_a_plus_evidence: boolean;
+  continuous_replay_active: boolean | null;
+  policy_backtest: {
+    win_rate: number | null;
+    profit_factor_proxy: number | null;
+    expectancy_after_cost_bps: number | null;
+    rows_evaluated: number | null;
+    status: string | null;
+    evidence_class: string | null;
+  } | null;
+  generalization: {
+    validation_supervised_loss: number | null;
+    validation_rows_evaluated: number | null;
+    train_val_generalization_gap: number | null;
+    overfit_gap_warning: boolean | null;
+    loss_before: number | null;
+    loss_after: number | null;
+  } | null;
+  replay_feedback: {
+    existing_counterfactual_rows: number | null;
+    new_matured_rows: number | null;
+    pending_rows: number | null;
+    trainer_loader_consumes: boolean | null;
+  } | null;
+}
+
 const HOT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'];
 const SPEEDS = [1, 2, 5, 10] as const;
@@ -135,6 +166,15 @@ export default function BacktestsReplayPage(): JSX.Element {
     source_type: 'websocket',
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+
+  const { envelope: backtestEnv } = useRealtimeResource<BacktestResults>({
+    url: '/api/v2/replay/backtest',
+    source: '/api/v2/replay/backtest',
+    source_type: 'websocket',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 120_000,
     mode: 'read_only',
   });
 
@@ -354,6 +394,42 @@ export default function BacktestsReplayPage(): JSX.Element {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Backtest results + out-of-sample generalization */}
+          <div data-testid="backtest-results-card" style={{ padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435', marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Backtest &amp; Generalization</div>
+            {backtestEnv.data?.available && backtestEnv.data.policy_backtest ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontFamily: 'monospace', fontSize: 11 }}>
+                  <span style={{ color: '#26c281' }}>Win {backtestEnv.data.policy_backtest.win_rate != null ? `${(backtestEnv.data.policy_backtest.win_rate * 100).toFixed(1)}%` : '—'}</span>
+                  <span style={{ color: '#9ca3af' }}>PF {backtestEnv.data.policy_backtest.profit_factor_proxy != null ? backtestEnv.data.policy_backtest.profit_factor_proxy.toFixed(2) : '—'}</span>
+                  <span style={{ color: '#9ca3af' }}>Exp {backtestEnv.data.policy_backtest.expectancy_after_cost_bps != null ? `${backtestEnv.data.policy_backtest.expectancy_after_cost_bps.toFixed(1)}bps` : '—'}</span>
+                  <span style={{ color: '#4b5563' }}>rows {backtestEnv.data.policy_backtest.rows_evaluated ?? '—'}</span>
+                </div>
+                {backtestEnv.data.generalization && (
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontFamily: 'monospace', fontSize: 11 }}>
+                    <span style={{ color: '#9ca3af' }}>train {backtestEnv.data.generalization.loss_after != null ? backtestEnv.data.generalization.loss_after.toFixed(2) : '—'}</span>
+                    <span style={{ color: '#9ca3af' }}>val {backtestEnv.data.generalization.validation_supervised_loss != null ? backtestEnv.data.generalization.validation_supervised_loss.toFixed(2) : '—'}</span>
+                    <span style={{ color: backtestEnv.data.generalization.overfit_gap_warning ? '#ef5350' : '#26c281' }}>
+                      gap {backtestEnv.data.generalization.train_val_generalization_gap != null ? backtestEnv.data.generalization.train_val_generalization_gap.toFixed(2) : '—'}
+                      {backtestEnv.data.generalization.overfit_gap_warning ? ' ⚠ overfit' : ''}
+                    </span>
+                  </div>
+                )}
+                {backtestEnv.data.replay_feedback && (
+                  <div style={{ fontSize: 10, color: '#4b5563', fontFamily: 'monospace' }}>
+                    replay→trainer: {backtestEnv.data.replay_feedback.existing_counterfactual_rows ?? 0} rows
+                    {backtestEnv.data.continuous_replay_active ? ' · continuous ✓' : ''}
+                  </div>
+                )}
+                <div style={{ fontSize: 9, color: '#f59e0b', fontStyle: 'italic' }}>
+                  {backtestEnv.data.policy_backtest.evidence_class || 'BACKTEST_ONLY'} — not A+/live evidence
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>No backtest cycle reported yet.</div>
+            )}
           </div>
 
           {/* Candle resource status */}

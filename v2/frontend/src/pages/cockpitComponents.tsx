@@ -21,15 +21,18 @@ export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Elem
 }
 
 export function publicRuntimeText(value: unknown): string {
-  return publicRuntimeCopy(valueText(value), 'Evidence pending')
+  const raw = valueText(value);
+  if (/^unavailable$/i.test(raw)) return 'Unavailable';
+  return publicRuntimeCopy(raw, 'Evidence pending')
     .replace(/paper/gi, 'runtime')
     .replace(/read[_\s-]*only/gi, 'account access')
     .replace(/\btrading[_\s-]*live\b/gi, 'order routing approval')
     .replace(/\blive[_\s-]*execution\b/gi, 'exchange execution approval')
     .replace(/\blive[_\s-]*trading\b/gi, 'order routing approval')
     .replace(/control[_\s-]*plane/gi, 'system status')
-    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'operator gated')
-    .replace(/live[_\s-]*blocked/gi, 'operator gated')
+    .replace(/operator/gi, 'approval')
+    .replace(/blocked[_\s-]*human[_\s-]*only/gi, 'approval required')
+    .replace(/live[_\s-]*blocked/gi, 'approval gated')
     .replace(/no data/gi, 'Connecting stream');
 }
 
@@ -708,7 +711,7 @@ export function AutonomousGovernorPanel({ payload }: { payload: AutonomousGovern
         </div>
         <div className="cockpit-evidence-gap">
           Simulation passed: {payload.simulation_passed ? 'yes' : 'no'}.
-          Final execution remains operator approval gated.
+          Final execution remains approval gated.
         </div>
       </div>
     </Panel>

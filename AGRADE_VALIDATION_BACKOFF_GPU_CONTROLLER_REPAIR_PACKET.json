@@ -1,0 +1,62 @@
+{
+  "marker": "V2_TRAINER_VALIDATION_BACKOFF_CONTROLLER_ACTIVE_LIVE_BLOCKED",
+  "generated_utc": "2026-07-11T22:45:35Z",
+  "scope": "A-grade trainer durability: prevent GPU saturation controller from increasing optimizer epochs after out-of-sample validation regression",
+  "defect": {
+    "summary": "The adaptive GPU controller raised steps_multiplier for CPU-prep bottlenecks even after the checkpoint promotion guard rejected a candidate for validation loss regression.",
+    "observed_before": {
+      "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+      "validation_loss_delta": 1.65997,
+      "controller_classification": "CPU_PREP_BOTTLENECK_RAISING_EPOCHS",
+      "steps_multiplier": 3
+    },
+    "impact": "The trainer could keep running too many optimizer steps, repeatedly producing non-durable candidates instead of backing off toward smaller validation-safe updates."
+  },
+  "repair": {
+    "controller_validation_backoff_added": true,
+    "backoff_triggers": [
+      "checkpoint_promotion_rejected",
+      "validation_loss_delta > 0.02",
+      "overfit_gap_warning"
+    ],
+    "classification": "VALIDATION_CHECKPOINT_BACKOFF",
+    "artificial_gpu_load_added": false,
+    "batch_freeze_cap_unchanged": true,
+    "live_gate": "blocked_human_only",
+    "order_submitted": false,
+    "test_order_submitted": false,
+    "leverage_mutated": false,
+    "margin_mutated": false
+  },
+  "controller_state_after_patch": {
+    "redis_key": "v2:trainer:gpu_saturation_controller",
+    "classification": "VALIDATION_CHECKPOINT_BACKOFF",
+    "steps_multiplier": 1,
+    "accepted_rows": 16383,
+    "validation_loss_delta": 1.65997,
+    "validation_loss_backoff_delta": 0.02,
+    "validation_regressed": true,
+    "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED"
+  },
+  "expected_next_cycle": {
+    "max_rows": 16384,
+    "base_steps": 32,
+    "expected_train_steps_with_multiplier_1": 32,
+    "previous_overfit_train_steps": 128,
+    "goal": "attempt smaller real training update; still require checkpoint promotion guard to pass before durable weights are written"
+  },
+  "files_changed_for_this_repair": [
+    "v2/backend/app/services/native_trainer/persistent_cuda_trainer_runtime.py",
+    "v2/backend/tests/unit/services/native_trainer/test_persistent_cuda_trainer_runtime.py",
+    "AGRADE_VALIDATION_BACKOFF_GPU_CONTROLLER_REPAIR_PACKET.json"
+  ],
+  "validation": {
+    "py_compile": "passed",
+    "focused_persistent_runtime_tests": "37 passed",
+    "native_trainer_suite": "231 passed"
+  },
+  "a_grade_status": {
+    "a_grade_claimed_fixed": false,
+    "reason": "This repairs a training-loop controller defect. A-grade still requires strict holdout and closed economic evidence; no thresholds were lowered."
+  }
+}

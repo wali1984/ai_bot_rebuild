@@ -487,6 +487,26 @@ def test_paper_leverage_stays_at_one_when_after_cost_edge_is_too_small() -> None
     assert result.model_inputs["leverage_selection_reason"] == "after_cost_edge_too_small_for_dynamic_leverage"
 
 
+def test_high_spread_and_funding_pressure_caps_dynamic_leverage() -> None:
+    result = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.90,
+            expected_move_after_cost_bps=120.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            spread_bps=25.0,
+            slippage_bps=10.0,
+            expected_funding_bps=60.0,
+        )
+    )
+
+    assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert result.recommended_leverage == 1.0
+    assert result.model_inputs["leverage_target"] == 1.0
+    assert result.model_inputs["leverage_cost_drag_bps"] == 99.0
+    assert result.model_inputs["leverage_selection_reason"] == "after_cost_edge_too_small_for_dynamic_leverage"
+
+
 def test_paper_leverage_risk_pressure_caps_high_confidence_target() -> None:
     result = allocate_paper_candidate(
         _row(

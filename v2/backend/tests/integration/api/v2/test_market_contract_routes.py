@@ -1223,6 +1223,61 @@ def test_market_overview_filters_malformed_public_inventory_symbols(tmp_path: Pa
     assert payload["data"]["tickers"][1]["symbol"] == "ETHUSDT"
 
 
+def test_binance_public_json_uses_websocket_cache_before_rest(monkeypatch) -> None:
+    class RedisLike:
+        def get(self, key: str):
+            if key == "v2:market:prices:BTCUSDT":
+                return json.dumps(
+                    {
+                        "ticker_24hr": {
+                            "symbol": "BTCUSDT",
+                            "lastPrice": "104000.25",
+                            "priceChangePercent": "1.5",
+                        },
+                        "source": "binance_usdm_public_websocket_cache_primary",
+                    }
+                )
+            return None
+
+    def fail_urlopen(*_args, **_kwargs):
+        raise AssertionError("Binance REST fallback must not run when websocket cache is present")
+
+    monkeypatch.setattr(market_contracts, "BINANCE_FAPI_BASE", "https://fapi.binance.com")
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: RedisLike())
+    monkeypatch.setattr("urllib.request.urlopen", fail_urlopen)
+
+    payload, source, warning = market_contracts._binance_public_json(
+        "/fapi/v1/ticker/24hr",
+        {"symbol": "BTCUSDT"},
+    )
+
+    assert payload["lastPrice"] == "104000.25"
+    assert source == "redis:v2:market:prices:BTCUSDT"
+    assert warning == "Binance public WebSocket/cache primary; REST not used"
+
+
+def test_binance_public_json_blocks_rest_without_explicit_fallback(monkeypatch) -> None:
+    class EmptyRedis:
+        def get(self, _key: str):
+            return None
+
+    monkeypatch.setattr(market_contracts, "BINANCE_FAPI_BASE", "https://fapi.binance.com")
+    monkeypatch.setattr(market_contracts, "get_redis", lambda: EmptyRedis())
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
+    with market_contracts.BINANCE_PUBLIC_JSON_CACHE_LOCK:
+        market_contracts.BINANCE_PUBLIC_JSON_CACHE.clear()
+        market_contracts._BINANCE_REFRESH_IN_FLIGHT.clear()
+
+    payload, source, warning = market_contracts._binance_public_json(
+        "/fapi/v1/ticker/24hr",
+        {"symbol": "BTCUSDT"},
+    )
+
+    assert payload is None
+    assert source == "binance_rest_fallback_blocked_websocket_primary"
+    assert "BINANCE_REST_FALLBACK_ALLOWED=true" in warning
+
+
 def test_market_indicators_derive_from_public_closed_klines_for_prochart(tmp_path: Path, monkeypatch) -> None:
     base_open_ms = 1781323200000
     minute_ms = 60_000

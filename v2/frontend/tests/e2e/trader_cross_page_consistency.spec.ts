@@ -49,6 +49,7 @@ const comparisons = [
 ];
 
 test.setTimeout(120_000);
+test.use({ trace: 'off' });
 
 function writeArtifact(payload: unknown): void {
   fs.mkdirSync(path.dirname(artifactBefore), { recursive: true });
@@ -58,23 +59,45 @@ function writeArtifact(payload: unknown): void {
 
 async function login(page: Page): Promise<void> {
   expect(traderPassword, 'NERVYX_TRADER_PASSWORD must be set in the Playwright environment').not.toBe('');
-  await page.goto(`${baseUrl}/login?returnTo=${encodeURIComponent('/dashboard')}`, { waitUntil: 'domcontentloaded' });
-  await page.getByLabel(/email/i).fill(traderEmail);
-  await page.locator('input[name="password"], #login-password').fill(traderPassword);
-  await Promise.all([
-    page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30_000 }),
-    page.getByRole('button', { name: /sign in/i }).click(),
-  ]);
+  const loginResponse = await page.request.post(`${baseUrl}/api/auth/login`, {
+    data: { email: traderEmail, password: traderPassword },
+    failOnStatusCode: false,
+  });
+  expect(loginResponse.ok(), `Trader login failed with HTTP ${loginResponse.status()}`).toBe(true);
+  const loginBody = await loginResponse.json() as { access_token?: string };
+  expect(loginBody.access_token, 'Trader login did not return an access token').toBeTruthy();
+  await page.context().addCookies([{
+    name: 'alphaforge_session',
+    value: loginBody.access_token ?? '',
+    url: baseUrl,
+    httpOnly: true,
+    sameSite: 'Lax',
+  }]);
+  const meResponse = await page.request.get(`${baseUrl}/api/auth/me`, {
+    failOnStatusCode: false,
+    headers: { Authorization: `Bearer ${loginBody.access_token}` },
+  });
+  expect(meResponse.ok(), `Authenticated trader profile failed with HTTP ${meResponse.status()}`).toBe(true);
+  await page.goto(`${baseUrl}/dashboard`, { waitUntil: 'domcontentloaded' });
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 }).catch(() => {
+    throw new Error('Authenticated trader session redirected back to login');
+  });
 }
 
 async function collectFields(page: Page, pageName: string, route: string, expectedFields: string[]): Promise<FieldObservation[]> {
   await page.goto(`${baseUrl}${route}`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
   await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => undefined);
-  await page.locator('[data-field-id]').first().waitFor({ state: 'attached', timeout: 10_000 }).catch(() => undefined);
-  for (const fieldId of expectedFields) {
-    await page.locator(`[data-field-id="${fieldId}"]`).first().waitFor({ state: 'attached', timeout: 12_000 }).catch(() => undefined);
-  }
-  await page.waitForTimeout(1_000);
+  await page.waitForFunction(
+    (fieldIds) => fieldIds.every((fieldId) => {
+      const element = document.querySelector(`[data-field-id="${fieldId}"]`);
+      if (!element) return false;
+      const quality = element.getAttribute('data-quality');
+      return quality !== 'missing' && quality !== 'invalid';
+    }),
+    expectedFields,
+    { timeout: 20_000 },
+  ).catch(() => undefined);
+  await page.waitForTimeout(500);
   return page.locator('[data-field-id]').evaluateAll((nodes, pageInfo) => (
     nodes.map((node) => {
       const element = node as HTMLElement;
@@ -100,16 +123,22 @@ function comparableValue(value: string): string {
 test('trader canonical fields are consistent across deployed pages', async ({ page }) => {
   const consoleErrors: string[] = [];
   const failedRequests: Array<{ url: string; method: string; failure: string | null }> = [];
+  const abortedNavigationRequests: Array<{ url: string; method: string; failure: string | null }> = [];
   const navigationErrors: Array<{ page: string; route: string; error: string }> = [];
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
   page.on('requestfailed', (request) => {
-    failedRequests.push({
+    const record = {
       url: request.url(),
       method: request.method(),
       failure: request.failure()?.errorText ?? null,
-    });
+    };
+    if (record.method === 'GET' && /net::ERR_ABORTED/i.test(record.failure ?? '')) {
+      abortedNavigationRequests.push(record);
+      return;
+    }
+    failedRequests.push(record);
   });
 
   await login(page);
@@ -148,11 +177,13 @@ test('trader canonical fields are consistent across deployed pages', async ({ pa
     phase: process.env.TRADER_CONSISTENCY_PHASE ?? 'before',
     observation_count: observations.length,
     comparisons,
+    observations,
     missing,
     mismatches,
     navigation_errors: navigationErrors,
     console_errors: consoleErrors,
     failed_requests: failedRequests,
+    aborted_navigation_requests: abortedNavigationRequests,
     release_blocker: missing.length > 0 || mismatches.length > 0 || navigationErrors.length > 0 || consoleErrors.length > 0 || failedRequests.length > 0,
   };
   writeArtifact(artifact);

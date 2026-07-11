@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,26 @@ from .model import V2HybridPolicyModel
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            handle.write(text)
+            tmp_path = Path(handle.name)
+        tmp_path.replace(path)
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            tmp_path.unlink()
 
 
 @dataclass(frozen=True)
@@ -73,9 +94,7 @@ class V2HybridCheckpointManager:
             weight_file_size_bytes=weight_file_size_bytes,
         )
         path = Path(manifest.path)
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(json.dumps(manifest.__dict__, indent=2, sort_keys=True), encoding="utf-8")
-        tmp.replace(path)
+        _atomic_write_text(path, json.dumps(manifest.__dict__, indent=2, sort_keys=True))
         return manifest
 
     def write_checkpoint(

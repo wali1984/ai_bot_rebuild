@@ -39,6 +39,15 @@ from .side_performance import (
     evaluate_side_gate,
 )
 
+DEFAULT_PAPER_ENTRY_ALLOWED_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "4h"})
+DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST = frozenset({
+    "NIGHTUSDT",
+    "TIAUSDT",
+    "TRUMPUSDT",
+    "PUMPUSDT",
+    "PORTALUSDT",
+})
+
 
 def load_side_performance(redis_client: Any | None) -> dict[str, Any] | None:
     """Read the published LONG/SHORT performance buckets from Redis."""

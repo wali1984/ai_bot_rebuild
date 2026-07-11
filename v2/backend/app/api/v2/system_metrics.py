@@ -15,6 +15,7 @@ import time
 from collections import deque
 from datetime import UTC, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter
 
@@ -22,6 +23,7 @@ from app.api.v2._common import get_redis
 
 router = APIRouter(tags=["v2-system-metrics"])
 
+DISPLAY_TZ = ZoneInfo("America/New_York")
 _GPU_CACHE_TTL_SECONDS = 2.0
 _HISTORY_MAX_SAMPLES = 180
 _HISTORY_MIN_INTERVAL_SECONDS = 2.0
@@ -394,7 +396,8 @@ def _dig(payload: dict[str, Any], path: tuple[str, ...]) -> Any:
 _KEY_CACHE_TTL_SECONDS = 45.0
 _key_cache: tuple[float, dict[str, list[str]]] | None = None
 _key_cache_lock = threading.Lock()
-_KEY_CACHE_PER_PATTERN_LIMIT = 400
+_KEY_CACHE_PER_PATTERN_LIMIT = 120
+_KEY_CACHE_BUILD_BUDGET_SECONDS = 0.25
 
 # The V2 Redis holds >1M keys (feature snapshots, replay archives). One SCAN
 # pass shared by all ingestor patterns — refreshed on a TTL — keeps these
@@ -413,16 +416,27 @@ def _pattern_key_map(r: Any) -> dict[str, list[str]]:
     import fnmatch
 
     buckets: dict[str, list[str]] = {name: [] for name in INGESTOR_FEEDS}
+    cursor: int | str = 0
+    deadline = time.monotonic() + _KEY_CACHE_BUILD_BUDGET_SECONDS
     try:
-        for key in r.scan_iter(match="v2:*", count=5000):
-            for name, feed in INGESTOR_FEEDS.items():
-                bucket = buckets[name]
-                if len(bucket) >= _KEY_CACHE_PER_PATTERN_LIMIT:
-                    continue
-                pattern = feed["pattern"]
-                prefix = pattern.split("*", 1)[0]
-                if key.startswith(prefix) and fnmatch.fnmatch(key, pattern):
-                    bucket.append(key)
+        while True:
+            cursor, keys = r.scan(cursor=cursor, match="v2:*", count=1000)
+            for key in keys:
+                key_name = key.decode("utf-8", errors="replace") if isinstance(key, bytes) else str(key)
+                for name, feed in INGESTOR_FEEDS.items():
+                    bucket = buckets[name]
+                    if len(bucket) >= _KEY_CACHE_PER_PATTERN_LIMIT:
+                        continue
+                    pattern = feed["pattern"]
+                    prefix = pattern.split("*", 1)[0]
+                    if key_name.startswith(prefix) and fnmatch.fnmatch(key_name, pattern):
+                        bucket.append(key_name)
+            if int(cursor) == 0:
+                break
+            if time.monotonic() >= deadline:
+                break
+            if all(len(bucket) >= _KEY_CACHE_PER_PATTERN_LIMIT for bucket in buckets.values()):
+                break
     except Exception:
         return buckets
     with _key_cache_lock:
@@ -453,7 +467,7 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
     if keys:
         try:
             pipe = r.pipeline()
-            probe_keys = keys[:40]
+            probe_keys = keys[:12]
             for key in probe_keys:
                 pipe.get(key)
             for raw in pipe.execute():
@@ -524,7 +538,9 @@ async def get_ingestors_status() -> dict[str, Any]:
     now = time.time()
     rows = [_ingestor_row(r, name, feed, now) for name, feed in INGESTOR_FEEDS.items()]
     live = sum(1 for row in rows if row["status"] == "live")
+    ts = _utc_now()
     return {
+        "schema_version": "api_v2_ingestors_status_v1",
         "data": {
             "ingestors": rows,
             "counts": {
@@ -538,9 +554,18 @@ async def get_ingestors_status() -> dict[str, Any]:
         "source": "redis:v2:* key freshness scan",
         "source_type": "redis_live" if r is not None else "unavailable",
         "endpoint": "/api/v2/ingestors/status",
-        "timestamp": _utc_now(),
-        "received_at": _utc_now(),
+        "timestamp": ts,
+        "generated_at_utc": ts,
+        "generated_at_et": datetime.now(DISPLAY_TZ).isoformat(timespec="seconds"),
+        "received_at": ts,
         "lag_ms": 0,
+        "staleness_seconds": 0,
+        "freshness_status": "fresh" if r is not None else "unavailable",
+        "canonical_owner": "/api/v2/ingestors/status",
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "data_quality_status": "fresh" if r is not None else "unavailable",
         "stale": r is None,
         "missing_fields": [] if r is not None else ["redis"],
         "warnings": [] if r is not None else ["Redis unavailable"],

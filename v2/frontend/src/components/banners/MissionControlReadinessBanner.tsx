@@ -59,6 +59,7 @@ export function MissionControlReadinessBanner(): JSX.Element {
     pollIntervalMs: 30_000,
     staleThresholdMs: 90_000,
     initialFetch: true,
+    initialFetchWhenStreaming: true,
     httpFallback: true,
     enabled: true,
     mode: 'read_only',

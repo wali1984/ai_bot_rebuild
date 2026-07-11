@@ -215,6 +215,7 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     surface: 'app',
     navCategory: 'backtests',
     navOrder: 20,
+    hideFromNav: true,
     path: '/replay',
   },
   'market-intelligence': {
@@ -233,6 +234,7 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
     surface: 'app',
     navCategory: 'analytics',
     navOrder: 20,
+    hideFromNav: true,
     path: '/technical-analysis',
   },
   alerts: {
@@ -417,10 +419,10 @@ export const PAGE_OVERRIDES: Record<string, ProductPageOverride> = {
   },
   'audit-ledger': {
     title: 'Audit Ledger',
-    surface: 'system',
+    surface: 'app',
     navCategory: 'audit',
     hideFromNav: true,
-    path: '/admin/audit-ledger',
+    path: '/audit-ledger',
   },
   'script-registry': {
     title: 'Scripts',
@@ -487,8 +489,7 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
 
   // Intelligence consolidation
   '/admin/trainer': '/admin/intelligence',
-  '/admin/model-state': '/admin/intelligence',
-  '/admin/ai-brain': '/admin/intelligence',
+  '/admin/ai-brain': '/admin/model-state',
 
   // Orchestration consolidation
   '/admin/orchestrator': '/admin/orchestration',
@@ -499,7 +500,6 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   // Risk & Readiness consolidation
   '/admin/risk-control': '/admin/risk',
   '/admin/readiness': '/admin/risk',
-  '/admin/live-readiness': '/admin/risk',
   '/admin/readiness/mobile': '/admin/risk',
   '/admin/mobile-iphone-readiness': '/admin/risk',
 
@@ -565,7 +565,11 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/admin/mission-control': '/dashboard',
   '/operator-proof': '/admin/reports',
   '/ai': '/ai-predictions',
+  '/trainer': '/ai-predictions',
   '/ai-predictions/model-state': '/ai-predictions',
+  '/ingestors': '/markets/ingestors',
+  '/providers': '/markets/ingestors',
+  '/settings': '/account-settings',
   '/symbols': '/markets',
   '/admin/symbols': '/markets',
   '/markets/symbols': '/markets',
@@ -574,8 +578,8 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/executions': '/portfolio/executions',
   '/admin/executions': '/portfolio/executions',
   '/admin/positions': '/portfolio',
-  '/admin/technical-analysis': '/technical-analysis',
-  '/research/technical-analysis': '/technical-analysis',
+  '/admin/technical-analysis': '/research',
+  '/research/technical-analysis': '/research',
   '/admin/liquidation-bridge': '/derivatives',
   '/admin/strategy-backtesting': '/backtests',
   '/admin/paper-trading': '/trade',

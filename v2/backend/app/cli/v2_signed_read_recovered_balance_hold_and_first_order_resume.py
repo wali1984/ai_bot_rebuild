@@ -30,6 +30,14 @@ GATE_READY = "V2_SIGNED_READ_RECOVERED_BALANCE_HOLD_AND_FIRST_ORDER_RESUME_READY
 GATE_BLOCKED = "V2_SIGNED_READ_RECOVERED_BALANCE_HOLD_AND_FIRST_ORDER_RESUME_BLOCKED"
 EST = ZoneInfo("America/New_York")
 INSUFFICIENT_BALANCE = "INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"
+ACCOUNT_INFO_ENDPOINT_LABELS = ("WS account.status", "GET /fapi/v3/account")
+POSITION_MODE_ENDPOINT_LABELS = ("WS account.position", "GET /fapi/v1/positionSide/dual")
+POSITIONS_ENDPOINT_LABELS = (
+    "WS account.position",
+    "GET /fapi/v3/positionRisk",
+    "GET /fapi/v2/positionRisk",
+)
+OPEN_ORDERS_ENDPOINT_LABELS = ("WS openOrders.status", "GET /fapi/v1/openOrders")
 
 
 def est_now() -> str:
@@ -55,11 +63,15 @@ def _rows(payload: Mapping[str, Any], key: str) -> list[Mapping[str, Any]]:
     return [row for row in rows if isinstance(row, Mapping)] if isinstance(rows, list) else []
 
 
-def _endpoint_ok(classification: Mapping[str, Any], endpoint: str, request_prefix: str | None = None) -> bool:
+def _signed_read_ok(
+    classification: Mapping[str, Any],
+    *,
+    endpoints: tuple[str, ...],
+    request_prefix: str,
+) -> bool:
     for row in _rows(classification, "signed_endpoint_rows"):
-        if row.get("endpoint") != endpoint:
-            continue
-        if request_prefix and not str(row.get("request_type") or "").startswith(request_prefix):
+        request_type = str(row.get("request_type") or "")
+        if row.get("endpoint") not in endpoints and not request_type.startswith(request_prefix):
             continue
         return row.get("classification") == "API_OK" and row.get("ok") is True
     return False
@@ -107,10 +119,10 @@ def build_gate_payloads(
         signed.get("classification") == "NO_451_DETECTED"
         and signed.get("restricted_location_detected") is False
         and critical.get("ok") is True
-        and _endpoint_ok(signed, "GET /fapi/v3/account", "account info")
-        and _endpoint_ok(signed, "GET /fapi/v1/positionSide/dual")
-        and _endpoint_ok(signed, "GET /fapi/v2/positionRisk")
-        and _endpoint_ok(signed, "GET /fapi/v1/openOrders")
+        and _signed_read_ok(signed, endpoints=ACCOUNT_INFO_ENDPOINT_LABELS, request_prefix="account info")
+        and _signed_read_ok(signed, endpoints=POSITION_MODE_ENDPOINT_LABELS, request_prefix="position mode")
+        and _signed_read_ok(signed, endpoints=POSITIONS_ENDPOINT_LABELS, request_prefix="positions")
+        and _signed_read_ok(signed, endpoints=OPEN_ORDERS_ENDPOINT_LABELS, request_prefix="open orders")
     )
     compliance_accepted = _compliance_ok(network_path_compliance)
     margin_sufficient = balance.get("margin_sufficient") is True
@@ -141,12 +153,12 @@ def build_gate_payloads(
         "status": "SIGNED_READS_RECOVERED" if signed_reads_recovered else "SIGNED_READS_NOT_FULLY_RECOVERED",
         "signed_read_classification": signed.get("classification"),
         "restricted_location_detected": signed.get("restricted_location_detected") is True,
-        "account_read_ok": _endpoint_ok(signed, "GET /fapi/v3/account", "account info"),
+        "account_read_ok": _signed_read_ok(signed, endpoints=ACCOUNT_INFO_ENDPOINT_LABELS, request_prefix="account info"),
         "balance_read_ok": account_margin.get("ok") is True,
-        "positions_read_ok": _endpoint_ok(signed, "GET /fapi/v2/positionRisk"),
+        "positions_read_ok": _signed_read_ok(signed, endpoints=POSITIONS_ENDPOINT_LABELS, request_prefix="positions"),
         "open_orders_read_ok": open_orders.get("ok") is True,
         "open_orders_count": open_orders.get("open_orders_count"),
-        "position_mode_read_ok": _endpoint_ok(signed, "GET /fapi/v1/positionSide/dual"),
+        "position_mode_read_ok": _signed_read_ok(signed, endpoints=POSITION_MODE_ENDPOINT_LABELS, request_prefix="position mode"),
         "critical_account_read_gate_status": critical.get("status"),
         "critical_account_read_gate_ok": critical.get("ok") is True,
         "signed_read_recovery_network_path_compliant": network_path_compliance,

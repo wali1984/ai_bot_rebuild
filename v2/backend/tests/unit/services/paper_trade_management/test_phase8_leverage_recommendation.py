@@ -128,6 +128,28 @@ def test_moderate_confidence_gives_2x() -> None:
     assert rec["recommended_leverage"] == 2
 
 
+def test_negative_after_cost_edge_gives_1x() -> None:
+    # A high-confidence, low-volatility signal that would otherwise be 3x must
+    # stay at 1x when the after-cost expectation is non-positive: leverage is
+    # derived from positive risk-adjusted edge, never applied to a losing edge.
+    rec = _rec(
+        confidence_calibrated=0.90,
+        atr_bps=15.0,
+        expected_move_after_cost_bps=-15.0,
+    )
+    assert rec["recommended_leverage"] == 1
+    assert rec["reason_tier"] == "NON_POSITIVE_AFTER_COST_EDGE_1X"
+
+
+def test_zero_after_cost_edge_gives_1x() -> None:
+    rec = _rec(
+        confidence_calibrated=0.90,
+        atr_bps=15.0,
+        expected_move_after_cost_bps=0.0,
+    )
+    assert rec["recommended_leverage"] == 1
+
+
 # ── Liquidation distance ──────────────────────────────────────────────────────
 
 def test_liquidation_distance_decreases_with_higher_leverage() -> None:

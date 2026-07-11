@@ -24,6 +24,21 @@ FULL_TALIB_TA_SCHEMA_VERSION = "v2_full_talib_ta_payload_v1"
 LIVE_GATE_BLOCKED = "blocked_human_only"
 DEFAULT_MIN_CANDLES = 60
 
+TIMEFRAME_MS: dict[str, int] = {
+    "1m": 60_000,
+    "3m": 180_000,
+    "5m": 300_000,
+    "15m": 900_000,
+    "30m": 1_800_000,
+    "1h": 3_600_000,
+    "2h": 7_200_000,
+    "4h": 14_400_000,
+    "6h": 21_600_000,
+    "8h": 28_800_000,
+    "12h": 43_200_000,
+    "1d": 86_400_000,
+}
+
 
 @dataclass(frozen=True)
 class NormalizedCandle:
@@ -157,6 +172,89 @@ def normalize_ohlcv_rows(rows: Sequence[Any]) -> list[NormalizedCandle]:
             )
         )
     return sorted(candles, key=lambda candle: candle.ts_ms or 0)
+
+
+def _row_close_boundary_ms(row: Any, timeframe_ms: int | None) -> int | None:
+    """Best truthful close boundary for one OHLCV row; None when unprovable."""
+    close_ts: int | None = None
+    open_ts: int | None = None
+    if isinstance(row, Mapping):
+        close_ts = _as_int(
+            row.get("close_time")
+            or row.get("closeTime")
+            or row.get("close_ts_ms")
+        )
+        open_ts = _as_int(
+            row.get("ts_ms")
+            or row.get("timestamp")
+            or row.get("open_time")
+            or row.get("openTime")
+            or row.get("time")
+            or row.get("t")
+        )
+    elif isinstance(row, (list, tuple)):
+        if len(row) >= 7:
+            close_ts = _as_int(row[6])
+        if len(row) >= 1:
+            open_ts = _as_int(row[0])
+    if close_ts is not None:
+        return close_ts
+    if open_ts is not None and timeframe_ms:
+        return open_ts + timeframe_ms - 1
+    return None
+
+
+def filter_closed_ohlcv_rows(
+    rows: Sequence[Any],
+    *,
+    timeframe: str,
+    now_ms: int | None = None,
+) -> tuple[list[Any], dict[str, Any]]:
+    """Keep only candles whose close boundary is confirmed in the past.
+
+    Fail-closed: a row whose closed-ness cannot be proven (no close_time and
+    unknown timeframe) is dropped, never assumed closed.
+    """
+    if now_ms is None:
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    timeframe_ms = TIMEFRAME_MS.get(str(timeframe))
+    closed: list[Any] = []
+    dropped_unclosed = 0
+    dropped_unprovable = 0
+    last_closed_open_ts: int | None = None
+    last_closed_close_ts: int | None = None
+    for row in rows:
+        boundary = _row_close_boundary_ms(row, timeframe_ms)
+        if boundary is None:
+            dropped_unprovable += 1
+            continue
+        if boundary > now_ms:
+            dropped_unclosed += 1
+            continue
+        closed.append(row)
+        open_ts = None
+        if isinstance(row, (list, tuple)) and row:
+            open_ts = _as_int(row[0])
+        elif isinstance(row, Mapping):
+            open_ts = _as_int(
+                row.get("ts_ms")
+                or row.get("timestamp")
+                or row.get("open_time")
+                or row.get("openTime")
+            )
+        if last_closed_close_ts is None or boundary > last_closed_close_ts:
+            last_closed_close_ts = boundary
+            last_closed_open_ts = open_ts
+    meta = {
+        "closed_candle_count": len(closed),
+        "dropped_unclosed_count": dropped_unclosed,
+        "dropped_unprovable_count": dropped_unprovable,
+        "last_closed_candle_open_ts_ms": last_closed_open_ts,
+        "last_closed_candle_close_ts_ms": last_closed_close_ts,
+        "now_ms": now_ms,
+        "timeframe_ms": timeframe_ms,
+    }
+    return closed, meta
 
 
 def _last_finite(value: Any) -> float | None:

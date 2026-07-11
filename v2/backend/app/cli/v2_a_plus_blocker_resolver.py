@@ -19,6 +19,10 @@ from v2.backend.app.cli.v2_a_plus_candidate_inventory import ALLOWED_BLOCKER_CLA
 
 
 SCHEMA_VERSION = "v2_a_plus_blocker_resolver_v1"
+ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE = 70.0
+ALLOCATOR_MICROSTRUCTURE_TRUST_EQUIVALENT_MIN_SCORE = (
+    ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE / 100.0
+)
 
 
 def _utc_now() -> str:
@@ -128,6 +132,10 @@ def _reason_set(row: Mapping[str, Any]) -> set[str]:
     return reasons
 
 
+def _values(rows: list[Mapping[str, Any]], field: str) -> list[float]:
+    return [value for value in (_float(row.get(field)) for row in rows) if value is not None]
+
+
 def _has_any(reasons: set[str], *tokens: str) -> bool:
     return any(any(token in reason for token in tokens) for reason in reasons)
 
@@ -140,6 +148,31 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
     expected_gross = _float(row.get("expected_gross_pnl_usd"))
     expected_cost = _float(row.get("expected_cost_usd")) or 0.0
     expected_net = _float(row.get("expected_net_pnl_usd"))
+    side = str(row.get("side") or "").strip().lower()
+    long_net = _float(row.get("long_expected_net_pnl_usd"))
+    if long_net is None:
+        long_net = _float(row.get("expected_long_net_pnl_usd"))
+    short_net = _float(row.get("short_expected_net_pnl_usd"))
+    if short_net is None:
+        short_net = _float(row.get("expected_short_net_pnl_usd"))
+    best_side_net = _float(row.get("best_side_expected_net_pnl_usd"))
+    if best_side_net is None:
+        best_side = str(row.get("best_side") or "").strip().lower()
+        if best_side == "long":
+            best_side_net = long_net
+        elif best_side == "short":
+            best_side_net = short_net
+    selected_side_net_positive = (
+        (side == "long" and long_net is not None and long_net > 0.0)
+        or (side == "short" and short_net is not None and short_net > 0.0)
+        or (not side and best_side_net is not None and best_side_net > 0.0)
+    )
+    both_sides_non_positive = (
+        long_net is not None
+        and short_net is not None
+        and long_net <= 0.0
+        and short_net <= 0.0
+    )
     loss_probability = _float(row.get("pre_trade_loss_probability"))
     expected_max_loss = _float(row.get("expected_max_loss_usd"))
     confidence = _float(row.get("confidence_calibrated"))
@@ -150,6 +183,7 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
     no_side_reason = str(row.get("no_side_reason") or "")
     if not row.get("side") and (
         no_side_reason in {"", "SIDE_NOT_EMITTED_BY_PUBLISHER", "FEATURE_SNAPSHOT_MISSING"}
+        or (no_side_reason == "MODEL_HOLD_OR_NO_TRADE_ACTION" and selected_side_net_positive)
         or no_side_reason.startswith("UNSUPPORTED_ACTION")
     ):
         causes.append("NO_SIDE_OR_HOLD_ACTION")
@@ -159,7 +193,11 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
         causes.append("FEATURE_SNAPSHOT_MISSING")
     if expected_move is None:
         causes.append("EXPECTED_MOVE_MISSING")
-    elif expected_move <= 0.0 or _has_any(reasons, "EXPECTED_EDGE_NON_POSITIVE", "EXPECTED_MOVE_NON_POSITIVE"):
+    elif not selected_side_net_positive and (
+        expected_move <= 0.0
+        or both_sides_non_positive
+        or _has_any(reasons, "EXPECTED_EDGE_NON_POSITIVE", "EXPECTED_MOVE_NON_POSITIVE")
+    ):
         causes.append("EXPECTED_MOVE_NON_POSITIVE")
     if expected_gross is not None and expected_gross <= 0.0:
         causes.append("EXPECTED_GROSS_PNL_TOO_SMALL")
@@ -355,6 +393,21 @@ def _phase1_decomposition(
                 "exit_failure_reserve_usd": row.get("exit_failure_reserve_usd"),
                 "formula_expected_net_pnl_usd": formula_net,
                 "expected_net_pnl_usd": row.get("expected_net_pnl_usd"),
+                "long_expected_gross_pnl_usd": row.get("long_expected_gross_pnl_usd"),
+                "long_expected_cost_usd": row.get("long_expected_cost_usd"),
+                "long_expected_net_pnl_usd": row.get("long_expected_net_pnl_usd"),
+                "long_expected_max_loss_usd": row.get("long_expected_max_loss_usd"),
+                "long_loss_probability": row.get("long_loss_probability"),
+                "short_expected_gross_pnl_usd": row.get("short_expected_gross_pnl_usd"),
+                "short_expected_cost_usd": row.get("short_expected_cost_usd"),
+                "short_expected_net_pnl_usd": row.get("short_expected_net_pnl_usd"),
+                "short_expected_max_loss_usd": row.get("short_expected_max_loss_usd"),
+                "short_loss_probability": row.get("short_loss_probability"),
+                "best_side": row.get("best_side"),
+                "best_side_expected_net_pnl_usd": row.get("best_side_expected_net_pnl_usd"),
+                "best_side_rejected_reason": row.get("best_side_rejected_reason"),
+                "selected_action": row.get("selected_action"),
+                "hold_no_trade_reason": row.get("hold_no_trade_reason"),
                 "expected_net_formula_delta_usd": formula_delta,
                 "expected_cost_usd": row.get("expected_cost_usd"),
                 "expected_move": row.get("expected_move"),
@@ -421,6 +474,7 @@ def _phase4_expected_move_root_cause(
     rows: list[dict[str, Any]],
     phase1_summary: Mapping[str, Any],
 ) -> dict[str, Any]:
+    positive_expected_count = sum(1 for row in rows if (_float(row.get("expected_net_pnl_usd")) or 0.0) > 0.0)
     positive_counterfactual_rows = [
         row
         for row in rows
@@ -439,7 +493,7 @@ def _phase4_expected_move_root_cause(
         "primary_cause_counts": phase1_summary.get("primary_cause_counts"),
         "total_candidates": len(rows),
         "a_plus_candidates": sum(1 for row in rows if row.get("A_plus_candidate")),
-        "positive_expected_net_pnl_usd_count": sum(1 for row in rows if (_float(row.get("expected_net_pnl_usd")) or 0.0) > 0.0),
+        "positive_expected_net_pnl_usd_count": positive_expected_count,
         "expected_net_pnl_usd_distribution": _number_distribution(rows, "expected_net_pnl_usd"),
         "expected_gross_pnl_usd_distribution": _number_distribution(rows, "expected_gross_pnl_usd"),
         "expected_move_distribution": _number_distribution(rows, "expected_move"),
@@ -486,15 +540,22 @@ def _phase4_expected_move_root_cause(
             for row in positive_counterfactual_rows[:25]
         ],
         "root_cause": (
-            "No current-session candidate has positive expected_net_pnl_usd. "
-            "The prediction stack emits raw directional moves on some rows, but the current candidate "
-            "economics do not produce a sized positive net USD edge after allocator-required side, price, "
-            "loss-probability, microstructure, cost, stop, and exit feasibility evidence."
+            "Current-session rows now include positive expected_net_pnl_usd, but none are final A+ because "
+            "downstream allocator, risk, preemptive, guardian, market-state, microstructure, or portfolio "
+            "evidence still blocks promotion."
+            if positive_expected_count > 0
+            else (
+                "No current-session candidate has positive expected_net_pnl_usd. "
+                "The prediction stack emits raw directional moves on some rows, but the current candidate "
+                "economics do not produce a sized positive net USD edge after allocator-required side, price, "
+                "loss-probability, microstructure, cost, stop, and exit feasibility evidence."
+            )
         ),
     }
 
 
 def _phase4_strategy_edge_lab_results(*, generated: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+    positive_expected_count = sum(1 for row in rows if (_float(row.get("expected_net_pnl_usd")) or 0.0) > 0.0)
     family_results = []
     for family in STRATEGY_EDGE_LAB_FAMILIES:
         family_results.append(
@@ -502,7 +563,7 @@ def _phase4_strategy_edge_lab_results(*, generated: str, rows: list[dict[str, An
                 "strategy_family": family,
                 "evaluated_candidate_count": len(rows),
                 "promoted_count": 0,
-                "expected_net_pnl_usd_positive_count": 0,
+                "expected_net_pnl_usd_positive_count": positive_expected_count,
                 "reward_to_risk_gt_1_count": 0,
                 "loss_probability_acceptable_count": sum(
                     1 for row in rows if (_float(row.get("pre_trade_loss_probability")) or 1.0) < 0.80
@@ -512,7 +573,11 @@ def _phase4_strategy_edge_lab_results(*, generated: str, rows: list[dict[str, An
                 "historical_bucket_expectancy_usd_available": False,
                 "mfe_mae_profile_available": False,
                 "promotion_decision": "BLOCK",
-                "promotion_blocker": "NO_CURRENT_ROW_HAS_POSITIVE_EXPECTED_NET_PNL_USD_AFTER_REQUIRED_EVIDENCE",
+                "promotion_blocker": (
+                    "POSITIVE_USD_ROWS_EXIST_BUT_DOWNSTREAM_ALLOCATOR_RISK_PREEMPTIVE_OR_GUARDIAN_EVIDENCE_BLOCKS_A_PLUS"
+                    if positive_expected_count > 0
+                    else "NO_CURRENT_ROW_HAS_POSITIVE_EXPECTED_NET_PNL_USD_AFTER_REQUIRED_EVIDENCE"
+                ),
             }
         )
     return {
@@ -536,7 +601,13 @@ def _phase4_strategy_edge_lab_results(*, generated: str, rows: list[dict[str, An
         },
         "promotion_summary": {
             "promoted_strategy_count": 0,
-            "reason": "all current candidate rows have expected_net_pnl_usd <= 0 or missing required price/exit/risk evidence",
+            "positive_expected_net_pnl_usd_count": positive_expected_count,
+            "reason": (
+                "positive expected-net-USD rows exist, but none pass allocator, risk, preemptive, guardian, "
+                "market-state, and exit feasibility evidence"
+                if positive_expected_count > 0
+                else "all current candidate rows have expected_net_pnl_usd <= 0 or missing required price/exit/risk evidence"
+            ),
         },
     }
 
@@ -672,6 +743,63 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
             "rerun_inventory_required": True,
         }
     if blocker_class == "RISK_GATEWAY_BLOCKER":
+        matrix = _read_json(inventory_dir / "candidate_rejection_matrix.json")
+        reason_counts = matrix.get("rejection_reason_counts") if isinstance(matrix.get("rejection_reason_counts"), Mapping) else {}
+        guardian_halted_count = int(reason_counts.get("GUARDIAN_HALTED_OR_MISSING") or 0)
+        if guardian_halted_count > 0 and guardian_halted_count >= max(1, affected_count // 2):
+            phase7_status_path = inventory_dir.parent / "phase7_pit_prediction_counter.json"
+            phase7_status = _read_json(phase7_status_path)
+            pit_count = int(phase7_status.get("point_in_time_valid_prediction_count") or 0)
+            pit_remaining = int(phase7_status.get("remaining_point_in_time_valid_predictions") or 0)
+            pit_required = int(phase7_status.get("required_point_in_time_valid_prediction_count") or 0)
+            pit_threshold_met = pit_remaining <= 0 and (pit_required <= 0 or pit_count >= pit_required)
+            if not pit_threshold_met:
+                return {
+                    **base,
+                    "action_name": "CONTINUE_GUARDIAN_PIT_PREDICTION_GROWTH",
+                    "one_action_only": True,
+                    "exact_blocker": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+                    "guardian_halted_candidate_count": guardian_halted_count,
+                    "phase7_pit_status_path": str(phase7_status_path) if phase7_status else None,
+                    "point_in_time_valid_prediction_count": phase7_status.get("point_in_time_valid_prediction_count"),
+                    "remaining_point_in_time_valid_predictions": phase7_status.get(
+                        "remaining_point_in_time_valid_predictions"
+                    ),
+                    "required_point_in_time_valid_prediction_count": phase7_status.get(
+                        "required_point_in_time_valid_prediction_count"
+                    ),
+                    "phase7_pit_threshold_met": False,
+                    "planned_steps": [
+                        "continue PIT-valid prediction publisher coverage",
+                        "append current-session predictions without overwriting holdout history",
+                        "rerun guardian PIT counter",
+                        "rerun inventory after guardian gate status changes",
+                    ],
+                    "forbidden_repair": "bypassing guardian or lowering holdout requirements",
+                    "executed": False,
+                    "rerun_inventory_required": True,
+                }
+            return {
+                **base,
+                "action_name": "CONTINUE_GUARDIAN_PERFORMANCE_EVIDENCE_MATURATION",
+                "one_action_only": True,
+                "exact_blocker": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+                "guardian_halted_candidate_count": guardian_halted_count,
+                "phase7_pit_status_path": str(phase7_status_path) if phase7_status else None,
+                "point_in_time_valid_prediction_count": phase7_status.get("point_in_time_valid_prediction_count"),
+                "remaining_point_in_time_valid_predictions": phase7_status.get("remaining_point_in_time_valid_predictions"),
+                "required_point_in_time_valid_prediction_count": phase7_status.get("required_point_in_time_valid_prediction_count"),
+                "phase7_pit_threshold_met": True,
+                "planned_steps": [
+                    "run continuous edge guardian after the PIT counter refresh",
+                    "continue paper-only allocation evidence production",
+                    "mature countable realtime evidence without lowering guardian thresholds",
+                    "rerun inventory after guardian performance gate status changes",
+                ],
+                "forbidden_repair": "bypassing guardian or lowering holdout requirements",
+                "executed": False,
+                "rerun_inventory_required": True,
+            }
         return {
             **base,
             "action_name": "RISK_GATEWAY_FIELD_CLASSIFICATION_PATCH_PLAN",
@@ -698,6 +826,10 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
     if blocker_class == "ALLOCATOR_BLOCKER":
         matrix = _read_json(inventory_dir / "candidate_rejection_matrix.json")
         summary = _read_json(inventory_dir / "candidate_inventory_summary.json")
+        rows = _read_jsonl(inventory_dir / "candidate_inventory.jsonl")
+        positive_rows = [
+            row for row in rows if (_float(row.get("expected_net_pnl_usd")) or 0.0) > 0.0
+        ]
         reason_counts = matrix.get("rejection_reason_counts") if isinstance(matrix.get("rejection_reason_counts"), Mapping) else {}
         allocator_reasons = {
             str(reason): int(count or 0)
@@ -712,6 +844,29 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
             primary_allocator_reason = max(specific_allocator_reasons.items(), key=lambda item: item[1])[0]
         elif allocator_reasons:
             primary_allocator_reason = max(allocator_reasons.items(), key=lambda item: item[1])[0]
+        positive_allocator_reasons: Counter[str] = Counter()
+        positive_block_reasons: Counter[str] = Counter()
+        for row in positive_rows:
+            for reason in row.get("allocator_block_reasons") or []:
+                positive_allocator_reasons[str(reason)] += 1
+            for reason in row.get("block_reasons") or []:
+                positive_block_reasons[str(reason)] += 1
+        positive_primary_allocator_reason = None
+        exact_positive_patch = None
+        if positive_rows:
+            if (
+                positive_allocator_reasons.get("ALLOCATOR_MARKET_STATE_INTEGRITY_SCORE_BELOW_MINIMUM", 0) > 0
+                or positive_block_reasons.get("MICROSTRUCTURE_TRUST_LOW", 0) > 0
+                or positive_block_reasons.get("MICROSTRUCTURE_TRUST_FAIL_CLOSED", 0) > 0
+            ):
+                positive_primary_allocator_reason = "ALLOCATOR_MARKET_STATE_INTEGRITY_SCORE_BELOW_MINIMUM"
+                exact_positive_patch = "REPAIR_OR_ACCUMULATE_WEBSOCKET_MICROSTRUCTURE_TRUST_EVIDENCE_FOR_POSITIVE_USD_ROWS"
+            elif positive_allocator_reasons.get("ALLOCATOR_LIQUIDATION_BUFFER_USD_MISSING", 0) > 0:
+                positive_primary_allocator_reason = "ALLOCATOR_LIQUIDATION_BUFFER_USD_MISSING"
+                exact_positive_patch = "WIRE_CROSS_MARGIN_LIQUIDATION_BUFFER_USD_INTO_POSITIVE_STRATEGY_ROWS"
+            elif positive_allocator_reasons:
+                positive_primary_allocator_reason = positive_allocator_reasons.most_common(1)[0][0]
+                exact_positive_patch = f"FIX_POSITIVE_USD_ROW_{positive_primary_allocator_reason}"
         exact_next_patch = "ALLOCATOR_SIMULATION_PATCH_PLAN"
         if primary_allocator_reason == "ALLOCATOR_INPUT_CURRENT_PRICE_MISSING":
             exact_next_patch = "WIRE_CURRENT_PRICE_INTO_ALLOCATOR_INPUT_FROM_FINAL_CANDLE_OR_MARK_PRICE"
@@ -723,7 +878,15 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
             exact_next_patch = "WIRE_TRAINER_SIDE_INTO_ALLOCATOR_INPUT"
         elif primary_allocator_reason:
             exact_next_patch = f"FIX_{primary_allocator_reason}"
+        if exact_positive_patch:
+            exact_next_patch = exact_positive_patch
+            primary_allocator_reason = positive_primary_allocator_reason
         allocator_simulation_executed = summary.get("allocator_decision_missing_count") == 0
+        trust_values = _values(positive_rows, "microstructure_trust_score")
+        composite_trust_values = _values(positive_rows, "composite_microstructure_trust_score")
+        market_state_integrity_values = _values(positive_rows, "market_state_integrity_score")
+        tape_values = _values(positive_rows, "trade_tape_confirmation_score")
+        liquidation_buffer_values = _values(positive_rows, "liquidation_buffer_usd")
         return {
             **base,
             "action_name": exact_next_patch if allocator_simulation_executed else "ALLOCATOR_SIMULATION_PATCH_PLAN",
@@ -734,6 +897,45 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
             "allocator_reject_count": summary.get("allocator_decision_reject_count"),
             "allocator_reject_reason_counts": allocator_reasons,
             "primary_allocator_reject_reason": primary_allocator_reason,
+            "positive_expected_net_pnl_usd_count": len(positive_rows),
+            "positive_row_allocator_reject_reason_counts": dict(positive_allocator_reasons.most_common()),
+            "positive_row_block_reason_counts": dict(positive_block_reasons.most_common()),
+            "positive_row_microstructure_trust_score": {
+                "count": len(trust_values),
+                "min": min(trust_values) if trust_values else None,
+                "max": max(trust_values) if trust_values else None,
+                "mean": (sum(trust_values) / len(trust_values)) if trust_values else None,
+                "allocator_equivalent_minimum_expected": ALLOCATOR_MICROSTRUCTURE_TRUST_EQUIVALENT_MIN_SCORE,
+            },
+            "positive_row_composite_microstructure_trust_score": {
+                "count": len(composite_trust_values),
+                "min": min(composite_trust_values) if composite_trust_values else None,
+                "max": max(composite_trust_values) if composite_trust_values else None,
+                "mean": (sum(composite_trust_values) / len(composite_trust_values)) if composite_trust_values else None,
+            },
+            "positive_row_market_state_integrity_score": {
+                "count": len(market_state_integrity_values),
+                "min": min(market_state_integrity_values) if market_state_integrity_values else None,
+                "max": max(market_state_integrity_values) if market_state_integrity_values else None,
+                "mean": (
+                    sum(market_state_integrity_values) / len(market_state_integrity_values)
+                )
+                if market_state_integrity_values
+                else None,
+                "allocator_minimum_score": ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+            },
+            "positive_row_trade_tape_confirmation_score": {
+                "count": len(tape_values),
+                "min": min(tape_values) if tape_values else None,
+                "max": max(tape_values) if tape_values else None,
+                "mean": (sum(tape_values) / len(tape_values)) if tape_values else None,
+            },
+            "positive_row_liquidation_buffer_usd": {
+                "count": len(liquidation_buffer_values),
+                "min": min(liquidation_buffer_values) if liquidation_buffer_values else None,
+                "max": max(liquidation_buffer_values) if liquidation_buffer_values else None,
+                "mean": (sum(liquidation_buffer_values) / len(liquidation_buffer_values)) if liquidation_buffer_values else None,
+            },
             "exact_function": "v2.backend.app.services.allocator.simulation.build_allocator_simulation",
             "exact_next_patch": exact_next_patch,
             "patch_owners": [

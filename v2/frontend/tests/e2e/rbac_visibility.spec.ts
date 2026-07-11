@@ -8,9 +8,10 @@ test.describe('rbac_visibility', () => {
     await gotoAs(page, '/admin/system');
     const nav = page.getByTestId('admin-nav');
     await expect(nav).toBeVisible();
-    await expect(page.getByTestId('nav-item-system-health')).toBeVisible();
-    await expect(page.getByTestId('nav-item-risk-control')).toBeVisible();
-    await expect(page.getByTestId('nav-item-operator-proof-dashboard')).toHaveCount(0);
+    await expect(page.getByTestId('admin-nav-overview')).toBeVisible();
+    await expect(page.getByTestId('admin-nav-risk')).toBeVisible();
+    await expect(page.getByTestId('admin-nav-audit')).toHaveCount(0);
+    await expect(page.getByTestId('admin-nav-tools')).toHaveCount(0);
   });
 
   test('superadmin sees protected evidence navigation', async ({ page }) => {
@@ -18,7 +19,8 @@ test.describe('rbac_visibility', () => {
     await gotoAs(page, '/admin/evidence');
     const nav = page.getByTestId('admin-nav');
     await expect(nav).toBeVisible();
-    await expect(page.getByTestId('nav-item-operator-proof-dashboard')).toBeVisible();
+    await expect(page.getByTestId('admin-nav-audit')).toBeVisible();
+    await expect(page.getByTestId('admin-nav-tools')).toBeVisible();
   });
 
   test('public actor is redirected away from admin surface', async ({ page }) => {

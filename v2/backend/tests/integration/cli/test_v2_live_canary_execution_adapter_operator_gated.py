@@ -107,6 +107,16 @@ def _candidate() -> IntentCandidate:
         side="BUY",
         requested_notional_usdt=5.0,
         requested_quantity=0.001,
+        current_price=5000.5,
+        best_bid=5000.0,
+        best_ask=5001.0,
+        symbol_filters={
+            "tick_size": 0.1,
+            "step_size": 0.001,
+            "min_qty": 0.001,
+            "min_notional": 5.0,
+        },
+        hedge_mode=True,
         signal_source="V2_NATIVE_SIGNAL_CANARY",
         expected_move_after_cost_bps=15.0,
         paper_fill_gate_open=True,
@@ -490,10 +500,12 @@ def test_real_adapter_refuses_non_gate_decision_payload() -> None:
     assert "REJECTED_NON_GATE_DECISION_OBJECT" in response["fail_blockers"]
 
 
-def test_real_adapter_endpoint_is_documented_new_order_path_only() -> None:
-    """Asserts the only exchange path is /fapi/v1/order. No cancel,
-    modify, leverage, or margin path is exposed by the class."""
-    assert BinanceFuturesExchangeAdapter.NEW_ORDER_PATH == "/fapi/v1/order"
+def test_real_adapter_endpoint_is_documented_ws_order_place_only() -> None:
+    """Asserts the only exchange method is WebSocket API order.place.
+
+    No cancel, modify, leverage, or margin path is exposed by the class.
+    """
+    assert BinanceFuturesExchangeAdapter.ORDER_METHOD == "order.place"
     public_methods = [
         name for name in vars(BinanceFuturesExchangeAdapter) if not name.startswith("_")
     ]
@@ -814,10 +826,10 @@ def dataclasses_replace(obj: Any, **changes: Any) -> Any:
 # --------------------------------------------------------------------------- #
 # Codex-regression suite: direct-call bypass cannot reach the network.        #
 #                                                                             #
-# These tests monkeypatch ``urllib.request.urlopen`` to fail loudly if        #
-# called. They then exercise multiple direct-call attack paths against        #
-# BinanceFuturesExchangeAdapter.submit_signed_canary_order and verify         #
-# that NONE of them result in a urlopen invocation.                           #
+# These tests use a raising WebSocket sender to fail loudly if called. They   #
+# exercise multiple direct-call attack paths against                          #
+# BinanceFuturesExchangeAdapter.submit_signed_canary_order and verify that    #
+# NONE of them reach exchange transport before gate revalidation clears.      #
 # --------------------------------------------------------------------------- #
 
 
@@ -845,6 +857,16 @@ def urlopen_spy(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
 
     monkeypatch.setattr(_urllib_request, "urlopen", _spy)
     return calls
+
+
+def _ws_sender_spy(calls: list[Any]):
+    def _sender(*args: Any, **kwargs: Any) -> dict[str, Any]:
+        calls.append({"args": args, "kwargs": kwargs})
+        raise RuntimeError(
+            "TEST_REGRESSION: websocket sender was reached before gates cleared"
+        )
+
+    return _sender
 
 
 def _make_decision_with_token(
@@ -1057,12 +1079,12 @@ def test_positive_path_all_gates_pass_uses_fake_transport_only(
     assert urlopen_spy == []
 
 
-def test_positive_path_real_transport_revalidates_and_reaches_urlopen(
+def test_positive_path_real_transport_revalidates_and_reaches_websocket_sender(
     urlopen_spy: list[Any], fake_redis: _FakeRedis, tmp_paths: dict[str, Path]
 ) -> None:
     """Final proof: even on the positive path, the real transport's
     submit method runs re-validation first. When re-validation
-    clears, it then calls urlopen. The spy records the call (and
+    clears, it then calls the WebSocket sender. The spy records the call (and
     raises in the production code path, which we catch as a
     blocked outcome). The point: re-validation is what gates the
     network call; the call never happens unless re-validation
@@ -1071,17 +1093,30 @@ def test_positive_path_real_transport_revalidates_and_reaches_urlopen(
     tmp_paths["approval"].write_text(_approval_file_body(), encoding="utf-8")
     _write_codex_marker(tmp_paths["codex_final_marker"])
     _write_fresh_probe_status(tmp_paths["probe_status"])
-    real = BinanceFuturesExchangeAdapter("dummy-key", "dummy-secret")
+    ws_calls: list[Any] = []
+    real = BinanceFuturesExchangeAdapter(
+        "dummy-key",
+        "dummy-secret",
+        ws_sender=_ws_sender_spy(ws_calls),
+    )
     decision = _make_decision_with_token(_candidate(), tmp_paths, redis_client=fake_redis)
     response = real.submit_signed_canary_order(gate_decision=decision)
-    # The spy raised; production code surfaces it as ERROR or similar.
+    # The spy raised; production code surfaces it as WS_ERROR or similar.
     # The key proof is: re-validation passed (blockers empty), THEN
-    # urlopen was attempted. If any gate had failed, urlopen would
+    # the WebSocket sender was attempted. If any gate had failed, it would
     # never have been reached.
-    assert len(urlopen_spy) == 1
+    assert len(ws_calls) == 1
+    assert urlopen_spy == []
     assert response["real_order_submitted"] is False  # spy raised
     # Re-validation passed → submission was attempted (network spy raised).
     assert response.get("real_order_attempted") is True
+    params = ws_calls[0]["kwargs"]["payload"]["params"]
+    assert params["type"] == "LIMIT"
+    assert params["timeInForce"] == "GTX"
+    assert params["positionSide"] == "LONG"
+    assert params["selfTradePreventionMode"] == "EXPIRE_TAKER"
+    assert params["newClientOrderId"].startswith("v2_")
+    assert "reduceOnly" not in params
 
 
 def _approval_file_body(
@@ -1172,24 +1207,22 @@ def test_real_adapter_has_no_callable_signed_post_bypass() -> None:
             )
 
 
-def test_only_one_urlopen_call_site_in_execution_adapter() -> None:
-    """The execution_adapter module must contain EXACTLY ONE
-    ``urllib.request.urlopen(`` call site, and it must live inside
-    ``BinanceFuturesExchangeAdapter.submit_signed_canary_order``.
-    """
+def test_execution_adapter_has_no_urlopen_order_path_and_one_ws_sender_site() -> None:
+    """The canary execution adapter must not use REST urlopen for orders."""
     src = Path(adapter_mod.__file__).read_text(encoding="utf-8")
-    occurrences = src.count("urllib.request.urlopen(")
+    assert "urllib.request.urlopen(" not in src
+    occurrences = src.count("self._ws_sender(")
     assert occurrences == 1, (
-        f"Expected exactly 1 urlopen call site; found {occurrences}"
+        f"Expected exactly 1 websocket sender call site; found {occurrences}"
     )
-    # Locate the urlopen line and walk backwards to find the
-    # enclosing def. It must be submit_signed_canary_order.
+    # Locate the sender line and walk backwards to find the enclosing def. It
+    # must be submit_signed_canary_order.
     lines = src.splitlines()
-    urlopen_line_idx = next(
-        i for i, line in enumerate(lines) if "urllib.request.urlopen(" in line
+    sender_line_idx = next(
+        i for i, line in enumerate(lines) if "self._ws_sender(" in line
     )
     enclosing_def: str | None = None
-    for i in range(urlopen_line_idx, -1, -1):
+    for i in range(sender_line_idx, -1, -1):
         stripped = lines[i].lstrip()
         if stripped.startswith("def "):
             enclosing_def = stripped.split("(", 1)[0].removeprefix("def ").strip()
@@ -1305,27 +1338,68 @@ def test_direct_import_without_operator_approval_makes_zero_urlopen_calls(
     assert urlopen_spy == []
 
 
-def test_positive_path_revalidates_then_calls_urlopen_exactly_once(
+def test_positive_path_revalidates_then_calls_websocket_sender_exactly_once(
     urlopen_spy: list[Any], tmp_paths: dict[str, Path]
 ) -> None:
-    """When every state check clears at submission time, urlopen is
-    reached exactly once. The monkeypatched spy raises so we never
-    hit Binance; the production code surfaces the raised exception
-    as an error response. The point: re-validation is what gates
-    the call — and it passed."""
+    """When every state check clears, the WebSocket sender is reached once."""
     tmp_paths["approval"].parent.mkdir(parents=True, exist_ok=True)
     tmp_paths["approval"].write_text(_approval_file_body(), encoding="utf-8")
     _write_codex_marker(tmp_paths["codex_final_marker"])
     _write_fresh_probe_status(tmp_paths["probe_status"])
     # Redis with kill switch absent (not active) so GATE_11 clears.
     redis = _FakeRedis()
-    transport = BinanceFuturesExchangeAdapter("dummy-key", "dummy-secret")
+    ws_calls: list[Any] = []
+    transport = BinanceFuturesExchangeAdapter(
+        "dummy-key",
+        "dummy-secret",
+        ws_sender=_ws_sender_spy(ws_calls),
+    )
     decision = _make_decision_with_token(_candidate(), tmp_paths, redis_client=redis)
     result = transport.submit_signed_canary_order(gate_decision=decision)
-    assert len(urlopen_spy) == 1
-    # Spy raised; production path returns an ERROR result.
+    assert len(ws_calls) == 1
+    assert urlopen_spy == []
+    # Spy raised; production path returns a WS_ERROR result.
     assert result.get("real_order_attempted") is True
     assert result["real_order_submitted"] is False
+    params = ws_calls[0]["kwargs"]["payload"]["params"]
+    assert params["type"] == "LIMIT"
+    assert params["timeInForce"] == "GTX"
+    assert params["positionSide"] == "LONG"
+    assert params["selfTradePreventionMode"] == "EXPIRE_TAKER"
+    assert params["newClientOrderId"].startswith("v2_")
+    assert "reduceOnly" not in params
+
+
+def test_positive_gates_without_maker_context_block_before_websocket_sender(
+    urlopen_spy: list[Any], tmp_paths: dict[str, Path]
+) -> None:
+    """All operator gates passing is still insufficient for a live
+    entry when the canary lacks current book and symbol-filter
+    context required for maker-first LIMIT+GTX safety."""
+    tmp_paths["approval"].parent.mkdir(parents=True, exist_ok=True)
+    tmp_paths["approval"].write_text(_approval_file_body(), encoding="utf-8")
+    _write_codex_marker(tmp_paths["codex_final_marker"])
+    _write_fresh_probe_status(tmp_paths["probe_status"])
+    redis = _FakeRedis()
+    ws_calls: list[Any] = []
+    transport = BinanceFuturesExchangeAdapter(
+        "dummy-key",
+        "dummy-secret",
+        ws_sender=_ws_sender_spy(ws_calls),
+    )
+    candidate = IntentCandidate(
+        symbol="BTCUSDT",
+        side="BUY",
+        requested_notional_usdt=5.0,
+        requested_quantity=0.001,
+    )
+    decision = _make_decision_with_token(candidate, tmp_paths, redis_client=redis)
+    result = transport.submit_signed_canary_order(gate_decision=decision)
+    assert result["exchange_response_status"] == "REJECTED_MAKER_FIRST_ORDER_PLAN"
+    assert result["real_order_attempted"] is False
+    assert "MAKER_FIRST_SYMBOL_FILTERS_MISSING" in result["fail_blockers"]
+    assert ws_calls == []
+    assert urlopen_spy == []
 
 
 def test_positive_path_one_failing_gate_makes_zero_urlopen_calls(
@@ -1359,7 +1433,7 @@ def test_positive_path_one_failing_gate_makes_zero_urlopen_calls(
 
 def test_execution_adapter_source_has_no_cancel_modify_leverage_margin_endpoints() -> None:
     """Static source scan: the execution_adapter module must
-    reference only /fapi/v1/order as an endpoint path. No cancel,
+    avoid REST order paths and expose only WebSocket API order.place. No cancel,
     modify, leverage, or margin endpoint may appear."""
     src = Path(adapter_mod.__file__).read_text(encoding="utf-8")
     # Allow these substrings in identifiers (e.g. "leverage_change_approved").
@@ -1376,5 +1450,5 @@ def test_execution_adapter_source_has_no_cancel_modify_leverage_margin_endpoints
     )
     for path in forbidden_paths:
         assert path not in src, f"Forbidden endpoint path appears in source: {path}"
-    # The only Binance path referenced must be /fapi/v1/order
-    assert "/fapi/v1/order" in src
+    assert "/fapi/v1/order" not in src
+    assert "order.place" in src

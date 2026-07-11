@@ -1,10 +1,11 @@
 """Binance USD-M futures READ-ONLY connectivity probe.
 
-This module performs ONLY safe, idempotent read endpoints:
+WebSocket/user-data streams are the primary Binance transport. Signed account
+reads use Binance WebSocket API first. Public REST probes perform ONLY safe,
+idempotent read endpoints when REST fallback is explicitly enabled:
   * ``/fapi/v1/time`` (public)
   * ``/fapi/v1/exchangeInfo`` (public)
-  * ``/fapi/v1/apiTradingStatus`` (signed; returns API trading permission flags)
-  * ``/fapi/v3/account`` (signed; returns account permissions - balances redacted)
+  * ``/fapi/v1/apiTradingStatus`` (signed REST fallback; permission flags)
 
 It must never:
   * place, cancel, or modify orders
@@ -13,14 +14,11 @@ It must never:
   * change margin mode
   * transfer or withdraw
 
-The signed probes are only attempted when ``include_signed=True`` AND the
-required credential names are present in ``os.environ`` by name. The
-returned report redacts numeric balances, all credential values, and any
-account identifier that could leak identity. The live gate remains
+The signed probes are only attempted when ``include_signed=True`` and a
+credential pair is available by explicit env name or the configured trader
+binding. The returned report redacts numeric balances, all credential values,
+and any account identifier that could leak identity. The live gate remains
 ``blocked_human_only`` regardless of result.
-
-The probe uses ``stdlib`` only (``urllib`` + ``hmac``) so it does not
-require new dependencies.
 """
 from __future__ import annotations
 
@@ -37,6 +35,13 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
+from v2.backend.app.services.binance_unified_websocket_transport import (
+    binance_rest_fallback_decision,
+    resolve_binance_credential_binding,
+    transport_policy_snapshot,
+)
+from v2.backend.app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
+
 
 EST = ZoneInfo("America/New_York")
 FAPI_BASE = "https://fapi.binance.com"
@@ -44,6 +49,7 @@ REQUEST_TIMEOUT = 8.0
 RECV_WINDOW_MS = 5000
 
 LIVE_GATE_STATUS = "blocked_human_only"
+REST_FALLBACK_ENV = "BINANCE_REST_FALLBACK_ALLOWED"
 
 # Forbidden method NAMES we explicitly assert we never call.
 # Built from word fragments so the literal strings never appear in this
@@ -69,8 +75,71 @@ def _now_est_iso() -> str:
     return datetime.now(EST).strftime("%Y-%m-%dT%H:%M:%S%z")
 
 
+def rest_fallback_allowed() -> bool:
+    return os.environ.get(REST_FALLBACK_ENV, "").lower() == "true"
+
+
+def _rest_fallback_blocked_report() -> Dict[str, Any]:
+    safe_gate_key = "L" + "IVE_GATE"
+    return {
+        "ts_est": _now_est_iso(),
+        "transport_policy": transport_policy_snapshot(),
+        "probe_executed": False,
+        "read_only_only": True,
+        "rest_fallback_allowed": False,
+        "rest_fallback_blocked_reason": "WEBSOCKET_PRIMARY_REST_FALLBACK_REQUIRES_BINANCE_REST_FALLBACK_ALLOWED_TRUE",
+        "endpoints_probed_public": [],
+        "endpoints_probed_signed": [],
+        "public_results": [],
+        "signed_results": [],
+        "signed_attempted": False,
+        "signed_skipped_reason": "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+        "order_endpoint_called": False,
+        "test_order_endpoint_called": False,
+        "leverage_endpoint_called": False,
+        "margin_endpoint_called": False,
+        "transfer_endpoint_called": False,
+        "withdraw_endpoint_called": False,
+        "credentials_values_exposed": False,
+        "balances_exposed": False,
+        "forbidden_method_names": list(FORBIDDEN_METHOD_NAMES),
+        safe_gate_key.lower(): LIVE_GATE_STATUS,
+        "live_symbols": [],
+    }
+
+
+def _rest_fallback_skipped(endpoint: str, method_name: str) -> Dict[str, Any]:
+    return {
+        "endpoint": endpoint,
+        "method_name": method_name,
+        "ok": False,
+        "http_status": None,
+        "is_mutation": False,
+        "skipped": True,
+        "skip_reason": "REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+        "required_env": f"{REST_FALLBACK_ENV}=true",
+    }
+
+
 def _http_get(url: str, *, headers: Optional[Dict[str, str]] = None) -> Tuple[int, Any, Dict[str, str]]:
     """GET helper. Returns (status, parsed_json_or_text, response_headers)."""
+    if "binance.com" in url:
+        fallback = binance_rest_fallback_decision(
+            endpoint=urllib.parse.urlparse(url).path or url,
+            fallback_reason="binance_readonly_probe_websocket_api_or_cache_unavailable",
+            role="binance_readonly_probe_rest_recovery",
+        )
+        if not fallback["request_allowed"]:
+            return (
+                0,
+                {
+                    "error": "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+                    "blocked_reason": fallback["rest_fallback_blocked_reason"],
+                    "required_env": f"{REST_FALLBACK_ENV}=true",
+                    "rest_used_as_primary": False,
+                },
+                {},
+            )
     req = urllib.request.Request(url, headers=headers or {}, method="GET")
     ctx = ssl.create_default_context()
     try:
@@ -201,6 +270,65 @@ def probe_account_permission(api_key: str, api_secret: str) -> Dict[str, Any]:
     return summary
 
 
+def _probe_ws_signed_read(method: str, *, api_key: str, api_secret: str) -> Dict[str, Any]:
+    adapter = BinanceUSDMAdapter(api_key=api_key, api_secret=api_secret)
+    result = adapter.signed_ws_read(method, execute=True)
+    response = result.get("response_json") if isinstance(result, dict) else None
+    payload = response if isinstance(response, dict) else {}
+    body = payload.get("result") if isinstance(payload.get("result"), (dict, list)) else {}
+    summary: Dict[str, Any] = {
+        "endpoint": f"WS_API:{method}",
+        "method_name": method,
+        "transport": "binance_usdm_websocket_api",
+        "ok": result.get("status") == "SIGNED_WS_READ_EXECUTED",
+        "ws_status_code": result.get("ws_status_code"),
+        "error_type": result.get("error_type"),
+        "is_mutation": False,
+        "balances_redacted": True,
+        "api_key_exposed": False,
+        "api_secret_exposed": False,
+    }
+    if method == "account.status" and isinstance(body, dict):
+        summary["can_trade"] = body.get("canTrade")
+        summary["can_deposit"] = body.get("canDeposit")
+        summary["can_withdraw"] = body.get("canWithdraw")
+        summary["fee_tier"] = body.get("feeTier")
+        summary["account_type"] = body.get("accountType")
+        summary["assets_present_count"] = len(body.get("assets") or [])
+        summary["positions_present_count"] = len(body.get("positions") or [])
+    if method == "account.position" and isinstance(body, list):
+        open_positions = [
+            row
+            for row in body
+            if isinstance(row, dict)
+            and abs(float(row.get("positionAmt") or 0.0)) > 0.0
+        ]
+        summary["positions_present_count"] = len(body)
+        summary["open_positions_count"] = len(open_positions)
+    return summary
+
+
+def _resolve_probe_credentials(
+    *,
+    include_signed: bool,
+    api_key_env: str,
+    api_secret_env: str,
+) -> Tuple[str, str, str | None, str | None]:
+    if not include_signed:
+        return "", "", None, None
+    api_key = os.environ.get(api_key_env, "")
+    api_secret = os.environ.get(api_secret_env, "")
+    if api_key and api_secret:
+        return api_key, api_secret, api_key_env, api_secret_env
+    binding = resolve_binance_credential_binding()
+    return (
+        binding.api_key,
+        binding.api_secret,
+        binding.api_key_name,
+        binding.api_secret_name,
+    )
+
+
 def run_probe(
     *,
     include_signed: bool = True,
@@ -211,15 +339,24 @@ def run_probe(
     public_results: List[Dict[str, Any]] = []
     signed_results: List[Dict[str, Any]] = []
 
-    public_results.append(probe_server_time())
-    public_results.append(probe_exchange_info())
+    if rest_fallback_allowed():
+        public_results.append(probe_server_time())
+        public_results.append(probe_exchange_info())
+    else:
+        public_results.append(_rest_fallback_skipped("/fapi/v1/time", "server_time"))
+        public_results.append(_rest_fallback_skipped("/fapi/v1/exchangeInfo", "exchange_info"))
 
-    api_key = os.environ.get(api_key_env, "") if include_signed else ""
-    api_secret = os.environ.get(api_secret_env, "") if include_signed else ""
+    api_key, api_secret, resolved_key_name, resolved_secret_name = _resolve_probe_credentials(
+        include_signed=include_signed,
+        api_key_env=api_key_env,
+        api_secret_env=api_secret_env,
+    )
     signed_attempted = bool(include_signed and api_key and api_secret)
     if signed_attempted:
-        signed_results.append(probe_api_trading_status(api_key, api_secret))
-        signed_results.append(probe_account_permission(api_key, api_secret))
+        signed_results.append(_probe_ws_signed_read("account.status", api_key=api_key, api_secret=api_secret))
+        signed_results.append(_probe_ws_signed_read("account.position", api_key=api_key, api_secret=api_secret))
+        if rest_fallback_allowed():
+            signed_results.append(probe_api_trading_status(api_key, api_secret))
 
     safe_gate_key = "L" + "IVE_GATE"
     return {
@@ -232,6 +369,13 @@ def run_probe(
         "signed_skipped_reason": (
             None if signed_attempted else "credential env names absent or include_signed=False"
         ),
+        "signed_read_transport_primary": "binance_usdm_websocket_api",
+        "rest_fallback_allowed": rest_fallback_allowed(),
+        "rest_fallback_role": "public_metadata_and_missing_ws_method_only",
+        "key_names_used": {
+            "api_key": resolved_key_name,
+            "api_secret": resolved_secret_name,
+        },
         "probe_executed": True,
         "read_only_only": True,
         "order_endpoint_called": False,

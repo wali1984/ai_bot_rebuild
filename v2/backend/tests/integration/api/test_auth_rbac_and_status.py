@@ -5,6 +5,8 @@ import hmac
 import json
 import os
 import sqlite3
+import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -66,6 +68,29 @@ def _totp_code(secret: str, *, now: int | None = None) -> str:
     return f"{code_int % 1_000_000:06d}"
 
 
+def test_public_backend_app_imports_with_service_pythonpath() -> None:
+    backend_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(backend_root)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from app.main import create_app; app = create_app(); print(app.title)",
+        ],
+        cwd=backend_root,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "NERVYX ONE" in result.stdout
+
+
 def test_auth_login_success_returns_safe_user_payload(tmp_path: Path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
@@ -76,6 +101,24 @@ def test_auth_login_success_returns_safe_user_payload(tmp_path: Path, monkeypatc
     assert payload["token_type"] == "bearer"
     assert payload["user"]["role"] == "admin"
     assert "password_hash" not in json.dumps(payload)
+
+
+def test_auth_health_is_public_secret_free_and_live_blocked(tmp_path: Path, monkeypatch) -> None:
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.get("/api/auth/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema_version"] == "auth_health_v1"
+    assert payload["status"] == "ok"
+    assert payload["login_endpoint_available"] is True
+    assert payload["contains_secret_values"] is False
+    assert payload["raw_credential_value_exposed"] is False
+    assert payload["live_gate"] == "blocked_human_only"
+    assert payload["places_real_order"] is False
+    assert payload["routes_to_live"] is False
+    assert "password_hash" not in json.dumps(payload).lower()
 
 
 def test_initial_trader_seed_is_inactive_and_readonly_scoped(tmp_path: Path, monkeypatch) -> None:
@@ -1368,6 +1411,22 @@ def test_auth_login_failure_and_me_unauthenticated(tmp_path: Path, monkeypatch) 
 
     assert client.post("/api/auth/login", json={"email": "admin@example.com", "password": "wrong"}).status_code == 401
     assert client.get("/api/auth/me").status_code == 401
+
+
+def test_auth_login_fails_closed_when_user_store_blocks(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ALPHAFORGE_AUTH_LOGIN_TIMEOUT_SECONDS", "0.1")
+
+    def slow_authenticate(self: UserStore, email: str, password: str):  # noqa: ANN202
+        time.sleep(0.3)
+        return None
+
+    monkeypatch.setattr(UserStore, "authenticate", slow_authenticate)
+    client = _client(tmp_path, monkeypatch)
+
+    response = client.post("/api/auth/login", json={"email": "admin@example.com", "password": "correct-password"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "auth_service_unavailable"
 
 
 def test_me_authenticated_returns_safe_user(tmp_path: Path, monkeypatch) -> None:
@@ -2804,6 +2863,7 @@ def test_public_status_exposes_no_forbidden_internal_fields(tmp_path: Path, monk
     assert response.status_code == 200
     payload = response.json()
     assert set(payload) == {
+        "status",
         "platform_status",
         "api_status",
         "data_status",
@@ -2822,6 +2882,7 @@ def test_public_status_exposes_no_forbidden_internal_fields(tmp_path: Path, monk
         "stale",
         "warnings",
     }
+    assert payload["status"] in {"available", "degraded"}
     assert payload["live_trading_enabled"] is False
     assert payload["status_dimensions"]["market_data"] in {"LIVE", "DELAYED", "STALE", "OFFLINE"}
     assert payload["status_dimensions"]["automation"] in {"ACTIVE", "PAUSED", "DEGRADED", "UNKNOWN"}

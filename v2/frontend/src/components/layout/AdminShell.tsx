@@ -81,6 +81,10 @@ function GlobalHealthStrip({ counts, freshMs }: { counts: HealthCounts; freshMs:
         alignItems: 'center',
         gap: 10,
         padding: '4px 16px',
+        width: '100%',
+        maxWidth: '100vw',
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
         background: hasIssues
           ? 'color-mix(in oklch, var(--error) 8%, var(--bg-elevated))'
           : 'color-mix(in oklch, var(--ok) 5%, var(--bg-elevated))',
@@ -305,6 +309,7 @@ export function AdminShell(): JSX.Element {
     source: 'admin-overview',
     pollIntervalMs: 30_000,
     enabled: !!user,
+    initialFetchWhenStreaming: true,
   });
 
   const overviewData = envelope.data;
@@ -382,11 +387,16 @@ export function AdminShell(): JSX.Element {
         style={{
           display: 'flex',
           alignItems: 'center',
+          flexWrap: 'wrap',
           gap: 12,
           padding: '8px 16px',
           borderBottom: '1px solid var(--admin-border)',
           background: 'color-mix(in oklch, var(--bg-elevated) 92%, var(--admin-bg))',
           minHeight: 56,
+          width: '100%',
+          maxWidth: '100vw',
+          boxSizing: 'border-box',
+          overflowX: 'hidden',
           flexShrink: 0,
           zIndex: 'var(--z-header)' as React.CSSProperties['zIndex'],
           position: 'sticky',
@@ -400,6 +410,7 @@ export function AdminShell(): JSX.Element {
         />
 
         <span
+          data-nervyx-module="guard"
           style={{
             display: 'inline-block',
             padding: '2px 8px',
@@ -415,6 +426,24 @@ export function AdminShell(): JSX.Element {
           }}
         >
           OPS TERMINAL
+        </span>
+        <span
+          data-nervyx-module="observe"
+          style={{
+            display: 'inline-block',
+            padding: '2px 8px',
+            borderRadius: 4,
+            background: 'color-mix(in oklch, var(--admin-accent) 8%, transparent)',
+            border: '1px solid color-mix(in oklch, var(--admin-accent) 24%, transparent)',
+            color: 'var(--text-secondary)',
+            fontSize: 10,
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            flexShrink: 0,
+          }}
+        >
+          NERVYX OBSERVE
         </span>
 
         <Breadcrumb pathname={location.pathname} />
