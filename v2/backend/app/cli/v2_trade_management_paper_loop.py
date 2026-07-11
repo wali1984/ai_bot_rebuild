@@ -4515,6 +4515,21 @@ def _paper_exploration_queue_row_matches(
     )
 
 
+def _paper_exploration_queue_runtime_row_revalidates(
+    queue_row: Mapping[str, Any],
+    runtime_row: Mapping[str, Any],
+) -> bool:
+    if not _paper_exploration_queue_row_matches(queue_row, runtime_row):
+        return False
+    queue_id = queue_row.get("queue_id")
+    queue_id_matched = queue_id not in (None, "") and str(
+        runtime_row.get("materialization_queue_id")
+    ) == str(queue_id)
+    if queue_id_matched:
+        return True
+    return _is_paper_risk_controller_exploration_row(runtime_row)
+
+
 def _paper_exploration_append_reasons(reasons: list[str], value: Any) -> None:
     if value in (None, "", [], {}):
         return
@@ -4591,20 +4606,15 @@ def _paper_exploration_queue_runtime_rejection_reasons(
     runtime_rows: list[dict[str, Any]],
 ) -> list[str]:
     reasons: list[str] = []
-    queue_id = queue_row.get("queue_id")
     for runtime_row in runtime_rows:
-        if not _paper_exploration_queue_row_matches(queue_row, runtime_row):
-            continue
         # A loose token match (prediction/signal/candidate id overlap without
         # queue-id equality) can select the same signal's NON-exploration
-        # duplicate intent, whose broad-singleton quarantine reasons do not
-        # apply to the exploration lane and would mislabel the queue row's
-        # no-fill taxonomy as TRUE bucket quarantine.
-        queue_id_matched = queue_id not in (None, "") and str(
-            runtime_row.get("materialization_queue_id")
-        ) == str(queue_id)
-        if not queue_id_matched and not _is_paper_risk_controller_exploration_row(
-            runtime_row
+        # duplicate intent, whose allocator/quarantine reasons do not apply to
+        # the exploration lane and would mislabel the queue row's no-fill
+        # taxonomy as a true allocator/performance block.
+        if not _paper_exploration_queue_runtime_row_revalidates(
+            queue_row,
+            runtime_row,
         ):
             continue
         for field in _PAPER_EXPLORATION_RUNTIME_REJECTION_REASON_FIELDS:
@@ -4713,7 +4723,10 @@ def _paper_exploration_queue_runtime_feedback_context(
         _paper_exploration_should_preserve_source_loss_probability(queue_signal)
     )
     for runtime_row in runtime_rows:
-        if not _paper_exploration_queue_row_matches(queue_row, runtime_row):
+        if not _paper_exploration_queue_runtime_row_revalidates(
+            queue_row,
+            runtime_row,
+        ):
             continue
         context = {
             field: runtime_row.get(field)

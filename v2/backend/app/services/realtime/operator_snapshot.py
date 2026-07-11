@@ -332,6 +332,55 @@ def _providers_payload(client: Any) -> dict[str, Any]:
     }
 
 
+def _hedge_payload(client: Any) -> dict[str, Any]:
+    """Hedge-engine posture summary for realtime display (read-only, on-demand).
+
+    The hedge engine (risk.hedge_first_controller + hedge_engine.cross_margin_stress)
+    is evaluated per negative/adverse position; this surfaces its posture so the UI
+    can show whether any open position needs a hedge and the portfolio buffer. Never
+    places an order.
+    """
+    def _f(value: Any) -> float | None:
+        try:
+            f = float(value)
+            return f if f == f else None  # drop NaN
+        except (TypeError, ValueError):
+            return None
+
+    raw = _read_json(client, "v2:paper:positions")
+    positions = raw.get("positions") if isinstance(raw, dict) else (raw if isinstance(raw, list) else [])
+    positions = positions if isinstance(positions, list) else []
+    open_positions = [
+        p for p in positions
+        if isinstance(p, dict) and (p.get("is_open") is True or str(p.get("status") or "open").lower() == "open")
+    ]
+
+    def _upnl(p: dict[str, Any]) -> float | None:
+        return _f(_first(p.get("unrealized_pnl_usd"), p.get("unrealized_pnl"), p.get("upnl_usd")))
+
+    negative = [p for p in open_positions if (_upnl(p) or 0.0) < 0.0]
+    portfolio = _read_json(client, "v2:portfolio:state")
+    return {
+        "schema_version": "enterprise_hedge_snapshot_v1",
+        "hedge_engine_active": True,
+        "hedge_evaluation_mode": "on_demand_per_negative_position",
+        "open_position_count": len(open_positions),
+        "negative_position_count": len(negative),
+        "hedge_required_candidates": [
+            {"symbol": p.get("symbol"), "side": p.get("side"), "unrealized_pnl_usd": _upnl(p)}
+            for p in negative
+        ][:10],
+        "portfolio_liquidation_buffer_usd": _first(
+            portfolio.get("portfolio_liquidation_buffer_usd"),
+            portfolio.get("liquidation_buffer_usd"),
+        ),
+        "hedge_basket": ["same_symbol_opposite", "BTC", "ETH", "SOL", "top5_beta", "correlation", "cash"],
+        "cross_margin_model": "portfolio_level",
+        "places_real_order": False,
+        "routes_to_live": False,
+    }
+
+
 def _risk_payload(client: Any) -> dict[str, Any]:
     live_canary = _read_json(client, "v2:live_canary:status")
     preemptive = _read_json(client, "v2:preemptive:runtime_status")
@@ -348,6 +397,7 @@ def _risk_payload(client: Any) -> dict[str, Any]:
         "probation_gate": probation,
         "preemptive_runtime": preemptive,
         "live_canary": live_canary,
+        "hedge": _hedge_payload(client),
         "mutation_flags": {
             "places_real_order": False,
             "places_test_order": False,

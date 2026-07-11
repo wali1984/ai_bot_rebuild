@@ -2176,6 +2176,66 @@ def test_paper_exploration_queue_rejection_reasons_include_matched_loss_cluster_
     assert "loss_cluster_symbol:LINKUSDT" in reasons
 
 
+def test_materialization_queue_runtime_context_ignores_loose_no_trade_duplicate() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp-1",
+        "candidate_id": "hyp-1",
+    }
+    runtime_rows = [
+        {
+            "candidate_id": "hyp-1",
+            "paper_opportunity_tier": "NO_TRADE",
+            "allocator_decision": "BLOCK_INSUFFICIENT_LIQUIDITY",
+            "paper_allocation_block_reason": "BLOCK_INSUFFICIENT_LIQUIDITY",
+        }
+    ]
+
+    context = paper_loop._paper_exploration_queue_runtime_feedback_context(  # noqa: SLF001
+        queue_row,
+        runtime_rows,
+    )
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        queue_row,
+        runtime_rows,
+    )
+
+    assert context == {}
+    assert reasons == []
+
+
+def test_materialization_queue_runtime_context_keeps_exact_queue_id_block() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp-1",
+        "candidate_id": "hyp-1",
+    }
+    runtime_rows = [
+        {
+            "candidate_id": "hyp-1",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-1",
+            "paper_opportunity_tier": "NO_TRADE",
+            "allocator_decision": "BLOCK_INSUFFICIENT_LIQUIDITY",
+            "paper_allocation_block_reason": "BLOCK_INSUFFICIENT_LIQUIDITY",
+            "local_block_reasons": [
+                "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY"
+            ],
+        }
+    ]
+
+    context = paper_loop._paper_exploration_queue_runtime_feedback_context(  # noqa: SLF001
+        queue_row,
+        runtime_rows,
+    )
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        queue_row,
+        runtime_rows,
+    )
+
+    assert context["allocator_decision"] == "BLOCK_INSUFFICIENT_LIQUIDITY"
+    assert reasons == [
+        "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY"
+    ]
+
+
 def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidence() -> None:
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [

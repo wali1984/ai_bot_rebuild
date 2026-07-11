@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -37,7 +38,13 @@ V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 FEATURE_LATEST_TTL_SECONDS = 600
-FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS = 24 * 60 * 60  # 24h; 30d caused Redis OOM at 370K keys
+# 12h default. Audit found ~644K resident snapshot keys (prior OOM was at ~370K)
+# because a legacy 30d TTL backlog was still draining and 24h steady-state sat near
+# the OOM threshold. Trust reconstruction has a self-contained fallback for expired
+# snapshots, so a shorter TTL is safe and bounds memory well below OOM. Env-tunable.
+FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS = int(
+    os.getenv("V2_FEATURE_SNAPSHOT_TTL_SECONDS", str(12 * 60 * 60)) or 12 * 60 * 60
+)
 CONFIGURED_FEE_BPS_SOURCE = (
     "CONFIGURED_PAPER_FEE_SCHEDULE:"
     "adaptive_capital_allocator.AllocationInput.fee_bps"
