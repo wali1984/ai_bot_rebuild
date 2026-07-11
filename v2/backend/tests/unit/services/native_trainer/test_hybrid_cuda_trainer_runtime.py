@@ -6,6 +6,7 @@ import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
     _checkpoint_promotion_decision,
+    _checkpoint_promotion_status_fields,
     _trusted_replay_load_limit_for_cycle,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as data_loader_mod
@@ -229,3 +230,29 @@ def test_checkpoint_promotion_guard_can_be_disabled(monkeypatch: pytest.MonkeyPa
     assert decision["checkpoint_promotion_allowed"] is True
     assert decision["checkpoint_promotion_rejected"] is False
     assert decision["checkpoint_promotion_reason"] == "VALIDATION_GUARD_DISABLED"
+
+
+def test_checkpoint_promotion_status_fields_surface_rejection_streak() -> None:
+    fields = _checkpoint_promotion_status_fields(
+        {
+            "checkpoint_promotion_guard_active": True,
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+            "prior_promotion_rejection_streak": 2,
+            "promotion_rejection_streak_after": 0,
+            "max_promotion_rejection_streak": 3,
+            "forced_promote_after_rejection_streak": 3,
+        }
+    )
+
+    assert fields == {
+        "checkpoint_promotion_guard_active": True,
+        "checkpoint_promotion_allowed": False,
+        "checkpoint_promotion_rejected": True,
+        "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+        "prior_promotion_rejection_streak": 2,
+        "promotion_rejection_streak_after": 0,
+        "max_promotion_rejection_streak": 3,
+        "forced_promote_after_rejection_streak": 3,
+    }

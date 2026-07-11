@@ -124,7 +124,7 @@ def test_regularization_knobs_default_values(monkeypatch) -> None:
     model = V2HybridPolicyModel(input_dim=1)
     trainer = V2HybridPPOTrainer(model=model)
     assert trainer.entropy_coefficient == pytest.approx(0.02)
-    assert trainer.supervised_entropy_bonus == pytest.approx(0.002)
+    assert trainer.supervised_entropy_bonus == pytest.approx(0.001)
     assert trainer.weight_decay == pytest.approx(0.02)
 
 

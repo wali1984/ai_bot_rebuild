@@ -244,6 +244,37 @@ def _checkpoint_promotion_decision(
     return decision
 
 
+def _checkpoint_promotion_status_fields(
+    checkpoint_promotion: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "checkpoint_promotion_guard_active": checkpoint_promotion.get(
+            "checkpoint_promotion_guard_active"
+        ),
+        "checkpoint_promotion_allowed": checkpoint_promotion.get(
+            "checkpoint_promotion_allowed"
+        ),
+        "checkpoint_promotion_rejected": checkpoint_promotion.get(
+            "checkpoint_promotion_rejected"
+        ),
+        "checkpoint_promotion_reason": checkpoint_promotion.get(
+            "checkpoint_promotion_reason"
+        ),
+        "prior_promotion_rejection_streak": checkpoint_promotion.get(
+            "prior_promotion_rejection_streak"
+        ),
+        "promotion_rejection_streak_after": checkpoint_promotion.get(
+            "promotion_rejection_streak_after"
+        ),
+        "max_promotion_rejection_streak": checkpoint_promotion.get(
+            "max_promotion_rejection_streak"
+        ),
+        "forced_promote_after_rejection_streak": checkpoint_promotion.get(
+            "forced_promote_after_rejection_streak"
+        ),
+    }
+
+
 def _increment_rejection_reason(counts: dict[str, int], reason: Any) -> None:
     text = str(reason or "").strip()
     if not text or text.upper() == "NONE":
@@ -688,8 +719,10 @@ def run_hybrid_trainer_cycle(
         "vram_target_mb": training_metrics.get("vram_target_mb"),
         "vram_reserved_mb": training_metrics.get("vram_reserved_mb"),
     }
+    checkpoint_promotion_status = _checkpoint_promotion_status_fields(checkpoint_promotion)
     status = {
         "schema_version": "v2_native_rl_masa_ppo_cuda_trainer_status_v1",
+        "generated_utc": _utc_iso(),
         "trainer_source": TRAINER_SOURCE,
         "model_source": MODEL_SOURCE,
         "checkpoint_source": CHECKPOINT_SOURCE,
@@ -722,18 +755,7 @@ def run_hybrid_trainer_cycle(
         "checkpoint_guard_active": True,
         "stale_checkpoints_rejected": True,
         "checkpoint_shape_guard": "latest_manifest(input_dim=runtime_input_dim)",
-        "checkpoint_promotion_guard_active": checkpoint_promotion.get(
-            "checkpoint_promotion_guard_active"
-        ),
-        "checkpoint_promotion_allowed": checkpoint_promotion.get(
-            "checkpoint_promotion_allowed"
-        ),
-        "checkpoint_promotion_rejected": checkpoint_promotion.get(
-            "checkpoint_promotion_rejected"
-        ),
-        "checkpoint_promotion_reason": checkpoint_promotion.get(
-            "checkpoint_promotion_reason"
-        ),
+        **checkpoint_promotion_status,
         "checkpoint_candidate_weight_mutated": training_metrics.get(
             "checkpoint_candidate_weight_mutated"
         ),
@@ -787,18 +809,7 @@ def run_hybrid_trainer_cycle(
             "validation_rows_evaluated": training_metrics.get("validation_rows_evaluated"),
             "train_val_generalization_gap": training_metrics.get("train_val_generalization_gap"),
             "overfit_gap_warning": training_metrics.get("overfit_gap_warning"),
-            "checkpoint_promotion_guard_active": checkpoint_promotion.get(
-                "checkpoint_promotion_guard_active"
-            ),
-            "checkpoint_promotion_allowed": checkpoint_promotion.get(
-                "checkpoint_promotion_allowed"
-            ),
-            "checkpoint_promotion_rejected": checkpoint_promotion.get(
-                "checkpoint_promotion_rejected"
-            ),
-            "checkpoint_promotion_reason": checkpoint_promotion.get(
-                "checkpoint_promotion_reason"
-            ),
+            **checkpoint_promotion_status,
             "checkpoint_candidate_weight_mutated": training_metrics.get(
                 "checkpoint_candidate_weight_mutated"
             ),

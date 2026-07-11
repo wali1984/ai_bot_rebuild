@@ -176,11 +176,12 @@ class V2HybridPPOTrainer:
         self.supervised_entropy_bonus = (
             float(supervised_entropy_bonus)
             if supervised_entropy_bonus is not None
-            # 0.002 (was 0.005): enough to prevent the entropy-collapse-to-zero seen
-            # originally, but low enough that entropy does not drift runaway-high
-            # (~1.0) and inflate supervised validation loss every cycle (which was
-            # tripping the checkpoint-promotion regression guard). Env-tunable.
-            else float(os.getenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.002") or 0.002)
+            # 0.001: prevents the original entropy-collapse-to-zero, but small enough
+            # that entropy settles toward the observed healthy band (~0.5, where the
+            # out-of-sample rollout reward was positive) rather than drifting to ~1.0
+            # (which inflated supervised validation loss and destabilized training).
+            # Env-tunable via V2_TRAINER_SUPERVISED_ENTROPY_BONUS.
+            else float(os.getenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.001") or 0.001)
         )
         self.weight_decay = (
             float(weight_decay)
