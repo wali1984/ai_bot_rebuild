@@ -34,6 +34,8 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE,
+    DEFAULT_ROLLOUT_MAX_ENVS,
+    DEFAULT_ROLLOUT_N_STEPS,
     DEFAULT_TIMEFRAMES,
     TRAINER_SOURCE,
     HybridTrainerConfig,
@@ -423,6 +425,30 @@ def _bounded_env_int(name: str, default: int, *, minimum: int, maximum: int) -> 
     except (TypeError, ValueError):
         parsed = int(default)
     return max(int(minimum), min(int(maximum), parsed))
+
+
+def _bounded_env_float(name: str, default: float, *, minimum: float, maximum: float) -> float:
+    value = os.environ.get(name)
+    try:
+        parsed = float(value) if value not in (None, "") else float(default)
+    except (TypeError, ValueError):
+        parsed = float(default)
+    return max(float(minimum), min(float(maximum), parsed))
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value in (None, ""):
+        return bool(default)
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _setting_source(name: str, default_source: str = "default") -> str:
+    return f"env:{name}" if os.environ.get(name) not in (None, "") else default_source
+
+
+def _current_env_values(names: Iterable[str]) -> dict[str, str | None]:
+    return {name: os.environ.get(name) for name in names}
 
 
 def _sha256_path(path: Path | None) -> str | None:
@@ -2205,6 +2231,7 @@ def build_persistent_runtime_status(
     persistent_state: Mapping[str, Any],
     resource: Mapping[str, Any],
     checkpoint: Mapping[str, Any],
+    max_rows: int = DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE,
 ) -> dict[str, Any]:
     now_ts = time.time()
     events = prune_recent_events(as_list(persistent_state.get("step_events")), now_ts=now_ts)
@@ -2256,6 +2283,11 @@ def build_persistent_runtime_status(
         persistent_state=persistent_state,
         prediction_rows=prediction_rows,
     )
+    legacy_runtime_config = legacy_grade_runtime_config(
+        symbols=symbol_scope.get("training_symbols") or [],
+        timeframes=symbol_scope.get("training_timeframes") or DEFAULT_TIMEFRAMES,
+        max_rows=max_rows,
+    )
     return {
         "schema_version": "native_cuda_trainer_persistent_runtime_status_v1",
         "generated_est": generated_est,
@@ -2270,6 +2302,9 @@ def build_persistent_runtime_status(
         "continuous_training_enabled": True,
         "trainer_liveness_status": worker_health_status,
         "worker_health_status": worker_health_status,
+        "legacy_grade_runtime_config": legacy_runtime_config,
+        "legacy_runtime_effective_config": as_dict(legacy_runtime_config.get("effective_config")),
+        "legacy_runtime_coverage_mode": legacy_runtime_config.get("coverage_mode"),
         "heartbeat_age_seconds": heartbeat_age_seconds,
         "last_batch_age_seconds": heartbeat_age_seconds,
         "last_prediction_age_seconds": heartbeat_age_seconds,
@@ -2387,6 +2422,11 @@ def publish_training_cycle_heartbeat(
         prediction_public.get("missing_prediction_timeframes_by_symbol")
     )
     symbol_scope = trainer_symbol_scope_status()
+    legacy_runtime_config = legacy_grade_runtime_config(
+        symbols=symbol_scope.get("training_symbols") or [],
+        timeframes=symbol_scope.get("training_timeframes") or DEFAULT_TIMEFRAMES,
+        max_rows=max_rows,
+    )
     prediction_grid_current = bool(
         expected_rows > 0
         and current_prediction_rows == expected_rows
@@ -2440,6 +2480,9 @@ def publish_training_cycle_heartbeat(
         "heartbeat_age_seconds": 0,
         "worker_health_status": "HEALTHY",
         "trainer_liveness_status": "HEALTHY",
+        "legacy_grade_runtime_config": legacy_runtime_config,
+        "legacy_runtime_effective_config": as_dict(legacy_runtime_config.get("effective_config")),
+        "legacy_runtime_coverage_mode": legacy_runtime_config.get("coverage_mode"),
     }
     for base in (paths.artifact_dir, paths.worklog_dir):
         write_json(base / "native_cuda_trainer_persistent_runtime_status.json", payload)
@@ -2531,6 +2574,27 @@ RESIDENT_TRAIN_ROWS_PER_STEP = 512
 # oversized --max-rows can never wedge the resident trainer mid-cycle again.
 RESIDENT_MAX_BATCH_SIZE = 4096
 RESIDENT_NATIVE_CYCLE_TIMEOUT_SECONDS = 600
+LEGACY_RUNTIME_ENV_NAMES = (
+    "RL_N_ENVS",
+    "RL_N_STEPS",
+    "RL_BATCH_SIZE",
+    "RL_ALLOW_ENV_TRUNCATION",
+    "VEC_ENV_TYPE",
+    "PPO_N_EPOCHS",
+    "PPO_LEARNING_RATE",
+    "PPO_GAMMA",
+    "PPO_ENT_COEF",
+    "PREDICTION_LOOP_SECONDS",
+    "POST_TRAINING_PAUSE_SECONDS",
+    "ENABLE_AUTO_GPU_SCALE",
+    "TRAINER_TARGET_GPU_UTIL",
+    "TRAINER_TARGET_VRAM_UTIL",
+)
+LEGACY_RUNTIME_SAFE_ENV_CAP = DEFAULT_ROLLOUT_MAX_ENVS
+LEGACY_RUNTIME_MIN_ROLLOUT_STEPS = DEFAULT_ROLLOUT_N_STEPS
+LEGACY_RUNTIME_MIN_BATCH_IF_ROWS_SUPPORT = 2048
+LEGACY_RUNTIME_DEFAULT_PREDICTION_LOOP_SECONDS = 5
+LEGACY_RUNTIME_DEFAULT_POST_TRAINING_PAUSE_SECONDS = 0
 
 
 class NativeCycleTimeout(TimeoutError):
@@ -2563,6 +2627,182 @@ def resident_train_steps_for_max_rows(max_rows: int) -> int:
     return max(1, min(RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE, row_scaled_steps))
 
 
+def legacy_grade_runtime_config(
+    *,
+    symbols: Iterable[str],
+    timeframes: Iterable[str],
+    max_rows: int,
+) -> dict[str, Any]:
+    """Return the effective legacy-grade runtime config without touching exchanges."""
+
+    symbol_list = [str(symbol) for symbol in symbols if str(symbol)]
+    timeframe_list = [str(timeframe) for timeframe in timeframes if str(timeframe)]
+    symbols_count = len(symbol_list)
+    timeframes_count = len(timeframe_list)
+    pair_count = symbols_count * timeframes_count
+    rows = max(1, int(max_rows))
+    safe_env_cap = _bounded_env_int(
+        "RL_SAFE_ENV_CAP",
+        LEGACY_RUNTIME_SAFE_ENV_CAP,
+        minimum=1,
+        maximum=4096,
+    )
+    default_n_envs = max(1, min(max(1, pair_count), safe_env_cap))
+    n_envs = _bounded_env_int(
+        "RL_N_ENVS",
+        default_n_envs,
+        minimum=1,
+        maximum=4096,
+    )
+    n_steps = _bounded_env_int(
+        "RL_N_STEPS",
+        LEGACY_RUNTIME_MIN_ROLLOUT_STEPS,
+        minimum=LEGACY_RUNTIME_MIN_ROLLOUT_STEPS,
+        maximum=16_384,
+    )
+    default_batch_size = (
+        min(rows, RESIDENT_MAX_BATCH_SIZE)
+        if rows >= LEGACY_RUNTIME_MIN_BATCH_IF_ROWS_SUPPORT
+        else rows
+    )
+    batch_size = _bounded_env_int(
+        "RL_BATCH_SIZE",
+        default_batch_size,
+        minimum=1,
+        maximum=RESIDENT_MAX_BATCH_SIZE,
+    )
+    ppo_n_epochs = _bounded_env_int("PPO_N_EPOCHS", 1, minimum=1, maximum=16)
+    base_train_steps = resident_train_steps_for_max_rows(rows)
+    ppo_training_steps = min(
+        RESIDENT_TRAIN_STEPS_HARD_CEILING,
+        max(1, base_train_steps * ppo_n_epochs),
+    )
+    allow_env_truncation = _env_bool("RL_ALLOW_ENV_TRUNCATION", False)
+    coverage_cycles = max(1, math.ceil(pair_count / max(1, n_envs))) if pair_count else 0
+    if pair_count <= n_envs:
+        coverage_mode = "SINGLE_CYCLE_FULL_SYMBOL_TIMEFRAME_COVERAGE"
+    elif allow_env_truncation:
+        coverage_mode = "EXPLICIT_OPERATOR_ENV_TRUNCATION"
+    else:
+        coverage_mode = "DETERMINISTIC_ROTATING_PARTITIONS_REQUIRED"
+    prediction_loop_seconds = _bounded_env_int(
+        "PREDICTION_LOOP_SECONDS",
+        LEGACY_RUNTIME_DEFAULT_PREDICTION_LOOP_SECONDS,
+        minimum=1,
+        maximum=300,
+    )
+    post_training_pause_seconds = _bounded_env_int(
+        "POST_TRAINING_PAUSE_SECONDS",
+        LEGACY_RUNTIME_DEFAULT_POST_TRAINING_PAUSE_SECONDS,
+        minimum=0,
+        maximum=300,
+    )
+    enable_auto_gpu_scale = _env_bool(
+        "ENABLE_AUTO_GPU_SCALE",
+        _env_bool("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", False),
+    )
+    target_gpu_util = _bounded_env_float(
+        "TRAINER_TARGET_GPU_UTIL",
+        70.0,
+        minimum=1.0,
+        maximum=95.0,
+    )
+    target_vram_util = _bounded_env_float(
+        "TRAINER_TARGET_VRAM_UTIL",
+        70.0,
+        minimum=1.0,
+        maximum=95.0,
+    )
+    ppo_learning_rate = _bounded_env_float(
+        "PPO_LEARNING_RATE",
+        _bounded_env_float("V2_TRAINER_LEARNING_RATE", 1e-4, minimum=1e-8, maximum=1.0),
+        minimum=1e-8,
+        maximum=1.0,
+    )
+    ppo_ent_coef = _bounded_env_float(
+        "PPO_ENT_COEF",
+        _bounded_env_float("V2_TRAINER_ENTROPY_COEF", 0.01, minimum=0.0, maximum=1.0),
+        minimum=0.0,
+        maximum=1.0,
+    )
+    ppo_gamma = _bounded_env_float("PPO_GAMMA", 0.99, minimum=0.0, maximum=1.0)
+    source_of_each_setting = {
+        "n_envs": _setting_source(
+            "RL_N_ENVS",
+            "default:full_symbol_timeframe_coverage_or_safe_cap",
+        ),
+        "n_steps": _setting_source("RL_N_STEPS", "default:512"),
+        "batch_size": _setting_source(
+            "RL_BATCH_SIZE",
+            "default:min(max_rows,4096)_with_2048_min_when_rows_support",
+        ),
+        "allow_env_truncation": _setting_source("RL_ALLOW_ENV_TRUNCATION", "default:false"),
+        "vec_env_type": _setting_source("VEC_ENV_TYPE", "default:ThreadPoolExecutor"),
+        "ppo_n_epochs": _setting_source("PPO_N_EPOCHS", "default:1"),
+        "ppo_learning_rate": _setting_source(
+            "PPO_LEARNING_RATE",
+            _setting_source("V2_TRAINER_LEARNING_RATE", "default:0.0001"),
+        ),
+        "ppo_gamma": _setting_source("PPO_GAMMA", "default:0.99"),
+        "ppo_ent_coef": _setting_source(
+            "PPO_ENT_COEF",
+            _setting_source("V2_TRAINER_ENTROPY_COEF", "default:0.01"),
+        ),
+        "prediction_loop_seconds": _setting_source("PREDICTION_LOOP_SECONDS", "default:5"),
+        "post_training_pause_seconds": _setting_source("POST_TRAINING_PAUSE_SECONDS", "default:0"),
+        "enable_auto_gpu_scale": _setting_source(
+            "ENABLE_AUTO_GPU_SCALE",
+            _setting_source("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", "default:false"),
+        ),
+        "target_gpu_utilization_pct": _setting_source("TRAINER_TARGET_GPU_UTIL", "default:70"),
+        "target_vram_utilization_pct": _setting_source("TRAINER_TARGET_VRAM_UTIL", "default:70"),
+    }
+    effective = {
+        "n_envs": n_envs,
+        "n_steps": n_steps,
+        "batch_size": batch_size,
+        "batch_size_cap": RESIDENT_MAX_BATCH_SIZE,
+        "rollout_samples_per_cycle": n_envs * n_steps,
+        "allow_env_truncation": allow_env_truncation,
+        "vec_env_type": os.environ.get("VEC_ENV_TYPE") or "ThreadPoolExecutor",
+        "ppo_n_epochs": ppo_n_epochs,
+        "ppo_training_steps_per_cycle": ppo_training_steps,
+        "ppo_base_training_steps_per_cycle": base_train_steps,
+        "ppo_learning_rate": ppo_learning_rate,
+        "ppo_gamma": ppo_gamma,
+        "ppo_ent_coef": ppo_ent_coef,
+        "prediction_loop_seconds": prediction_loop_seconds,
+        "post_training_pause_seconds": post_training_pause_seconds,
+        "enable_auto_gpu_scale": enable_auto_gpu_scale,
+        "target_gpu_utilization_pct": target_gpu_util,
+        "target_vram_utilization_pct": target_vram_util,
+        "amp_enabled_default": True,
+        "tf32_enabled_default": True,
+        "cudnn_benchmark_enabled_default": True,
+        "grad_scaler_enabled_default": True,
+    }
+    return {
+        "schema_version": "v2_legacy_grade_runtime_config_v1",
+        "current_env": _current_env_values(LEGACY_RUNTIME_ENV_NAMES),
+        "effective_config": effective,
+        "source_of_each_setting": source_of_each_setting,
+        "coverage_mode": coverage_mode,
+        "coverage_cycles_to_touch_all_pairs": coverage_cycles,
+        "coverage_not_silent": True,
+        "symbols_count": symbols_count,
+        "timeframes_count": timeframes_count,
+        "symbol_timeframe_pairs": pair_count,
+        "n_envs": n_envs,
+        "n_steps": n_steps,
+        "batch_size": batch_size,
+        "rollout_samples_per_cycle": effective["rollout_samples_per_cycle"],
+        "prediction_loop_seconds": prediction_loop_seconds,
+        "post_training_pause_seconds": post_training_pause_seconds,
+        "live_gate": "blocked_human_only",
+        "exchange_mutation_enabled": False,
+    }
+
+
 # ── Adaptive GPU saturation controller (actuation) ──────────────────────────
 # Complements the resource-status reporting layer: when the GPU is idle
 # relative to CPU data prep and rows are plentiful, train MORE optimizer
@@ -2581,7 +2821,10 @@ RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA = 0.02
 
 
 def _adaptive_gpu_controller_enabled() -> bool:
-    return os.getenv("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", "").strip() == "1"
+    return _env_bool(
+        "ENABLE_AUTO_GPU_SCALE",
+        _env_bool("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", False),
+    )
 
 
 # ── Background backfill prefetcher (pipelined data loading) ──────────────────
@@ -2797,7 +3040,14 @@ def run_native_training_cycle(
     client = connect_redis()
     io = V2OnlyJsonIO(client=client)
     symbol_scope = trainer_symbol_scope_status()
-    train_steps = resident_train_steps_for_max_rows(max_rows)
+    symbols = tuple(symbol_scope["training_symbols"] or resolve_symbols())
+    runtime_config = legacy_grade_runtime_config(
+        symbols=symbols,
+        timeframes=DEFAULT_TIMEFRAMES,
+        max_rows=max_rows,
+    )
+    effective_config = as_dict(runtime_config.get("effective_config"))
+    train_steps = int(effective_config.get("ppo_training_steps_per_cycle") or resident_train_steps_for_max_rows(max_rows))
     if _adaptive_gpu_controller_enabled():
         controller_state = _read_gpu_saturation_state(client)
         multiplier = max(
@@ -2808,18 +3058,18 @@ def run_native_training_cycle(
             ),
         )
         train_steps = min(RESIDENT_TRAIN_STEPS_HARD_CEILING, train_steps * multiplier)
-    # Cap batch_size independently of max_rows. A batch equal to a very large
-    # max_rows (e.g. 32768) runs a single oversized native CUDA op that the
-    # SIGALRM-based cycle timeout cannot interrupt (SIGALRM only fires between
-    # Python bytecodes on the main thread), which previously wedged the
-    # resident daemon mid-cycle and froze weight updates. A bounded batch keeps
-    # each optimizer step short enough that the timeout can rescue an overrun.
     config = HybridTrainerConfig(
-        symbols=tuple(symbol_scope["training_symbols"] or resolve_symbols()),
+        symbols=symbols,
         timeframes=tuple(DEFAULT_TIMEFRAMES),
         max_training_rows_per_cycle=int(max_rows),
-        batch_size=max(1, min(int(max_rows), RESIDENT_MAX_BATCH_SIZE)),
+        # Cap batch_size independently of max_rows. A batch equal to a very
+        # large max_rows can run one oversized native CUDA op that the SIGALRM
+        # timeout cannot interrupt. RL_BATCH_SIZE is still bounded by the same
+        # safety ceiling inside legacy_grade_runtime_config.
+        batch_size=int(effective_config.get("batch_size") or max(1, min(int(max_rows), RESIDENT_MAX_BATCH_SIZE))),
         train_steps=train_steps,
+        rollout_n_steps=int(effective_config.get("n_steps") or DEFAULT_ROLLOUT_N_STEPS),
+        rollout_max_envs=int(effective_config.get("n_envs") or DEFAULT_ROLLOUT_MAX_ENVS),
         risk_caps_configured=bool(risk_caps_configured),
     )
     _ensure_prefetch_thread_started()
@@ -3130,6 +3380,9 @@ def publish_persistent_payloads(
         "heartbeat_age_seconds": persistent.get("heartbeat_age_seconds"),
         "last_batch_age_seconds": persistent.get("last_batch_age_seconds"),
         "last_prediction_age_seconds": persistent.get("last_prediction_age_seconds"),
+        "legacy_grade_runtime_config": persistent.get("legacy_grade_runtime_config"),
+        "legacy_runtime_effective_config": persistent.get("legacy_runtime_effective_config"),
+        "legacy_runtime_coverage_mode": persistent.get("legacy_runtime_coverage_mode"),
         **online_learning,
         **symbol_scope,
         "prediction_grid_current": prediction_grid_current,
@@ -3550,6 +3803,7 @@ def run_one_persistent_cycle(
         persistent_state=state,
         resource=resource,
         checkpoint=checkpoint,
+        max_rows=max_rows,
     )
     client = connect_redis()
     ledger = as_dict(redis_json(client, "v2:paper:ledger"))
@@ -3574,7 +3828,16 @@ def run_one_persistent_cycle(
 def persistent_loop_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_native_cuda_trainer_persistent_loop")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
-    parser.add_argument("--interval-seconds", type=int, default=30)
+    parser.add_argument(
+        "--interval-seconds",
+        type=int,
+        default=_bounded_env_int(
+            "PREDICTION_LOOP_SECONDS",
+            LEGACY_RUNTIME_DEFAULT_PREDICTION_LOOP_SECONDS,
+            minimum=1,
+            maximum=300,
+        ),
+    )
     parser.add_argument("--max-rows", type=int, default=DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE)
     parser.add_argument("--max-cycles", type=int, default=0)
     parser.add_argument("--once", action="store_true")
@@ -3610,7 +3873,13 @@ def persistent_loop_main(argv: list[str] | None = None) -> int:
         # Only pause when training is blocked (no trusted data). When data is
         # flowing the loop runs continuously to maximise GPU utilisation.
         blockers = as_dict(dashboard).get("blockers") or []
-        sleep_s = max(5, int(args.interval_seconds)) if blockers else 0
+        post_training_pause_s = _bounded_env_int(
+            "POST_TRAINING_PAUSE_SECONDS",
+            LEGACY_RUNTIME_DEFAULT_POST_TRAINING_PAUSE_SECONDS,
+            minimum=0,
+            maximum=300,
+        )
+        sleep_s = max(1, int(args.interval_seconds)) if blockers else post_training_pause_s
         if sleep_s:
             time.sleep(sleep_s)
 
@@ -3622,6 +3891,7 @@ __all__ = [
     "build_paper_drawdown_attribution",
     "build_paper_drawdown_guard",
     "checkpoint_retention_status",
+    "legacy_grade_runtime_config",
     "run_one_persistent_cycle",
     "persistent_loop_main",
 ]

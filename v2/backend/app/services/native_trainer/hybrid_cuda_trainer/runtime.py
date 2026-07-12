@@ -154,6 +154,9 @@ def _finite_float(value: Any) -> float | None:
 # not depend on Redis. It backs the rejection-streak escape that guarantees durable
 # learning can never be permanently frozen by the validation guard.
 _PROMOTION_REJECTION_STREAK: dict[str, int] = {"count": 0}
+_HARD_PROMOTION_REJECTION_REASONS = frozenset(
+    {"VALIDATION_LOSS_REGRESSED", "TRAIN_VAL_OVERFIT_GAP"}
+)
 
 
 def _checkpoint_promotion_decision(
@@ -234,21 +237,85 @@ def _checkpoint_promotion_decision(
         )
         return decision
     if reject_overfit_gap and decision["overfit_gap_warning"]:
-        if loss_delta < 0.0:
-            decision["checkpoint_promotion_reason"] = (
-                "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY"
+        # An overfit-gap warning must block promotion ONLY when the model is not
+        # generalizing. When validation loss materially improved (loss_delta
+        # below the same tolerance floor used for regression -- a real
+        # out-of-sample gain), the model IS generalizing: a large but non-growing
+        # absolute train/val gap is expected when the validation split is harder.
+        # Blocking that stranded real learning as BLOCKED_NO_DURABLE_WEIGHT_UPDATE
+        # (observed: validation 10.6 -> 5.86, a 45% OOS gain, rejected purely on
+        # a 3.77 absolute gap while the DEPLOYED checkpoint stayed worse). So
+        # promote-with-advisory when validation materially improved, and still
+        # hard-reject when it did not (train down, val flat/up = true overfit).
+        # V2_TRAINER_REJECT_OVERFIT_EVEN_IF_VALIDATION_IMPROVED restores the
+        # strict old behavior for operators who want it.
+        strict_overfit = _bool_env(
+            "V2_TRAINER_REJECT_OVERFIT_EVEN_IF_VALIDATION_IMPROVED", False
+        )
+        validation_improved_materially = loss_delta < -abs_loss_increase_floor
+        if strict_overfit or not validation_improved_materially:
+            decision.update(
+                {
+                    "checkpoint_promotion_allowed": False,
+                    "checkpoint_promotion_rejected": True,
+                    "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+                    "validation_improved_with_overfit_gap": bool(loss_delta < 0.0),
+                }
             )
-            decision["overfit_gap_warning_advisory"] = True
             return decision
         decision.update(
             {
-                "checkpoint_promotion_allowed": False,
-                "checkpoint_promotion_rejected": True,
-                "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+                "checkpoint_promotion_allowed": True,
+                "checkpoint_promotion_rejected": False,
+                "checkpoint_promotion_reason": "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY",
+                "overfit_gap_warning_advisory": True,
+                "validation_improved_with_overfit_gap": True,
             }
         )
         return decision
     return decision
+
+
+def _apply_promotion_rejection_streak_escape(
+    checkpoint_promotion: dict[str, Any],
+    *,
+    prior_reject_streak: int,
+    max_promotion_reject_streak: int,
+) -> dict[str, Any]:
+    """Apply the rejection-streak escape without overriding hard validation failures."""
+    checkpoint_promotion["prior_promotion_rejection_streak"] = int(prior_reject_streak)
+    checkpoint_promotion["max_promotion_rejection_streak"] = int(max_promotion_reject_streak)
+    reason = str(checkpoint_promotion.get("checkpoint_promotion_reason") or "")
+    checkpoint_promotion["hard_promotion_rejection_reason"] = (
+        reason in _HARD_PROMOTION_REJECTION_REASONS
+    )
+    force_enabled = _bool_env("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", False)
+    checkpoint_promotion["force_promote_after_rejection_streak_enabled"] = bool(
+        force_enabled
+    )
+    if (
+        checkpoint_promotion.get("checkpoint_promotion_rejected")
+        and prior_reject_streak + 1 >= max_promotion_reject_streak
+    ):
+        if force_enabled and not checkpoint_promotion["hard_promotion_rejection_reason"]:
+            checkpoint_promotion.update(
+                {
+                    "checkpoint_promotion_allowed": True,
+                    "checkpoint_promotion_rejected": False,
+                    "checkpoint_promotion_reason": "FORCED_PROMOTE_AFTER_REJECTION_STREAK",
+                    "forced_promote_after_rejection_streak": prior_reject_streak + 1,
+                }
+            )
+        else:
+            checkpoint_promotion["forced_promote_after_rejection_streak_blocked"] = (
+                prior_reject_streak + 1
+            )
+            checkpoint_promotion["forced_promote_block_reason"] = (
+                "HARD_VALIDATION_REJECTION"
+                if checkpoint_promotion["hard_promotion_rejection_reason"]
+                else "FORCE_PROMOTE_AFTER_REJECTION_STREAK_DISABLED"
+            )
+    return checkpoint_promotion
 
 
 def _checkpoint_promotion_status_fields(
@@ -281,6 +348,18 @@ def _checkpoint_promotion_status_fields(
         ),
         "forced_promote_after_rejection_streak": checkpoint_promotion.get(
             "forced_promote_after_rejection_streak"
+        ),
+        "forced_promote_after_rejection_streak_blocked": checkpoint_promotion.get(
+            "forced_promote_after_rejection_streak_blocked"
+        ),
+        "forced_promote_block_reason": checkpoint_promotion.get(
+            "forced_promote_block_reason"
+        ),
+        "hard_promotion_rejection_reason": checkpoint_promotion.get(
+            "hard_promotion_rejection_reason"
+        ),
+        "force_promote_after_rejection_streak_enabled": checkpoint_promotion.get(
+            "force_promote_after_rejection_streak_enabled"
         ),
     }
 
@@ -446,20 +525,11 @@ def run_hybrid_trainer_cycle(
         _max_promotion_reject_streak = max(
             1, int(_float_env("V2_TRAINER_MAX_PROMOTION_REJECTION_STREAK", 50))
         )
-        checkpoint_promotion["prior_promotion_rejection_streak"] = _prior_reject_streak
-        checkpoint_promotion["max_promotion_rejection_streak"] = _max_promotion_reject_streak
-        if (
-            checkpoint_promotion.get("checkpoint_promotion_rejected")
-            and _prior_reject_streak + 1 >= _max_promotion_reject_streak
-        ):
-            checkpoint_promotion.update(
-                {
-                    "checkpoint_promotion_allowed": True,
-                    "checkpoint_promotion_rejected": False,
-                    "checkpoint_promotion_reason": "FORCED_PROMOTE_AFTER_REJECTION_STREAK",
-                    "forced_promote_after_rejection_streak": _prior_reject_streak + 1,
-                }
-            )
+        checkpoint_promotion = _apply_promotion_rejection_streak_escape(
+            checkpoint_promotion,
+            prior_reject_streak=_prior_reject_streak,
+            max_promotion_reject_streak=_max_promotion_reject_streak,
+        )
         _new_reject_streak = (
             0 if checkpoint_promotion["checkpoint_promotion_allowed"] else _prior_reject_streak + 1
         )

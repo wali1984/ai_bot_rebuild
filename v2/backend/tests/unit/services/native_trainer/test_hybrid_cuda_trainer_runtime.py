@@ -5,6 +5,7 @@ from collections import deque
 import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
+    _apply_promotion_rejection_streak_escape,
     _checkpoint_promotion_decision,
     _checkpoint_promotion_status_fields,
     _trusted_replay_load_limit_for_cycle,
@@ -190,11 +191,16 @@ def test_checkpoint_promotion_rejects_overfit_gap_warning(
     assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
 
 
-def test_checkpoint_promotion_allows_validation_improvement_with_residual_gap(
+def test_checkpoint_promotion_allows_material_validation_improvement_despite_gap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # A checkpoint that improved held-out loss 30.88 -> 10.79 (a 65% OOS gain) is
+    # generalizing; rejecting it purely on the residual absolute train/val gap
+    # would strand real learning (BLOCKED_NO_DURABLE_WEIGHT_UPDATE) and keep the
+    # worse deployed checkpoint. It must promote with an advisory.
     monkeypatch.delenv("V2_TRAINER_VALIDATION_CHECKPOINT_GUARD", raising=False)
     monkeypatch.delenv("V2_TRAINER_REJECT_OVERFIT_CHECKPOINTS", raising=False)
+    monkeypatch.delenv("V2_TRAINER_REJECT_OVERFIT_EVEN_IF_VALIDATION_IMPROVED", raising=False)
 
     decision = _checkpoint_promotion_decision(
         training_metrics={
@@ -210,10 +216,91 @@ def test_checkpoint_promotion_allows_validation_improvement_with_residual_gap(
     assert decision["checkpoint_promotion_allowed"] is True
     assert decision["checkpoint_promotion_rejected"] is False
     assert decision["validation_improved"] is True
+    assert decision["validation_improved_with_overfit_gap"] is True
     assert decision["overfit_gap_warning_advisory"] is True
-    assert (
-        decision["checkpoint_promotion_reason"]
-        == "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY"
+    assert decision["checkpoint_promotion_reason"] == "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY"
+
+
+def test_checkpoint_promotion_strict_overfit_still_rejects_even_on_improvement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The strict override restores the old behavior: reject the overfit gap even
+    # when validation improved.
+    monkeypatch.delenv("V2_TRAINER_VALIDATION_CHECKPOINT_GUARD", raising=False)
+    monkeypatch.delenv("V2_TRAINER_REJECT_OVERFIT_CHECKPOINTS", raising=False)
+    monkeypatch.setenv("V2_TRAINER_REJECT_OVERFIT_EVEN_IF_VALIDATION_IMPROVED", "true")
+
+    decision = _checkpoint_promotion_decision(
+        training_metrics={
+            "validation_rows_evaluated": 3276,
+            "validation_supervised_loss_before": 30.87943458557129,
+            "validation_supervised_loss_after": 10.78960132598877,
+            "train_val_generalization_gap": 6.911758,
+            "overfit_gap_warning": True,
+        },
+        checkpoint_load=_loadable_checkpoint(),
+    )
+
+    assert decision["checkpoint_promotion_allowed"] is False
+    assert decision["checkpoint_promotion_rejected"] is True
+    assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
+
+
+def test_rejection_streak_escape_does_not_force_hard_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", raising=False)
+
+    decision = _apply_promotion_rejection_streak_escape(
+        {
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+        },
+        prior_reject_streak=49,
+        max_promotion_reject_streak=50,
+    )
+
+    assert decision["checkpoint_promotion_allowed"] is False
+    assert decision["checkpoint_promotion_rejected"] is True
+    assert decision["hard_promotion_rejection_reason"] is True
+    assert decision["force_promote_after_rejection_streak_enabled"] is False
+    assert decision["forced_promote_after_rejection_streak_blocked"] == 50
+    assert decision["forced_promote_block_reason"] == "HARD_VALIDATION_REJECTION"
+
+
+def test_rejection_streak_escape_requires_explicit_enable_for_soft_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", raising=False)
+    decision = _apply_promotion_rejection_streak_escape(
+        {
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "VALIDATION_SIGNAL_UNAVAILABLE",
+        },
+        prior_reject_streak=49,
+        max_promotion_reject_streak=50,
+    )
+    assert decision["checkpoint_promotion_allowed"] is False
+    assert decision["forced_promote_block_reason"] == (
+        "FORCE_PROMOTE_AFTER_REJECTION_STREAK_DISABLED"
+    )
+
+    monkeypatch.setenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", "1")
+    enabled = _apply_promotion_rejection_streak_escape(
+        {
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "VALIDATION_SIGNAL_UNAVAILABLE",
+        },
+        prior_reject_streak=49,
+        max_promotion_reject_streak=50,
+    )
+    assert enabled["checkpoint_promotion_allowed"] is True
+    assert enabled["checkpoint_promotion_rejected"] is False
+    assert enabled["checkpoint_promotion_reason"] == (
+        "FORCED_PROMOTE_AFTER_REJECTION_STREAK"
     )
 
 
@@ -284,4 +371,8 @@ def test_checkpoint_promotion_status_fields_surface_rejection_streak() -> None:
         "promotion_rejection_streak_after": 0,
         "max_promotion_rejection_streak": 3,
         "forced_promote_after_rejection_streak": 3,
+        "forced_promote_after_rejection_streak_blocked": None,
+        "forced_promote_block_reason": None,
+        "hard_promotion_rejection_reason": None,
+        "force_promote_after_rejection_streak_enabled": None,
     }
