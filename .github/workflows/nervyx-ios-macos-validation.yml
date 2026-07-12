@@ -59,15 +59,17 @@ jobs:
 
       - name: Swift package build and tests
         working-directory: v2/mobile
+        env:
+          # Drop the iOS/watchOS app targets from the SwiftPM graph on the
+          # macOS host: they need Apple SDKs (WatchKit is watchOS-only,
+          # @Observable needs macOS 14) and `swift test` rebuilds the whole
+          # package, so their presence fails this lane. The app targets are
+          # validated separately by the xcodebuild steps below with correct
+          # simulator destinations (which leave this variable unset).
+          AIBOT_SPM_EXCLUDE_APP_TARGETS: "1"
         run: |
           set -euo pipefail
-          # Bare `swift build` compiles every non-Linux target against the
-          # host macOS SDK, which fails on AIBotV2Watch (`import WatchKit` —
-          # watchOS SDK only). The iOS/watchOS app targets are validated by
-          # the xcodebuild steps below with correct simulator destinations,
-          # so the SwiftPM lane only covers the cross-platform core + CLI +
-          # tests here.
-          swift build --target AIBotV2Core --target AIBotV2CLI
+          swift build
           swift test
 
       - name: Generate Xcode project from committed project.yml
