@@ -1,7 +1,11 @@
 """V2-owned data loader for the hybrid trainer."""
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import threading
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -70,6 +74,38 @@ TRAINER_FEEDBACK_COUNTERFACTUALS_KEY = "v2:trainer:feedback:counterfactuals"
 TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY = (
     "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
 )
+
+# ── Closed-trade example memo cache ─────────────────────────────────────────
+# The resident runtime rebuilds a fresh loader instance every cycle, and the
+# fresh-training lane rebuilt ALL closed-trade feedback examples each cycle --
+# ~12k counterfactual rows, each costing one Redis feature-snapshot GET plus a
+# tensor build. That synchronous rebuild (data_loader_time_ms ~48s) starved the
+# GPU (it idled while CPU/IO prepped the same immutable historical rows over and
+# over). Closed-trade feedback rows + their feature snapshots are append-mostly
+# and immutable-by-id, so the row->example build is deterministic: memoize it by
+# a content hash of the row across loader instances (module-level, lock-guarded).
+# Warm cycles then rebuild only new/changed rows, collapsing the fresh load to
+# well under a second. Successful examples only are cached; a row that yields no
+# example (e.g. a snapshot not yet archived) is left uncached so a later-arriving
+# snapshot is still picked up. Bounded LRU; kill-switch via env for safety.
+_CLOSED_TRADE_EXAMPLE_CACHE: OrderedDict[str, Any] = OrderedDict()
+_CLOSED_TRADE_EXAMPLE_CACHE_LOCK = threading.Lock()
+_CLOSED_TRADE_EXAMPLE_CACHE_CAP = 65536
+_CLOSED_TRADE_EXAMPLE_CACHE_STATS = {"hits": 0, "misses": 0}
+
+
+def _closed_trade_example_cache_enabled() -> bool:
+    return (os.getenv("V2_TRAINER_CLOSED_TRADE_EXAMPLE_CACHE", "1").strip().lower()
+            not in {"0", "false", "no", "off"})
+
+
+def _closed_trade_example_cache_key(row: Mapping[str, Any]) -> str:
+    """Stable content hash so an identical row maps to an identical example."""
+    try:
+        blob = json.dumps(row, sort_keys=True, default=str, separators=(",", ":"))
+    except (TypeError, ValueError):
+        blob = repr(sorted((str(k), str(v)) for k, v in row.items()))
+    return hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()
 COUNTERFACTUAL_TRAINER_FEEDBACK_SOURCES = {
     "V2_CONTINUOUS_EDGE_FACTORY_COUNTERFACTUAL_CLOSED_WINDOW",
     "V2_CONTINUOUS_EDGE_FACTORY_REPLAY_CLOSED_WINDOW",
@@ -1727,14 +1763,32 @@ class V2HybridTrainerDataLoader:
             payload = self._get(source_key)
             if not isinstance(payload, list):
                 continue
+            cache_enabled = _closed_trade_example_cache_enabled()
             for row in payload:
                 if not isinstance(row, Mapping) or not usable(row):
                     continue
                 row_with_source = dict(row)
                 row_with_source.setdefault("trainer_feedback_source_key", source_key)
+                if cache_enabled:
+                    key = _closed_trade_example_cache_key(row_with_source)
+                    with _CLOSED_TRADE_EXAMPLE_CACHE_LOCK:
+                        cached = _CLOSED_TRADE_EXAMPLE_CACHE.get(key)
+                        if cached is not None:
+                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(key)
+                            _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
+                    if cached is not None:
+                        examples.append(cached)
+                        continue
                 example = self._closed_trade_snapshot_training_example(row_with_source)
                 if example is not None:
                     examples.append(example)
+                    if cache_enabled:
+                        with _CLOSED_TRADE_EXAMPLE_CACHE_LOCK:
+                            _CLOSED_TRADE_EXAMPLE_CACHE[key] = example
+                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(key)
+                            _CLOSED_TRADE_EXAMPLE_CACHE_STATS["misses"] += 1
+                            while len(_CLOSED_TRADE_EXAMPLE_CACHE) > _CLOSED_TRADE_EXAMPLE_CACHE_CAP:
+                                _CLOSED_TRADE_EXAMPLE_CACHE.popitem(last=False)
         return examples
 
     def _closed_trade_feature_snapshot(
