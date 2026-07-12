@@ -605,10 +605,95 @@ def _markets_payload(client: Any) -> dict[str, Any]:
     }
 
 
+def _ingestors_payload(client: Any) -> dict[str, Any]:
+    """Consolidated ingestor / provider health roll-up (read-only, lightweight).
+
+    Presence-based per data stream (first-match scan, O(1)) plus per-provider
+    health from v2:provider:*:health. Gives one place to see whether market data
+    is flowing and which providers are stale.
+    """
+    def _present(pattern: str) -> bool:
+        if client is None:
+            return False
+        try:
+            for _ in client.scan_iter(match=pattern, count=64):
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _age_s(ts: Any) -> float | None:
+        if not ts:
+            return None
+        try:
+            t = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            if t.tzinfo is None:
+                t = t.replace(tzinfo=UTC)
+            return (datetime.now(UTC) - t).total_seconds()
+        except Exception:
+            return None
+
+    streams = {
+        "candles": _present("v2:market:kline*") or _present("v2:market:ohlcv*"),
+        "orderbook_features": _present("v2:orderbook:features:*"),
+        "trade_tape": _present("v2:market:trade_tape_features:*"),
+        "funding_oi": _present("v2:*funding*") or _present("v2:*coinank*"),
+        "liquidation_levels": _present("v2:liquidations:levels:*"),
+        "ta_full": _present("v2:features:ta_full:*"),
+        "feature_snapshots": _present("v2:features:snapshot:*"),
+    }
+    provider_health: dict[str, Any] = {}
+    stale_providers: list[str] = []
+    if client is not None:
+        try:
+            for key in client.scan_iter(match="v2:provider:*:health", count=256):
+                payload = _read_json(client, key)
+                if not isinstance(payload, dict):
+                    continue
+                parts = key.split(":")
+                name = parts[2] if len(parts) > 2 else key
+                age = _age_s(payload.get("generated_utc") or payload.get("generated_at"))
+                status = payload.get("status")
+                provider_health[name] = {
+                    "status": status,
+                    "age_seconds": round(age, 1) if age is not None else None,
+                    "freshness": _freshness_status(age),
+                }
+                if age is not None and age > 900:
+                    stale_providers.append(name)
+                if len(provider_health) >= 40:
+                    break
+        except Exception:
+            pass
+
+    critical_present = streams["candles"] and streams["ta_full"] and streams["feature_snapshots"]
+    if not critical_present:
+        overall = "DEGRADED_MISSING_CORE_STREAM"
+    elif stale_providers:
+        overall = "SOME_PROVIDERS_STALE"
+    else:
+        overall = "HEALTHY"
+    return {
+        "schema_version": "enterprise_ingestors_rollup_v1",
+        "overall_status": overall,
+        "stream_present": streams,
+        "all_core_streams_present": bool(critical_present),
+        "provider_health": provider_health,
+        "provider_count": len(provider_health),
+        "active_provider_count": sum(
+            1 for p in provider_health.values() if str(p.get("status") or "").upper() == "ACTIVE"
+        ),
+        "stale_provider_count": len(stale_providers),
+        "stale_providers": stale_providers,
+        "paper_only": True,
+    }
+
+
 def _system_health_payload(client: Any) -> dict[str, Any]:
     return {
         "schema_version": "enterprise_system_health_snapshot_v1",
         "backend_service": "active",
+        "ingestors": _ingestors_payload(client),
         "redis_available": client is not None,
         "frontend_production_serving": "dist_served_by_backend_when_built",
         "frontend_vite_dev_only": True,

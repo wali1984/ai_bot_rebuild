@@ -1,6 +1,6 @@
 {
-  "marker": "V2_TRUE_RISK_BLOCKER_REMAINS_AFTER_LEVERAGE_FIXTURES",
-  "generated_utc": "2026-07-11T23:15:23Z",
+  "marker": "V2_TRUE_PERFORMANCE_CIRCUIT_BLOCKER_REMAINS_AFTER_PAPER_TRUTH_PATCH",
+  "generated_utc": "2026-07-12T00:04:57Z",
   "governance": {
     "non_strict_rows_excluded_from_strict_governance": true,
     "strict_pf_after_exclusion": 5.182660485863975,
@@ -21,25 +21,35 @@
     "notional_usd_after": 80.0,
     "leverage_static": false,
     "runtime_allowed_rows_after": 0,
-    "runtime_exact_reason": "MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS"
+    "runtime_exact_reason": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED"
   },
   "paper": {
-    "intent_rows": 339,
+    "intent_rows": 89,
     "accepted_rows": 0,
-    "eligible_rows": 2,
+    "eligible_rows": 0,
     "materialized_positions": 0,
     "open_positions": 0,
     "closed_positions": 31,
-    "counterfactual_rows": 5,
-    "exact_no_fill_reason": "MIXED_TRUE_PREQUEUE_AND_AFTER_QUEUE_BLOCKERS",
+    "counterfactual_rows": 1000,
+    "fresh_exploration_candidates": 1,
+    "queued_count": 0,
+    "active_count": 0,
+    "rejected_after_queue_count": 1,
+    "exact_no_fill_reason": "ALL_CURRENT_ROWS_PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED",
+    "canonical_exact_no_fill_reason": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
     "row_level_no_fill_reasons": {
-      "prequeue": {
-        "MATERIALIZATION_PREQUEUE_ENTRY_GATE:SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TRUMPUSDT": 1
-      },
       "after_queue": {
-        "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION": 2
+        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION": 1
       }
     }
+  },
+  "paper_truth_patch": {
+    "status": "PATCHED_AND_TESTED",
+    "scope": "post-queue no-fill reason capture and taxonomy only",
+    "microstructure_shadow_allocator_block_reports_trust_unsafe": true,
+    "current_runtime_still_materialized_positions": 0,
+    "current_runtime_canonical_blocker": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
+    "does_not_allow_blocked_fill": true
   },
   "risk": {
     "portfolio_liquidation_buffer_usd": 26.06266667,
@@ -71,14 +81,15 @@
     "margin_mutated": false
   },
   "fixtures": {
-    "total_tests_added": 4,
+    "total_tests_added": 5,
     "governance_fixtures_passed": true,
     "leverage_margin_fixtures_passed": true,
     "liquidation_fixtures_passed": "existing_allocator_and_paper_loop_suites_passed",
     "hedge_fixtures_passed": "existing_allocator_and_paper_loop_suites_passed",
     "execution_fixtures_passed": true,
     "binance_no_execute_fixtures_passed": true,
-    "ui_fixtures_passed": true
+    "ui_fixtures_passed": true,
+    "paper_truth_taxonomy_fixture_passed": true
   },
   "live": {
     "live_gate": "blocked_human_only",

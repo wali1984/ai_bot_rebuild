@@ -158,9 +158,18 @@ class V2HybridPPOTrainer:
         entropy_coefficient: float | None = None,
         supervised_entropy_bonus: float | None = None,
         weight_decay: float | None = None,
+        learning_rate: float | None = None,
     ) -> None:
         self.model = model
         self.clip_epsilon = float(clip_epsilon)
+        # Learning rate is env-tunable so an offline hyperparameter sweep (see
+        # v2_trainer_offline_hyperparameter_sweep) can search for a stable value.
+        # Too-high LR is the likeliest cause of the observed upward loss divergence.
+        self.learning_rate = (
+            float(learning_rate)
+            if learning_rate is not None
+            else float(os.getenv("V2_TRAINER_LEARNING_RATE", "1e-4") or 1e-4)
+        )
         # Regularization / exploration knobs are env-tunable so the operator can
         # tune or instantly revert without a redeploy. Defaults are chosen to
         # counter the observed pathologies: near-zero policy entropy (collapse)
@@ -929,7 +938,7 @@ class V2HybridPPOTrainer:
         if initial_sanitized_parameter_count:
             non_finite_parameter_value_count_sanitized += initial_sanitized_parameter_count
             non_finite_parameter_sanitization_events += 1
-        opt = torch.optim.AdamW(net.parameters(), lr=1e-4, weight_decay=self.weight_decay)
+        opt = torch.optim.AdamW(net.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         action_weights = self._torch_action_class_weights(
             target_actions=policy_target_actions,
             torch=torch,

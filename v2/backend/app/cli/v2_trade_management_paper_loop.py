@@ -4382,6 +4382,8 @@ _PAPER_EXPLORATION_RUNTIME_REJECTION_REASON_FIELDS = (
     "paper_performance_circuit_breaker_matched_blocked_bucket_keys",
     "paper_performance_circuit_breaker_matched_loss_cluster_keys",
     "market_state_integrity_reasons",
+    "allocator_microstructure_block_reason",
+    "allocator_microstructure_trust_gate_status",
     "paper_signal_temporal_rejection_reasons",
     "paper_runtime_temporal_rejection_reasons",
     "final_no_trade_reason",
@@ -5068,6 +5070,16 @@ def _paper_exploration_queue_no_fill_reason(reasons: list[str]) -> str:
         or "NO_TRADE_ENTRY_EVIDENCE:" in reason_text
     ):
         return "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    if any(
+        token in reason_text
+        for token in (
+            "MICROSTRUCTURE_ACTION_NO_TRADE",
+            "MICROSTRUCTURE_ACTION_SHADOW_ONLY",
+            "MICROSTRUCTURE_ACTION_CLOSE_OR_REDUCE_ONLY",
+            "BLOCKED_MICROSTRUCTURE_ACTION",
+        )
+    ):
+        return "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"
     if (
         "PAPER_FILL_WRITE_INVARIANT_BLOCKED" in reason_text
         or "MISSING_PRODUCTION_GRADE_COST_FLAG" in reason_text
@@ -5190,6 +5202,8 @@ def _paper_exploration_exact_no_fill_reason(
             return "ALL_CURRENT_ROWS_TRUE_ORCHESTRATOR_BLOCKED", reasons
         if only_reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION":
             return "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED", reasons
+        if only_reason == "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION":
+            return "ALL_CURRENT_ROWS_TRUE_TRUST_UNSAFE", reasons
         if (
             only_reason
             == "EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION"
@@ -5213,6 +5227,7 @@ def _paper_exploration_exact_no_fill_reason(
         "TRUE_ORCHESTRATOR_BLOCK_AFTER_QUEUE_CONSUMPTION",
         "TRUE_PAPER_FILL_WRITE_INVARIANT_BLOCK_AFTER_QUEUE_CONSUMPTION",
         "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION",
     }
     if all(reason in true_no_fill_reasons for reason in reasons):
         return "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION", reasons
@@ -5229,6 +5244,7 @@ def _paper_exploration_canonical_exact_no_fill_reason(
         "ALL_CURRENT_ROWS_TRUE_RISK_BLOCKED": "ALL_ROWS_TRUE_RISK_BLOCKED",
         "ALL_CURRENT_ROWS_TRUE_ORCHESTRATOR_BLOCKED": "ALL_ROWS_TRUE_ORCHESTRATOR_BLOCKED",
         "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED": "ALL_ROWS_TRUE_ALLOCATOR_BLOCKED",
+        "ALL_CURRENT_ROWS_TRUE_TRUST_UNSAFE": "ALL_ROWS_TRUE_TRUST_UNSAFE",
         "ALL_CURRENT_ROWS_EXPLORATION_POLICY_REVALIDATION_BLOCKED": "ALL_ROWS_TRUE_TRUST_UNSAFE",
         "ALL_CURRENT_ROWS_TRUE_ENTRY_GATE_BLOCKED": "ALL_ROWS_TRUE_TRUST_UNSAFE",
         "TRUE_ENTRY_GATE_BLOCKED_PREQUEUE": "ALL_ROWS_TRUE_TRUST_UNSAFE",

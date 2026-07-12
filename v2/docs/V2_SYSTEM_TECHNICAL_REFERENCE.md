@@ -161,7 +161,14 @@
 | 3 | Feature pipeline | Uneven alt-data/microstructure breadth (rich ~390 vs lean ~288 features per symbol). | **MED** | By design (provider rate budgets). Recommend prioritized alt-data expansion by symbol liquidity. Masks are honest (no zero-fill). |
 | 4 | Feature pipeline | **~644K resident `v2:features:snapshot:*` keys** (prior Redis OOM was at ~370K) — draining 30d-TTL backlog + 24h steady-state near the OOM line. | **MED** | **FIXED (deploy-pending):** individual-snapshot TTL 24h→**12h** (env `V2_FEATURE_SNAPSHOT_TTL_SECONDS`); safe because trust reconstruction has a self-contained fallback for expired snapshots. Applies on feature-loop restart; existing backlog drains on its old TTL. |
 | 5 | Hedge engine | No standalone hedge status published (on-demand only). | **LOW** | **FIXED (deploy-pending):** `hedge` block added to the realtime `risk` snapshot (open/negative position counts, hedge-required candidates, portfolio buffer). Applies on backend restart. |
-| 6 | Ingestors | No consolidated ingestor-health roll-up key. | **LOW** | Recommend a single `v2:ingestors:status` roll-up (not yet done). |
+| 6 | Ingestors | No consolidated ingestor-health roll-up. | **LOW** | **FIXED (deploy-pending):** `ingestors` roll-up added to the realtime `system_health` snapshot — per-stream presence (candles/orderbook/trade-tape/funding-OI/liquidations/TA/snapshots) + per-provider health + overall status. Runtime smoke: `HEALTHY`, 14 providers, 11 active, 0 stale. |
+
+**Trainer recovery tooling (new):** an offline hyperparameter sweep CLI
+(`v2/backend/app/cli/v2_trainer_offline_hyperparameter_sweep.py`) + runbook
+(`v2/docs/TRAINER_OFFLINE_RETRAIN_RUNBOOK.md`) let the operator find a stable
+(learning_rate, entropy, weight_decay, dropout) config offline against the replay
+archive and recover the trainer without online experimentation. Learning rate is
+now env-tunable (`V2_TRAINER_LEARNING_RATE`).
 
 **Verified healthy (no action):** ingestion flow, TA-Lib (158 fns), liquidation levels (real), orchestrator, risk controller, allocator, execution no-execute safety, PnL/portfolio, churn governor, realtime plane, A-grade gate (correctly blocking).
 

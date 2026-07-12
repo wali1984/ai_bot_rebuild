@@ -2236,6 +2236,39 @@ def test_materialization_queue_runtime_context_keeps_exact_queue_id_block() -> N
     ]
 
 
+def test_materialization_queue_microstructure_shadow_block_reports_trust_unsafe() -> None:
+    queue_row = {
+        "queue_id": "paper_exploration_materialize_hyp-1",
+        "candidate_id": "hyp-1",
+    }
+    runtime_rows = [
+        {
+            "candidate_id": "hyp-1",
+            "materialization_queue_id": "paper_exploration_materialize_hyp-1",
+            "allocator_decision": "BLOCK_INSUFFICIENT_LIQUIDITY",
+            "paper_allocation_block_reason": "BLOCK_INSUFFICIENT_LIQUIDITY",
+            "allocator_microstructure_block_reason": "MICROSTRUCTURE_ACTION_SHADOW_ONLY",
+            "allocator_microstructure_trust_gate_status": (
+                "BLOCKED_MICROSTRUCTURE_ACTION_SHADOW_ONLY"
+            ),
+        }
+    ]
+
+    reasons = paper_loop._paper_exploration_queue_runtime_rejection_reasons(  # noqa: SLF001
+        queue_row,
+        runtime_rows,
+    )
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(reasons)  # noqa: SLF001
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 1}
+    )
+
+    assert "MICROSTRUCTURE_ACTION_SHADOW_ONLY" in reasons
+    assert reason == "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "ALL_CURRENT_ROWS_TRUE_TRUST_UNSAFE"
+    assert components == ["TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"]
+
+
 def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidence() -> None:
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
