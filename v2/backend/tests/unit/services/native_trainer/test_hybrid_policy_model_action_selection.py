@@ -116,3 +116,26 @@ def test_torch_forward_sanitizes_non_finite_head_outputs_to_neutral_prediction()
     assert math.isfinite(result.confidence_calibrated)
     assert math.isfinite(result.policy_value)
     assert math.isfinite(result.masa_signal)
+
+
+def test_attention_encoder_is_off_by_default_and_env_gated(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("V2_TRAINER_ATTENTION_ENCODER", raising=False)
+    off = V2HybridPolicyModel(input_dim=1248)
+    assert off.attention_encoder_enabled is False
+    monkeypatch.setenv("V2_TRAINER_ATTENTION_ENCODER", "true")
+    on = V2HybridPolicyModel(input_dim=1248)
+    assert on.attention_encoder_enabled is True
+    # Enabling the attention encoder changes the architecture identity so it starts
+    # a fresh checkpoint lineage instead of loading incompatible weights.
+    assert on.model_id != off.model_id
+
+
+def test_attention_encoder_only_enables_when_input_splits_into_four_blocks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("V2_TRAINER_ATTENTION_ENCODER", "true")
+    # 1247 is not divisible by 4 -> attention must stay disabled (safe fallback).
+    odd = V2HybridPolicyModel(input_dim=1247)
+    assert odd.attention_encoder_enabled is False
+    even = V2HybridPolicyModel(input_dim=1248)
+    assert even.attention_encoder_enabled is True

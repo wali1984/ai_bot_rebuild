@@ -56,11 +56,29 @@ class V2HybridPolicyModel:
         # counter the observed train/serve overfit gap (in-sample backtest edge that
         # collapses out-of-sample). Set V2_TRAINER_DROPOUT=0.05 to restore prior value.
         self.dropout = max(0.0, min(0.9, float(os.getenv("V2_TRAINER_DROPOUT", "0.10") or 0.10)))
+        # Optional GPU-parallel multi-head attention encoder over the model_vector's
+        # four blocks (values / missing_mask / stale_mask / source_availability). It
+        # lets the policy learn quality-aware feature weighting (attend to reliable
+        # features, down-weight missing/stale) -- partial legacy attention parity --
+        # and adds GPU work per step. Off by default so the existing residual-MLP
+        # path is byte-for-byte unchanged; only enabled when input_dim splits evenly
+        # into the 4 blocks. Note: this is SPATIAL/quality attention, not temporal
+        # memory (V2's input carries no time dimension yet).
+        self.attention_encoder_enabled = (
+            str(os.getenv("V2_TRAINER_ATTENTION_ENCODER", "") or "").strip().lower()
+            in {"1", "true", "yes", "on"}
+            and self.input_dim % 4 == 0
+        )
+        self.attention_heads = max(1, int(os.getenv("V2_TRAINER_ATTENTION_HEADS", "4") or 4))
         self._torch = None
         self._net = None
         self._device = "cpu"
+        # The attention flag is part of the architecture identity so enabling it
+        # starts a fresh checkpoint lineage (the checkpoint manager handles the
+        # input-shape/arch change as a graceful fresh init).
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
-            f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}".encode()
+            f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}"
+            f"|attn={int(self.attention_encoder_enabled)}x{self.attention_heads}".encode()
         ).hexdigest()[:24]
         self._fallback_weights = self._make_fallback_weights()
         self._masa = V2MASAAdapter()
@@ -144,8 +162,38 @@ class V2HybridPolicyModel:
                     return self.activation(x + self.net(x))
 
             class _HybridNet(torch.nn.Module):
-                def __init__(self, input_dim: int, hidden: int, residual_blocks: int, dropout: float) -> None:
+                def __init__(
+                    self,
+                    input_dim: int,
+                    hidden: int,
+                    residual_blocks: int,
+                    dropout: float,
+                    attention_enabled: bool = False,
+                    attention_heads: int = 4,
+                ) -> None:
                     super().__init__()
+                    # GPU-parallel multi-head attention over the 4 model_vector
+                    # blocks (values/missing/stale/source). Additive pre-encoder;
+                    # only built + applied when enabled, so the disabled path is
+                    # identical to the prior residual-MLP model.
+                    self.attention_enabled = bool(attention_enabled) and input_dim % 4 == 0
+                    if self.attention_enabled:
+                        self.block_count = 4
+                        self.block_dim = input_dim // 4
+                        heads = max(1, int(attention_heads))
+                        while heads > 1 and self.block_dim % heads != 0:
+                            heads -= 1
+                        self.attn = torch.nn.MultiheadAttention(
+                            self.block_dim, num_heads=heads, dropout=dropout, batch_first=True
+                        )
+                        self.attn_norm = torch.nn.LayerNorm(self.block_dim)
+                        self.attn_ffn = torch.nn.Sequential(
+                            torch.nn.Linear(self.block_dim, self.block_dim),
+                            torch.nn.GELU(),
+                            torch.nn.Dropout(dropout),
+                            torch.nn.Linear(self.block_dim, self.block_dim),
+                        )
+                        self.attn_ffn_norm = torch.nn.LayerNorm(self.block_dim)
                     self.input_projection = torch.nn.Sequential(
                         torch.nn.Linear(input_dim, hidden),
                         torch.nn.LayerNorm(hidden),
@@ -164,6 +212,13 @@ class V2HybridPolicyModel:
                 def forward(self, x):
                     x = torch.nan_to_num(x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
                     x = torch.sign(x) * torch.log1p(torch.clamp(torch.abs(x), max=1_000_000.0))
+                    if self.attention_enabled:
+                        b = x.shape[0]
+                        seq = x.view(b, self.block_count, self.block_dim)
+                        attn_out, _ = self.attn(seq, seq, seq, need_weights=False)
+                        seq = self.attn_norm(seq + attn_out)
+                        seq = self.attn_ffn_norm(seq + self.attn_ffn(seq))
+                        x = seq.reshape(b, -1)
                     h = self.input_projection(x)
                     for block in self.residual_blocks:
                         h = block(h)
@@ -182,6 +237,8 @@ class V2HybridPolicyModel:
                 hidden=self.hidden_size,
                 residual_blocks=self.residual_block_count,
                 dropout=self.dropout,
+                attention_enabled=self.attention_encoder_enabled,
+                attention_heads=self.attention_heads,
             ).to(device)
             self._device = str(next(self._net.parameters()).device)
         except Exception:
