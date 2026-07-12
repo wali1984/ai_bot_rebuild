@@ -61,7 +61,13 @@ jobs:
         working-directory: v2/mobile
         run: |
           set -euo pipefail
-          swift build
+          # Bare `swift build` compiles every non-Linux target against the
+          # host macOS SDK, which fails on AIBotV2Watch (`import WatchKit` —
+          # watchOS SDK only). The iOS/watchOS app targets are validated by
+          # the xcodebuild steps below with correct simulator destinations,
+          # so the SwiftPM lane only covers the cross-platform core + CLI +
+          # tests here.
+          swift build --target AIBotV2Core --target AIBotV2CLI
           swift test
 
       - name: Generate Xcode project from committed project.yml
