@@ -160,7 +160,13 @@ if ! command -v xcodegen >/dev/null 2>&1; then
   exit 1
 fi
 
-swift test --package-path v2/mobile
+# `swift test` rebuilds the whole SwiftPM package on the macOS host, which
+# fails on the iOS/watchOS app targets (WatchKit is watchOS-only; @Observable
+# needs macOS 14). Drop those app targets from the SwiftPM graph for the
+# contract test only — Package.swift honors AIBOT_SPM_EXCLUDE_APP_TARGETS.
+# The app itself is still built below via xcodegen + xcodebuild against the
+# iOS simulator SDK (which leaves the variable unset).
+AIBOT_SPM_EXCLUDE_APP_TARGETS=1 swift test --package-path v2/mobile
 
 (
   cd v2/mobile
