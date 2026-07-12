@@ -244,10 +244,19 @@ def run_batch_training(
     validation_fraction: float,
     from_checkpoint: bool,
     gpu_sample_interval_s: float = 0.5,
+    early_stop_patience: int = 0,
+    min_epochs: int = 5,
 ) -> dict[str, Any]:
     """Run many GPU gradient steps on the real trainer; verify GPU saturation.
 
     Fail-closed on point-in-time leakage before spending GPU cycles.
+
+    When ``early_stop_patience > 0`` this keeps the BEST out-of-sample
+    (validation) checkpoint rather than the last epoch and stops once validation
+    has not improved for ``early_stop_patience`` epochs. This is the genuine
+    anti-overfit mechanism the legacy trainer used (checkpoint on best
+    validation): it prevents the run from training past the generalization
+    optimum into memorization.
     """
     if not examples:
         raise ValueError("offline batch training requires at least one example")
@@ -295,10 +304,17 @@ def run_batch_training(
         weight_decay=weight_decay,
     )
 
+    import tempfile as _tempfile  # noqa: PLC0415
+
     epoch_reports: list[dict[str, Any]] = []
     total_steps = 0
     loss_first: float | None = None
     loss_last: float | None = None
+    best_val: float | None = None
+    best_epoch: int | None = None
+    epochs_since_improve = 0
+    stopped_early = False
+    _best_blob = Path(_tempfile.mkdtemp(prefix="v2_offline_bestval_")) / "best.weights.npz"
     wall_started = time.perf_counter()
     with GpuUtilizationSampler(interval_s=gpu_sample_interval_s) as sampler:
         for epoch in range(max(1, int(epochs))):
@@ -312,18 +328,44 @@ def run_batch_training(
             if loss_first is None:
                 loss_first = result.loss_before
             loss_last = result.loss_after
+            val = result.metrics.get("validation_supervised_loss")
             epoch_reports.append(
                 {
                     "epoch": epoch,
                     "loss_before": result.loss_before,
                     "loss_after": result.loss_after,
-                    "validation_supervised_loss": result.metrics.get("validation_supervised_loss"),
+                    "validation_supervised_loss": val,
                     "train_val_generalization_gap": result.metrics.get("train_val_generalization_gap"),
                     "ppo_entropy": result.metrics.get("ppo_entropy"),
                     "learning_mode": result.metrics.get("learning_mode"),
                 }
             )
+            # Best-validation checkpoint + early stopping (anti-overfit).
+            if early_stop_patience > 0 and isinstance(val, (int, float)):
+                if best_val is None or val < best_val - 1e-6:
+                    best_val = float(val)
+                    best_epoch = epoch
+                    epochs_since_improve = 0
+                    try:
+                        model.save_weight_blob(_best_blob)  # snapshot the best-generalizing weights
+                    except Exception:  # pragma: no cover
+                        pass
+                else:
+                    epochs_since_improve += 1
+                    # Never stop before the min_epochs floor, so the run always
+                    # trains a meaningful number of passes (default >= 5) even if
+                    # validation plateaus early on a noisy first epoch.
+                    if epochs_since_improve >= early_stop_patience and (epoch + 1) >= max(1, int(min_epochs)):
+                        stopped_early = True
+                        break
         gpu = sampler.report()
+    # Restore the best-validation weights so the returned/saved model is the
+    # best-generalizing checkpoint, not whatever the last (possibly overfit) epoch produced.
+    if early_stop_patience > 0 and best_epoch is not None and _best_blob.exists():
+        try:
+            model.load_weight_blob(_best_blob)
+        except Exception:  # pragma: no cover
+            pass
     wall_seconds = max(1e-6, time.perf_counter() - wall_started)
 
     rows_processed = int(len(examples)) * total_steps
@@ -341,6 +383,12 @@ def run_batch_training(
         "loss_first": loss_first,
         "loss_last": loss_last,
         "loss_improved": (loss_first is not None and loss_last is not None and loss_last < loss_first),
+        "best_validation_loss": best_val,
+        "best_epoch": best_epoch,
+        "early_stop_patience": int(early_stop_patience),
+        "stopped_early": bool(stopped_early),
+        "epochs_run": len(epoch_reports),
+        "kept_best_val_checkpoint": bool(early_stop_patience > 0 and best_epoch is not None),
         "gpu": gpu,
         "epoch_reports": epoch_reports,
         "point_in_time_safety": pit,
@@ -414,6 +462,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--dropout", type=float, default=0.10)
     p.add_argument("--validation-fraction", type=float, default=0.2)
     p.add_argument("--from-checkpoint", action="store_true", help="warm-start from the current LIVE checkpoint (read-only)")
+    p.add_argument("--early-stop-patience", type=int, default=0,
+                   help="keep the best-validation checkpoint and stop after N epochs without improvement (0=off)")
+    p.add_argument("--min-epochs", type=int, default=5,
+                   help="always train at least this many epochs before early stopping can trigger (default 5)")
     p.add_argument("--cache-path", default=DEFAULT_CACHE_PATH)
     p.add_argument("--no-cache", action="store_true", help="do not read/write the example cache")
     p.add_argument("--rebuild-cache", action="store_true", help="ignore any existing cache and rebuild it")
@@ -448,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
         dropout=args.dropout,
         validation_fraction=args.validation_fraction,
         from_checkpoint=args.from_checkpoint,
+        early_stop_patience=args.early_stop_patience,
+        min_epochs=args.min_epochs,
     )
     model = report.pop("trained_model", None)
     report["load"] = load_meta
