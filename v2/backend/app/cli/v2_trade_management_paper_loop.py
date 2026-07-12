@@ -12429,10 +12429,18 @@ def _paper_trainer_model_quality_runtime_status(
     trainer_metrics = trainer_metrics if isinstance(trainer_metrics, dict) else {}
     training = trainer_metrics.get("training")
     training = training if isinstance(training, dict) else {}
+    learning_metrics = training.get("learning_metrics")
+    learning_metrics = learning_metrics if isinstance(learning_metrics, dict) else {}
     training_metrics = training.get("metrics")
     training_metrics = training_metrics if isinstance(training_metrics, dict) else {}
+    if not training_metrics and learning_metrics:
+        training_metrics = learning_metrics
     checkpoint = trainer_metrics.get("checkpoint")
     checkpoint = checkpoint if isinstance(checkpoint, dict) else {}
+    checkpoint_promotion = trainer_metrics.get("checkpoint_promotion")
+    checkpoint_promotion = (
+        checkpoint_promotion if isinstance(checkpoint_promotion, dict) else {}
+    )
     checkpoint_reload = trainer_metrics.get("checkpoint_reload")
     checkpoint_reload = checkpoint_reload if isinstance(checkpoint_reload, dict) else {}
 
@@ -12482,6 +12490,56 @@ def _paper_trainer_model_quality_runtime_status(
             and checkpoint_reload.get("model_state_restored"),
         )
     )
+    checkpoint_promotion_reason = _first_present(
+        learning_metrics.get("checkpoint_promotion_reason"),
+        training_metrics.get("checkpoint_promotion_reason"),
+        training.get("checkpoint_promotion_reason"),
+        checkpoint_promotion.get("checkpoint_promotion_reason"),
+    )
+    checkpoint_promotion_rejected = bool(
+        _first_present(
+            learning_metrics.get("checkpoint_promotion_rejected"),
+            training_metrics.get("checkpoint_promotion_rejected"),
+            training.get("checkpoint_promotion_rejected"),
+            checkpoint_promotion.get("checkpoint_promotion_rejected"),
+        )
+    )
+    hard_promotion_rejection_reason = _first_present(
+        learning_metrics.get("hard_promotion_rejection_reason"),
+        training_metrics.get("hard_promotion_rejection_reason"),
+        checkpoint_promotion.get("hard_promotion_rejection_reason"),
+    )
+    online_learning_status = _first_present(
+        training.get("online_learning_status"),
+        trainer_metrics.get("online_learning_status"),
+        learning_metrics.get("online_learning_status"),
+        training_metrics.get("online_learning_status"),
+    )
+    ppo_entropy = _coerce_float(
+        _first_present(
+            learning_metrics.get("ppo_entropy"),
+            training_metrics.get("ppo_entropy"),
+        )
+    )
+    validation_loss_delta = _coerce_float(
+        _first_present(
+            learning_metrics.get("validation_loss_delta"),
+            training_metrics.get("validation_loss_delta"),
+        )
+    )
+    train_val_generalization_gap = _coerce_float(
+        _first_present(
+            learning_metrics.get("train_val_generalization_gap"),
+            training_metrics.get("train_val_generalization_gap"),
+        )
+    )
+    overfit_gap_warning = (
+        _first_present(
+            learning_metrics.get("overfit_gap_warning"),
+            training_metrics.get("overfit_gap_warning"),
+        )
+        is True
+    )
     weights_update = optimizer_steps_last_hour > 0 and parameter_hash_changed
 
     bucket_rows = model_quality_status.get(
@@ -12513,6 +12571,21 @@ def _paper_trainer_model_quality_runtime_status(
         if all(pass_conditions.values())
         else "BLOCKED_MODEL_QUALITY_OR_TRAINER_UPDATE_INCOMPLETE"
     )
+    trainer_blocker_ids: list[str] = []
+    if (
+        checkpoint_promotion_rejected
+        and checkpoint_promotion_reason in {"VALIDATION_LOSS_REGRESSED", "TRAIN_VAL_OVERFIT_GAP"}
+    ):
+        trainer_blocker_ids.append(str(checkpoint_promotion_reason))
+    if str(online_learning_status or "") == "BLOCKED_NO_DURABLE_WEIGHT_UPDATE":
+        trainer_blocker_ids.append("BLOCKED_NO_DURABLE_WEIGHT_UPDATE")
+    if ppo_entropy is not None and ppo_entropy >= 0.8:
+        trainer_blocker_ids.append("PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED")
+    if train_val_generalization_gap is not None and train_val_generalization_gap > 1.0:
+        trainer_blocker_ids.append("TRAIN_VAL_GENERALIZATION_GAP_HIGH")
+    if status != "PASSED_CURRENT_MODEL_QUALITY_PUBLISHED_A_GRADE_BLOCKED" and not trainer_blocker_ids:
+        trainer_blocker_ids.append("BLOCKED_MODEL_QUALITY_OR_TRAINER_UPDATE_INCOMPLETE")
+    trainer_blocker_ids = list(dict.fromkeys(trainer_blocker_ids))
     return {
         "schema_version": "paper_trainer_model_quality_runtime_status_v1",
         "generated_utc": _utc_iso(),
@@ -12533,6 +12606,15 @@ def _paper_trainer_model_quality_runtime_status(
         "parameter_hash_after": parameter_hash_after,
         "checkpoint_written": checkpoint_written,
         "checkpoint_reload_verified": checkpoint_reload_verified,
+        "online_learning_status": online_learning_status,
+        "checkpoint_promotion_rejected": checkpoint_promotion_rejected,
+        "checkpoint_promotion_reason": checkpoint_promotion_reason,
+        "hard_promotion_rejection_reason": hard_promotion_rejection_reason,
+        "validation_loss_delta": validation_loss_delta,
+        "train_val_generalization_gap": train_val_generalization_gap,
+        "overfit_gap_warning": overfit_gap_warning,
+        "ppo_entropy": ppo_entropy,
+        "trainer_blocker_ids": trainer_blocker_ids,
         "checkpoint_id": _first_present(
             checkpoint.get("checkpoint_id"),
             checkpoint_reload.get("checkpoint_id"),
@@ -22324,6 +22406,211 @@ def _paper_a_grade_gate_burndown_status(
     }
 
 
+PAPER_A_GRADE_BLOCKER_PRIORITY = (
+    "A_GRADE_SUPPLY_ZERO",
+    "VALIDATION_LOSS_REGRESSED",
+    "TRAIN_VAL_OVERFIT_GAP",
+    "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+    "GUARDIAN_HALTED_PERFORMANCE",
+    "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH",
+    "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES",
+    "TRAIN_VAL_GENERALIZATION_GAP_HIGH",
+    "PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED",
+    "BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD",
+)
+
+
+def _paper_unique_blockers(values: list[Any]) -> list[str]:
+    blockers: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text.lower() in {"none", "null", "missing"}:
+            continue
+        if text in seen:
+            continue
+        seen.add(text)
+        blockers.append(text)
+    return blockers
+
+
+def _paper_primary_a_grade_blocker(finding_ids: list[str]) -> str | None:
+    for blocker in PAPER_A_GRADE_BLOCKER_PRIORITY:
+        if blocker in finding_ids:
+            return blocker
+    return finding_ids[0] if finding_ids else None
+
+
+def _paper_a_grade_blocker_truth_status(
+    *,
+    paper_a_grade_gate_burndown_status: Mapping[str, Any] | None,
+    paper_runtime_admission_status: Mapping[str, Any] | None,
+    paper_exploration_materialization_queue_status: Mapping[str, Any] | None,
+    paper_adaptive_sizing_runtime_status: Mapping[str, Any] | None,
+    paper_trainer_model_quality_runtime_status: Mapping[str, Any] | None,
+    paper_performance_circuit_breaker_status: Mapping[str, Any] | None,
+    bucket_quarantine_status: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    a_grade_status = (
+        paper_a_grade_gate_burndown_status
+        if isinstance(paper_a_grade_gate_burndown_status, Mapping)
+        else {}
+    )
+    runtime_admission = (
+        paper_runtime_admission_status
+        if isinstance(paper_runtime_admission_status, Mapping)
+        else {}
+    )
+    queue_status = (
+        paper_exploration_materialization_queue_status
+        if isinstance(paper_exploration_materialization_queue_status, Mapping)
+        else {}
+    )
+    adaptive_status = (
+        paper_adaptive_sizing_runtime_status
+        if isinstance(paper_adaptive_sizing_runtime_status, Mapping)
+        else {}
+    )
+    trainer_quality = (
+        paper_trainer_model_quality_runtime_status
+        if isinstance(paper_trainer_model_quality_runtime_status, Mapping)
+        else {}
+    )
+    performance_status = (
+        paper_performance_circuit_breaker_status
+        if isinstance(paper_performance_circuit_breaker_status, Mapping)
+        else {}
+    )
+    quarantine_status = (
+        bucket_quarantine_status if isinstance(bucket_quarantine_status, Mapping) else {}
+    )
+
+    a_grade_rows = int(
+        _coerce_float(
+            _first_present(a_grade_status.get("A_grade_rows"), adaptive_status.get("A_grade_rows"))
+        )
+        or 0
+    )
+    materialized_count = int(
+        _coerce_float(queue_status.get("same_cycle_materialized_count")) or 0
+    )
+    exact_no_fill_reason = _first_present(
+        queue_status.get("canonical_exact_no_fill_reason"),
+        queue_status.get("exact_no_fill_reason"),
+    )
+    guardian_gate = (
+        a_grade_status.get("guardian_gate_status")
+        if isinstance(a_grade_status.get("guardian_gate_status"), Mapping)
+        else {}
+    )
+    root_cause_counts = (
+        a_grade_status.get("root_cause_counts")
+        if isinstance(a_grade_status.get("root_cause_counts"), Mapping)
+        else {}
+    )
+
+    blockers: list[Any] = []
+    if a_grade_rows <= 0:
+        blockers.append("A_GRADE_SUPPLY_ZERO")
+    blockers.extend(adaptive_status.get("runtime_status_api_blockers") or [])
+    blockers.extend(trainer_quality.get("trainer_blocker_ids") or [])
+    if (
+        guardian_gate.get("a_grade_new_entries_allowed") is False
+        or int(_coerce_float(root_cause_counts.get("guardian_halted")) or 0) > 0
+    ):
+        blockers.append("GUARDIAN_HALTED_PERFORMANCE")
+    if performance_status.get("new_entries_allowed") is False:
+        blockers.append("GUARDIAN_HALTED_PERFORMANCE")
+    if quarantine_status.get("global_halt_required") is True:
+        blockers.append("BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD")
+    true_gate_no_fill_reason = str(exact_no_fill_reason or "").upper()
+    if materialized_count <= 0 and exact_no_fill_reason and any(
+        token in true_gate_no_fill_reason
+        for token in (
+            "TRUE_",
+            "BLOCKED",
+            "QUARANTINE",
+            "RISK",
+            "PERFORMANCE",
+            "TRUST",
+            "ALLOCATOR",
+            "ORCHESTRATOR",
+            "MARKET_INTEGRITY",
+        )
+    ):
+        blockers.append("PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES")
+
+    finding_ids = _paper_unique_blockers(blockers)
+    primary_blocker = _paper_primary_a_grade_blocker(finding_ids)
+    status = (
+        "A_GRADE_ADAPTATION_NOT_PROVEN"
+        if finding_ids
+        else "NO_ACTIVE_BLOCKER_DETECTED"
+    )
+    return {
+        "schema_version": "paper_trader_a_grade_blocker_truth_v1",
+        "generated_utc": _utc_iso(),
+        "status": status,
+        "primary_blocker": primary_blocker,
+        "finding_ids": finding_ids,
+        "finding_count": len(finding_ids),
+        "A_grade_rows": a_grade_rows,
+        "accepted_count": runtime_admission.get("accepted_count"),
+        "blocked_count": runtime_admission.get("blocked_count"),
+        "same_cycle_materialized_count": materialized_count,
+        "exact_no_fill_reason": exact_no_fill_reason,
+        "queue_resolution_state": queue_status.get("queue_resolution_state"),
+        "paper_performance_state": performance_status.get("state"),
+        "paper_performance_block_reasons": performance_status.get("block_reasons") or [],
+        "bucket_quarantine_global_halt_required": quarantine_status.get(
+            "global_halt_required"
+        ),
+        "trainer_quality_status": trainer_quality.get("status"),
+        "trainer_checkpoint_promotion_reason": trainer_quality.get(
+            "checkpoint_promotion_reason"
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_a_grade_evidence": False,
+        "a_grade_promotion_allowed": False,
+        "live_ready_implication": False,
+    }
+
+
+def _paper_real_trader_readiness_from_a_grade_truth(
+    a_grade_blocker_truth: Mapping[str, Any],
+) -> dict[str, Any]:
+    finding_ids = (
+        a_grade_blocker_truth.get("finding_ids")
+        if isinstance(a_grade_blocker_truth.get("finding_ids"), list)
+        else []
+    )
+    blockers = _paper_unique_blockers(
+        [
+            a_grade_blocker_truth.get("primary_blocker"),
+            *finding_ids,
+        ]
+    )
+    if not blockers:
+        blockers = ["LIVE_GATE_BLOCKED_HUMAN_ONLY"]
+    return {
+        "live_gate": LIVE_GATE_BLOCKED,
+        "operator_flip_required": True,
+        "live_ready": False,
+        "live_submit_allowed": False,
+        "exact_no_live_reason": blockers[0],
+        "readiness_blockers": blockers,
+        "a_grade_blocker_truth": dict(a_grade_blocker_truth),
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 def _paper_forward_canary_production_cost_pass(row: dict[str, Any]) -> bool:
     return (
         row.get("production_grade_cost_flag") is True
@@ -30533,6 +30820,24 @@ def run_once() -> dict:
         previous_status=previous_b_grade_exploration_resumption_status,
         generated_utc=started,
     )
+    paper_a_grade_blocker_truth = _paper_a_grade_blocker_truth_status(
+        paper_a_grade_gate_burndown_status=paper_a_grade_gate_burndown_status,
+        paper_runtime_admission_status=paper_runtime_admission_status,
+        paper_exploration_materialization_queue_status=(
+            paper_exploration_materialization_queue_public_status
+        ),
+        paper_adaptive_sizing_runtime_status=paper_adaptive_sizing_runtime_status,
+        paper_trainer_model_quality_runtime_status=(
+            paper_trainer_model_quality_runtime_status
+        ),
+        paper_performance_circuit_breaker_status=(
+            paper_performance_circuit_breaker_status
+        ),
+        bucket_quarantine_status=bucket_quarantine_status,
+    )
+    paper_real_trader_readiness = _paper_real_trader_readiness_from_a_grade_truth(
+        paper_a_grade_blocker_truth
+    )
     paper_forward_canary_closed_outcome_archive_status = (
         _paper_forward_canary_closed_outcome_archive_status(
             closes,
@@ -31133,6 +31438,19 @@ def run_once() -> dict:
                 ),
                 "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
                 "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+                "a_grade_blocker_truth": paper_a_grade_blocker_truth,
+                "real_trader_readiness": paper_real_trader_readiness,
+                "exact_no_live_reason": paper_real_trader_readiness.get(
+                    "exact_no_live_reason"
+                ),
+                "readiness_blockers": paper_real_trader_readiness.get(
+                    "readiness_blockers"
+                ),
+                "top_blockers": (
+                    paper_real_trader_readiness.get("readiness_blockers") or []
+                )[:8],
+                "live_ready": False,
+                "live_submit_allowed": False,
                 "paper_adaptive_threshold_runtime_status": paper_adaptive_threshold_runtime_status,
                 "paper_churn_equity_bleed_governor_status": (
                     paper_churn_equity_bleed_governor_status
@@ -31589,6 +31907,15 @@ def run_once() -> dict:
         ),
         "paper_b_grade_canary_supply_status": paper_b_grade_canary_supply_status,
         "paper_a_grade_gate_burndown_status": paper_a_grade_gate_burndown_status,
+        "a_grade_blocker_truth": paper_a_grade_blocker_truth,
+        "real_trader_readiness": paper_real_trader_readiness,
+        "exact_no_live_reason": paper_real_trader_readiness.get(
+            "exact_no_live_reason"
+        ),
+        "readiness_blockers": paper_real_trader_readiness.get("readiness_blockers"),
+        "top_blockers": (paper_real_trader_readiness.get("readiness_blockers") or [])[:8],
+        "live_ready": False,
+        "live_submit_allowed": False,
         "b_grade_exploration_resumption_status": b_grade_exploration_resumption_status,
         "a_plus_gate_redistribution_status": a_plus_gate_redistribution_status,
         "a_plus_5_trade_gate_runtime_status": a_plus_5_trade_gate_runtime_status,

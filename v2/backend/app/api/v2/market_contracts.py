@@ -2109,15 +2109,21 @@ def _base_response(
     exchange: str | None = "Binance USD-M",
     mode: Mode = "read_only",
     trader_context: dict[str, Any] | None = None,
+    fresh_max_seconds: float = 30,
+    stale_min_seconds: float = 120,
 ) -> dict[str, Any]:
+    # fresh_max_seconds / stale_min_seconds let slow-cadence analytical surfaces
+    # (e.g. the adaptive-capital dashboard, recomputed every few minutes) declare a
+    # freshness window matching their natural update rate instead of the tick-stream
+    # default of 30s/120s.
     lag = _lag_ms(timestamp)
     unavailable = source_type == "unavailable"
     staleness_seconds = round(lag / 1000, 3) if lag is not None else None
     freshness_status = (
         "unavailable" if unavailable
         else "unknown" if staleness_seconds is None
-        else "fresh" if staleness_seconds <= 30
-        else "stale" if staleness_seconds > 120
+        else "fresh" if staleness_seconds <= fresh_max_seconds
+        else "stale" if staleness_seconds > stale_min_seconds
         else "degraded"
     )
     data_quality_status = (
@@ -2147,7 +2153,7 @@ def _base_response(
         "places_real_order": False,
         "routes_to_live": False,
         "data_quality_status": data_quality_status,
-        "stale": unavailable or lag is None or lag > 120_000,
+        "stale": unavailable or lag is None or lag > stale_min_seconds * 1000,
         "missing_fields": missing_fields,
         "warnings": warnings or [],
         "symbol": symbol,
@@ -4576,6 +4582,15 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
             warning="Adaptive capital productivity runtime payload is unavailable",
             mode="read_only",
         )
+    readiness_context = _paper_a_grade_readiness_context(get_redis())
+    payload = {
+        **payload,
+        "real_trader_readiness": readiness_context,
+        "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+        "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+        "readiness_blockers": readiness_context["readiness_blockers"],
+        "top_blockers": readiness_context["readiness_blockers"][:8],
+    }
     missing_fields = [
         field
         for field in (
@@ -4599,9 +4614,37 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
         ],
         exchange=None,
         mode="read_only",
+        # Recomputed on a loop by v2_adaptive_capital_productivity_status (a ~2.5min
+        # counterfactual sweep). Fresh within 10 min, stale beyond 30 min — matches
+        # the analytical cadence rather than the tick-stream 30s/120s default.
+        fresh_max_seconds=600,
+        stale_min_seconds=1800,
     )
-    if isinstance(response.get("lag_ms"), int) and response["lag_ms"] <= 900_000:
-        response["stale"] = False
+    response["real_trader_readiness"] = readiness_context
+    response["a_grade_blocker_truth"] = readiness_context["a_grade_blocker_truth"]
+    response["exact_no_live_reason"] = readiness_context["exact_no_live_reason"]
+    response["readiness_blockers"] = readiness_context["readiness_blockers"]
+    response["top_blockers"] = readiness_context["readiness_blockers"][:8]
+    return response
+
+
+@router.get("/allocator/status")
+async def get_allocator_status() -> dict[str, Any]:
+    response = dict(await get_adaptive_capital_dashboard())
+    response["endpoint"] = "/api/v2/allocator/status"
+    response["canonical_owner"] = "/api/v2/allocator/status"
+    response["alias_of"] = "/api/v2/adaptive-capital/dashboard"
+    data = response.get("data")
+    if isinstance(data, dict):
+        data["alias_of"] = "/api/v2/adaptive-capital/dashboard"
+    return response
+
+
+@router.get("/allocator")
+async def get_allocator_contract() -> dict[str, Any]:
+    response = dict(await get_allocator_status())
+    response["endpoint"] = "/api/v2/allocator"
+    response["canonical_owner"] = "/api/v2/allocator"
     return response
 
 
@@ -10086,28 +10129,35 @@ async def get_orchestrator_status() -> dict[str, Any]:
     if timestamp is None and latest_decision:
         timestamp = latest_decision.get("generated_utc")
 
-    return _base_response(
-        endpoint=endpoint,
-        data={
-            "heartbeat": {
-                "worker_id": heartbeat.get("worker_id") if heartbeat else None,
-                "started_at": heartbeat.get("started_at") if heartbeat else None,
-                "finished_at": heartbeat.get("finished_at") if heartbeat else None,
-                "predictions_seen": heartbeat.get("predictions_seen") if heartbeat else None,
-                "proposals_arbitrated": heartbeat.get("proposals_arbitrated") if heartbeat else None,
-                "classification": classification,
-                "live_gate": live_gate,
-                "approves_live": heartbeat.get("approves_live") if heartbeat else None,
-                "cannot_bypass_risk_gateway": heartbeat.get("cannot_bypass_risk_gateway") if heartbeat else None,
-            } if heartbeat else None,
-            "last_proposals": last_proposals,
-            "last_decisions": (
-                decisions_list[:10] if decisions_list else ([latest_decision] if latest_decision else [])
-            ),
+    readiness_context = _paper_a_grade_readiness_context(get_redis())
+    data = {
+        "heartbeat": {
+            "worker_id": heartbeat.get("worker_id") if heartbeat else None,
+            "started_at": heartbeat.get("started_at") if heartbeat else None,
+            "finished_at": heartbeat.get("finished_at") if heartbeat else None,
+            "predictions_seen": heartbeat.get("predictions_seen") if heartbeat else None,
+            "proposals_arbitrated": heartbeat.get("proposals_arbitrated") if heartbeat else None,
             "classification": classification,
             "live_gate": live_gate,
-            "deconflict_reason": deconflict_reason,
-        },
+            "approves_live": heartbeat.get("approves_live") if heartbeat else None,
+            "cannot_bypass_risk_gateway": heartbeat.get("cannot_bypass_risk_gateway") if heartbeat else None,
+        } if heartbeat else None,
+        "last_proposals": last_proposals,
+        "last_decisions": (
+            decisions_list[:10] if decisions_list else ([latest_decision] if latest_decision else [])
+        ),
+        "classification": classification,
+        "live_gate": live_gate,
+        "deconflict_reason": deconflict_reason,
+        "real_trader_readiness": readiness_context,
+        "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+        "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+        "readiness_blockers": readiness_context["readiness_blockers"],
+        "top_blockers": readiness_context["readiness_blockers"][:8],
+    }
+    response = _base_response(
+        endpoint=endpoint,
+        data=data,
         source="redis:v2:orchestrator",
         source_type="static_payload" if not missing else "unavailable",
         timestamp=timestamp,
@@ -10115,6 +10165,12 @@ async def get_orchestrator_status() -> dict[str, Any]:
         warnings=["Live trading is BLOCKED -- orchestrator status is read-only"],
         mode="paper",
     )
+    response["real_trader_readiness"] = readiness_context
+    response["a_grade_blocker_truth"] = readiness_context["a_grade_blocker_truth"]
+    response["exact_no_live_reason"] = readiness_context["exact_no_live_reason"]
+    response["readiness_blockers"] = readiness_context["readiness_blockers"]
+    response["top_blockers"] = readiness_context["readiness_blockers"][:8]
+    return response
 
 
 @router.get("/orchestrator")
@@ -10322,6 +10378,14 @@ async def get_risk_status() -> dict[str, Any]:
         if reason
     ]
     top_blockers = halt_reasons[:8]
+    try:
+        risk_readiness_context = _paper_a_grade_readiness_context(get_redis())
+    except Exception:
+        risk_readiness_context = _paper_a_grade_readiness_context(None)
+    top_blockers = list(dict.fromkeys([
+        *risk_readiness_context["readiness_blockers"],
+        *top_blockers,
+    ]))[:8]
     cluster_raw = circuit.get("recovery_high_confidence_loss_cluster_status")
     bucket_raw = circuit.get("bucket_quarantine_status")
     bucket_raw = bucket_raw if isinstance(bucket_raw, dict) else {}
@@ -10489,6 +10553,10 @@ async def get_risk_status() -> dict[str, Any]:
             "halt_reasons": halt_reasons,
             "state_reasons": state_reasons,
             "top_blockers": top_blockers,
+            "real_trader_readiness": risk_readiness_context,
+            "a_grade_blocker_truth": risk_readiness_context["a_grade_blocker_truth"],
+            "exact_no_live_reason": risk_readiness_context["exact_no_live_reason"],
+            "readiness_blockers": risk_readiness_context["readiness_blockers"],
             "recovery_high_confidence_loss_cluster_status": cluster_status,
             "preemptive_edge_control_status": preemptive_edge_control_status,
             "preemptive_candidate_decision_matrix": preemptive_candidate_decision_matrix_api,
@@ -10645,6 +10713,10 @@ async def get_risk_status() -> dict[str, Any]:
     _resp["halt_reasons"] = halt_reasons
     _resp["state_reasons"] = state_reasons
     _resp["top_blockers"] = top_blockers
+    _resp["real_trader_readiness"] = risk_readiness_context
+    _resp["a_grade_blocker_truth"] = risk_readiness_context["a_grade_blocker_truth"]
+    _resp["exact_no_live_reason"] = risk_readiness_context["exact_no_live_reason"]
+    _resp["readiness_blockers"] = risk_readiness_context["readiness_blockers"]
     _resp["new_entries_allowed"] = governor.get("new_entries_allowed")
     _resp["recovery_high_confidence_loss_cluster_status"] = cluster_status
     _resp["preemptive_edge_control_status"] = preemptive_edge_control_status
@@ -11065,6 +11137,66 @@ def _paper_intents_from_redis(client: Any) -> list[dict[str, Any]]:
     if not isinstance(intents, list):
         return []
     return [row for row in intents if isinstance(row, dict)]
+
+
+def _paper_a_grade_readiness_context(client: Any) -> dict[str, Any]:
+    try:
+        from app.api.v2.control_center_status import (  # noqa: PLC0415
+            _current_a_grade_blocker_truth,
+        )
+
+        truth = _current_a_grade_blocker_truth(client)
+        if not isinstance(truth, dict):
+            raise TypeError("A-grade blocker truth was not a dict")
+    except Exception:
+        truth = {
+            "schema_version": "control_center_a_grade_blocker_truth_v1",
+            "status": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "available": False,
+            "primary_blocker": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "finding_ids": [],
+            "live_gate": "blocked_human_only",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+
+    status = str(truth.get("status") or "")
+    primary_blocker = (
+        truth.get("primary_blocker")
+        if status == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if not primary_blocker and status != "NO_ACTIVE_BLOCKER_DETECTED":
+        primary_blocker = status or "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    finding_ids = truth.get("finding_ids") if isinstance(truth.get("finding_ids"), list) else []
+    blockers = [
+        str(value)
+        for value in [primary_blocker, *finding_ids]
+        if value
+    ]
+    if not blockers:
+        blockers = ["LIVE_GATE_BLOCKED_HUMAN_ONLY"]
+    blockers = list(dict.fromkeys(blockers))
+    return {
+        "live_gate": "blocked_human_only",
+        "operator_flip_required": True,
+        "live_ready": False,
+        "live_submit_allowed": False,
+        "exact_no_live_reason": blockers[0],
+        "readiness_blockers": blockers,
+        "a_grade_blocker_truth": truth,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
 
 
 def _paper_fills_from_intents(intents: list[dict[str, Any]], *, limit: int = 500) -> list[dict[str, Any]]:
@@ -11718,6 +11850,7 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
     client = get_redis()
     warnings: list[str] = []
     if client is None:
+        readiness_context = _paper_a_grade_readiness_context(None)
         return {
             "positions": [],
             "fills": [],
@@ -11750,7 +11883,11 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
                 "live_trading_enabled": False,
                 "exchange_mutation_enabled": False,
             },
+            "real_trader_readiness": readiness_context,
+            "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+            "top_blockers": readiness_context["readiness_blockers"][:8],
         }, ["Redis unavailable for paper activity; returned structured empty paper state"]
+    readiness_context = _paper_a_grade_readiness_context(client)
     hb_raw = client.get("v2:paper:heartbeat")
     heartbeat: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
     portfolio_raw = client.get("v2:portfolio:state")
@@ -11864,6 +12001,9 @@ def _load_paper_activity_payload() -> tuple[dict[str, Any], list[str]]:
             "live_trading_enabled": False,
             "exchange_mutation_enabled": False,
         },
+        "real_trader_readiness": readiness_context,
+        "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+        "top_blockers": readiness_context["readiness_blockers"][:8],
     }
     return data, warnings
 
@@ -11875,6 +12015,7 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
     def _load() -> dict[str, Any]:
         try:
             client = get_redis()
+            readiness_context = _paper_a_grade_readiness_context(client)
             hb_raw = client.get("v2:paper:heartbeat")
             heartbeat: dict[str, Any] = json.loads(hb_raw) if hb_raw else {}
             portfolio_raw = client.get("v2:portfolio:state")
@@ -12059,9 +12200,13 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                     "pnl_conflict_detected": bool(portfolio.get("pnl_conflict_detected")),
                     "pnl_source_conflict_detected": bool(portfolio.get("pnl_source_conflict_detected")),
                 },
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
                 "_warnings": position_warnings,
             }
         except Exception as exc:
+            readiness_context = _paper_a_grade_readiness_context(None)
             return {
                 "error": str(exc),
                 "positions": [],
@@ -12070,6 +12215,9 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                 "reason_breakdown": {},
                 "risk_profile": {},
                 "summary": {},
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
                 "_warnings": [str(exc)],
             }
 
@@ -12123,6 +12271,11 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
     for reason in circuit.get("block_reasons") or []:
         if reason not in top_blockers:
             top_blockers.append(reason)
+    readiness_context = _paper_a_grade_readiness_context(client)
+    top_blockers = list(dict.fromkeys([
+        *readiness_context["readiness_blockers"],
+        *top_blockers,
+    ]))
 
     reduced_semantics, _ = _read_json(
         "operator_runtime/v2_paper_trade_management/latest/"
@@ -12294,13 +12447,8 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
             "last_successful_weight_update_at": trainer.get("last_successful_weight_update_at"),
             "checkpoint_id": trainer.get("checkpoint_id"),
         },
-        "real_trader_readiness": {
-            "live_gate": "blocked_human_only",
-            "operator_flip_required": True,
-            "order_submitted": False,
-            "test_order_submitted": False,
-            "live_ready": False,
-        },
+        "real_trader_readiness": readiness_context,
+        "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
         "top_blockers": top_blockers[:6],
     }
 
@@ -12369,6 +12517,7 @@ async def get_paper_runtime_status(
             now = _utc_now()
             if client is None:
                 raise RuntimeError("redis_unavailable")
+            readiness_context = _paper_a_grade_readiness_context(client)
 
             def _read(key: str) -> dict[str, Any]:
                 try:
@@ -12742,6 +12891,11 @@ async def get_paper_runtime_status(
                 "places_real_order": False,
                 "routes_to_live": False,
                 "mode": "paper",
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+                "readiness_blockers": readiness_context["readiness_blockers"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
                 "continuous_loop_available": heartbeat_fresh,
                 "loop_interval_seconds": 10,
                 "writes_only_local_v2_artifacts": True,
@@ -12887,6 +13041,7 @@ async def get_paper_runtime_status(
             }
         except Exception as exc:
             now = _utc_now()
+            readiness_context = _paper_a_grade_readiness_context(None)
             return {
                 "schema_version": "paper_runtime_status_primary_v1",
                 "generated_at": now,
@@ -12904,6 +13059,11 @@ async def get_paper_runtime_status(
                 "places_real_order": False,
                 "routes_to_live": False,
                 "mode": "paper",
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+                "readiness_blockers": readiness_context["readiness_blockers"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
                 "error": str(exc),
                 "exchange_orders": False,
                 "legacy_redis_writes": False,
@@ -14465,11 +14625,34 @@ async def get_paper_fills(actor: UserRecord | None = Depends(optional_auth)) -> 
     def _load() -> dict[str, Any]:
         try:
             client = get_redis()
+            readiness_context = _paper_a_grade_readiness_context(client)
             intents = _paper_intents_from_redis(client)
             fills = _paper_fills_from_intents(intents)
-            return {"fills": fills[:500], "total": len(fills)}
+            return {
+                "fills": fills[:500],
+                "total": len(fills),
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+                "readiness_blockers": readiness_context["readiness_blockers"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
+                "live_ready": False,
+                "live_submit_allowed": False,
+            }
         except Exception as exc:
-            return {"fills": [], "total": 0, "error": str(exc)}
+            readiness_context = _paper_a_grade_readiness_context(None)
+            return {
+                "fills": [],
+                "total": 0,
+                "error": str(exc),
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "exact_no_live_reason": readiness_context["exact_no_live_reason"],
+                "readiness_blockers": readiness_context["readiness_blockers"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
+                "live_ready": False,
+                "live_submit_allowed": False,
+            }
 
     data = await run_in_threadpool(_load)
     return _base_response(
@@ -14493,6 +14676,7 @@ async def get_paper_activity(actor: UserRecord | None = Depends(optional_auth)) 
         try:
             return _load_paper_activity_payload()
         except Exception as exc:
+            readiness_context = _paper_a_grade_readiness_context(None)
             return {
                 "positions": [],
                 "fills": [],
@@ -14508,6 +14692,9 @@ async def get_paper_activity(actor: UserRecord | None = Depends(optional_auth)) 
                     "live_trading_enabled": False,
                     "exchange_mutation_enabled": False,
                 },
+                "real_trader_readiness": readiness_context,
+                "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
+                "top_blockers": readiness_context["readiness_blockers"][:8],
                 "error": str(exc),
             }, [str(exc)]
 

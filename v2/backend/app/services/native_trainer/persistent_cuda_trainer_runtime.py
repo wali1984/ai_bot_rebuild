@@ -51,6 +51,10 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader impo
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
+    ENV_PPO_ENTROPY_COEFFICIENT_MAX,
+    ENV_PPO_LEARNING_RATE_MAX,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
     run_hybrid_trainer_cycle,
 )
@@ -2715,15 +2719,25 @@ def legacy_grade_runtime_config(
     )
     ppo_learning_rate = _bounded_env_float(
         "PPO_LEARNING_RATE",
-        _bounded_env_float("V2_TRAINER_LEARNING_RATE", 1e-4, minimum=1e-8, maximum=1.0),
+        _bounded_env_float(
+            "V2_TRAINER_LEARNING_RATE",
+            1e-4,
+            minimum=1e-8,
+            maximum=ENV_PPO_LEARNING_RATE_MAX,
+        ),
         minimum=1e-8,
-        maximum=1.0,
+        maximum=ENV_PPO_LEARNING_RATE_MAX,
     )
     ppo_ent_coef = _bounded_env_float(
         "PPO_ENT_COEF",
-        _bounded_env_float("V2_TRAINER_ENTROPY_COEF", 0.01, minimum=0.0, maximum=1.0),
+        _bounded_env_float(
+            "V2_TRAINER_ENTROPY_COEF",
+            0.01,
+            minimum=0.0,
+            maximum=ENV_PPO_ENTROPY_COEFFICIENT_MAX,
+        ),
         minimum=0.0,
-        maximum=1.0,
+        maximum=ENV_PPO_ENTROPY_COEFFICIENT_MAX,
     )
     ppo_gamma = _bounded_env_float("PPO_GAMMA", 0.99, minimum=0.0, maximum=1.0)
     source_of_each_setting = {

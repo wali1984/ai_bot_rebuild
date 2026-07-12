@@ -72,6 +72,56 @@ def _first(*values: Any) -> Any:
     return None
 
 
+def _string_list(value: Any) -> list[str]:
+    if isinstance(value, (list, tuple, set)):
+        return [str(item) for item in value if item not in (None, "")]
+    if value in (None, ""):
+        return []
+    return [str(value)]
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _materialization_no_fill_detail(paper_queue: Mapping[str, Any]) -> dict[str, Any]:
+    after_queue_reasons = _string_list(paper_queue.get("after_queue_no_fill_reasons"))
+    prequeue_reasons = _string_list(paper_queue.get("prequeue_no_fill_reasons"))
+    component_reasons = _dedupe_strings([*after_queue_reasons, *prequeue_reasons])
+    return {
+        "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+        "canonical_exact_no_fill_reason": paper_queue.get(
+            "canonical_exact_no_fill_reason"
+        ),
+        "after_queue_exact_no_fill_reason": paper_queue.get(
+            "after_queue_exact_no_fill_reason"
+        ),
+        "after_queue_no_fill_reasons": after_queue_reasons,
+        "prequeue_exact_no_fill_reason": paper_queue.get(
+            "prequeue_exact_no_fill_reason"
+        ),
+        "prequeue_no_fill_reasons": prequeue_reasons,
+        "no_fill_component_reasons": component_reasons,
+        "rejected_after_queue_reason_counts": paper_queue.get(
+            "rejected_after_queue_reason_counts"
+        )
+        if isinstance(paper_queue.get("rejected_after_queue_reason_counts"), Mapping)
+        else {},
+        "prequeue_rejected_reason_counts": paper_queue.get(
+            "prequeue_rejected_reason_counts"
+        )
+        if isinstance(paper_queue.get("prequeue_rejected_reason_counts"), Mapping)
+        else {},
+    }
+
+
 def _float_or_none(value: Any) -> float | None:
     if value in (None, "") or isinstance(value, bool):
         return None
@@ -188,6 +238,9 @@ def _dedupe_strings(values: list[Any]) -> list[str]:
 def _primary_a_grade_blocker(finding_ids: list[str]) -> str | None:
     for blocker in (
         "A_GRADE_SUPPLY_ZERO",
+        "VALIDATION_LOSS_REGRESSED",
+        "TRAIN_VAL_OVERFIT_GAP",
+        "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
         "GUARDIAN_HALTED_PERFORMANCE",
         "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH",
         "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES",
@@ -198,6 +251,42 @@ def _primary_a_grade_blocker(finding_ids: list[str]) -> str | None:
         if blocker in finding_ids:
             return blocker
     return finding_ids[0] if finding_ids else None
+
+
+def _real_trader_readiness_from_a_grade_truth(
+    a_grade_blocker_truth: Mapping[str, Any],
+) -> dict[str, Any]:
+    status = str(a_grade_blocker_truth.get("status") or "")
+    primary_blocker = (
+        a_grade_blocker_truth.get("primary_blocker")
+        if status == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if not primary_blocker and status != "NO_ACTIVE_BLOCKER_DETECTED":
+        primary_blocker = status or "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    finding_ids = (
+        a_grade_blocker_truth.get("finding_ids")
+        if isinstance(a_grade_blocker_truth.get("finding_ids"), list)
+        else []
+    )
+    blockers = _dedupe_strings([primary_blocker, *finding_ids])
+    if not blockers:
+        blockers = ["LIVE_GATE_BLOCKED_HUMAN_ONLY"]
+    return {
+        "live_gate": "blocked_human_only",
+        "operator_flip_required": True,
+        "live_ready": False,
+        "live_submit_allowed": False,
+        "exact_no_live_reason": blockers[0],
+        "readiness_blockers": blockers,
+        "a_grade_blocker_truth": dict(a_grade_blocker_truth),
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
 
 
 def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
@@ -242,7 +331,43 @@ def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
     validation_loss = _float_or_none(
         learning_metrics.get("validation_supervised_loss")
     )
+    validation_loss_before = _float_or_none(
+        _first(
+            learning_metrics.get("validation_supervised_loss_before"),
+            trainer_status.get("validation_supervised_loss_before"),
+        )
+    )
+    validation_loss_after = _float_or_none(
+        _first(
+            learning_metrics.get("validation_supervised_loss_after"),
+            trainer_status.get("validation_supervised_loss_after"),
+            learning_metrics.get("validation_supervised_loss"),
+            trainer_status.get("validation_supervised_loss"),
+        )
+    )
+    validation_loss_delta = _float_or_none(
+        _first(
+            learning_metrics.get("validation_loss_delta"),
+            trainer_status.get("validation_loss_delta"),
+        )
+    )
     loss_after = _float_or_none(learning_metrics.get("loss_after"))
+    online_learning_status = str(trainer_status.get("online_learning_status") or "")
+    checkpoint_promotion_reason = str(
+        _first(
+            learning_metrics.get("checkpoint_promotion_reason"),
+            trainer_status.get("checkpoint_promotion_reason"),
+        )
+        or ""
+    )
+    checkpoint_promotion_rejected = _first(
+        learning_metrics.get("checkpoint_promotion_rejected"),
+        trainer_status.get("checkpoint_promotion_rejected"),
+    )
+    hard_promotion_rejection = _first(
+        learning_metrics.get("hard_promotion_rejection_reason"),
+        trainer_status.get("hard_promotion_rejection_reason"),
+    )
     a_grade_rows = _int_or_zero(
         _first(
             a_grade_status.get("A_grade_rows"),
@@ -284,8 +409,38 @@ def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
         paper_queue.get("guardian_new_entries_allowed"),
         paper_queue.get("continuous_edge_guardian_new_entries_allowed"),
     )
+    no_fill_detail = _materialization_no_fill_detail(paper_queue)
 
     findings: list[dict[str, Any]] = []
+    if (
+        checkpoint_promotion_rejected is True
+        and checkpoint_promotion_reason
+        in {"VALIDATION_LOSS_REGRESSED", "TRAIN_VAL_OVERFIT_GAP"}
+    ):
+        findings.append(
+            {
+                "id": checkpoint_promotion_reason,
+                "severity": "learning_checkpoint_blocker",
+                "online_learning_status": online_learning_status or None,
+                "checkpoint_promotion_rejected": True,
+                "hard_promotion_rejection_reason": hard_promotion_rejection,
+                "validation_loss_delta": validation_loss_delta,
+                "validation_supervised_loss_before": validation_loss_before,
+                "validation_supervised_loss_after": validation_loss_after,
+                "code_defect": False,
+            }
+        )
+    if online_learning_status == "BLOCKED_NO_DURABLE_WEIGHT_UPDATE":
+        findings.append(
+            {
+                "id": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+                "severity": "learning_checkpoint_blocker",
+                "checkpoint_promotion_reason": checkpoint_promotion_reason or None,
+                "checkpoint_promotion_rejected": checkpoint_promotion_rejected,
+                "hard_promotion_rejection_reason": hard_promotion_rejection,
+                "code_defect": False,
+            }
+        )
     if ppo_entropy is not None and ppo_entropy >= 0.8:
         findings.append(
             {
@@ -346,7 +501,7 @@ def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
                 "severity": "learning_data_blocker",
                 "materialized_positions": materialized_positions,
                 "paper_fill_allowed_rows": paper_fill_allowed_rows,
-                "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+                **no_fill_detail,
                 "code_defect": False,
             }
         )
@@ -380,11 +535,17 @@ def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
         "finding_ids": ids,
         "findings": findings,
         "trainer": {
-            "online_learning_status": trainer_status.get("online_learning_status"),
+            "online_learning_status": online_learning_status or None,
             "effective_trainer_mode": trainer_status.get("effective_trainer_mode"),
+            "checkpoint_promotion_reason": checkpoint_promotion_reason or None,
+            "checkpoint_promotion_rejected": checkpoint_promotion_rejected,
+            "hard_promotion_rejection_reason": hard_promotion_rejection,
             "ppo_entropy": ppo_entropy,
             "train_val_generalization_gap": validation_gap,
             "validation_supervised_loss": validation_loss,
+            "validation_supervised_loss_before": validation_loss_before,
+            "validation_supervised_loss_after": validation_loss_after,
+            "validation_loss_delta": validation_loss_delta,
             "loss_after": loss_after,
         },
         "a_grade": {
@@ -414,7 +575,7 @@ def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
                 "same_cycle_materialized_count"
             ),
             "rejected_after_queue_count": paper_queue.get("rejected_after_queue_count"),
-            "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+            **no_fill_detail,
         },
         "forbidden_shortcuts_refused": [
             "lowering A-grade, holdout, profit-factor, or live gates",
@@ -598,6 +759,49 @@ async def get_provider_status() -> dict[str, Any]:
         source_quality=snapshot.get("data_quality"),
         staleness_seconds=snapshot.get("staleness_seconds"),
     )
+
+
+@router.get("/control-center/status")
+async def get_control_center_status() -> dict[str, Any]:
+    client = get_redis()
+    provider_status = await get_provider_status()
+    live_canary_status = await get_live_canary_status()
+    a_plus_inventory = await get_a_plus_inventory()
+    a_grade_blocker_truth = _current_a_grade_blocker_truth(client)
+    readiness = _real_trader_readiness_from_a_grade_truth(a_grade_blocker_truth)
+    data = {
+        "status": (
+            "A_GRADE_BLOCKED_LIVE_BLOCKED"
+            if readiness["exact_no_live_reason"] != "LIVE_GATE_BLOCKED_HUMAN_ONLY"
+            else "LIVE_BLOCKED_HUMAN_ONLY"
+        ),
+        "real_trader_readiness": readiness,
+        "a_grade_blocker_truth": a_grade_blocker_truth,
+        "exact_no_live_reason": readiness["exact_no_live_reason"],
+        "readiness_blockers": readiness["readiness_blockers"],
+        "top_blockers": readiness["readiness_blockers"][:8],
+        "providers_status": provider_status.get("data") if isinstance(provider_status, dict) else {},
+        "live_canary_status": live_canary_status.get("data") if isinstance(live_canary_status, dict) else {},
+        "a_plus_inventory": a_plus_inventory.get("data") if isinstance(a_plus_inventory, dict) else {},
+        "live_gate": "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return _contract(
+        schema_version="control_center_status_v1",
+        canonical_owner="/api/v2/control-center/status",
+        source="control_center_status.aggregate",
+        data=data,
+    )
+
+
+@router.get("/control-center")
+async def get_control_center_status_alias() -> dict[str, Any]:
+    response = dict(await get_control_center_status())
+    response["canonical_owner"] = "/api/v2/control-center"
+    response["data"] = dict(response.get("data") or {})
+    response["data"]["alias_of"] = "/api/v2/control-center/status"
+    return response
 
 
 @router.get("/live-canary/status")

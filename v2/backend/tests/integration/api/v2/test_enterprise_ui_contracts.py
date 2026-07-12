@@ -47,13 +47,19 @@ def client() -> TestClient:
 
 def _seed_unproven_a_grade_runtime_blockers(fake_redis: FakeRedis) -> None:
     fake_redis.kv["v2:trainer:hybrid_cuda:status"] = json.dumps({
-        "online_learning_status": "WEIGHTS_UPDATING",
+        "online_learning_status": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
         "effective_trainer_mode": "REPLAY_AND_ONLINE_LEARNING",
         "learning_metrics": {
             "ppo_entropy": 0.96,
             "train_val_generalization_gap": 3.2,
             "validation_supervised_loss": 6.7,
+            "validation_supervised_loss_before": 2.4,
+            "validation_supervised_loss_after": 6.7,
+            "validation_loss_delta": 4.3,
             "loss_after": 2.4,
+            "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+            "checkpoint_promotion_rejected": True,
+            "hard_promotion_rejection_reason": True,
         },
     })
     fake_redis.kv["v2:paper:a_grade_gate_burndown_status"] = json.dumps({
@@ -95,11 +101,21 @@ def _seed_unproven_a_grade_runtime_blockers(fake_redis: FakeRedis) -> None:
     fake_redis.kv[
         "v2:paper:exploration:materialization_queue_status"
     ] = json.dumps({
-        "queued_count": 3,
-        "active_count": 3,
+        "queued_count": 0,
+        "active_count": 0,
         "same_cycle_materialized_count": 0,
-        "rejected_after_queue_count": 0,
-        "exact_no_fill_reason": "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS",
+        "rejected_after_queue_count": 3,
+        "exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+        "canonical_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+        "after_queue_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+        "after_queue_no_fill_reasons": [
+            "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+            "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+        ],
+        "rejected_after_queue_reason_counts": {
+            "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 2,
+            "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION": 1,
+        },
     })
     fake_redis.kv["v2:continuous_edge_guardian:a_grade_execution_gate"] = json.dumps({
         "status": "A_GRADE_HALTED_PERFORMANCE",
@@ -199,6 +215,8 @@ def test_control_center_required_status_aliases_return_json_contracts(
 
     expectations = {
         "/api/v2/providers/status": "control_center_provider_status_v1",
+        "/api/v2/control-center/status": "control_center_status_v1",
+        "/api/v2/control-center": "control_center_status_v1",
         "/api/v2/live-canary/status": "control_center_live_canary_status_v1",
         "/api/v2/a-plus/inventory": "control_center_a_plus_inventory_v1",
     }
@@ -228,6 +246,57 @@ def test_control_center_required_status_aliases_return_json_contracts(
     assert live_canary["no_mutation_flags"]["places_real_order"] is False
 
 
+def test_control_center_routes_expose_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    for path in ("/api/v2/control-center/status", "/api/v2/control-center"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        body = response.json()
+        data = body["data"]
+        readiness = data["real_trader_readiness"]
+
+        assert body["schema_version"] == "control_center_status_v1"
+        assert body["canonical_owner"] == path
+        assert body["live_gate"] == "blocked_human_only"
+        assert body["routes_to_live"] is False
+        assert body["places_real_order"] is False
+        assert data["status"] == "A_GRADE_BLOCKED_LIVE_BLOCKED"
+        assert data["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["live_ready"] is False
+        assert readiness["live_submit_allowed"] is False
+        assert readiness["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert "VALIDATION_LOSS_REGRESSED" in readiness["readiness_blockers"]
+        assert "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" in readiness["readiness_blockers"]
+        assert "GUARDIAN_HALTED_PERFORMANCE" in readiness["readiness_blockers"]
+        assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in readiness["readiness_blockers"]
+        assert data["a_grade_blocker_truth"]["status"] == (
+            "A_GRADE_ADAPTATION_NOT_PROVEN"
+        )
+        assert data["a_grade_blocker_truth"]["paper_learning_feeder"][
+            "no_fill_component_reasons"
+        ] == [
+            "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+            "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+        ]
+        feeder_finding = next(
+            finding
+            for finding in data["a_grade_blocker_truth"]["findings"]
+            if finding["id"] == "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES"
+        )
+        assert feeder_finding["after_queue_no_fill_reasons"] == [
+            "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+            "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+        ]
+        assert data["a_grade_blocker_truth"]["routes_to_live"] is False
+        assert data["a_grade_blocker_truth"]["places_real_order"] is False
+
+
 def test_a_plus_inventory_prefers_runtime_a_grade_blockers_over_legacy_reason(
     client: TestClient,
     fake_redis: FakeRedis,
@@ -255,6 +324,8 @@ def test_a_plus_inventory_prefers_runtime_a_grade_blockers_over_legacy_reason(
     assert data["a_plus_candidates"] == 0
     assert data["exact_no_a_plus_reason"] == "A_GRADE_SUPPLY_ZERO"
     assert data["top_a_plus_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in data["top_a_plus_blockers"]
+    assert "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" in data["top_a_plus_blockers"]
     assert "GUARDIAN_HALTED_PERFORMANCE" in data["top_a_plus_blockers"]
     assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in data["top_a_plus_blockers"]
     assert data["legacy_exact_no_a_plus_reason"] == "exit_plan_valid"
@@ -354,6 +425,165 @@ def test_mobile_risk_status_real_trader_readiness_exposes_a_grade_blockers(
     assert data["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
     assert data["routes_to_live"] is False
     assert data["places_real_order"] is False
+
+
+def test_paper_trader_routes_expose_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    for path in (
+        "/api/v2/paper/status",
+        "/api/v2/paper/activity",
+        "/api/v2/paper/fills",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        body = response.json()
+        data = body["data"]
+        readiness = data["real_trader_readiness"]
+
+        assert body["live_gate"] == "blocked_human_only"
+        assert body["routes_to_live"] is False
+        assert body["places_real_order"] is False
+        assert readiness["live_ready"] is False
+        assert readiness["live_submit_allowed"] is False
+        assert readiness["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert "VALIDATION_LOSS_REGRESSED" in readiness["readiness_blockers"]
+        assert "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" in readiness["readiness_blockers"]
+        assert "GUARDIAN_HALTED_PERFORMANCE" in readiness["readiness_blockers"]
+        assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in readiness["readiness_blockers"]
+        assert readiness["a_grade_blocker_truth"]["status"] == (
+            "A_GRADE_ADAPTATION_NOT_PROVEN"
+        )
+        assert readiness["a_grade_blocker_truth"]["routes_to_live"] is False
+        assert readiness["a_grade_blocker_truth"]["places_real_order"] is False
+        assert data["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+
+
+def test_risk_and_paper_runtime_routes_expose_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+    fake_redis.kv["v2:risk:gateway:heartbeat"] = json.dumps({
+        "worker_id": "risk-gateway-test",
+        "finished_at": "2026-07-09T00:00:00Z",
+        "classification": "V2_RISK_GATEWAY_LIVE_OK",
+        "current_gate_state": "blocked_human_only",
+        "live_gate": "blocked_human_only",
+        "approves_live": False,
+        "live_blocked": True,
+        "fail_closed": True,
+        "places_real_order": False,
+    })
+    fake_redis.kv["v2:risk:active_profile"] = json.dumps({
+        "profile_id": "runtime-risk-profile-test",
+        "profile_name": "Runtime risk controls",
+        "fields": {},
+    })
+    fake_redis.kv["v2:paper:heartbeat"] = json.dumps({
+        "worker_id": "v2_trade_management_paper_loop",
+        "heartbeat_generated_at": "2026-07-09T00:00:00Z",
+        "writes_legacy_redis": False,
+    })
+
+    for path in (
+        "/api/v2/risk/status",
+        "/api/v2/risk",
+        "/api/v2/paper/runtime-status",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        body = response.json()
+        data = body.get("data") if isinstance(body.get("data"), dict) else body
+        readiness = data["real_trader_readiness"]
+
+        assert body["live_gate"] == "blocked_human_only"
+        assert body["routes_to_live"] is False
+        assert body["places_real_order"] is False
+        assert data["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["live_ready"] is False
+        assert readiness["live_submit_allowed"] is False
+        assert readiness["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert "GUARDIAN_HALTED_PERFORMANCE" in readiness["readiness_blockers"]
+        assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in readiness["readiness_blockers"]
+        assert data["a_grade_blocker_truth"]["status"] == (
+            "A_GRADE_ADAPTATION_NOT_PROVEN"
+        )
+        assert data["a_grade_blocker_truth"]["routes_to_live"] is False
+        assert data["a_grade_blocker_truth"]["places_real_order"] is False
+
+
+def test_orchestrator_and_adaptive_capital_expose_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+    fake_redis.kv["v2:orchestrator:heartbeat"] = json.dumps({
+        "worker_id": "orchestrator-test",
+        "finished_at": "2026-07-09T00:00:00Z",
+        "classification": "ORCHESTRATOR_RUNTIME_ACTIVE",
+        "live_gate": "blocked_human_only",
+        "approves_live": False,
+        "cannot_bypass_risk_gateway": True,
+    })
+    fake_redis.kv["v2:orchestrator:decisions"] = json.dumps([
+        {
+            "decision_id": "orchestrator-decision-test",
+            "generated_utc": "2026-07-09T00:00:00Z",
+            "deconflict_reason": "WAIT_FOR_A_GRADE_SUPPLY",
+            "approves_live": False,
+        }
+    ])
+
+    monkeypatch.setattr(
+        v2_market_contracts,
+        "_adaptive_capital_compact_payload",
+        lambda: (
+            {
+                "capital_productivity_runtime_status": {"status": "ACTIVE"},
+                "adaptive_capital_policy_status": {"status": "ACTIVE"},
+                "counterfactual_capital_sweep_status": {"status": "ACTIVE"},
+                "signal_prediction_accuracy_status": {"status": "ACTIVE"},
+            },
+            "test:adaptive-capital",
+            "2026-07-09T00:00:00Z",
+        ),
+    )
+
+    for path in (
+        "/api/v2/orchestrator/status",
+        "/api/v2/orchestrator",
+        "/api/v2/adaptive-capital/dashboard",
+        "/api/v2/allocator/status",
+        "/api/v2/allocator",
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        body = response.json()
+        data = body["data"]
+        readiness = data["real_trader_readiness"]
+
+        assert body["live_gate"] == "blocked_human_only"
+        assert body["routes_to_live"] is False
+        assert body["places_real_order"] is False
+        assert data["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["live_ready"] is False
+        assert readiness["live_submit_allowed"] is False
+        assert readiness["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+        assert readiness["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+        assert "GUARDIAN_HALTED_PERFORMANCE" in readiness["readiness_blockers"]
+        assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in readiness["readiness_blockers"]
+        assert data["a_grade_blocker_truth"]["status"] == (
+            "A_GRADE_ADAPTATION_NOT_PROVEN"
+        )
+        assert data["a_grade_blocker_truth"]["routes_to_live"] is False
+        assert data["a_grade_blocker_truth"]["places_real_order"] is False
 
 
 def test_current_signals_alias_returns_signal_json_not_spa_html(

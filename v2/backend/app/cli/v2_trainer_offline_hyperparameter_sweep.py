@@ -14,11 +14,16 @@ v2/docs/TRAINER_OFFLINE_RETRAIN_RUNBOOK.md
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Sequence
 
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
+    V2HybridCheckpointManager,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
     V2HybridPPOTrainer,
@@ -31,6 +36,8 @@ DEFAULT_GRID: tuple[dict[str, float], ...] = tuple(
     for lr in (3e-5, 1e-4, 3e-4)
     for ec in (0.005, 0.01, 0.02)
 )
+RUNTIME_MODEL_DIR = Path(".local_models/v2_native_rl_masa_ppo")
+DEFAULT_STAGE_MODEL_DIR = Path(".local_models/v2_native_rl_masa_ppo_offline_recovery_candidate")
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -148,7 +155,42 @@ def _diverged(result: PPOTrainingResult) -> bool:
     return la > lb * 1.25 + 1e-6
 
 
-def _train_one_config(
+def _eligible_for_recovery(result: dict[str, Any]) -> bool:
+    """A config is usable only if the online validation guard would accept it."""
+    return (
+        result.get("diverged") is False
+        and result.get("validation_supervised_loss") is not None
+        and result.get("overfit_gap_warning") is not True
+    )
+
+
+def _sha256_file(path: str | None) -> str | None:
+    if not path:
+        return None
+    source = Path(path)
+    if not source.exists() or not source.is_file():
+        return None
+    digest = hashlib.sha256()
+    with source.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _looks_like_runtime_model_dir(path: Path) -> bool:
+    try:
+        target_resolved = Path(path).expanduser().resolve(strict=False)
+        runtime_resolved = RUNTIME_MODEL_DIR.expanduser().resolve(strict=False)
+        if target_resolved == runtime_resolved:
+            return True
+    except Exception:
+        pass
+    text = Path(path).as_posix().rstrip("/")
+    runtime = RUNTIME_MODEL_DIR.as_posix().rstrip("/")
+    return text == runtime or text.endswith(f"/{runtime}")
+
+
+def _train_model_for_config(
     examples: Sequence[Any],
     *,
     config: dict[str, float],
@@ -156,7 +198,7 @@ def _train_one_config(
     batch_size: int,
     validation_fraction: float,
     load_checkpoint: bool,
-) -> dict[str, Any]:
+) -> tuple[V2HybridPolicyModel, dict[str, Any]]:
     input_dim = len(examples[0].tensor.model_vector)
     # Dropout is read from env at model construction; set it for this config.
     prev_dropout = os.environ.get("V2_TRAINER_DROPOUT")
@@ -189,7 +231,7 @@ def _train_one_config(
         examples, steps=steps, batch_size=batch_size, validation_fraction=validation_fraction
     )
     m = result.metrics
-    return {
+    return model, {
         "config": config,
         "loss_before": result.loss_before,
         "loss_after": result.loss_after,
@@ -200,6 +242,123 @@ def _train_one_config(
         "diverged": _diverged(result),
         "train_rows": result.train_rows,
         "validation_rows": result.validation_rows,
+    }
+
+
+def _train_one_config(
+    examples: Sequence[Any],
+    *,
+    config: dict[str, float],
+    steps: int,
+    batch_size: int,
+    validation_fraction: float,
+    load_checkpoint: bool,
+) -> dict[str, Any]:
+    _, result = _train_model_for_config(
+        examples,
+        config=config,
+        steps=steps,
+        batch_size=batch_size,
+        validation_fraction=validation_fraction,
+        load_checkpoint=load_checkpoint,
+    )
+    return result
+
+
+def stage_recovery_checkpoint(
+    examples: Sequence[Any],
+    *,
+    config: dict[str, float],
+    stage_model_dir: Path = DEFAULT_STAGE_MODEL_DIR,
+    steps: int = 200,
+    batch_size: int = 4096,
+    validation_fraction: float = 0.2,
+    load_checkpoint: bool = False,
+) -> dict[str, Any]:
+    """Train one promotable config and write it to an isolated candidate dir.
+
+    This is intentionally not an install/promote path: it writes a local NPZ
+    checkpoint under a staging directory only after the retrained candidate still
+    satisfies the same recovery eligibility used by the sweep ranking.
+    """
+    if not examples:
+        raise ValueError("offline recovery staging requires at least one training example")
+    point_in_time_safety = point_in_time_safety_report(examples)
+    if not point_in_time_safety["passed"]:
+        raise ValueError(
+            "offline recovery staging blocked by point-in-time safety violations: "
+            + json.dumps(point_in_time_safety, default=str)
+        )
+    stage_dir = Path(stage_model_dir)
+    if _looks_like_runtime_model_dir(stage_dir):
+        raise ValueError("refusing to stage offline recovery into the active runtime model directory")
+
+    model, candidate = _train_model_for_config(
+        examples,
+        config=dict(config),
+        steps=steps,
+        batch_size=batch_size,
+        validation_fraction=validation_fraction,
+        load_checkpoint=load_checkpoint,
+    )
+    if not _eligible_for_recovery(candidate):
+        return {
+            "schema_version": "trainer_offline_recovery_checkpoint_stage_v1",
+            "status": "REJECTED_NOT_PROMOTABLE",
+            "stage_model_dir": str(stage_dir),
+            "staged_checkpoint_written": False,
+            "runtime_checkpoint_written": False,
+            "writes_current_checkpoint": False,
+            "candidate": candidate,
+            "point_in_time_safety": point_in_time_safety,
+            "places_real_order": False,
+            "test_order_submitted": False,
+            "order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+            "routes_to_live": False,
+        }
+
+    manager = V2HybridCheckpointManager(stage_dir)
+    input_dim = len(examples[0].tensor.model_vector)
+    manifest = manager.write_checkpoint(
+        model=model,
+        input_dim=input_dim,
+        device=model.device,
+        cuda_active=model.cuda_active,
+        write_weight_blob=True,
+    )
+    reload_status = manager.load_latest_weights(V2HybridPolicyModel(input_dim=input_dim))
+    checkpoint_hash = _sha256_file(manifest.weight_file_path)
+    reload_verified = bool(
+        reload_status.get("latest_checkpoint_loadable")
+        and reload_status.get("model_state_restored")
+        and reload_status.get("safe_weight_format")
+    )
+    return {
+        "schema_version": "trainer_offline_recovery_checkpoint_stage_v1",
+        "status": "STAGED_PROMOTABLE_CANDIDATE" if reload_verified else "STAGED_RELOAD_FAILED",
+        "stage_model_dir": str(stage_dir),
+        "staged_checkpoint_written": bool(manifest.weight_blob_written),
+        "runtime_checkpoint_written": False,
+        "writes_current_checkpoint": False,
+        "operator_install_required": True,
+        "candidate": candidate,
+        "checkpoint_id": manifest.checkpoint_id,
+        "checkpoint_manifest_path": manifest.path,
+        "checkpoint_weight_file_path": manifest.weight_file_path,
+        "checkpoint_weight_file_format": manifest.weight_file_format,
+        "checkpoint_weight_file_size_bytes": manifest.weight_file_size_bytes,
+        "checkpoint_hash": checkpoint_hash,
+        "checkpoint_reload_verified": reload_verified,
+        "checkpoint_reload_status": reload_status,
+        "point_in_time_safety": point_in_time_safety,
+        "places_real_order": False,
+        "test_order_submitted": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "routes_to_live": False,
     }
 
 
@@ -236,18 +395,32 @@ def run_hyperparameter_sweep(
 
     def _score(r: dict[str, Any]) -> tuple[int, float]:
         vl = r["validation_supervised_loss"]
-        # Prefer: not diverged, then lowest validation loss.
-        if r["diverged"] or vl is None:
+        # Prefer configs the online validation guard could actually promote:
+        # non-diverged, validation-present, and no train/validation overfit gap.
+        if not _eligible_for_recovery(r):
             return (1, float("inf"))
         return (0, float(vl))
 
     results_sorted = sorted(results, key=_score)
-    stable = [r for r in results_sorted if not r["diverged"] and r["validation_supervised_loss"] is not None]
+    eligible = [r for r in results_sorted if _eligible_for_recovery(r)]
+    non_diverged = [
+        r
+        for r in results_sorted
+        if not r["diverged"] and r["validation_supervised_loss"] is not None
+    ]
+    overfit_rejected = [
+        r
+        for r in non_diverged
+        if r.get("overfit_gap_warning") is True
+    ]
     return {
         "schema_version": "trainer_offline_hyperparameter_sweep_v1",
         "config_count": len(results),
-        "stable_config_count": len(stable),
-        "best": stable[0] if stable else None,
+        "stable_config_count": len(eligible),
+        "promotable_config_count": len(eligible),
+        "non_diverged_config_count": len(non_diverged),
+        "overfit_rejected_config_count": len(overfit_rejected),
+        "best": eligible[0] if eligible else None,
         "results": results_sorted,
         "point_in_time_safety": point_in_time_safety,
         "places_real_order": False,
@@ -272,6 +445,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--from-checkpoint", action="store_true", help="start each config from the current checkpoint")
     p.add_argument("--output", default=None, help="write the sweep JSON here")
     p.add_argument("--promote", action="store_true", help="(NOT IMPLEMENTED HERE) reserved; sweep is report-only")
+    p.add_argument(
+        "--stage-checkpoint",
+        action="store_true",
+        help="write the best promotable config to an isolated offline recovery candidate directory",
+    )
+    p.add_argument(
+        "--stage-model-dir",
+        default=str(DEFAULT_STAGE_MODEL_DIR),
+        help="candidate checkpoint directory; active runtime model dir is refused",
+    )
     return p.parse_args(argv)
 
 
@@ -312,6 +495,56 @@ def main(argv: list[str] | None = None) -> int:
         load_checkpoint=args.from_checkpoint,
     )
     report["examples_loaded"] = len(examples)
+    exit_code = 0
+    if args.stage_checkpoint:
+        best = report.get("best")
+        if not isinstance(best, dict) or not isinstance(best.get("config"), dict):
+            report["staged_checkpoint"] = {
+                "schema_version": "trainer_offline_recovery_checkpoint_stage_v1",
+                "status": "NO_PROMOTABLE_CONFIG",
+                "staged_checkpoint_written": False,
+                "runtime_checkpoint_written": False,
+                "writes_current_checkpoint": False,
+                "operator_install_required": True,
+                "places_real_order": False,
+                "test_order_submitted": False,
+                "order_submitted": False,
+                "leverage_mutated": False,
+                "margin_mutated": False,
+                "routes_to_live": False,
+            }
+            exit_code = 4
+        else:
+            try:
+                report["staged_checkpoint"] = stage_recovery_checkpoint(
+                    examples,
+                    config=best["config"],
+                    stage_model_dir=Path(args.stage_model_dir),
+                    steps=args.steps,
+                    batch_size=args.batch_size,
+                    validation_fraction=args.validation_fraction,
+                    load_checkpoint=args.from_checkpoint,
+                )
+                if report["staged_checkpoint"].get("status") != "STAGED_PROMOTABLE_CANDIDATE":
+                    exit_code = 4
+            except Exception as exc:  # noqa: BLE001
+                report["staged_checkpoint"] = {
+                    "schema_version": "trainer_offline_recovery_checkpoint_stage_v1",
+                    "status": "STAGE_FAILED",
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                    "staged_checkpoint_written": False,
+                    "runtime_checkpoint_written": False,
+                    "writes_current_checkpoint": False,
+                    "operator_install_required": True,
+                    "places_real_order": False,
+                    "test_order_submitted": False,
+                    "order_submitted": False,
+                    "leverage_mutated": False,
+                    "margin_mutated": False,
+                    "routes_to_live": False,
+                }
+                exit_code = 4
     text = json.dumps(report, indent=2, default=str)
     if args.output:
         with open(args.output, "w") as fh:
@@ -325,7 +558,7 @@ def main(argv: list[str] | None = None) -> int:
             "| val_loss:", best["validation_supervised_loss"],
             "| gap:", best["train_val_generalization_gap"],
         )
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

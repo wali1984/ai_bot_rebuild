@@ -27,6 +27,15 @@ private func runtimeBool(_ value: Bool?, trueText: String, falseText: String) ->
     return value ? trueText : falseText
 }
 
+private func runtimeBlockerColor(_ blocker: String) -> Color {
+    if blocker == "A_GRADE_SUPPLY_ZERO" { return NerVyx.sell }
+    if blocker == "VALIDATION_LOSS_REGRESSED" || blocker == "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" {
+        return NerVyx.warning
+    }
+    if blocker.contains("GUARDIAN") || blocker.contains("LIVE") { return NerVyx.sell }
+    return NerVyx.textSecondary
+}
+
 private func providerActualText(color: String?, actual: Bool?, heartbeatOnly: Bool? = nil, status: String?) -> String {
     let marker: String?
     if heartbeatOnly == true {
@@ -63,6 +72,59 @@ private func runtimePercent(_ value: Double?) -> String {
     guard let value else { return "not reported" }
     let percent = abs(value) <= 1 ? value * 100 : value
     return String(format: "%.1f%%", percent)
+}
+
+private struct RuntimeBlockerChainView: View {
+    let blockers: [String]
+
+    private var visibleBlockers: [String] {
+        Array(blockers.prefix(8))
+    }
+
+    private var hasDurableCheckpointBlock: Bool {
+        blockers.contains("VALIDATION_LOSS_REGRESSED")
+            || blockers.contains("BLOCKED_NO_DURABLE_WEIGHT_UPDATE")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Blocker chain")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(NerVyx.textMuted)
+                    .textCase(.uppercase)
+                if hasDurableCheckpointBlock {
+                    NerVyxBadge(text: "DURABLE CHECKPOINT BLOCKED", color: NerVyx.warning, small: true)
+                }
+                Spacer(minLength: 0)
+            }
+            if visibleBlockers.isEmpty {
+                Text("no blocker reported")
+                    .font(.system(size: 12))
+                    .foregroundStyle(NerVyx.textMuted)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 6)], alignment: .leading, spacing: 6) {
+                    ForEach(visibleBlockers, id: \.self) { blocker in
+                        Text(blocker)
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(runtimeBlockerColor(blocker))
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.82)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(runtimeBlockerColor(blocker).opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(runtimeBlockerColor(blocker).opacity(0.30), lineWidth: 1)
+                            )
+                    }
+                }
+            }
+        }
+        .padding(.top, 2)
+    }
 }
 
 struct RuntimeTruthDisplay {
@@ -539,8 +601,7 @@ struct RuntimeTruthCard: View {
             DataRow(label: "Next Remediation", value: runtimeText(truth.nextRemediation))
             DataRow(label: "Live gate", value: runtimeText(truth.liveGate), valueColor: NerVyx.sell)
             DataRow(label: "Real trader readiness", value: runtimeBool(truth.liveReady, trueText: "live_ready true", falseText: "live_ready false"), valueColor: truth.liveReady == true ? NerVyx.warning : NerVyx.sell)
-            DataRow(label: "Top blockers", value: truth.topBlockers.prefix(3).joined(separator: ", ").isEmpty ? "no blocker reported" : truth.topBlockers.prefix(3).joined(separator: ", "))
-            DataRow(label: "Why blocked", value: truth.topBlockers.prefix(3).joined(separator: ", ").isEmpty ? "no blocker reported" : truth.topBlockers.prefix(3).joined(separator: ", "))
+            RuntimeBlockerChainView(blockers: truth.topBlockers)
         }
         .nerVyxCard(accent: NerVyx.signal.opacity(0.25))
     }

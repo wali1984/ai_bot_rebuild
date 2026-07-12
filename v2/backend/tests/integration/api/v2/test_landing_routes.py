@@ -29,6 +29,7 @@ from app.api.v2 import audit_ledger as v2_audit_ledger
 from app.api.v2 import codex_reviews as v2_codex_reviews
 from app.api.v2 import ollama as v2_ollama
 from app.api.v2 import public_status as v2_public_status
+from app.api.v2 import live_gate_status as v2_live_gate_status
 from app.api.v2 import trainer as v2_trainer
 from app.api.v2 import replay as v2_replay
 from app.api.v2.trainer import (
@@ -125,6 +126,7 @@ def fake_redis(monkeypatch: pytest.MonkeyPatch) -> FakeRedis:
     monkeypatch.setattr(v2_audit_ledger, "get_redis", lambda: fr)
     monkeypatch.setattr(v2_codex_reviews, "get_redis", lambda: fr)
     monkeypatch.setattr(v2_trainer, "get_redis", lambda: fr)
+    monkeypatch.setattr(v2_live_gate_status, "get_redis", lambda: fr)
     monkeypatch.setattr(v2_ollama, "get_redis", lambda: fr)
     monkeypatch.setattr(v2_replay, "get_redis", lambda: fr)
     monkeypatch.setattr(v2_public_status, "get_redis", lambda: fr)
@@ -147,6 +149,7 @@ def no_redis(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(v2_audit_ledger, "get_redis", lambda: None)
     monkeypatch.setattr(v2_codex_reviews, "get_redis", lambda: None)
     monkeypatch.setattr(v2_trainer, "get_redis", lambda: None)
+    monkeypatch.setattr(v2_live_gate_status, "get_redis", lambda: None)
     monkeypatch.setattr(v2_ollama, "get_redis", lambda: None)
     monkeypatch.setattr(v2_replay, "get_redis", lambda: None)
     monkeypatch.setattr(v2_public_status, "get_redis", lambda: None)
@@ -155,6 +158,96 @@ def no_redis(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(v2_live_readiness, "get_redis", lambda: None)
     monkeypatch.setattr(
         v2_audit_ledger, "_SUMMARY_CACHE", v2_common.TtlCache(ttl_seconds=1.0)
+    )
+
+
+def _seed_unproven_a_grade_runtime_blockers(fake_redis: FakeRedis) -> None:
+    fake_redis.set(
+        "v2:trainer:hybrid_cuda:status",
+        {
+            "online_learning_status": "WEIGHTS_UPDATING",
+            "effective_trainer_mode": "REPLAY_AND_ONLINE_LEARNING",
+            "learning_metrics": {
+                "ppo_entropy": 0.96,
+                "train_val_generalization_gap": 3.2,
+                "validation_supervised_loss": 6.7,
+                "validation_supervised_loss_before": 2.4,
+                "validation_supervised_loss_after": 6.7,
+                "validation_loss_delta": 4.3,
+                "loss_after": 2.4,
+                "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+                "checkpoint_promotion_rejected": True,
+                "hard_promotion_rejection_reason": True,
+            },
+        },
+    )
+    fake_redis.set(
+        "v2:paper:a_grade_gate_burndown_status",
+        {
+            "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+            "A_grade_rows": 0,
+            "near_A_grade_rows": 31,
+            "guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+            "guardian_new_entries_allowed": False,
+        },
+    )
+    fake_redis.set(
+        "v2:paper:preemptive_edge_control_status",
+        {
+            "candidate_count": 2,
+            "accepted_count": 0,
+        },
+    )
+    fake_redis.set(
+        "v2:paper:preemptive_candidate_decision_matrix",
+        {
+            "rows": [
+                {
+                    "pre_trade_loss_probability": 0.92,
+                    "expected_edge_after_cost_bps": -1.0,
+                    "recent_bucket_profit_factor": 0.03,
+                    "block_reasons": [
+                        "GUARDIAN_HALTED_OR_MISSING",
+                        "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+                    ],
+                }
+            ],
+        },
+    )
+    fake_redis.set(
+        "v2:paper:exploration:supply_status",
+        {
+            "fresh_strategy_supply_rows": 565,
+            "fresh_exploration_candidates": 3,
+            "materialized_positions_last_cycle": 0,
+        },
+    )
+    fake_redis.set(
+        "v2:paper:exploration:materialization_queue_status",
+        {
+            "queued_count": 0,
+            "active_count": 0,
+            "same_cycle_materialized_count": 0,
+            "rejected_after_queue_count": 3,
+            "exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "canonical_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "after_queue_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "after_queue_no_fill_reasons": [
+                "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+                "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+            ],
+            "rejected_after_queue_reason_counts": {
+                "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 2,
+                "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION": 1,
+            },
+        },
+    )
+    fake_redis.set(
+        "v2:continuous_edge_guardian:a_grade_execution_gate",
+        {
+            "status": "A_GRADE_HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": False,
+        },
     )
 
 
@@ -430,6 +523,47 @@ def test_b4_trainer_cache_hit_short_circuits_subprocess(
     assert body["champion_challenger_status"]["status"] == "MISSING_RUNTIME_EVIDENCE"
 
 
+def test_b4_trainer_status_exposes_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("V2_TRAINER_MODE", raising=False)
+    monkeypatch.setenv("LEGACY_TRAINER_PYTHON", "/usr/bin/python3")
+    monkeypatch.setenv("LEGACY_BOT_ROOT", "/tmp/legacy")
+    fake_redis.kv["v2:trainer:summary"] = json.dumps(
+        {
+            "state": "current",
+            "checkpoint_id": "ckpt-42",
+            "uptime_days": 3,
+            "win_rate_30d": 0.62,
+            "episodes_total": 100,
+            "drift_watch_count": 0,
+            "drift_alarm_count": 0,
+            "promotion_locked": True,
+            "promotion_min_role": "trusted",
+        }
+    )
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    body = client.get("/api/v2/trainer/status").json()
+
+    assert body["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert body["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in body["top_blockers"]
+    assert body["real_trader_readiness"]["live_ready"] is False
+    assert body["real_trader_readiness"]["live_submit_allowed"] is False
+    assert body["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert body["a_grade_blocker_truth"]["paper_learning_feeder"][
+        "no_fill_component_reasons"
+    ] == [
+        "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+    ]
+    assert body["routes_to_live"] is False
+    assert body["places_real_order"] is False
+
+
 def test_b4_trainer_summary_exposes_champion_challenger_runtime_contract(
     client: TestClient,
     fake_redis: FakeRedis,
@@ -566,6 +700,33 @@ def test_b4_trainer_argv_validator_rejects_dangerous_flags() -> None:
     for argv in forbidden_argv_sets:
         with pytest.raises(TrainerArgvViolation):
             validate_trainer_argv(argv)
+
+
+def test_b4_paper_exploration_bridge_exposes_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    response = client.get("/api/v2/trainer/paper-exploration-bridge")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert body["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in body["top_blockers"]
+    assert body["real_trader_readiness"]["live_ready"] is False
+    assert body["real_trader_readiness"]["live_submit_allowed"] is False
+    assert body["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert body["a_grade_blocker_truth"]["paper_learning_feeder"][
+        "no_fill_component_reasons"
+    ] == [
+        "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+    ]
+    assert body["paper_only"] is True
+    assert body["routes_to_live"] is False
+    assert body["places_real_order"] is False
 
 
 # --------------------------------------------------------------------- #
@@ -752,13 +913,19 @@ def test_b7_live_readiness_exposes_current_a_grade_blocker_truth(
     fake_redis.set(
         "v2:trainer:hybrid_cuda:status",
         {
-            "online_learning_status": "WEIGHTS_UPDATING",
+            "online_learning_status": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
             "effective_trainer_mode": "REPLAY_AND_ONLINE_LEARNING",
             "learning_metrics": {
                 "ppo_entropy": 0.96,
                 "train_val_generalization_gap": 3.2,
                 "validation_supervised_loss": 6.7,
+                "validation_supervised_loss_before": 2.4,
+                "validation_supervised_loss_after": 6.7,
+                "validation_loss_delta": 4.3,
                 "loss_after": 2.4,
+                "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+                "checkpoint_promotion_rejected": True,
+                "hard_promotion_rejection_reason": True,
             },
         },
     )
@@ -792,7 +959,18 @@ def test_b7_live_readiness_exposes_current_a_grade_blocker_truth(
         "v2:paper:exploration:materialization_queue_status",
         {
             "same_cycle_materialized_count": 0,
-            "exact_no_fill_reason": "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS",
+            "rejected_after_queue_count": 3,
+            "exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "canonical_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "after_queue_exact_no_fill_reason": "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION",
+            "after_queue_no_fill_reasons": [
+                "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+                "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+            ],
+            "rejected_after_queue_reason_counts": {
+                "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 2,
+                "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION": 1,
+            },
         },
     )
     fake_redis.set(
@@ -812,12 +990,59 @@ def test_b7_live_readiness_exposes_current_a_grade_blocker_truth(
     assert data["live_gate"] == "blocked_human_only"
     assert data["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
     assert data["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in data["readiness_blockers"]
+    assert "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" in data["readiness_blockers"]
     assert "GUARDIAN_HALTED_PERFORMANCE" in data["readiness_blockers"]
     assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in data["readiness_blockers"]
     assert data["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
     assert data["a_grade_blocker_truth"]["a_grade"]["A_grade_rows"] == 0
     assert data["a_grade_blocker_truth"]["routes_to_live"] is False
     assert data["a_grade_blocker_truth"]["places_real_order"] is False
+
+
+def test_b7_gates_rows_expose_current_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    gates = _by_id(client.get("/api/v2/live-readiness/gates").json())
+    g8 = gates["G8"]
+
+    assert g8["state"] == "blocked"
+    assert g8["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert g8["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in g8["top_blockers"]
+    assert g8["live_ready"] is False
+    assert g8["live_submit_allowed"] is False
+    assert g8["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert g8["routes_to_live"] is False
+    assert g8["places_real_order"] is False
+
+
+def test_b7_live_gate_status_exposes_current_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    _seed_unproven_a_grade_runtime_blockers(fake_redis)
+
+    response = client.get("/api/v2/live-gate/status")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["live_gate"] == "blocked_human_only"
+    assert body["live_ready"] is False
+    assert body["live_submit_allowed"] is False
+    assert body["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert body["top_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "VALIDATION_LOSS_REGRESSED" in body["top_blockers"]
+    assert body["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert body["routes_to_live"] is False
+    assert body["places_real_order"] is False
+    assert body["order_submitted"] is False
+    assert body["test_order_submitted"] is False
+    assert body["leverage_mutated"] is False
+    assert body["margin_mutated"] is False
 
 
 # --------------------------------------------------------------------- #

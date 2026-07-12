@@ -106,6 +106,13 @@ interface Summary {
   finished_at: string | null;
 }
 
+interface RealTraderReadiness {
+  exact_no_live_reason?: string | null;
+  readiness_blockers?: string[] | null;
+  live_ready?: boolean | null;
+  live_submit_allowed?: boolean | null;
+}
+
 interface PaperStatus {
   positions: PaperPosition[];
   closed_trades: ClosedTrade[];
@@ -113,6 +120,9 @@ interface PaperStatus {
   reason_breakdown: Record<string, number>;
   risk_profile: RiskProfile;
   summary: Summary;
+  exact_no_live_reason?: string | null;
+  top_blockers?: string[] | null;
+  real_trader_readiness?: RealTraderReadiness | null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -158,6 +168,24 @@ const fmt = {
     catch { return v; }
   },
 };
+
+function normalizeBlockerLabel(value: string): string {
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function uniqueStrings(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of values) {
+    const item = String(value ?? '').trim();
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
+}
 
 function runtimeText(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return '—';
@@ -881,6 +909,70 @@ function FreshnessBadge({ fetchedAt }: { fetchedAt: number | null }) {
   );
 }
 
+function AGradeBlockerStrip({ status }: { status: PaperStatus | null }) {
+  const readiness = status?.real_trader_readiness ?? null;
+  const blockers = uniqueStrings([
+    ...(status?.top_blockers ?? []),
+    ...(readiness?.readiness_blockers ?? []),
+  ]).slice(0, 8);
+  const exact = status?.exact_no_live_reason ?? readiness?.exact_no_live_reason ?? blockers[0] ?? 'LIVE_GATE_BLOCKED_HUMAN_ONLY';
+  const liveReady = Boolean(readiness?.live_ready);
+  const submitAllowed = Boolean(readiness?.live_submit_allowed);
+  const hardTrainerBlock = blockers.some(b => b === 'VALIDATION_LOSS_REGRESSED' || b === 'BLOCKED_NO_DURABLE_WEIGHT_UPDATE');
+
+  return (
+    <section
+      aria-label="A-grade blocker truth"
+      style={{
+        marginBottom: 16,
+        border: '1px solid color-mix(in oklch, var(--sell, #ef4444) 35%, var(--border))',
+        background: 'color-mix(in oklch, var(--sell, #ef4444) 8%, var(--bg-panel))',
+        borderRadius: 8,
+        padding: 12,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 220, flex: '1 1 320px' }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0, marginBottom: 4 }}>
+            A-grade gate
+          </div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--sell, #ef4444)', lineHeight: 1.35 }}>
+            {normalizeBlockerLabel(exact)}
+          </div>
+          <div style={{ marginTop: 6, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            Live ready: {liveReady ? 'true' : 'false'} · Submit allowed: {submitAllowed ? 'true' : 'false'}
+            {hardTrainerBlock ? ' · Durable checkpoint blocked' : ''}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: '1 1 360px' }}>
+          {blockers.map(blocker => (
+            <span
+              key={blocker}
+              title={blocker}
+              style={{
+                maxWidth: 260,
+                overflowWrap: 'anywhere',
+                padding: '4px 8px',
+                borderRadius: 6,
+                border: '1px solid color-mix(in oklch, var(--sell, #ef4444) 30%, var(--border))',
+                background: blocker === 'A_GRADE_SUPPLY_ZERO'
+                  ? 'color-mix(in oklch, var(--sell, #ef4444) 14%, transparent)'
+                  : 'color-mix(in oklch, var(--warn, #f59e0b) 10%, transparent)',
+                color: blocker === 'A_GRADE_SUPPLY_ZERO' ? 'var(--sell, #ef4444)' : 'var(--warn, #f59e0b)',
+                fontSize: 11,
+                fontWeight: 700,
+                lineHeight: 1.25,
+              }}
+            >
+              {normalizeBlockerLabel(blocker)}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 type Tab = 'positions' | 'history' | 'risk';
@@ -991,6 +1083,8 @@ export default function PaperTradingPage(): JSX.Element {
           {error}
         </div>
       )}
+
+      <AGradeBlockerStrip status={data} />
 
       {/* KPI strip */}
       <KpiStrip

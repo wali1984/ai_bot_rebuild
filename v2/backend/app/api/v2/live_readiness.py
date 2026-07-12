@@ -16,7 +16,10 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.v2._common import get_redis
-from app.api.v2.control_center_status import _current_a_grade_blocker_truth
+from app.api.v2.control_center_status import (
+    _current_a_grade_blocker_truth,
+    _real_trader_readiness_from_a_grade_truth,
+)
 from app.services.live_readiness import derive_gates
 
 router = APIRouter(prefix="/live-readiness", tags=["v2-landing"])
@@ -202,4 +205,18 @@ async def get_live_readiness_status_slash() -> dict[str, Any]:
 @router.get("/gates")
 async def get_live_readiness_gates() -> list[dict[str, Any]]:
     r = get_redis()
-    return derive_gates(r)
+    gates = derive_gates(r)
+    truth = _current_a_grade_blocker_truth(r)
+    readiness = _real_trader_readiness_from_a_grade_truth(truth)
+    blocker_context = {
+        "live_gate": "blocked_human_only",
+        "live_ready": False,
+        "live_submit_allowed": False,
+        "exact_no_live_reason": readiness["exact_no_live_reason"],
+        "readiness_blockers": readiness["readiness_blockers"],
+        "top_blockers": readiness["readiness_blockers"][:8],
+        "a_grade_blocker_truth": truth,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return [{**gate, **blocker_context} for gate in gates]

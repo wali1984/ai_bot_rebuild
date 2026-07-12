@@ -186,13 +186,27 @@ async def test_trainer_adaptation_diagnosis_explains_unproven_a_grade_edge(
             trainer.PAPER_EXPLORATION_BRIDGE_KEYS[
                 "materialization_queue_status"
             ]: {
-                "queued_count": 3,
-                "active_count": 3,
+                "queued_count": 0,
+                "active_count": 0,
                 "same_cycle_materialized_count": 0,
-                "rejected_after_queue_count": 0,
+                "rejected_after_queue_count": 3,
                 "exact_no_fill_reason": (
-                    "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
+                    "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION"
                 ),
+                "canonical_exact_no_fill_reason": (
+                    "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION"
+                ),
+                "after_queue_exact_no_fill_reason": (
+                    "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION"
+                ),
+                "after_queue_no_fill_reasons": [
+                    "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+                    "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+                ],
+                "rejected_after_queue_reason_counts": {
+                    "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION": 2,
+                    "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION": 1,
+                },
             },
             trainer.CONTINUOUS_EDGE_GUARDIAN_EXECUTION_GATE_KEY: {
                 "status": "A_GRADE_HALTED_PERFORMANCE",
@@ -224,6 +238,23 @@ async def test_trainer_adaptation_diagnosis_explains_unproven_a_grade_edge(
     assert "A_GRADE_SUPPLY_ZERO" in finding_ids
     assert "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES" in finding_ids
     assert "GUARDIAN_HALTED_PERFORMANCE" in finding_ids
+    feeder = payload["paper_learning_feeder"]
+    assert feeder["exact_no_fill_reason"] == (
+        "MIXED_TRUE_NO_FILL_AFTER_QUEUE_CONSUMPTION"
+    )
+    assert feeder["after_queue_no_fill_reasons"] == [
+        "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+    ]
+    feeder_finding = next(
+        finding
+        for finding in payload["findings"]
+        if finding["id"] == "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES"
+    )
+    assert feeder_finding["no_fill_component_reasons"] == [
+        "TRUE_RISK_BLOCK_AFTER_QUEUE_CONSUMPTION",
+        "TRUE_ENTRY_GATE_SYMBOL_EXCLUDED_AFTER_QUEUE_CONSUMPTION",
+    ]
     assert payload["trainer"]["ppo_entropy"] == pytest.approx(0.96)
     assert payload["preemptive"]["loss_probability"]["p50"] == pytest.approx(0.92)
     assert payload["a_grade"]["A_grade_rows"] == 0

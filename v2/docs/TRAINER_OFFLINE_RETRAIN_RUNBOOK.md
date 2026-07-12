@@ -1,8 +1,8 @@
 # Trainer Offline Retrain & Hyperparameter Sweep — Runbook
 
-**Purpose:** recover / stabilize the native CUDA MASA/PPO trainer without online experimentation. The running model was observed to diverge (supervised loss climbing 3.6 → 16+) under an over-strong entropy bonus; the correct fix is an **offline** hyperparameter search, then apply the winning config and let the trainer promote a stable checkpoint.
+**Purpose:** recover / stabilize the native CUDA MASA/PPO trainer without online experimentation. The running model was observed to diverge (supervised loss climbing 3.6 → 16+) under an over-strong entropy bonus; the correct fix is an **offline** hyperparameter search, then apply only a validation-improving, non-overfit config and let the trainer promote a stable checkpoint.
 
-**Safety:** every step here is paper/shadow. Nothing places an order or mutates leverage/margin. The sweep is report-only and does not write checkpoints; the `--promote` flag intentionally fails closed. The exchange gate stays `blocked_human_only`.
+**Safety:** every step here is paper/shadow. Nothing places an order or mutates leverage/margin. The default sweep is report-only and does not write checkpoints; the `--promote` flag intentionally fails closed. If `--stage-checkpoint` is passed, the tool may write a reload-verified candidate only under an isolated `.local_models/..._offline_recovery_candidate` staging directory. It refuses the active runtime model directory and does not install or promote the candidate. The exchange gate stays `blocked_human_only`.
 
 ---
 
@@ -20,11 +20,39 @@ PYTHONPATH=. .venv/bin/python -m v2.backend.app.cli.v2_trainer_offline_hyperpara
 ```
 
 - `--from-checkpoint` starts each config from the **current** checkpoint (realistic recovery scenario). Omit it to test training from a fresh init.
-- Output ends with `BEST_STABLE_CONFIG: {...} | val_loss: ... | gap: ...`.
+- Output ends with `BEST_STABLE_CONFIG: {...} | val_loss: ... | gap: ...` only when at least one config is promotable under the same validation discipline used by the online trainer.
 - The JSON includes `point_in_time_safety`, `writes_checkpoint: false`, `places_real_order: false`, `routes_to_live: false`, `leverage_mutated: false`, and `margin_mutated: false`.
 
-**Interpret:** a good config has `diverged: false`, the lowest `validation_supervised_loss`, and a small `train_val_generalization_gap` (≤ ~0.5). If **every** config diverges, lower the LR grid (e.g. add `1e-5`) — LR is the most likely divergence cause at this loss scale.
+**Interpret:** a good config has `diverged: false`, `overfit_gap_warning: false`, the lowest `validation_supervised_loss`, and a small `train_val_generalization_gap` (≤ ~0.5). The sweep rejects low-loss configs that still have `overfit_gap_warning: true`, because the online trainer now hard-rejects train/validation overfit-gap checkpoints. If **every** config diverges or every non-diverged config is overfit, lower the LR grid (e.g. add `1e-5`) and/or reduce model/entropy pressure — do not tune around the guard.
 If `point_in_time_safety.passed` is false, do not tune around it; repair the replay/feedback row timing first.
+
+---
+
+## Step 1.5 — Optional staged offline recovery checkpoint
+
+Once the sweep finds a promotable config, you can retrain that same config once more and stage a reload-verified candidate checkpoint outside the active runtime model directory:
+
+```bash
+cd "/home/wali/Desktop/AI BOT REBUILD"
+PYTHONPATH=. .venv/bin/python -m v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep \
+  --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT \
+  --timeframes 1m,5m,15m,1h \
+  --limit 4096 --steps 300 --batch-size 4096 \
+  --stage-checkpoint \
+  --stage-model-dir .local_models/v2_native_rl_masa_ppo_offline_recovery_candidate \
+  --output claude_worklog/trainer_atlas/offline_recovery_candidate.json
+```
+
+The staged report must show:
+
+- `staged_checkpoint.status == STAGED_PROMOTABLE_CANDIDATE`
+- `staged_checkpoint.checkpoint_reload_verified == true`
+- `staged_checkpoint.runtime_checkpoint_written == false`
+- `staged_checkpoint.writes_current_checkpoint == false`
+- `staged_checkpoint.candidate.overfit_gap_warning == false`
+- `staged_checkpoint.candidate.diverged == false`
+
+Do not point `--stage-model-dir` at `.local_models/v2_native_rl_masa_ppo`; the tool refuses that path because it is the active runtime checkpoint directory. Staging proves a clean candidate exists, but installing it remains a separate deliberate operator action.
 
 ---
 
@@ -51,16 +79,13 @@ systemctl --user restart ai-bot-v2-native-cuda-trainer-persistent.service
 
 ---
 
-## Step 3 — Let it recover, or force a clean promotion
+## Step 3 — Let it recover without force-promoting hard validation failures
 
-If the current checkpoint is degraded, the validation guard will keep rejecting until the model trains back below its loss. These are operator-controlled service config choices; the offline sweep does not promote or write checkpoint files. Two options:
+If the current checkpoint is degraded, the validation guard will keep rejecting until the model trains back below its loss and no longer trips the overfit-gap guard. The offline sweep does not promote or write checkpoint files.
 
-- **Patient:** with a stable config the loss trends down and the guard passes naturally (`online_learning_status: WEIGHTS_UPDATING`, `checkpoint_promotion_reason: VALIDATION_GUARD_PASS`).
-- **Assisted (temporary):** to let the model persist recovering weights sooner, either lower the streak escape:
-  ```
-  Environment=V2_TRAINER_MAX_PROMOTION_REJECTION_STREAK=5
-  ```
-  or temporarily set `V2_TRAINER_VALIDATION_CHECKPOINT_GUARD=false` and re-enable it once stable.
+- **Allowed:** with a stable config the loss trends down and the guard passes naturally (`online_learning_status: WEIGHTS_UPDATING`, `checkpoint_promotion_reason: VALIDATION_GUARD_PASS`).
+- **Not allowed for hard failures:** do not disable the validation checkpoint guard, lower the rejection-streak escape, or force-promote when the reason is `VALIDATION_LOSS_REGRESSED` or `TRAIN_VAL_OVERFIT_GAP`. Those are hard evidence failures; persisting them recreates the overfit/divergent state that blocked A grade.
+- **Soft-failure escape:** `V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK=1` exists only for non-hard failures such as missing validation signal, and it is disabled by default. It does not override `VALIDATION_LOSS_REGRESSED` or `TRAIN_VAL_OVERFIT_GAP`.
 
 ---
 
@@ -75,9 +100,9 @@ Read `v2:trainer:hybrid_cuda:status` and check:
 
 ---
 
-## Step 5 — Re-enable guards + confirm A-grade path
+## Step 5 — Confirm guards + A-grade path
 
-Once stable, re-enable the validation guard (remove `V2_TRAINER_VALIDATION_CHECKPOINT_GUARD=false`) and restore the streak-escape default. The strict A-grade guardian and the paper-only, exchange-blocked posture are unchanged throughout — a stable, generalizing model is the prerequisite for the A-grade economic runway to begin accumulating.
+Once stable, confirm `V2_TRAINER_VALIDATION_CHECKPOINT_GUARD` is enabled/default and that `V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK` is unset unless a documented non-hard soft failure requires it. The strict A-grade guardian and the paper-only, exchange-blocked posture are unchanged throughout — a stable, generalizing model is the prerequisite for the A-grade economic runway to begin accumulating.
 
 ---
 

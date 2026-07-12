@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import pytest
 
+from v2.backend.app.cli import v2_trainer_offline_hyperparameter_sweep as sweep_mod
 from v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep import (
     main,
     point_in_time_safety_report,
     run_hyperparameter_sweep,
+    stage_recovery_checkpoint,
     _diverged,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
@@ -79,6 +81,190 @@ def test_sweep_returns_ranked_results_and_offline_safety() -> None:
     assert report["test_order_submitted"] is False
     assert report["leverage_mutated"] is False
     assert report["margin_mutated"] is False
+
+
+def test_sweep_does_not_select_overfit_gap_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = _rows(3)
+    grid = [
+        {"learning_rate": 1e-4, "entropy_coefficient": 0.01},
+        {"learning_rate": 3e-5, "entropy_coefficient": 0.005},
+    ]
+
+    def fake_train(
+        examples,
+        *,
+        config,
+        steps,
+        batch_size,
+        validation_fraction,
+        load_checkpoint,
+    ):
+        if config["learning_rate"] == 1e-4:
+            return {
+                "config": config,
+                "loss_before": 4.0,
+                "loss_after": 1.0,
+                "validation_supervised_loss": 0.5,
+                "train_val_generalization_gap": 3.0,
+                "overfit_gap_warning": True,
+                "ppo_entropy": 0.8,
+                "diverged": False,
+                "train_rows": 2,
+                "validation_rows": 1,
+            }
+        return {
+            "config": config,
+            "loss_before": 4.0,
+            "loss_after": 1.8,
+            "validation_supervised_loss": 1.2,
+            "train_val_generalization_gap": 0.2,
+            "overfit_gap_warning": False,
+            "ppo_entropy": 0.5,
+            "diverged": False,
+            "train_rows": 2,
+            "validation_rows": 1,
+        }
+
+    monkeypatch.setattr(sweep_mod, "_train_one_config", fake_train)
+    report = run_hyperparameter_sweep(rows, grid=grid, steps=1, batch_size=2)
+
+    assert report["non_diverged_config_count"] == 2
+    assert report["overfit_rejected_config_count"] == 1
+    assert report["stable_config_count"] == 1
+    assert report["promotable_config_count"] == 1
+    assert report["best"]["config"]["learning_rate"] == 3e-5
+    assert report["best"]["overfit_gap_warning"] is False
+
+
+def test_stage_recovery_checkpoint_writes_isolated_reloadable_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    rows = _rows(3)
+    input_dim = len(rows[0].tensor.model_vector)
+
+    class _FakeModel:
+        model_id = "v2_hybrid_policy_" + ("a" * 24)
+        device = "cpu"
+        cuda_active = False
+
+        def save_weight_blob(self, path):
+            return V2HybridPolicyModel(input_dim=input_dim).save_weight_blob(path)
+
+    def fake_train_model_for_config(
+        examples,
+        *,
+        config,
+        steps,
+        batch_size,
+        validation_fraction,
+        load_checkpoint,
+    ):
+        return _FakeModel(), {
+            "config": config,
+            "loss_before": 4.0,
+            "loss_after": 1.0,
+            "validation_supervised_loss": 0.5,
+            "train_val_generalization_gap": 0.1,
+            "overfit_gap_warning": False,
+            "ppo_entropy": 0.5,
+            "diverged": False,
+            "train_rows": 2,
+            "validation_rows": 1,
+        }
+
+    monkeypatch.setattr(sweep_mod, "_train_model_for_config", fake_train_model_for_config)
+    stage_dir = tmp_path / ".local_models" / "v2_native_rl_masa_ppo_offline_recovery_candidate"
+
+    report = stage_recovery_checkpoint(
+        rows,
+        config={"learning_rate": 3e-5, "entropy_coefficient": 0.005},
+        stage_model_dir=stage_dir,
+        steps=1,
+        batch_size=2,
+    )
+
+    assert report["status"] == "STAGED_PROMOTABLE_CANDIDATE"
+    assert report["staged_checkpoint_written"] is True
+    assert report["runtime_checkpoint_written"] is False
+    assert report["writes_current_checkpoint"] is False
+    assert report["checkpoint_reload_verified"] is True
+    assert report["checkpoint_weight_file_format"] == "npz"
+    assert report["checkpoint_hash"]
+    assert str(stage_dir) in report["checkpoint_weight_file_path"]
+    assert report["places_real_order"] is False
+    assert report["test_order_submitted"] is False
+    assert report["leverage_mutated"] is False
+    assert report["margin_mutated"] is False
+    assert report["routes_to_live"] is False
+
+
+def test_stage_recovery_checkpoint_refuses_runtime_model_dir() -> None:
+    assert sweep_mod._looks_like_runtime_model_dir(
+        sweep_mod.RUNTIME_MODEL_DIR.parent / ".." / ".local_models" / "v2_native_rl_masa_ppo"
+    )
+    with pytest.raises(ValueError, match="active runtime model directory"):
+        stage_recovery_checkpoint(
+            _rows(2),
+            config={"learning_rate": 3e-5, "entropy_coefficient": 0.005},
+            stage_model_dir=sweep_mod.RUNTIME_MODEL_DIR,
+            steps=1,
+            batch_size=2,
+        )
+
+
+def test_stage_recovery_checkpoint_rejects_overfit_candidate_without_write(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    rows = _rows(3)
+
+    class _FakeModel:
+        model_id = "v2_hybrid_policy_" + ("b" * 24)
+        device = "cpu"
+        cuda_active = False
+
+        def save_weight_blob(self, path):
+            raise AssertionError("overfit candidates must not write checkpoint blobs")
+
+    def fake_train_model_for_config(
+        examples,
+        *,
+        config,
+        steps,
+        batch_size,
+        validation_fraction,
+        load_checkpoint,
+    ):
+        return _FakeModel(), {
+            "config": config,
+            "loss_before": 4.0,
+            "loss_after": 1.0,
+            "validation_supervised_loss": 0.5,
+            "train_val_generalization_gap": 3.0,
+            "overfit_gap_warning": True,
+            "ppo_entropy": 0.8,
+            "diverged": False,
+            "train_rows": 2,
+            "validation_rows": 1,
+        }
+
+    monkeypatch.setattr(sweep_mod, "_train_model_for_config", fake_train_model_for_config)
+    stage_dir = tmp_path / ".local_models" / "candidate"
+
+    report = stage_recovery_checkpoint(
+        rows,
+        config={"learning_rate": 3e-5, "entropy_coefficient": 0.005},
+        stage_model_dir=stage_dir,
+        steps=1,
+        batch_size=2,
+    )
+
+    assert report["status"] == "REJECTED_NOT_PROMOTABLE"
+    assert report["staged_checkpoint_written"] is False
+    assert report["runtime_checkpoint_written"] is False
+    assert report["candidate"]["overfit_gap_warning"] is True
+    assert not list(stage_dir.glob("*.npz"))
 
 
 def test_point_in_time_safety_report_passes_good_rows() -> None:

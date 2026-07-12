@@ -31,6 +31,8 @@ EXPECTED_MOVE_HEAD_BIAS_ABS_LIMIT = 12.0
 EXPECTED_MOVE_HEAD_SATURATION_BPS = 118.0
 EXPECTED_MOVE_HEAD_TARGET_MISMATCH_BPS = 30.0
 GPU_TRAINING_SAMPLE_INTERVAL_SECONDS = 0.5
+ENV_PPO_LEARNING_RATE_MAX = 2e-4
+ENV_PPO_ENTROPY_COEFFICIENT_MAX = 0.015
 
 
 def _finite_float_or_none(value: Any) -> float | None:
@@ -39,6 +41,32 @@ def _finite_float_or_none(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return parsed if math.isfinite(parsed) else None
+
+
+def _bounded_env_float(
+    primary_name: str,
+    fallback_name: str | None,
+    *,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> tuple[float, str, bool]:
+    source = "default"
+    raw = None
+    if os.getenv(primary_name) is not None:
+        raw = os.getenv(primary_name)
+        source = primary_name
+    elif fallback_name and os.getenv(fallback_name) is not None:
+        raw = os.getenv(fallback_name)
+        source = fallback_name
+    if raw is None:
+        value = float(default)
+    else:
+        value = _finite_float_or_none(raw)
+        if value is None:
+            return float(default), f"{source}:invalid_default", False
+    bounded = min(float(maximum), max(float(minimum), float(value)))
+    return bounded, source, bool(bounded != float(value))
 
 
 def _parse_nvidia_smi_training_sample(raw: str) -> dict[str, float] | None:
@@ -165,11 +193,22 @@ class V2HybridPPOTrainer:
         # Learning rate is env-tunable so an offline hyperparameter sweep (see
         # v2_trainer_offline_hyperparameter_sweep) can search for a stable value.
         # Too-high LR is the likeliest cause of the observed upward loss divergence.
-        self.learning_rate = (
-            float(learning_rate)
-            if learning_rate is not None
-            else float(os.getenv("V2_TRAINER_LEARNING_RATE", "1e-4") or 1e-4)
-        )
+        if learning_rate is not None:
+            self.learning_rate = float(learning_rate)
+            self.learning_rate_source = "constructor"
+            self.learning_rate_env_guard_capped = False
+        else:
+            (
+                self.learning_rate,
+                self.learning_rate_source,
+                self.learning_rate_env_guard_capped,
+            ) = _bounded_env_float(
+                "PPO_LEARNING_RATE",
+                "V2_TRAINER_LEARNING_RATE",
+                default=1e-4,
+                minimum=1e-8,
+                maximum=ENV_PPO_LEARNING_RATE_MAX,
+            )
         # Regularization / exploration knobs are env-tunable so the operator can
         # tune or instantly revert without a redeploy. Defaults are chosen to
         # counter the observed pathologies: near-zero policy entropy (collapse)
@@ -177,10 +216,32 @@ class V2HybridPPOTrainer:
         #   V2_TRAINER_ENTROPY_COEF=0.01              -> restore prior PPO-lane value
         #   V2_TRAINER_SUPERVISED_ENTROPY_BONUS=0.0   -> restore prior (no supervised entropy)
         #   V2_TRAINER_WEIGHT_DECAY=0.01              -> restore torch AdamW default
-        self.entropy_coefficient = (
-            float(entropy_coefficient)
-            if entropy_coefficient is not None
-            else float(os.getenv("V2_TRAINER_ENTROPY_COEF", "0.01") or 0.01)
+        if entropy_coefficient is not None:
+            self.entropy_coefficient = float(entropy_coefficient)
+            self.entropy_coefficient_source = "constructor"
+            self.entropy_coefficient_env_guard_capped = False
+        else:
+            # Env aliases are live-operator knobs, not an offline sweep surface.
+            # Cap the env path below the 3e-4/0.02 combination that was observed
+            # to diverge on V2; explicit constructor args remain available for
+            # offline sweeps and retrains.
+            (
+                self.entropy_coefficient,
+                self.entropy_coefficient_source,
+                self.entropy_coefficient_env_guard_capped,
+            ) = _bounded_env_float(
+                "PPO_ENT_COEF",
+                "V2_TRAINER_ENTROPY_COEF",
+                default=0.01,
+                minimum=0.0,
+                maximum=ENV_PPO_ENTROPY_COEFFICIENT_MAX,
+            )
+        self.gamma, self.gamma_source, self.gamma_env_guard_capped = _bounded_env_float(
+            "PPO_GAMMA",
+            None,
+            default=0.99,
+            minimum=0.0,
+            maximum=1.0,
         )
         # Default 0.0: a nonzero supervised-lane entropy bonus was found to DESTABILIZE
         # training on the live model (entropy drifted high and supervised loss diverged
@@ -1501,7 +1562,17 @@ class V2HybridPPOTrainer:
             metrics={
                 **(rejection_metrics or {}),
                 **validation_metrics,
+                "learning_rate": self.learning_rate,
+                "learning_rate_source": self.learning_rate_source,
+                "learning_rate_env_guard_capped": self.learning_rate_env_guard_capped,
                 "entropy_coefficient": self.entropy_coefficient,
+                "entropy_coefficient_source": self.entropy_coefficient_source,
+                "entropy_coefficient_env_guard_capped": self.entropy_coefficient_env_guard_capped,
+                "ppo_gamma": self.gamma,
+                "ppo_gamma_source": self.gamma_source,
+                "ppo_gamma_env_guard_capped": self.gamma_env_guard_capped,
+                "ppo_gamma_applied_to_advantage": False,
+                "ppo_gamma_not_applied_reason": "single_step_realized_reward_and_old_value_rows",
                 "supervised_entropy_bonus": self.supervised_entropy_bonus,
                 "weight_decay": self.weight_decay,
                 "model_dropout": float(getattr(self.model, "dropout", 0.0) or 0.0),

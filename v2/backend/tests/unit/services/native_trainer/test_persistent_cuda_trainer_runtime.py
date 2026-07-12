@@ -613,6 +613,80 @@ def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
     assert captured["publish"] is True
 
 
+def test_legacy_grade_runtime_config_defaults_fast_live_cadence_and_flags_partitioning(
+    monkeypatch,
+) -> None:
+    for name in runtime_module.LEGACY_RUNTIME_ENV_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("RL_SAFE_ENV_CAP", raising=False)
+    monkeypatch.delenv("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", raising=False)
+    symbols = [f"SYM{i}USDT" for i in range(135)]
+
+    config = runtime_module.legacy_grade_runtime_config(
+        symbols=symbols,
+        timeframes=("1m", "5m", "15m", "1h", "4h"),
+        max_rows=32768,
+    )
+    effective = config["effective_config"]
+
+    assert config["symbol_timeframe_pairs"] == 675
+    assert config["n_envs"] == runtime_module.LEGACY_RUNTIME_SAFE_ENV_CAP
+    assert config["coverage_mode"] == "DETERMINISTIC_ROTATING_PARTITIONS_REQUIRED"
+    assert config["coverage_not_silent"] is True
+    assert config["coverage_cycles_to_touch_all_pairs"] == 3
+    assert effective["n_steps"] == runtime_module.DEFAULT_ROLLOUT_N_STEPS
+    assert effective["batch_size"] == runtime_module.RESIDENT_MAX_BATCH_SIZE
+    assert effective["prediction_loop_seconds"] == 5
+    assert effective["post_training_pause_seconds"] == 0
+    assert effective["amp_enabled_default"] is True
+    assert effective["tf32_enabled_default"] is True
+    assert effective["cudnn_benchmark_enabled_default"] is True
+    assert effective["grad_scaler_enabled_default"] is True
+
+
+def test_run_native_training_cycle_uses_legacy_runtime_env_overrides(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    captured: dict[str, object] = {}
+    monkeypatch.setenv("RL_N_ENVS", "3")
+    monkeypatch.setenv("RL_N_STEPS", "1024")
+    monkeypatch.setenv("RL_BATCH_SIZE", "2048")
+    monkeypatch.setenv("PPO_N_EPOCHS", "2")
+    monkeypatch.delenv("ENABLE_AUTO_GPU_SCALE", raising=False)
+    monkeypatch.delenv("V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER", raising=False)
+    monkeypatch.setattr(runtime_module, "connect_redis", lambda: None)
+    monkeypatch.setattr(
+        runtime_module,
+        "resolve_symbols_with_provenance",
+        lambda: {
+            "symbols": ["BTCUSDT", "ETHUSDT"],
+            "symbol_profile": "dynamic_or_baseline",
+            "smoke_test": False,
+            "count": 2,
+        },
+    )
+
+    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
+        captured["rollout_max_envs"] = config.rollout_max_envs
+        captured["rollout_n_steps"] = config.rollout_n_steps
+        captured["batch_size"] = config.batch_size
+        captured["train_steps"] = config.train_steps
+        captured["publish"] = publish
+        return object()
+
+    monkeypatch.setattr(runtime_module, "run_hybrid_trainer_cycle", _fake_run_hybrid_trainer_cycle)
+
+    runtime_module.run_native_training_cycle(paths=paths, max_rows=4096, risk_caps_configured=True)
+
+    assert captured["rollout_max_envs"] == 3
+    assert captured["rollout_n_steps"] == 1024
+    assert captured["batch_size"] == 2048
+    assert captured["train_steps"] == 16
+    assert captured["publish"] is True
+
+
 def test_training_cycle_heartbeat_preserves_partial_prediction_grid_status(tmp_path: Path) -> None:
     paths = PersistentTrainerPaths(repo_root=tmp_path)
     prediction_path = paths.public_root / runtime_module.PREDICTION_REL

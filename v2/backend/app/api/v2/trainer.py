@@ -37,6 +37,12 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter
 
 from app.api.v2._common import get_redis, write_audit_trainer_read
+from app.api.v2.control_center_status import (
+    _current_a_grade_blocker_truth,
+    _first,
+    _materialization_no_fill_detail,
+    _real_trader_readiness_from_a_grade_truth,
+)
 
 router = APIRouter(prefix="/trainer", tags=["v2-landing"])
 
@@ -133,7 +139,26 @@ def _display_time_et() -> str:
     return datetime.now(DISPLAY_TZ).isoformat(timespec="seconds")
 
 
-def _with_control_center_contract(payload: dict[str, Any], *, source: str) -> dict[str, Any]:
+def _attach_a_grade_blocker_truth(payload: dict[str, Any], r: Any) -> dict[str, Any]:
+    out = dict(payload)
+    truth = _current_a_grade_blocker_truth(r)
+    readiness = _real_trader_readiness_from_a_grade_truth(truth)
+    out["real_trader_readiness"] = readiness
+    out["a_grade_blocker_truth"] = truth
+    out["exact_no_live_reason"] = readiness["exact_no_live_reason"]
+    out["readiness_blockers"] = readiness["readiness_blockers"]
+    out["top_blockers"] = readiness["readiness_blockers"][:8]
+    out["live_ready"] = False
+    out["live_submit_allowed"] = False
+    return out
+
+
+def _with_control_center_contract(
+    payload: dict[str, Any],
+    *,
+    source: str,
+    redis_client: Any | None = None,
+) -> dict[str, Any]:
     out = dict(payload)
     state = str(out.get("state") or "").upper()
     data_quality = "partial" if state in {"", "MISSING_EVIDENCE"} else "fresh"
@@ -148,6 +173,7 @@ def _with_control_center_contract(payload: dict[str, Any], *, source: str) -> di
     out["places_real_order"] = False
     out["routes_to_live"] = False
     out["data_quality_status"] = data_quality
+    out = _attach_a_grade_blocker_truth(out, redis_client)
     return out
 
 
@@ -643,7 +669,11 @@ async def get_trainer_summary() -> dict[str, Any]:
                     r.set(CACHE_KEY, json.dumps(redis_shape), ex=_ttl_seconds())
                 except Exception:
                     pass
-            return _with_control_center_contract(redis_shape, source="trainer.summary.redis_fallback")
+            return _with_control_center_contract(
+                redis_shape,
+                source="trainer.summary.redis_fallback",
+                redis_client=r,
+            )
         shape = _empty_shape("MISSING_EVIDENCE")
         shape = _attach_champion_challenger_status(shape, r)
         shape = _attach_preemptive_feedback_status(shape, r)
@@ -653,7 +683,11 @@ async def get_trainer_summary() -> dict[str, Any]:
             payload=json.dumps(shape, sort_keys=True),
             decision_id=decision_id,
         )
-        return _with_control_center_contract(shape, source="trainer.summary.stub")
+        return _with_control_center_contract(
+            shape,
+            source="trainer.summary.stub",
+            redis_client=r,
+        )
 
     if r is not None:
         try:
@@ -675,7 +709,11 @@ async def get_trainer_summary() -> dict[str, Any]:
                     payload=json.dumps(cached, sort_keys=True),
                     decision_id=decision_id,
                 )
-                return _with_control_center_contract(cached, source="trainer.summary.cache_hit")
+                return _with_control_center_contract(
+                    cached,
+                    source="trainer.summary.cache_hit",
+                    redis_client=r,
+                )
 
     shape = _run_trainer_status()
 
@@ -701,7 +739,11 @@ async def get_trainer_summary() -> dict[str, Any]:
         except Exception:
             pass
 
-    return _with_control_center_contract(shape, source="trainer.summary.subprocess")
+    return _with_control_center_contract(
+        shape,
+        source="trainer.summary.subprocess",
+        redis_client=r,
+    )
 
 
 PAPER_EXPLORATION_BRIDGE_KEYS = {
@@ -898,7 +940,43 @@ def _adaptation_diagnosis_from_payloads(
     validation_loss = _float_or_none(
         learning_metrics.get("validation_supervised_loss")
     )
+    validation_loss_before = _float_or_none(
+        _first(
+            learning_metrics.get("validation_supervised_loss_before"),
+            trainer_status.get("validation_supervised_loss_before"),
+        )
+    )
+    validation_loss_after = _float_or_none(
+        _first(
+            learning_metrics.get("validation_supervised_loss_after"),
+            trainer_status.get("validation_supervised_loss_after"),
+            learning_metrics.get("validation_supervised_loss"),
+            trainer_status.get("validation_supervised_loss"),
+        )
+    )
+    validation_loss_delta = _float_or_none(
+        _first(
+            learning_metrics.get("validation_loss_delta"),
+            trainer_status.get("validation_loss_delta"),
+        )
+    )
     loss_after = _float_or_none(learning_metrics.get("loss_after"))
+    online_learning_status = str(trainer_status.get("online_learning_status") or "")
+    checkpoint_promotion_reason = str(
+        _first(
+            learning_metrics.get("checkpoint_promotion_reason"),
+            trainer_status.get("checkpoint_promotion_reason"),
+        )
+        or ""
+    )
+    checkpoint_promotion_rejected = _first(
+        learning_metrics.get("checkpoint_promotion_rejected"),
+        trainer_status.get("checkpoint_promotion_rejected"),
+    )
+    hard_promotion_rejection = _first(
+        learning_metrics.get("hard_promotion_rejection_reason"),
+        trainer_status.get("hard_promotion_rejection_reason"),
+    )
     a_grade_rows = _int_or_zero(
         a_grade_status.get("A_grade_rows")
         if a_grade_status.get("A_grade_rows") is not None
@@ -928,8 +1006,48 @@ def _adaptation_diagnosis_from_payloads(
         if guardian_gate.get("a_grade_new_entries_allowed") is not None
         else a_grade_status.get("guardian_new_entries_allowed")
     )
+    no_fill_detail = _materialization_no_fill_detail(paper_queue)
 
     findings: list[dict[str, Any]] = []
+    if (
+        checkpoint_promotion_rejected is True
+        and checkpoint_promotion_reason
+        in {"VALIDATION_LOSS_REGRESSED", "TRAIN_VAL_OVERFIT_GAP"}
+    ):
+        findings.append(
+            {
+                "id": checkpoint_promotion_reason,
+                "severity": "learning_checkpoint_blocker",
+                "online_learning_status": online_learning_status or None,
+                "checkpoint_promotion_rejected": True,
+                "hard_promotion_rejection_reason": hard_promotion_rejection,
+                "validation_loss_delta": validation_loss_delta,
+                "validation_supervised_loss_before": validation_loss_before,
+                "validation_supervised_loss_after": validation_loss_after,
+                "why_it_matters": (
+                    "The trainer refused to persist this checkpoint because "
+                    "held-out validation evidence got worse or remained overfit."
+                ),
+                "code_defect": False,
+                "next_action": "Run offline sweep/retrain; do not force-promote hard validation failures.",
+            }
+        )
+    if online_learning_status == "BLOCKED_NO_DURABLE_WEIGHT_UPDATE":
+        findings.append(
+            {
+                "id": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+                "severity": "learning_checkpoint_blocker",
+                "checkpoint_promotion_reason": checkpoint_promotion_reason or None,
+                "checkpoint_promotion_rejected": checkpoint_promotion_rejected,
+                "hard_promotion_rejection_reason": hard_promotion_rejection,
+                "why_it_matters": (
+                    "The trainer is active but did not save a durable checkpoint "
+                    "this cycle because the validation guard rejected it."
+                ),
+                "code_defect": False,
+                "next_action": "Recover through validated offline retrain/sweep, not live guard weakening.",
+            }
+        )
     if ppo_entropy is not None and ppo_entropy >= 0.8:
         findings.append(
             {
@@ -1013,7 +1131,7 @@ def _adaptation_diagnosis_from_payloads(
                 "severity": "learning_data_blocker",
                 "materialized_positions": materialized_positions,
                 "paper_fill_allowed_rows": paper_fill_allowed_rows,
-                "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+                **no_fill_detail,
                 "why_it_matters": (
                     "The trainer cannot learn many fresh on-policy paper closes "
                     "while true performance/risk/guardian gates reject fills."
@@ -1061,12 +1179,11 @@ def _adaptation_diagnosis_from_payloads(
         "leverage_mutated": False,
         "margin_mutated": False,
         "trainer": {
-            "online_learning_status": trainer_status.get("online_learning_status"),
+            "online_learning_status": online_learning_status or None,
             "effective_trainer_mode": trainer_status.get("effective_trainer_mode"),
-            "checkpoint_promotion_reason": learning_metrics.get(
-                "checkpoint_promotion_reason"
-            )
-            or trainer_status.get("checkpoint_promotion_reason"),
+            "checkpoint_promotion_reason": checkpoint_promotion_reason or None,
+            "checkpoint_promotion_rejected": checkpoint_promotion_rejected,
+            "hard_promotion_rejection_reason": hard_promotion_rejection,
             "checkpoint_promoted_this_cycle": learning_metrics.get(
                 "checkpoint_promoted_this_cycle"
             )
@@ -1075,6 +1192,9 @@ def _adaptation_diagnosis_from_payloads(
             "ppo_entropy": ppo_entropy,
             "train_val_generalization_gap": validation_gap,
             "validation_supervised_loss": validation_loss,
+            "validation_supervised_loss_before": validation_loss_before,
+            "validation_supervised_loss_after": validation_loss_after,
+            "validation_loss_delta": validation_loss_delta,
             "loss_after": loss_after,
             "entropy_coefficient": learning_metrics.get("entropy_coefficient"),
             "supervised_entropy_bonus": learning_metrics.get(
@@ -1110,7 +1230,7 @@ def _adaptation_diagnosis_from_payloads(
             "rejected_after_queue_count": paper_queue.get(
                 "rejected_after_queue_count"
             ),
-            "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+            **no_fill_detail,
         },
         "findings": findings,
         "forbidden_shortcuts_refused": [
@@ -1248,4 +1368,5 @@ async def get_paper_exploration_bridge_truth() -> dict[str, Any]:
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        **_attach_a_grade_blocker_truth({}, r),
     }

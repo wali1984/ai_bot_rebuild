@@ -60,6 +60,104 @@ def _preemptive_allow_decision(**overrides) -> dict[str, object]:
     return decision
 
 
+def test_paper_trainer_model_quality_status_surfaces_checkpoint_blockers() -> None:
+    status = paper_loop._paper_trainer_model_quality_runtime_status(  # noqa: SLF001
+        model_quality_status={},
+        trainer_metrics={
+            "training": {
+                "learning_metrics": {
+                    "online_learning_status": "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+                    "optimizer_steps_this_cycle": 12,
+                    "parameter_hash_before": "old",
+                    "parameter_hash_after": "new",
+                    "checkpoint_promotion_rejected": True,
+                    "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+                    "hard_promotion_rejection_reason": True,
+                    "validation_loss_delta": -4.7,
+                    "train_val_generalization_gap": 3.77,
+                    "overfit_gap_warning": True,
+                    "ppo_entropy": 0.96,
+                }
+            }
+        },
+    )
+
+    assert status["online_learning_status"] == "BLOCKED_NO_DURABLE_WEIGHT_UPDATE"
+    assert status["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
+    assert status["checkpoint_promotion_rejected"] is True
+    assert status["ppo_entropy"] == pytest.approx(0.96)
+    assert status["trainer_blocker_ids"] == [
+        "TRAIN_VAL_OVERFIT_GAP",
+        "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+        "PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED",
+        "TRAIN_VAL_GENERALIZATION_GAP_HIGH",
+    ]
+    assert status["paper_only"] is True
+    assert status["routes_to_live"] is False
+    assert status["places_real_order"] is False
+    assert status["counts_as_a_grade_evidence"] is False
+
+
+def test_paper_a_grade_blocker_truth_stays_blocked_and_paper_only() -> None:
+    truth = paper_loop._paper_a_grade_blocker_truth_status(  # noqa: SLF001
+        paper_a_grade_gate_burndown_status={
+            "A_grade_rows": 0,
+            "guardian_gate_status": {"a_grade_new_entries_allowed": False},
+            "root_cause_counts": {"guardian_halted": 4},
+        },
+        paper_runtime_admission_status={"accepted_count": 0, "blocked_count": 10},
+        paper_exploration_materialization_queue_status={
+            "same_cycle_materialized_count": 0,
+            "canonical_exact_no_fill_reason": "ALL_ROWS_TRUE_PERFORMANCE_CIRCUIT_BLOCKED",
+            "queue_resolution_state": "RESOLVED_NO_FILL",
+        },
+        paper_adaptive_sizing_runtime_status={
+            "runtime_status_api_blockers": [
+                "A_GRADE_SUPPLY_ZERO",
+                "SOURCE_TIER_A_GRADE_EXECUTION_ZERO",
+            ],
+        },
+        paper_trainer_model_quality_runtime_status={
+            "status": "BLOCKED_MODEL_QUALITY_OR_TRAINER_UPDATE_INCOMPLETE",
+            "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+            "trainer_blocker_ids": [
+                "TRAIN_VAL_OVERFIT_GAP",
+                "BLOCKED_NO_DURABLE_WEIGHT_UPDATE",
+            ],
+        },
+        paper_performance_circuit_breaker_status={
+            "new_entries_allowed": False,
+            "state": "HALTED_PERFORMANCE",
+            "block_reasons": ["BUCKET_QUARANTINE_ACTIVE"],
+        },
+        bucket_quarantine_status={"global_halt_required": True},
+    )
+    readiness = paper_loop._paper_real_trader_readiness_from_a_grade_truth(  # noqa: SLF001
+        truth
+    )
+
+    assert truth["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert truth["primary_blocker"] == "A_GRADE_SUPPLY_ZERO"
+    assert truth["finding_ids"].count("A_GRADE_SUPPLY_ZERO") == 1
+    assert "TRAIN_VAL_OVERFIT_GAP" in truth["finding_ids"]
+    assert "BLOCKED_NO_DURABLE_WEIGHT_UPDATE" in truth["finding_ids"]
+    assert "GUARDIAN_HALTED_PERFORMANCE" in truth["finding_ids"]
+    assert "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES" in truth["finding_ids"]
+    assert "BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD" in truth["finding_ids"]
+    assert truth["counts_as_a_grade_evidence"] is False
+    assert truth["a_grade_promotion_allowed"] is False
+    assert truth["routes_to_live"] is False
+    assert truth["places_real_order"] is False
+    assert readiness["live_gate"] == paper_loop.LIVE_GATE_BLOCKED
+    assert readiness["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert readiness["live_ready"] is False
+    assert readiness["live_submit_allowed"] is False
+    assert readiness["order_submitted"] is False
+    assert readiness["test_order_submitted"] is False
+    assert readiness["leverage_mutated"] is False
+    assert readiness["margin_mutated"] is False
+
+
 def test_read_paper_signals_enriches_matched_native_policy_fields() -> None:
     redis_client = _FakeRedis(
         {

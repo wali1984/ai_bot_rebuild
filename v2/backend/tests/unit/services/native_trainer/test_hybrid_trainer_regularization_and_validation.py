@@ -13,7 +13,11 @@ from __future__ import annotations
 import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import V2HybridPPOTrainer
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
+    ENV_PPO_ENTROPY_COEFFICIENT_MAX,
+    ENV_PPO_LEARNING_RATE_MAX,
+    V2HybridPPOTrainer,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
 from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
@@ -119,32 +123,78 @@ def _mixed_rows(n: int) -> list[TrainingExample]:
 # regularization / exploration knobs are env-controlled and reversible
 # --------------------------------------------------------------------------- #
 def test_regularization_knobs_default_values(monkeypatch) -> None:
-    for env in ("V2_TRAINER_ENTROPY_COEF", "V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "V2_TRAINER_WEIGHT_DECAY"):
+    for env in (
+        "PPO_ENT_COEF",
+        "PPO_GAMMA",
+        "PPO_LEARNING_RATE",
+        "V2_TRAINER_ENTROPY_COEF",
+        "V2_TRAINER_LEARNING_RATE",
+        "V2_TRAINER_SUPERVISED_ENTROPY_BONUS",
+        "V2_TRAINER_WEIGHT_DECAY",
+    ):
         monkeypatch.delenv(env, raising=False)
     model = V2HybridPolicyModel(input_dim=1)
     trainer = V2HybridPPOTrainer(model=model)
+    assert trainer.learning_rate == pytest.approx(1e-4)
     assert trainer.entropy_coefficient == pytest.approx(0.01)
+    assert trainer.gamma == pytest.approx(0.99)
     assert trainer.supervised_entropy_bonus == pytest.approx(0.0)
     assert trainer.weight_decay == pytest.approx(0.02)
 
 
 def test_regularization_knobs_env_controlled(monkeypatch) -> None:
+    monkeypatch.setenv("PPO_ENT_COEF", "0.015")
+    monkeypatch.setenv("PPO_GAMMA", "0.97")
+    monkeypatch.setenv("PPO_LEARNING_RATE", "0.0002")
     monkeypatch.setenv("V2_TRAINER_ENTROPY_COEF", "0.01")
     monkeypatch.setenv("V2_TRAINER_SUPERVISED_ENTROPY_BONUS", "0.0")
     monkeypatch.setenv("V2_TRAINER_WEIGHT_DECAY", "0.01")
     model = V2HybridPolicyModel(input_dim=1)
     trainer = V2HybridPPOTrainer(model=model)
-    # env values restore the prior behaviour exactly (proves reversibility)
-    assert trainer.entropy_coefficient == pytest.approx(0.01)
+    assert trainer.learning_rate == pytest.approx(0.0002)
+    assert trainer.learning_rate_source == "PPO_LEARNING_RATE"
+    assert trainer.learning_rate_env_guard_capped is False
+    assert trainer.entropy_coefficient == pytest.approx(0.015)
+    assert trainer.entropy_coefficient_source == "PPO_ENT_COEF"
+    assert trainer.entropy_coefficient_env_guard_capped is False
+    assert trainer.gamma == pytest.approx(0.97)
     assert trainer.supervised_entropy_bonus == pytest.approx(0.0)
     assert trainer.weight_decay == pytest.approx(0.01)
 
 
+def test_regularization_env_aliases_are_capped_below_divergent_legacy_values(monkeypatch) -> None:
+    monkeypatch.setenv("PPO_LEARNING_RATE", "0.0003")
+    monkeypatch.setenv("PPO_ENT_COEF", "0.02")
+    monkeypatch.setenv("PPO_GAMMA", "1.4")
+
+    model = V2HybridPolicyModel(input_dim=1)
+    trainer = V2HybridPPOTrainer(model=model)
+
+    assert trainer.learning_rate == pytest.approx(ENV_PPO_LEARNING_RATE_MAX)
+    assert trainer.learning_rate_source == "PPO_LEARNING_RATE"
+    assert trainer.learning_rate_env_guard_capped is True
+    assert trainer.entropy_coefficient == pytest.approx(ENV_PPO_ENTROPY_COEFFICIENT_MAX)
+    assert trainer.entropy_coefficient_source == "PPO_ENT_COEF"
+    assert trainer.entropy_coefficient_env_guard_capped is True
+    assert trainer.gamma == pytest.approx(1.0)
+    assert trainer.gamma_env_guard_capped is True
+
+
 def test_regularization_knobs_explicit_param_overrides_env(monkeypatch) -> None:
     monkeypatch.setenv("V2_TRAINER_ENTROPY_COEF", "0.01")
+    monkeypatch.setenv("PPO_LEARNING_RATE", "0.0003")
     model = V2HybridPolicyModel(input_dim=1)
-    trainer = V2HybridPPOTrainer(model=model, entropy_coefficient=0.07)
+    trainer = V2HybridPPOTrainer(
+        model=model,
+        entropy_coefficient=0.07,
+        learning_rate=0.0003,
+    )
     assert trainer.entropy_coefficient == pytest.approx(0.07)
+    assert trainer.entropy_coefficient_source == "constructor"
+    assert trainer.entropy_coefficient_env_guard_capped is False
+    assert trainer.learning_rate == pytest.approx(0.0003)
+    assert trainer.learning_rate_source == "constructor"
+    assert trainer.learning_rate_env_guard_capped is False
 
 
 def test_dropout_default_and_env_controlled(monkeypatch) -> None:
@@ -183,7 +233,12 @@ def test_generalization_gap_and_knobs_reported_in_metrics() -> None:
     m = result.metrics
     assert "train_val_generalization_gap" in m
     assert isinstance(m["train_val_generalization_gap"], float)
+    assert m["learning_rate"] == pytest.approx(1e-4)
+    assert m["learning_rate_env_guard_capped"] is False
     assert m["entropy_coefficient"] == pytest.approx(0.01)
+    assert m["entropy_coefficient_env_guard_capped"] is False
+    assert m["ppo_gamma"] == pytest.approx(0.99)
+    assert m["ppo_gamma_env_guard_capped"] is False
     assert m["weight_decay"] == pytest.approx(0.02)
     assert m["model_dropout"] == pytest.approx(0.10)
 
