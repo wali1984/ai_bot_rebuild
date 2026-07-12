@@ -1,15 +1,64 @@
 """Final microstructure trust score and action classification."""
 from __future__ import annotations
 
+import os
 from enum import StrEnum
 from typing import Any, Mapping
 
 from .feed_quality import iso_now
 
-
 PUBLIC_ORDERBOOK_DEFAULT_TRUST_CAP = 0.51
 FINAL_A_PLUS_MIN_COMPOSITE_TRUST = 0.60
 REDUCED_SIZE_BOOTSTRAP_TIER = "A_PLUS_BOOTSTRAP_REDUCED_SIZE_PAPER_ONLY"
+
+# Directional decisions (1m+) do not need a scalping-grade, continuously-fresh
+# book. The batch orderbook recorder writes each symbol's book in bursts, so
+# book_update_age reflects the write cadence, not feed staleness -- when the
+# feed LATENCY is fresh, a book written a few seconds ago is adequate
+# confirmation for the decision timeframe. So a fail_closed caused ONLY by
+# BOOK_UPDATE_AGE_TOO_HIGH is forgiven when the age is within a timeframe-scaled
+# tolerance AND the feed latency is fresh. Genuinely stale feeds stay
+# fail-closed: any non-age hard fail, a slow/unknown latency, or an age beyond
+# the timeframe tolerance (e.g. minutes-old REST snapshots). Hard revert via
+# V2_MICROSTRUCTURE_TF_AGE_FORGIVENESS=0.
+_BOOK_AGE_TF_TOLERANCE_MULT = {
+    "1m": 3.0, "3m": 4.0, "5m": 6.0, "15m": 10.0, "30m": 14.0,
+    "1h": 20.0, "2h": 28.0, "4h": 40.0, "6h": 50.0, "12h": 60.0, "1d": 80.0,
+}
+
+
+def _book_age_tolerance_ms(timeframe: Any, stale_bound_ms: float) -> float:
+    mult = _BOOK_AGE_TF_TOLERANCE_MULT.get(str(timeframe or "").strip().lower(), 1.0)
+    return float(stale_bound_ms) * float(mult)
+
+
+def _fail_closed_is_forgivable_batch_age(feed_quality: Mapping[str, Any], timeframe: Any) -> bool:
+    """True when fail_closed is caused ONLY by a batch-cadence book age that is
+    tolerable for the decision timeframe and the feed latency is fresh."""
+    if os.getenv("V2_MICROSTRUCTURE_TF_AGE_FORGIVENESS", "1").strip().lower() in {
+        "0", "false", "no", "off",
+    }:
+        return False
+    reasons = {
+        str(r)
+        for r in (
+            feed_quality.get("all_feed_fail_reasons")
+            or feed_quality.get("fail_reasons")
+            or []
+        )
+    }
+    # Forgive only when book-age is the SOLE fail reason (any other hard fail --
+    # latency, sequence gap, missing feed -- means a genuinely untrustworthy feed).
+    if not reasons or (reasons - {"BOOK_UPDATE_AGE_TOO_HIGH"}):
+        return False
+    latency = _float(feed_quality, "local_latency_ms", "latency_ms")
+    latency_bound = _float(feed_quality, "adaptive_latency_bound_ms", default=750.0) or 750.0
+    if latency is None or latency > latency_bound:
+        return False
+    age = _float(feed_quality, "book_update_age_ms")
+    stale_bound = _float(feed_quality, "stale_bound_ms", default=1500.0) or 1500.0
+    tolerance = _book_age_tolerance_ms(timeframe, stale_bound)
+    return age is not None and age <= tolerance
 
 
 class MicrostructureAction(StrEnum):
@@ -70,6 +119,7 @@ def _confirmation_flags(
     trade_tape: Mapping[str, Any] | None,
     cross_venue: Mapping[str, Any] | None,
     sweep_risk: Mapping[str, Any] | None,
+    book_age_fail_forgiven: bool = False,
 ) -> dict[str, bool]:
     latency_ms = _float(feed_quality, "latency_ms", "local_latency_ms")
     latency_bound = _float(feed_quality, "adaptive_latency_bound_ms", default=750.0) or 750.0
@@ -91,7 +141,7 @@ def _confirmation_flags(
     return {
         "feed_integrity_pass": _pass(
             isinstance(feed_quality, Mapping)
-            and feed_quality.get("fail_closed") is not True
+            and (feed_quality.get("fail_closed") is not True or book_age_fail_forgiven)
             and feed_score >= 0.50
         ),
         "sequence_gap_free": _pass(
@@ -218,12 +268,18 @@ def score_microstructure_trust(
     )
     public_score = max(0.0, min(PUBLIC_ORDERBOOK_DEFAULT_TRUST_CAP, public_score))
 
+    book_age_fail_forgiven = bool(
+        isinstance(feed_quality, Mapping)
+        and feed_quality.get("fail_closed") is True
+        and _fail_closed_is_forgivable_batch_age(feed_quality, timeframe)
+    )
     confirmation_passes = _confirmation_flags(
         feed_quality=feed_quality,
         adversarial_features=adversarial_features,
         trade_tape=trade_tape,
         cross_venue=cross_venue,
         sweep_risk=sweep_risk,
+        book_age_fail_forgiven=book_age_fail_forgiven,
     )
     missing_confirmation_fields = [
         field for field, passed in confirmation_passes.items() if passed is not True
@@ -243,7 +299,11 @@ def score_microstructure_trust(
         composite_score = min(composite_score, FINAL_A_PLUS_MIN_COMPOSITE_TRUST - 0.01)
     if missing_components:
         composite_score = min(composite_score, 0.44)
-    if isinstance(feed_quality, Mapping) and feed_quality.get("fail_closed") is True:
+    if (
+        isinstance(feed_quality, Mapping)
+        and feed_quality.get("fail_closed") is True
+        and not book_age_fail_forgiven
+    ):
         composite_score = min(composite_score, 0.24)
     if isinstance(sweep_risk, Mapping) and sweep_risk.get("direction_uncertain") is True:
         composite_score = min(composite_score, 0.24)
@@ -279,6 +339,7 @@ def score_microstructure_trust(
         "orderbook_trust_tier": tier,
         "microstructure_action": str(action),
         "adaptive_minimum": float(adaptive_minimum),
+        "book_age_fail_forgiven": bool(book_age_fail_forgiven),
         "eligible_for_a_grade": bool(final_a_plus_eligible),
         "final_a_plus_eligible": bool(final_a_plus_eligible),
         "final_a_plus_requires_composite_trust": True,
