@@ -366,6 +366,106 @@
           "token_endpoint_supported": true
         }
       ]
+    },
+    {
+      "symbol": "LDOUSDT",
+      "base_asset": "LDO",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x5a98fcbea516cf06857215779fd812ca3bef1b32",
+          "token_name": "Lido DAO Token",
+          "token_symbol": "LDO",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.9,
+          "mapping_source": "active_universe_erc20_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "MKRUSDT",
+      "base_asset": "MKR",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x9f8f72aa9304c8b593d555f12ef6589cc3a579a2",
+          "token_name": "Maker",
+          "token_symbol": "MKR",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.9,
+          "mapping_source": "active_universe_erc20_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "base_asset": "SHIB",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce",
+          "token_name": "SHIBA INU",
+          "token_symbol": "SHIB",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.9,
+          "mapping_source": "active_universe_erc20_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "ENAUSDT",
+      "base_asset": "ENA",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x57e114b691db790c35207b2e685d4a43181e6061",
+          "token_name": "Ethena",
+          "token_symbol": "ENA",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.9,
+          "mapping_source": "active_universe_erc20_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
+    },
+    {
+      "symbol": "PENDLEUSDT",
+      "base_asset": "PENDLE",
+      "primary_chain": "ethereum",
+      "contracts": [
+        {
+          "chain": "ethereum",
+          "contract_address": "0x808507121b80c02388fad14726482e061b8da827",
+          "token_name": "Pendle",
+          "token_symbol": "PENDLE",
+          "decimals": 18,
+          "moralis_supported": true,
+          "mapping_confidence": 0.9,
+          "mapping_source": "active_universe_erc20_seed_requires_moralis_metadata_validation",
+          "manual_review_required": true,
+          "tradeable_mapping_status": "NEEDS_METADATA_VALIDATION",
+          "token_endpoint_supported": true
+        }
+      ]
     }
   ]
 }

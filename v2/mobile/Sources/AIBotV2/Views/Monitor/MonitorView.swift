@@ -163,6 +163,21 @@ struct MonitorView: View {
                     valueColor: present ? NerVyx.validation : NerVyx.sell
                 )
             }
+            NavigationLink {
+                IngestorsView()
+            } label: {
+                HStack {
+                    Text("Open live ingestor streams")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(NerVyx.signal)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(NerVyx.signal)
+                }
+                .padding(.top, 4)
+            }
+            .buttonStyle(.plain)
         }
         .nerVyxCard(accent: accent.opacity(0.3))
     }

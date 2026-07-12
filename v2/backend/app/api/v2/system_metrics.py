@@ -271,12 +271,17 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
     "live_coinank": {
         "title": "CoinAnk Alt Data",
         "pattern": "v2:altdata:public_intel:symbol:*",
+        # Paid direct feed (plan 3, 300 req/min). The scanned public-intel
+        # namespace is refreshed hourly by the free-tier intel job, so trust the
+        # direct ingestor's fresh liveness heartbeat for status instead.
+        "heartbeat_key": "heartbeat:IngestCoinAnk",
         "ts_field": None,
         "value_fields": {},
     },
     "live_coinank_global_aggregator": {
         "title": "CoinAnk Global Aggregate Scores",
         "pattern": "v2:altdata:symbol_score:*",
+        "heartbeat_key": "meta:coinank_global:last_update",
         "ts_field": None,
         "value_fields": {},
     },
@@ -328,6 +333,16 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
         "ts_field": None,
         "value_fields": {},
     },
+    "moralis": {
+        "title": "Moralis Smart-Money Flow",
+        # Raw whale/exchange/token-flow payload namespace (small, scannable).
+        # Status reflects genuine payload freshness; the authoritative provider
+        # health/feature state lives on /api/v2/providers/status (never green from
+        # heartbeat alone). Offline here simply means no fresh raw payload sampled.
+        "pattern": "v2:market:moralis:*",
+        "ts_field": None,
+        "value_fields": {},
+    },
 }
 
 _MS_THRESHOLD = 10**12  # epoch ms vs s discriminator
@@ -352,6 +367,15 @@ def _extract_epoch_seconds(payload: Any) -> float | None:
         "fetched_at_ms",
         "updated_ms",
         "liquidation_last_event_ts",
+        # Direct-ingestor heartbeat timestamps (epoch ms/s). CoinAnk's paid
+        # direct feed writes {"ts_ms": ...}; other heartbeats use these fields.
+        "ts_ms",
+        "heartbeat_ts_ms",
+        "heartbeat_at",
+        "last_update",
+        "last_update_ms",
+        "last_run_ts",
+        "last_snapshot_ms",
     ):
         value = payload.get(key)
         if isinstance(value, (int, float)) and value > 0:
@@ -487,6 +511,37 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
                     newest = seconds
         except Exception:
             pass
+    # Authoritative liveness heartbeat (e.g. CoinAnk's paid direct ingestor writes
+    # heartbeat:IngestCoinAnk = {"ts_ms": ...}). The scanned data namespace can lag
+    # (hourly free-tier refresh) while the ingestor is genuinely fresh — trust the
+    # heartbeat when it is newer than the sampled payloads.
+    hb_key = feed.get("heartbeat_key")
+    if r is not None and hb_key:
+        try:
+            hb_raw = r.get(hb_key)
+        except Exception:
+            hb_raw = None
+        if hb_raw is not None:
+            hb_seconds: float | None = None
+            try:
+                hb_payload = json.loads(hb_raw)
+                if isinstance(hb_payload, dict):
+                    hb_seconds = _extract_epoch_seconds(hb_payload)
+            except Exception:
+                hb_payload = None
+            if hb_seconds is None:
+                # Bare epoch (ms or s) stored as a raw string, e.g.
+                # meta:coinank_global:last_update = "1783819634817".
+                try:
+                    raw_num = float(str(hb_raw).strip())
+                    if raw_num > 0:
+                        candidate = raw_num / 1000 if raw_num > _MS_THRESHOLD else raw_num
+                        if candidate <= now + 60:
+                            hb_seconds = candidate
+                except (TypeError, ValueError):
+                    hb_seconds = None
+            if hb_seconds is not None and (newest is None or hb_seconds > newest):
+                newest = hb_seconds
     age = max(0.0, now - newest) if newest is not None else None
     if not keys:
         status = "not_started" if name == "ccxt_historical" else "offline"

@@ -38,6 +38,7 @@ public enum APIEndpoints {
     public static let replayBacktest = "/api/v2/replay/backtest"
     public static let predictionsExplain = "/api/v2/predictions/explain"
     public static let providersStatus = "/api/v2/providers/status"
+    public static let ingestorsStatus = "/api/v2/ingestors/status"
     public static let liveCanaryStatus = "/api/v2/live-canary/status"
     public static let aPlusInventory = "/api/v2/a-plus/inventory"
     public static let currentSignal = "/api/v2/signals/current"
@@ -67,6 +68,13 @@ public enum APIEndpoints {
     // MARK: - Helpers
     public static func pushUnregister(token: String) -> String {
         "/api/v2/mobile/push/\(token)"
+    }
+
+    /// Per-ingestor chart-ready metrics (streamable via wsResourceURL(path:)).
+    /// No query string so the path stays clean for both HTTP and the WS resource
+    /// helper; the backend defaults to a sensible row limit.
+    public static func ingestorMetrics(name: String) -> String {
+        "/api/v2/ingestors/\(name)/metrics"
     }
 
     public static func wsMarketDataURL(baseWS: String, symbol: String, timeframe: String) -> URL? {

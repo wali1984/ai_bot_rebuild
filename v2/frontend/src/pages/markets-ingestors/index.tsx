@@ -126,6 +126,19 @@ const REQUIRED_PROVIDER_ORDER = [
   ['trainer_feed', 'Trainer Feed'],
 ] as const;
 
+// Provider card id -> ingestor registry name (INGESTOR_FEEDS) so clicking a
+// provider status card opens its live per-ingestor stream page. Providers with no
+// dedicated ingestor feed are left non-clickable.
+const PROVIDER_TO_INGESTOR: Record<string, string> = {
+  binance: 'live_binance',
+  kucoin: 'live_kucoin',
+  coinank: 'live_coinank',
+  moralis: 'moralis',
+  ta: 'live_technical_analysis',
+  liquidations: 'liquidation_bridge',
+  orderbook: 'realtime_price_provider',
+};
+
 const panelStyle: React.CSSProperties = {
   background: 'var(--bg-panel)',
   border: '1px solid var(--border)',
@@ -198,18 +211,19 @@ function ProviderTruthPanel({ providers }: { providers: ProviderStatusData | nul
         {cards.map(({ id, label, provider }) => {
           const tone = providerTone(provider);
           const missing = !provider;
-          return (
-            <div
-              key={id}
-              data-testid={`provider-card-${id}`}
-              style={{
-                border: `1px solid ${missing ? 'var(--border)' : tone}`,
-                borderRadius: 'var(--radius-sm, 8px)',
-                padding: '12px 13px',
-                background: missing ? 'var(--bg-elevated)' : 'color-mix(in oklch, var(--bg-elevated) 94%, transparent)',
-                minWidth: 0,
-              }}
-            >
+          const ingestorName = PROVIDER_TO_INGESTOR[id];
+          const cardStyle: React.CSSProperties = {
+            display: 'block',
+            border: `1px solid ${missing ? 'var(--border)' : tone}`,
+            borderRadius: 'var(--radius-sm, 8px)',
+            padding: '12px 13px',
+            background: missing ? 'var(--bg-elevated)' : 'color-mix(in oklch, var(--bg-elevated) 94%, transparent)',
+            minWidth: 0,
+            textDecoration: 'none',
+            cursor: ingestorName ? 'pointer' : 'default',
+          };
+          const body = (
+            <>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</strong>
                 <span style={{ color: tone, fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
@@ -228,7 +242,21 @@ function ProviderTruthPanel({ providers }: { providers: ProviderStatusData | nul
                 {id === 'moralis' ? <span>watchlist <b>{fmtCount(provider?.watchlist_count)}</b> · candidates <b>{fmtCount(provider?.smart_wallet_candidate_count)}</b> · token map <b>{fmtCount(provider?.token_map_count)}</b></span> : null}
                 {id === 'santiment' ? <span>metrics <b>{fmtCount(provider?.metric_count)}</b> · missing high value <b>{joinPreview(provider?.missing_high_value_metrics, 'none')}</b></span> : null}
                 <span>last success <b>{provider?.last_success_utc ?? '—'}</b> · age <b>{fmtAge(provider?.source_lag_seconds)}</b></span>
+                {ingestorName ? (
+                  <span style={{ color: 'var(--accent, #22D3C5)', fontSize: 10, fontWeight: 700, marginTop: 2 }}>
+                    View live stream →
+                  </span>
+                ) : null}
               </div>
+            </>
+          );
+          return ingestorName ? (
+            <Link key={id} to={`/markets/ingestors/${ingestorName}`} data-testid={`provider-card-${id}`} style={cardStyle}>
+              {body}
+            </Link>
+          ) : (
+            <div key={id} data-testid={`provider-card-${id}`} style={cardStyle}>
+              {body}
             </div>
           );
         })}

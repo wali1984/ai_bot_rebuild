@@ -689,6 +689,78 @@ public struct ControlCenterProviderStatus: Decodable, Equatable {
     }
 }
 
+// MARK: - Ingestor status (/api/v2/ingestors/status)
+
+public struct IngestorRowModel: Decodable, Equatable, Identifiable {
+    public let name: String
+    public let title: String?
+    public let redis_pattern: String?
+    public let key_count: Int?
+    public let sampled_payloads: Int?
+    public let upstream_error_payloads: Int?
+    public let newest_event_age_seconds: Double?
+    public let status: String
+    public let provider_current: Bool?
+    public let provider_usable: Bool?
+    public let provider_unusable_reason: String?
+
+    public var id: String { name }
+    public var displayTitle: String { title ?? name }
+}
+
+public struct IngestorCounts: Decodable, Equatable {
+    public let total: Int?
+    public let live: Int?
+    public let stale: Int?
+    public let offline: Int?
+    public let not_started: Int?
+}
+
+public struct IngestorStatusData: Decodable, Equatable {
+    public let ingestors: [IngestorRowModel]
+    public let counts: IngestorCounts?
+}
+
+public struct IngestorStatusResponse: Decodable, Equatable {
+    public let schema_version: String?
+    public let data: IngestorStatusData
+    public let source: String?
+    public let source_type: String?
+    public let generated_at_utc: String?
+    public let freshness_status: String?
+    public let stale: Bool?
+    public let live_gate: String?
+}
+
+// MARK: - Per-ingestor metrics (/api/v2/ingestors/{name}/metrics)
+
+public struct IngestorMetricRow: Decodable, Equatable, Identifiable {
+    public let key: String?
+    public let symbol: String
+    public let age_seconds: Double?
+    public let last_price: Double?
+    public let volume_24h_quote: Double?
+    public let price_change_pct: Double?
+    public let numeric_fields: [String: Double]?
+
+    public var id: String { key ?? symbol }
+}
+
+public struct IngestorMetricsData: Decodable, Equatable {
+    public let ingestor: String
+    public let title: String?
+    public let redis_pattern: String?
+    public let rows: [IngestorMetricRow]
+}
+
+public struct IngestorMetricsResponse: Decodable, Equatable {
+    public let data: IngestorMetricsData?
+    public let source: String?
+    public let source_type: String?
+    public let timestamp: String?
+    public let stale: Bool?
+}
+
 public struct ControlCenterLiveCanaryStatus: Decodable, Equatable {
     public let schema_version: String
     public let generated_at_utc: String

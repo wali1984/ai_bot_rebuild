@@ -30,6 +30,21 @@ from app.services.smart_money_wallets.wallet_watchlist import (
 
 SCHEDULER_STATUS_KEY = "v2:provider:moralis:scheduler_status"
 
+# Canonical token-map chain name -> Moralis EVM chain param. The token map stores
+# "ethereum"/"bsc"; Moralis endpoints take "eth"/"bsc". Kept in sync with
+# EVM_CHAIN_PARAM in v2_moralis_token_metadata_validate.
+_EVM_CHAIN_PARAM = {
+    "ethereum": "eth", "eth": "eth",
+    "bsc": "bsc", "binance-smart-chain": "bsc",
+    "polygon": "polygon", "arbitrum": "arbitrum",
+    "optimism": "optimism", "base": "base", "avalanche": "avalanche",
+}
+
+
+def _norm_chain(value: Any) -> str:
+    v = str(value or "").strip().lower()
+    return _EVM_CHAIN_PARAM.get(v, v)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_moralis_provider_loop")
@@ -255,11 +270,20 @@ def _resolve_bootstrap_inputs(
             if row.get("chain") == str(chain).lower()
         ]
     token_map_tokens = read_pollable_tokens(redis_client, symbol=symbol)
+    if not any(_norm_chain(row.get("chain")) == _norm_chain(chain) for row in token_map_tokens):
+        # The default context symbol (e.g. BTCUSDT) has no ERC-20 pollable
+        # contracts, so per-symbol scoping yields zero token whale-flow features.
+        # Fall back to every pollable token in the map so whale-flow / exchange-flow
+        # features populate across the tracked universe (LINK, CRV, AAVE, ...).
+        token_map_tokens = read_pollable_tokens(redis_client, symbol=None)
     if not tokens:
+        # The token map stores the canonical chain name ("ethereum") while the loop
+        # runs with the Moralis chain param ("eth"); normalize both before matching
+        # so verified ERC-20 tokens are actually selected for whale-flow polling.
         tokens = [
             row["token"]
             for row in token_map_tokens
-            if row.get("chain") == str(chain).lower()
+            if _norm_chain(row.get("chain")) == _norm_chain(chain)
         ]
     counts = watchlist_counts(redis_client)
     token_map_count = _token_map_count(redis_client)
