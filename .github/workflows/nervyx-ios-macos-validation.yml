@@ -72,6 +72,33 @@ jobs:
           swift build
           swift test
 
+      # SwiftPM app-product simulator builds run BEFORE xcodegen so the
+      # generated AIBotV2.xcodeproj (same directory) does not shadow the
+      # Swift package — otherwise `xcodebuild -scheme AIBotV2App` resolves
+      # against the project (schemes AIBotV2/AIBotV2Watch) and errors with
+      # "does not contain a scheme named AIBotV2App".
+      - name: Build iOS SwiftPM app product for simulator
+        working-directory: v2/mobile
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "$IOS_SWIFTPM_SCHEME" \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-ios" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-spm-ios-build.log"
+
+      - name: Build watchOS SwiftPM product for simulator
+        working-directory: v2/mobile
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -scheme "$WATCH_SWIFTPM_SCHEME" \
+            -destination "generic/platform=watchOS Simulator" \
+            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-watch" \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee "$RUNNER_TEMP/nervyx-spm-watch-build.log"
+
       - name: Generate Xcode project from committed project.yml
         working-directory: v2/mobile
         run: |
@@ -100,28 +127,6 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/nervyx-derived-large" \
             CODE_SIGNING_ALLOWED=NO \
             build | tee "$RUNNER_TEMP/nervyx-ios-large-build.log"
-
-      - name: Build iOS SwiftPM app product for simulator
-        working-directory: v2/mobile
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -scheme "$IOS_SWIFTPM_SCHEME" \
-            -destination "generic/platform=iOS Simulator" \
-            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-ios" \
-            CODE_SIGNING_ALLOWED=NO \
-            build | tee "$RUNNER_TEMP/nervyx-spm-ios-build.log"
-
-      - name: Build watchOS SwiftPM product for simulator
-        working-directory: v2/mobile
-        run: |
-          set -euo pipefail
-          xcodebuild \
-            -scheme "$WATCH_SWIFTPM_SCHEME" \
-            -destination "generic/platform=watchOS Simulator" \
-            -derivedDataPath "$RUNNER_TEMP/nervyx-spm-watch" \
-            CODE_SIGNING_ALLOWED=NO \
-            build | tee "$RUNNER_TEMP/nervyx-spm-watch-build.log"
 
       - name: Build watchOS XcodeGen target for simulator
         run: |
