@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from .config import ACTION_COUNT, ACTION_LABELS, MODEL_SOURCE
-from .confidence import calibrate_confidence, softmax
+from .confidence import calibrate_confidence, resolve_confidence_temperature, softmax
 from .masa import V2MASAAdapter
 from .tensor_builder import FeatureTensorRecord
 
@@ -69,16 +69,25 @@ class V2HybridPolicyModel:
             in {"1", "true", "yes", "on"}
             and self.input_dim % 4 == 0
         )
-        self.attention_heads = max(1, int(os.getenv("V2_TRAINER_ATTENTION_HEADS", "4") or 4))
+        requested_attention_heads = max(1, int(os.getenv("V2_TRAINER_ATTENTION_HEADS", "4") or 4))
+        self.attention_heads = (
+            self._effective_attention_heads(self.input_dim, requested_attention_heads)
+            if self.attention_encoder_enabled
+            else requested_attention_heads
+        )
         self._torch = None
         self._net = None
         self._device = "cpu"
         # The attention flag is part of the architecture identity so enabling it
         # starts a fresh checkpoint lineage (the checkpoint manager handles the
-        # input-shape/arch change as a graceful fresh init).
+        # input-shape/arch change as a graceful fresh init). When attention is off
+        # or cannot activate, preserve the legacy identity so compatible checkpoints
+        # remain loadable.
+        arch_identity = f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}"
+        if self.attention_encoder_enabled:
+            arch_identity += f"|attn=1x{self.attention_heads}"
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
-            f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}"
-            f"|attn={int(self.attention_encoder_enabled)}x{self.attention_heads}".encode()
+            arch_identity.encode()
         ).hexdigest()[:24]
         self._fallback_weights = self._make_fallback_weights()
         self._masa = V2MASAAdapter()
@@ -107,6 +116,16 @@ class V2HybridPolicyModel:
     @property
     def torch(self) -> Any:
         return self._torch
+
+    @staticmethod
+    def _effective_attention_heads(input_dim: int, requested_heads: int) -> int:
+        if int(input_dim) % 4 != 0:
+            return max(1, int(requested_heads))
+        block_dim = int(input_dim) // 4
+        heads = max(1, int(requested_heads))
+        while heads > 1 and block_dim % heads != 0:
+            heads -= 1
+        return heads
 
     def _init_torch_if_available(self) -> None:
         try:
@@ -490,6 +509,7 @@ class V2HybridPolicyModel:
             missing_feature_count=missing_count,
             stale_feature_count=stale_count,
             total_feature_count=total_features,
+            temperature=resolve_confidence_temperature(),
         )
         masa = self._masa.evaluate(
             expected_move_bps=expected,
@@ -538,6 +558,7 @@ class V2HybridPolicyModel:
             missing_feature_count=missing_count,
             stale_feature_count=stale_count,
             total_feature_count=total_features,
+            temperature=resolve_confidence_temperature(),
         )
         masa = self._masa.evaluate(
             expected_move_bps=expected,

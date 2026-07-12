@@ -1,7 +1,150 @@
 """Confidence calibration for V2 hybrid trainer outputs."""
 from __future__ import annotations
 
+import json
 import math
+import os
+from collections.abc import Sequence
+from pathlib import Path
+
+DEFAULT_CONFIDENCE_TEMPERATURE = 1.4
+# Fitted-temperature state (WI-3). A separate offline job fits the temperature
+# from realised outcomes and writes it here; the model reads it live so an
+# overconfident policy gets its high-confidence losers down-weighted (which
+# makes the confidence-floor gate STRICTER, never looser).
+CONFIDENCE_TEMPERATURE_STATE_PATH = Path(
+    os.getenv(
+        "V2_CONFIDENCE_TEMPERATURE_STATE_PATH",
+        "claude_worklog/trainer_atlas/confidence_temperature.json",
+    )
+)
+_TEMPERATURE_CACHE: dict[str, float | None] = {"mtime": None, "value": None}
+
+
+def _clamp_prob(p: float) -> float:
+    return max(1e-6, min(1.0 - 1e-6, p))
+
+
+def _temperature_scaled(raw: float, temperature: float) -> float:
+    r = _clamp_prob(raw)
+    logit = math.log(r / (1.0 - r))
+    temp = max(0.05, float(temperature))
+    return 1.0 / (1.0 + math.exp(-(logit / temp)))
+
+
+def _nll(raw_probs: Sequence[float], wins: Sequence[int], temperature: float) -> float:
+    total = 0.0
+    n = 0
+    for raw, y in zip(raw_probs, wins, strict=False):
+        p = _clamp_prob(_temperature_scaled(float(raw), temperature))
+        total += -(y * math.log(p) + (1 - y) * math.log(1.0 - p))
+        n += 1
+    return total / n if n else float("inf")
+
+
+def expected_calibration_error(
+    raw_probs: Sequence[float], wins: Sequence[int], temperature: float = 1.0, bins: int = 10
+) -> float:
+    """Binned |confidence - accuracy| (ECE) after temperature scaling."""
+    buckets: list[list[tuple[float, int]]] = [[] for _ in range(bins)]
+    n = 0
+    for raw, y in zip(raw_probs, wins, strict=False):
+        p = _temperature_scaled(float(raw), temperature)
+        idx = min(bins - 1, max(0, int(p * bins)))
+        buckets[idx].append((p, int(y)))
+        n += 1
+    if not n:
+        return 0.0
+    ece = 0.0
+    for bucket in buckets:
+        if not bucket:
+            continue
+        conf = sum(p for p, _ in bucket) / len(bucket)
+        acc = sum(y for _, y in bucket) / len(bucket)
+        ece += (len(bucket) / n) * abs(conf - acc)
+    return ece
+
+
+def fit_temperature(
+    raw_probs: Sequence[float],
+    wins: Sequence[int],
+    *,
+    lo: float = 0.25,
+    hi: float = 6.0,
+) -> dict:
+    """Temperature scaling (Guo et al.): fit T minimising NLL of raw_probs vs wins.
+
+    T>1 spreads an overconfident policy's probabilities toward 0.5 (its high-
+    confidence losers lose confidence); T<1 sharpens an underconfident one. Pure
+    1-D search (coarse grid + golden-section refine), no scipy. Returns the
+    fitted temperature plus ECE/NLL before (T=default) and after, and the sample
+    size, so a gate can refuse to adopt a fit from too few outcomes.
+    """
+    xs = [(float(r), int(bool(y))) for r, y in zip(raw_probs, wins, strict=False)]
+    n = len(xs)
+    if n < 50:
+        return {
+            "fitted": False,
+            "reason": "INSUFFICIENT_OUTCOME_SAMPLE",
+            "sample": n,
+            "temperature": DEFAULT_CONFIDENCE_TEMPERATURE,
+        }
+    probs = [r for r, _ in xs]
+    ys = [y for _, y in xs]
+    # Coarse grid, then golden-section refine around the best grid point.
+    grid = [lo + (hi - lo) * i / 40.0 for i in range(41)]
+    best_t = min(grid, key=lambda t: _nll(probs, ys, t))
+    a, b = max(lo, best_t - (hi - lo) / 40.0), min(hi, best_t + (hi - lo) / 40.0)
+    gr = (math.sqrt(5) - 1) / 2
+    c, d = b - gr * (b - a), a + gr * (b - a)
+    for _ in range(40):
+        if _nll(probs, ys, c) < _nll(probs, ys, d):
+            b = d
+        else:
+            a = c
+        c, d = b - gr * (b - a), a + gr * (b - a)
+    fitted_t = (a + b) / 2.0
+    ece_before = expected_calibration_error(probs, ys, DEFAULT_CONFIDENCE_TEMPERATURE)
+    ece_after = expected_calibration_error(probs, ys, fitted_t)
+    return {
+        "fitted": True,
+        "temperature": float(round(fitted_t, 4)),
+        "sample": n,
+        "win_rate": round(sum(ys) / n, 4),
+        "nll_before": round(_nll(probs, ys, DEFAULT_CONFIDENCE_TEMPERATURE), 6),
+        "nll_after": round(_nll(probs, ys, fitted_t), 6),
+        "ece_before": round(ece_before, 6),
+        "ece_after": round(ece_after, 6),
+    }
+
+
+def resolve_confidence_temperature() -> float:
+    """Live confidence temperature: fitted-state file, else env, else default.
+
+    Read from the state file with an mtime cache so a fresh fit is picked up
+    without a restart. Always falls back to the fixed default, so the disabled
+    path is byte-identical to the historical behaviour.
+    """
+    env_override = os.getenv("V2_TRAINER_CONFIDENCE_TEMPERATURE")
+    if env_override:
+        try:
+            return max(0.05, float(env_override))
+        except (TypeError, ValueError):
+            pass
+    try:
+        mtime = CONFIDENCE_TEMPERATURE_STATE_PATH.stat().st_mtime
+    except OSError:
+        return DEFAULT_CONFIDENCE_TEMPERATURE
+    if _TEMPERATURE_CACHE["mtime"] != mtime:
+        try:
+            data = json.loads(CONFIDENCE_TEMPERATURE_STATE_PATH.read_text())
+            value = float(data.get("temperature"))
+            _TEMPERATURE_CACHE["value"] = max(0.05, value) if math.isfinite(value) else None
+        except (OSError, ValueError, TypeError):
+            _TEMPERATURE_CACHE["value"] = None
+        _TEMPERATURE_CACHE["mtime"] = mtime
+    cached = _TEMPERATURE_CACHE["value"]
+    return float(cached) if cached else DEFAULT_CONFIDENCE_TEMPERATURE
 
 
 def softmax(xs: list[float] | tuple[float, ...]) -> tuple[float, ...]:
