@@ -28,7 +28,7 @@ DERIVATIVES_PREFIXES = ("funding", "open_interest", "oi_", "liquidation")
 # poll data). Their features are legitimately absent, NOT a freshness bug: they
 # are reported as "disabled" so they don't inflate the fixable "dead" count.
 # Operator-configurable via V2_ALTDATA_DISABLED_PROVIDERS (comma-separated).
-_DEFAULT_DISABLED = "nansen,lunarcrush"
+_DEFAULT_DISABLED = "nansen,lunarcrush,aicoin,coingecko"
 DISABLED_PROVIDER_PREFIXES = tuple(
     p.strip().lower()
     for p in (os.getenv("V2_ALTDATA_DISABLED_PROVIDERS", _DEFAULT_DISABLED) or _DEFAULT_DISABLED).split(",")
