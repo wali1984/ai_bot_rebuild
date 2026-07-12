@@ -984,9 +984,17 @@ class V2HybridPPOTrainer:
         non_finite_parameter_sanitization_events = 0
 
         def sanitize_parameters() -> int:
-            sanitized_count = 0
             with torch.no_grad():
-                for parameter in net.parameters():
+                params = list(net.parameters())
+                if not params:
+                    return 0
+                # Single-sync global check (was one .item() sync per parameter each
+                # step). Common case (all finite) returns after ONE sync; only the
+                # rare non-finite case walks parameters for the exact cleanup.
+                if bool(torch.stack([torch.isfinite(p).all() for p in params]).all().detach().cpu().item()):
+                    return 0
+                sanitized_count = 0
+                for parameter in params:
                     finite_mask = torch.isfinite(parameter)
                     if bool(finite_mask.all().detach().cpu().item()):
                         continue
@@ -1133,11 +1141,23 @@ class V2HybridPPOTrainer:
             return f if math.isfinite(f) else None
 
         def sanitize_gradients() -> int:
+            grads = [p.grad for p in net.parameters() if getattr(p, "grad", None) is not None]
+            if not grads:
+                return 0
+            # Single-sync global cleanliness check. The previous code ran TWO
+            # GPU->CPU .item() syncs PER PARAMETER every step; each sync drains the
+            # CUDA pipeline (the measured GPU idle between step bursts). Reduce the
+            # common case (nothing to clean) to ONE sync via a fused reduction;
+            # behaviourally identical -- only the rare non-finite/oversized case
+            # walks parameters for the exact cleanup + count.
+            global_ok = torch.stack([
+                (torch.isfinite(g).all() & (torch.abs(g) <= 1_000.0).all())
+                for g in grads
+            ]).all()
+            if bool(global_ok.detach().cpu().item()):
+                return 0
             sanitized_count = 0
-            for parameter in net.parameters():
-                grad = getattr(parameter, "grad", None)
-                if grad is None:
-                    continue
+            for grad in grads:
                 finite_mask = torch.isfinite(grad)
                 if bool(finite_mask.all().detach().cpu().item()) is False:
                     sanitized_count += int((~finite_mask).sum().detach().cpu().item())
@@ -1152,7 +1172,19 @@ class V2HybridPPOTrainer:
 
         training_gpu_sampler = _TrainingWindowGpuSampler(enabled=bool(self.model.cuda_active))
         training_gpu_sampler.start()
-        for _ in range(max(1, int(steps))):
+        # GPU-saturation fast path: the per-step 10-component metric dict below runs
+        # a _finite_or_none (=> .detach().cpu().item()) sync per component EVERY step,
+        # and each GPU->CPU sync drains the pipeline (the measured spike-to-90%-then-
+        # drop-to-10% pattern). Only ppo_advantage_mean/std are needed per step (the
+        # advantage safety check); the full dict is only reported once (final step).
+        # When enabled, build the full dict only periodically + on the final step,
+        # removing ~8 syncs/step. Env-gated + DEFAULT OFF: the running trainer is
+        # byte-for-byte unchanged unless an operator sets V2_TRAINER_FAST_STEP_METRICS.
+        _fast_step_metrics = str(os.getenv("V2_TRAINER_FAST_STEP_METRICS", "") or "").strip().lower() in {
+            "1", "true", "yes", "on",
+        }
+        _total_train_steps = max(1, int(steps))
+        for _step_index in range(_total_train_steps):
             opt.zero_grad(set_to_none=True)
             with autocast():
                 out = safe_outputs(net(x))
@@ -1210,25 +1242,38 @@ class V2HybridPPOTrainer:
                     # distribution. A small entropy bonus keeps exploration alive so
                     # the policy does not lock into a single losing action bias.
                     loss = supervised_loss(out) - self.supervised_entropy_bonus * entropy
-            last_component_losses = {
-                "ppo_policy_loss": _finite_or_none(policy_loss),
-                "ppo_value_loss": _finite_or_none(value_loss),
-                "ppo_entropy": _finite_or_none(entropy),
-                "masa_loss": _finite_or_none(masa_loss),
-                "expected_move_loss": _finite_or_none(move_loss),
-                "confidence_loss": _finite_or_none(confidence_loss),
-                "ppo_clip_fraction": _finite_or_none(ppo_clip_fraction),
-                "ppo_approx_kl_divergence": _finite_or_none(ppo_approx_kl),
-                "ppo_advantage_mean": _finite_or_none(ppo_advantage_mean),
-                "ppo_advantage_std": _finite_or_none(ppo_advantage_std),
-            }
+            # Build the full metric dict every step (default) or only periodically +
+            # on the final step (fast path). Either way ppo_advantage_mean/std are
+            # always computed for the per-step safety check below.
+            _build_full_metrics = (
+                not _fast_step_metrics
+                or _step_index == _total_train_steps - 1
+                or (_step_index % 25 == 0)
+            )
+            if _build_full_metrics:
+                last_component_losses = {
+                    "ppo_policy_loss": _finite_or_none(policy_loss),
+                    "ppo_value_loss": _finite_or_none(value_loss),
+                    "ppo_entropy": _finite_or_none(entropy),
+                    "masa_loss": _finite_or_none(masa_loss),
+                    "expected_move_loss": _finite_or_none(move_loss),
+                    "confidence_loss": _finite_or_none(confidence_loss),
+                    "ppo_clip_fraction": _finite_or_none(ppo_clip_fraction),
+                    "ppo_approx_kl_divergence": _finite_or_none(ppo_approx_kl),
+                    "ppo_advantage_mean": _finite_or_none(ppo_advantage_mean),
+                    "ppo_advantage_std": _finite_or_none(ppo_advantage_std),
+                }
+                adv_mean = last_component_losses["ppo_advantage_mean"]
+                adv_std = last_component_losses["ppo_advantage_std"]
+            else:
+                # Fast path: only the two values the safety check needs.
+                adv_mean = _finite_or_none(ppo_advantage_mean) if ppo_objective_active else None
+                adv_std = _finite_or_none(ppo_advantage_std) if ppo_objective_active else None
             # Tracking assertion (pre-backprop): catch invalid/exploded
             # advantages on the on-policy lane before they can reach the
             # optimizer. Equal finite nonzero advantages are still valid PPO
             # signal; they should not block the supervised outcome lane.
             if ppo_objective_active:
-                adv_mean = last_component_losses["ppo_advantage_mean"]
-                adv_std = last_component_losses["ppo_advantage_std"]
                 advantage_exploded = adv_mean is None or abs(adv_mean) >= 5.0
                 advantage_vanished = (
                     adv_std is not None
