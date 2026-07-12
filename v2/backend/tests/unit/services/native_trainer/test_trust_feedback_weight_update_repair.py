@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -1028,6 +1029,33 @@ def test_checkpoint_contains_updated_weight_blob(tmp_path: Path) -> None:
     assert manifest.weight_blob_written is True
     assert manifest.weight_file_path is not None
     assert Path(manifest.weight_file_path).exists()
+
+
+def test_checkpoint_loads_when_manifest_weight_path_is_stale(tmp_path: Path) -> None:
+    # A manifest may store a repo-root-relative weight_file_path; a tool invoked
+    # from a different CWD would then fail to resolve it. The blob always lives in
+    # model_dir/{checkpoint_id}.weights.npz, so load must fall back to that and
+    # not wrongly report NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST.
+    model, result = _train_one()
+    model_dir = tmp_path / ".local_models/v2_native_rl_masa_ppo"
+    manager = V2HybridCheckpointManager(model_dir)
+    manifest = manager.write_checkpoint(
+        model=model,
+        input_dim=model.input_dim,
+        device=result.device,
+        cuda_active=result.cuda_active,
+        write_weight_blob=True,
+    )
+    # Corrupt the stored weight_file_path to a bogus relative path (blob stays put).
+    manifest_json = model_dir / f"{manifest.checkpoint_id}.json"
+    data = json.loads(manifest_json.read_text())
+    data["weight_file_path"] = "does/not/exist/from/this/cwd.weights.npz"
+    manifest_json.write_text(json.dumps(data))
+
+    fresh = model_module.V2HybridPolicyModel(input_dim=model.input_dim)
+    loaded = V2HybridCheckpointManager(model_dir).load_latest_weights(fresh)
+    assert loaded["latest_checkpoint_loadable"] is True
+    assert loaded["model_state_restored"] is True
 
 
 def test_checkpoint_writers_do_not_share_deterministic_tmp_paths(tmp_path: Path) -> None:

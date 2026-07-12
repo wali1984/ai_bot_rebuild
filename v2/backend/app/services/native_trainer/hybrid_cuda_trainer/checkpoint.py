@@ -122,6 +122,30 @@ class V2HybridCheckpointManager:
             weight_file_size_bytes=weight.get("weight_file_size_bytes"),
         )
 
+    def _resolve_weight_path(self, weight_file_path: Any, checkpoint_id: str) -> Path | None:
+        """CWD-independent resolution of a manifest's weight blob.
+
+        Manifests may store a repo-root-relative ``weight_file_path`` (the live
+        dir does), so a tool invoked from a different working directory would
+        fail to find it and wrongly report NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST.
+        The blob is always written to ``model_dir/{checkpoint_id}.weights.npz``,
+        so fall back to that (and to the basename inside model_dir) before giving
+        up. Returns the first existing candidate, or None.
+        """
+        candidates: list[Path] = []
+        if weight_file_path:
+            candidates.append(Path(str(weight_file_path)))
+            candidates.append(self.model_dir / Path(str(weight_file_path)).name)
+        if checkpoint_id:
+            candidates.append(self.model_dir / f"{checkpoint_id}.weights.npz")
+        for candidate in candidates:
+            try:
+                if candidate.exists():
+                    return candidate
+            except OSError:
+                continue
+        return None
+
     def _manifest_rows(
         self,
         *,
@@ -163,8 +187,10 @@ class V2HybridCheckpointManager:
                 (mtime, manifest)
                 for mtime, manifest in manifests
                 if manifest.weight_blob_written
-                and manifest.weight_file_path
-                and Path(str(manifest.weight_file_path)).exists()
+                and self._resolve_weight_path(
+                    manifest.weight_file_path, manifest.checkpoint_id
+                )
+                is not None
             ]
         manifests.sort(key=lambda item: item[0], reverse=True)
         return manifests
@@ -188,8 +214,11 @@ class V2HybridCheckpointManager:
                 "model_state_restored": False,
                 "load_status": "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST",
             }
+        resolved_weight_path = self._resolve_weight_path(
+            manifest.weight_file_path, manifest.checkpoint_id
+        )
         try:
-            loaded = model.load_weight_blob(Path(manifest.weight_file_path))
+            loaded = model.load_weight_blob(Path(resolved_weight_path or manifest.weight_file_path))
         except Exception as exc:
             return {
                 "checkpoint_manifest_exists": True,
