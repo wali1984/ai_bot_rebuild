@@ -450,7 +450,10 @@ def save_offline_weights(model: Any, offline_dir: str) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT")
+    p.add_argument("--symbols", default=None,
+                   help="comma-separated symbols; default = dynamic universe resolver (adaptive)")
+    p.add_argument("--smoke-test", action="store_true",
+                   help="use the BTC/ETH/SOL smoke-test set (test only)")
     p.add_argument("--timeframes", default="1m,5m,15m,1h")
     p.add_argument("--limit", type=int, default=65536, help="max trusted rows to load into the cache")
     p.add_argument("--epochs", type=int, default=20)
@@ -476,10 +479,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
     args = parse_args(argv)
     cache_path = None if args.no_cache else args.cache_path
     examples, load_meta = load_or_build_examples(
-        symbols=args.symbols.split(","),
+        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=args.timeframes.split(","),
         limit=args.limit,
         cache_path=cache_path,

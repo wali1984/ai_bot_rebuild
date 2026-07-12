@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from v2.backend.app.services.paper_trade_management.position_validity import (
+    source_fill_ids,
     validate_closed_trade,
 )
 
@@ -848,6 +849,40 @@ def _trust_envelope_rejection_reasons(row: dict[str, Any]) -> list[str]:
     return sorted(set(reasons))
 
 
+def _apply_replay_reconstructed_lineage(row: dict[str, Any]) -> None:
+    """Declare honest reconstructed-lineage trust for replay-sourced feedback.
+
+    Major-move / closed-candle replay rows have no live exchange or paper fill --
+    their entry lineage is *reconstructed* from the replay snapshot's prediction
+    + feature-snapshot ids. That is exactly the trust_reconstructed_lineage
+    contract that validate_closed_trade accepts in lieu of a fill id, so we
+    declare it explicitly using the row's real ids (never fabricate a fill id).
+
+    Scoped strictly to replay label sources: live/paper trades keep needing a
+    real fill id. No-op when there is already a fill id (don't override a
+    fill-backed lineage) or when the reconstruction ids are absent (then the row
+    honestly stays MISSING_ENTRY_FILL_ID).
+    """
+    is_replay_row = str(row.get("future_window_label_source") or "").strip() in _REPLAY_LABEL_SOURCES
+    if not is_replay_row or source_fill_ids(row):
+        return
+    entry_prediction_id = _first_present(row.get("entry_prediction_id"), row.get("prediction_id"))
+    entry_feature_snapshot_id = _first_present(
+        row.get("entry_feature_snapshot_id"), row.get("feature_snapshot_id")
+    )
+    if not entry_prediction_id or not entry_feature_snapshot_id:
+        return
+    if row.get("trust_reconstructed") is not True:
+        row["trust_reconstructed"] = True
+    source_ids = row.get("trust_source_ids")
+    if not isinstance(source_ids, dict):
+        source_ids = {}
+    source_ids.setdefault("entry_prediction_id", entry_prediction_id)
+    source_ids.setdefault("entry_feature_snapshot_id", entry_feature_snapshot_id)
+    source_ids.setdefault("reconstruction_source", "closed_candle_replay_lineage")
+    row["trust_source_ids"] = source_ids
+
+
 def _spread_evidence(row: dict[str, Any]) -> tuple[float | None, str | None]:
     micro = _mapping(row.get("microstructure_context"))
     candidates = (
@@ -1587,6 +1622,7 @@ def build_strategy_hedge_exit_feedback(
     )
     if not row.get("entry_feature_snapshot_id"):
         row["entry_feature_snapshot_id"] = row.get("feature_snapshot_id")
+    _apply_replay_reconstructed_lineage(row)
     missing = [field for field in REQUIRED_FEEDBACK_FIELDS if row.get(field) in (None, "")]
     missing_classes = sorted({MISSING_FEEDBACK_CLASS_BY_FIELD.get(field, "schema_mismatch") for field in missing})
     audit_quality_reasons = audit_quality_rejection_reasons(row)

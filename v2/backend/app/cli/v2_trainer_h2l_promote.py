@@ -446,7 +446,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--offline-dir", default=DEFAULT_OFFLINE_DIR)
     p.add_argument("--live-dir", default=LIVE_CHECKPOINT_DIR)
-    p.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,LINKUSDT")
+    p.add_argument("--symbols", default=None,
+                   help="comma-separated symbols; default = dynamic universe resolver (adaptive)")
+    p.add_argument("--smoke-test", action="store_true",
+                   help="use the BTC/ETH/SOL smoke-test set (test only)")
     p.add_argument("--timeframes", default="1m,5m,15m,1h")
     p.add_argument("--limit", type=int, default=6000, help="held-out validation rows")
     p.add_argument(
@@ -490,9 +493,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
     args = parse_args(argv)
     rows, excluded_rows, load_meta = load_h2l_heldout_examples(
-        symbols=args.symbols.split(","),
+        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=args.timeframes.split(","),
         limit=args.limit,
         heldout_offset=args.heldout_offset,

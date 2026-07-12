@@ -75,7 +75,15 @@ def test_feature_pipeline_normalizes_explicit_market_cost_evidence() -> None:
     assert features["expected_funding_bps"] == 1.0
 
 
-def test_feature_pipeline_keeps_missing_market_cost_fields_unfilled() -> None:
+def test_feature_pipeline_sources_missing_cost_fields_transparently() -> None:
+    # When the market snapshot omits cost fields, the pipeline must never
+    # fabricate observed data. Each field is either (a) filled from a known,
+    # transparently-tagged source or (b) left None when it is genuinely absent:
+    #   - fee_bps: a known configured taker fee (not market data) -> filled from
+    #     the paper fee schedule with a CONFIGURED_* provenance tag.
+    #   - expected_slippage_bps: MODELED from the observed orderbook spread with
+    #     a MODELED_FROM_OBSERVED_* provenance tag (the orderbook is present).
+    #   - expected_funding_bps: genuinely-absent market data -> stays None.
     features = loop._features_from_market(
         {
             "ticker_24hr": {},
@@ -87,11 +95,21 @@ def test_feature_pipeline_keeps_missing_market_cost_fields_unfilled() -> None:
         }
     )
 
+    # Observed fields still come from real orderbook data.
     assert features["actual_observed_spread_entry_bps"] is not None
     assert features["orderbook_depth_usd"] is not None
-    assert features["fee_bps"] is None
-    assert features["expected_slippage_bps"] is None
+
+    # Known configured cost -> filled, but transparently sourced (not fabricated).
+    assert features["fee_bps"] == loop._configured_fee_bps()
+    assert features["_fee_bps_source"] == loop.CONFIGURED_FEE_BPS_SOURCE
+
+    # Slippage MODELED from the present spread, with a transparent source tag.
+    assert features["expected_slippage_bps"] is not None
+    assert features["_expected_slippage_source"].startswith("MODELED_FROM_OBSERVED_SPREAD")
+
+    # Funding is genuinely absent -> must NOT be fabricated.
     assert features["expected_funding_bps"] is None
+    assert features.get("_expected_funding_source") is None
 
 
 def test_feature_pipeline_archives_snapshot_by_exact_feature_snapshot_id(monkeypatch, tmp_path) -> None:

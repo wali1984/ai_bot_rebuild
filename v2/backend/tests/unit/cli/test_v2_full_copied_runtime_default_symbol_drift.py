@@ -116,6 +116,13 @@ ACTIVE_RUNTIME_CLI_DRIFT_ALLOWLIST = {
     # Backtest runner is a dev/research tool; BTCUSDT default is intentional
     # for convenience and does not feed live or paper runtime decisions.
     "v2/backend/app/cli/v2_backtest_runner.py",
+    # Public-archive backfill is an explicit REST fallback/backfill operation
+    # (BINANCE_REST_FALLBACK_ALLOWED-gated), not an active paper/shadow runtime
+    # decision path; its BTCUSDT default is a manual-op convenience.
+    "v2/backend/app/cli/v2_binance_public_data_backfill.py",
+    # Day-5 feature-builder integration test harness (a --symbol "Test symbol"
+    # default), not active runtime.
+    "v2/backend/app/cli/day5_integration_test.py",
 }
 
 ACTIVE_RUNTIME_FORBIDDEN_DEFAULT_PATTERNS = (

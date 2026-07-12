@@ -135,7 +135,10 @@ def analyze_freshness(examples: Sequence[Any]) -> dict[str, Any]:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,LINKUSDT")
+    p.add_argument("--symbols", default=None,
+                   help="comma-separated symbols; default = dynamic universe resolver (adaptive)")
+    p.add_argument("--smoke-test", action="store_true",
+                   help="use the BTC/ETH/SOL smoke-test set (test only)")
     p.add_argument("--timeframes", default="1m,5m,15m,1h")
     p.add_argument("--limit", type=int, default=8000)
     p.add_argument("--cache-path", default="claude_worklog/trainer_atlas/altdata_freshness_cache.pkl")
@@ -147,10 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     from pathlib import Path  # noqa: PLC0415
 
     from v2.backend.app.cli.v2_trainer_offline_batch_train import load_or_build_examples  # noqa: PLC0415
+    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
 
     args = parse_args(argv)
     examples, _ = load_or_build_examples(
-        symbols=[s.strip().upper() for s in args.symbols.split(",") if s.strip()],
+        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=[t.strip().lower() for t in args.timeframes.split(",") if t.strip()],
         limit=args.limit,
         cache_path=args.cache_path,

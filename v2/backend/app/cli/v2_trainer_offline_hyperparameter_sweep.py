@@ -436,7 +436,10 @@ def run_hyperparameter_sweep(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT")
+    p.add_argument("--symbols", default=None,
+                   help="comma-separated symbols; default = dynamic universe resolver (adaptive)")
+    p.add_argument("--smoke-test", action="store_true",
+                   help="use the BTC/ETH/SOL smoke-test set (test only)")
     p.add_argument("--timeframes", default="1m,5m,15m,1h")
     p.add_argument("--limit", type=int, default=4096, help="max training rows to load")
     p.add_argument("--steps", type=int, default=200)
@@ -476,10 +479,11 @@ def main(argv: list[str] | None = None) -> int:
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
         V2HybridTrainerDataLoader,
     )
+    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
 
     loader = V2HybridTrainerDataLoader()
     examples = loader.load_training_examples(
-        symbols=[s.strip().upper() for s in args.symbols.split(",") if s.strip()],
+        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=[t.strip().lower() for t in args.timeframes.split(",") if t.strip()],
         limit=args.limit,
         trusted_only=True,

@@ -18,7 +18,7 @@ class FakeRedis:
 def test_fetch_long_short_ratio_normalizes_binance_row(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
 
-    def fake_get(url: str):
+    def fake_get(url: str, *, fallback_reason: str | None = None):
         assert "globalLongShortAccountRatio" in url
         return [
             {
@@ -49,7 +49,7 @@ def test_fetch_long_short_ratio_restricted_binance_payload_is_missing(
     monkeypatch.setattr(
         loop,
         "_http_get_json",
-        lambda _url: {
+        lambda _url, *, fallback_reason=None: {
             "code": 0,
             "msg": "Service unavailable from a restricted location.",
         },

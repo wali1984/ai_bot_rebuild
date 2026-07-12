@@ -49,6 +49,20 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_float_or_none(name: str) -> float | None:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return None
+    return float(raw)
+
+
 def _publish(status: dict[str, Any]) -> None:
     try:
         from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO  # noqa: PLC0415
@@ -78,6 +92,9 @@ def run_scheduled_pretrain(
     cache_path: str,
     auto_promote: bool,
     auto_restart: bool,
+    require_risk_gate: bool,
+    min_sortino: float,
+    max_cvar_loss_bps: float | None,
 ) -> dict[str, Any]:
     started = time.time()
     # Disjoint split: PREFIX (train_rows) trains the model; SUFFIX (heldout_rows)
@@ -104,6 +121,9 @@ def run_scheduled_pretrain(
         "live_gate": "blocked_human_only",
         "auto_promote": bool(auto_promote),
         "auto_restart": bool(auto_restart),
+        "require_risk_gate": bool(require_risk_gate),
+        "min_sortino": float(min_sortino),
+        "max_cvar_loss_bps": max_cvar_loss_bps,
     }
     if len(training_prefix) < max(64, batch_size // 4):
         status["phase"] = "ABORT_INSUFFICIENT_TRAINING_ROWS"
@@ -147,6 +167,9 @@ def run_scheduled_pretrain(
         excluded_rows=training_prefix,
         min_improvement=min_improvement,
         confirm=bool(auto_promote),
+        require_risk_gate=bool(require_risk_gate),
+        min_sortino=float(min_sortino),
+        max_cvar_loss_bps=max_cvar_loss_bps,
     )
     status["head_to_head"] = h2l
     status["promoted"] = bool(h2l.get("promoted"))
@@ -171,7 +194,10 @@ def run_scheduled_pretrain(
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--symbols", default="BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,AVAXUSDT,LINKUSDT,DOGEUSDT,LTCUSDT")
+    p.add_argument("--symbols", default=None,
+                   help="comma-separated symbols; default = dynamic universe resolver (adaptive)")
+    p.add_argument("--smoke-test", action="store_true",
+                   help="use the BTC/ETH/SOL smoke-test set (test only)")
     p.add_argument("--timeframes", default="1m,5m,15m,1h")
     p.add_argument("--train-rows", type=int, default=20000)
     p.add_argument("--heldout-rows", type=int, default=5000)
@@ -181,6 +207,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--early-stop-patience", type=int, default=4)
     p.add_argument("--min-epochs", type=int, default=8)
     p.add_argument("--min-improvement", type=float, default=1.0)
+    p.add_argument(
+        "--require-risk-gate",
+        action=argparse.BooleanOptionalAction,
+        default=_env_bool("V2_SCHEDULED_PRETRAIN_REQUIRE_RISK_GATE", True),
+        help="require out-of-sample Sortino/CVaR gate before any H2L promotion",
+    )
+    p.add_argument(
+        "--min-sortino",
+        type=float,
+        default=float(os.getenv("V2_H2L_MIN_SORTINO", "0.0") or 0.0),
+    )
+    p.add_argument(
+        "--max-cvar-loss-bps",
+        type=float,
+        default=_env_float_or_none("V2_H2L_MAX_CVAR_LOSS_BPS"),
+    )
     p.add_argument("--offline-dir", default=DEFAULT_OFFLINE_DIR)
     p.add_argument("--live-dir", default=LIVE_CHECKPOINT_DIR)
     p.add_argument("--cache-path", default="claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl")
@@ -191,9 +233,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
     args = parse_args(argv)
     status = run_scheduled_pretrain(
-        symbols=[s.strip().upper() for s in args.symbols.split(",") if s.strip()],
+        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=[t.strip().lower() for t in args.timeframes.split(",") if t.strip()],
         train_rows=args.train_rows,
         heldout_rows=args.heldout_rows,
@@ -208,6 +252,9 @@ def main(argv: list[str] | None = None) -> int:
         cache_path=args.cache_path,
         auto_promote=args.auto_promote,
         auto_restart=args.auto_restart,
+        require_risk_gate=bool(args.require_risk_gate),
+        min_sortino=float(args.min_sortino),
+        max_cvar_loss_bps=args.max_cvar_loss_bps,
     )
     text = json.dumps(status, indent=2, default=str)
     out = args.output or f"claude_worklog/trainer_atlas/scheduled_pretrain_{int(time.time())}.json"
