@@ -28,6 +28,7 @@ import json
 import os
 import subprocess
 import uuid
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -711,6 +712,59 @@ PAPER_EXPLORATION_BRIDGE_KEYS = {
 PAPER_EXPLORATION_COUNTERFACTUAL_KEY = (
     "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
 )
+TRAINER_HYBRID_CUDA_STATUS_KEY = "v2:trainer:hybrid_cuda:status"
+A_GRADE_GATE_BURNDOWN_STATUS_KEY = "v2:paper:a_grade_gate_burndown_status"
+PREEMPTIVE_EDGE_CONTROL_STATUS_KEY = "v2:paper:preemptive_edge_control_status"
+PREEMPTIVE_CANDIDATE_DECISION_MATRIX_KEY = (
+    "v2:paper:preemptive_candidate_decision_matrix"
+)
+CONTINUOUS_EDGE_GUARDIAN_EXECUTION_GATE_KEY = (
+    "v2:continuous_edge_guardian:a_grade_execution_gate"
+)
+PAPER_EXPLORATION_BRIDGE_ROW_SAMPLE_LIMIT = 10
+PAPER_EXPLORATION_BRIDGE_ROW_ARRAY_KEYS = (
+    "active_rows",
+    "pending_source_rows",
+    "expired_rows",
+    "unsafe_rows",
+    "rejected_after_queue_rows",
+)
+PAPER_EXPLORATION_BRIDGE_ROW_SAMPLE_FIELDS = (
+    "queue_id",
+    "materialization_queue_id",
+    "candidate_id",
+    "prediction_id",
+    "signal_id",
+    "symbol",
+    "timeframe",
+    "side",
+    "tier",
+    "paper_opportunity_tier",
+    "materialization_queue_result",
+    "materialization_no_fill_reason",
+    "materialization_no_fill_exact_reasons",
+    "guardian_status",
+    "guardian_new_entries_allowed",
+    "guardian_block_reasons",
+    "guardian_allowed_runtime_actions",
+    "continuous_edge_guardian_status",
+    "continuous_edge_guardian_new_entries_allowed",
+    "continuous_edge_guardian_block_reasons",
+    "continuous_edge_guardian_allowed_runtime_actions",
+    "paper_only",
+    "routes_to_live",
+    "places_real_order",
+    "live_order",
+    "test_order",
+    "order_submitted",
+    "test_order_submitted",
+    "leverage_mutated",
+    "margin_mutated",
+    "counts_as_A_plus",
+    "counts_as_final_A_plus",
+    "counts_as_final_a_plus",
+    "counts_as_live_ready",
+)
 
 
 def _read_bridge_json(r: Any, key: str) -> dict[str, Any]:
@@ -727,6 +781,414 @@ def _read_bridge_json(r: Any, key: str) -> dict[str, Any]:
     except (ValueError, TypeError):
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed:
+        return None
+    return parsed
+
+
+def _int_or_zero(value: Any) -> int:
+    parsed = _float_or_none(value)
+    return int(parsed) if parsed is not None else 0
+
+
+def _distribution(values: list[float]) -> dict[str, Any] | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    return {
+        "count": len(ordered),
+        "min": ordered[0],
+        "p50": ordered[len(ordered) // 2],
+        "p90": ordered[int((len(ordered) - 1) * 0.9)],
+        "max": ordered[-1],
+    }
+
+
+def _preemptive_matrix_rows(matrix: dict[str, Any]) -> list[dict[str, Any]]:
+    rows = matrix.get("rows")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _preemptive_matrix_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reasons: Counter[str] = Counter()
+    loss_probabilities: list[float] = []
+    after_cost_edges: list[float] = []
+    profit_factors: list[float] = []
+    for row in rows:
+        for key in (
+            "block_reasons",
+            "preemptive_block_reasons",
+            "paper_exploration_paper_fill_block_reasons",
+            "reasons",
+        ):
+            value = row.get(key)
+            if isinstance(value, list):
+                reasons.update(str(item) for item in value)
+        for key in ("pre_trade_loss_probability", "loss_probability"):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                loss_probabilities.append(parsed)
+                break
+        for key in (
+            "expected_edge_after_cost_bps",
+            "edge_after_cost_bps",
+            "expected_net_edge_bps",
+        ):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                after_cost_edges.append(parsed)
+                break
+        for key in (
+            "recent_bucket_profit_factor",
+            "bucket_profit_factor",
+            "profit_factor",
+        ):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                profit_factors.append(parsed)
+                break
+    return {
+        "row_count": len(rows),
+        "top_block_reasons": [
+            {"reason": reason, "count": count}
+            for reason, count in reasons.most_common(20)
+        ],
+        "loss_probability": _distribution(loss_probabilities),
+        "expected_edge_after_cost_bps": _distribution(after_cost_edges),
+        "bucket_profit_factor": _distribution(profit_factors),
+    }
+
+
+def _adaptation_diagnosis_from_payloads(
+    *,
+    trainer_status: dict[str, Any],
+    a_grade_status: dict[str, Any],
+    preemptive_status: dict[str, Any],
+    preemptive_matrix: dict[str, Any],
+    paper_supply: dict[str, Any],
+    paper_queue: dict[str, Any],
+    guardian_gate: dict[str, Any],
+) -> dict[str, Any]:
+    learning_metrics = (
+        trainer_status.get("learning_metrics")
+        if isinstance(trainer_status.get("learning_metrics"), dict)
+        else {}
+    )
+    rows = _preemptive_matrix_rows(preemptive_matrix)
+    preemptive = _preemptive_matrix_diagnostics(rows)
+    loss_stats = preemptive.get("loss_probability") or {}
+    pf_stats = preemptive.get("bucket_profit_factor") or {}
+    edge_stats = preemptive.get("expected_edge_after_cost_bps") or {}
+
+    ppo_entropy = _float_or_none(learning_metrics.get("ppo_entropy"))
+    validation_gap = _float_or_none(
+        learning_metrics.get("train_val_generalization_gap")
+    )
+    validation_loss = _float_or_none(
+        learning_metrics.get("validation_supervised_loss")
+    )
+    loss_after = _float_or_none(learning_metrics.get("loss_after"))
+    a_grade_rows = _int_or_zero(
+        a_grade_status.get("A_grade_rows")
+        if a_grade_status.get("A_grade_rows") is not None
+        else a_grade_status.get("a_grade_rows")
+    )
+    near_a_grade_rows = _int_or_zero(
+        a_grade_status.get("near_A_grade_rows")
+        if a_grade_status.get("near_A_grade_rows") is not None
+        else a_grade_status.get("near_a_grade_rows")
+    )
+    paper_fill_allowed_rows = _int_or_zero(
+        a_grade_status.get("paper_fill_allowed_rows")
+        or preemptive_status.get("accepted_count")
+    )
+    materialized_positions = _int_or_zero(
+        paper_queue.get("same_cycle_materialized_count")
+        or paper_supply.get("materialized_positions_last_cycle")
+    )
+    guardian_status = str(
+        guardian_gate.get("status")
+        or a_grade_status.get("guardian_status")
+        or paper_queue.get("guardian_status")
+        or ""
+    )
+    guardian_allows_entries = (
+        guardian_gate.get("a_grade_new_entries_allowed")
+        if guardian_gate.get("a_grade_new_entries_allowed") is not None
+        else a_grade_status.get("guardian_new_entries_allowed")
+    )
+
+    findings: list[dict[str, Any]] = []
+    if ppo_entropy is not None and ppo_entropy >= 0.8:
+        findings.append(
+            {
+                "id": "PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED",
+                "severity": "learning_blocker",
+                "observed": ppo_entropy,
+                "why_it_matters": (
+                    "The policy is still close to high-entropy exploration, so "
+                    "confidence has not hardened into a repeatable edge."
+                ),
+                "code_defect": False,
+                "next_action": "Run offline hyperparameter sweep/retrain; do not tune live blindly.",
+            }
+        )
+    if validation_gap is not None and validation_gap > 1.0:
+        findings.append(
+            {
+                "id": "TRAIN_VAL_GENERALIZATION_GAP_HIGH",
+                "severity": "learning_blocker",
+                "observed": validation_gap,
+                "validation_supervised_loss": validation_loss,
+                "loss_after": loss_after,
+                "why_it_matters": (
+                    "Training loss is improving, but held-out validation remains "
+                    "worse enough that strict A-grade evidence cannot trust it."
+                ),
+                "code_defect": False,
+                "next_action": "Prefer offline sweep/retrain and validation-gated promotion.",
+            }
+        )
+    if (loss_stats.get("p50") or 0.0) >= 0.8:
+        findings.append(
+            {
+                "id": "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH",
+                "severity": "paper_gate_blocker",
+                "observed_p50": loss_stats.get("p50"),
+                "observed_p90": loss_stats.get("p90"),
+                "why_it_matters": (
+                    "The paper risk gateway sees most candidates as high loss "
+                    "probability, so they cannot become A-grade closes."
+                ),
+                "code_defect": False,
+                "next_action": "Improve genuine model edge; do not lower the risk gate.",
+            }
+        )
+    if (pf_stats.get("p90") or 0.0) < 2.0 and pf_stats:
+        findings.append(
+            {
+                "id": "BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD",
+                "severity": "economic_blocker",
+                "observed_p50": pf_stats.get("p50"),
+                "observed_p90": pf_stats.get("p90"),
+                "required": 2.0,
+                "why_it_matters": (
+                    "Even stronger buckets in the current candidate matrix do "
+                    "not meet the strict profit-factor standard."
+                ),
+                "code_defect": False,
+                "next_action": "Accumulate or learn genuinely profitable after-cost buckets.",
+            }
+        )
+    if a_grade_rows <= 0:
+        findings.append(
+            {
+                "id": "A_GRADE_SUPPLY_ZERO",
+                "severity": "a_grade_blocker",
+                "observed": a_grade_rows,
+                "near_a_grade_rows": near_a_grade_rows,
+                "why_it_matters": (
+                    "No current row is allowed to count as strict A-grade, so "
+                    "the runtime runway cannot fill."
+                ),
+                "code_defect": False,
+                "next_action": "Keep exploration/shadow rows non-A-grade until strict evidence is earned.",
+            }
+        )
+    if materialized_positions <= 0 or paper_fill_allowed_rows <= 0:
+        findings.append(
+            {
+                "id": "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES",
+                "severity": "learning_data_blocker",
+                "materialized_positions": materialized_positions,
+                "paper_fill_allowed_rows": paper_fill_allowed_rows,
+                "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+                "why_it_matters": (
+                    "The trainer cannot learn many fresh on-policy paper closes "
+                    "while true performance/risk/guardian gates reject fills."
+                ),
+                "code_defect": False,
+                "next_action": "Expose exact blockers and repair only false positives; do not fabricate fills.",
+            }
+        )
+    if guardian_status.upper() == "A_GRADE_HALTED_PERFORMANCE" or guardian_allows_entries is False:
+        findings.append(
+            {
+                "id": "GUARDIAN_HALTED_PERFORMANCE",
+                "severity": "a_grade_blocker",
+                "guardian_status": guardian_status or None,
+                "guardian_new_entries_allowed": guardian_allows_entries,
+                "why_it_matters": (
+                    "The continuous edge guardian is intentionally preventing "
+                    "new A-grade entries until real evidence meets thresholds."
+                ),
+                "code_defect": False,
+                "next_action": "Keep passing this blocker through to paper/operator surfaces.",
+            }
+        )
+
+    headline = (
+        "Trainer is active, but A-grade adaptation is not proven: high policy "
+        "entropy/generalization risk plus high preemptive loss probability leave "
+        "paper/A-grade outcome feeders starved."
+    )
+    if not findings:
+        headline = "No active adaptation blocker was detected from the sampled runtime keys."
+
+    return {
+        "schema_version": "trainer_adaptation_diagnosis_v1",
+        "generated_utc": _utc_now(),
+        "headline": headline,
+        "status": "A_GRADE_ADAPTATION_NOT_PROVEN" if findings else "NO_ACTIVE_BLOCKER_DETECTED",
+        "learning_active": trainer_status.get("online_learning_status") == "WEIGHTS_UPDATING",
+        "live_gate": "blocked_human_only",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "trainer": {
+            "online_learning_status": trainer_status.get("online_learning_status"),
+            "effective_trainer_mode": trainer_status.get("effective_trainer_mode"),
+            "checkpoint_promotion_reason": learning_metrics.get(
+                "checkpoint_promotion_reason"
+            )
+            or trainer_status.get("checkpoint_promotion_reason"),
+            "checkpoint_promoted_this_cycle": learning_metrics.get(
+                "checkpoint_promoted_this_cycle"
+            )
+            if learning_metrics.get("checkpoint_promoted_this_cycle") is not None
+            else trainer_status.get("checkpoint_promoted_this_cycle"),
+            "ppo_entropy": ppo_entropy,
+            "train_val_generalization_gap": validation_gap,
+            "validation_supervised_loss": validation_loss,
+            "loss_after": loss_after,
+            "entropy_coefficient": learning_metrics.get("entropy_coefficient"),
+            "supervised_entropy_bonus": learning_metrics.get(
+                "supervised_entropy_bonus"
+            ),
+        },
+        "a_grade": {
+            "A_grade_rows": a_grade_rows,
+            "near_A_grade_rows": near_a_grade_rows,
+            "status": a_grade_status.get("status"),
+            "closest_gap_reason": a_grade_status.get("closest_gap_reason"),
+            "guardian_status": guardian_status or None,
+            "guardian_new_entries_allowed": guardian_allows_entries,
+        },
+        "preemptive": {
+            "candidate_count": preemptive_status.get("candidate_count"),
+            "accepted_count": preemptive_status.get("accepted_count"),
+            **preemptive,
+        },
+        "paper_learning_feeder": {
+            "fresh_strategy_supply_rows": paper_supply.get("fresh_strategy_supply_rows"),
+            "fresh_exploration_candidates": paper_supply.get(
+                "fresh_exploration_candidates"
+            ),
+            "materialized_positions_last_cycle": paper_supply.get(
+                "materialized_positions_last_cycle"
+            ),
+            "queued_count": paper_queue.get("queued_count"),
+            "active_count": paper_queue.get("active_count"),
+            "same_cycle_materialized_count": paper_queue.get(
+                "same_cycle_materialized_count"
+            ),
+            "rejected_after_queue_count": paper_queue.get(
+                "rejected_after_queue_count"
+            ),
+            "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+        },
+        "findings": findings,
+        "forbidden_shortcuts_refused": [
+            "lowering A-grade, holdout, profit-factor, or live gates",
+            "counting exploration/probation rows as A+ or live-ready",
+            "fabricating paper closes, test orders, or live orders",
+            "disabling guardian/risk gates to create cosmetic evidence",
+        ],
+        "next_legitimate_actions": [
+            "run offline hyperparameter sweep/retrain if entropy or validation gap persist",
+            "continue paper/shadow accumulation while preserving exact blocker pass-through",
+            "repair only verified false-positive blockers; leave true performance/risk blocks strict",
+        ],
+    }
+
+
+@router.get("/adaptation-diagnosis")
+async def get_trainer_adaptation_diagnosis() -> dict[str, Any]:
+    """Why training has not yet produced strict A-grade evidence.
+
+    Read-only operator diagnostic. It composes existing Redis truth and never
+    changes trainer state, paper state, exchange state, thresholds, or gates.
+    """
+    r = get_redis()
+    return _adaptation_diagnosis_from_payloads(
+        trainer_status=_read_bridge_json(r, TRAINER_HYBRID_CUDA_STATUS_KEY),
+        a_grade_status=_read_bridge_json(r, A_GRADE_GATE_BURNDOWN_STATUS_KEY),
+        preemptive_status=_read_bridge_json(r, PREEMPTIVE_EDGE_CONTROL_STATUS_KEY),
+        preemptive_matrix=_read_bridge_json(r, PREEMPTIVE_CANDIDATE_DECISION_MATRIX_KEY),
+        paper_supply=_read_bridge_json(
+            r, PAPER_EXPLORATION_BRIDGE_KEYS["supply_status"]
+        ),
+        paper_queue=_read_bridge_json(
+            r, PAPER_EXPLORATION_BRIDGE_KEYS["materialization_queue_status"]
+        ),
+        guardian_gate=_read_bridge_json(r, CONTINUOUS_EDGE_GUARDIAN_EXECUTION_GATE_KEY),
+    )
+
+
+def _paper_exploration_bridge_row_sample(
+    queue_status: dict[str, Any],
+    row_key: str,
+) -> tuple[int, list[dict[str, Any]]]:
+    rows = queue_status.get(row_key)
+    if not isinstance(rows, list):
+        return 0, []
+    sample: list[dict[str, Any]] = []
+    for row in rows[:PAPER_EXPLORATION_BRIDGE_ROW_SAMPLE_LIMIT]:
+        if not isinstance(row, dict):
+            continue
+        compact = {
+            field: row[field]
+            for field in PAPER_EXPLORATION_BRIDGE_ROW_SAMPLE_FIELDS
+            if field in row
+        }
+        if compact:
+            sample.append(compact)
+    return len(rows), sample
+
+
+def _paper_exploration_bridge_queue_status(
+    queue_status: dict[str, Any],
+) -> dict[str, Any]:
+    compact_queue = {
+        key: value
+        for key, value in queue_status.items()
+        if key not in set(PAPER_EXPLORATION_BRIDGE_ROW_ARRAY_KEYS)
+    }
+    for row_key in PAPER_EXPLORATION_BRIDGE_ROW_ARRAY_KEYS:
+        total, sample = _paper_exploration_bridge_row_sample(queue_status, row_key)
+        compact_queue[f"{row_key}_sample_count"] = len(sample)
+        compact_queue[f"{row_key}_total_count"] = total
+        compact_queue[f"{row_key}_sample_limit"] = (
+            PAPER_EXPLORATION_BRIDGE_ROW_SAMPLE_LIMIT
+        )
+        compact_queue[f"{row_key}_omitted_from_main_payload"] = total > 0
+        compact_queue[f"{row_key}_sample"] = sample
+    return compact_queue
 
 
 @router.get("/paper-exploration-bridge")
@@ -753,12 +1215,7 @@ async def get_paper_exploration_bridge_truth() -> dict[str, Any]:
             counterfactual_rows = []
     supply = payloads["supply_status"]
     queue_status = payloads["materialization_queue_status"]
-    compact_queue = {
-        key: value
-        for key, value in queue_status.items()
-        if key
-        not in {"active_rows", "expired_rows", "unsafe_rows", "rejected_after_queue_rows"}
-    }
+    compact_queue = _paper_exploration_bridge_queue_status(queue_status)
     return {
         "schema_version": "paper_exploration_bridge_truth_api_v1",
         "generated_utc": _utc_now(),

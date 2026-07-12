@@ -1410,6 +1410,114 @@ def test_materialization_queue_cycle_consumes_post_bridge_published_rows_with_cu
     assert len(status["_active_signal_rows"]) == 1
 
 
+def test_materialization_queue_status_carries_guardian_blockers() -> None:
+    redis = _FakeRedis(
+        {
+            paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY: {
+                "schema_version": "paper_exploration_materialization_queue_v1",
+                "generated_utc": "2026-07-10T03:28:50.000Z",
+                "queue_published_at": "2026-07-10T03:28:50.000Z",
+                "inventory_generated_utc": "2026-07-10T03:28:00.000Z",
+                "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
+                "rows": [
+                    {
+                        "queue_id": "paper_exploration_materialize_hyp-guardian",
+                        "candidate_id": "hyp-guardian",
+                        "prediction_id": "hyp-guardian",
+                        "signal_id": "hyp-guardian",
+                        "symbol": "SOLUSDT",
+                        "timeframe": "5m",
+                        "side": "long",
+                        "accepted_at": "2026-07-10T03:28:50.000Z",
+                        "expires_at": "2026-07-10T03:43:50.000Z",
+                        "source_freshness_pending": False,
+                        "paper_signal": {
+                            "candidate_id": "hyp-guardian",
+                            "prediction_id": "hyp-guardian",
+                            "signal_id": "hyp-guardian",
+                            "symbol": "SOLUSDT",
+                            "timeframe": "5m",
+                            "side": "long",
+                            "paper_only": True,
+                            "routes_to_live": False,
+                            "places_real_order": False,
+                            "counts_as_A_plus": False,
+                            "counts_as_live_ready": False,
+                            "valid_for_paper": True,
+                        },
+                    }
+                ],
+            }
+        }
+    )
+    guardian_gate = {
+        "status": "A_GRADE_HALTED_PERFORMANCE",
+        "a_grade_new_entries_allowed": False,
+        "failure_reasons": [
+            {
+                "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+                "observed": 0,
+                "required": 1000,
+            }
+        ],
+        "allowed_runtime_actions": ["reduce", "close", "emergency_de_risk"],
+    }
+
+    status = paper_loop._paper_exploration_materialization_queue_cycle_status(  # noqa: SLF001
+        redis,
+        now=datetime(2026, 7, 10, 3, 28, 55, tzinfo=timezone.utc),
+        generated_utc="2026-07-10T03:28:55.000Z",
+        continuous_edge_guardian_gate=guardian_gate,
+    )
+
+    assert status["queued_count"] == 1
+    assert status["active_count"] == 1
+    assert status["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert status["guardian_new_entries_allowed"] is False
+    assert status["guardian_block_reasons"] == guardian_gate["failure_reasons"]
+    assert status["continuous_edge_guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert status["continuous_edge_guardian_new_entries_allowed"] is False
+    active_row = status["_active_queue_rows"][0]
+    assert active_row["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert active_row["guardian_new_entries_allowed"] is False
+    assert active_row["guardian_block_reasons"] == guardian_gate["failure_reasons"]
+    assert active_row["continuous_edge_guardian_block_reasons"] == (
+        guardian_gate["failure_reasons"]
+    )
+    assert active_row["paper_only"] is True
+    assert active_row["routes_to_live"] is False
+    assert active_row["places_real_order"] is False
+    assert active_row["order_submitted"] is False
+    assert active_row["test_order_submitted"] is False
+    assert active_row["leverage_mutated"] is False
+    assert active_row["margin_mutated"] is False
+
+    active_signal = status["_active_signal_rows"][0]
+    assert active_signal["guardian_status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert active_signal["guardian_new_entries_allowed"] is False
+    assert active_signal["guardian_block_reasons"] == guardian_gate["failure_reasons"]
+    assert active_signal["continuous_edge_guardian_allowed_runtime_actions"] == [
+        "reduce",
+        "close",
+        "emergency_de_risk",
+    ]
+
+    written_queue = json.loads(
+        redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY]
+    )
+    assert written_queue["guardian_new_entries_allowed"] is False
+    assert written_queue["rows"][0]["guardian_status"] == (
+        "A_GRADE_HALTED_PERFORMANCE"
+    )
+    written_status = json.loads(
+        redis.payloads[paper_loop.PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY]
+    )
+    assert written_status["guardian_new_entries_allowed"] is False
+    assert written_status["active_rows"][0]["guardian_status"] == (
+        "A_GRADE_HALTED_PERFORMANCE"
+    )
+
+
 def test_materialization_queue_resolution_preserves_pending_source_rows() -> None:
     remaining_active = [
         {

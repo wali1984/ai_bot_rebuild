@@ -190,6 +190,33 @@ def test_checkpoint_promotion_rejects_overfit_gap_warning(
     assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
 
 
+def test_checkpoint_promotion_allows_validation_improvement_with_residual_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("V2_TRAINER_VALIDATION_CHECKPOINT_GUARD", raising=False)
+    monkeypatch.delenv("V2_TRAINER_REJECT_OVERFIT_CHECKPOINTS", raising=False)
+
+    decision = _checkpoint_promotion_decision(
+        training_metrics={
+            "validation_rows_evaluated": 3276,
+            "validation_supervised_loss_before": 30.87943458557129,
+            "validation_supervised_loss_after": 10.78960132598877,
+            "train_val_generalization_gap": 6.911758,
+            "overfit_gap_warning": True,
+        },
+        checkpoint_load=_loadable_checkpoint(),
+    )
+
+    assert decision["checkpoint_promotion_allowed"] is True
+    assert decision["checkpoint_promotion_rejected"] is False
+    assert decision["validation_improved"] is True
+    assert decision["overfit_gap_warning_advisory"] is True
+    assert (
+        decision["checkpoint_promotion_reason"]
+        == "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY"
+    )
+
+
 def test_checkpoint_promotion_allows_first_checkpoint_without_prior_restore(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -239,6 +266,7 @@ def test_checkpoint_promotion_status_fields_surface_rejection_streak() -> None:
             "checkpoint_promotion_allowed": False,
             "checkpoint_promotion_rejected": True,
             "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+            "overfit_gap_warning_advisory": None,
             "prior_promotion_rejection_streak": 2,
             "promotion_rejection_streak_after": 0,
             "max_promotion_rejection_streak": 3,
@@ -251,6 +279,7 @@ def test_checkpoint_promotion_status_fields_surface_rejection_streak() -> None:
         "checkpoint_promotion_allowed": False,
         "checkpoint_promotion_rejected": True,
         "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+        "overfit_gap_warning_advisory": None,
         "prior_promotion_rejection_streak": 2,
         "promotion_rejection_streak_after": 0,
         "max_promotion_rejection_streak": 3,

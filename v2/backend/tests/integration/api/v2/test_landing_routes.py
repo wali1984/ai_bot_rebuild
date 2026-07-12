@@ -706,12 +706,118 @@ def test_b7_g8_passes_only_when_approval_key_exists(
     assert gates["G8"]["state"] == "passed"
 
 
+def test_b7_live_readiness_fails_closed_when_a_grade_truth_missing(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    fake_redis.kv["system_atlas:go_no_go"] = "GO"
+    fake_redis.kv["trainer_atlas:status"] = "complete"
+    fake_redis.kv["codex:reviews:latest"] = json.dumps(
+        {"blocker_count": 0, "last_pass_id": "p-1"}
+    )
+    fake_redis.kv["operator:truth:supervisor"] = json.dumps(
+        {"stale_or_conflicting": False}
+    )
+    fake_redis.kv["pnl:decomp:canary_14d"] = "true"
+    fake_redis.kv["risk:envelope:stress_test_passed"] = "true"
+    fake_redis.kv["build:validation:status"] = "current"
+    fake_redis.kv["audit:live_enable:last_approval_id"] = "approval-xyz"
+
+    response = client.get("/api/v2/live-readiness")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["passed_gate_count"] == data["gate_count"]
+    assert data["live_ready"] is False
+    assert data["live_submit_allowed"] is False
+    assert data["exact_no_live_reason"] == "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    assert data["readiness_blockers"] == ["A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"]
+    assert data["a_grade_blocker_truth"]["status"] == (
+        "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    )
+
+
 def test_b7_g8_blocked_when_redis_unreachable(
     client: TestClient, no_redis: None
 ) -> None:
     gates = _by_id(client.get("/api/v2/live-readiness/gates").json())
     # No Redis -> we cannot prove an approval exists -> blocked.
     assert gates["G8"]["state"] == "blocked"
+
+
+def test_b7_live_readiness_exposes_current_a_grade_blocker_truth(
+    client: TestClient,
+    fake_redis: FakeRedis,
+) -> None:
+    fake_redis.set(
+        "v2:trainer:hybrid_cuda:status",
+        {
+            "online_learning_status": "WEIGHTS_UPDATING",
+            "effective_trainer_mode": "REPLAY_AND_ONLINE_LEARNING",
+            "learning_metrics": {
+                "ppo_entropy": 0.96,
+                "train_val_generalization_gap": 3.2,
+                "validation_supervised_loss": 6.7,
+                "loss_after": 2.4,
+            },
+        },
+    )
+    fake_redis.set(
+        "v2:paper:a_grade_gate_burndown_status",
+        {
+            "status": "A_GRADE_GATE_ACTIVE_BLOCKED_SOURCE_OWNED",
+            "A_grade_rows": 0,
+            "near_A_grade_rows": 31,
+            "guardian_status": "A_GRADE_HALTED_PERFORMANCE",
+            "guardian_new_entries_allowed": False,
+        },
+    )
+    fake_redis.set(
+        "v2:paper:preemptive_edge_control_status",
+        {"candidate_count": 2, "accepted_count": 0},
+    )
+    fake_redis.set(
+        "v2:paper:preemptive_candidate_decision_matrix",
+        {
+            "rows": [
+                {
+                    "pre_trade_loss_probability": 0.92,
+                    "recent_bucket_profit_factor": 0.03,
+                    "block_reasons": ["GUARDIAN_HALTED_OR_MISSING"],
+                }
+            ]
+        },
+    )
+    fake_redis.set(
+        "v2:paper:exploration:materialization_queue_status",
+        {
+            "same_cycle_materialized_count": 0,
+            "exact_no_fill_reason": "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS",
+        },
+    )
+    fake_redis.set(
+        "v2:continuous_edge_guardian:a_grade_execution_gate",
+        {
+            "status": "A_GRADE_HALTED_PERFORMANCE",
+            "a_grade_new_entries_allowed": False,
+        },
+    )
+
+    response = client.get("/api/v2/live-readiness")
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["live_ready"] is False
+    assert data["live_submit_allowed"] is False
+    assert data["live_gate"] == "blocked_human_only"
+    assert data["exact_no_live_reason"] == "A_GRADE_SUPPLY_ZERO"
+    assert data["readiness_blockers"][0] == "A_GRADE_SUPPLY_ZERO"
+    assert "GUARDIAN_HALTED_PERFORMANCE" in data["readiness_blockers"]
+    assert "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH" in data["readiness_blockers"]
+    assert data["a_grade_blocker_truth"]["status"] == "A_GRADE_ADAPTATION_NOT_PROVEN"
+    assert data["a_grade_blocker_truth"]["a_grade"]["A_grade_rows"] == 0
+    assert data["a_grade_blocker_truth"]["routes_to_live"] is False
+    assert data["a_grade_blocker_truth"]["places_real_order"] is False
 
 
 # --------------------------------------------------------------------- #

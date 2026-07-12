@@ -2,13 +2,13 @@
 
 **Purpose:** recover / stabilize the native CUDA MASA/PPO trainer without online experimentation. The running model was observed to diverge (supervised loss climbing 3.6 → 16+) under an over-strong entropy bonus; the correct fix is an **offline** hyperparameter search, then apply the winning config and let the trainer promote a stable checkpoint.
 
-**Safety:** every step here is paper/shadow. Nothing places an order or mutates leverage/margin. The sweep is report-only by default and does not write checkpoints. The exchange gate stays `blocked_human_only`.
+**Safety:** every step here is paper/shadow. Nothing places an order or mutates leverage/margin. The sweep is report-only and does not write checkpoints; the `--promote` flag intentionally fails closed. The exchange gate stays `blocked_human_only`.
 
 ---
 
 ## Step 1 — Run the offline hyperparameter sweep (report-only)
 
-The sweep loads one fixed batch of trusted rows from the replay archive and trains the **real** `V2HybridPPOTrainer` under a grid of `(learning_rate, entropy_coefficient, weight_decay, dropout)`, ranking by out-of-sample validation loss with divergence rejected.
+The sweep loads one fixed batch of trusted rows from the replay archive and trains the **real** `V2HybridPPOTrainer` under a grid of `(learning_rate, entropy_coefficient, weight_decay, dropout)`, ranking by out-of-sample validation loss with divergence rejected. Before any training, it fails closed if row-level timing implies point-in-time leakage (`available_at`, `feature_cutoff`, `source_available_time`, `masa_feature_cutoff`, or `ppo_feature_cutoff` after `decision_time`) or an unfinished candle is marked usable.
 
 ```bash
 cd "/home/wali/Desktop/AI BOT REBUILD"
@@ -21,8 +21,10 @@ PYTHONPATH=. .venv/bin/python -m v2.backend.app.cli.v2_trainer_offline_hyperpara
 
 - `--from-checkpoint` starts each config from the **current** checkpoint (realistic recovery scenario). Omit it to test training from a fresh init.
 - Output ends with `BEST_STABLE_CONFIG: {...} | val_loss: ... | gap: ...`.
+- The JSON includes `point_in_time_safety`, `writes_checkpoint: false`, `places_real_order: false`, `routes_to_live: false`, `leverage_mutated: false`, and `margin_mutated: false`.
 
 **Interpret:** a good config has `diverged: false`, the lowest `validation_supervised_loss`, and a small `train_val_generalization_gap` (≤ ~0.5). If **every** config diverges, lower the LR grid (e.g. add `1e-5`) — LR is the most likely divergence cause at this loss scale.
+If `point_in_time_safety.passed` is false, do not tune around it; repair the replay/feedback row timing first.
 
 ---
 
@@ -51,7 +53,7 @@ systemctl --user restart ai-bot-v2-native-cuda-trainer-persistent.service
 
 ## Step 3 — Let it recover, or force a clean promotion
 
-If the current checkpoint is degraded, the validation guard will keep rejecting until the model trains back below its loss. Two options:
+If the current checkpoint is degraded, the validation guard will keep rejecting until the model trains back below its loss. These are operator-controlled service config choices; the offline sweep does not promote or write checkpoint files. Two options:
 
 - **Patient:** with a stable config the loss trends down and the guard passes naturally (`online_learning_status: WEIGHTS_UPDATING`, `checkpoint_promotion_reason: VALIDATION_GUARD_PASS`).
 - **Assisted (temporary):** to let the model persist recovering weights sooner, either lower the streak escape:

@@ -221,6 +221,7 @@ def _checkpoint_promotion_decision(
         return decision
     loss_delta = after - before
     decision["validation_loss_delta"] = round(loss_delta, 8)
+    decision["validation_improved"] = bool(loss_delta < 0.0)
     effective_tolerance = max(abs_loss_increase_floor, rel_loss_increase_frac * abs(before))
     decision["max_validation_loss_increase"] = round(effective_tolerance, 8)
     if loss_delta > effective_tolerance:
@@ -233,6 +234,12 @@ def _checkpoint_promotion_decision(
         )
         return decision
     if reject_overfit_gap and decision["overfit_gap_warning"]:
+        if loss_delta < 0.0:
+            decision["checkpoint_promotion_reason"] = (
+                "VALIDATION_IMPROVED_WITH_OVERFIT_GAP_ADVISORY"
+            )
+            decision["overfit_gap_warning_advisory"] = True
+            return decision
         decision.update(
             {
                 "checkpoint_promotion_allowed": False,
@@ -259,6 +266,9 @@ def _checkpoint_promotion_status_fields(
         ),
         "checkpoint_promotion_reason": checkpoint_promotion.get(
             "checkpoint_promotion_reason"
+        ),
+        "overfit_gap_warning_advisory": checkpoint_promotion.get(
+            "overfit_gap_warning_advisory"
         ),
         "prior_promotion_rejection_streak": checkpoint_promotion.get(
             "prior_promotion_rejection_streak"

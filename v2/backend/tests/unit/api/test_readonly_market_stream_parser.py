@@ -213,6 +213,16 @@ def test_binance_public_json_uses_short_ttl_cache(monkeypatch: pytest.MonkeyPatc
         return _Response()
 
     monkeypatch.setattr(market_contracts, "BINANCE_PUBLIC_CACHE_TTL_SECONDS", 30.0)
+    monkeypatch.setattr(
+        market_contracts,
+        "_binance_public_json_from_redis",
+        lambda *_args, **_kwargs: (None, "redis:v2:market:*", None),
+    )
+    monkeypatch.setattr(
+        market_contracts,
+        "binance_rest_fallback_decision",
+        lambda **_kwargs: {"request_allowed": True},
+    )
     monkeypatch.setattr(market_contracts.urllib.request, "urlopen", fake_urlopen)
     with market_contracts.BINANCE_PUBLIC_JSON_CACHE_LOCK:
         market_contracts.BINANCE_PUBLIC_JSON_CACHE.clear()

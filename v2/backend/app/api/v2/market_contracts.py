@@ -32,6 +32,7 @@ from starlette.websockets import WebSocketState
 
 from app.api.v2._common import get_redis
 from app.api.v2.probation_display import probation_gate_display_status
+from app.services.realtime.operator_snapshot import _hedge_payload, _ingestors_payload
 from app.auth.security import optional_auth, require_auth
 from app.auth.users import UserRecord, safe_exchange_accounts, safe_user
 from app.domain.governance.audit_chain import local_paper_audit_policy_metadata
@@ -487,6 +488,23 @@ PAPER_RUNTIME_RESPONSE_PRIORITY_KEYS = (
     "probation_5_trade_gate",
     "probation_20_trade_gate",
     "probation_50_trade_gate",
+    "order_cost_applicable_rows",
+    "production_grade_cost_rows",
+    "production_grade_cost_order_applicable_rows",
+    "production_grade_cost_coverage",
+    "production_grade_cost_coverage_basis",
+    "production_grade_cost_total_row_coverage",
+    "paper_fill_allowed_rows",
+    "routes_to_live_rows",
+    "places_real_order_rows",
+    "a_grade_rows",
+    "near_a_grade_rows",
+    "source_tier_a_grade_execution_rows",
+    "guardian_status",
+    "guardian_new_entries_allowed",
+    "guardian_block_all_new_a_grade_entries",
+    "a_grade_predicate_counts",
+    "paper_a_grade_gate_burndown_status",
 )
 
 
@@ -509,10 +527,15 @@ def _compact_paper_runtime_response(value: Any, *, depth: int = 0) -> Any:
 
     compact: dict[str, Any] = {}
     items = list(value.items())
-    if depth == 0:
-        priority = [(key, value[key]) for key in PAPER_RUNTIME_RESPONSE_PRIORITY_KEYS if key in value]
-        priority_names = {key for key, _ in priority}
-        items = priority + [(key, item) for key, item in items if key not in priority_names]
+    priority = [
+        (key, value[key])
+        for key in PAPER_RUNTIME_RESPONSE_PRIORITY_KEYS
+        if key in value
+    ]
+    priority_names = {key for key, _ in priority}
+    items = priority + [
+        (key, item) for key, item in items if key not in priority_names
+    ]
     for index, (key, item) in enumerate(items):
         if index >= PAPER_RUNTIME_RESPONSE_DICT_LIMIT:
             compact["omitted_key_count"] = len(items) - PAPER_RUNTIME_RESPONSE_DICT_LIMIT
@@ -4515,9 +4538,25 @@ async def get_data_health() -> dict[str, Any]:
     status_set = {str(row.get("status")) for row in surfaces}
     core_ok = market_status == "ok" and signal_status in {"ok", "partial"} and portfolio_status in {"ok", "partial"}
     overall = "error" if "error" in status_set and not core_ok else "partial" if status_set & {"partial", "pending"} else "ok"
+    # Consolidated ingestor / provider-health roll-up (presence-based; read-only).
+    try:
+        ingestors_rollup = _ingestors_payload(get_redis())
+    except Exception:  # pragma: no cover - display convenience must never break data health
+        ingestors_rollup = {
+            "overall_status": "UNKNOWN",
+            "all_core_streams_present": False,
+            "stream_present": {},
+            "active_provider_count": 0,
+            "stale_provider_count": 0,
+        }
     return _base_response(
         endpoint=endpoint,
-        data={"overall": overall, "surfaces": surfaces, "count": len(surfaces)},
+        data={
+            "overall": overall,
+            "surfaces": surfaces,
+            "count": len(surfaces),
+            "ingestors": ingestors_rollup,
+        },
         source="v2_health_check",
         source_type="api",
         timestamp=_utc_now(),
@@ -6377,15 +6416,64 @@ async def get_account_summary(actor: UserRecord | None = Depends(optional_auth))
 @router.get("/live/readiness")
 async def get_live_readiness_summary(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
     endpoint = "/api/v2/live/readiness"
+    redis_client = get_redis()
     try:
         from app.services.live_readiness import derive_gates  # noqa: PLC0415
 
-        gates = derive_gates(get_redis())
+        gates = derive_gates(redis_client)
     except Exception as exc:
         gates = []
         warning = f"Live readiness gate derivation unavailable: {exc}"
     else:
         warning = "Live readiness gates are read-only and live remains blocked"
+    try:
+        from app.api.v2.control_center_status import (  # noqa: PLC0415
+            _current_a_grade_blocker_truth,
+        )
+
+        a_grade_blocker_truth = _current_a_grade_blocker_truth(redis_client)
+    except Exception:
+        a_grade_blocker_truth = {
+            "schema_version": "control_center_a_grade_blocker_truth_v1",
+            "status": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "available": False,
+            "primary_blocker": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "finding_ids": [],
+            "live_gate": "blocked_human_only",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+    a_grade_truth_status = str(a_grade_blocker_truth.get("status") or "")
+    current_a_grade_blocker = (
+        a_grade_blocker_truth.get("primary_blocker")
+        if a_grade_truth_status == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if not current_a_grade_blocker and a_grade_truth_status != "NO_ACTIVE_BLOCKER_DETECTED":
+        current_a_grade_blocker = a_grade_truth_status or "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    blocking_gates = [gate for gate in gates if gate.get("state") != "passed"]
+    blocker_ids = [
+        str(value)
+        for value in [
+            current_a_grade_blocker,
+            *(
+                a_grade_blocker_truth.get("finding_ids")
+                if isinstance(a_grade_blocker_truth.get("finding_ids"), list)
+                else []
+            ),
+            *[
+                gate.get("id") or gate.get("source_route_or_key")
+                for gate in blocking_gates
+            ],
+        ]
+        if value
+    ]
+    readiness_blockers = list(dict.fromkeys(blocker_ids))
     data = {
         "account_scope": "LIVE_BINANCE_SIGNED_ACCOUNT",
         "source_type": "live_readiness_read_only_gate",
@@ -6397,6 +6485,12 @@ async def get_live_readiness_summary(actor: UserRecord | None = Depends(optional
         "pnl_trusted": False,
         "reason_if_untrusted": "LIVE_SIGNED_ACCOUNT_EQUITY_NOT_MIXED_WITH_PAPER_POSITIONS",
         "live_gate": "blocked_human_only",
+        "live_ready": False if current_a_grade_blocker else not blocking_gates,
+        "live_submit_allowed": False,
+        "exact_no_live_reason": current_a_grade_blocker
+        or (str(blocking_gates[0].get("id")) if blocking_gates else None),
+        "readiness_blockers": readiness_blockers,
+        "a_grade_blocker_truth": a_grade_blocker_truth,
         "places_real_order": False,
         "routes_to_live": False,
         "gates": gates,
@@ -10559,6 +10653,24 @@ async def get_risk_status() -> dict[str, Any]:
     _resp["positive_edge_probation"] = positive_edge_probation_summary
     _resp["advanced_indicators"] = advanced_indicator_summary
     _resp["adaptive_hedge_cross_margin"] = adaptive_hedge_cross_margin
+    # Hedge-engine posture roll-up (read-only, on-demand per negative position; never orders).
+    try:
+        _hedge_block = _hedge_payload(get_redis())
+    except Exception:  # pragma: no cover - display convenience must never break risk status
+        _hedge_block = {
+            "schema_version": "enterprise_hedge_snapshot_v1",
+            "hedge_engine_active": True,
+            "open_position_count": 0,
+            "negative_position_count": 0,
+            "hedge_required_candidates": [],
+            "places_real_order": False,
+            "routes_to_live": False,
+        }
+    # Surface on both the outer envelope and the unwrapped `data` dict (the web/iOS
+    # realtime hook reads `raw.data`, so it must be present there too).
+    _resp["hedge"] = _hedge_block
+    if isinstance(_resp.get("data"), dict):
+        _resp["data"]["hedge"] = _hedge_block
     _resp["provider_readiness"] = provider_readiness
     _resp["positive_edge_probation_policy"] = positive_edge_probation_policy
     _resp["positive_edge_probation_runtime_status"] = positive_edge_probation_runtime_status
@@ -12350,6 +12462,205 @@ async def get_paper_runtime_status(
                 preemptive_rows = []
             first_preemptive = preemptive_rows[0] if preemptive_rows and isinstance(preemptive_rows[0], dict) else {}
             account = _runtime_canonical_paper_account(client)
+            runtime_admission_status = (
+                tm.get("paper_runtime_admission_status")
+                if isinstance(tm.get("paper_runtime_admission_status"), dict)
+                else {}
+            )
+            runtime_cost_capture_status = (
+                tm.get("paper_runtime_cost_capture_status")
+                if isinstance(tm.get("paper_runtime_cost_capture_status"), dict)
+                else {}
+            )
+            a_grade_gate_key = "v2:paper:a_grade_gate_burndown_status"
+            a_grade_gate_status = _read(a_grade_gate_key)
+            a_grade_gate_source = f"redis:{a_grade_gate_key}" if a_grade_gate_status else ""
+            if not a_grade_gate_status:
+                embedded_a_grade_gate = tm.get("paper_a_grade_gate_burndown_status")
+                if isinstance(embedded_a_grade_gate, dict):
+                    a_grade_gate_status = embedded_a_grade_gate
+                    a_grade_gate_source = (
+                        "redis:v2:paper:trade_management:status."
+                        "paper_a_grade_gate_burndown_status"
+                    )
+            a_grade_gate_status = (
+                _compact_paper_runtime_contract(a_grade_gate_status)
+                if a_grade_gate_status
+                else {
+                    "schema_version": "paper_a_grade_gate_burndown_status_v1",
+                    "status": "A_GRADE_GATE_BURNDOWN_STATUS_UNAVAILABLE",
+                    "available": False,
+                    "paper_only": True,
+                    "routes_to_live": False,
+                    "places_real_order": False,
+                    "A_grade_rows": 0,
+                    "a_grade_rows": 0,
+                    "near_A_grade_rows": 0,
+                    "near_a_grade_rows": 0,
+                    "source_tier_a_grade_execution_rows": 0,
+                    "predicate_counts": {},
+                    "generated_at": now,
+                }
+            )
+            a_grade_gate_status.setdefault(
+                "source", a_grade_gate_source or f"redis:{a_grade_gate_key}"
+            )
+            a_grade_gate_status.setdefault("available", bool(a_grade_gate_source))
+            a_grade_rows = (
+                _integer(a_grade_gate_status.get("A_grade_rows"))
+                if a_grade_gate_status.get("A_grade_rows") is not None
+                else _integer(a_grade_gate_status.get("a_grade_rows"))
+            ) or 0
+            near_a_grade_rows = (
+                _integer(a_grade_gate_status.get("near_A_grade_rows"))
+                if a_grade_gate_status.get("near_A_grade_rows") is not None
+                else _integer(a_grade_gate_status.get("near_a_grade_rows"))
+            ) or 0
+            source_tier_a_grade_execution_rows = (
+                _integer(a_grade_gate_status.get("source_tier_a_grade_execution_rows"))
+                if a_grade_gate_status.get("source_tier_a_grade_execution_rows") is not None
+                else _integer(
+                    a_grade_gate_status.get("source_tier_A_grade_execution_rows")
+                )
+            ) or 0
+            a_grade_gate_status["A_grade_rows"] = a_grade_rows
+            a_grade_gate_status["a_grade_rows"] = a_grade_rows
+            a_grade_gate_status["near_A_grade_rows"] = near_a_grade_rows
+            a_grade_gate_status["near_a_grade_rows"] = near_a_grade_rows
+            a_grade_gate_status["source_tier_a_grade_execution_rows"] = (
+                source_tier_a_grade_execution_rows
+            )
+            guardian_gate_status = (
+                a_grade_gate_status.get("guardian_gate_status")
+                if isinstance(a_grade_gate_status.get("guardian_gate_status"), dict)
+                else {}
+            )
+            if guardian_gate_status:
+                failure_reasons = guardian_gate_status.get("failure_reasons")
+                a_grade_gate_status.setdefault(
+                    "guardian_status", guardian_gate_status.get("status")
+                )
+                a_grade_gate_status.setdefault(
+                    "guardian_new_entries_allowed",
+                    guardian_gate_status.get("a_grade_new_entries_allowed"),
+                )
+                a_grade_gate_status.setdefault(
+                    "guardian_block_all_new_a_grade_entries",
+                    guardian_gate_status.get("block_all_new_a_grade_entries"),
+                )
+                a_grade_gate_status.setdefault(
+                    "guardian_failure_reason_count",
+                    len(failure_reasons) if isinstance(failure_reasons, list) else 0,
+                )
+            a_grade_predicates = (
+                a_grade_gate_status.get("predicate_counts")
+                if isinstance(a_grade_gate_status.get("predicate_counts"), dict)
+                else {}
+            )
+            if not isinstance(a_grade_gate_status.get("pass_conditions"), dict):
+                root_cause_counts = a_grade_gate_status.get("root_cause_counts")
+                root_cause_counts = (
+                    root_cause_counts if isinstance(root_cause_counts, dict) else {}
+                )
+                a_grade_gate_status["pass_conditions"] = {
+                    "A_grade_rows_gt_zero": a_grade_rows > 0,
+                    "source_owned_zero_supply_root_cause_mapped": bool(
+                        a_grade_gate_status.get("closest_gap_reason")
+                        or root_cause_counts
+                    ),
+                    "a_grade_new_entries_allowed": (
+                        a_grade_gate_status.get("guardian_new_entries_allowed") is True
+                    ),
+                    "ready_allowed": False,
+                }
+            def _first_runtime_integer(*values: Any, default: int = 0) -> int:
+                for value in values:
+                    parsed = _integer(value)
+                    if parsed is not None:
+                        return parsed
+                return default
+
+            intent_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("paper_intent_rows"),
+                runtime_admission_status.get("intents_built"),
+                a_grade_gate_status.get("prediction_rows"),
+            )
+            order_applicable_rows = _integer(
+                runtime_cost_capture_status.get("order_cost_applicable_rows")
+            )
+            if order_applicable_rows is None:
+                order_applicable_rows = intent_rows
+            production_grade_cost_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("production_grade_cost_rows"),
+                a_grade_gate_status.get("production_grade_cost_rows"),
+                a_grade_predicates.get("production_grade_cost_rows"),
+            )
+            production_grade_cost_order_applicable_rows = _integer(
+                runtime_cost_capture_status.get(
+                    "production_grade_cost_order_applicable_rows"
+                )
+            )
+            if production_grade_cost_order_applicable_rows is None:
+                production_grade_cost_order_applicable_rows = min(
+                    production_grade_cost_rows,
+                    order_applicable_rows,
+                )
+            total_row_cost_coverage = _float(
+                runtime_cost_capture_status.get(
+                    "production_grade_cost_total_row_coverage"
+                )
+            )
+            if total_row_cost_coverage is None:
+                total_row_cost_coverage = (
+                    production_grade_cost_rows / intent_rows if intent_rows else 0.0
+                )
+            cost_coverage = _float(
+                runtime_cost_capture_status.get("production_grade_cost_coverage")
+            )
+            if cost_coverage is None:
+                cost_coverage = (
+                    production_grade_cost_order_applicable_rows / order_applicable_rows
+                    if order_applicable_rows
+                    else 0.0
+                )
+            cost_coverage_basis = str(
+                runtime_cost_capture_status.get(
+                    "production_grade_cost_coverage_basis"
+                )
+                or ""
+            )
+            if (
+                order_applicable_rows == 0
+                and intent_rows > 0
+                and total_row_cost_coverage > cost_coverage
+            ):
+                cost_coverage = total_row_cost_coverage
+                cost_coverage_basis = (
+                    "all_intent_rows_no_order_applicable_api_repaired"
+                )
+            elif order_applicable_rows == 0 and intent_rows > 0:
+                cost_coverage_basis = "all_intent_rows_no_order_applicable"
+            elif not cost_coverage_basis:
+                cost_coverage_basis = "order_applicable_rows"
+            no_order_explained_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("no_order_explained_rows")
+            )
+            unexplained_missing_cost_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("unexplained_missing_cost_rows")
+            )
+            no_order_missing_cost_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("no_order_missing_cost_rows")
+            )
+            paper_fill_allowed_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("paper_fill_allowed_rows"),
+                runtime_admission_status.get("accepted_count"),
+            )
+            routes_to_live_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("routes_to_live_rows")
+            )
+            places_real_order_rows = _first_runtime_integer(
+                runtime_cost_capture_status.get("places_real_order_rows")
+            )
             runtime_state = "PAPER_RUNTIME_ONLINE_ACTIVE" if heartbeat_fresh else "PAPER_RUNTIME_STALE_HEARTBEAT"
             blockers: list[dict[str, Any]] = []
             if probation_candidates <= 0:
@@ -12365,6 +12676,41 @@ async def get_paper_runtime_status(
                     "severity": "runtime_blocker",
                     "detail": "Paper new entries are currently frozen by runtime gate.",
                     "source": "redis:v2:paper:entry_freeze",
+                })
+            if a_grade_rows <= 0:
+                a_grade_blocker = {
+                    "id": "A_GRADE_SUPPLY_ZERO",
+                    "severity": "runtime_blocker",
+                    "detail": "No strict A-grade paper rows are currently available.",
+                    "source": a_grade_gate_status.get("source"),
+                    "status": a_grade_gate_status.get(
+                        "status",
+                        "A_GRADE_GATE_STATUS_UNAVAILABLE",
+                    ),
+                    "guardian_status": a_grade_gate_status.get("guardian_status"),
+                    "guardian_new_entries_allowed": a_grade_gate_status.get(
+                        "guardian_new_entries_allowed"
+                    ),
+                }
+                for field in (
+                    "A_grade_rows",
+                    "a_grade_rows",
+                    "near_A_grade_rows",
+                    "near_a_grade_rows",
+                    "closest_gap_reason",
+                    "predicate_counts",
+                    "root_cause_counts",
+                    "dominant_current_runtime_reasons",
+                    "source_rows",
+                    "guardian_block_all_new_a_grade_entries",
+                    "guardian_failure_reason_count",
+                    "source_tier_a_grade_execution_rows",
+                    "pass_conditions",
+                ):
+                    if field in a_grade_gate_status:
+                        a_grade_blocker[field] = a_grade_gate_status[field]
+                blockers.append({
+                    **a_grade_blocker,
                 })
             return {
                 "schema_version": "paper_runtime_status_primary_v1",
@@ -12486,6 +12832,34 @@ async def get_paper_runtime_status(
                         or hb.get("persistent_accepted_fill_count")
                         or hb.get("accepted_count")
                     ) or 0,
+                    "order_cost_applicable_rows": order_applicable_rows,
+                    "production_grade_cost_rows": production_grade_cost_rows,
+                    "production_grade_cost_order_applicable_rows": (
+                        production_grade_cost_order_applicable_rows
+                    ),
+                    "production_grade_cost_coverage": cost_coverage,
+                    "production_grade_cost_coverage_basis": cost_coverage_basis,
+                    "production_grade_cost_total_row_coverage": total_row_cost_coverage,
+                    "no_order_explained_rows": no_order_explained_rows,
+                    "unexplained_missing_cost_rows": unexplained_missing_cost_rows,
+                    "no_order_missing_cost_rows": no_order_missing_cost_rows,
+                    "paper_fill_allowed_rows": paper_fill_allowed_rows,
+                    "routes_to_live_rows": routes_to_live_rows,
+                    "places_real_order_rows": places_real_order_rows,
+                    "a_grade_rows": a_grade_rows,
+                    "near_a_grade_rows": near_a_grade_rows,
+                    "source_tier_a_grade_execution_rows": (
+                        source_tier_a_grade_execution_rows
+                    ),
+                    "guardian_status": a_grade_gate_status.get("guardian_status"),
+                    "guardian_new_entries_allowed": a_grade_gate_status.get(
+                        "guardian_new_entries_allowed"
+                    ),
+                    "guardian_block_all_new_a_grade_entries": (
+                        a_grade_gate_status.get("guardian_block_all_new_a_grade_entries")
+                    ),
+                    "a_grade_predicate_counts": a_grade_predicates,
+                    "paper_a_grade_gate_burndown_status": a_grade_gate_status,
                     "preemptive_edge_control_status": preemptive_status,
                     "preemptive_candidate_decision_matrix": preemptive_matrix,
                     "positive_edge_probation": probation_runtime,

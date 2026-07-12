@@ -50,6 +50,9 @@ struct RiskControlView: View {
                 riskClassificationCard(risk)
                 limitsCard(risk)
                 gateStatsCard(risk)
+                if let hedge = risk.hedge {
+                    hedgeCard(hedge)
+                }
                 dangerousActionsNote(risk)
             }
             .padding(16)
@@ -185,6 +188,58 @@ struct RiskControlView: View {
             }
         }
         .nerVyxCard()
+    }
+
+    private func hedgeCard(_ hedge: MobileHedgeSnapshot) -> some View {
+        let needsHedge = (hedge.negative_position_count ?? 0) > 0
+        let accent = needsHedge ? NerVyx.warning : NerVyx.validation
+        return VStack(spacing: 10) {
+            SectionHeader(title: "Hedge Engine Posture", accent: accent)
+            HStack(spacing: 10) {
+                NerVyxStatCard(
+                    label: "OPEN",
+                    value: "\(hedge.open_position_count ?? 0)",
+                    valueColor: NerVyx.textPrimary,
+                    accent: NerVyx.signal
+                )
+                NerVyxStatCard(
+                    label: "NEED HEDGE",
+                    value: "\(hedge.negative_position_count ?? 0)",
+                    valueColor: needsHedge ? NerVyx.warning : NerVyx.validation,
+                    accent: accent
+                )
+            }
+            DataRow(
+                label: "Engine",
+                value: hedge.hedge_engine_active == false ? "INACTIVE" : "ACTIVE",
+                valueColor: hedge.hedge_engine_active == false ? NerVyx.sell : NerVyx.validation
+            )
+            DataRow(
+                label: "Eval mode",
+                value: (hedge.hedge_evaluation_mode ?? "on_demand").replacingOccurrences(of: "_", with: " ")
+            )
+            if let buffer = hedge.portfolio_liquidation_buffer_usd {
+                DataRow(label: "Liq. buffer", value: String(format: "$%g", buffer), mono: true)
+            }
+            DataRow(
+                label: "Cross-margin",
+                value: (hedge.cross_margin_model ?? "portfolio_level").replacingOccurrences(of: "_", with: " ")
+            )
+            ForEach(Array((hedge.hedge_required_candidates ?? []).prefix(5).enumerated()), id: \.offset) { _, c in
+                DataRow(
+                    label: "\(c.symbol ?? "—") \((c.side ?? "").uppercased())",
+                    value: c.unrealized_pnl_usd.map { String(format: "$%.2f", $0) } ?? "—",
+                    valueColor: (c.unrealized_pnl_usd ?? 0) < 0 ? NerVyx.sell : NerVyx.validation,
+                    mono: true
+                )
+            }
+            DataRow(
+                label: "Exchange route",
+                value: (hedge.places_real_order ?? false) ? "PLACES ORDER" : "no live order",
+                valueColor: (hedge.places_real_order ?? false) ? NerVyx.sell : NerVyx.validation
+            )
+        }
+        .nerVyxCard(accent: accent.opacity(0.3))
     }
 
     private func dangerousActionsNote(_ risk: MobileRiskStatus) -> some View {

@@ -16,6 +16,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.api.v2._common import get_redis
+from app.api.v2.control_center_status import _current_a_grade_blocker_truth
 from app.services.live_readiness import derive_gates
 
 router = APIRouter(prefix="/live-readiness", tags=["v2-landing"])
@@ -107,11 +108,45 @@ def _preemptive_live_readiness_context(r: Any) -> dict[str, Any]:
     }
 
 
+def _dedupe_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        key = str(value)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
 def _live_readiness_payload() -> dict[str, Any]:
     r = get_redis()
     gates = derive_gates(r)
     blocking = [gate for gate in gates if gate.get("state") != "passed"]
     preemptive = _preemptive_live_readiness_context(r)
+    a_grade_blocker_truth = _current_a_grade_blocker_truth(r)
+    truth_finding_ids = a_grade_blocker_truth.get("finding_ids")
+    if not isinstance(truth_finding_ids, list):
+        truth_finding_ids = []
+    a_grade_truth_status = str(a_grade_blocker_truth.get("status") or "")
+    current_a_grade_blocker = (
+        a_grade_blocker_truth.get("primary_blocker")
+        if a_grade_truth_status == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if not current_a_grade_blocker and a_grade_truth_status != "NO_ACTIVE_BLOCKER_DETECTED":
+        current_a_grade_blocker = a_grade_truth_status or "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    blocking_gate_ids = [
+        gate.get("id") or gate.get("source_route_or_key")
+        for gate in blocking
+        if isinstance(gate, dict)
+    ]
+    readiness_blockers = _dedupe_strings(
+        [current_a_grade_blocker, *truth_finding_ids, *blocking_gate_ids]
+    )
     ts = _utc_now()
     return {
         "data": {
@@ -119,9 +154,14 @@ def _live_readiness_payload() -> dict[str, Any]:
             "gate_count": len(gates),
             "passed_gate_count": len(gates) - len(blocking),
             "blocking_gates": blocking,
-            "live_ready": not blocking,
+            "live_ready": not blocking
+            and a_grade_truth_status == "NO_ACTIVE_BLOCKER_DETECTED",
             "live_submit_allowed": False,
             "live_gate": "blocked_human_only",
+            "exact_no_live_reason": current_a_grade_blocker
+            or (str(blocking_gate_ids[0]) if blocking_gate_ids else None),
+            "readiness_blockers": readiness_blockers,
+            "a_grade_blocker_truth": a_grade_blocker_truth,
             "requires_human_approval_key": "audit:live_enable:last_approval_id",
             "preemptive_edge_control": preemptive,
             "live_dry_run_preemptive_policy": {

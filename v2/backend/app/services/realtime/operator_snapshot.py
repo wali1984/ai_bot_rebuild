@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -608,20 +609,14 @@ def _markets_payload(client: Any) -> dict[str, Any]:
 def _ingestors_payload(client: Any) -> dict[str, Any]:
     """Consolidated ingestor / provider health roll-up (read-only, lightweight).
 
-    Presence-based per data stream (first-match scan, O(1)) plus per-provider
-    health from v2:provider:*:health. Gives one place to see whether market data
-    is flowing and which providers are stale.
+    Provider health is read by KNOWN name (``PROVIDER_NAMES``) via direct GETs —
+    never a ``scan_iter(match="v2:provider:*:health")`` enumeration, which on a
+    large keyspace (millions of keys) must exhaust the cursor to collect the ~15
+    sparse provider keys and can take tens of seconds. Per-stream presence is
+    short-circuited from provider health first (O(1)); a bounded first-match scan
+    is only a fallback when the mapped provider is not reporting healthy, so an
+    absent stream can never trigger a full-keyspace scan on the hot path.
     """
-    def _present(pattern: str) -> bool:
-        if client is None:
-            return False
-        try:
-            for _ in client.scan_iter(match=pattern, count=64):
-                return True
-        except Exception:
-            return False
-        return False
-
     def _age_s(ts: Any) -> float | None:
         if not ts:
             return None
@@ -633,38 +628,70 @@ def _ingestors_payload(client: Any) -> dict[str, Any]:
         except Exception:
             return None
 
-    streams = {
-        "candles": _present("v2:market:kline*") or _present("v2:market:ohlcv*"),
-        "orderbook_features": _present("v2:orderbook:features:*"),
-        "trade_tape": _present("v2:market:trade_tape_features:*"),
-        "funding_oi": _present("v2:*funding*") or _present("v2:*coinank*"),
-        "liquidation_levels": _present("v2:liquidations:levels:*"),
-        "ta_full": _present("v2:features:ta_full:*"),
-        "feature_snapshots": _present("v2:features:snapshot:*"),
-    }
+    # ── Provider health: direct reads over the known registry (O(providers)). ──
     provider_health: dict[str, Any] = {}
     stale_providers: list[str] = []
+    provider_active: dict[str, bool] = {}
     if client is not None:
+        for name in PROVIDER_NAMES:
+            payload = _read_json(client, f"v2:provider:{name}:health")
+            if not isinstance(payload, dict):
+                continue
+            age = _age_s(payload.get("generated_utc") or payload.get("generated_at"))
+            status = payload.get("status")
+            provider_health[name] = {
+                "status": status,
+                "age_seconds": round(age, 1) if age is not None else None,
+                "freshness": _freshness_status(age),
+            }
+            stale = age is not None and age > 900
+            if stale:
+                stale_providers.append(name)
+            provider_active[name] = (
+                str(status or "").upper() in {"ACTIVE", "OK", "HEALTHY", "LIVE_OK"} and not stale
+            )
+
+    def _present(pattern: str, deadline_s: float = 0.35) -> bool:
+        # Wall-clock-bounded first-match scan; only reached when the mapped
+        # provider is not reporting healthy. A present (dense) stream hits on the
+        # first round; an absent/sparse pattern can NEVER run away into a full
+        # keyspace scan (which on a millions-of-keys Redis costs tens of seconds).
+        if client is None:
+            return False
+        scan = getattr(client, "scan", None)
         try:
-            for key in client.scan_iter(match="v2:provider:*:health", count=256):
-                payload = _read_json(client, key)
-                if not isinstance(payload, dict):
-                    continue
-                parts = key.split(":")
-                name = parts[2] if len(parts) > 2 else key
-                age = _age_s(payload.get("generated_utc") or payload.get("generated_at"))
-                status = payload.get("status")
-                provider_health[name] = {
-                    "status": status,
-                    "age_seconds": round(age, 1) if age is not None else None,
-                    "freshness": _freshness_status(age),
-                }
-                if age is not None and age > 900:
-                    stale_providers.append(name)
-                if len(provider_health) >= 40:
-                    break
+            if callable(scan):
+                cursor = 0
+                start = time.monotonic()
+                while True:
+                    cursor, keys = scan(cursor=cursor, match=pattern, count=2048)
+                    if keys:
+                        return True
+                    if int(cursor) == 0 or (time.monotonic() - start) > deadline_s:
+                        return False
+            # Fallback for test doubles without .scan (small keyspaces only).
+            for _ in client.scan_iter(match=pattern, count=512):
+                return True
+            return False
         except Exception:
-            pass
+            return False
+
+    def _stream(provider: str | None, *patterns: str) -> bool:
+        if provider is not None and provider_active.get(provider):
+            return True
+        return any(_present(p) for p in patterns)
+
+    streams = {
+        "candles": _stream("binance", "v2:market:kline*", "v2:market:ohlcv*"),
+        "orderbook_features": _stream("orderbook", "v2:orderbook:features:*"),
+        "trade_tape": _stream("binance", "v2:market:trade_tape_features:*"),
+        # Funding/OI: cheapest-hitting pattern first; coinank is a common source
+        # but the direct funding keys are authoritative, so probe those first.
+        "funding_oi": _stream("coinank", "v2:*funding*", "v2:coinank:funding*"),
+        "liquidation_levels": _stream("liquidations", "v2:liquidations:levels:*"),
+        "ta_full": _stream("ta", "v2:features:ta_full:*"),
+        "feature_snapshots": _stream("feature_snapshot_builder", "v2:features:snapshot:*"),
+    }
 
     critical_present = streams["candles"] and streams["ta_full"] and streams["feature_snapshots"]
     if not critical_present:
@@ -680,9 +707,7 @@ def _ingestors_payload(client: Any) -> dict[str, Any]:
         "all_core_streams_present": bool(critical_present),
         "provider_health": provider_health,
         "provider_count": len(provider_health),
-        "active_provider_count": sum(
-            1 for p in provider_health.values() if str(p.get("status") or "").upper() == "ACTIVE"
-        ),
+        "active_provider_count": sum(1 for active in provider_active.values() if active),
         "stale_provider_count": len(stale_providers),
         "stale_providers": stale_providers,
         "paper_only": True,

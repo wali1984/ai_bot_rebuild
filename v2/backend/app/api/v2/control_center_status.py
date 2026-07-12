@@ -21,6 +21,19 @@ router = APIRouter(tags=["v2-control-center-status"])
 
 DISPLAY_TZ = ZoneInfo("America/New_York")
 PREVIEW_LIMIT = 25
+TRAINER_HYBRID_CUDA_STATUS_KEY = "v2:trainer:hybrid_cuda:status"
+A_GRADE_GATE_BURNDOWN_STATUS_KEY = "v2:paper:a_grade_gate_burndown_status"
+PREEMPTIVE_EDGE_CONTROL_STATUS_KEY = "v2:paper:preemptive_edge_control_status"
+PREEMPTIVE_CANDIDATE_DECISION_MATRIX_KEY = (
+    "v2:paper:preemptive_candidate_decision_matrix"
+)
+PAPER_EXPLORATION_SUPPLY_STATUS_KEY = "v2:paper:exploration:supply_status"
+PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY = (
+    "v2:paper:exploration:materialization_queue_status"
+)
+CONTINUOUS_EDGE_GUARDIAN_EXECUTION_GATE_KEY = (
+    "v2:continuous_edge_guardian:a_grade_execution_gate"
+)
 
 
 def _utc_now() -> str:
@@ -57,6 +70,367 @@ def _first(*values: Any) -> Any:
         if value is not None:
             return value
     return None
+
+
+def _float_or_none(value: Any) -> float | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed:
+        return None
+    return parsed
+
+
+def _int_or_zero(value: Any) -> int:
+    parsed = _float_or_none(value)
+    return int(parsed) if parsed is not None else 0
+
+
+def _distribution(values: list[float]) -> dict[str, Any] | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    return {
+        "count": len(ordered),
+        "min": ordered[0],
+        "p50": ordered[len(ordered) // 2],
+        "p90": ordered[int((len(ordered) - 1) * 0.9)],
+        "max": ordered[-1],
+    }
+
+
+def _preemptive_matrix_rows(matrix: Mapping[str, Any]) -> list[dict[str, Any]]:
+    rows = matrix.get("rows")
+    if not isinstance(rows, list):
+        return []
+    return [row for row in rows if isinstance(row, dict)]
+
+
+def _preemptive_matrix_diagnostics(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    reason_counts: dict[str, int] = {}
+    loss_probabilities: list[float] = []
+    profit_factors: list[float] = []
+    after_cost_edges: list[float] = []
+    for row in rows:
+        for key in (
+            "block_reasons",
+            "preemptive_block_reasons",
+            "paper_exploration_paper_fill_block_reasons",
+            "reasons",
+        ):
+            reasons = row.get(key)
+            if isinstance(reasons, list):
+                for reason in reasons:
+                    if reason:
+                        reason_key = str(reason)
+                        reason_counts[reason_key] = (
+                            reason_counts.get(reason_key, 0) + 1
+                        )
+        for key in ("pre_trade_loss_probability", "loss_probability"):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                loss_probabilities.append(parsed)
+                break
+        for key in (
+            "recent_bucket_profit_factor",
+            "bucket_profit_factor",
+            "profit_factor",
+        ):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                profit_factors.append(parsed)
+                break
+        for key in (
+            "expected_edge_after_cost_bps",
+            "edge_after_cost_bps",
+            "expected_net_edge_bps",
+        ):
+            parsed = _float_or_none(row.get(key))
+            if parsed is not None:
+                after_cost_edges.append(parsed)
+                break
+    return {
+        "row_count": len(rows),
+        "top_block_reasons": [
+            {"reason": reason, "count": count}
+            for reason, count in sorted(
+                reason_counts.items(),
+                key=lambda item: (-item[1], item[0]),
+            )[:20]
+        ],
+        "loss_probability": _distribution(loss_probabilities),
+        "bucket_profit_factor": _distribution(profit_factors),
+        "expected_edge_after_cost_bps": _distribution(after_cost_edges),
+    }
+
+
+def _finding_ids(findings: list[Mapping[str, Any]]) -> list[str]:
+    return [str(finding["id"]) for finding in findings if finding.get("id")]
+
+
+def _dedupe_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        key = str(value)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def _primary_a_grade_blocker(finding_ids: list[str]) -> str | None:
+    for blocker in (
+        "A_GRADE_SUPPLY_ZERO",
+        "GUARDIAN_HALTED_PERFORMANCE",
+        "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH",
+        "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES",
+        "TRAIN_VAL_GENERALIZATION_GAP_HIGH",
+        "PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED",
+        "BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD",
+    ):
+        if blocker in finding_ids:
+            return blocker
+    return finding_ids[0] if finding_ids else None
+
+
+def _current_a_grade_blocker_truth(client: Any) -> dict[str, Any]:
+    """Compose current A-grade blockers from runtime Redis truth.
+
+    This is a read-only operator surface helper. It does not lower gates, count
+    exploration rows as A+, or infer live readiness from partial evidence.
+    """
+    trainer_status = _read_json(client, TRAINER_HYBRID_CUDA_STATUS_KEY)
+    a_grade_status = _read_json(client, A_GRADE_GATE_BURNDOWN_STATUS_KEY)
+    preemptive_status = _read_json(client, PREEMPTIVE_EDGE_CONTROL_STATUS_KEY)
+    preemptive_matrix = _read_json(client, PREEMPTIVE_CANDIDATE_DECISION_MATRIX_KEY)
+    paper_supply = _read_json(client, PAPER_EXPLORATION_SUPPLY_STATUS_KEY)
+    paper_queue = _read_json(client, PAPER_EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY)
+    guardian_gate = _read_json(client, CONTINUOUS_EDGE_GUARDIAN_EXECUTION_GATE_KEY)
+    available = any(
+        bool(payload)
+        for payload in (
+            trainer_status,
+            a_grade_status,
+            preemptive_status,
+            preemptive_matrix,
+            paper_supply,
+            paper_queue,
+            guardian_gate,
+        )
+    )
+
+    rows = _preemptive_matrix_rows(preemptive_matrix)
+    preemptive = _preemptive_matrix_diagnostics(rows)
+    loss_stats = preemptive.get("loss_probability") or {}
+    pf_stats = preemptive.get("bucket_profit_factor") or {}
+    learning_metrics = (
+        trainer_status.get("learning_metrics")
+        if isinstance(trainer_status.get("learning_metrics"), dict)
+        else {}
+    )
+    ppo_entropy = _float_or_none(learning_metrics.get("ppo_entropy"))
+    validation_gap = _float_or_none(
+        learning_metrics.get("train_val_generalization_gap")
+    )
+    validation_loss = _float_or_none(
+        learning_metrics.get("validation_supervised_loss")
+    )
+    loss_after = _float_or_none(learning_metrics.get("loss_after"))
+    a_grade_rows = _int_or_zero(
+        _first(
+            a_grade_status.get("A_grade_rows"),
+            a_grade_status.get("a_grade_rows"),
+        )
+    )
+    near_a_grade_rows = _int_or_zero(
+        _first(
+            a_grade_status.get("near_A_grade_rows"),
+            a_grade_status.get("near_a_grade_rows"),
+        )
+    )
+    paper_fill_allowed_rows = _int_or_zero(
+        _first(
+            a_grade_status.get("paper_fill_allowed_rows"),
+            preemptive_status.get("accepted_count"),
+        )
+    )
+    materialized_positions = _int_or_zero(
+        _first(
+            paper_queue.get("same_cycle_materialized_count"),
+            paper_supply.get("materialized_positions_last_cycle"),
+        )
+    )
+    guardian_status = str(
+        _first(
+            guardian_gate.get("status"),
+            guardian_gate.get("state"),
+            a_grade_status.get("guardian_status"),
+            paper_queue.get("guardian_status"),
+            paper_queue.get("continuous_edge_guardian_status"),
+        )
+        or ""
+    )
+    guardian_allows_entries = _first(
+        guardian_gate.get("a_grade_new_entries_allowed"),
+        guardian_gate.get("new_entries_allowed"),
+        a_grade_status.get("guardian_new_entries_allowed"),
+        paper_queue.get("guardian_new_entries_allowed"),
+        paper_queue.get("continuous_edge_guardian_new_entries_allowed"),
+    )
+
+    findings: list[dict[str, Any]] = []
+    if ppo_entropy is not None and ppo_entropy >= 0.8:
+        findings.append(
+            {
+                "id": "PPO_ENTROPY_HIGH_POLICY_NOT_CONVERGED",
+                "severity": "learning_blocker",
+                "observed": ppo_entropy,
+                "code_defect": False,
+            }
+        )
+    if validation_gap is not None and validation_gap > 1.0:
+        findings.append(
+            {
+                "id": "TRAIN_VAL_GENERALIZATION_GAP_HIGH",
+                "severity": "learning_blocker",
+                "observed": validation_gap,
+                "validation_supervised_loss": validation_loss,
+                "loss_after": loss_after,
+                "code_defect": False,
+            }
+        )
+    if (loss_stats.get("p50") or 0.0) >= 0.8:
+        findings.append(
+            {
+                "id": "PREEMPTIVE_LOSS_PROBABILITY_TOO_HIGH",
+                "severity": "paper_gate_blocker",
+                "observed_p50": loss_stats.get("p50"),
+                "observed_p90": loss_stats.get("p90"),
+                "code_defect": False,
+            }
+        )
+    if pf_stats and (pf_stats.get("p90") or 0.0) < 2.0:
+        findings.append(
+            {
+                "id": "BUCKET_PROFIT_FACTOR_BELOW_A_GRADE_STANDARD",
+                "severity": "economic_blocker",
+                "observed_p50": pf_stats.get("p50"),
+                "observed_p90": pf_stats.get("p90"),
+                "required": 2.0,
+                "code_defect": False,
+            }
+        )
+    if a_grade_status and a_grade_rows <= 0:
+        findings.append(
+            {
+                "id": "A_GRADE_SUPPLY_ZERO",
+                "severity": "a_grade_blocker",
+                "observed": a_grade_rows,
+                "near_a_grade_rows": near_a_grade_rows,
+                "code_defect": False,
+            }
+        )
+    if (paper_queue or paper_supply or preemptive_status) and (
+        materialized_positions <= 0 or paper_fill_allowed_rows <= 0
+    ):
+        findings.append(
+            {
+                "id": "PAPER_OUTCOME_FEEDER_STARVED_BY_TRUE_GATES",
+                "severity": "learning_data_blocker",
+                "materialized_positions": materialized_positions,
+                "paper_fill_allowed_rows": paper_fill_allowed_rows,
+                "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+                "code_defect": False,
+            }
+        )
+    if (
+        guardian_status.upper() == "A_GRADE_HALTED_PERFORMANCE"
+        or guardian_allows_entries is False
+    ):
+        findings.append(
+            {
+                "id": "GUARDIAN_HALTED_PERFORMANCE",
+                "severity": "a_grade_blocker",
+                "guardian_status": guardian_status or None,
+                "guardian_new_entries_allowed": guardian_allows_entries,
+                "code_defect": False,
+            }
+        )
+
+    ids = _finding_ids(findings)
+    return {
+        "schema_version": "control_center_a_grade_blocker_truth_v1",
+        "generated_utc": _utc_now(),
+        "available": available,
+        "status": (
+            "A_GRADE_ADAPTATION_NOT_PROVEN"
+            if findings
+            else "NO_ACTIVE_BLOCKER_DETECTED"
+            if available
+            else "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+        ),
+        "primary_blocker": _primary_a_grade_blocker(ids),
+        "finding_ids": ids,
+        "findings": findings,
+        "trainer": {
+            "online_learning_status": trainer_status.get("online_learning_status"),
+            "effective_trainer_mode": trainer_status.get("effective_trainer_mode"),
+            "ppo_entropy": ppo_entropy,
+            "train_val_generalization_gap": validation_gap,
+            "validation_supervised_loss": validation_loss,
+            "loss_after": loss_after,
+        },
+        "a_grade": {
+            "A_grade_rows": a_grade_rows,
+            "near_A_grade_rows": near_a_grade_rows,
+            "status": a_grade_status.get("status"),
+            "closest_gap_reason": a_grade_status.get("closest_gap_reason"),
+            "guardian_status": guardian_status or None,
+            "guardian_new_entries_allowed": guardian_allows_entries,
+        },
+        "preemptive": {
+            "candidate_count": preemptive_status.get("candidate_count"),
+            "accepted_count": preemptive_status.get("accepted_count"),
+            **preemptive,
+        },
+        "paper_learning_feeder": {
+            "fresh_strategy_supply_rows": paper_supply.get("fresh_strategy_supply_rows"),
+            "fresh_exploration_candidates": paper_supply.get(
+                "fresh_exploration_candidates"
+            ),
+            "materialized_positions_last_cycle": paper_supply.get(
+                "materialized_positions_last_cycle"
+            ),
+            "queued_count": paper_queue.get("queued_count"),
+            "active_count": paper_queue.get("active_count"),
+            "same_cycle_materialized_count": paper_queue.get(
+                "same_cycle_materialized_count"
+            ),
+            "rejected_after_queue_count": paper_queue.get("rejected_after_queue_count"),
+            "exact_no_fill_reason": paper_queue.get("exact_no_fill_reason"),
+        },
+        "forbidden_shortcuts_refused": [
+            "lowering A-grade, holdout, profit-factor, or live gates",
+            "counting exploration/probation rows as A+ or live-ready",
+            "fabricating paper closes, test orders, or live orders",
+            "disabling guardian/risk gates to create cosmetic evidence",
+        ],
+        "live_gate": "blocked_human_only",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+    }
 
 
 def _a_plus_blocker_summary(
@@ -230,13 +604,45 @@ async def get_provider_status() -> dict[str, Any]:
 async def get_live_canary_status() -> dict[str, Any]:
     client = get_redis()
     payload = _read_json(client, "v2:live_canary:status")
+    a_grade_blocker_truth = _current_a_grade_blocker_truth(client)
+    truth_finding_ids = a_grade_blocker_truth.get("finding_ids")
+    if not isinstance(truth_finding_ids, list):
+        truth_finding_ids = []
+    legacy_why_none = _first(
+        payload.get("why_none"), payload.get("live_blocker"), payload.get("go_no_go")
+    )
+    current_a_grade_blocker = (
+        a_grade_blocker_truth.get("primary_blocker")
+        if a_grade_blocker_truth.get("status") == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    why_none = current_a_grade_blocker or legacy_why_none
     data = {
         "generated_utc": payload.get("generated_utc"),
         "status_payload": payload,
-        "selected_a_plus_candidate": _first(payload.get("selected_a_plus_candidate"), payload.get("active_candidate")),
-        "why_none": _first(payload.get("why_none"), payload.get("live_blocker"), payload.get("go_no_go")),
+        "selected_a_plus_candidate": _first(
+            payload.get("selected_a_plus_candidate"),
+            payload.get("active_candidate"),
+        ),
+        "why_none": why_none,
+        "legacy_why_none": legacy_why_none,
+        "why_none_detail": truth_finding_ids if current_a_grade_blocker else [],
+        "a_grade_blocker_truth": a_grade_blocker_truth,
+        "a_plus_candidates": (
+            0 if current_a_grade_blocker else payload.get("a_plus_candidates", 0)
+        ),
+        "live_ready_candidates": (
+            0
+            if current_a_grade_blocker
+            else payload.get("live_ready_candidates", 0)
+        ),
         "dry_run": payload.get("dry_run", True),
         "operator_approval_required": True,
+        "live_gate": "blocked_human_only",
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
         "order_builder_dry_run": {
             "available": bool(payload),
             "post_only_maker_first": payload.get("post_only_maker_first"),
@@ -265,8 +671,14 @@ async def get_live_canary_status() -> dict[str, Any]:
 async def get_a_plus_inventory() -> dict[str, Any]:
     client = get_redis()
     payload = _read_json(client, "v2:paper:a_plus_gate:status")
-    rows = payload.get("candidate_matrix") if isinstance(payload.get("candidate_matrix"), list) else []
-    a_plus_rows = [row for row in rows if isinstance(row, dict) and row.get("a_plus") is True]
+    rows = (
+        payload.get("candidate_matrix")
+        if isinstance(payload.get("candidate_matrix"), list)
+        else []
+    )
+    a_plus_rows = [
+        row for row in rows if isinstance(row, dict) and row.get("a_plus") is True
+    ]
     live_ready_rows = [
         row for row in rows if isinstance(row, dict) and row.get("live_ready") is True
     ]
@@ -275,6 +687,23 @@ async def get_a_plus_inventory() -> dict[str, Any]:
         rows,
         a_plus_count=len(a_plus_rows),
     )
+    legacy_exact_no_a_plus_reason = exact_no_a_plus_reason
+    legacy_top_a_plus_blockers = list(top_a_plus_blockers)
+    a_grade_blocker_truth = _current_a_grade_blocker_truth(client)
+    truth_finding_ids = a_grade_blocker_truth.get("finding_ids")
+    if not isinstance(truth_finding_ids, list):
+        truth_finding_ids = []
+    current_a_grade_blocker = (
+        a_grade_blocker_truth.get("primary_blocker")
+        if len(a_plus_rows) <= 0
+        and a_grade_blocker_truth.get("status") == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if current_a_grade_blocker:
+        exact_no_a_plus_reason = str(current_a_grade_blocker)
+        top_a_plus_blockers = _dedupe_strings(
+            [current_a_grade_blocker, *truth_finding_ids, *legacy_top_a_plus_blockers]
+        )[:12]
     data = {
         "schema_version": payload.get("schema_version"),
         "generated_utc": payload.get("generated_utc"),
@@ -284,6 +713,9 @@ async def get_a_plus_inventory() -> dict[str, Any]:
         "live_ready_rows": len(live_ready_rows),
         "exact_no_a_plus_reason": exact_no_a_plus_reason,
         "top_a_plus_blockers": top_a_plus_blockers,
+        "legacy_exact_no_a_plus_reason": legacy_exact_no_a_plus_reason,
+        "legacy_top_a_plus_blockers": legacy_top_a_plus_blockers,
+        "a_grade_blocker_truth": a_grade_blocker_truth,
         "counts_as_final_a_plus": False,
         "b_grade_counts_as_final_a_plus": False,
         "probation_counts_as_final_a_plus": False,

@@ -1356,6 +1356,109 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(bt.continuous_replay_active, true)
     }
 
+    func testMobileRiskStatusDecodesHedgeSnapshot() throws {
+        let json = Data("""
+        {"schema_version":"mobile_risk_status_v2","generated_utc":"2026-07-11T00:00:00Z",
+         "generated_at_utc":"2026-07-11T00:00:00Z","generated_at_et":"2026-07-10T20:00:00-04:00",
+         "live_gate":{"live_trading_enabled":false,"places_real_order":false,"gate":"blocked_human_only","label":"OPERATOR GATED"},
+         "routes_to_live":false,"places_real_order":false,
+         "hedge":{"schema_version":"enterprise_hedge_snapshot_v1","hedge_engine_active":true,
+           "hedge_evaluation_mode":"on_demand_per_negative_position","open_position_count":2,
+           "negative_position_count":1,
+           "hedge_required_candidates":[{"symbol":"BTCUSDT","side":"long","unrealized_pnl_usd":-12.5}],
+           "portfolio_liquidation_buffer_usd":1234.5,
+           "hedge_basket":["same_symbol_opposite","BTC","cash"],"cross_margin_model":"portfolio_level",
+           "places_real_order":false,"routes_to_live":false},
+         "risk_state":"ACTIVE","paper_blocked_count":3,"paper_accepted_count":7,
+         "kill_switch_active":true,"max_position_size_usd":100.0,"daily_loss_limit_usd":50.0,
+         "current_daily_loss_usd":0.0,"dangerous_actions_require_human_approval":true,
+         "mobile_can_approve_dangerous_actions":false}
+        """.utf8)
+        let risk = try JSONDecoder().decode(MobileRiskStatus.self, from: json)
+        XCTAssertEqual(risk.hedge?.hedge_engine_active, true)
+        XCTAssertEqual(risk.hedge?.open_position_count, 2)
+        XCTAssertEqual(risk.hedge?.negative_position_count, 1)
+        XCTAssertEqual(risk.hedge?.hedge_required_candidates?.first?.symbol, "BTCUSDT")
+        XCTAssertEqual(risk.hedge?.hedge_required_candidates?.first?.unrealized_pnl_usd, -12.5)
+        // Hedge posture is display-only; it never routes to live or places an order.
+        XCTAssertEqual(risk.hedge?.places_real_order, false)
+        XCTAssertEqual(risk.hedge?.routes_to_live, false)
+    }
+
+    func testMobileRiskStatusDecodesWithoutHedgeBlock() throws {
+        let json = Data("""
+        {"schema_version":"mobile_risk_status_v2","generated_utc":"2026-07-11T00:00:00Z",
+         "generated_at_utc":"2026-07-11T00:00:00Z","generated_at_et":"2026-07-10T20:00:00-04:00",
+         "live_gate":{"live_trading_enabled":false,"places_real_order":false,"gate":"blocked_human_only","label":"OPERATOR GATED"},
+         "routes_to_live":false,"places_real_order":false,
+         "risk_state":"ACTIVE","paper_blocked_count":0,"paper_accepted_count":0,
+         "kill_switch_active":true,"max_position_size_usd":100.0,"daily_loss_limit_usd":50.0,
+         "current_daily_loss_usd":0.0,"dangerous_actions_require_human_approval":true,
+         "mobile_can_approve_dangerous_actions":false}
+        """.utf8)
+        let risk = try JSONDecoder().decode(MobileRiskStatus.self, from: json)
+        XCTAssertNil(risk.hedge)  // optional -> absent block must not break decoding
+    }
+
+    func testMobileRiskStatusDecodesRealTraderReadinessBlockers() throws {
+        let json = Data("""
+        {"schema_version":"mobile_risk_status_v2","generated_utc":"2026-07-11T00:00:00Z",
+         "generated_at_utc":"2026-07-11T00:00:00Z","generated_at_et":"2026-07-10T20:00:00-04:00",
+         "live_gate":{"live_trading_enabled":false,"places_real_order":false,"gate":"blocked_human_only","label":"OPERATOR GATED"},
+         "routes_to_live":false,"places_real_order":false,
+         "real_trader_readiness":{"live_gate":"blocked_human_only","operator_flip_required":true,
+           "order_submitted":false,"test_order_submitted":false,"leverage_mutated":false,
+           "margin_mutated":false,"routes_to_live":false,"places_real_order":false,
+           "live_submit_allowed":false,"live_ready":false,
+           "exact_no_live_reason":"A_GRADE_SUPPLY_ZERO",
+           "readiness_blockers":["A_GRADE_SUPPLY_ZERO","GUARDIAN_HALTED_PERFORMANCE"]},
+         "risk_state":"ACTIVE","paper_blocked_count":0,"paper_accepted_count":0,
+         "kill_switch_active":true,"max_position_size_usd":100.0,"daily_loss_limit_usd":50.0,
+         "current_daily_loss_usd":0.0,"dangerous_actions_require_human_approval":true,
+         "mobile_can_approve_dangerous_actions":false}
+        """.utf8)
+        let risk = try JSONDecoder().decode(MobileRiskStatus.self, from: json)
+        XCTAssertEqual(risk.real_trader_readiness?.live_ready, false)
+        XCTAssertEqual(risk.real_trader_readiness?.live_submit_allowed, false)
+        XCTAssertEqual(risk.real_trader_readiness?.exact_no_live_reason, "A_GRADE_SUPPLY_ZERO")
+        XCTAssertEqual(risk.real_trader_readiness?.readiness_blockers?.first, "A_GRADE_SUPPLY_ZERO")
+        XCTAssertEqual(risk.real_trader_readiness?.routes_to_live, false)
+        XCTAssertEqual(risk.real_trader_readiness?.places_real_order, false)
+    }
+
+    func testMobileHealthDecodesIngestorRollup() throws {
+        let json = Data("""
+        {"generated_utc":"2026-07-11T00:00:00Z","overall":"healthy","redis_connected":true,
+         "trainer":{"state":"ACTIVE","cuda_active":true,"training_active":true,"checkpoint":"ckpt-9"},
+         "gpu":{"name":"RTX 5080","utilization_pct":42.0,"vram_used_mb":8000,"vram_total_mb":16000,"temperature_c":55.0},
+         "paper":{"classification":"ACTIVE","open_positions":2,"intents_accepted":7,"intents_blocked":3},
+         "ingestors":{"schema_version":"enterprise_ingestors_rollup_v1","overall_status":"HEALTHY",
+           "stream_present":{"candles":true,"orderbook_features":true,"trade_tape":true,"funding_oi":true,
+             "liquidation_levels":true,"ta_full":true,"feature_snapshots":true},
+           "all_core_streams_present":true,"provider_count":11,"active_provider_count":11,
+           "stale_provider_count":0,"stale_providers":[]},
+         "live_gate":"blocked_human_only","places_real_order":false}
+        """.utf8)
+        let health = try JSONDecoder().decode(MobileHealth.self, from: json)
+        XCTAssertEqual(health.ingestors?.overall_status, "HEALTHY")
+        XCTAssertEqual(health.ingestors?.all_core_streams_present, true)
+        XCTAssertEqual(health.ingestors?.active_provider_count, 11)
+        XCTAssertEqual(health.ingestors?.stale_provider_count, 0)
+        XCTAssertEqual(health.ingestors?.stream_present?["ta_full"], true)
+    }
+
+    func testMobileHealthDecodesWithoutIngestorBlock() throws {
+        let json = Data("""
+        {"generated_utc":"2026-07-11T00:00:00Z","overall":"degraded","redis_connected":true,
+         "trainer":{"state":"ACTIVE","cuda_active":true,"training_active":true,"checkpoint":"ckpt-9"},
+         "gpu":{"name":"RTX 5080","utilization_pct":42.0,"vram_used_mb":8000,"vram_total_mb":16000,"temperature_c":55.0},
+         "paper":{"classification":"ACTIVE","open_positions":0,"intents_accepted":0,"intents_blocked":0},
+         "live_gate":"blocked_human_only","places_real_order":false}
+        """.utf8)
+        let health = try JSONDecoder().decode(MobileHealth.self, from: json)
+        XCTAssertNil(health.ingestors)  // optional -> absent block must not break decoding
+    }
+
     private func swiftStringLiterals(in text: String) -> [String] {
         let pattern = #""(?:\\.|[^"\\])*""#
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }

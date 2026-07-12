@@ -19,10 +19,23 @@ interface HealthSurface {
   missing_fields?: string[];
 }
 
+interface IngestorRollup {
+  schema_version?: string;
+  overall_status?: string;
+  stream_present?: Record<string, boolean>;
+  all_core_streams_present?: boolean;
+  provider_health?: Record<string, { status?: string | null; age_seconds?: number | null; freshness?: string | null }>;
+  provider_count?: number;
+  active_provider_count?: number;
+  stale_provider_count?: number;
+  stale_providers?: string[];
+}
+
 interface DataHealthPayload {
   overall?: string;
   surfaces?: HealthSurface[];
   count?: number;
+  ingestors?: IngestorRollup;
 }
 
 interface AuthHealthPayload {
@@ -189,6 +202,61 @@ function SurfaceRow({ surface }: { surface: HealthSurface }): JSX.Element {
   );
 }
 
+const STREAM_LABELS: Record<string, string> = {
+  candles: 'Candles / OHLCV',
+  orderbook_features: 'Orderbook features',
+  trade_tape: 'Trade tape',
+  funding_oi: 'Funding / OI',
+  liquidation_levels: 'Liquidation levels',
+  ta_full: 'TA-Lib (full)',
+  feature_snapshots: 'Feature snapshots',
+};
+
+function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup | undefined; loading: boolean }): JSX.Element {
+  const overall = ingestors?.overall_status ?? (loading ? 'connecting' : 'unknown');
+  const tone = healthStatusTone(
+    overall === 'HEALTHY' ? 'ok'
+      : overall === 'SOME_PROVIDERS_STALE' ? 'warn'
+        : overall === 'DEGRADED_MISSING_CORE_STREAM' ? 'error'
+          : overall,
+  );
+  const streams = ingestors?.stream_present ?? {};
+  const streamKeys = Object.keys(STREAM_LABELS);
+  return (
+    <section style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Ingestors &amp; Providers</h2>
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+            Consolidated data-stream presence and provider freshness roll-up (read-only).
+          </p>
+        </div>
+        <span style={{ padding: '3px 9px', borderRadius: 5, background: tone.bg, color: tone.color, fontSize: 11, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>
+          {String(overall).replace(/_/g, ' ')}
+        </span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, padding: 12 }}>
+        <TruthCell label="Core streams" value={ingestors?.all_core_streams_present ? 'all present' : 'missing core'} tone={ingestors?.all_core_streams_present ? 'ok' : 'error'} />
+        <TruthCell label="Active providers" value={String(ingestors?.active_provider_count ?? '—')} tone={(ingestors?.active_provider_count ?? 0) > 0 ? 'ok' : 'warn'} />
+        <TruthCell label="Providers tracked" value={String(ingestors?.provider_count ?? '—')} tone="neutral" />
+        <TruthCell
+          label="Stale providers"
+          value={ingestors?.stale_provider_count ? `${ingestors.stale_provider_count}: ${(ingestors.stale_providers ?? []).slice(0, 4).join(', ')}` : 'none'}
+          tone={ingestors?.stale_provider_count ? 'warn' : 'ok'}
+        />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, padding: '0 12px 12px' }}>
+        {streamKeys.map((key) => {
+          const present = streams[key] === true;
+          return (
+            <TruthCell key={key} label={STREAM_LABELS[key]} value={present ? 'flowing' : 'absent'} tone={present ? 'ok' : 'error'} />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function DataFeedsPanel(): JSX.Element {
   const health = useRealtimeResource<DataHealthPayload>({
     url: DATA_HEALTH_ENDPOINT,
@@ -205,6 +273,8 @@ function DataFeedsPanel(): JSX.Element {
   const overallTone = healthStatusTone(data?.overall ?? (health.loading ? 'connecting' : 'unknown'));
 
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <IngestorRollupPanel ingestors={data?.ingestors} loading={health.loading} />
     <section style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
         <div>
@@ -223,6 +293,7 @@ function DataFeedsPanel(): JSX.Element {
         </div>
       )}
     </section>
+    </div>
   );
 }
 

@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 from app.api.v2._common import get_redis
 from app.api.v2.probation_display import probation_gate_display_status
+from app.services.realtime.operator_snapshot import _hedge_payload, _ingestors_payload
 from app.auth.security import optional_auth, require_auth
 from app.auth.users import UserRecord
 from app.services.coinglass_provider import build_coinglass_health
@@ -127,6 +128,76 @@ def _redis_lrange_json(r: Any, key: str, start: int = 0, end: int = -1) -> list[
         return [json.loads(i) for i in items if i]
     except Exception:
         return []
+
+
+def _dedupe_strings(values: list[Any]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for value in values:
+        if not value:
+            continue
+        key = str(value)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return out
+
+
+def _mobile_a_grade_blocker_truth(r: Any | None) -> dict[str, Any]:
+    try:
+        from app.api.v2.control_center_status import (  # noqa: PLC0415
+            _current_a_grade_blocker_truth,
+        )
+
+        return _current_a_grade_blocker_truth(r)
+    except Exception:
+        return {
+            "schema_version": "control_center_a_grade_blocker_truth_v1",
+            "status": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "available": False,
+            "primary_blocker": "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE",
+            "finding_ids": [],
+            "live_gate": "blocked_human_only",
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "order_submitted": False,
+            "test_order_submitted": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+        }
+
+
+def _mobile_real_trader_readiness(r: Any | None) -> dict[str, Any]:
+    blocker_truth = _mobile_a_grade_blocker_truth(r)
+    truth_status = str(blocker_truth.get("status") or "")
+    finding_ids = blocker_truth.get("finding_ids")
+    if not isinstance(finding_ids, list):
+        finding_ids = []
+    exact_reason = (
+        blocker_truth.get("primary_blocker")
+        if truth_status == "A_GRADE_ADAPTATION_NOT_PROVEN"
+        else None
+    )
+    if not exact_reason and truth_status != "NO_ACTIVE_BLOCKER_DETECTED":
+        exact_reason = truth_status or "A_GRADE_BLOCKER_TRUTH_UNAVAILABLE"
+    readiness_blockers = _dedupe_strings([exact_reason, *finding_ids])
+    return {
+        "live_gate": "blocked_human_only",
+        "operator_flip_required": True,
+        "order_submitted": False,
+        "test_order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_submit_allowed": False,
+        "live_ready": False,
+        "exact_no_live_reason": exact_reason,
+        "readiness_blockers": readiness_blockers,
+        "a_grade_blocker_truth": blocker_truth,
+    }
 
 
 def _paper_heartbeat(r: Any) -> dict[str, Any]:
@@ -699,6 +770,11 @@ def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
             market_age_seconds = max(0, int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()))
         except ValueError:
             market_age_seconds = None
+    real_trader_readiness = _mobile_real_trader_readiness(r)
+    readiness_blockers = real_trader_readiness.get("readiness_blockers")
+    if not isinstance(readiness_blockers, list):
+        readiness_blockers = []
+    top_blockers = _dedupe_strings([*readiness_blockers, *top_blockers])
     return {
         "performance": {
             "profit_factor": governor.get("profit_factor"),
@@ -733,13 +809,7 @@ def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
             "last_successful_weight_update_at": trainer.get("last_successful_weight_update_at"),
             "checkpoint_id": trainer.get("checkpoint_id"),
         },
-        "real_trader_readiness": {
-            "live_gate": "blocked_human_only",
-            "operator_flip_required": True,
-            "order_submitted": False,
-            "test_order_submitted": False,
-            "live_ready": False,
-        },
+        "real_trader_readiness": real_trader_readiness,
         "market_data_freshness": {
             "source": market_hb.get("source") or "v2:market:coinapi:ohlcv:heartbeat",
             "generated_at": market_generated_at,
@@ -2019,6 +2089,7 @@ async def get_mobile_health(
             "intents_accepted": _safe_int(hb.get("intents_accepted")),
             "intents_blocked": _safe_int(hb.get("intents_blocked")),
         },
+        "ingestors": _ingestors_payload(r),
         "live_gate": "blocked_human_only",
         "places_real_order": False,
     }
@@ -2064,6 +2135,7 @@ async def get_mobile_risk_status(
         "current_daily_loss_usd": _safe_float(risk.get("current_daily_loss_usd")),
         "dangerous_actions_require_human_approval": True,
         "mobile_can_approve_dangerous_actions": False,
+        "hedge": _hedge_payload(r),
         **compact_truth,
         **preemptive_truth,
     }
@@ -2301,6 +2373,11 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
 
     closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
     realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
+    real_trader_readiness = _mobile_real_trader_readiness(r)
+    readiness_blockers = real_trader_readiness.get("readiness_blockers")
+    if not isinstance(readiness_blockers, list):
+        readiness_blockers = []
+    top_blockers = _dedupe_strings([*readiness_blockers, *top_blockers])
     return {
         "performance": {
             "profit_factor": governor.get("profit_factor"),
@@ -2358,11 +2435,7 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
             "checkpoint_id": trainer.get("checkpoint_id"),
         },
         "real_trader_readiness": {
-            "live_gate": "blocked_human_only",
-            "operator_flip_required": True,
-            "order_submitted": False,
-            "test_order_submitted": False,
-            "live_ready": False,
+            **real_trader_readiness,
             "one_flip_packet": "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION/real_trader_one_flip_readiness_packet.json",
         },
         "market_data_freshness": {

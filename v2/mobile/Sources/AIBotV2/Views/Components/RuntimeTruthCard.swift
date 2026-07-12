@@ -215,7 +215,10 @@ struct RuntimeTruthDisplay {
             nextRemediation: summary.preemptive_edge_control?.next_remediation,
             liveGate: summary.real_trader_readiness?.live_gate ?? summary.live_gate,
             liveReady: summary.real_trader_readiness?.live_ready,
-            topBlockers: summary.top_blockers ?? summary.entry_freeze?.halt_reasons ?? []
+            topBlockers: summary.real_trader_readiness?.readiness_blockers
+                ?? summary.top_blockers
+                ?? summary.entry_freeze?.halt_reasons
+                ?? []
         )
     }
 
@@ -301,7 +304,10 @@ struct RuntimeTruthDisplay {
             nextRemediation: paper.preemptive_edge_control?.next_remediation,
             liveGate: paper.real_trader_readiness?.live_gate,
             liveReady: paper.real_trader_readiness?.live_ready,
-            topBlockers: paper.top_blockers ?? paper.entry_freeze?.halt_reasons ?? []
+            topBlockers: paper.real_trader_readiness?.readiness_blockers
+                ?? paper.top_blockers
+                ?? paper.entry_freeze?.halt_reasons
+                ?? []
         )
     }
 
@@ -387,7 +393,10 @@ struct RuntimeTruthDisplay {
             nextRemediation: risk.preemptive_edge_control?.next_remediation,
             liveGate: risk.real_trader_readiness?.live_gate ?? risk.live_gate.gate,
             liveReady: risk.real_trader_readiness?.live_ready,
-            topBlockers: risk.top_blockers ?? risk.entry_freeze?.halt_reasons ?? []
+            topBlockers: risk.real_trader_readiness?.readiness_blockers
+                ?? risk.top_blockers
+                ?? risk.entry_freeze?.halt_reasons
+                ?? []
         )
     }
 }

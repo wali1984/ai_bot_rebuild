@@ -149,6 +149,41 @@ def test_gpu_saturation_controller_backs_off_on_validation_delta_without_rejecti
     assert decision["validation_loss_backoff_delta"] == runtime_module.RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA
 
 
+def test_gpu_saturation_controller_uses_top_level_checkpoint_promotion() -> None:
+    client = _FakeRedis(
+        {
+            runtime_module.RESIDENT_GPU_SATURATION_CONTROLLER_KEY: {
+                "steps_multiplier": 4,
+            }
+        }
+    )
+
+    decision = runtime_module.update_gpu_saturation_controller(
+        client=client,
+        nested_training_metrics={
+            "accepted_training_rows": 16_384,
+            "data_loader_time_ms": 100_000.0,
+            "gpu_train_time_ms": 25_000.0,
+            "vram_reserved_mb": 4_000.0,
+            "validation_loss_delta": -20.0,
+            "overfit_gap_warning": False,
+        },
+        oom_occurred=False,
+        checkpoint_promotion={
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+        },
+    )
+
+    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
+    assert decision["steps_multiplier"] == 2
+    assert decision["checkpoint_promotion_rejected"] is True
+    assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
+    assert client.values[runtime_module.RESIDENT_GPU_SATURATION_CONTROLLER_KEY][
+        "checkpoint_promotion_rejected"
+    ] is True
+
+
 def test_drawdown_attribution_separates_trial_overlay_from_native() -> None:
     ledger = {
         "accepted": [

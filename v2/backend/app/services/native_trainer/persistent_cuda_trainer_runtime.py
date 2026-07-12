@@ -2750,8 +2750,10 @@ def update_gpu_saturation_controller(
     client: Any,
     nested_training_metrics: Mapping[str, Any],
     oom_occurred: bool,
+    checkpoint_promotion: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     state = _read_gpu_saturation_state(client)
+    promotion = checkpoint_promotion if isinstance(checkpoint_promotion, Mapping) else {}
     decision = adaptive_gpu_saturation_decision(
         state=state,
         accepted_rows=int(finite_float(nested_training_metrics.get("accepted_training_rows")) or 0),
@@ -2761,10 +2763,15 @@ def update_gpu_saturation_controller(
         vram_total_mb=_cuda_total_vram_mb(),
         oom_occurred=oom_occurred,
         checkpoint_promotion_rejected=(
-            nested_training_metrics.get("checkpoint_promotion_rejected") is True
+            promotion.get("checkpoint_promotion_rejected") is True
+            or nested_training_metrics.get("checkpoint_promotion_rejected") is True
         ),
         checkpoint_promotion_reason=(
-            str(nested_training_metrics.get("checkpoint_promotion_reason") or "")
+            str(
+                promotion.get("checkpoint_promotion_reason")
+                or nested_training_metrics.get("checkpoint_promotion_reason")
+                or ""
+            )
             or None
         ),
         validation_loss_delta=finite_float(nested_training_metrics.get("validation_loss_delta")),
@@ -3488,13 +3495,19 @@ def run_one_persistent_cycle(
         else:
             trainer_result = None
             training_blocker_reason = "NO_TRUSTED_EXAMPLES_BUILT"
-    training_metrics = as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {}
+    trainer_result_metrics = (
+        as_dict(getattr(trainer_result, "metrics", {}))
+        if trainer_result is not None
+        else {}
+    )
+    training_metrics = as_dict(trainer_result_metrics.get("training"))
     nested_training_metrics = as_dict(training_metrics.get("metrics"))
     if _adaptive_gpu_controller_enabled():
         update_gpu_saturation_controller(
             client=connect_redis(),
             nested_training_metrics=nested_training_metrics,
             oom_occurred=cuda_oom_occurred,
+            checkpoint_promotion=as_dict(trainer_result_metrics.get("checkpoint_promotion")),
         )
     trusted_rows_loaded = int(
         finite_float(nested_training_metrics.get("trusted_rows_loaded"))

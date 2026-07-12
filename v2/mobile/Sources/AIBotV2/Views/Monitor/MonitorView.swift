@@ -57,6 +57,9 @@ struct MonitorView: View {
                 if let h = vm.health {
                     systemOverviewCard(h)
                     RuntimeTruthLiveCard(title: "Runtime Truth")
+                    if let ingestors = h.ingestors {
+                        ingestorsCard(ingestors)
+                    }
                     trainerHealthCard(h.trainer)
                     gpuHealthCard(h.gpu)
                     paperHealthCard(h.paper)
@@ -116,6 +119,52 @@ struct MonitorView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(
             h.isHealthy ? NerVyx.validation.opacity(0.3) : NerVyx.warning.opacity(0.3), lineWidth: 1
         ))
+    }
+
+    private func ingestorsCard(_ ing: MobileIngestorRollup) -> some View {
+        let streams: [(String, String)] = [
+            ("candles", "Candles / OHLCV"),
+            ("orderbook_features", "Orderbook features"),
+            ("trade_tape", "Trade tape"),
+            ("funding_oi", "Funding / OI"),
+            ("liquidation_levels", "Liquidation levels"),
+            ("ta_full", "TA-Lib (full)"),
+            ("feature_snapshots", "Feature snapshots"),
+        ]
+        let overall = ing.overall_status ?? "UNKNOWN"
+        let accent: Color = overall == "HEALTHY" ? NerVyx.validation
+            : overall == "SOME_PROVIDERS_STALE" ? NerVyx.warning : NerVyx.sell
+        return VStack(spacing: 10) {
+            SectionHeader(title: "Ingestors & Providers", accent: accent)
+            DataRow(
+                label: "Overall",
+                value: overall.replacingOccurrences(of: "_", with: " "),
+                valueColor: accent
+            )
+            HStack(spacing: 10) {
+                NerVyxStatCard(
+                    label: "ACTIVE PROV",
+                    value: "\(ing.active_provider_count ?? 0)",
+                    valueColor: (ing.active_provider_count ?? 0) > 0 ? NerVyx.validation : NerVyx.warning,
+                    accent: NerVyx.signal
+                )
+                NerVyxStatCard(
+                    label: "STALE PROV",
+                    value: "\(ing.stale_provider_count ?? 0)",
+                    valueColor: (ing.stale_provider_count ?? 0) > 0 ? NerVyx.warning : NerVyx.validation,
+                    accent: (ing.stale_provider_count ?? 0) > 0 ? NerVyx.warning : NerVyx.validation
+                )
+            }
+            ForEach(streams, id: \.0) { key, label in
+                let present = ing.stream_present?[key] ?? false
+                DataRow(
+                    label: label,
+                    value: present ? "flowing" : "absent",
+                    valueColor: present ? NerVyx.validation : NerVyx.sell
+                )
+            }
+        }
+        .nerVyxCard(accent: accent.opacity(0.3))
     }
 
     private func trainerHealthCard(_ t: HealthTrainer) -> some View {

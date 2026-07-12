@@ -3995,6 +3995,10 @@ def _paper_exploration_queue_signal(row: Mapping[str, Any]) -> dict[str, Any]:
             ),
         }
     )
+    for field in PAPER_SOURCE_TIER_GUARDIAN_CONTEXT_FIELDS:
+        value = row.get(field)
+        if value not in (None, ""):
+            signal[field] = value
     entry_feature_available_at = _first_present(
         signal.get("entry_feature_available_at"),
         row.get("entry_feature_available_at"),
@@ -5353,7 +5357,11 @@ def _paper_exploration_materialization_queue_cycle_status(
     *,
     now: datetime,
     generated_utc: str,
+    continuous_edge_guardian_gate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    guardian_context = _continuous_edge_guardian_gate_public_context(
+        continuous_edge_guardian_gate
+    )
     raw_queue_payload = (
         _read_json_key(r, PAPER_EXPLORATION_MATERIALIZATION_QUEUE_KEY)
         if r is not None
@@ -5423,6 +5431,7 @@ def _paper_exploration_materialization_queue_cycle_status(
             )
         row_with_status = {
             **row,
+            **guardian_context,
             "exit_plan": _first_present(row.get("exit_plan"), exit_plan),
             "paper_only": True,
             "routes_to_live": False,
@@ -5541,6 +5550,7 @@ def _paper_exploration_materialization_queue_cycle_status(
         "routes_to_live": False,
         "places_real_order": False,
         "live_gate": LIVE_GATE_BLOCKED,
+        **guardian_context,
         "hard_fail": bool(unsafe_rows),
         "hard_fail_reasons": sorted(
             {
@@ -5574,6 +5584,7 @@ def _paper_exploration_materialization_queue_cycle_status(
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
+            **guardian_context,
         }
         _safe_write(
             r,
@@ -14665,6 +14676,32 @@ def _continuous_edge_guardian_gate_context(gate: dict[str, Any] | None) -> dict[
             "allowed_runtime_actions"
         )
     return context
+
+
+def _continuous_edge_guardian_gate_public_context(
+    gate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    context = _continuous_edge_guardian_gate_context(gate)
+    if not context:
+        return {}
+    public_context = dict(context)
+    guardian_status = context.get("continuous_edge_guardian_status")
+    if guardian_status not in (None, ""):
+        public_context["guardian_status"] = guardian_status
+    guardian_new_entries_allowed = context.get(
+        "continuous_edge_guardian_new_entries_allowed"
+    )
+    if guardian_new_entries_allowed is not None:
+        public_context["guardian_new_entries_allowed"] = guardian_new_entries_allowed
+    guardian_block_reasons = context.get("continuous_edge_guardian_block_reasons")
+    if guardian_block_reasons not in (None, ""):
+        public_context["guardian_block_reasons"] = guardian_block_reasons
+    guardian_allowed_actions = context.get(
+        "continuous_edge_guardian_allowed_runtime_actions"
+    )
+    if guardian_allowed_actions not in (None, ""):
+        public_context["guardian_allowed_runtime_actions"] = guardian_allowed_actions
+    return public_context
 
 
 def _continuous_edge_guardian_allows_new_entries(gate: dict[str, Any] | None) -> bool:
@@ -26904,6 +26941,7 @@ def run_once() -> dict:
             r,
             now=materialization_cycle_now,
             generated_utc=materialization_cycle_generated_utc,
+            continuous_edge_guardian_gate=continuous_edge_guardian_gate,
         )
     )
     signals = [

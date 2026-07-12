@@ -182,6 +182,26 @@ interface CanaryTightening {
   blockers?: string[];
 }
 
+interface HedgeCandidate {
+  symbol?: string | null;
+  side?: string | null;
+  unrealized_pnl_usd?: number | null;
+}
+
+interface HedgeSnapshot {
+  schema_version?: string;
+  hedge_engine_active?: boolean;
+  hedge_evaluation_mode?: string;
+  open_position_count?: number;
+  negative_position_count?: number;
+  hedge_required_candidates?: HedgeCandidate[];
+  portfolio_liquidation_buffer_usd?: number | null;
+  hedge_basket?: string[];
+  cross_margin_model?: string;
+  places_real_order?: boolean;
+  routes_to_live?: boolean;
+}
+
 interface RiskStatus {
   active_profile?: ActiveProfile;
   latest_gateway_result?: GatewayResult;
@@ -192,6 +212,7 @@ interface RiskStatus {
   preemptive_prevention?: PreemptiveEdgeControlSummary | null;
   preemptive_edge_control_status?: PreemptiveEdgeControlSummary | null;
   preemptive_candidate_decision_matrix?: PreemptiveDecisionMatrix | null;
+  hedge?: HedgeSnapshot | null;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -385,6 +406,7 @@ export default function RiskControlPage(): JSX.Element {
   const decisions = d?.recent_decisions ?? [];
   const breakdown = d?.denials_breakdown ?? {};
   const cluster = d?.recovery_high_confidence_loss_cluster_status;
+  const hedge = d?.hedge;
   const preemptive = d?.preemptive_prevention ?? d?.preemptive_edge_control_status;
   const preemptiveSample = d?.preemptive_candidate_decision_matrix?.rows?.[0];
   const preemptiveDecisionId =
@@ -609,6 +631,36 @@ export default function RiskControlPage(): JSX.Element {
                 <KV label="Probation Proof Policy" value={`final A+ ${preemptive?.probation_counts_as_final_a_plus === true ? 'true' : 'false'} · live ${preemptive?.probation_counts_as_live_ready === true ? 'true' : 'false'}`} valueColor={(preemptive?.probation_counts_as_final_a_plus || preemptive?.probation_counts_as_live_ready) ? '#ef5350' : 'var(--text-muted)'} />
                 <KV label="Governor Auto-Action" value={(preemptive?.governor_auto_action ?? '—').replace(/_/g, ' ')} valueColor={preemptive?.governor_auto_action?.includes('halt') ? '#ef5350' : 'var(--text-muted)'} />
                 <KV label="Next Remediation" value={preemptive?.next_remediation ?? '—'} valueColor="var(--text-muted)" />
+              </div>
+            </Card>
+
+            {/* Hedge engine posture */}
+            <SectionHead title="Hedge Engine Posture" />
+            <Card accent={hedge?.negative_position_count ? '#f59e0b' : '#26c281'}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: hedge?.hedge_required_candidates?.length ? 10 : 0 }}>
+                <KV label="Engine" value={hedge?.hedge_engine_active === false ? 'INACTIVE' : 'ACTIVE'} valueColor={hedge?.hedge_engine_active === false ? '#ef5350' : '#26c281'} />
+                <KV label="Eval Mode" value={(hedge?.hedge_evaluation_mode ?? 'on_demand').replace(/_/g, ' ')} />
+                <KV label="Open Positions" value={hedge?.open_position_count ?? '—'} />
+                <KV label="Negative (need hedge)" value={hedge?.negative_position_count ?? '—'} valueColor={hedge?.negative_position_count ? '#f59e0b' : 'var(--text-primary)'} />
+                <KV label="Liq. Buffer (USD)" value={hedge?.portfolio_liquidation_buffer_usd != null ? `$${Number(hedge.portfolio_liquidation_buffer_usd).toLocaleString()}` : '—'} />
+                <KV label="Cross-Margin Model" value={(hedge?.cross_margin_model ?? 'portfolio_level').replace(/_/g, ' ')} />
+              </div>
+              {hedge?.hedge_required_candidates && hedge.hedge_required_candidates.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {hedge.hedge_required_candidates.slice(0, 6).map((c, i) => (
+                    <div key={`${c.symbol}:${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ minWidth: 84, color: sideColor(c.side), fontWeight: 700 }}>{c.symbol ?? '—'}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{(c.side ?? '').toUpperCase()}</span>
+                      <span style={{ color: (c.unrealized_pnl_usd ?? 0) < 0 ? '#ef5350' : '#26c281', marginLeft: 'auto' }}>
+                        {c.unrealized_pnl_usd != null ? `$${Number(c.unrealized_pnl_usd).toFixed(2)}` : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {(hedge?.hedge_basket ?? []).map((b) => <Chip key={b} label={b} tone="neutral" />)}
+                <Chip label={hedge?.places_real_order ? 'PLACES ORDER' : 'no live order'} tone={hedge?.places_real_order ? 'block' : 'ok'} />
               </div>
             </Card>
 

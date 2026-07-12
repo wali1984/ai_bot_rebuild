@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
@@ -30,6 +31,113 @@ DEFAULT_GRID: tuple[dict[str, float], ...] = tuple(
     for lr in (3e-5, 1e-4, 3e-4)
     for ec in (0.005, 0.01, 0.02)
 )
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if value in (None, "") or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        try:
+            epoch = float(value)
+        except (TypeError, ValueError):
+            return None
+        if epoch <= 0 or epoch != epoch:
+            return None
+        if epoch > 10_000_000_000:
+            epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    try:
+        parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _first_time(row: dict[str, Any], *keys: str) -> datetime | None:
+    for key in keys:
+        parsed = _parse_utc(row.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
+    """Fail-closed replay timing audit for offline tuning inputs.
+
+    The sweep trains on trusted replay/feedback rows, but it is still a
+    recovery tool: before spending GPU cycles, verify that row-level timing
+    fields do not imply future leakage into the decision window.
+    """
+    violations: list[dict[str, Any]] = []
+    missing_trust_row_count = 0
+    missing_decision_time_count = 0
+    checked_rows = 0
+    for index, example in enumerate(examples):
+        row = getattr(example, "trust_row", None)
+        if not isinstance(row, dict):
+            missing_trust_row_count += 1
+            continue
+        decision_time = _first_time(
+            row,
+            "decision_time",
+            "decision_time_est",
+            "decision_cutoff",
+            "decision_cutoff_time_est",
+        )
+        if decision_time is None:
+            missing_decision_time_count += 1
+            continue
+        checked_rows += 1
+        for field in (
+            "available_at",
+            "feature_cutoff",
+            "source_available_time",
+            "masa_feature_cutoff",
+            "ppo_feature_cutoff",
+        ):
+            observed = _parse_utc(row.get(field))
+            if observed is not None and observed > decision_time:
+                violations.append(
+                    {
+                        "row_index": index,
+                        "symbol": getattr(example, "symbol", None),
+                        "timeframe": getattr(example, "timeframe", None),
+                        "field": field,
+                        "observed": observed.isoformat(),
+                        "decision_time": decision_time.isoformat(),
+                        "reason": f"{field}_AFTER_DECISION_TIME",
+                    }
+                )
+        if row.get("candle_closed_confirmed") is False or row.get("closed_candle") is False:
+            violations.append(
+                {
+                    "row_index": index,
+                    "symbol": getattr(example, "symbol", None),
+                    "timeframe": getattr(example, "timeframe", None),
+                    "field": "candle_closed_confirmed",
+                    "observed": False,
+                    "decision_time": decision_time.isoformat(),
+                    "reason": "UNFINISHED_CANDLE_USED_AS_FINAL",
+                }
+            )
+    return {
+        "schema_version": "trainer_offline_point_in_time_safety_v1",
+        "checked_rows": checked_rows,
+        "missing_trust_row_count": missing_trust_row_count,
+        "missing_decision_time_count": missing_decision_time_count,
+        "violation_count": len(violations),
+        "violations_sample": violations[:10],
+        "passed": (
+            missing_trust_row_count == 0
+            and missing_decision_time_count == 0
+            and not violations
+        ),
+    }
 
 
 def _diverged(result: PPOTrainingResult) -> bool:
@@ -105,6 +213,14 @@ def run_hyperparameter_sweep(
     load_checkpoint: bool = False,
 ) -> dict[str, Any]:
     """Train the real trainer under each config; rank by stability + val loss."""
+    if not examples:
+        raise ValueError("offline sweep requires at least one training example")
+    point_in_time_safety = point_in_time_safety_report(examples)
+    if not point_in_time_safety["passed"]:
+        raise ValueError(
+            "offline sweep blocked by point-in-time safety violations: "
+            + json.dumps(point_in_time_safety, default=str)
+        )
     results: list[dict[str, Any]] = []
     for config in grid:
         results.append(
@@ -133,8 +249,14 @@ def run_hyperparameter_sweep(
         "stable_config_count": len(stable),
         "best": stable[0] if stable else None,
         "results": results_sorted,
+        "point_in_time_safety": point_in_time_safety,
         "places_real_order": False,
+        "test_order_submitted": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
         "routes_to_live": False,
+        "writes_checkpoint": False,
         "offline_only": True,
     }
 
@@ -155,6 +277,19 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.promote:
+        print(
+            json.dumps(
+                {
+                    "error": "promote is intentionally not implemented by the offline sweep",
+                    "offline_only": True,
+                    "writes_checkpoint": False,
+                    "places_real_order": False,
+                    "routes_to_live": False,
+                }
+            )
+        )
+        return 3
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
         V2HybridTrainerDataLoader,
     )

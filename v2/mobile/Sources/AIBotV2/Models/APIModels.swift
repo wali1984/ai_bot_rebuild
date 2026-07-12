@@ -132,7 +132,14 @@ public struct MobileRuntimeReadiness: Decodable, Equatable {
     public let operator_flip_required: Bool?
     public let order_submitted: Bool?
     public let test_order_submitted: Bool?
+    public let leverage_mutated: Bool?
+    public let margin_mutated: Bool?
+    public let routes_to_live: Bool?
+    public let places_real_order: Bool?
+    public let live_submit_allowed: Bool?
     public let live_ready: Bool?
+    public let exact_no_live_reason: String?
+    public let readiness_blockers: [String]?
 }
 
 public struct MobileMarketDataFreshness: Decodable, Equatable {
@@ -212,6 +219,37 @@ public struct MobileHedgeCrossMargin: Decodable, Equatable {
     public let margin_call_risk: String?
     public let operator_display_currency: String?
     public let operator_display_timezone: String?
+}
+
+public struct MobileHedgeCandidate: Decodable, Equatable {
+    public let symbol: String?
+    public let side: String?
+    public let unrealized_pnl_usd: Double?
+}
+
+public struct MobileHedgeSnapshot: Decodable, Equatable {
+    public let schema_version: String?
+    public let hedge_engine_active: Bool?
+    public let hedge_evaluation_mode: String?
+    public let open_position_count: Int?
+    public let negative_position_count: Int?
+    public let hedge_required_candidates: [MobileHedgeCandidate]?
+    public let portfolio_liquidation_buffer_usd: Double?
+    public let hedge_basket: [String]?
+    public let cross_margin_model: String?
+    public let places_real_order: Bool?
+    public let routes_to_live: Bool?
+}
+
+public struct MobileIngestorRollup: Decodable, Equatable {
+    public let schema_version: String?
+    public let overall_status: String?
+    public let stream_present: [String: Bool]?
+    public let all_core_streams_present: Bool?
+    public let provider_count: Int?
+    public let active_provider_count: Int?
+    public let stale_provider_count: Int?
+    public let stale_providers: [String]?
 }
 
 public struct MobileProviderReadiness: Decodable, Equatable {
@@ -886,6 +924,7 @@ public struct MobileHealth: Decodable, Equatable {
     public let trainer: HealthTrainer
     public let gpu: HealthGPU
     public let paper: HealthPaper
+    public let ingestors: MobileIngestorRollup?
     public let live_gate: String
     public let places_real_order: Bool
 
@@ -1032,6 +1071,7 @@ public struct MobileRiskStatus: Decodable, Equatable {
     public let adaptive_hedge_cross_margin: MobileHedgeCrossMargin?
     public let provider_readiness: MobileProviderReadiness?
     public let top_blockers: [String]?
+    public let hedge: MobileHedgeSnapshot?
     public let risk_state: String
     public let risk_classification: String?
     public let paper_blocked_count: Int

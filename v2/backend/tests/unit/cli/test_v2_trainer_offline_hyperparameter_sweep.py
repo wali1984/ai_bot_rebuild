@@ -4,6 +4,8 @@ from __future__ import annotations
 import pytest
 
 from v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep import (
+    main,
+    point_in_time_safety_report,
     run_hyperparameter_sweep,
     _diverged,
 )
@@ -72,6 +74,33 @@ def test_sweep_returns_ranked_results_and_offline_safety() -> None:
     # best (if any stable) must be a non-diverged result
     if report["best"] is not None:
         assert report["best"]["diverged"] is False
+    assert report["point_in_time_safety"]["passed"] is True
+    assert report["writes_checkpoint"] is False
+    assert report["test_order_submitted"] is False
+    assert report["leverage_mutated"] is False
+    assert report["margin_mutated"] is False
+
+
+def test_point_in_time_safety_report_passes_good_rows() -> None:
+    report = point_in_time_safety_report(_rows(3))
+    assert report["passed"] is True
+    assert report["checked_rows"] == 3
+    assert report["violation_count"] == 0
+
+
+def test_sweep_rejects_future_leaking_rows_before_training() -> None:
+    rows = _rows(2)
+    assert rows[0].trust_row is not None
+    rows[0].trust_row["available_at"] = "2026-06-19T00:02:00Z"
+    with pytest.raises(ValueError, match="point-in-time safety"):
+        run_hyperparameter_sweep(rows, grid=[], steps=0, batch_size=2)
+
+
+def test_promote_flag_fails_closed(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["--promote"]) == 3
+    captured = capsys.readouterr()
+    assert "not implemented" in captured.out
+    assert '"writes_checkpoint": false' in captured.out
 
 
 def test_diverged_flag() -> None:
