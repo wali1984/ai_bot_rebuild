@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any, Sequence
 
@@ -23,12 +24,28 @@ EXTERNAL_ALTDATA_PREFIXES = (
 )
 # Derivatives microstructure (our own venue data, reported separately).
 DERIVATIVES_PREFIXES = ("funding", "open_interest", "oi_", "liquidation")
+# Providers intentionally DISABLED (free tier / no valid subscription -> never
+# poll data). Their features are legitimately absent, NOT a freshness bug: they
+# are reported as "disabled" so they don't inflate the fixable "dead" count.
+# Operator-configurable via V2_ALTDATA_DISABLED_PROVIDERS (comma-separated).
+_DEFAULT_DISABLED = "nansen,lunarcrush"
+DISABLED_PROVIDER_PREFIXES = tuple(
+    p.strip().lower()
+    for p in (os.getenv("V2_ALTDATA_DISABLED_PROVIDERS", _DEFAULT_DISABLED) or _DEFAULT_DISABLED).split(",")
+    if p.strip()
+)
+
+
+def _is_disabled(name: str) -> bool:
+    low = name.lower()
+    return any(k in low for k in DISABLED_PROVIDER_PREFIXES)
 
 
 def _category(name: str) -> str:
     low = name.lower()
     if any(k in low for k in EXTERNAL_ALTDATA_PREFIXES):
-        return "external_altdata"
+        # Split intentionally-off (free tier) from fixable external alt-data.
+        return "disabled_altdata" if _is_disabled(name) else "external_altdata"
     if any(low.startswith(k) or k in low for k in DERIVATIVES_PREFIXES):
         return "derivatives_microstructure"
     return "core"
@@ -99,8 +116,10 @@ def analyze_freshness(examples: Sequence[Any]) -> dict[str, Any]:
         "generated_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "rows_analyzed": rows,
         "feature_count": n,
+        "disabled_providers": list(DISABLED_PROVIDER_PREFIXES),
         "summary_by_category": {
             "external_altdata": _cat_summary("external_altdata"),
+            "disabled_altdata": _cat_summary("disabled_altdata"),
             "derivatives_microstructure": _cat_summary("derivatives_microstructure"),
             "core": _cat_summary("core"),
         },

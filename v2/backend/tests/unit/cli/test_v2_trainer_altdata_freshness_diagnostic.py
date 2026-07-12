@@ -15,7 +15,9 @@ def _ex(values, missing, stale, source, names):
 
 def test_category_classifies_external_altdata_and_derivatives() -> None:
     assert _category("santiment_sentiment_score") == "external_altdata"
-    assert _category("nansen_score") == "external_altdata"
+    # nansen/lunarcrush are free-tier/disabled -> classified separately, not "dead".
+    assert _category("nansen_score") == "disabled_altdata"
+    assert _category("lunarcrush_score") == "disabled_altdata"
     assert _category("funding_rate") == "derivatives_microstructure"
     assert _category("liquidation_strength") == "derivatives_microstructure"
     assert _category("last_price") == "core"
