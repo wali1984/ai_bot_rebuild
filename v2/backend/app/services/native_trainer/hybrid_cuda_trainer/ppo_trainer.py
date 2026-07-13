@@ -1366,6 +1366,13 @@ class V2HybridPPOTrainer:
         }
 
         def expected_move_pre_activation(batch_x):
+            # Temporal model feeds a 3D window (B, T, F); this bias-saturation
+            # diagnostic operates on the single "current" frame like the
+            # single-frame model always did. Collapse to the newest frame so we
+            # don't push all T frames through the residual stack (16x memory ->
+            # OOM under GPU contention) and don't produce a (B, T) pre-activation.
+            if batch_x.dim() == 3:
+                batch_x = batch_x[:, -1, :]
             transformed = torch.nan_to_num(batch_x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
             transformed = torch.sign(transformed) * torch.log1p(
                 torch.clamp(torch.abs(transformed), max=1_000_000.0)
