@@ -1263,6 +1263,14 @@ class V2HybridPPOTrainer:
             "1", "true", "yes", "on",
         }
         _total_train_steps = max(1, int(steps))
+        # Tail-aware CVaR penalty: lift the risk composite's CVaR ceiling (the model's
+        # ungated argmax trades carry a fat left tail; more training does not fix it).
+        # Adds a differentiable penalty on the WORST-tail of the policy's expected
+        # directional return (P(long)-P(short))*move, so the model learns to avoid the
+        # fat-tail losing trades the risk metric penalises. DEFAULT OFF (weight 0 =>
+        # byte-identical); prove offline via A/B before any use.
+        _tail_cvar_weight = max(0.0, float(os.getenv("V2_TRAINER_TAIL_CVAR_WEIGHT", "0") or 0.0))
+        _tail_cvar_alpha = min(0.9, max(0.01, float(os.getenv("V2_TRAINER_TAIL_CVAR_ALPHA", "0.1") or 0.1)))
         for _step_index in range(_total_train_steps):
             opt.zero_grad(set_to_none=True)
             with autocast():
@@ -1321,6 +1329,18 @@ class V2HybridPPOTrainer:
                     # distribution. A small entropy bonus keeps exploration alive so
                     # the policy does not lock into a single losing action bias.
                     loss = supervised_loss(out) - self.supervised_entropy_bonus * entropy
+                if _tail_cvar_weight > 0.0:
+                    # Per-row policy expected directional return, matching the risk
+                    # composite's action->return map (a=1 long:+move, a=2 short:-move);
+                    # target_expected is the raw after-cost move label (not the
+                    # single-direction-neutralised training target). Minimising the mean
+                    # of the worst-k losses (=-return) lifts the left tail (CVaR).
+                    # Normalise move bps -> ~unit scale (/100, like the value head) so the
+                    # penalty is comparable to the other loss terms and the weight is stable.
+                    _policy_return = (probs[:, 1] - probs[:, 2]) * (target_expected.reshape(-1) / 100.0)
+                    _tail_k = max(1, int(_tail_cvar_alpha * _policy_return.shape[0]))
+                    _tail_cvar = torch.topk(-_policy_return, _tail_k).values.mean()
+                    loss = loss + _tail_cvar_weight * _tail_cvar
             # Build the full metric dict every step (default) or only periodically +
             # on the final step (fast path). Either way ppo_advantage_mean/std are
             # always computed for the per-step safety check below.
