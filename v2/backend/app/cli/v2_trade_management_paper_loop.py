@@ -16738,6 +16738,14 @@ def _classify_paper_opportunity_tier(
         **allocation,
         **intent,
     }
+    if "symbol_timeframe_evidence_count" not in exploration_policy_row:
+        _evidence_key = (
+            str(exploration_policy_row.get("symbol") or "").upper(),
+            str(exploration_policy_row.get("timeframe") or "").lower(),
+        )
+        exploration_policy_row["symbol_timeframe_evidence_count"] = (
+            _SYMBOL_TF_CLOSED_EVIDENCE_COUNTS.get(_evidence_key, 0)
+        )
     if _first_present(
         signal.get("materialization_queue_id"),
         intent.get("materialization_queue_id"),
@@ -23885,6 +23893,31 @@ def _strategy_router_regime_context(strategy_router: dict[str, Any]) -> dict[str
     }
 
 
+# Per-cycle (symbol, timeframe) closed-outcome counts feeding the dynamic
+# exploration floor's low_evidence_penalty (paper_exploration.policy
+# _evidence_count reads symbol_timeframe_evidence_count off the candidate row;
+# nothing populated it, so the penalty was pinned at its maximum forever and
+# closes could never lower the floor). Tier-agnostic by design: the floor is an
+# exploration-risk control, not strict governance, and bucket_health counts all
+# closed rows the same way.
+_SYMBOL_TF_CLOSED_EVIDENCE_COUNTS: dict[tuple[str, str], int] = {}
+
+
+def _set_symbol_tf_closed_evidence_counts(closed_rows: list[dict[str, Any]]) -> None:
+    counts: dict[tuple[str, str], int] = {}
+    for row in closed_rows or []:
+        if not isinstance(row, dict):
+            continue
+        key = (
+            str(row.get("symbol") or "").upper(),
+            str(row.get("timeframe") or "").lower(),
+        )
+        if key[0]:
+            counts[key] = counts.get(key, 0) + 1
+    _SYMBOL_TF_CLOSED_EVIDENCE_COUNTS.clear()
+    _SYMBOL_TF_CLOSED_EVIDENCE_COUNTS.update(counts)
+
+
 def _closed_trade_rows(existing_ledger: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         row
@@ -27569,6 +27602,7 @@ def run_once() -> dict:
         or paper_session_state.get("initial_capital")
     )
     existing_ledger = _read_existing_ledger_payload(r)
+    _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
     existing_accepted = _read_existing_accepted_fills(r)
     existing_closed_rows = _closed_trade_rows(existing_ledger)
     pre_cycle_churn_equity_bleed_governor_status = (

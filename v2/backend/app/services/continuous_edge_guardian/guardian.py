@@ -43,6 +43,19 @@ A_GRADE_EXECUTION_TIER = "A_GRADE_EXECUTION_PAPER"
 B_GRADE_EXPLORATION_TIER = "B_GRADE_EXPLORATION_PAPER"
 SHADOW_ONLY_TIER = "SHADOW_ONLY"
 NO_TRADE_TIER = "NO_TRADE"
+# The positive-edge probation lane is the DESIGNED halt-scoped runway builder:
+# preemptive_edge_control.decision only grants probation eligibility while the
+# guardian is halted, and its trades pass their own strict ladder (5@PF>=1.0,
+# 20@PF>=1.1, 50@PF>=1.25, loss-probability bound, budget haircut, never
+# counts_as_A_plus). Without admitting those closes into the rolling economic
+# windows, A_GRADE_HALTED_PERFORMANCE is circular: the 100/300-trade windows
+# could only be filled by A-grade trades that the halt itself forbids. The
+# guardian still measures REAL performance over these rows -- losing probation
+# trades keep the halt via the PF/expectancy failures.
+POSITIVE_EDGE_PROBATION_TIER = "POSITIVE_EDGE_PROBATION_PAPER"
+GUARDIAN_ECONOMIC_EVIDENCE_TIERS = frozenset(
+    {A_GRADE_EXECUTION_TIER, POSITIVE_EDGE_PROBATION_TIER}
+)
 
 STRATEGY_BRAIN_STATES = (
     "ACTIVE",
@@ -601,7 +614,7 @@ def feedback_tier_rejection_reason(row: Mapping[str, Any]) -> str | None:
         return "FEEDBACK_TIER_NO_TRADE_NOT_ECONOMIC_A_GRADE_EVIDENCE"
     if not tier:
         return "FEEDBACK_TIER_MISSING_NOT_A_GRADE_EVIDENCE"
-    if tier != A_GRADE_EXECUTION_TIER:
+    if tier not in GUARDIAN_ECONOMIC_EVIDENCE_TIERS:
         return "FEEDBACK_TIER_NOT_A_GRADE_EVIDENCE"
     return None
 
@@ -1166,7 +1179,7 @@ def validate_realtime_evidence_row(
             reasons.append("CANDIDATE_NOT_MARKED_SELECTED_BEFORE_OUTCOME")
         if candidate.get("candidate_selected_after_outcome") is True or candidate.get("post_outcome_candidate_selection") is True:
             reasons.append("POST_OUTCOME_CANDIDATE_SELECTION")
-        if normalized_tier(candidate) != A_GRADE_EXECUTION_TIER:
+        if normalized_tier(candidate) not in GUARDIAN_ECONOMIC_EVIDENCE_TIERS:
             if pre_guardian_a_grade_halted(candidate):
                 reasons.append("A_GRADE_HALTED_BY_CONTINUOUS_EDGE_GUARDIAN")
             else:
@@ -1258,7 +1271,7 @@ def validate_standalone_reverify_row(row: Mapping[str, Any], *, generated_utc: s
         reasons.append("STANDALONE_REVERIFY_PROOF_FLAG_MISSING")
     if row.get("candidate_selected_before_outcome") is not True:
         reasons.append("CANDIDATE_NOT_MARKED_SELECTED_BEFORE_OUTCOME")
-    if normalized_tier(row) != A_GRADE_EXECUTION_TIER:
+    if normalized_tier(row) not in GUARDIAN_ECONOMIC_EVIDENCE_TIERS:
         if pre_guardian_a_grade_halted(row):
             reasons.append("A_GRADE_HALTED_BY_CONTINUOUS_EDGE_GUARDIAN")
         else:

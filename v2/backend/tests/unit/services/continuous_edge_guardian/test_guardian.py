@@ -1794,3 +1794,22 @@ def test_holdout_prediction_coverage_requires_no_trade_action(tmp_path: Path) ->
     assert phase3_coverage["counts_as_a_grade_evidence"] is False
     assert "INSUFFICIENT_UNTOUCHED_HOLDOUT_ACTION_COVERAGE" in failure_reasons
     assert payloads["a_grade_execution_gate.json"]["a_grade_new_entries_allowed"] is False
+
+
+def test_probation_tier_counts_as_guardian_economic_evidence() -> None:
+    # The probation lane is the designed halt-scoped runway builder
+    # (preemptive_edge_control grants probation eligibility only while the
+    # guardian is halted). Its closes must feed the rolling 100/300 economic
+    # windows or A_GRADE_HALTED_PERFORMANCE is circular.
+    from v2.backend.app.services.continuous_edge_guardian.guardian import (
+        GUARDIAN_ECONOMIC_EVIDENCE_TIERS,
+        feedback_tier_rejection_reason,
+    )
+
+    assert "POSITIVE_EDGE_PROBATION_PAPER" in GUARDIAN_ECONOMIC_EVIDENCE_TIERS
+    assert feedback_tier_rejection_reason({"paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER"}) is None
+    assert feedback_tier_rejection_reason({"paper_opportunity_tier": "A_GRADE_EXECUTION_PAPER"}) is None
+    # Exploration/bootstrap and shadow tiers stay excluded (contamination rule).
+    assert feedback_tier_rejection_reason({"paper_opportunity_tier": "B_GRADE_EXPLORATION_PAPER"}) is not None
+    assert feedback_tier_rejection_reason({"paper_opportunity_tier": "SHADOW_ONLY"}) is not None
+    assert feedback_tier_rejection_reason({"paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION"}) is not None

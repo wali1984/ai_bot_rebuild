@@ -98,6 +98,29 @@ def test_paper_trainer_model_quality_status_surfaces_checkpoint_blockers() -> No
     assert status["counts_as_a_grade_evidence"] is False
 
 
+def test_paper_trainer_model_quality_status_treats_string_false_as_false() -> None:
+    status = paper_loop._paper_trainer_model_quality_runtime_status(  # noqa: SLF001
+        model_quality_status={},
+        trainer_metrics={
+            "training": {
+                "learning_metrics": {
+                    "online_learning_status": "WEIGHTS_UPDATING",
+                    "optimizer_steps_this_cycle": 12,
+                    "parameter_hash_before": "old",
+                    "parameter_hash_after": "new",
+                    "checkpoint_promotion_rejected": "false",
+                    "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+                    "overfit_gap_warning": "false",
+                }
+            }
+        },
+    )
+
+    assert status["checkpoint_promotion_rejected"] is False
+    assert status["overfit_gap_warning"] is False
+    assert "TRAIN_VAL_OVERFIT_GAP" not in status["trainer_blocker_ids"]
+
+
 def test_paper_a_grade_blocker_truth_stays_blocked_and_paper_only() -> None:
     truth = paper_loop._paper_a_grade_blocker_truth_status(  # noqa: SLF001
         paper_a_grade_gate_burndown_status={
@@ -793,6 +816,58 @@ def test_materialization_queue_signal_uses_materialization_queue_id_without_queu
     assert signal["paper_only"] is True
     assert signal["routes_to_live"] is False
     assert signal["places_real_order"] is False
+
+
+def test_materialization_queue_signal_preserves_identity_when_paper_signal_is_sizing_only() -> None:
+    row = {
+        "queue_id": "paper_exploration_materialize_hyp-sizing-only",
+        "candidate_id": "hyp-sizing-only",
+        "prediction_id": "pred-sizing-only",
+        "signal_id": "sig-sizing-only",
+        "symbol": "ENAUSDT",
+        "timeframe": "1h",
+        "side": "short",
+        "selected_action": "short",
+        "accepted_at": "2026-07-10T03:28:29.000Z",
+        "expires_at": "2026-07-10T03:43:29.000Z",
+        "risk_decision_id": "risk-sizing-only",
+        "orchestrator_decision_id": "orch-sizing-only",
+        "allocator_decision_id": "alloc-sizing-only",
+        "confidence_executable_trade": 0.82,
+        "dynamic_exploration_floor": 0.66,
+        "current_price": 0.31,
+        "expected_net_pnl_usd": 0.9,
+        "expected_max_loss_usd": 0.35,
+        "paper_signal": {
+            "allocated_margin_usd": 12.0,
+            "gross_notional_usd": 12.0,
+            "recommended_notional_usd": 12.0,
+            "risk_budget_usd": 0.35,
+        },
+    }
+
+    signal = paper_loop._paper_exploration_queue_signal(row)  # noqa: SLF001
+
+    assert signal["materialization_queue_id"] == row["queue_id"]
+    assert signal["candidate_id"] == "hyp-sizing-only"
+    assert signal["prediction_id"] == "pred-sizing-only"
+    assert signal["signal_id"] == "sig-sizing-only"
+    assert signal["symbol"] == "ENAUSDT"
+    assert signal["timeframe"] == "1h"
+    assert signal["side"] == "short"
+    assert signal["allocated_margin_usd"] == 12.0
+    assert signal["gross_notional_usd"] == 12.0
+    assert signal["risk_budget_usd"] == 0.35
+    assert signal["risk_decision_id"] == "risk-sizing-only"
+    assert signal["orchestrator_decision_id"] == "orch-sizing-only"
+    assert signal["allocator_decision_id"] == "alloc-sizing-only"
+    assert signal["paper_risk_controller_exploration"] is True
+    assert signal["paper_only"] is True
+    assert signal["routes_to_live"] is False
+    assert signal["places_real_order"] is False
+    assert signal["counts_as_A_plus"] is False
+    assert signal["counts_as_live_ready"] is False
+    assert paper_loop._paper_exploration_queue_row_matches(row, signal)  # noqa: SLF001
 
 
 def test_paper_exploration_queue_counterfactual_preserves_decisions_and_lineage() -> None:
@@ -1711,6 +1786,56 @@ def test_materialization_status_summary_fields_marks_active_revalidation_in_prog
     assert fields["queue_resolution_state"] == "ACTIVE_REVALIDATION_IN_PROGRESS"
 
 
+def test_materialization_status_active_queue_overrides_prior_prequeue_resolution() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "same_cycle_candidate_count": 2,
+            "same_cycle_exploration_accepted_count": 0,
+            "same_cycle_materialized_count": 0,
+            "queued_count": 2,
+            "active_count": 2,
+            "prequeue_rejected_count": 2,
+            "prequeue_counterfactual_count": 2,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_ENTRY_GATE:SYMBOL_EXPLICITLY_EXCLUDED_BY_OPERATOR:TIAUSDT": 1,
+                "MATERIALIZATION_PREQUEUE_HIGH_CONFIDENCE_LOSS_CLUSTER:loss_cluster_symbol:AVAXUSDT": 1,
+            },
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == (
+        "PAPER_EXPLORATION_ACTIVE_REVALIDATION_IN_PROGRESS"
+    )
+    assert fields["queue_resolution_state"] == "ACTIVE_REVALIDATION_IN_PROGRESS"
+    assert fields["prequeue_rejected_count"] == 2
+    assert fields["counterfactual_count"] == 2
+
+
+def test_materialization_status_pending_queue_overrides_prior_prequeue_resolution() -> None:
+    fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
+        {
+            "same_cycle_candidate_count": 0,
+            "same_cycle_exploration_accepted_count": 0,
+            "same_cycle_materialized_count": 0,
+            "queued_count": 1,
+            "active_count": 0,
+            "pending_source_time_count": 1,
+            "prequeue_rejected_count": 1,
+            "prequeue_counterfactual_count": 1,
+            "prequeue_rejected_reason_counts": {
+                "MATERIALIZATION_PREQUEUE_TRUE_RISK_BLOCKED:loss_probability": 1,
+            },
+        }
+    )
+
+    assert fields["exact_no_fill_reason"] == (
+        "MIXED_PENDING_SOURCE_AND_TRUE_PREQUEUE_BLOCKERS"
+    )
+    assert fields["queue_resolution_state"] == "PENDING_SOURCE_TIME"
+    assert fields["prequeue_rejected_count"] == 1
+    assert fields["counterfactual_count"] == 1
+
+
 def test_materialization_status_summary_classifies_true_prequeue_blockers() -> None:
     bucket_fields = paper_loop._paper_exploration_materialization_summary_fields(  # noqa: SLF001
         {
@@ -2475,6 +2600,81 @@ def test_materialization_queue_microstructure_shadow_block_reports_trust_unsafe(
     assert components == ["TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"]
 
 
+def test_materialization_queue_allocator_reason_beats_microstructure_shadow_reason() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "allocator_decision_not_exploration_fill_eligible:BLOCK_INSUFFICIENT_LIQUIDITY",
+            "MICROSTRUCTURE_ACTION_SHADOW_ONLY",
+            "BLOCKED_MICROSTRUCTURE_ACTION_SHADOW_ONLY",
+        ]
+    )
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 1}
+    )
+
+    assert reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED"
+    assert components == ["TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"]
+
+
+def test_materialization_queue_allocator_block_beats_soft_microstructure_reduce_reason() -> None:
+    reasons = [
+        "allocator_decision_not_exploration_fill_eligible:BLOCK_NO_EDGE",
+        "REDUCED_BY_MICROSTRUCTURE_TRUST_GATE",
+    ]
+
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(reasons)  # noqa: SLF001
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 1}
+    )
+
+    assert reason == "TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "ALL_CURRENT_ROWS_TRUE_ALLOCATOR_BLOCKED"
+    assert components == ["TRUE_ALLOCATOR_BLOCK_AFTER_QUEUE_CONSUMPTION"]
+
+
+def test_materialization_queue_performance_block_beats_soft_microstructure_reduce_reason() -> None:
+    reasons = [
+        "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+        "BUCKET_PF_OR_EXPECTANCY_NEGATIVE",
+        "REDUCED_BY_MICROSTRUCTURE_TRUST_GATE",
+    ]
+
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(reasons)  # noqa: SLF001
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 1}
+    )
+
+    assert reason == "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "ALL_CURRENT_ROWS_PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED"
+    assert components == [
+        "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+    ]
+
+
+def test_paper_exploration_no_fill_reason_prioritizes_negative_edge_over_performance() -> None:
+    reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
+        [
+            "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+            "EXPECTED_MOVE_DOES_NOT_COVER_COST",
+            "FVG_CONFLUENCE_WITHOUT_POSITIVE_AFTER_COST_EDGE",
+            "NEGATIVE_BUCKET_HEALTH",
+            "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+            "BUCKET_PF_OR_EXPECTANCY_NEGATIVE",
+            "GUARDIAN_HALTED_OR_MISSING",
+        ]
+    )
+    exact_reason, components = paper_loop._paper_exploration_exact_no_fill_reason(  # noqa: SLF001
+        {reason: 1}
+    )
+
+    assert reason == "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
+    assert exact_reason == "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
+    assert components == [
+        "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
+    ]
+
+
 def test_paper_exploration_no_fill_reason_ignores_positive_no_quarantine_evidence() -> None:
     reason = paper_loop._paper_exploration_queue_no_fill_reason(  # noqa: SLF001
         [
@@ -2979,17 +3179,32 @@ def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> N
     base = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc)
     candles = [
         {
-            "open": 100 + i,
-            "high": 102 + i,
-            "low": 99 + i,
-            "close": 101 + i,
+            "open": values[0],
+            "high": values[1],
+            "low": values[2],
+            "close": values[3],
             "volume": 1000 + i,
             "taker_buy_base_vol": 550 + i,
             "available_at": (base.replace(minute=i % 60)).isoformat(),
             "event_time": (base.replace(minute=i % 60)).isoformat(),
             "candle_closed_confirmed": True,
         }
-        for i in range(12)
+        for i, values in enumerate(
+            (
+                (100, 101, 99, 100.5),
+                (100.5, 102, 100, 101.5),
+                (105, 106, 104, 105.5),  # bullish FVG: candle[0].high < candle[2].low
+                (105.5, 107, 104.5, 106.0),
+                (106.0, 108, 105.0, 107.0),
+                (107.0, 109, 105.5, 108.0),
+                (108.0, 110, 106.0, 109.0),
+                (109.0, 111, 107.0, 110.0),
+                (110.0, 112, 108.0, 111.0),
+                (111.0, 113, 109.0, 112.0),
+                (112.0, 114, 110.0, 113.0),
+                (113.0, 115, 111.0, 114.0),
+            )
+        )
     ]
     redis = _FakeRedis(
         {
@@ -2998,6 +3213,28 @@ def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> N
                 "symbol": "BTCUSDT",
                 "timeframe": "5m",
                 "bullish_fvg_present": True,
+            },
+            "v2:market:agg_trades:BTCUSDT": {
+                "schema_version": "v2_agg_trades_v1",
+                "symbol": "BTCUSDT",
+                "generated_utc": base.replace(minute=19, second=30).isoformat(),
+                "trade_count": 2,
+                "trades": [
+                    {
+                        "p": "111.8",
+                        "q": "2.0",
+                        "m": False,
+                        "T": int(base.replace(minute=18).timestamp() * 1000),
+                        "E": int(base.replace(minute=18, second=1).timestamp() * 1000),
+                    },
+                    {
+                        "p": "112.1",
+                        "q": "1.0",
+                        "m": True,
+                        "T": int(base.replace(minute=19).timestamp() * 1000),
+                        "E": int(base.replace(minute=19, second=1).timestamp() * 1000),
+                    },
+                ],
             },
             "v2:market:ohlcv_closed:binance:BTCUSDT:5m": candles,
             "v2:market:prices:BTCUSDT": {"price": 112.0},
@@ -3011,12 +3248,21 @@ def test_advanced_indicator_reader_rejects_stale_contract_and_republishes() -> N
         decision_time=base.replace(minute=20).isoformat(),
     )
     fvg = json.loads(redis.payloads["v2:market:fvg:BTCUSDT:5m"])
+    trades = paper_loop._load_trade_tape_dict_rows_for_advanced_indicators(  # noqa: SLF001
+        redis,
+        "BTCUSDT",
+    )
 
     assert context["advanced_indicator_status"] == "ADVANCED_INDICATOR_CONTEXT_COMPUTED_FROM_CLOSED_CANDLES"
     assert context["advanced_indicator_invalid_contract_keys_repaired"]
+    assert context["fvg_trade_tape_confirmation"] is not None
+    assert "v2:market:trade_tape_features:BTCUSDT" not in redis.payloads
+    assert [trade["side"] for trade in trades] == ["buy", "sell"]
+    assert all(trade.get("available_at") for trade in trades)
     assert fvg["event_time"]
     assert fvg["available_at"]
     assert fvg["decision_time"]
+    assert fvg["fvg_trade_tape_confirmation"] is not None
     assert fvg["trainer_consumes"] is True
     assert fvg["risk_consumes"] is True
 
@@ -3064,6 +3310,117 @@ def test_paper_entry_freeze_halts_when_portfolio_truth_untrusted() -> None:
     assert freeze["source"] == "v2:portfolio:state"
     assert freeze["source_keys"] == ["v2:portfolio:state"]
     assert freeze["places_real_order"] is False
+
+
+def _risk_controller_entry_freeze_intent(**overrides) -> dict[str, object]:
+    intent: dict[str, object] = {
+        "symbol": "FILUSDT",
+        "paper_opportunity_tier": paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION,
+        "paper_risk_controller_exploration_eligible": True,
+        "paper_exploration_paper_fill_allowed": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "counts_as_A_plus": False,
+        "counts_as_final_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_performance_circuit_global_halt_only": True,
+        "paper_risk_controller_exploration_global_halt_bucket_scoped": True,
+        "paper_risk_controller_exploration_global_halt_bucket_clean_allowed": True,
+        "paper_performance_circuit_breaker_matched_blocked_bucket_keys": [],
+        "paper_performance_circuit_breaker_matched_loss_cluster_keys": [],
+        "paper_exploration_exact_blocked_bucket_keys": [],
+    }
+    intent.update(overrides)
+    return intent
+
+
+def _probation_supervisor_freeze(reason: str) -> dict[str, object]:
+    return {
+        "schema_version": "paper_effective_entry_gate_status_v1",
+        "paper_new_entries_halted": True,
+        "new_entries_allowed": False,
+        "blocking_components": ["manual_or_portfolio_freeze"],
+        "halt_reasons": [reason],
+        "component_statuses": {
+            "manual_or_portfolio_freeze": {
+                "source": "tools/probation_gate_watch.py",
+                "reason": reason,
+                "paper_new_entries_halted": True,
+            }
+        },
+        "raw_paper_entry_freeze": {
+            "source": "tools/probation_gate_watch.py",
+            "reason": reason,
+        },
+    }
+
+
+def test_risk_controller_entry_freeze_override_allows_unrelated_probation_halt() -> None:
+    allowed = paper_loop._paper_risk_controller_exploration_can_override_entry_freeze(  # noqa: SLF001
+        intent=_risk_controller_entry_freeze_intent(symbol="FILUSDT"),
+        paper_entry_freeze=_probation_supervisor_freeze(
+            "PROBATION_SUPERVISOR_HALT:NEW_HIGH_CONFIDENCE_LOSS:AVAXUSDT,SUIUSDT"
+        ),
+    )
+
+    assert allowed is True
+
+
+def test_risk_controller_entry_freeze_override_blocks_matching_symbol() -> None:
+    allowed = paper_loop._paper_risk_controller_exploration_can_override_entry_freeze(  # noqa: SLF001
+        intent=_risk_controller_entry_freeze_intent(symbol="AVAXUSDT"),
+        paper_entry_freeze=_probation_supervisor_freeze(
+            "PROBATION_SUPERVISOR_HALT:NEW_HIGH_CONFIDENCE_LOSS:AVAXUSDT,SUIUSDT"
+        ),
+    )
+
+    assert allowed is False
+
+
+def test_risk_controller_entry_freeze_override_blocks_portfolio_truth() -> None:
+    allowed = paper_loop._paper_risk_controller_exploration_can_override_entry_freeze(  # noqa: SLF001
+        intent=_risk_controller_entry_freeze_intent(symbol="FILUSDT"),
+        paper_entry_freeze={
+            "schema_version": "paper_effective_entry_gate_status_v1",
+            "paper_new_entries_halted": True,
+            "new_entries_allowed": False,
+            "blocking_components": ["manual_or_portfolio_freeze"],
+            "halt_reasons": ["PORTFOLIO_TRUTH_UNTRUSTED"],
+            "raw_paper_entry_freeze": {
+                "source": "v2:portfolio:state",
+                "reason": "PORTFOLIO_TRUTH_UNTRUSTED",
+            },
+        },
+    )
+
+    assert allowed is False
+
+
+def test_risk_controller_entry_freeze_override_blocks_exact_bucket_match() -> None:
+    allowed = paper_loop._paper_risk_controller_exploration_can_override_entry_freeze(  # noqa: SLF001
+        intent=_risk_controller_entry_freeze_intent(
+            paper_performance_circuit_breaker_matched_loss_cluster_keys=[
+                "loss_cluster_symbol:FILUSDT"
+            ]
+        ),
+        paper_entry_freeze=_probation_supervisor_freeze(
+            "PROBATION_SUPERVISOR_HALT:NEW_HIGH_CONFIDENCE_LOSS:AVAXUSDT,SUIUSDT"
+        ),
+    )
+
+    assert allowed is False
+
+
+def test_halted_performance_fill_exempts_safe_risk_controller_override() -> None:
+    assert (
+        paper_loop._paper_halted_performance_fill_exempt(  # noqa: SLF001
+            _risk_controller_entry_freeze_intent(
+                paper_risk_controller_exploration_overrode_entry_freeze=True
+            )
+        )
+        is True
+    )
 
 
 def test_sync_lifecycle_open_position_views_clears_stale_open_views() -> None:
@@ -16167,3 +16524,25 @@ def test_per_id_deny_record_wins_and_stays_paper_only() -> None:
     assert out["risk_controller_decision"].startswith("DENY:")
     assert "order_submitted" not in out
     assert "routes_to_live" not in out
+
+
+def test_symbol_tf_closed_evidence_counts_feed_floor_input() -> None:
+    # The dynamic floor's low_evidence_penalty reads symbol_timeframe_evidence_count
+    # off the candidate row; the loop must populate it from real closed outcomes
+    # (it was never written before, pinning the penalty at max forever).
+    from v2.backend.app.cli import v2_trade_management_paper_loop as loop
+
+    loop._set_symbol_tf_closed_evidence_counts(
+        [
+            {"symbol": "BTCUSDT", "timeframe": "1m"},
+            {"symbol": "BTCUSDT", "timeframe": "1m"},
+            {"symbol": "ETHUSDT", "timeframe": "5m"},
+            {"symbol": "", "timeframe": "1m"},  # ignored: no symbol
+        ]
+    )
+    assert loop._SYMBOL_TF_CLOSED_EVIDENCE_COUNTS[("BTCUSDT", "1m")] == 2
+    assert loop._SYMBOL_TF_CLOSED_EVIDENCE_COUNTS[("ETHUSDT", "5m")] == 1
+    assert ("", "1m") not in loop._SYMBOL_TF_CLOSED_EVIDENCE_COUNTS
+    # Re-set replaces (per-cycle semantics).
+    loop._set_symbol_tf_closed_evidence_counts([{"symbol": "SOLUSDT", "timeframe": "1h"}])
+    assert ("BTCUSDT", "1m") not in loop._SYMBOL_TF_CLOSED_EVIDENCE_COUNTS
