@@ -157,17 +157,23 @@ def model_batch_tensor(
     is looked up by id; a row missing from the lookup falls back to repeating its
     own frame (keeps shape valid; only happens for rows outside the lookup's set).
     """
+    import numpy as np  # noqa: PLC0415
+
     if temporal and window_lookup is not None:
-        seqs: list[list[list[float]]] = []
+        # Build via numpy (C-level) -- a nested Python list of B*T*F floats +
+        # torch.tensor() is pathologically slow for large eval batches.
+        frames: list[Any] = []
         for r in rows:
             window = window_lookup.get(id(r))
             if window is None:
-                frame = [float(v) for v in r.tensor.model_vector]
-                window = tuple([tuple(frame)] * max(1, int(seq_len)))
-            seqs.append([list(f) for f in window])
-        return torch_module.tensor(seqs, dtype=torch_module.float32, device=device)
-    return torch_module.tensor(
-        [list(r.tensor.model_vector) for r in rows],
-        dtype=torch_module.float32,
-        device=device,
+                frame = np.asarray(r.tensor.model_vector, dtype=np.float32)
+                frames.append(np.tile(frame, (max(1, int(seq_len)), 1)))
+            else:
+                frames.append(np.asarray(window, dtype=np.float32))
+        arr = np.stack(frames)  # (B, T, F)
+        return torch_module.from_numpy(arr).to(device)
+    arr = np.asarray(
+        [np.asarray(r.tensor.model_vector, dtype=np.float32) for r in rows],
+        dtype=np.float32,
     )
+    return torch_module.from_numpy(arr).to(device)
