@@ -968,6 +968,9 @@ class V2HybridTrainerDataLoader:
             f"v2:orderbook:top:kucoin:{symbol}",
             f"v2:market:orderbook:binance:{symbol}",
             f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:features:moralis:{symbol}:{timeframe}",
+            f"v2:altdata:confluence:{symbol}:{timeframe}",
+            f"v2:smart_money:signals:{symbol}",
             f"v2:microstructure:feed_quality:binance:{symbol}",
             f"v2:microstructure:feed_quality:kucoin:{symbol}",
             f"v2:microstructure:adversarial_features:binance:{symbol}",
@@ -1056,6 +1059,14 @@ class V2HybridTrainerDataLoader:
             "paper_positions": "v2:paper:positions",
             "risk_decisions": "v2:risk:decisions",
             "orchestrator_decisions": "v2:orchestrator:decisions",
+            # Parity with the full payload map (build_example slow path): without
+            # these the prediction fast path never resolves microstructure trust /
+            # confluence / moralis features, so they stay missing on the live
+            # tensor AND (post archive-fix) never reach the replay archive.
+            "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            "moralis_features": f"v2:features:moralis:{symbol}:{timeframe}",
+            "altdata_confluence": f"v2:altdata:confluence:{symbol}:{timeframe}",
+            "smart_money_signals": f"v2:smart_money:signals:{symbol}",
         }
         for name, key in supplemental_keys.items():
             value = self._get(key)
