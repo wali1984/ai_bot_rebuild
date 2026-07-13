@@ -52,6 +52,31 @@ controllable, self-contained edge lever. Insertion (per feature-map investigatio
    `arch_identity` (model.py:108) -> NEW checkpoint lineage -> full offline retrain.
 Quick win first: de-duplicate the 9 redundant feature names.
 
+## RESULT: TA feature expansion WORKS — best composite yet (2026-07-13)
+
+Wired 155 TA-Lib indicators (98 continuous + 57 candlesticks) from v2:features:ta_full
+into FEATURE_SPEC as taf_* features (312->458, model_vector 1248->1832; commit dd10b777ff).
+Retrained temporal offline on the expanded input (fresh 1832-dim lineage, batch 512, 30
+epochs early-stop, best_epoch 12). Same eval methodology + same underlying market data:
+
+| metric    | incumbent | temporal (1248) | temporal + TA (1832) |
+|-----------|----------:|----------------:|---------------------:|
+| Sortino   | 0.140     | 0.347           | **0.4511**           |
+| CVaR (bps)| -647.9    | -621.6          | **-543.8**           |
+| composite | -0.508    | -0.275          | **-0.0927**          |
+| trades    | 3136      | 1991            | 2130                 |
+
+Report: claude_worklog/trainer_atlas/temporal_feat_report.json. Checkpoint:
+.local_models/v2_native_rl_masa_ppo_temporal_feat.
+
+- Unlike the tail-CVaR objective (Sortino up / CVaR down), richer TA input improved BOTH
+  Sortino AND CVaR -> composite -0.275 -> -0.093 (+0.182, ~66% of the way to positive).
+- The levers COMPOUND: incumbent -0.508 -> +temporal -0.275 -> +TA-features -0.093.
+- Composite still slightly negative but CLOSE. Next levers to cross zero: (a) wire the
+  OTHER big gap -- microstructure (80 legacy vs ~19 V2); (b) more feature families;
+  (c) the ta_full data was verified present for all 155 features in the replay archive.
+- CONFIRMED: features are the highest-value edge lever (matches the user's "both" plan).
+
 ## Safety
 Offline training + read-only eval only. No deploy, no promotion, no order, no service
 restart. Deployment remains BLOCKED (blocked_human_only).
