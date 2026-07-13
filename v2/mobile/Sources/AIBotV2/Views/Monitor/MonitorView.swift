@@ -211,6 +211,16 @@ struct MonitorView: View {
                 value: t.training_active ? "Active" : "Inference only",
                 valueColor: t.training_active ? NerVyx.buy : NerVyx.paper
             )
+            DataRow(
+                label: "Model input",
+                value: t.input_dim != nil ? "\(t.input_dim!.formatted()) dims · \(t.feature_count.map { "\($0) feats" } ?? "—")" : "—",
+                mono: true
+            )
+            DataRow(
+                label: "Temporal",
+                value: (t.temporal_encoder_enabled == true) ? (t.temporal_encoder ?? "on").uppercased() : "SINGLE-FRAME",
+                valueColor: (t.temporal_encoder_enabled == true) ? NerVyx.validation : NerVyx.textMuted
+            )
             NerVyxDivider()
             HStack {
                 Text("Checkpoint")

@@ -349,6 +349,16 @@ struct DashboardView: View {
                 mono: true
             )
             DataRow(
+                label: "Model input",
+                value: trainer.input_dim != nil ? "\(trainer.input_dim!.formatted()) dims · \(trainer.feature_count.map { "\($0) feats" } ?? "—")" : "—",
+                mono: true
+            )
+            DataRow(
+                label: "Temporal",
+                value: trainer.temporalLabel.uppercased(),
+                valueColor: (trainer.temporal_encoder_enabled == true) ? NerVyx.validation : NerVyx.textMuted
+            )
+            DataRow(
                 label: "Challenger",
                 value: trainer.champion_challenger_status?.displayStatus.uppercased() ?? "MISSING RUNTIME EVIDENCE",
                 valueColor: (trainer.champion_challenger_status?.promotion_allowed == true) ? NerVyx.validation : NerVyx.warning

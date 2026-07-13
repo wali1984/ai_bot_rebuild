@@ -137,6 +137,9 @@ interface TrainerStatusContract {
   source?: string | null;
   input_dim?: number | null;
   feature_count?: number | null;
+  temporal_encoder?: string | null;
+  temporal_encoder_enabled?: boolean | null;
+  temporal_seq_len?: number | null;
 }
 
 interface ProviderStatusCard {
@@ -625,6 +628,7 @@ function TrainerBrainSummary(): JSX.Element {
           ['Checkpoint ID', publicRuntimeId(trainerData?.checkpoint_id)?.slice(0, 24) ?? 'pending'],
           ['Tensor input dim', countText(trainerData?.input_dim)],
           ['Feature count', countText(trainerData?.feature_count)],
+          ['Temporal encoder', trainerData?.temporal_encoder_enabled ? `${trainerData?.temporal_encoder ?? 'on'} × ${trainerData?.temporal_seq_len ?? '—'} frames` : 'single-frame'],
         ].map(([label, value]) => (
           <div key={label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
             <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>

@@ -117,9 +117,14 @@ interface TrainerStatus {
     available_examples?: number;
     selected_examples?: number;
   };
+  feature_dim?: number;
   model_architecture?: {
     hidden_size?: number;
     residual_block_count?: number;
+    temporal_encoder?: string;
+    temporal_encoder_enabled?: boolean;
+    temporal_seq_len?: number;
+    input_dim?: number;
   };
   parallel_environment_rollout?: ParallelRollout;
 }
@@ -916,8 +921,14 @@ export default function AiBrainPage(): JSX.Element {
           <Metric label="DataLoader" value={`${payload?.dataloader_workers ?? 'pending'} workers`} detail={`${payload?.pinned_memory ? 'pinned memory' : 'unpinned'} · ${payload?.amp_enabled ? 'AMP enabled' : 'AMP pending'}`} />
           <Metric label="Loss before" value={loss(training?.loss_before)} />
           <Metric label="Loss after" value={loss(training?.loss_after)} />
-          <Metric label="Input dim" value={trainer?.input_dim ?? '—'} />
+          <Metric label="Input dim" value={trainer?.input_dim ?? trainer?.model_architecture?.input_dim ?? '—'} />
+          <Metric label="Feature count" value={trainer?.feature_dim ?? '—'} detail="FEATURE_SPEC base features (x4 mask channels)" />
           <Metric label="Hidden / residual" value={`${trainer?.model_architecture?.hidden_size ?? '—'} / ${trainer?.model_architecture?.residual_block_count ?? '—'}`} />
+          <Metric
+            label="Temporal encoder"
+            value={trainer?.model_architecture?.temporal_encoder_enabled ? `${trainer?.model_architecture?.temporal_encoder ?? 'on'} × ${trainer?.model_architecture?.temporal_seq_len ?? '—'} frames` : 'single-frame'}
+            detail={trainer?.model_architecture?.temporal_encoder_enabled ? 'GRU over no-lookahead window' : 'temporal encoder off'}
+          />
           <Metric label="Predictions" value={`${payload?.prediction_grid_rows ?? payload?.prediction_count ?? 0} / ${payload?.prediction_grid_expected_rows ?? 'expected pending'}`} />
           <Metric label="Avg coverage" value={pct(payload?.metrics?.data_coverage_avg)} />
           <Metric
@@ -933,7 +944,7 @@ export default function AiBrainPage(): JSX.Element {
       <Panel id="trainer-legacy-parity" title="Legacy Hybrid Parity">
         <div className="cockpit-analytics-grid">
           <Metric label="Parity" value={runtimeLabel(payload?.parity_status ?? trainer?.legacy_hybrid_parity_claim)} />
-          <Metric label="Methods inventoried" value={payload?.hybrid_trainer_methods_inventoried ?? 324} />
+          <Metric label="Methods inventoried" value={payload?.hybrid_trainer_methods_inventoried ?? '—'} />
           <Metric label="Required missing" value={payload?.required_missing_parity_methods ?? 0} />
           <Metric label="Bridge" value={payload?.trainer_bridge_masked ? 'masked / inactive' : 'check bridge state'} />
           <Metric label="RL-core overwrite" value={payload?.rl_core_primary_overwrites ?? 0} />

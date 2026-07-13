@@ -141,6 +141,16 @@ struct AdminDashboardView: View {
             )
             DataRow(label: "Steps/hr", value: "\(t.training_steps_last_hour.formatted())", mono: true)
             DataRow(label: "Steps total", value: "\(t.training_steps_total.formatted())", mono: true)
+            DataRow(
+                label: "Model input",
+                value: t.input_dim != nil ? "\(t.input_dim!.formatted()) dims · \(t.feature_count.map { "\($0) feats" } ?? "—")" : "—",
+                mono: true
+            )
+            DataRow(
+                label: "Temporal",
+                value: (t.temporal_encoder_enabled == true) ? (t.temporal_encoder ?? "on").uppercased() : "SINGLE-FRAME",
+                valueColor: (t.temporal_encoder_enabled == true) ? NerVyx.validation : NerVyx.textMuted
+            )
         }
         .nerVyxCard()
     }

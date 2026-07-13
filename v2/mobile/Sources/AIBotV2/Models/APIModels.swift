@@ -306,8 +306,20 @@ public struct TrainerState: Decodable, Equatable {
     public let training_steps_last_hour: Int
     public let device: String?
     public let gpu_name: String?
+    // Model-identity truths (temporal-era backend fields; optional so older
+    // backend payloads still decode).
+    public let model_id: String?
+    public let input_dim: Int?
+    public let feature_count: Int?
+    public let temporal_encoder: String?
+    public let temporal_encoder_enabled: Bool?
 
     public var isActive: Bool { state.uppercased().contains("ACTIVE") }
+    public var temporalLabel: String {
+        guard temporal_encoder_enabled == true else { return "single-frame" }
+        let name = (temporal_encoder ?? "").isEmpty ? "ON" : temporal_encoder!.uppercased()
+        return name
+    }
     public var shortState: String {
         let s = state.replacingOccurrences(of: "_", with: " ")
         return s.count > 20 ? String(s.prefix(20)) + "…" : s
@@ -503,6 +515,8 @@ public struct MobileSignal: Decodable, Identifiable, Equatable {
     public let last_price: Double?
     public let expected_move_bps: Double?
     public let data_coverage: Double?
+    public let model_version: String?
+    public let checkpoint_id: String?
 
     public var confidencePct: String { "\(Int(confidence * 100))%" }
     public var selectedConfidence: Double { confidence_selected_action ?? confidence }
@@ -1011,6 +1025,11 @@ public struct HealthTrainer: Decodable, Equatable {
     public let champion_challenger_status: ChampionChallengerStatus?
     public let device: String?
     public let gpu_name: String?
+    public let model_id: String?
+    public let input_dim: Int?
+    public let feature_count: Int?
+    public let temporal_encoder: String?
+    public let temporal_encoder_enabled: Bool?
 
     public var shortState: String {
         let s = state.replacingOccurrences(of: "_", with: " ")
@@ -1281,6 +1300,11 @@ public struct AdminTrainer: Decodable, Equatable {
     public let cuda_active: Bool
     public let training_steps_total: Int
     public let training_steps_last_hour: Int
+    public let model_id: String?
+    public let input_dim: Int?
+    public let feature_count: Int?
+    public let temporal_encoder: String?
+    public let temporal_encoder_enabled: Bool?
 }
 
 public struct AdminGPU: Decodable, Equatable {

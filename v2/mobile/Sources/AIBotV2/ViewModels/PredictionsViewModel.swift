@@ -70,8 +70,8 @@ public final class PredictionsViewModel {
                     market_state_integrity_score: nil,
                     generated_at: sig.published_at,
                     age_seconds: nil,
-                    model_version: nil,
-                    checkpoint_id: nil,
+                    model_version: sig.model_version,
+                    checkpoint_id: sig.checkpoint_id,
                     expected_move_bps: sig.expected_move_bps,
                     feature_coverage_pct: sig.data_coverage,
                     orchestrator_state: nil
@@ -157,8 +157,8 @@ public final class PredictionsViewModel {
                     market_state_integrity_score: nil,
                     generated_at: sig.published_at,
                     age_seconds: nil,
-                    model_version: nil,
-                    checkpoint_id: nil,
+                    model_version: sig.model_version,
+                    checkpoint_id: sig.checkpoint_id,
                     expected_move_bps: sig.expected_move_bps,
                     feature_coverage_pct: sig.data_coverage,
                     orchestrator_state: nil

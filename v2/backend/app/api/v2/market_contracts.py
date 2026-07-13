@@ -4689,6 +4689,7 @@ async def get_ai_predictions(
         action = None
         confidence = None
         model_version = None
+        calibration_block = None
         checkpoint_id = trainer_state.get("checkpoint_id")
         if isinstance(prediction, dict):
             action = prediction.get("action") or prediction.get("direction") or prediction.get("selected_action")
@@ -4703,6 +4704,7 @@ async def get_ai_predictions(
                 confidence = _pred_raw.get("confidence") or _pred_raw.get("confidence_calibrated")
                 model_version = _pred_raw.get("model_version")
                 checkpoint_id = checkpoint_id or _pred_raw.get("checkpoint_id")
+                calibration_block = _pred_raw.get("confidence_calibration")
         predictions = []
         if action or confidence:
             predictions = [{
@@ -4726,14 +4728,26 @@ async def get_ai_predictions(
                 "checkpoint_id": checkpoint_id,
                 "cuda_active": trainer_state.get("cuda_active"),
                 "data_coverage": trainer_state.get("data_coverage"),
-                "calibration_available": False,
+                # WI-3 outcome-fit temperature calibration publishes a
+                # confidence_calibration block on every prediction payload.
+                "calibration_available": isinstance(calibration_block, dict) and bool(calibration_block),
+                "calibration": calibration_block if isinstance(calibration_block, dict) else None,
                 "feature_importance_available": False,
+                "input_dim": trainer_state.get("input_dim"),
+                "feature_count": trainer_state.get("feature_count"),
+                "temporal_encoder": trainer_state.get("temporal_encoder"),
+                "temporal_encoder_enabled": trainer_state.get("temporal_encoder_enabled"),
+                "offline_pretrain_status": trainer_state.get("offline_pretrain_status"),
             },
             source=trainer_data.get("source", "trainer_redis_evidence"),
             source_type=trainer_data.get("source_type", "redis"),
             timestamp=trainer_data.get("timestamp") or _utc_now(),
-            missing_fields=["calibration", "feature_importance", "realized_vs_predicted"] if not predictions else ["calibration", "feature_importance"],
-            warnings=[*(trainer_data.get("warnings") or []), "Prediction matrix and calibration data require a connected training pipeline"],
+            missing_fields=(
+                (["realized_vs_predicted"] if not predictions else [])
+                + ([] if isinstance(calibration_block, dict) and calibration_block else ["calibration"])
+                + ["feature_importance"]
+            ),
+            warnings=[*(trainer_data.get("warnings") or []), "Feature importance requires a connected explainability pipeline"],
             mode="read_only",
         )
     except Exception as exc:

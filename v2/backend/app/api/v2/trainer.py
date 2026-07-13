@@ -395,6 +395,76 @@ def _attach_hybrid_cuda_learning_status(shape: dict[str, Any], r: Any) -> dict[s
     return out
 
 
+def _latest_scheduled_pretrain_report() -> dict[str, Any] | None:
+    """Newest scheduled-pretrain flywheel report (offline train + H2L gate)."""
+    try:
+        # trainer.py lives at v2/backend/app/api/v2/ -> repo root is 5 levels up.
+        repo_root = Path(__file__).resolve().parents[5]
+        reports = sorted(
+            (repo_root / "claude_worklog" / "trainer_atlas").glob("scheduled_pretrain_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if not reports:
+            return None
+        return json.loads(reports[0].read_text())
+    except Exception:  # pragma: no cover - status surface must never fail the route
+        return None
+
+
+def _attach_model_identity_status(shape: dict[str, Any], r: Any) -> dict[str, Any]:
+    """Attach model-identity runtime truths (WI-1/WI-2 era) from Redis + reports.
+
+    The trainer runtime publishes input_dim / feature_dim / model_architecture
+    (incl. the temporal encoder) to ``v2:trainer:hybrid_cuda:status``; the offline
+    pretrain flywheel writes its H2L Sortino/CVaR gate result to a report file.
+    Without this attach the status route silently drops all of it and GUI slots
+    like "Tensor input dim" / "Feature count" render as pending.
+    """
+    out = dict(shape)
+    payload = _read_redis_json(r, TRAINER_HYBRID_CUDA_STATUS_KEY) or {}
+    arch = _dict_value(payload.get("model_architecture"))
+    input_dim = payload.get("input_dim") or arch.get("input_dim")
+    if input_dim is not None:
+        out["input_dim"] = input_dim
+    if payload.get("feature_dim") is not None:
+        # feature_dim == len(FEATURE_SPEC): the model's base feature count.
+        out["feature_count"] = payload.get("feature_dim")
+    if payload.get("feature_schema_status") is not None:
+        out["feature_schema_status"] = payload.get("feature_schema_status")
+    if arch:
+        out["model_architecture"] = arch
+        out["temporal_encoder"] = arch.get("temporal_encoder") or ""
+        out["temporal_encoder_enabled"] = bool(arch.get("temporal_encoder_enabled"))
+        out["temporal_seq_len"] = arch.get("temporal_seq_len") or 0
+    for key in ("model_id", "checkpoint_id", "checkpoint_source"):
+        if not out.get(key) and payload.get(key):
+            out[key] = payload.get(key)
+
+    pretrain = _latest_scheduled_pretrain_report()
+    if pretrain:
+        h2h = _dict_value(pretrain.get("head_to_head"))
+        risk = _dict_value(h2h.get("risk_gate"))
+        out["offline_pretrain_status"] = {
+            "schema_version": "trainer_status_offline_pretrain_v1",
+            "source": "file:claude_worklog/trainer_atlas/scheduled_pretrain_*.json",
+            "generated_utc": pretrain.get("generated_utc"),
+            "phase": pretrain.get("phase"),
+            "promoted": pretrain.get("promoted"),
+            "auto_promote": pretrain.get("auto_promote"),
+            "require_risk_gate": pretrain.get("require_risk_gate"),
+            "duration_seconds": pretrain.get("duration_seconds"),
+            "h2l_decision": h2h.get("decision"),
+            "h2l_input_dim": h2h.get("input_dim"),
+            "risk_gate": risk or None,
+            "sortino_offline": risk.get("offline_sortino") if risk else None,
+            "sortino_live": risk.get("live_sortino") if risk else None,
+            "cvar_offline": risk.get("offline_cvar") if risk else None,
+            "cvar_live": risk.get("live_cvar") if risk else None,
+        }
+    return out
+
+
 def _missing_champion_challenger_status() -> dict[str, Any]:
     return {
         "schema_version": "v2_trainer_champion_challenger_status_v1",
@@ -656,6 +726,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         redis_shape = _redis_fallback_shape(r)
         if redis_shape is not None:
             redis_shape = _attach_hybrid_cuda_learning_status(redis_shape, r)
+            redis_shape = _attach_model_identity_status(redis_shape, r)
             redis_shape = _attach_champion_challenger_status(redis_shape, r)
             redis_shape = _attach_preemptive_feedback_status(redis_shape, r)
             _audit(
@@ -701,6 +772,7 @@ async def get_trainer_summary() -> dict[str, Any]:
                 cached = None
             if isinstance(cached, dict):
                 cached = _attach_hybrid_cuda_learning_status(cached, r)
+                cached = _attach_model_identity_status(cached, r)
                 cached = _attach_champion_challenger_status(cached, r)
                 cached = _attach_preemptive_feedback_status(cached, r)
                 _audit(
@@ -723,6 +795,7 @@ async def get_trainer_summary() -> dict[str, Any]:
         if redis_shape is not None:
             shape = redis_shape
     shape = _attach_hybrid_cuda_learning_status(shape, r)
+    shape = _attach_model_identity_status(shape, r)
     shape = _attach_champion_challenger_status(shape, r)
     shape = _attach_preemptive_feedback_status(shape, r)
 

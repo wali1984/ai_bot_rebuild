@@ -407,6 +407,12 @@ class V2HybridPolicyModel:
             "masa_auxiliary_head": True,
             "masa_adapter_blend": True,
             "action_count": ACTION_COUNT,
+            # WI-1 temporal encoder truth for status/GUI surfaces (empty string
+            # + enabled=False when the single-frame path is active).
+            "temporal_encoder": self.temporal_encoder if self.temporal_encoder_enabled else "",
+            "temporal_encoder_enabled": bool(self.temporal_encoder_enabled),
+            "temporal_seq_len": int(self.temporal_seq_len) if self.temporal_encoder_enabled else 0,
+            "input_dim": int(self.input_dim),
         }
 
     def save_weight_blob(self, path: Path) -> dict[str, Any]:

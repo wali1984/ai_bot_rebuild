@@ -36,6 +36,22 @@ interface TrainerAdminData {
   predictions_emitted: number | null;
   predictions_blocked: number | null;
   calibration_score: number | null;
+  input_dim?: number | null;
+  feature_schema_status?: string | null;
+  model_id?: string | null;
+  temporal_encoder?: string | null;
+  temporal_encoder_enabled?: boolean | null;
+  temporal_seq_len?: number | null;
+  offline_pretrain_status?: {
+    generated_utc?: string | null;
+    phase?: string | null;
+    promoted?: boolean | null;
+    h2l_decision?: string | null;
+    sortino_offline?: number | null;
+    sortino_live?: number | null;
+    cvar_offline?: number | null;
+    cvar_live?: number | null;
+  } | null;
   champion_challenger_status?: {
     status?: string | null;
     result_status?: string | null;
@@ -149,6 +165,26 @@ export default function TrainerAdminPage(): JSX.Element {
         <KV label="Missing Cells" value={String(missingAccuracyCells ?? 0)} color={(missingAccuracyCells ?? 0) > 0 ? 'var(--sell)' : 'var(--buy)'} />
         <KV label="Capital Status" value={capitalStatus?.status ?? '—'} color={adaptiveStatusColor(capitalStatus?.status)} />
         <KV label="Features" value={loading ? '…' : String(data?.feature_count ?? '—')} />
+        <KV label="Input Dim" value={loading ? '…' : String(data?.input_dim ?? '—')} />
+        <KV label="Schema" value={loading ? '…' : (data?.feature_schema_status ?? '—')} color={data?.feature_schema_status === 'ALIGNED' ? 'var(--buy)' : 'var(--warn)'} />
+        <KV
+          label="Temporal Encoder"
+          value={loading ? '…' : (data?.temporal_encoder_enabled ? `${data?.temporal_encoder ?? 'on'} × ${data?.temporal_seq_len ?? '—'}` : 'single-frame')}
+          color={data?.temporal_encoder_enabled ? 'var(--buy)' : 'var(--text-secondary)'}
+        />
+        <KV
+          label="Offline Pretrain"
+          value={loading ? '…' : (data?.offline_pretrain_status?.h2l_decision ?? '—')}
+          color={data?.offline_pretrain_status?.promoted ? 'var(--buy)' : 'var(--warn)'}
+        />
+        <KV
+          label="H2L Risk Gate"
+          value={loading ? '…' : (
+            data?.offline_pretrain_status?.sortino_offline != null
+              ? `S ${data.offline_pretrain_status.sortino_offline.toFixed(3)} / C ${data.offline_pretrain_status.cvar_offline?.toFixed(0) ?? '—'}`
+              : '—'
+          )}
+        />
         <KV label="Last Train" value={loading ? '…' : (data?.last_train_at ? new Date(data.last_train_at).toLocaleString() : '—')} />
         <KV label="Dataset" value={loading ? '…' : (data?.dataset ?? '—')} />
       </div>

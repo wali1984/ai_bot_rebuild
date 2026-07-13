@@ -1132,6 +1132,7 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
     """Read trainer status from v2:trainer:hybrid_cuda:metrics (real data)."""
     metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
     heartbeat = _redis_get_json(r, "v2:trainer:hybrid_cuda:heartbeat") or {}
+    runtime_status = _redis_get_json(r, "v2:trainer:hybrid_cuda:status") or {}
     champion_challenger = _redis_get_json(r, "v2:trainer:champion_challenger_status") or {
         "status": "MISSING_RUNTIME_EVIDENCE",
         "available": False,
@@ -1177,6 +1178,11 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
 
     data_cov = _safe_float(metrics.get("data_coverage_avg"))
 
+    # Model-identity truths (WI-1 temporal era) from the runtime status key.
+    arch = runtime_status.get("model_architecture") or {}
+    input_dim = runtime_status.get("input_dim") or arch.get("input_dim")
+    feature_count = runtime_status.get("feature_dim")
+
     return {
         "state": state,
         "checkpoint": checkpoint_id,
@@ -1188,6 +1194,11 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
         "training_steps_total": steps_total,
         "training_steps_last_hour": steps_last_hour,
         "champion_challenger_status": champion_challenger,
+        "model_id": runtime_status.get("model_id") or "",
+        "input_dim": _safe_int(input_dim) if input_dim is not None else None,
+        "feature_count": _safe_int(feature_count) if feature_count is not None else None,
+        "temporal_encoder": (arch.get("temporal_encoder") or "") if isinstance(arch, dict) else "",
+        "temporal_encoder_enabled": bool(arch.get("temporal_encoder_enabled")) if isinstance(arch, dict) else False,
     }
 
 
@@ -1768,6 +1779,10 @@ def _compact_signal(sig: dict[str, Any]) -> dict[str, Any]:
         "last_price": _safe_float(sig.get("last_price")),
         "expected_move_bps": _safe_float(sig.get("expected_move_bps")),
         "data_coverage": _safe_float(sig.get("data_coverage_percent")),
+        # Model provenance (the raw signal payload carries both; without these
+        # the iOS prediction detail rows can never render them).
+        "model_version": sig.get("model_version"),
+        "checkpoint_id": sig.get("checkpoint_id"),
     }
 
 
@@ -1876,6 +1891,11 @@ async def get_mobile_dashboard(
             "data_coverage": _safe_float(trainer.get("data_coverage")),
             "training_steps_total": _safe_int(trainer.get("training_steps_total")),
             "training_steps_last_hour": _safe_int(trainer.get("training_steps_last_hour")),
+            "model_id": str(trainer.get("model_id") or ""),
+            "input_dim": trainer.get("input_dim"),
+            "feature_count": trainer.get("feature_count"),
+            "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
+            "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
@@ -2068,6 +2088,11 @@ async def get_mobile_health(
             "champion_challenger_status": trainer.get("champion_challenger_status"),
             "device": str(trainer.get("device") or ""),
             "gpu_name": str(trainer.get("gpu_name") or ""),
+            "model_id": str(trainer.get("model_id") or ""),
+            "input_dim": trainer.get("input_dim"),
+            "feature_count": trainer.get("feature_count"),
+            "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
+            "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
@@ -2556,6 +2581,11 @@ async def get_mobile_admin_summary(
             "cuda_active": bool(trainer.get("cuda_active")),
             "training_steps_total": _safe_int(trainer.get("training_steps_total")),
             "training_steps_last_hour": _safe_int(trainer.get("training_steps_last_hour")),
+            "model_id": str(trainer.get("model_id") or ""),
+            "input_dim": trainer.get("input_dim"),
+            "feature_count": trainer.get("feature_count"),
+            "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
+            "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
