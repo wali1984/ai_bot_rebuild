@@ -548,11 +548,26 @@ def _trusted_replay_snapshot(
     ppo_ts = trust_row.get("ppo_observation_timestamp") or "not_applicable_internal_model_forward"
     mtf_snapshot_id = trust_row.get("mtf_snapshot_id") or trust_row.get("decision_snapshot_id")
     decision_id = trust_row.get("decision_id") or prediction_id
+    # Archive the tensor's OWN feature view alongside the trust-row features.
+    # The trust row's flat dict only carries what the feature pipeline merged
+    # (~380 fields) while the prediction tensor resolved the FULL FEATURE_SPEC
+    # from live sources (fvg/vwap/cvd/structure/moralis/confluence/...): without
+    # this merge those families are permanently absent from the replay archive,
+    # so replay training examples show them 0%-populated even though the live
+    # decision saw them. Trust-row values win on name collisions (raw values,
+    # existing behaviour); the tensor view only fills names the pipeline lacked.
+    tensor_feature_view = {
+        name: value
+        for name, value, missing in zip(
+            example.tensor.feature_names, example.tensor.values, example.tensor.missing_mask
+        )
+        if not missing
+    }
     feature_snapshot = {
         "feature_snapshot_id": example.tensor.feature_snapshot_id,
         "symbol": example.symbol,
         "timeframe": example.timeframe,
-        "features": dict(trust_row.get("features") or {}),
+        "features": {**tensor_feature_view, **dict(trust_row.get("features") or {})},
         "feature_cutoff": feature_cutoff,
         "available_at": trust_row.get("available_at") or trust_row.get("source_available_time"),
         "generated_at": trust_row.get("generated_at") or trust_row.get("created_at"),
