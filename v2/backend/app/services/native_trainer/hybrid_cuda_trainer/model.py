@@ -7,6 +7,7 @@ import math
 import os
 import random
 import tempfile
+from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Sequence
@@ -88,6 +89,14 @@ class V2HybridPolicyModel:
         self.temporal_seq_len = max(2, int(os.getenv("V2_TRAINER_TEMPORAL_SEQ_LEN", "16") or 16))
         self.temporal_hidden = max(32, int(os.getenv("V2_TRAINER_TEMPORAL_HIDDEN", "256") or 256))
         self.temporal_proj_dim = max(32, int(os.getenv("V2_TRAINER_TEMPORAL_PROJ_DIM", "256") or 256))
+        # WI-1 Step 4c: online per-(symbol,timeframe) rolling window of recent frames
+        # for the PREDICTION path (training builds windows from the batch; live/paper
+        # inference sees one frame at a time). Feeds the same no-lookahead (B,T,F)
+        # window the GRU was trained on. Only populated when temporal is enabled; the
+        # single-frame path is byte-identical. Deduped by frame id (cycles re-present
+        # the same latest snapshot) so a repeated frame never double-fills the window.
+        self._temporal_predict_buffers: dict[tuple[str, str], deque] = {}
+        self._temporal_predict_last_id: dict[tuple[str, str], Any] = {}
         self._torch = None
         self._net = None
         self._device = "cpu"
@@ -489,12 +498,16 @@ class V2HybridPolicyModel:
             }
 
     def forward(self, tensor: FeatureTensorRecord | Sequence[float]) -> ModelForwardResult:
+        window: list[list[float]] | None = None
         if isinstance(tensor, FeatureTensorRecord):
             vector = [self._finite_feature_value(value) for value in tensor.model_vector]
             coverage = tensor.data_coverage_percent
             missing_count = len(tensor.missing_feature_names)
             stale_count = len(tensor.stale_feature_names)
             total_features = len(tensor.feature_names) or None
+            # Temporal (Step 4c): fold this frame into the per-symbol rolling window.
+            # None when temporal is off -> byte-identical single-frame path.
+            window = self._temporal_predict_window(tensor, vector)
         else:
             vector = [self._finite_feature_value(v) for v in tensor]
             coverage = 100.0
@@ -504,8 +517,47 @@ class V2HybridPolicyModel:
         if len(vector) != self.input_dim:
             raise ValueError(f"model input dim mismatch: expected {self.input_dim}, got {len(vector)}")
         if self._torch is not None and self._net is not None:
-            return self._forward_torch(vector, coverage, missing_count, stale_count, total_features)
+            return self._forward_torch(
+                vector, coverage, missing_count, stale_count, total_features, window=window
+            )
         return self._forward_fallback(vector, coverage, missing_count, stale_count, total_features)
+
+    def _temporal_predict_window(
+        self, tensor: FeatureTensorRecord, vector: Sequence[float]
+    ) -> list[list[float]] | None:
+        """Maintain a no-lookahead rolling window of recent frames per (symbol, tf).
+
+        Returns ``seq_len`` frames (oldest first, this frame last), left-padded with
+        the oldest available frame when history is short -- mirroring the training
+        windower (``temporal_windowing.build_example_windows``). Returns ``None`` when
+        the temporal encoder is off so the caller keeps the exact single-frame tensor.
+
+        The live loop re-presents the SAME latest snapshot across cycles until a new
+        candle closes, so frames are deduped by ``feature_snapshot_id``/``tensor_id``:
+        a repeated frame is not appended (the window already ends with it), keeping the
+        window a true time series of distinct frames.
+        """
+        if not self.temporal_encoder_enabled:
+            return None
+        seq_len = int(self.temporal_seq_len)
+        key = (
+            str(getattr(tensor, "symbol", "") or "").upper(),
+            str(getattr(tensor, "timeframe", "") or "").lower(),
+        )
+        frame_id = getattr(tensor, "feature_snapshot_id", None) or getattr(tensor, "tensor_id", None)
+        buf = self._temporal_predict_buffers.get(key)
+        if buf is None:
+            buf = deque(maxlen=seq_len)
+            self._temporal_predict_buffers[key] = buf
+        frame = [float(v) for v in vector]
+        last_id = self._temporal_predict_last_id.get(key)
+        if not buf or frame_id is None or frame_id != last_id:
+            buf.append(frame)
+            self._temporal_predict_last_id[key] = frame_id
+        frames = list(buf) or [frame]
+        if len(frames) < seq_len:
+            frames = [frames[0]] * (seq_len - len(frames)) + frames
+        return frames
 
     @staticmethod
     def _finite_feature_value(value: Any) -> float:
@@ -524,12 +576,19 @@ class V2HybridPolicyModel:
         missing_count: int,
         stale_count: int,
         total_features: int | None = None,
+        *,
+        window: list[list[float]] | None = None,
     ) -> ModelForwardResult:
         torch = self._torch
         assert torch is not None and self._net is not None
         self._net.eval()
         with torch.no_grad():
-            x = torch.tensor([vector], dtype=torch.float32, device=self._device)
+            if window is not None:
+                # (1, T, F) no-lookahead window -> the net's temporal (GRU) path,
+                # which reduces to per-batch heads exactly like the single frame.
+                x = torch.tensor([window], dtype=torch.float32, device=self._device)
+            else:
+                x = torch.tensor([vector], dtype=torch.float32, device=self._device)
             out = self._net(x)
             logits_t = torch.clamp(
                 torch.nan_to_num(out["logits"][0], nan=0.0, posinf=30.0, neginf=-30.0),
