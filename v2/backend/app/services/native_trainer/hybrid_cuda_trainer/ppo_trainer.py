@@ -909,31 +909,87 @@ class V2HybridPPOTrainer:
         # rows) so both the train batch and the held-out validation build windows
         # over the SAME causal history -- consistency is what avoids a train/eval
         # mismatch. Off -> byte-identical 2D single-frame tensor.
-        _cycle_rows = list(rows) + list(validation_rows)
-        self._temporal_window_lookup = (
-            build_window_lookup(_cycle_rows, seq_len=_seq_len) if _temporal else None
+        # Cross-epoch input cache. train() slices rows/validation_rows as a
+        # DETERMINISTIC prefix of `examples` (no shuffle), so across the offline
+        # loop's epochs the windowed input + label tensors are IDENTICAL -- only the
+        # weights change. Rebuilding + sanitising the (16x-bigger, temporal) tensor
+        # every epoch is what starves the GPU (gpu_util ~16%). Cache by a CONTENT
+        # fingerprint (decision_time of boundary rows, NOT id() -- id reuse would be
+        # unsafe), so the offline loop hits the cache while the online loop (fresh,
+        # time-advancing rows each cycle) always misses and rebuilds. Byte-identical
+        # results either way -- pure speed.
+        def _fp_token(seq: Sequence[Any], idx: int) -> Any:
+            try:
+                r = seq[idx]
+            except (IndexError, TypeError):
+                return None
+            tensor = getattr(r, "tensor", None)
+            tid = getattr(tensor, "tensor_id", None) or getattr(tensor, "feature_snapshot_id", None)
+            # tensor_id is unique per feature snapshot; pair with the label so even a
+            # tid collision across sets is distinguished. TrainingExample has NO
+            # top-level decision_time, so a time-based token would be degenerate.
+            return (tid, getattr(r, "label_action_index", None))
+
+        _fp_tokens = (
+            _fp_token(rows, 0), _fp_token(rows, len(rows) // 2), _fp_token(rows, -1),
+            _fp_token(validation_rows, -1),
         )
-        cpu_x = model_batch_tensor(
-            torch, rows, temporal=_temporal, seq_len=_seq_len,
-            window_lookup=self._temporal_window_lookup, device="cpu",
-        )
-        policy_action_labels, policy_action_supervision_metrics = self._python_policy_action_supervision_labels(rows)
-        cpu_actions = torch.tensor([r.label_action_index for r in rows], dtype=torch.long, device="cpu")
-        cpu_policy_actions = torch.tensor(policy_action_labels, dtype=torch.long, device="cpu")
-        cpu_expected = torch.tensor(
-            [r.label_expected_move_after_cost_bps for r in rows],
-            dtype=torch.float32,
-            device="cpu",
-        )
-        non_finite_feature_count = int((~torch.isfinite(cpu_x)).sum().detach().cpu().item())
-        non_finite_expected_label_count = int((~torch.isfinite(cpu_expected)).sum().detach().cpu().item())
-        cpu_x = torch.nan_to_num(cpu_x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
-        cpu_x = torch.clamp(cpu_x, min=-1_000_000.0, max=1_000_000.0)
-        raw_expected = torch.nan_to_num(cpu_expected, nan=0.0, posinf=120.0, neginf=-120.0)
-        cpu_expected = torch.clamp(raw_expected, min=-120.0, max=120.0)
-        clipped_expected_label_count = int(
-            (torch.abs(raw_expected - cpu_expected) > 1e-6).sum().detach().cpu().item()
-        )
+        # Fail-safe: only cache when we have a REAL distinguishing signal (a tensor
+        # id on a boundary row). A degenerate all-None fingerprint could false-hit
+        # across DIFFERENT online-cycle row sets of equal length -> training on stale
+        # data. When we can't fingerprint, never cache (rebuild every call, as before).
+        _cacheable = any(t is not None and t[0] is not None for t in _fp_tokens)
+        _cache_fp = (len(rows), len(validation_rows), _temporal, _seq_len, _fp_tokens)
+        _cache = getattr(self, "_train_input_cache", None)
+        if _cacheable and _cache is not None and _cache.get("fp") == _cache_fp:
+            cpu_x = _cache["cpu_x"]
+            cpu_actions = _cache["cpu_actions"]
+            cpu_policy_actions = _cache["cpu_policy_actions"]
+            cpu_expected = _cache["cpu_expected"]
+            self._temporal_window_lookup = _cache["window_lookup"]
+            policy_action_supervision_metrics = _cache["policy_metrics"]
+            non_finite_feature_count = _cache["non_finite_feature_count"]
+            non_finite_expected_label_count = _cache["non_finite_expected_label_count"]
+            clipped_expected_label_count = _cache["clipped_expected_label_count"]
+        else:
+            _cycle_rows = list(rows) + list(validation_rows)
+            self._temporal_window_lookup = (
+                build_window_lookup(_cycle_rows, seq_len=_seq_len) if _temporal else None
+            )
+            cpu_x = model_batch_tensor(
+                torch, rows, temporal=_temporal, seq_len=_seq_len,
+                window_lookup=self._temporal_window_lookup, device="cpu",
+            )
+            policy_action_labels, policy_action_supervision_metrics = self._python_policy_action_supervision_labels(rows)
+            cpu_actions = torch.tensor([r.label_action_index for r in rows], dtype=torch.long, device="cpu")
+            cpu_policy_actions = torch.tensor(policy_action_labels, dtype=torch.long, device="cpu")
+            cpu_expected = torch.tensor(
+                [r.label_expected_move_after_cost_bps for r in rows],
+                dtype=torch.float32,
+                device="cpu",
+            )
+            non_finite_feature_count = int((~torch.isfinite(cpu_x)).sum().detach().cpu().item())
+            non_finite_expected_label_count = int((~torch.isfinite(cpu_expected)).sum().detach().cpu().item())
+            cpu_x = torch.nan_to_num(cpu_x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
+            cpu_x = torch.clamp(cpu_x, min=-1_000_000.0, max=1_000_000.0)
+            raw_expected = torch.nan_to_num(cpu_expected, nan=0.0, posinf=120.0, neginf=-120.0)
+            cpu_expected = torch.clamp(raw_expected, min=-120.0, max=120.0)
+            clipped_expected_label_count = int(
+                (torch.abs(raw_expected - cpu_expected) > 1e-6).sum().detach().cpu().item()
+            )
+            if _cacheable:
+                self._train_input_cache = {
+                    "fp": _cache_fp,
+                    "cpu_x": cpu_x,
+                    "cpu_actions": cpu_actions,
+                    "cpu_policy_actions": cpu_policy_actions,
+                    "cpu_expected": cpu_expected,
+                    "window_lookup": self._temporal_window_lookup,
+                    "policy_metrics": policy_action_supervision_metrics,
+                    "non_finite_feature_count": non_finite_feature_count,
+                    "non_finite_expected_label_count": non_finite_expected_label_count,
+                    "clipped_expected_label_count": clipped_expected_label_count,
+                }
         ppo_row_flags = [self._has_on_policy_ppo_fields(row) for row in rows]
         ppo_row_count = sum(1 for flag in ppo_row_flags if flag)
         outcome_row_count = sum(1 for row in rows if self._has_outcome_supervised_targets(row))
