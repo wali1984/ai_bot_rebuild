@@ -1,0 +1,335 @@
+{
+  "schema_version": "trainer_offline_batch_train_v1",
+  "examples": 16000,
+  "epochs": 30,
+  "steps_per_epoch": 60,
+  "batch_size": 512,
+  "total_gradient_steps": 1800,
+  "wall_seconds": 999.263,
+  "gradient_steps_per_second": 1.801,
+  "rows_processed": 28800000,
+  "rows_per_second": 28821.2,
+  "loss_first": 63.01905822753906,
+  "loss_last": 20.4381046295166,
+  "loss_improved": true,
+  "best_validation_loss": null,
+  "best_epoch": null,
+  "checkpoint_selection_criterion": "risk_adjusted_composite",
+  "best_risk_composite": null,
+  "best_risk_sortino": null,
+  "best_risk_cvar": null,
+  "best_risk_trades": null,
+  "early_stop_patience": 0,
+  "stopped_early": false,
+  "epochs_run": 30,
+  "kept_best_val_checkpoint": false,
+  "gpu": {
+    "gpu_telemetry_available": true,
+    "samples": 205,
+    "gpu_utilization_mean_pct": 19.47,
+    "gpu_utilization_max_pct": 98.0,
+    "vram_used_max_mb": 14094.0
+  },
+  "epoch_reports": [
+    {
+      "epoch": 0,
+      "loss_before": 63.01905822753906,
+      "loss_after": 60.571929931640625,
+      "validation_supervised_loss": 50.39501190185547,
+      "train_val_generalization_gap": -10.176918,
+      "ppo_entropy": 1.0852694511413574,
+      "learning_mode": null
+    },
+    {
+      "epoch": 1,
+      "loss_before": 60.510372161865234,
+      "loss_after": 61.40152359008789,
+      "validation_supervised_loss": 52.842018127441406,
+      "train_val_generalization_gap": -8.559505,
+      "ppo_entropy": 0.9750733971595764,
+      "learning_mode": null
+    },
+    {
+      "epoch": 2,
+      "loss_before": 61.39686584472656,
+      "loss_after": 51.769676208496094,
+      "validation_supervised_loss": 44.79518127441406,
+      "train_val_generalization_gap": -6.974495,
+      "ppo_entropy": 0.9788718819618225,
+      "learning_mode": null
+    },
+    {
+      "epoch": 3,
+      "loss_before": 51.75246047973633,
+      "loss_after": 57.20145797729492,
+      "validation_supervised_loss": 50.68575668334961,
+      "train_val_generalization_gap": -6.515701,
+      "ppo_entropy": 1.0962098836898804,
+      "learning_mode": null
+    },
+    {
+      "epoch": 4,
+      "loss_before": 57.2069206237793,
+      "loss_after": 66.47964477539062,
+      "validation_supervised_loss": 61.59296417236328,
+      "train_val_generalization_gap": -4.886681,
+      "ppo_entropy": 1.0605976581573486,
+      "learning_mode": null
+    },
+    {
+      "epoch": 5,
+      "loss_before": 66.49227905273438,
+      "loss_after": 64.60450744628906,
+      "validation_supervised_loss": 61.96036148071289,
+      "train_val_generalization_gap": -2.644146,
+      "ppo_entropy": 1.0895767211914062,
+      "learning_mode": null
+    },
+    {
+      "epoch": 6,
+      "loss_before": 64.50787353515625,
+      "loss_after": 40.07663345336914,
+      "validation_supervised_loss": 39.166324615478516,
+      "train_val_generalization_gap": -0.910309,
+      "ppo_entropy": 1.079478144645691,
+      "learning_mode": null
+    },
+    {
+      "epoch": 7,
+      "loss_before": 40.08439636230469,
+      "loss_after": 38.1258430480957,
+      "validation_supervised_loss": 38.13863754272461,
+      "train_val_generalization_gap": 0.012794,
+      "ppo_entropy": 1.0770267248153687,
+      "learning_mode": null
+    },
+    {
+      "epoch": 8,
+      "loss_before": 38.05543518066406,
+      "loss_after": 36.43350601196289,
+      "validation_supervised_loss": 37.28168487548828,
+      "train_val_generalization_gap": 0.848179,
+      "ppo_entropy": 1.0770620107650757,
+      "learning_mode": null
+    },
+    {
+      "epoch": 9,
+      "loss_before": 36.44697952270508,
+      "loss_after": 34.45586395263672,
+      "validation_supervised_loss": 36.47667694091797,
+      "train_val_generalization_gap": 2.020813,
+      "ppo_entropy": 1.0678801536560059,
+      "learning_mode": null
+    },
+    {
+      "epoch": 10,
+      "loss_before": 34.4743766784668,
+      "loss_after": 32.57965850830078,
+      "validation_supervised_loss": 36.0129280090332,
+      "train_val_generalization_gap": 3.43327,
+      "ppo_entropy": 1.0659853219985962,
+      "learning_mode": null
+    },
+    {
+      "epoch": 11,
+      "loss_before": 32.62961959838867,
+      "loss_after": 30.49728775024414,
+      "validation_supervised_loss": 35.74319839477539,
+      "train_val_generalization_gap": 5.245911,
+      "ppo_entropy": 1.0653939247131348,
+      "learning_mode": null
+    },
+    {
+      "epoch": 12,
+      "loss_before": 30.456680297851562,
+      "loss_after": 27.726289749145508,
+      "validation_supervised_loss": 35.6573371887207,
+      "train_val_generalization_gap": 7.931047,
+      "ppo_entropy": 1.0567171573638916,
+      "learning_mode": null
+    },
+    {
+      "epoch": 13,
+      "loss_before": 27.580434799194336,
+      "loss_after": 28.35365867614746,
+      "validation_supervised_loss": 36.68751525878906,
+      "train_val_generalization_gap": 8.333857,
+      "ppo_entropy": 1.055243968963623,
+      "learning_mode": null
+    },
+    {
+      "epoch": 14,
+      "loss_before": 28.34994125366211,
+      "loss_after": 25.84407615661621,
+      "validation_supervised_loss": 35.84597396850586,
+      "train_val_generalization_gap": 10.001898,
+      "ppo_entropy": 1.0320485830307007,
+      "learning_mode": null
+    },
+    {
+      "epoch": 15,
+      "loss_before": 25.868953704833984,
+      "loss_after": 24.045318603515625,
+      "validation_supervised_loss": 34.377838134765625,
+      "train_val_generalization_gap": 10.33252,
+      "ppo_entropy": 1.0415774583816528,
+      "learning_mode": null
+    },
+    {
+      "epoch": 16,
+      "loss_before": 24.134492874145508,
+      "loss_after": 25.815990447998047,
+      "validation_supervised_loss": 34.59135818481445,
+      "train_val_generalization_gap": 8.775368,
+      "ppo_entropy": 1.051705002784729,
+      "learning_mode": null
+    },
+    {
+      "epoch": 17,
+      "loss_before": 25.748170852661133,
+      "loss_after": 20.628084182739258,
+      "validation_supervised_loss": 35.57936477661133,
+      "train_val_generalization_gap": 14.951281,
+      "ppo_entropy": 1.0259565114974976,
+      "learning_mode": null
+    },
+    {
+      "epoch": 18,
+      "loss_before": 20.623584747314453,
+      "loss_after": 20.550994873046875,
+      "validation_supervised_loss": 37.02849578857422,
+      "train_val_generalization_gap": 16.477501,
+      "ppo_entropy": 1.0298986434936523,
+      "learning_mode": null
+    },
+    {
+      "epoch": 19,
+      "loss_before": 20.589452743530273,
+      "loss_after": 18.481388092041016,
+      "validation_supervised_loss": 35.946964263916016,
+      "train_val_generalization_gap": 17.465576,
+      "ppo_entropy": 1.0259901285171509,
+      "learning_mode": null
+    },
+    {
+      "epoch": 20,
+      "loss_before": 18.492095947265625,
+      "loss_after": 17.072439193725586,
+      "validation_supervised_loss": 37.04638671875,
+      "train_val_generalization_gap": 19.973948,
+      "ppo_entropy": 1.0125900506973267,
+      "learning_mode": null
+    },
+    {
+      "epoch": 21,
+      "loss_before": 17.120834350585938,
+      "loss_after": 16.45972442626953,
+      "validation_supervised_loss": 38.27245330810547,
+      "train_val_generalization_gap": 21.812729,
+      "ppo_entropy": 1.0145752429962158,
+      "learning_mode": null
+    },
+    {
+      "epoch": 22,
+      "loss_before": 16.480243682861328,
+      "loss_after": 27.670061111450195,
+      "validation_supervised_loss": 51.02891159057617,
+      "train_val_generalization_gap": 23.35885,
+      "ppo_entropy": 1.0061036348342896,
+      "learning_mode": null
+    },
+    {
+      "epoch": 23,
+      "loss_before": 27.56297492980957,
+      "loss_after": 14.277210235595703,
+      "validation_supervised_loss": 38.599327087402344,
+      "train_val_generalization_gap": 24.322117,
+      "ppo_entropy": 1.0046579837799072,
+      "learning_mode": null
+    },
+    {
+      "epoch": 24,
+      "loss_before": 14.283966064453125,
+      "loss_after": 35.12009048461914,
+      "validation_supervised_loss": 60.59616470336914,
+      "train_val_generalization_gap": 25.476074,
+      "ppo_entropy": 0.998108983039856,
+      "learning_mode": null
+    },
+    {
+      "epoch": 25,
+      "loss_before": 35.13785934448242,
+      "loss_after": 25.250492095947266,
+      "validation_supervised_loss": 53.69364929199219,
+      "train_val_generalization_gap": 28.443157,
+      "ppo_entropy": 0.9697977900505066,
+      "learning_mode": null
+    },
+    {
+      "epoch": 26,
+      "loss_before": 25.238998413085938,
+      "loss_after": 21.01097869873047,
+      "validation_supervised_loss": 49.64149856567383,
+      "train_val_generalization_gap": 28.63052,
+      "ppo_entropy": 0.9492965340614319,
+      "learning_mode": null
+    },
+    {
+      "epoch": 27,
+      "loss_before": 20.982481002807617,
+      "loss_after": 17.36844253540039,
+      "validation_supervised_loss": 46.20736312866211,
+      "train_val_generalization_gap": 28.838921,
+      "ppo_entropy": 0.9492881298065186,
+      "learning_mode": null
+    },
+    {
+      "epoch": 28,
+      "loss_before": 17.253921508789062,
+      "loss_after": 19.45433235168457,
+      "validation_supervised_loss": 49.603843688964844,
+      "train_val_generalization_gap": 30.149511,
+      "ppo_entropy": 0.9317410588264465,
+      "learning_mode": null
+    },
+    {
+      "epoch": 29,
+      "loss_before": 19.419710159301758,
+      "loss_after": 20.4381046295166,
+      "validation_supervised_loss": 51.0322380065918,
+      "train_val_generalization_gap": 30.594133,
+      "ppo_entropy": 0.9367902278900146,
+      "learning_mode": null
+    }
+  ],
+  "point_in_time_safety": {
+    "schema_version": "trainer_offline_point_in_time_safety_v1",
+    "checked_rows": 16000,
+    "missing_trust_row_count": 0,
+    "missing_decision_time_count": 0,
+    "violation_count": 0,
+    "violations_sample": [],
+    "passed": true
+  },
+  "offline_only": true,
+  "writes_live_checkpoint": false,
+  "places_real_order": false,
+  "order_submitted": false,
+  "test_order_submitted": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "routes_to_live": false,
+  "live_gate": "blocked_human_only",
+  "load": {
+    "cache_path": "claude_worklog/trainer_atlas/offline_batch_example_cache.pkl",
+    "cache_hit": true,
+    "load_seconds": 1.293,
+    "examples": 16000
+  },
+  "save": {
+    "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_temporal_cvar",
+    "is_live_dir": false,
+    "saved": true,
+    "checkpoint_id": "v2_hybrid_ckpt_b13ca2c74df635cd93e9b1b1"
+  }
+}
