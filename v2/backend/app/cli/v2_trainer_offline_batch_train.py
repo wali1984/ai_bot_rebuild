@@ -247,16 +247,25 @@ def _model_risk_composite(model: Any, examples: list[Any]) -> tuple[float, dict[
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.risk_metrics import (  # noqa: PLC0415
         risk_adjusted_summary,
     )
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.temporal_windowing import (  # noqa: PLC0415
+        build_window_lookup,
+        model_batch_tensor,
+    )
 
     net = getattr(model, "net", None)
     if net is None or not examples:
         return float("-inf"), {}
     returns: list[float] = []
+    _temporal = bool(getattr(model, "temporal_encoder_enabled", False))
+    _seq_len = int(getattr(model, "temporal_seq_len", 16))
+    _lookup = build_window_lookup(list(examples), seq_len=_seq_len) if _temporal else None
     try:
         net.eval()
         with torch.no_grad():
-            vectors = [list(r.tensor.model_vector) for r in examples]
-            x = torch.tensor(vectors, dtype=torch.float32, device="cpu")
+            x = model_batch_tensor(
+                torch, list(examples), temporal=_temporal, seq_len=_seq_len,
+                window_lookup=_lookup, device="cpu",
+            )
             x = torch.nan_to_num(x, nan=0.0, posinf=1e6, neginf=-1e6).to(device=model.device)
             actions = torch.argmax(net(x)["logits"], dim=-1).detach().cpu().tolist()
         for r, a in zip(examples, actions):

@@ -816,10 +816,20 @@ class V2HybridPPOTrainer:
             return dict(empty)
         device = self.model.device
         try:
-            val_x = torch.tensor(
-                [list(r.tensor.model_vector) for r in rows],
-                dtype=torch.float32,
-                device="cpu",
+            from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.temporal_windowing import (  # noqa: PLC0415
+                build_window_lookup,
+                model_batch_tensor,
+            )
+            _temporal = bool(getattr(self.model, "temporal_encoder_enabled", False))
+            _seq_len = int(getattr(self.model, "temporal_seq_len", 16))
+            # Prefer the shared cycle lookup (set by _train_torch so train + val use
+            # the same causal history); else build from these rows (e.g. H2L scoring).
+            _lookup = getattr(self, "_temporal_window_lookup", None)
+            if _temporal and _lookup is None:
+                _lookup = build_window_lookup(rows, seq_len=_seq_len)
+            val_x = model_batch_tensor(
+                torch, rows, temporal=_temporal, seq_len=_seq_len,
+                window_lookup=_lookup, device="cpu",
             )
             val_x = torch.nan_to_num(val_x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
             val_x = torch.clamp(val_x, min=-1_000_000.0, max=1_000_000.0).to(device=device)
@@ -889,10 +899,23 @@ class V2HybridPPOTrainer:
         parameter_hash_before = self._parameter_hash_from_vector(parameter_vector_before)
         device = self.model.device
         net.train()
-        cpu_x = torch.tensor(
-            [list(r.tensor.model_vector) for r in rows],
-            dtype=torch.float32,
-            device="cpu",
+        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.temporal_windowing import (  # noqa: PLC0415
+            build_window_lookup,
+            model_batch_tensor,
+        )
+        _temporal = bool(getattr(self.model, "temporal_encoder_enabled", False))
+        _seq_len = int(getattr(self.model, "temporal_seq_len", 16))
+        # Build ONE window lookup from the full cycle (train rows + validation
+        # rows) so both the train batch and the held-out validation build windows
+        # over the SAME causal history -- consistency is what avoids a train/eval
+        # mismatch. Off -> byte-identical 2D single-frame tensor.
+        _cycle_rows = list(rows) + list(validation_rows)
+        self._temporal_window_lookup = (
+            build_window_lookup(_cycle_rows, seq_len=_seq_len) if _temporal else None
+        )
+        cpu_x = model_batch_tensor(
+            torch, rows, temporal=_temporal, seq_len=_seq_len,
+            window_lookup=self._temporal_window_lookup, device="cpu",
         )
         policy_action_labels, policy_action_supervision_metrics = self._python_policy_action_supervision_labels(rows)
         cpu_actions = torch.tensor([r.label_action_index for r in rows], dtype=torch.long, device="cpu")

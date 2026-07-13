@@ -128,3 +128,46 @@ def build_example_windows(
             )
 
     return [windows_by_idx[i] for i in sorted(windows_by_idx)]
+
+
+def build_window_lookup(examples: Sequence[Any], *, seq_len: int = DEFAULT_SEQ_LEN) -> dict[int, tuple[tuple[float, ...], ...]]:
+    """Map id(example) -> its no-lookahead window, for building batched tensors.
+
+    Keyed by ``id`` because TrainingExample is a frozen dataclass with an
+    unhashable dict field. Each caller builds a lookup from its OWN row set so
+    the window is self-consistent and strictly causal within that set.
+    """
+    return {id(w.example): w.window for w in build_example_windows(examples, seq_len=seq_len)}
+
+
+def model_batch_tensor(
+    torch_module: Any,
+    rows: Sequence[Any],
+    *,
+    temporal: bool,
+    seq_len: int,
+    window_lookup: dict[int, tuple[tuple[float, ...], ...]] | None,
+    device: str = "cpu",
+) -> Any:
+    """Build the model input batch: 2D (B, F) single-frame, or 3D (B, T, F) window.
+
+    The SINGLE place that decides frame-vs-window, so every training/eval/predict
+    path stays consistent. When ``temporal`` is off (or no lookup) it returns the
+    exact 2D tensor the single-frame model always used. When on, each row's window
+    is looked up by id; a row missing from the lookup falls back to repeating its
+    own frame (keeps shape valid; only happens for rows outside the lookup's set).
+    """
+    if temporal and window_lookup is not None:
+        seqs: list[list[list[float]]] = []
+        for r in rows:
+            window = window_lookup.get(id(r))
+            if window is None:
+                frame = [float(v) for v in r.tensor.model_vector]
+                window = tuple([tuple(frame)] * max(1, int(seq_len)))
+            seqs.append([list(f) for f in window])
+        return torch_module.tensor(seqs, dtype=torch_module.float32, device=device)
+    return torch_module.tensor(
+        [list(r.tensor.model_vector) for r in rows],
+        dtype=torch_module.float32,
+        device=device,
+    )

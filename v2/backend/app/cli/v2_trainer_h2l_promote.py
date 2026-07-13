@@ -197,11 +197,20 @@ def _candidate_risk_summary(
     net = model.net
     device = model.device
     returns: list[float] = []
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.temporal_windowing import (  # noqa: PLC0415
+        build_window_lookup,
+        model_batch_tensor,
+    )
+    _temporal = bool(getattr(model, "temporal_encoder_enabled", False))
+    _seq_len = int(getattr(model, "temporal_seq_len", 16))
+    _lookup = build_window_lookup(list(rows), seq_len=_seq_len) if _temporal else None
     try:
         net.eval()
         with torch.no_grad():
-            vectors = [list(r.tensor.model_vector) for r in rows]
-            x = torch.tensor(vectors, dtype=torch.float32, device="cpu")
+            x = model_batch_tensor(
+                torch, list(rows), temporal=_temporal, seq_len=_seq_len,
+                window_lookup=_lookup, device="cpu",
+            )
             x = torch.nan_to_num(x, nan=0.0, posinf=1e6, neginf=-1e6).to(device=device)
             actions = torch.argmax(net(x)["logits"], dim=-1).detach().cpu().tolist()
         returns = _returns_from_actions(rows, actions)
@@ -308,10 +317,15 @@ def _promote(offline_dir: str, live_dir: str) -> dict[str, Any]:
     live = _P(live_dir)
     # Load the offline model, then write it as a fresh live checkpoint (blob +
     # manifest) via the live checkpoint manager so the manifest/lineage are valid.
+    model = V2HybridPolicyModel(input_dim=_infer_input_dim(offline_dir))
+    load = V2HybridCheckpointManager(off).load_latest_weights(model)
+    if not (load.get("latest_checkpoint_loadable") and load.get("model_state_restored")):
+        raise RuntimeError(
+            "refusing H2L promotion because offline checkpoint reload failed: "
+            + json.dumps(load, sort_keys=True, default=str)
+        )
     import torch  # noqa: PLC0415
 
-    model = V2HybridPolicyModel(input_dim=_infer_input_dim(offline_dir))
-    V2HybridCheckpointManager(off).load_latest_weights(model)
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     manifest = V2HybridCheckpointManager(live).write_checkpoint(
         model=model,
