@@ -1,0 +1,88 @@
+{
+  "schema_version": "trainer_scheduled_pretrain_status_v1",
+  "generated_utc": "2026-07-13T14:45:57.926685Z",
+  "training_prefix_rows": 16000,
+  "heldout_rows": 5000,
+  "split_meta": {
+    "cache_path": "claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl",
+    "cache_hit": true,
+    "load_seconds": 2.148,
+    "examples": 25000,
+    "h2l_heldout_offset": 16000,
+    "h2l_requested_rows": 21000,
+    "h2l_heldout_rows": 5000,
+    "h2l_excluded_prefix_rows": 16000
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "routes_to_live": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "live_gate": "blocked_human_only",
+  "auto_promote": true,
+  "auto_restart": false,
+  "require_risk_gate": true,
+  "min_sortino": 0.0,
+  "max_cvar_loss_bps": null,
+  "pretrain": {
+    "epochs_run": 13,
+    "best_epoch": 8,
+    "best_validation_loss": 43.36654281616211,
+    "stopped_early": true,
+    "gpu_utilization_max_pct": 98.0,
+    "gpu_utilization_mean_pct": 8.25,
+    "rows_per_second": 12442.3,
+    "saved": {
+      "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_offline",
+      "is_live_dir": false,
+      "saved": true,
+      "checkpoint_id": "v2_hybrid_ckpt_b13ca2c74df635cd93e9b1b1"
+    }
+  },
+  "head_to_head": {
+    "schema_version": "trainer_h2l_promotion_v1",
+    "input_dim": 1248,
+    "held_out_rows": 5000,
+    "live": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+      "loaded": false,
+      "load_status": {
+        "checkpoint_manifest_exists": true,
+        "checkpoint_id": "v2_hybrid_ckpt_995c493942684e69eaf53973",
+        "weight_blob_written": true,
+        "weight_file_path": ".local_models/v2_native_rl_masa_ppo/v2_hybrid_ckpt_995c493942684e69eaf53973.weights.npz",
+        "latest_checkpoint_loadable": false,
+        "model_state_restored": false,
+        "load_status": "LOAD_FAILED:ValueError"
+      },
+      "validation_supervised_loss": null
+    },
+    "offline": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo_offline",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_b13ca2c74df635cd93e9b1b1",
+      "validation_supervised_loss": 43.98565673828125,
+      "validation_rows_evaluated": 5000
+    },
+    "min_improvement": 1.0,
+    "offline_loaded": true,
+    "live_loaded": false,
+    "heldout_overlap": {
+      "heldout_row_count": 5000,
+      "excluded_row_count": 16000,
+      "overlap_count": 0,
+      "overlap_samples": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "routes_to_live": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "live_gate": "blocked_human_only",
+    "decision": "ABORT_CHECKPOINT_LOAD_FAILED_OR_SHAPE_MISMATCH",
+    "promoted": false
+  },
+  "promoted": false,
+  "duration_seconds": 430.1,
+  "phase": "COMPLETE"
+}
