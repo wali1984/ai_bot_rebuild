@@ -86,7 +86,36 @@ def test_public_orderbook_score_is_capped_and_not_final_a_plus_alone() -> None:
     assert trust["final_a_plus_eligible"] is True
 
 
-def test_composite_cannot_cross_final_threshold_with_missing_confirmation() -> None:
+def test_composite_cannot_cross_final_threshold_with_missing_critical_confirmation() -> None:
+    # Under the directional critical/soft policy, a missing CRITICAL safety
+    # confirmation (here: liquidation-sweep-risk-acceptable) still prevents
+    # A-grade. (A single missing SOFT confirmation no longer caps -- see
+    # test_batch_age_forgiveness for the soft-fraction policy.)
+    bad_sweep = _sweep()
+    bad_sweep["sweep_risk"] = 0.9
+    bad_sweep["cascade_risk"] = 0.9
+    trust = score_microstructure_trust(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        feed_quality=_feed(),
+        adversarial_features=_adversarial(),
+        trade_tape=_tape(),
+        cross_venue=_cross(),
+        sweep_risk=bad_sweep,
+    )
+
+    assert trust["public_orderbook_trust_score"] <= PUBLIC_ORDERBOOK_DEFAULT_TRUST_CAP
+    assert trust["composite_microstructure_trust_score"] < FINAL_A_PLUS_MIN_COMPOSITE_TRUST
+    assert "liquidation_sweep_risk_acceptable" in trust["composite_confirmation_missing_fields"]
+    assert trust["reduced_size_routes_to_live"] is False
+    assert trust["reduced_size_paper_only"] is True
+
+
+def test_single_soft_confirmation_gap_does_not_block_directional_a_grade() -> None:
+    # A single missing SOFT confirmation (cross-venue single-venue) no longer
+    # caps the composite when all critical safety flags pass and the remaining
+    # soft confirmations clear the fraction -- this is what makes directional
+    # A-grade reachable on batch-recorded public feeds.
     trust = score_microstructure_trust(
         symbol="BTCUSDT",
         timeframe="1m",
@@ -96,14 +125,7 @@ def test_composite_cannot_cross_final_threshold_with_missing_confirmation() -> N
         cross_venue=_cross(score=0.4, venues=1),
         sweep_risk=_sweep(),
     )
-
-    assert trust["public_orderbook_trust_score"] <= PUBLIC_ORDERBOOK_DEFAULT_TRUST_CAP
-    assert trust["composite_microstructure_trust_score"] < FINAL_A_PLUS_MIN_COMPOSITE_TRUST
-    assert "cross_venue_confirmation_pass" in trust["composite_confirmation_missing_fields"]
-    assert trust["reduced_size_bootstrap_tier"] == REDUCED_SIZE_BOOTSTRAP_TIER
-    assert trust["reduced_size_counts_as_final_a_plus"] is False
-    assert trust["reduced_size_routes_to_live"] is False
-    assert trust["reduced_size_paper_only"] is True
+    assert trust["composite_microstructure_trust_score"] >= FINAL_A_PLUS_MIN_COMPOSITE_TRUST
 
 
 def test_status_hard_fails_composite_missing_above_threshold() -> None:

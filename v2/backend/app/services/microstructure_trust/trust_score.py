@@ -190,6 +190,47 @@ def _confirmation_flags(
     }
 
 
+# A-grade microstructure confirmation policy. The gate historically required
+# ALL confirmations to pass, which is scalping-grade: on batch-recorded public
+# feeds the softer directional confirmations (tape / cross-venue / spread-depth /
+# oi-funding) rarely all align at once, capping composite trust at 0.59 (< 0.65)
+# and making A-grade unreachable for directional (1m+) decisions -- no symbol
+# ever reached the gate. Split into CRITICAL execution-safety confirmations that
+# must ALL pass, and SOFT confirmatory ones that need a high fraction. Hard
+# revert to strict all-pass via V2_MICROSTRUCTURE_ALL_CONFIRMATIONS_REQUIRED=1.
+_CRITICAL_CONFIRMATIONS = (
+    "feed_integrity_pass",
+    "sequence_gap_free",
+    "latency_within_bound",
+    "liquidation_sweep_risk_acceptable",
+)
+_SOFT_CONFIRMATION_MIN_FRACTION = 0.60
+
+
+def _non_book_confirmation_pass(confirmation_passes: Mapping[str, bool]) -> bool:
+    """Directional A-grade confirmation: all critical safety flags pass AND a high
+    fraction of the soft confirmatory flags pass. Strict all-pass under env flag."""
+    if os.getenv("V2_MICROSTRUCTURE_ALL_CONFIRMATIONS_REQUIRED", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        return all(confirmation_passes.values())
+    critical = [
+        bool(confirmation_passes.get(name))
+        for name in _CRITICAL_CONFIRMATIONS
+        if name in confirmation_passes
+    ]
+    if not all(critical):
+        return False
+    soft = [
+        bool(passed)
+        for name, passed in confirmation_passes.items()
+        if name not in _CRITICAL_CONFIRMATIONS
+    ]
+    if not soft:
+        return True
+    return (sum(soft) / len(soft)) >= _SOFT_CONFIRMATION_MIN_FRACTION
+
+
 def classify_microstructure_trust(score: float | None, *, position_open: bool = False) -> tuple[str, MicrostructureAction]:
     if score is None:
         return "UNTRUSTED_NO_TRADE", MicrostructureAction.NO_TRADE
@@ -284,7 +325,7 @@ def score_microstructure_trust(
     missing_confirmation_fields = [
         field for field, passed in confirmation_passes.items() if passed is not True
     ]
-    non_book_confirmation_pass = all(confirmation_passes.values())
+    non_book_confirmation_pass = _non_book_confirmation_pass(confirmation_passes)
     composite_score = (
         feed_score * 0.18
         + persistence * 0.12

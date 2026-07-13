@@ -91,6 +91,52 @@ def test_env_hard_revert_disables_forgiveness(monkeypatch) -> None:
     assert trust["composite_microstructure_trust_score"] <= 0.24
 
 
+def test_non_book_confirmation_critical_soft_policy() -> None:
+    from v2.backend.app.services.microstructure_trust.trust_score import (
+        _non_book_confirmation_pass,
+    )
+
+    def flags(**over):
+        base = {
+            "feed_integrity_pass": True,
+            "sequence_gap_free": True,
+            "latency_within_bound": True,
+            "liquidation_sweep_risk_acceptable": True,
+            "trade_tape_confirmation_pass": True,
+            "cross_venue_confirmation_pass": True,
+            "real_spread_depth_cost_evidence_pass": True,
+            "oi_funding_long_short_confirmation_pass": True,
+        }
+        base.update(over)
+        return base
+
+    # All pass -> pass.
+    assert _non_book_confirmation_pass(flags()) is True
+    # A critical failure -> fail, even with every soft flag passing.
+    assert _non_book_confirmation_pass(flags(latency_within_bound=False)) is False
+    assert _non_book_confirmation_pass(flags(liquidation_sweep_risk_acceptable=False)) is False
+    # One soft failure (1 of 4 soft) -> 75% soft >= 60% -> still passes.
+    assert _non_book_confirmation_pass(flags(cross_venue_confirmation_pass=False)) is True
+    # Three soft failures (1 of 4 soft = 25% < 60%) -> fails.
+    assert _non_book_confirmation_pass(
+        flags(cross_venue_confirmation_pass=False, trade_tape_confirmation_pass=False,
+              real_spread_depth_cost_evidence_pass=False)
+    ) is False
+
+
+def test_env_strict_requires_all_confirmations(monkeypatch) -> None:
+    from v2.backend.app.services.microstructure_trust.trust_score import (
+        _non_book_confirmation_pass,
+    )
+
+    monkeypatch.setenv("V2_MICROSTRUCTURE_ALL_CONFIRMATIONS_REQUIRED", "1")
+    passes = {"feed_integrity_pass": True, "latency_within_bound": True,
+              "sequence_gap_free": True, "liquidation_sweep_risk_acceptable": True,
+              "cross_venue_confirmation_pass": False}
+    # Strict mode: a single soft failure fails again.
+    assert _non_book_confirmation_pass(passes) is False
+
+
 def test_tight_timeframe_tolerance_scales() -> None:
     # 15m tolerates a larger book age (15s) than 1m (4.5s); a 6s book age is
     # forgiven at 15m but NOT at 1m... actually 6s > 4.5s so 1m rejects it.
