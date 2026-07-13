@@ -59,6 +59,41 @@ MEDIUM on "temporal reaches A-grade once deployed" (depends on gated realized ta
 - Step 4c prediction rolling-window buffer MUST be wired before any production promotion (a
   temporal checkpoint served single-frame input in production would get a degenerate window).
 
+## 2026-07-13 follow-ups
+
+### More-training experiment (REFUTED "undertrained" hypothesis)
+An 80-epoch run (batch 640, early-stop patience 12, min 30 epochs; report
+`claude_worklog/trainer_atlas/temporal_long_report.json`) early-stopped at epoch 39
+with **best_epoch 26 and metrics identical to the 30-epoch run to every decimal**
+(sortino 0.34668, cvar -621.567, composite -0.27489). loss_last improved 8.29 -> 5.52
+but the RISK composite plateaued at epoch 26. Conclusion: the composite is
+architecture/data-limited, not undertrained -- more epochs improve supervised loss but
+NOT risk-adjusted edge. Pushing composite positive needs better features (cf. the
+CoinAnk audit's 97.5% feature loss vs legacy's 562), a tail-aware objective (penalise
+CVaR directly), or a different architecture -- NOT more of the same training.
+
+### Prod-speedup finding (cache is NOT the GPU-starvation fix)
+Micro-benchmark (scratchpad/cache_microbench.py) on 3000 real examples: the cross-epoch
+cache HITS correctly (calls 2-4 confirmed), but the windowed tensor build is only ~2s of
+a ~23s epoch (~8%). The ~23s is the PPO training-step loop (compute + GPU<->CPU syncs),
+so gpu_util_mean stays 7-20%. The cache is correct + kept (online-safe fail-safe
+fingerprint by tensor_id) but is not the starvation fix; raising GPU util means
+optimising the shared step loop (deferred -- not on the A-grade critical path).
+
+### Step 4c prediction window (DONE, commit 2434f0d302)
+V2HybridPolicyModel.forward() now maintains a per-(symbol,timeframe) rolling deque
+(maxlen=seq_len), deduped by feature_snapshot_id, feeding the GRU a (1,T,F) window in
+live/paper inference. Self-contained in the model (no runtime-loop change), byte-identical
+when temporal off. 274 native_trainer tests pass. This unblocks deployment: a temporal
+checkpoint served in production now gets a real window instead of a degenerate single frame.
+
+### Deployment state
+All temporal code is DONE + tested (integration, numpy build, OOM fix, cross-epoch cache,
+prediction window). The temporal model beats the incumbent and is deployment-ready.
+Remaining is an OPERATOR-GATED deploy: set V2_TRAINER_TEMPORAL_ENCODER=gru on the
+persistent trainer + promote the temporal checkpoint (v2_hybrid_ckpt_b13ca2c74df6...),
+which requires restarting the trainer service -> operator action, not done autonomously.
+
 ## Safety
-Read-only. No deployed checkpoint written, no promotion performed, no order placed.
-Deployment remains BLOCKED (blocked_human_only).
+Read-only analysis + offline training only. No deployed checkpoint written, no promotion
+performed, no order placed, no service restarted. Deployment remains BLOCKED (blocked_human_only).
