@@ -75,6 +75,18 @@ class V2HybridPolicyModel:
             if self.attention_encoder_enabled
             else requested_attention_heads
         )
+        # Optional GRU TEMPORAL encoder over a no-lookahead window of recent frames.
+        # Crypto is temporal and the single-frame input caps edge -- the offline
+        # edge-proof (v2_trainer_temporal_edge_proof) showed a GRU over a 16-frame
+        # window lifts win-rate 53%->60% and doubles Sortino vs the single frame.
+        # Additive + arch-forked; OFF by default so the single-frame path is
+        # byte-for-byte unchanged. The net accepts either a 2D (B,input_dim) single
+        # frame or a 3D (B,T,input_dim) window; the temporal embedding is fused only
+        # when enabled and a window is supplied.
+        self.temporal_encoder = str(os.getenv("V2_TRAINER_TEMPORAL_ENCODER", "") or "").strip().lower()
+        self.temporal_encoder_enabled = self.temporal_encoder in {"gru"}
+        self.temporal_seq_len = max(2, int(os.getenv("V2_TRAINER_TEMPORAL_SEQ_LEN", "16") or 16))
+        self.temporal_hidden = max(32, int(os.getenv("V2_TRAINER_TEMPORAL_HIDDEN", "256") or 256))
         self._torch = None
         self._net = None
         self._device = "cpu"
@@ -86,6 +98,8 @@ class V2HybridPolicyModel:
         arch_identity = f"{input_dim}|{seed}|{self.hidden_size}|{self.residual_block_count}"
         if self.attention_encoder_enabled:
             arch_identity += f"|attn=1x{self.attention_heads}"
+        if self.temporal_encoder_enabled:
+            arch_identity += f"|temporal={self.temporal_encoder}x{self.temporal_hidden}"
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
             arch_identity.encode()
         ).hexdigest()[:24]
@@ -189,8 +203,23 @@ class V2HybridPolicyModel:
                     dropout: float,
                     attention_enabled: bool = False,
                     attention_heads: int = 4,
+                    temporal_enabled: bool = False,
+                    temporal_hidden: int = 256,
                 ) -> None:
                     super().__init__()
+                    # GRU temporal encoder over a no-lookahead window. Additive; only
+                    # built + applied when enabled AND the input is a 3D window, so the
+                    # 2D single-frame path is byte-identical to the prior model.
+                    self.temporal_enabled = bool(temporal_enabled)
+                    if self.temporal_enabled:
+                        self.temporal_gru = torch.nn.GRU(
+                            input_dim, int(temporal_hidden), num_layers=1, batch_first=True
+                        )
+                        self.temporal_fuse = torch.nn.Sequential(
+                            torch.nn.Linear(int(temporal_hidden), hidden),
+                            torch.nn.LayerNorm(hidden),
+                            torch.nn.GELU(),
+                        )
                     # GPU-parallel multi-head attention over the 4 model_vector
                     # blocks (values/missing/stale/source). Additive pre-encoder;
                     # only built + applied when enabled, so the disabled path is
@@ -228,9 +257,24 @@ class V2HybridPolicyModel:
                     self.confidence_head = torch.nn.Linear(hidden, 1)
                     self.masa_head = torch.nn.Linear(hidden, 1)
 
-                def forward(self, x):
+                @staticmethod
+                def _normalize(x):
                     x = torch.nan_to_num(x, nan=0.0, posinf=1_000_000.0, neginf=-1_000_000.0)
-                    x = torch.sign(x) * torch.log1p(torch.clamp(torch.abs(x), max=1_000_000.0))
+                    return torch.sign(x) * torch.log1p(torch.clamp(torch.abs(x), max=1_000_000.0))
+
+                def forward(self, x):
+                    # Accept a 2D single frame (B, input_dim) or a 3D no-lookahead
+                    # window (B, T, input_dim). Normalise once; the temporal encoder
+                    # consumes the whole window, the single-frame path the last frame.
+                    temporal_emb = None
+                    if x.dim() == 3:
+                        window = self._normalize(x)
+                        if self.temporal_enabled:
+                            gru_out, _ = self.temporal_gru(window)
+                            temporal_emb = gru_out[:, -1, :]
+                        x = window[:, -1, :]
+                    else:
+                        x = self._normalize(x)
                     if self.attention_enabled:
                         b = x.shape[0]
                         seq = x.view(b, self.block_count, self.block_dim)
@@ -239,6 +283,8 @@ class V2HybridPolicyModel:
                         seq = self.attn_ffn_norm(seq + self.attn_ffn(seq))
                         x = seq.reshape(b, -1)
                     h = self.input_projection(x)
+                    if temporal_emb is not None:
+                        h = h + self.temporal_fuse(temporal_emb)
                     for block in self.residual_blocks:
                         h = block(h)
                     h = self.encoder_norm(h)
@@ -258,6 +304,8 @@ class V2HybridPolicyModel:
                 dropout=self.dropout,
                 attention_enabled=self.attention_encoder_enabled,
                 attention_heads=self.attention_heads,
+                temporal_enabled=self.temporal_encoder_enabled,
+                temporal_hidden=self.temporal_hidden,
             ).to(device)
             self._device = str(next(self._net.parameters()).device)
         except Exception:
