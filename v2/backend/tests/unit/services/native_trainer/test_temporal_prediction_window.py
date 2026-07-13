@@ -10,12 +10,24 @@ from __future__ import annotations
 
 import pytest
 
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
+    V2HybridPolicyModel,
+    reset_temporal_predict_registry,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
 )
 
 torch = pytest.importorskip("torch")
+
+
+@pytest.fixture(autouse=True)
+def _clean_registry():
+    # The prediction-window registry is process-lifetime by design (the resident
+    # runtime rebuilds the model each cycle); isolate tests from each other.
+    reset_temporal_predict_registry()
+    yield
+    reset_temporal_predict_registry()
 
 
 def _rec(idx: int, snapshot_id: str, *, symbol: str = "BTCUSDT", timeframe: str = "1m") -> FeatureTensorRecord:
@@ -95,3 +107,18 @@ def test_temporal_off_keeps_single_frame_path(monkeypatch) -> None:
     assert m._temporal_predict_window(_rec(0, "snap0"), [0.0, 0.0, 0.0, 0.0]) is None
     m.forward(_rec(0, "snap0"))
     assert m._temporal_predict_buffers == {}  # no buffering when temporal is off
+
+
+def test_window_survives_model_rebuild_like_resident_cycles(monkeypatch) -> None:
+    # The resident runtime constructs a FRESH model every cycle. The rolling window
+    # must persist across instances or the GRU only ever sees a repeated single
+    # frame at prediction time (train/serve skew).
+    m1 = _temporal_model(monkeypatch, seq_len=4)
+    m1.forward(_rec(0, "snap0"))
+    m1.forward(_rec(1, "snap1"))
+
+    m2 = _temporal_model(monkeypatch, seq_len=4)  # fresh instance, same arch
+    win = m2._temporal_predict_window(_rec(2, "snap2"), [float(v) for v in _rec(2, "snap2").model_vector])
+    buf = m2._temporal_predict_buffers[("BTCUSDT", "1m")]
+    assert len(buf) == 3, "frames from the prior instance must persist"
+    assert win[-1][0] == 2.0 and win[-2][0] == 1.0 and win[-3][0] == 0.0

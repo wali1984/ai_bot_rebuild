@@ -4705,6 +4705,13 @@ async def get_ai_predictions(
                 model_version = _pred_raw.get("model_version")
                 checkpoint_id = checkpoint_id or _pred_raw.get("checkpoint_id")
                 calibration_block = _pred_raw.get("confidence_calibration")
+        if calibration_block is None:
+            # Calibration truth is carried on the published prediction payload;
+            # read it even when the trainer summary already supplied the action.
+            safe_sym = _strict_market_symbol(symbol or "BTCUSDT") or "BTCUSDT"
+            _calib_raw = _read_v2_redis_json(f"v2:prediction:{safe_sym}:1h")
+            if isinstance(_calib_raw, dict):
+                calibration_block = _calib_raw.get("confidence_calibration")
         predictions = []
         if action or confidence:
             predictions = [{

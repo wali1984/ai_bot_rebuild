@@ -272,6 +272,18 @@ def main(argv: list[str] | None = None) -> int:
     out = args.output or f"claude_worklog/trainer_atlas/scheduled_pretrain_{int(time.time())}.json"
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_text(text)
+    # Prune old flywheel reports (16/day at the 90-min cadence would accumulate
+    # unboundedly, and the trainer status API globs this directory per request).
+    try:
+        reports = sorted(
+            Path(out).parent.glob("scheduled_pretrain_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        for stale in reports[96:]:  # keep ~6 days of history
+            stale.unlink(missing_ok=True)
+    except Exception:  # pragma: no cover - housekeeping must never fail the run
+        pass
     print(text)
     hh = status.get("head_to_head", {})
     print("SCHEDULED_PRETRAIN:", status.get("phase"),

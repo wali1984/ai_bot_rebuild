@@ -775,6 +775,10 @@ class V2HybridPPOTrainer:
             props = torch.cuda.get_device_properties(0)
             total_vram_mb = int(props.total_memory / (1024 * 1024))
             bytes_per_row = max(1, self.model.input_dim) * 4 * 6
+            # Temporal windows multiply the input tensor by seq_len frames; without
+            # this the heuristic under-estimates VRAM 16x and can OOM large batches.
+            if getattr(self.model, "temporal_encoder_enabled", False):
+                bytes_per_row *= max(1, int(getattr(self.model, "temporal_seq_len", 16)))
             target_vram_bytes = min(
                 int(total_vram_mb * 1024 * 1024 * 0.75),
                 12 * 1024 * 1024 * 1024,

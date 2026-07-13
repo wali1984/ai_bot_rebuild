@@ -20,6 +20,19 @@ from .tensor_builder import FeatureTensorRecord
 TRAINER_CUDA_MEMORY_CAP_BYTES = 12 * 1024 * 1024 * 1024
 TRAINER_CUDA_MEMORY_CAP_FRACTION = 0.75
 
+# WI-1 Step 4c: process-lifetime rolling prediction-window registries. The resident
+# runtime builds a FRESH V2HybridPolicyModel every cycle, so these must outlive model
+# instances or the temporal encoder only ever sees a repeated single frame at predict
+# time. Keyed by (input_dim, seq_len) -> {(symbol, timeframe): deque/frame-id}.
+_TEMPORAL_PREDICT_BUFFERS: dict[tuple[int, int], dict[tuple[str, str], deque]] = {}
+_TEMPORAL_PREDICT_LAST_ID: dict[tuple[int, int], dict[tuple[str, str], Any]] = {}
+
+
+def reset_temporal_predict_registry() -> None:
+    """Clear the process-lifetime prediction-window registries (tests/tools)."""
+    _TEMPORAL_PREDICT_BUFFERS.clear()
+    _TEMPORAL_PREDICT_LAST_ID.clear()
+
 
 @dataclass(frozen=True)
 class ModelForwardResult:
@@ -95,8 +108,17 @@ class V2HybridPolicyModel:
         # window the GRU was trained on. Only populated when temporal is enabled; the
         # single-frame path is byte-identical. Deduped by frame id (cycles re-present
         # the same latest snapshot) so a repeated frame never double-fills the window.
-        self._temporal_predict_buffers: dict[tuple[str, str], deque] = {}
-        self._temporal_predict_last_id: dict[tuple[str, str], Any] = {}
+        # PROCESS-LIFETIME registry, NOT per-instance: the resident runtime constructs
+        # a FRESH model every cycle (runtime.run_hybrid_trainer_cycle), so an
+        # instance-held buffer would reset each cycle and the GRU would only ever see
+        # a degenerate repeated-frame window at prediction time (train/serve skew).
+        # Keyed by (input_dim, seq_len) so different architectures never mix frames.
+        self._temporal_predict_buffers = _TEMPORAL_PREDICT_BUFFERS.setdefault(
+            (int(input_dim), int(self.temporal_seq_len)), {}
+        )
+        self._temporal_predict_last_id = _TEMPORAL_PREDICT_LAST_ID.setdefault(
+            (int(input_dim), int(self.temporal_seq_len)), {}
+        )
         self._torch = None
         self._net = None
         self._device = "cpu"

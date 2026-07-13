@@ -74,6 +74,7 @@ from v2.backend.app.services.market_structure import (
     compute_fvg,
     compute_liquidity_zones,
     compute_structure,
+    compute_trade_tape_features,
     compute_volume_profile,
     compute_vwap_features,
 )
@@ -3753,7 +3754,11 @@ def _paper_queue_expected_funding_bps_payload(
 
 def _paper_exploration_queue_signal(row: Mapping[str, Any]) -> dict[str, Any]:
     source = row.get("paper_signal") if isinstance(row.get("paper_signal"), dict) else {}
-    signal = dict(source or row)
+    # The queue row carries identity/lineage (candidate_id, symbol, timeframe,
+    # side, queue_id); ``paper_signal`` is a sizing overlay. Starting from only
+    # paper_signal drops the identity fields and prevents the runtime intent from
+    # matching back to the queued row.
+    signal = {**dict(row), **dict(source)}
     materialization_queue_id = _first_present(
         row.get("queue_id"),
         row.get("materialization_queue_id"),
@@ -4977,6 +4982,9 @@ def _apply_materialization_queue_policy_snapshot_if_safe(
     residual_blockers = list(blockers)
     confidence_floor_blockers = {
         "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
+        # Same untrained-model confidence signal expressed via the allocator
+        # (kept in sync with paper_exploration.policy.BOOTSTRAP_OVERRIDABLE_BLOCKERS).
+        "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
     }
     residual_blockers = [
         blocker for blocker in residual_blockers if blocker not in confidence_floor_blockers
@@ -5045,7 +5053,11 @@ def _apply_materialization_queue_fill_gate_snapshot_if_safe(
     residual_blockers = [
         blocker
         for blocker in blockers
-        if blocker != "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR"
+        if blocker
+        not in (
+            "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
+            "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
+        )
     ]
     if (
         "LOSS_CLUSTER_OR_QUARANTINE_ACTIVE" in residual_blockers
@@ -5074,16 +5086,6 @@ def _paper_exploration_queue_no_fill_reason(reasons: list[str]) -> str:
         or "NO_TRADE_ENTRY_EVIDENCE:" in reason_text
     ):
         return "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
-    if any(
-        token in reason_text
-        for token in (
-            "MICROSTRUCTURE_ACTION_NO_TRADE",
-            "MICROSTRUCTURE_ACTION_SHADOW_ONLY",
-            "MICROSTRUCTURE_ACTION_CLOSE_OR_REDUCE_ONLY",
-            "BLOCKED_MICROSTRUCTURE_ACTION",
-        )
-    ):
-        return "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"
     if (
         "PAPER_FILL_WRITE_INVARIANT_BLOCKED" in reason_text
         or "MISSING_PRODUCTION_GRADE_COST_FLAG" in reason_text
@@ -5136,6 +5138,25 @@ def _paper_exploration_queue_no_fill_reason(reasons: list[str]) -> str:
         if "EXPECTED_MOVE_NOT_FAVORABLE_FOR_SIDE" in reason_text:
             return "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
         return "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
+    if any(
+        token in reason_text
+        for token in (
+            "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+            "EXPECTED_EDGE_NON_POSITIVE",
+            "EXPECTED_MOVE_DOES_NOT_COVER_COST",
+            "FVG_CONFLUENCE_WITHOUT_POSITIVE_AFTER_COST_EDGE",
+        )
+    ):
+        return "TRUE_ENTRY_GATE_EXPECTED_MOVE_NOT_FAVORABLE_AFTER_QUEUE_CONSUMPTION"
+    if any(
+        token in reason_text
+        for token in (
+            "EXIT_FEASIBILITY_LOW",
+            "FVG_CONFLUENCE_WITHOUT_VALID_EXIT_FEASIBILITY",
+            "MFE_REQUIRED_UNREALISTIC_FOR_STOP_RISK",
+        )
+    ):
+        return "TRUE_ENTRY_GATE_BLOCK_AFTER_QUEUE_CONSUMPTION"
     if (
         "ALLOCATOR_DECISION_NOT_EXPLORATION_FILL_ELIGIBLE" in reason_text
         or "BLOCK_INSUFFICIENT_LIQUIDITY" in reason_text
@@ -5160,6 +5181,20 @@ def _paper_exploration_queue_no_fill_reason(reasons: list[str]) -> str:
         return "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
     if any("PAPER_PERFORMANCE_CIRCUIT_BREAKER" in reason for reason in upper_reasons):
         return "PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCKED_AFTER_QUEUE_CONSUMPTION"
+    if any(
+        token in reason_text
+        for token in (
+            "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST",
+            "FVG_CONFLUENCE_WITHOUT_TRADE_TAPE_CONFIRMATION",
+            "REDUCED_BY_MICROSTRUCTURE_TRUST_GATE",
+            "MICROSTRUCTURE_TRUST_LOW",
+            "MICROSTRUCTURE_ACTION_NO_TRADE",
+            "MICROSTRUCTURE_ACTION_SHADOW_ONLY",
+            "MICROSTRUCTURE_ACTION_CLOSE_OR_REDUCE_ONLY",
+            "BLOCKED_MICROSTRUCTURE_ACTION",
+        )
+    ):
+        return "TRUE_TRUST_UNSAFE_AFTER_QUEUE_CONSUMPTION"
     if "EXPLORATION_POLICY_REVALIDATION" in reason_text:
         return "EXPLORATION_POLICY_REVALIDATION_BLOCK_AFTER_QUEUE_CONSUMPTION"
     if "RISK" in reason_text:
@@ -5705,12 +5740,12 @@ def _paper_exploration_materialization_summary_fields(
 
     if same_cycle_materialized > 0:
         queue_resolution_state = "MATERIALIZED"
-    elif rejected_after_queue_count > 0 or prequeue_rejected_count > 0:
-        queue_resolution_state = "RESOLVED_NO_FILL"
+    elif active_count > 0 or (queued_count > 0 and pending_source_time_count == 0):
+        queue_resolution_state = "ACTIVE_REVALIDATION_IN_PROGRESS"
     elif pending_source_time_count > 0:
         queue_resolution_state = "PENDING_SOURCE_TIME"
-    elif active_count > 0 or queued_count > 0:
-        queue_resolution_state = "ACTIVE_REVALIDATION_IN_PROGRESS"
+    elif rejected_after_queue_count > 0 or prequeue_rejected_count > 0:
+        queue_resolution_state = "RESOLVED_NO_FILL"
     elif expired_count > 0:
         queue_resolution_state = "EXPIRED"
     else:
@@ -6375,6 +6410,98 @@ def _load_closed_candle_dict_rows_for_advanced_indicators(
     return rows
 
 
+def _load_trade_tape_dict_rows_for_advanced_indicators(
+    r,
+    symbol: str,
+    *,
+    max_rows: int = 1000,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key in (
+        f"{V2_REDIS_PREFIX}market:agg_trades:{symbol}",
+        f"{V2_REDIS_PREFIX}market:trades:{symbol}",
+        f"{V2_REDIS_PREFIX}trades:{symbol}",
+    ):
+        try:
+            raw = r.get(key)
+        except Exception:
+            raw = None
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        payload_availability = None
+        if isinstance(payload, dict):
+            payload_availability = _first_present(
+                payload.get("available_at"),
+                payload.get("received_at"),
+                payload.get("ingested_at"),
+                payload.get("generated_at"),
+                payload.get("generated_utc"),
+            )
+            candidates = []
+            for field in ("trades", "rows", "data", "items"):
+                values = payload.get(field)
+                if isinstance(values, list):
+                    candidates = values
+                    break
+            if not candidates:
+                candidates = [payload]
+        elif isinstance(payload, list):
+            candidates = payload
+        else:
+            candidates = []
+        for item in candidates[-max_rows:]:
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            price = _first_present(row.get("price"), row.get("p"))
+            if row.get("price") in (None, "") and price not in (None, ""):
+                row["price"] = price
+            quantity = _first_present(row.get("quantity"), row.get("qty"), row.get("q"))
+            if row.get("quantity") in (None, "") and quantity not in (None, ""):
+                row["quantity"] = quantity
+            side = _first_present(row.get("side"), row.get("aggressor_side"))
+            if side in (None, "") and "m" in row:
+                maker_flag = row.get("m")
+                if isinstance(maker_flag, bool):
+                    side = "sell" if maker_flag else "buy"
+                else:
+                    maker_text = str(maker_flag).strip().lower()
+                    if maker_text in {"true", "1", "yes"}:
+                        side = "sell"
+                    elif maker_text in {"false", "0", "no"}:
+                        side = "buy"
+            if row.get("side") in (None, "") and side not in (None, ""):
+                row["side"] = side
+            event_time = _first_present(
+                row.get("event_time"),
+                row.get("T"),
+                row.get("E"),
+                row.get("timestamp"),
+                row.get("time"),
+            )
+            if row.get("event_time") in (None, "") and event_time not in (None, ""):
+                row["event_time"] = event_time
+            available_at = _first_present(
+                row.get("available_at"),
+                row.get("received_at"),
+                row.get("ingested_at"),
+                row.get("generated_at"),
+                row.get("generated_utc"),
+                payload_availability,
+                event_time,
+            )
+            if row.get("available_at") in (None, "") and available_at not in (None, ""):
+                row["available_at"] = available_at
+            rows.append(row)
+        if rows:
+            break
+    return rows
+
+
 def _compute_and_publish_v2_advanced_indicator_context(
     r,
     symbol: str,
@@ -6394,11 +6521,19 @@ def _compute_and_publish_v2_advanced_indicator_context(
     if price is None:
         return {}
     payloads_by_key: dict[str, dict[str, Any]] = {}
+    trades = _load_trade_tape_dict_rows_for_advanced_indicators(r, symbol)
+    tape = compute_trade_tape_features(
+        symbol=symbol,
+        timeframe=timeframe,
+        trades=trades,
+        decision_time=decision_dt,
+    )
     liquidity = compute_liquidity_zones(
         symbol=symbol,
         timeframe=timeframe,
         candles=candles,
         price=price,
+        trade_tape=tape,
         decision_time=decision_dt,
     )
     payloads_by_key[f"{V2_REDIS_PREFIX}market:liquidity_zones:{symbol}"] = liquidity
@@ -6408,6 +6543,7 @@ def _compute_and_publish_v2_advanced_indicator_context(
         candles=candles,
         price=price,
         liquidity_zones=liquidity,
+        trade_tape=tape,
         decision_time=decision_dt,
     )
     payloads_by_key[f"{V2_REDIS_PREFIX}market:structure:{symbol}:{timeframe}"] = compute_structure(
@@ -10819,6 +10955,32 @@ def _first_present(*values):
     return None
 
 
+def _paper_expected_move_after_cost_value(*sources: Mapping[str, Any]) -> Any:
+    """Return after-cost move, accepting the preemptive net-edge alias."""
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        value = _first_present(
+            source.get("expected_move_after_cost_bps"),
+            source.get("expected_edge_after_cost_bps"),
+            source.get("expected_net_edge_bps"),
+            source.get("edge_after_cost_bps"),
+        )
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def _paper_truthy_flag(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
 def _normalize_paper_owner_attribution(row: dict[str, Any]) -> dict[str, Any]:
     """Make paper owner attribution explicit without crediting old rows."""
     normalized = dict(row)
@@ -12496,7 +12658,7 @@ def _paper_trainer_model_quality_runtime_status(
         training.get("checkpoint_promotion_reason"),
         checkpoint_promotion.get("checkpoint_promotion_reason"),
     )
-    checkpoint_promotion_rejected = bool(
+    checkpoint_promotion_rejected = _paper_truthy_flag(
         _first_present(
             learning_metrics.get("checkpoint_promotion_rejected"),
             training_metrics.get("checkpoint_promotion_rejected"),
@@ -12533,12 +12695,11 @@ def _paper_trainer_model_quality_runtime_status(
             training_metrics.get("train_val_generalization_gap"),
         )
     )
-    overfit_gap_warning = (
+    overfit_gap_warning = _paper_truthy_flag(
         _first_present(
             learning_metrics.get("overfit_gap_warning"),
             training_metrics.get("overfit_gap_warning"),
         )
-        is True
     )
     weights_update = optimizer_steps_last_hour > 0 and parameter_hash_changed
 
@@ -15304,6 +15465,125 @@ def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any]) -> lis
     return sorted(set(reasons))
 
 
+def _paper_entry_freeze_reason_texts(paper_entry_freeze: Mapping[str, Any]) -> list[str]:
+    texts: list[str] = []
+
+    def append(value: Any) -> None:
+        if value in (None, "", [], {}):
+            return
+        if isinstance(value, Mapping):
+            for nested in value.values():
+                append(nested)
+            return
+        if isinstance(value, (list, tuple, set)):
+            for nested in value:
+                append(nested)
+            return
+        texts.append(str(value))
+
+    for field in ("reason", "halt_reason", "halt_reasons", "source"):
+        append(paper_entry_freeze.get(field))
+    raw_freeze = paper_entry_freeze.get("raw_paper_entry_freeze")
+    if isinstance(raw_freeze, Mapping):
+        for field in ("reason", "halt_reason", "halt_reasons", "source"):
+            append(raw_freeze.get(field))
+    components = paper_entry_freeze.get("component_statuses")
+    if isinstance(components, Mapping):
+        for component in components.values():
+            if isinstance(component, Mapping):
+                for field in ("reason", "halt_reason", "halt_reasons", "source"):
+                    append(component.get(field))
+    return texts
+
+
+def _paper_risk_controller_exploration_can_override_entry_freeze(
+    *,
+    intent: Mapping[str, Any],
+    paper_entry_freeze: Mapping[str, Any],
+) -> bool:
+    if paper_entry_freeze.get("paper_new_entries_halted") is not True:
+        return False
+    if str(intent.get("paper_opportunity_tier") or "").upper() != (
+        PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    ):
+        return False
+    if (
+        intent.get("paper_only") is not True
+        or intent.get("routes_to_live") is True
+        or intent.get("places_real_order") is True
+        or intent.get("counts_as_A_plus") is True
+        or intent.get("counts_as_final_a_plus") is True
+        or intent.get("counts_as_live_ready") is True
+    ):
+        return False
+    if intent.get("paper_risk_controller_exploration_eligible") is not True:
+        return False
+    if intent.get("paper_exploration_paper_fill_allowed") is not True:
+        return False
+    if intent.get("paper_performance_circuit_global_halt_only") is not True:
+        return False
+    if (
+        intent.get("paper_risk_controller_exploration_global_halt_bucket_scoped")
+        is not True
+        and intent.get(
+            "paper_risk_controller_exploration_global_halt_bucket_clean_allowed"
+        )
+        is not True
+    ):
+        return False
+    if (
+        intent.get("paper_performance_circuit_breaker_matched_blocked_bucket_keys")
+        or intent.get("paper_performance_circuit_breaker_matched_loss_cluster_keys")
+        or intent.get("paper_exploration_exact_blocked_bucket_keys")
+    ):
+        return False
+
+    blocking_components = {
+        str(component)
+        for component in (paper_entry_freeze.get("blocking_components") or [])
+    }
+    if "churn_equity_bleed_governor" in blocking_components:
+        return False
+
+    reason_texts = _paper_entry_freeze_reason_texts(paper_entry_freeze)
+    reason_blob = " ".join(reason.upper() for reason in reason_texts)
+    if any(
+        token in reason_blob
+        for token in (
+            "PORTFOLIO_TRUTH",
+            "EQUITY_UNTRUSTED",
+            "PNL_UNTRUSTED",
+            "TRUTH_UNTRUSTED",
+        )
+    ):
+        return False
+    if (
+        "manual_or_portfolio_freeze" in blocking_components
+        and "PROBATION_SUPERVISOR_HALT" not in reason_blob
+        and "PERFORMANCE" not in reason_blob
+    ):
+        return False
+
+    symbol = str(intent.get("symbol") or "").strip().upper()
+    if symbol and any(symbol in reason.upper() for reason in reason_texts):
+        return False
+    return True
+
+
+def _paper_halted_performance_fill_exempt(row: Mapping[str, Any]) -> bool:
+    tier = str(row.get("paper_opportunity_tier") or "").upper()
+    if tier == PAPER_TIER_POSITIVE_EDGE_PROBATION:
+        return True
+    return (
+        tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+        and row.get("paper_risk_controller_exploration_overrode_entry_freeze") is True
+        and row.get("paper_performance_circuit_global_halt_only") is True
+        and row.get("paper_only") is True
+        and row.get("routes_to_live") is not True
+        and row.get("places_real_order") is not True
+    )
+
+
 def _apply_preemptive_admission_block(
     intent: dict[str, Any],
     reasons: list[str],
@@ -16412,10 +16692,11 @@ def _classify_paper_opportunity_tier(
         allocation.get("confidence_calibrated"),
     )
     expected_edge = _coerce_float(
-        _first_present(
-            intent.get("expected_move_after_cost_bps"),
-            signal.get("expected_move_after_cost_bps"),
-            allocation.get("expected_move_after_cost_bps"),
+        _paper_expected_move_after_cost_value(
+            intent,
+            signal,
+            allocation,
+            preemptive_decision or {},
         )
     )
     side = str(
@@ -24621,9 +24902,9 @@ def _build_market_state_envelope(
             prediction.get("action_probabilities"),
             prediction.get("policy_action_probabilities"),
         ),
-        "expected_move_after_cost_bps": _first_present(
-            signal.get("expected_move_after_cost_bps"),
-            prediction.get("expected_move_after_cost_bps"),
+        "expected_move_after_cost_bps": _paper_expected_move_after_cost_value(
+            signal,
+            prediction,
         ),
         "ppo_confidence": _first_present(
             signal.get("confidence_calibrated"),
@@ -26732,11 +27013,22 @@ def _build_allocation_input(
         signal.get("confidence"),
         prediction.get("confidence_calibrated"),
     ))
-    expected_move = _coerce_float(_first_present(
-        intent.get("expected_move_after_cost_bps"),
-        signal.get("expected_move_after_cost_bps"),
-        prediction.get("expected_move_after_cost_bps"),
-    ))
+    expected_move_alias_used = any(
+        isinstance(source, Mapping)
+        and source.get("expected_move_after_cost_bps") in (None, "")
+        and source.get("expected_edge_after_cost_bps") not in (None, "")
+        for source in (intent, signal, prediction)
+    )
+    expected_move = _coerce_float(
+        _paper_expected_move_after_cost_value(intent, signal, prediction)
+    )
+    if expected_move is not None and intent.get("expected_move_after_cost_bps") in (None, ""):
+        intent["expected_move_after_cost_bps"] = expected_move
+        intent["expected_move_after_cost_bps_source"] = (
+            "EXPECTED_EDGE_AFTER_COST_ALIAS"
+            if expected_move_alias_used
+            else "EXPECTED_MOVE_AFTER_COST"
+        )
     market_score = _coerce_float(_first_present(
         intent.get("market_state_integrity_score"),
         signal.get("market_state_integrity_score"),
@@ -27433,7 +27725,14 @@ def run_once() -> dict:
             now=runtime_now,
             stale_policy=paper_signal_adaptive_stale_policy,
         )
-        em_after = _coerce_float(s.get("expected_move_after_cost_bps"))
+        em_after = _coerce_float(
+            _paper_expected_move_after_cost_value(s, prediction)
+        )
+        if em_after is not None and s.get("expected_move_after_cost_bps") in (None, ""):
+            s["expected_move_after_cost_bps"] = em_after
+            s["expected_move_after_cost_bps_source"] = (
+                "EXPECTED_EDGE_AFTER_COST_ALIAS"
+            )
         em_after = 0.0 if em_after is None else em_after
         confidence_calibrated = _first_present(s.get("confidence_calibrated"), s.get("confidence"))
         confidence_raw = _first_present(s.get("confidence_raw"), prediction.get("confidence_raw"))
@@ -28841,10 +29140,17 @@ def run_once() -> dict:
             )
             blocked.append(intent)
             continue
+        risk_controller_entry_freeze_override = (
+            _paper_risk_controller_exploration_can_override_entry_freeze(
+                intent=intent,
+                paper_entry_freeze=paper_entry_freeze,
+            )
+        )
         if (
             paper_entry_freeze.get("paper_new_entries_halted") is True
             and intent.get("paper_opportunity_tier")
             != PAPER_TIER_POSITIVE_EDGE_PROBATION
+            and not risk_controller_entry_freeze_override
         ):
             intent["paper_fill_block_reason"] = "PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"
             intent["paper_entry_freeze"] = paper_entry_freeze
@@ -28859,6 +29165,12 @@ def run_once() -> dict:
             ))
             blocked.append(intent)
             continue
+        if risk_controller_entry_freeze_override:
+            intent["paper_entry_freeze"] = paper_entry_freeze
+            intent["paper_risk_controller_exploration_overrode_entry_freeze"] = True
+            intent["paper_risk_controller_exploration_entry_freeze_override_reason"] = (
+                "GLOBAL_OR_BROAD_PERFORMANCE_FREEZE_ADVISORY_FOR_BUCKET_CLEAN_PAPER_EXPLORATION"
+            )
         if (
             paper_entry_freeze.get("paper_new_entries_halted") is True
             and intent.get("paper_opportunity_tier")
@@ -29357,8 +29669,7 @@ def run_once() -> dict:
         "halted_performance_fill_count": sum(
             1
             for row in valid_current_accepted
-            if str(row.get("paper_opportunity_tier") or "").upper()
-            != PAPER_TIER_POSITIVE_EDGE_PROBATION
+            if not _paper_halted_performance_fill_exempt(row)
             and any(
                 token
                 in str(
