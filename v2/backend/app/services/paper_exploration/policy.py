@@ -28,12 +28,22 @@ BOOTSTRAP_EXPLORATION_ENABLED = (
     os.getenv("PAPER_BOOTSTRAP_EXPLORATION_ENABLED", "false").strip().lower()
     in {"1", "true", "yes", "on", "enabled"}
 )
-# The only blockers the bootstrap lane is permitted to override — both are the
+# The only blockers the bootstrap lane is permitted to override — all are the
 # untrained model's confidence estimate, which is unreliable by construction.
 BOOTSTRAP_OVERRIDABLE_BLOCKERS = frozenset(
     {
         "CONFIDENCE_EXECUTABLE_TRADE_BELOW_DYNAMIC_EXPLORATION_FLOOR",
         "CONFIDENCE_EXECUTABLE_TRADE_MISSING",
+        # The allocator's low-confidence hard block is the SAME untrained-model
+        # confidence signal expressed through a second gate (allocator:
+        # confidence_calibrated < 0.50 -> BLOCK_LOW_CONFIDENCE). With honest
+        # outcome-fit temperature calibration the cold-start model's calibrated
+        # confidence sits ~0.43-0.59, so without this the bootstrap lane can
+        # never fill and the confidence circularity this lever exists to break
+        # stays locked. Every OTHER allocator block (BLOCK_NO_EDGE,
+        # BLOCK_BAD_MARKET_STATE, BLOCK_EXPOSURE_BUDGET, liquidity, circuit
+        # breaker) remains a hard blocker for the bootstrap lane.
+        "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE",
     }
 )
 DYNAMIC_EXPLORATION_FLOOR_FORMULA = (

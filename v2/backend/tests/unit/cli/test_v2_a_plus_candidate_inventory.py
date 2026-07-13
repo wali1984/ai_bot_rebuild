@@ -807,6 +807,37 @@ def _prediction(symbol: str, timeframe: str, prediction_id: str, feature_hash: s
     }
 
 
+class StaleTrustedMicrostructureReasonRedis(FakeRedis):
+    def __init__(self) -> None:
+        super().__init__()
+        row = self.data["v2:paper:preemptive_candidate_decision_matrix"]["rows"][0]
+        row.update(
+            {
+                "candidate_id": "cand-stale-micro-trust-reasons",
+                "preemptive_decision": "NO_TRADE",
+                "preemptive_action": "BLOCK_MICROSTRUCTURE_UNSAFE",
+                "preemptive_block_reasons": [
+                    "MICROSTRUCTURE_TRUST_MISSING",
+                    "MICROSTRUCTURE_TRUST_LOW",
+                    "MICROSTRUCTURE_TRUST_FAIL_CLOSED",
+                    "HIGH_CONFIDENCE_WITHOUT_MICROSTRUCTURE_TRUST_EVIDENCE",
+                    "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST",
+                    "FVG_CONFLUENCE_WITHOUT_TAPE_CONFIRMATION",
+                ],
+                "microstructure_trust_state": "TRUSTED",
+                "microstructure_trust_score": 0.91,
+                "composite_microstructure_trust_score": 0.91,
+            }
+        )
+        self.data["v2:paper:preemptive_candidate_decision_matrix"]["rows"] = [row]
+        self.data["v2:prediction:BTCUSDT:1m"] = _prediction(
+            "BTCUSDT",
+            "1m",
+            "pred-good",
+            "hash-good",
+        )
+
+
 def _paper_exploration_policy_row(**overrides: object) -> dict[str, object]:
     row: dict[str, object] = {
         "candidate_id": "cand-timestamp",
@@ -1091,6 +1122,50 @@ def test_paper_exploration_confidence_floor_bootstrap_requires_explicit_opt_in(
     ]
 
 
+def test_bootstrap_overrides_allocator_low_confidence_but_not_other_allocator_blocks(
+    monkeypatch,
+) -> None:
+    # The allocator's BLOCK_LOW_CONFIDENCE is the same untrained-model confidence
+    # signal as the dynamic floor; the bootstrap lane may override it. Any OTHER
+    # allocator hard block (e.g. BLOCK_NO_EDGE) must stay hard even with the
+    # bootstrap lever on.
+    monkeypatch.setattr(paper_exploration_policy, "BOOTSTRAP_EXPLORATION_ENABLED", True)
+
+    low_conf_row = _paper_exploration_policy_row(
+        confidence_executable_trade=0.42,
+        allocator_decision="BLOCK_LOW_CONFIDENCE",
+        paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        paper_risk_controller_exploration=True,
+        paper_only=True,
+        routes_to_live=False,
+        places_real_order=False,
+        counts_as_A_plus=False,
+        counts_as_final_a_plus=False,
+        counts_as_live_ready=False,
+    )
+    low_conf = evaluate_paper_risk_controller_exploration(low_conf_row)
+    assert low_conf["eligible"] is True
+    assert low_conf["bootstrap_exploration"] is True
+    assert "ALLOCATOR_HARD_BLOCK:BLOCK_LOW_CONFIDENCE" in low_conf["bootstrap_overridden_blockers"]
+
+    no_edge_row = _paper_exploration_policy_row(
+        confidence_executable_trade=0.42,
+        allocator_decision="BLOCK_NO_EDGE",
+        paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
+        paper_risk_controller_exploration=True,
+        paper_only=True,
+        routes_to_live=False,
+        places_real_order=False,
+        counts_as_A_plus=False,
+        counts_as_final_a_plus=False,
+        counts_as_live_ready=False,
+    )
+    no_edge = evaluate_paper_risk_controller_exploration(no_edge_row)
+    assert no_edge["eligible"] is False
+    assert no_edge["bootstrap_exploration"] is False
+    assert "ALLOCATOR_HARD_BLOCK:BLOCK_NO_EDGE" in no_edge["eligibility_block_reasons"]
+
+
 def test_paper_exploration_policy_keeps_specific_loss_cluster_blocking() -> None:
     row = _paper_exploration_policy_row(
         paper_opportunity_tier="PAPER_RISK_CONTROLLER_EXPLORATION",
@@ -1128,6 +1203,8 @@ def test_inventory_writes_required_outputs_and_classifies_blockers(tmp_path: Pat
     assert result["summary"]["total_candidate_count"] == 2
     assert result["summary"]["a_plus_candidate_count"] == 1
     assert result["summary"]["live_ready_candidate_count"] == 1
+    assert result["summary"]["final_state"] == "A_PLUS_CANDIDATE_PRESENT_LIVE_BLOCKED_HUMAN_ONLY"
+    assert result["summary"]["exact_no_A_plus_reason"] is None
     assert result["rejection_matrix"]["unknown_rejection_reason_count"] == 0
     assert result["rejection_matrix"]["blocker_class_counts"]["EXPECTED_NET_EDGE_BLOCKER"] >= 1
     assert (tmp_path / "candidate_inventory.jsonl").exists()
@@ -1163,6 +1240,75 @@ def test_inventory_writes_required_outputs_and_classifies_blockers(tmp_path: Pat
     assert result["summary"]["allocator_decision_missing_count"] == 0
 
 
+def test_inventory_summary_persists_guardian_failure_reasons(tmp_path: Path) -> None:
+    client = FakeRedis()
+    client.data["v2:continuous_edge_guardian:a_grade_execution_gate"] = {
+        "status": "A_GRADE_HALTED_PERFORMANCE",
+        "a_grade_new_entries_allowed": False,
+        "new_entries_allowed": False,
+        "generated_utc": "2026-07-12T06:36:08.942Z",
+        "failure_reasons": [
+            {
+                "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+                "observed": 455,
+                "required": 50000,
+            }
+        ],
+    }
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    guardian = result["summary"]["continuous_edge_guardian_gate_status"]
+    assert guardian["status"] == "A_GRADE_HALTED_PERFORMANCE"
+    assert guardian["a_grade_new_entries_allowed"] is False
+    assert result["summary"]["continuous_edge_guardian_top_reason"] == (
+        "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS"
+    )
+    assert guardian["failure_reasons"][0]["observed"] == 455
+    assert guardian["failure_reasons"][0]["required"] == 50000
+
+
+def test_inventory_drops_stale_microstructure_reasons_when_trust_is_explicit(
+    tmp_path: Path,
+) -> None:
+    result = build_inventory(
+        client=StaleTrustedMicrostructureReasonRedis(),
+        output_dir=tmp_path,
+        max_prediction_keys=20,
+    )
+
+    row = result["rows"][0]
+    assert row["microstructure_trust_score"] == 0.91
+    assert "MICROSTRUCTURE_TRUST_MISSING" not in row["block_reasons"]
+    assert "MICROSTRUCTURE_TRUST_LOW" not in row["block_reasons"]
+    assert "MICROSTRUCTURE_TRUST_FAIL_CLOSED" not in row["block_reasons"]
+    assert "HIGH_CONFIDENCE_WITHOUT_MICROSTRUCTURE_TRUST_EVIDENCE" not in row[
+        "block_reasons"
+    ]
+    assert "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST" not in row[
+        "block_reasons"
+    ]
+    assert "FVG_CONFLUENCE_WITHOUT_TAPE_CONFIRMATION" in row["block_reasons"]
+    assert "PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW" in row["block_reasons"]
+
+
+def test_inventory_keeps_microstructure_reasons_when_state_is_fail_closed(
+    tmp_path: Path,
+) -> None:
+    client = StaleTrustedMicrostructureReasonRedis()
+    row = client.data["v2:paper:preemptive_candidate_decision_matrix"]["rows"][0]
+    row["microstructure_trust_state"] = "FAIL_CLOSED"
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    normalized = result["rows"][0]
+    assert normalized["microstructure_trust_score"] == 0.91
+    assert "MICROSTRUCTURE_TRUST_FAIL_CLOSED" in normalized["block_reasons"]
+    assert "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST" in normalized[
+        "block_reasons"
+    ]
+
+
 def test_current_session_filters_stale_matrix_rows(tmp_path: Path) -> None:
     client = FakeRedis()
     stale_prediction = client.data["v2:prediction:BTCUSDT:1m"]
@@ -1174,6 +1320,57 @@ def test_current_session_filters_stale_matrix_rows(tmp_path: Path) -> None:
     assert result["summary"]["stale_current_session_rows_filtered_count"] == 1
     assert all(row["candidate_id"] != "cand-good" for row in result["rows"])
     assert result["summary"]["a_plus_candidate_count"] == 0
+    assert result["summary"]["final_state"] != "OPERATOR_REVIEW_READY_FIRST_LIVE_CANARY"
+    assert result["summary"]["final_state"] != "PRODUCTION_STACK_READY_LIVE_BLOCKED_ONE_REASON"
+    assert result["summary"]["exact_no_A_plus_reason"]
+
+
+def test_matrix_row_does_not_borrow_latest_prediction_when_id_differs(
+    tmp_path: Path,
+) -> None:
+    client = FakeRedis()
+    matrix_row = client.data["v2:paper:preemptive_candidate_decision_matrix"]["rows"][0]
+    matrix_row.update(
+        {
+            "candidate_id": "cand-old-matrix-row",
+            "prediction_id": "pred-old-matrix-row",
+            "signal_id": "sig-old-matrix-row",
+            "decision_time": _past_iso(minutes=3),
+            "available_at": _past_iso(minutes=4),
+            "feature_cutoff": _past_iso(minutes=5),
+            "feature_vector_hash": "row-owned-feature-hash",
+            "feature_snapshot_id": "row-owned-snapshot",
+        }
+    )
+    latest_prediction = client.data["v2:prediction:BTCUSDT:1m"]
+    latest_prediction.update(
+        {
+            "prediction_id": "pred-new-runtime",
+            "signal_id": "sig-new-runtime",
+            "decision_time": _now_iso(),
+            "available_at": _past_iso(minutes=1),
+            "feature_cutoff": _past_iso(minutes=2),
+            "feature_vector_hash": "latest-runtime-feature-hash",
+        }
+    )
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    matrix_normalized = next(
+        row for row in result["rows"] if row["candidate_id"] == "cand-old-matrix-row"
+    )
+    runtime_normalized = next(
+        row for row in result["rows"] if row["prediction_id"] == "pred-new-runtime"
+    )
+
+    assert matrix_normalized["prediction_id"] == "pred-old-matrix-row"
+    assert matrix_normalized["feature_vector_hash"] == "row-owned-feature-hash"
+    assert matrix_normalized["feature_snapshot_id"] == "row-owned-snapshot"
+    assert matrix_normalized["feature_cutoff"] != latest_prediction["feature_cutoff"]
+    assert "FEATURE_CUTOFF_AFTER_DECISION_TIME_LOOKAHEAD" not in matrix_normalized[
+        "paper_risk_controller_exploration_block_reasons"
+    ]
+    assert runtime_normalized["feature_vector_hash"] == "latest-runtime-feature-hash"
 
 
 def test_counts_as_final_a_plus_false_blocks_a_plus_governance(tmp_path: Path) -> None:
@@ -1190,6 +1387,8 @@ def test_counts_as_final_a_plus_false_blocks_a_plus_governance(tmp_path: Path) -
     assert "COUNTS_AS_FINAL_A_PLUS_FALSE" in row["block_reasons"]
     assert result["summary"]["a_plus_candidate_count"] == 0
     assert result["summary"]["live_ready_candidate_count"] == 0
+    assert result["summary"]["final_state"] == "A_PLUS_BLOCKERS_ACTIVE_LIVE_BLOCKED"
+    assert result["summary"]["exact_no_A_plus_reason"]
 
 
 def test_strategy_supply_hypothesis_preserves_positive_usd_economics(tmp_path: Path) -> None:
@@ -1210,6 +1409,9 @@ def test_strategy_supply_hypothesis_preserves_positive_usd_economics(tmp_path: P
     assert row["expected_move_after_cost_bps"] == -18.4
     assert row["expected_short_net_edge_bps"] == 18.4
     assert row["short_expected_net_pnl_usd"] == 3.68
+    assert "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE" not in row["block_reasons"]
+    assert "EXPECTED_EDGE_NON_POSITIVE" not in row["block_reasons"]
+    assert "EXPECTED_MOVE_DOES_NOT_COVER_COST" not in row["block_reasons"]
     assert row["paper_exploration_selected_side_economics_consistency"]["status"] == "CONSISTENT"
     assert row["expected_max_loss_usd"] == 1.9
     assert row["current_price"] == 65000.0
