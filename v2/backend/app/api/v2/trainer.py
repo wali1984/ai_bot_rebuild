@@ -444,7 +444,8 @@ def _attach_model_identity_status(shape: dict[str, Any], r: Any) -> dict[str, An
     pretrain = _latest_scheduled_pretrain_report()
     if pretrain:
         h2h = _dict_value(pretrain.get("head_to_head"))
-        risk = _dict_value(h2h.get("risk_gate"))
+        # The H2L risk gate reports under risk_adjusted_validation.gate.
+        risk = _dict_value(_dict_value(h2h.get("risk_adjusted_validation")).get("gate"))
         out["offline_pretrain_status"] = {
             "schema_version": "trainer_status_offline_pretrain_v1",
             "source": "file:claude_worklog/trainer_atlas/scheduled_pretrain_*.json",
