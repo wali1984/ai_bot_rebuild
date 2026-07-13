@@ -231,6 +231,53 @@ def load_or_build_examples(
 # ─────────────────────────────── training ───────────────────────────────────
 
 
+def _model_risk_composite(model: Any, examples: list[Any]) -> tuple[float, dict[str, Any]]:
+    """Out-of-sample risk-adjusted score for checkpoint selection (Sortino + CVaR).
+
+    Runs the in-memory model on held-out examples, takes the argmax action, and
+    builds a per-trade realised-return series (long=+move, short=-move). The
+    composite ``sortino + cvar/1000`` rewards risk-adjusted return and penalises
+    tail loss, aligning offline checkpoint selection with the H2L promotion gate,
+    which requires better Sortino AND CVaR. Loss-optimal checkpoints have worse
+    tail risk and get refused -- selecting by this composite fixes that. Returns
+    (score, summary); score is -inf when the policy makes no directional trades.
+    """
+    import torch  # noqa: PLC0415
+
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.risk_metrics import (  # noqa: PLC0415
+        risk_adjusted_summary,
+    )
+
+    net = getattr(model, "net", None)
+    if net is None or not examples:
+        return float("-inf"), {}
+    returns: list[float] = []
+    try:
+        net.eval()
+        with torch.no_grad():
+            vectors = [list(r.tensor.model_vector) for r in examples]
+            x = torch.tensor(vectors, dtype=torch.float32, device="cpu")
+            x = torch.nan_to_num(x, nan=0.0, posinf=1e6, neginf=-1e6).to(device=model.device)
+            actions = torch.argmax(net(x)["logits"], dim=-1).detach().cpu().tolist()
+        for r, a in zip(examples, actions):
+            move = float(getattr(r, "label_expected_move_after_cost_bps", 0.0) or 0.0)
+            if a == 1:
+                returns.append(move)
+            elif a == 2:
+                returns.append(-move)
+    except Exception:  # pragma: no cover - selection heuristic, never fatal
+        return float("-inf"), {}
+    finally:
+        net.train()
+    summary = risk_adjusted_summary(returns)
+    sortino = summary.get("sortino_ratio")
+    if sortino is None or not returns:
+        return float("-inf"), summary
+    cvar = summary.get("cvar")
+    score = float(sortino) + (float(cvar) / 1000.0 if cvar is not None else 0.0)
+    return score, summary
+
+
 def run_batch_training(
     examples: Sequence[Any],
     *,
@@ -312,8 +359,21 @@ def run_batch_training(
     loss_last: float | None = None
     best_val: float | None = None
     best_epoch: int | None = None
+    best_risk: float | None = None
+    best_risk_summary: dict[str, Any] = {}
     epochs_since_improve = 0
     stopped_early = False
+    # Select the promoted checkpoint by out-of-sample RISK-ADJUSTED return
+    # (Sortino + CVaR), not just supervised val loss: loss-optimal checkpoints
+    # have worse tail risk and are refused by the H2L risk gate, so pure val-loss
+    # selection never produces a promotable model. Revert with
+    # V2_OFFLINE_SELECT_BY_VAL_LOSS=1. The risk-eval slice is the tail held-out
+    # fraction (a selection heuristic; the H2L head-to-head is the real disjoint gate).
+    _select_by_val_loss = os.getenv("V2_OFFLINE_SELECT_BY_VAL_LOSS", "0").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    _risk_eval_n = min(len(examples), max(256, int(len(examples) * max(validation_fraction, 0.1))))
+    _risk_eval_examples = list(examples[-_risk_eval_n:]) if _risk_eval_n else []
     _best_blob = Path(_tempfile.mkdtemp(prefix="v2_offline_bestval_")) / "best.weights.npz"
     wall_started = time.perf_counter()
     with GpuUtilizationSampler(interval_s=gpu_sample_interval_s) as sampler:
@@ -340,21 +400,34 @@ def run_batch_training(
                     "learning_mode": result.metrics.get("learning_mode"),
                 }
             )
-            # Best-validation checkpoint + early stopping (anti-overfit).
-            if early_stop_patience > 0 and isinstance(val, (int, float)):
-                if best_val is None or val < best_val - 1e-6:
+            # Best-checkpoint selection + early stopping (anti-overfit). Default
+            # criterion is the out-of-sample risk composite (so the promoted
+            # checkpoint passes the H2L Sortino/CVaR gate); val-loss under env flag.
+            if early_stop_patience > 0:
+                improved = False
+                if not _select_by_val_loss:
+                    risk_score, risk_summary = _model_risk_composite(model, _risk_eval_examples)
+                    if best_risk is None or risk_score > best_risk + 1e-9:
+                        best_risk = risk_score
+                        best_risk_summary = risk_summary
+                        best_val = float(val) if isinstance(val, (int, float)) else best_val
+                        best_epoch = epoch
+                        improved = True
+                elif isinstance(val, (int, float)) and (best_val is None or val < best_val - 1e-6):
                     best_val = float(val)
                     best_epoch = epoch
+                    improved = True
+                if improved:
                     epochs_since_improve = 0
                     try:
-                        model.save_weight_blob(_best_blob)  # snapshot the best-generalizing weights
+                        model.save_weight_blob(_best_blob)  # snapshot the best checkpoint
                     except Exception:  # pragma: no cover
                         pass
                 else:
                     epochs_since_improve += 1
                     # Never stop before the min_epochs floor, so the run always
                     # trains a meaningful number of passes (default >= 5) even if
-                    # validation plateaus early on a noisy first epoch.
+                    # the metric plateaus early on a noisy first epoch.
                     if epochs_since_improve >= early_stop_patience and (epoch + 1) >= max(1, int(min_epochs)):
                         stopped_early = True
                         break
@@ -385,6 +458,11 @@ def run_batch_training(
         "loss_improved": (loss_first is not None and loss_last is not None and loss_last < loss_first),
         "best_validation_loss": best_val,
         "best_epoch": best_epoch,
+        "checkpoint_selection_criterion": "val_loss" if _select_by_val_loss else "risk_adjusted_composite",
+        "best_risk_composite": best_risk,
+        "best_risk_sortino": best_risk_summary.get("sortino_ratio"),
+        "best_risk_cvar": best_risk_summary.get("cvar"),
+        "best_risk_trades": best_risk_summary.get("count"),
         "early_stop_patience": int(early_stop_patience),
         "stopped_early": bool(stopped_early),
         "epochs_run": len(epoch_reports),
