@@ -97,6 +97,17 @@ def run_scheduled_pretrain(
     max_cvar_loss_bps: float | None,
 ) -> dict[str, Any]:
     started = time.time()
+    # Refresh the example cache when it outlives the flywheel cadence: a frozen
+    # cache means every scheduled run retrains on the SAME rows forever, so newly
+    # archived (richer) frames never reach training -- and a feature-spec/arch
+    # change leaves a stale-dim cache that aborts H2L until manually purged.
+    cache_max_age_s = 6 * 3600.0
+    cache_file = Path(cache_path) if cache_path else None
+    cache_stale = bool(
+        cache_file is not None
+        and cache_file.exists()
+        and (time.time() - cache_file.stat().st_mtime) > cache_max_age_s
+    )
     # Disjoint split: PREFIX (train_rows) trains the model; SUFFIX (heldout_rows)
     # scores it out-of-sample. The offline pretrain must never see the held-out.
     heldout, training_prefix, split_meta = load_h2l_heldout_examples(
@@ -105,8 +116,9 @@ def run_scheduled_pretrain(
         limit=heldout_rows,
         heldout_offset=train_rows,
         cache_path=cache_path,
-        rebuild_cache=False,
+        rebuild_cache=cache_stale,
     )
+    split_meta = {**dict(split_meta or {}), "cache_rebuilt_for_age": cache_stale}
     status: dict[str, Any] = {
         "schema_version": "trainer_scheduled_pretrain_status_v1",
         "generated_utc": _utc_now(),
