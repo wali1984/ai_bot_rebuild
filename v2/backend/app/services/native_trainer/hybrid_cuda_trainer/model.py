@@ -87,6 +87,7 @@ class V2HybridPolicyModel:
         self.temporal_encoder_enabled = self.temporal_encoder in {"gru"}
         self.temporal_seq_len = max(2, int(os.getenv("V2_TRAINER_TEMPORAL_SEQ_LEN", "16") or 16))
         self.temporal_hidden = max(32, int(os.getenv("V2_TRAINER_TEMPORAL_HIDDEN", "256") or 256))
+        self.temporal_proj_dim = max(32, int(os.getenv("V2_TRAINER_TEMPORAL_PROJ_DIM", "256") or 256))
         self._torch = None
         self._net = None
         self._device = "cpu"
@@ -99,7 +100,7 @@ class V2HybridPolicyModel:
         if self.attention_encoder_enabled:
             arch_identity += f"|attn=1x{self.attention_heads}"
         if self.temporal_encoder_enabled:
-            arch_identity += f"|temporal={self.temporal_encoder}x{self.temporal_hidden}"
+            arch_identity += f"|temporal={self.temporal_encoder}x{self.temporal_hidden}p{self.temporal_proj_dim}"
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
             arch_identity.encode()
         ).hexdigest()[:24]
@@ -205,6 +206,7 @@ class V2HybridPolicyModel:
                     attention_heads: int = 4,
                     temporal_enabled: bool = False,
                     temporal_hidden: int = 256,
+                    temporal_proj_dim: int = 256,
                 ) -> None:
                     super().__init__()
                     # GRU temporal encoder over a no-lookahead window. Additive; only
@@ -212,8 +214,19 @@ class V2HybridPolicyModel:
                     # 2D single-frame path is byte-identical to the prior model.
                     self.temporal_enabled = bool(temporal_enabled)
                     if self.temporal_enabled:
+                        # Project each frame to a small dim BEFORE the GRU. GRU cost
+                        # scales with input width, and full 1248-dim frames make it
+                        # ~20x slower than single-frame (1.1 steps/s); a 256-d
+                        # projection keeps the temporal signal while making the
+                        # model trainable to convergence.
+                        proj_dim = max(32, int(temporal_proj_dim))
+                        self.temporal_input_proj = torch.nn.Sequential(
+                            torch.nn.Linear(input_dim, proj_dim),
+                            torch.nn.LayerNorm(proj_dim),
+                            torch.nn.GELU(),
+                        )
                         self.temporal_gru = torch.nn.GRU(
-                            input_dim, int(temporal_hidden), num_layers=1, batch_first=True
+                            proj_dim, int(temporal_hidden), num_layers=1, batch_first=True
                         )
                         self.temporal_fuse = torch.nn.Sequential(
                             torch.nn.Linear(int(temporal_hidden), hidden),
@@ -270,7 +283,7 @@ class V2HybridPolicyModel:
                     if x.dim() == 3:
                         window = self._normalize(x)
                         if self.temporal_enabled:
-                            gru_out, _ = self.temporal_gru(window)
+                            gru_out, _ = self.temporal_gru(self.temporal_input_proj(window))
                             temporal_emb = gru_out[:, -1, :]
                         x = window[:, -1, :]
                     else:
@@ -306,6 +319,7 @@ class V2HybridPolicyModel:
                 attention_heads=self.attention_heads,
                 temporal_enabled=self.temporal_encoder_enabled,
                 temporal_hidden=self.temporal_hidden,
+                temporal_proj_dim=self.temporal_proj_dim,
             ).to(device)
             self._device = str(next(self._net.parameters()).device)
         except Exception:
