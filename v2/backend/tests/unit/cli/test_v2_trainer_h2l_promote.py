@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.cli import v2_trainer_h2l_promote as h2l
 
 
@@ -54,6 +56,40 @@ def test_safety_posture_fields_present(monkeypatch) -> None:
     assert r["places_real_order"] is False
     assert r["routes_to_live"] is False
     assert r["live_gate"] == "blocked_human_only"
+
+
+def test_promote_refuses_if_offline_checkpoint_reload_fails(monkeypatch, tmp_path) -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (  # noqa: PLC0415
+        checkpoint as checkpoint_mod,
+    )
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (  # noqa: PLC0415
+        model as model_mod,
+    )
+
+    class FakeModel:
+        def __init__(self, *, input_dim):
+            self.input_dim = input_dim
+
+    class FakeCheckpointManager:
+        def __init__(self, _path):
+            pass
+
+        def load_latest_weights(self, _model):
+            return {
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "load_status": "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST",
+            }
+
+        def write_checkpoint(self, **_kwargs):
+            raise AssertionError("promotion must not write if reload failed")
+
+    monkeypatch.setattr(h2l, "_infer_input_dim", lambda _path: 1248)
+    monkeypatch.setattr(model_mod, "V2HybridPolicyModel", FakeModel)
+    monkeypatch.setattr(checkpoint_mod, "V2HybridCheckpointManager", FakeCheckpointManager)
+
+    with pytest.raises(RuntimeError, match="offline checkpoint reload failed"):
+        h2l._promote(str(tmp_path / "offline"), str(tmp_path / "live"))  # noqa: SLF001
 
 
 def _row(move):
@@ -210,3 +246,36 @@ def test_h2l_cli_requires_risk_gate_by_default(monkeypatch) -> None:
     args = h2l.parse_args([])
 
     assert args.require_risk_gate is True
+
+
+def test_infer_input_dim_uses_newest_manifest_not_alphabetical(tmp_path) -> None:
+    """Regression: manifests accumulate across arch generations; the alphabetical
+    scan returned a stale-arch width (1832) even after a fresh 1908 candidate was
+    saved, so H2L scored both sides through the old arch slot and aborted every
+    run with ABORT_NO_VALIDATION_SIGNAL. Newest-mtime manifest must win."""
+    import json as _json
+    import os as _os
+
+    stale = tmp_path / "v2_hybrid_ckpt_28e95fec1b4b711ee41bf6a1.json"  # sorts FIRST
+    fresh = tmp_path / "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488.json"
+    stale.write_text(_json.dumps({"input_dim": 1832}))
+    fresh.write_text(_json.dumps({"input_dim": 1908}))
+    now = stale.stat().st_mtime
+    _os.utime(stale, (now - 3600, now - 3600))  # stale is an hour older
+    _os.utime(fresh, (now, now))
+    assert h2l._infer_input_dim(str(tmp_path)) == 1908
+
+
+def test_infer_input_dim_skips_manifests_without_dim(tmp_path) -> None:
+    """checkpoint_retention_manifest.json (no input_dim) may be the newest file;
+    it must be skipped, not treated as the candidate manifest."""
+    import json as _json
+    import os as _os
+
+    manifest = tmp_path / "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488.json"
+    retention = tmp_path / "checkpoint_retention_manifest.json"
+    manifest.write_text(_json.dumps({"input_dim": 1908}))
+    retention.write_text(_json.dumps({"retained": []}))
+    now = retention.stat().st_mtime
+    _os.utime(manifest, (now - 60, now - 60))  # retention manifest is newest
+    assert h2l._infer_input_dim(str(tmp_path)) == 1908

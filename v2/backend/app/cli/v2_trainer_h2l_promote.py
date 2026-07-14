@@ -342,8 +342,22 @@ def _promote(offline_dir: str, live_dir: str) -> dict[str, Any]:
 
 
 def _infer_input_dim(checkpoint_dir: str) -> int:
-    """Read input_dim from the offline checkpoint manifest json."""
-    for j in sorted(Path(checkpoint_dir).glob("*.json")):
+    """Read input_dim from the checkpoint dir's NEWEST manifest (mtime order).
+
+    Manifests accumulate across architecture generations in the same dir.
+    The previous alphabetical scan returned an arbitrary stale-arch manifest
+    (e.g. the 1832 slot after the 1908 feature-spec fork), which made H2L
+    build BOTH scoring models at the old width: each side then resolved the
+    same old-arch checkpoint, the fresh candidate was never scored, and every
+    run aborted with ABORT_NO_VALIDATION_SIGNAL. Newest mtime = the
+    just-saved candidate's manifest, which carries the true current width.
+    """
+    manifests = sorted(
+        Path(checkpoint_dir).glob("*.json"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    for j in manifests:
         try:
             data = json.loads(j.read_text())
         except Exception:
