@@ -16546,3 +16546,52 @@ def test_symbol_tf_closed_evidence_counts_feed_floor_input() -> None:
     # Re-set replaces (per-cycle semantics).
     loop._set_symbol_tf_closed_evidence_counts([{"symbol": "SOLUSDT", "timeframe": "1h"}])
     assert ("BTCUSDT", "1m") not in loop._SYMBOL_TF_CLOSED_EVIDENCE_COUNTS
+
+
+def test_probation_supervisor_freeze_keeps_bootstrap_exploration_alive() -> None:
+    # Continue-with-feedback: a probation-supervisor halt must NOT kill the
+    # bounded exploration/learning lane (the circuit-breaker bucket flags it
+    # previously required only exist when a performance circuit is active).
+    from app.cli.v2_trade_management_paper_loop import (
+        _paper_risk_controller_exploration_can_override_entry_freeze,
+    )
+
+    freeze = {
+        "paper_new_entries_halted": True,
+        "reason": "PROBATION_SUPERVISOR_HALT:NEW_HIGH_CONFIDENCE_LOSS:FILUSDT,AVAXUSDT",
+        "bootstrap_exploration_allowed": True,
+    }
+    intent = {
+        "symbol": "BTCUSDT",
+        "paper_opportunity_tier": "PAPER_RISK_CONTROLLER_EXPLORATION",
+        "paper_only": True,
+        "paper_risk_controller_exploration_eligible": True,
+        "paper_exploration_paper_fill_allowed": True,
+    }
+    assert _paper_risk_controller_exploration_can_override_entry_freeze(
+        intent=intent, paper_entry_freeze=freeze
+    ) is True
+
+    # The symbol named in the freeze reason stays blocked.
+    fil = {**intent, "symbol": "FILUSDT"}
+    assert _paper_risk_controller_exploration_can_override_entry_freeze(
+        intent=fil, paper_entry_freeze=freeze
+    ) is False
+
+    # Truth-integrity freezes never carve out.
+    truth_freeze = {
+        "paper_new_entries_halted": True,
+        "reason": "PORTFOLIO_TRUTH_UNTRUSTED",
+    }
+    assert _paper_risk_controller_exploration_can_override_entry_freeze(
+        intent=intent, paper_entry_freeze=truth_freeze
+    ) is False
+
+    # Non-probation freezes still require the circuit-breaker scoped flags.
+    generic_freeze = {
+        "paper_new_entries_halted": True,
+        "reason": "PERFORMANCE_CIRCUIT_GLOBAL_HALT",
+    }
+    assert _paper_risk_controller_exploration_can_override_entry_freeze(
+        intent=intent, paper_entry_freeze=generic_freeze
+    ) is False

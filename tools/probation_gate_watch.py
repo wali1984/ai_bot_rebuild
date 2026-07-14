@@ -198,11 +198,67 @@ def main() -> int:
         immediate_fail.append(
             f"ORPHAN_RISK:LEDGER_STALE_{int(ledger_age) if ledger_age else 'UNKNOWN'}s"
         )
-    new_hc_losses = [
-        t for t in closed
-        if (conf(t) or 0) >= 0.70 and (_f(t.get("realized_pnl_bps")) or 0) < 0
-    ]
-    if new_hc_losses:
+    # Operator-approved 2026-07-14: time-window + cluster semantics. The old
+    # check counted EVERY session high-confidence loss forever, so one immutable
+    # loss re-froze all entries every tick until session rotation (documented
+    # recurring deadlock: AVAX/SUI, then FILUSDT). Now a loss only counts while
+    # its close is within the freeze window, and a SINGLE windowed loss emits
+    # trainer feedback instead of a halt — the system keeps trading (bounded
+    # paper lanes) and learns, matching the cluster semantics used everywhere
+    # else (loss-cluster min 2, ATR cluster min 3).
+    HC_LOSS_WINDOW_SECONDS = 6 * 3600
+    def _close_dt(t):
+        for f in ("exit_price_utc", "closed_at", "close_time", "generated_utc"):
+            raw = t.get(f)
+            if raw:
+                try:
+                    return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                except Exception:
+                    continue
+        return None
+    _now_dt = datetime.now(timezone.utc)
+    windowed_hc_losses = []
+    for t in closed:
+        if (conf(t) or 0) >= 0.70 and (_f(t.get("realized_pnl_bps")) or 0) < 0:
+            closed_dt = _close_dt(t)
+            # Missing close time counts as in-window (conservative).
+            if closed_dt is None or (_now_dt - closed_dt).total_seconds() <= HC_LOSS_WINDOW_SECONDS:
+                windowed_hc_losses.append(t)
+    new_hc_losses = windowed_hc_losses
+    hc_loss_feedback = {
+        "schema_version": "probation_supervisor_feedback_v1",
+        "generated_utc": now,
+        "paper_session_id": session,
+        "windowed_high_confidence_losses": [
+            {
+                "symbol": t.get("symbol"), "side": t.get("side"),
+                "timeframe": t.get("timeframe"),
+                "confidence": conf(t),
+                "realized_pnl_bps": t.get("realized_pnl_bps"),
+                "exit_reason": t.get("exit_reason") or t.get("close_reason"),
+                "closed_at": t.get("exit_price_utc"),
+            }
+            for t in windowed_hc_losses
+        ],
+        "window_seconds": HC_LOSS_WINDOW_SECONDS,
+        "cluster_threshold": 2,
+        "action": (
+            "FREEZE_PROBATION_ENTRIES" if len(windowed_hc_losses) >= 2
+            else ("TRAINER_FEEDBACK_ONLY" if windowed_hc_losses else "NONE")
+        ),
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    try:
+        r.set(
+            "v2:paper:probation_supervisor_feedback",
+            json.dumps(hc_loss_feedback, default=str),
+            ex=24 * 3600,
+        )
+    except Exception:
+        pass
+    if len(new_hc_losses) >= 2:
         immediate_fail.append(
             "NEW_HIGH_CONFIDENCE_LOSS:" + ",".join(
                 str(t.get("symbol")) for t in new_hc_losses
@@ -222,6 +278,13 @@ def main() -> int:
             "paper_only": True,
             "routes_to_live": False,
             "places_real_order": False,
+            # Continue-with-feedback: this halt scopes the SUPERVISED lanes.
+            # The bounded bootstrap-exploration lane (tiny adaptive notionals,
+            # never A-grade evidence) keeps generating outcome data so the
+            # trainer and floor/bucket statistics learn from the failure
+            # instead of the whole system stalling until an operator restart.
+            "bootstrap_exploration_allowed": True,
+            "freeze_scope": "SUPERVISED_ENTRY_LANES",
         }
         r.set("v2:paper:entry_freeze", json.dumps(freeze), ex=6 * 3600)
         (GOAL / "PROBATION_HALT_EVENT.json").write_text(

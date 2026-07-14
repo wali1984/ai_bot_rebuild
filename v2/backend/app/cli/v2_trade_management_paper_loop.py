@@ -15520,17 +15520,31 @@ def _paper_risk_controller_exploration_can_override_entry_freeze(
         return False
     if intent.get("paper_exploration_paper_fill_allowed") is not True:
         return False
-    if intent.get("paper_performance_circuit_global_halt_only") is not True:
-        return False
-    if (
-        intent.get("paper_risk_controller_exploration_global_halt_bucket_scoped")
-        is not True
-        and intent.get(
-            "paper_risk_controller_exploration_global_halt_bucket_clean_allowed"
-        )
-        is not True
-    ):
-        return False
+    # Continue-with-feedback: a probation-supervisor halt (or a freeze payload
+    # that explicitly allows the bootstrap lane) scopes the SUPERVISED lanes;
+    # the bounded exploration lane keeps generating outcome data so the trainer
+    # and floor/bucket statistics learn from the failure. The circuit-breaker
+    # bucket flags below only exist when a performance circuit is active, so
+    # requiring them here silently killed the learning lane in clean sessions.
+    _freeze_reason_blob = " ".join(
+        reason.upper() for reason in _paper_entry_freeze_reason_texts(paper_entry_freeze)
+    )
+    _probation_scoped_freeze = (
+        paper_entry_freeze.get("bootstrap_exploration_allowed") is True
+        or "PROBATION_SUPERVISOR_HALT" in _freeze_reason_blob
+    )
+    if not _probation_scoped_freeze:
+        if intent.get("paper_performance_circuit_global_halt_only") is not True:
+            return False
+        if (
+            intent.get("paper_risk_controller_exploration_global_halt_bucket_scoped")
+            is not True
+            and intent.get(
+                "paper_risk_controller_exploration_global_halt_bucket_clean_allowed"
+            )
+            is not True
+        ):
+            return False
     if (
         intent.get("paper_performance_circuit_breaker_matched_blocked_bucket_keys")
         or intent.get("paper_performance_circuit_breaker_matched_loss_cluster_keys")
