@@ -36,16 +36,30 @@ def analyze_paper_outcomes(redis_client: redis.Redis) -> dict[str, Any]:
             return {"status": "NO_TRADES", "sample_size": 0}
 
         trades = json.loads(closed_trades)
-        if not isinstance(trades, list):
+        # Handle both list and dict formats
+        if isinstance(trades, dict):
             trades = trades.get("trades", [])
+        elif not isinstance(trades, list):
+            trades = []
 
         # Measure confidence calibration
         confidence_outcomes = []
         for trade in trades[-100:]:  # Last 100 trades
-            confidence = trade.get("entry_confidence_calibrated") or trade.get("entry_confidence")
-            realized_win = 1.0 if (trade.get("realized_pnl_usd", 0) > 0) else 0.0
+            # Try multiple confidence field names
+            confidence = (
+                trade.get("entry_confidence_calibrated") or
+                trade.get("entry_confidence") or
+                trade.get("confidence_calibrated") or
+                trade.get("confidence")
+            )
+            # Try multiple PnL field names
+            pnl = trade.get("realized_pnl_usd") or trade.get("pnl_usd") or trade.get("pnl") or 0.0
+            realized_win = 1.0 if (float(pnl or 0) > 0) else 0.0
             if confidence is not None:
-                confidence_outcomes.append((float(confidence), realized_win))
+                try:
+                    confidence_outcomes.append((float(confidence), realized_win))
+                except (TypeError, ValueError):
+                    pass  # Skip invalid confidence values
 
         if not confidence_outcomes:
             return {"status": "NO_CONFIDENCE_DATA", "sample_size": 0}
