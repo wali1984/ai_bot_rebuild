@@ -490,6 +490,21 @@ FEATURE_SPEC: tuple[tuple[str, str], ...] = (
     ("fast_squeeze_trap_score", "v2:microstructure:cascade_context"),
     ("fast_squeeze_direction_code", "v2:microstructure:cascade_context"),
     ("cross_asset_lead_component", "v2:microstructure:cascade_context"),
+    # Lever 5b (2026-07-14): multi-timeframe TA — 1h anchor indicators attached
+    # to every frame (fast frames previously saw no 1h TA; 4h/1d exist via the
+    # HTF context merge) + deeper microstructure book-quality family.
+    ("htf1h_taf_rsi", "v2:features:ta_full:1h"),
+    ("htf1h_taf_adx", "v2:features:ta_full:1h"),
+    ("htf1h_taf_macd_hist", "v2:features:ta_full:1h"),
+    ("htf1h_taf_atr", "v2:features:ta_full:1h"),
+    ("htf1h_taf_mfi", "v2:features:ta_full:1h"),
+    ("htf1h_taf_willr", "v2:features:ta_full:1h"),
+    ("htf1h_taf_natr", "v2:features:ta_full:1h"),
+    ("htf1h_taf_cci", "v2:features:ta_full:1h"),
+    ("micro_cancel_pressure_score", "v2:microstructure:trust_score"),
+    ("micro_depth_persistence_score", "v2:microstructure:trust_score"),
+    ("micro_book_trade_divergence", "v2:microstructure:trust_score"),
+    ("micro_book_sequence_gap", "v2:microstructure:trust_score"),
 )
 
 
@@ -1640,6 +1655,36 @@ class V2UnifiedFeatureTensorBuilder:
             ):
                 if _cc_val is not None and raw_by_name.get(_cc_name) is None:
                     raw_by_name[_cc_name] = _cc_val
+        htf1h = payloads.get("ta_full_htf_1h")
+        htf1h_ind = None
+        if isinstance(htf1h, Mapping):
+            htf1h_ind = htf1h.get("indicators") or htf1h.get("features")
+        if isinstance(htf1h_ind, Mapping):
+            for _h_name, _h_keys in (
+                ("htf1h_taf_rsi", ("rsi_14", "ta_RSI")),
+                ("htf1h_taf_adx", ("ta_ADX",)),
+                ("htf1h_taf_macd_hist", ("macd_hist", "ta_MACD_macdhist")),
+                ("htf1h_taf_atr", ("atr_14", "ta_ATR")),
+                ("htf1h_taf_mfi", ("ta_MFI",)),
+                ("htf1h_taf_willr", ("ta_WILLR",)),
+                ("htf1h_taf_natr", ("ta_NATR",)),
+                ("htf1h_taf_cci", ("ta_CCI",)),
+            ):
+                if raw_by_name.get(_h_name) is None:
+                    for _hk in _h_keys:
+                        if htf1h_ind.get(_hk) is not None:
+                            raw_by_name[_h_name] = htf1h_ind.get(_hk)
+                            break
+        micro_trust_payload = payloads.get("microstructure_trust")
+        if isinstance(micro_trust_payload, Mapping):
+            for _m_name, _m_key in (
+                ("micro_cancel_pressure_score", "book_cancel_pressure_score"),
+                ("micro_depth_persistence_score", "book_depth_persistence_score"),
+                ("micro_book_trade_divergence", "book_trade_divergence"),
+                ("micro_book_sequence_gap", "book_sequence_gap"),
+            ):
+                if raw_by_name.get(_m_name) is None and micro_trust_payload.get(_m_key) is not None:
+                    raw_by_name[_m_name] = micro_trust_payload.get(_m_key)
         ta_full_indicators = None
         if isinstance(ta_full, Mapping):
             # Real talib payload nests values under "indicators"; the synthetic
