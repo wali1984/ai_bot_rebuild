@@ -27910,6 +27910,17 @@ def run_once() -> dict:
             market_state_envelope,
             predictions_by_symbol,
         )
+        # Attach the live cascade/squeeze context so the router's regime
+        # features (cascade_risk_score, fast_squeeze_*, continuation/reversal
+        # probabilities) resolve from real telemetry instead of None -- without
+        # this the whole detection layer was invisible to strategy routing.
+        _cascade_ctx_key = (
+            f"v2:microstructure:cascade_context:{symbol}:"
+            f"{market_state_envelope.get('timeframe') or '1m'}"
+        )
+        _cascade_ctx = _read_json_key(r, _cascade_ctx_key)
+        if _cascade_ctx:
+            market_state_envelope["cascade_context"] = _cascade_ctx
         market_state_envelope["paper_loss_quarantine_status"] = (
             pre_cycle_bucket_quarantine_status.get("status")
         )

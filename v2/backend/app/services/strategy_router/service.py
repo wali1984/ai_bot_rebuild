@@ -509,6 +509,31 @@ def _premium_regime_features(
             envelope.get("cascade_source_availability"),
             cascade_context.get("source_availability"),
         ),
+        # Fast-squeeze / MM-trap + continuation/reversal telemetry for the
+        # confirmed-momentum ride lane (published on the cascade-context key).
+        "fast_squeeze_squeeze_direction": _first_present(
+            envelope.get("fast_squeeze_squeeze_direction"),
+            cascade_context.get("fast_squeeze_squeeze_direction"),
+        ),
+        "fast_squeeze_squeeze_probability": _nested_float(
+            (envelope, "fast_squeeze_squeeze_probability"),
+            (cascade_context, "fast_squeeze_squeeze_probability"),
+        ),
+        "fast_squeeze_market_maker_trap_score": _nested_float(
+            (envelope, "fast_squeeze_market_maker_trap_score"),
+            (cascade_context, "fast_squeeze_market_maker_trap_score"),
+        ),
+        "cascade_continuation_probability": _nested_float(
+            (envelope, "cascade_continuation_probability"),
+            (cascade_context, "cascade_continuation_probability"),
+            (micro, "cascade_continuation_probability"),
+            (micro, "continuation_probability"),
+        ),
+        "post_sweep_reversal_probability": _nested_float(
+            (envelope, "post_sweep_reversal_probability"),
+            (cascade_context, "post_sweep_reversal_probability"),
+            (micro, "post_sweep_reversal_probability"),
+        ),
         "orderbook_imbalance": _nested_float((micro, "orderbook_imbalance"), (micro, "depth_imbalance"), (liquidity, "depth_imbalance")),
         "spread_depth_slippage": spread_depth_slippage,
         "aggressive_flow": _nested_float(
@@ -882,10 +907,38 @@ def route_strategy(
     ):
         reasons.append("MICROSTRUCTURE_TRUST_REDUCE_SIZE")
         size_multiplier = min(size_multiplier, float(cfg["microstructure_reduce_size_multiplier"]))
+    # Confirmed-momentum ride lane (operator directive): a violent MM move with
+    # HIGH continuation probability, LOW post-sweep reversal probability and an
+    # aligned squeeze direction is an opportunity to ride WITH the move, not a
+    # reason to stand aside. All three signals must be PRESENT and confirming
+    # (missing data = no override, fail-closed); the ride enters at reduced
+    # size and the sweep-reversal/trailing exits own the reversal.
+    _ride_continuation = _coerce_float(
+        regime_features.get("cascade_continuation_probability")
+        or regime_features.get("continuation_probability")
+    )
+    _ride_reversal = _coerce_float(regime_features.get("post_sweep_reversal_probability"))
+    _ride_squeeze_dir = str(regime_features.get("fast_squeeze_squeeze_direction") or "").lower()
+    _ride_dir_aligned = (
+        _ride_squeeze_dir in {"up", "down"}
+        and ((action == "long") == (_ride_squeeze_dir == "up"))
+    )
+    momentum_ride_confirmed = bool(
+        _ride_continuation is not None
+        and _ride_continuation >= 0.65
+        and _ride_reversal is not None
+        and _ride_reversal <= 0.40
+        and _ride_dir_aligned
+    )
     if sweep_risk is not None and sweep_risk >= float(cfg["microstructure_sweep_block_threshold"]):
-        labels.extend([LABEL_LIQUIDITY_SWEEP, LABEL_NO_TRADE])
-        reasons.append("MICROSTRUCTURE_SWEEP_RISK_BLOCK")
-        block_reason = block_reason or "MICROSTRUCTURE_SWEEP_RISK_BLOCK"
+        if momentum_ride_confirmed:
+            labels.extend([LABEL_LIQUIDITY_SWEEP, LABEL_BREAKOUT])
+            reasons.append("CONFIRMED_MOMENTUM_RIDE_SWEEP_OVERRIDE")
+            size_multiplier = min(size_multiplier, 0.5)
+        else:
+            labels.extend([LABEL_LIQUIDITY_SWEEP, LABEL_NO_TRADE])
+            reasons.append("MICROSTRUCTURE_SWEEP_RISK_BLOCK")
+            block_reason = block_reason or "MICROSTRUCTURE_SWEEP_RISK_BLOCK"
     elif sweep_risk is not None and sweep_risk >= float(cfg["microstructure_sweep_reduce_threshold"]):
         labels.append(LABEL_LIQUIDITY_SWEEP)
         reasons.append("MICROSTRUCTURE_SWEEP_RISK_REDUCE_SIZE")
@@ -893,7 +946,11 @@ def route_strategy(
 
     selected_mode = MODE_NO_TRADE
     if block_reason is None:
-        if paper_major_move["allowed"]:
+        if momentum_ride_confirmed and sweep_risk is not None and sweep_risk >= float(cfg["microstructure_sweep_reduce_threshold"]):
+            labels.append(LABEL_TREND)
+            reasons.append("CONFIRMED_MOMENTUM_RIDE_BREAKOUT")
+            selected_mode = MODE_BREAKOUT
+        elif paper_major_move["allowed"]:
             labels.extend([LABEL_TREND, LABEL_BREAKOUT])
             reasons.append("PAPER_MAJOR_MOVE_EVIDENCE_BREAKOUT")
             selected_mode = MODE_BREAKOUT
@@ -992,6 +1049,8 @@ def route_strategy(
 
     return {
         "selected_mode": selected_mode,
+        "momentum_ride_confirmed": momentum_ride_confirmed,
+        "momentum_ride_tight_exits_required": momentum_ride_confirmed,
         "strategy_mode": canonical_strategy_mode,
         "strategy_modes_supported": list(REQUIRED_STRATEGY_MODES),
         "allowed_actions": allowed_actions,

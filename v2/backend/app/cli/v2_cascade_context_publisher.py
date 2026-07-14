@@ -17,6 +17,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.risk.fast_squeeze_detector import detect_squeeze
 from v2.backend.app.services.microstructure_trust.cascade_context import (
     REQUIRED_SOURCES,
     build_cascade_context,
@@ -394,6 +395,36 @@ def publish_once(
             timeframe=timeframe,
             sources=_source_payloads(redis_client, symbol, timeframe),
         )
+        # Fuse the fast-squeeze / MM-trap detector (previously computed nowhere:
+        # zero runtime consumers). Its outputs ride on the same cascade-context
+        # key so every downstream consumer gets squeeze probability/direction,
+        # trap score and the block/hedge/reduce recommendations for free.
+        try:
+            squeeze = detect_squeeze(
+                symbol=symbol,
+                timeframe=timeframe,
+                context={
+                    "orderbook": _safe_get_json(redis_client, f"v2:market:orderbook:{symbol}"),
+                    "microstructure": _safe_get_json(redis_client, f"v2:market:microstructure:{symbol}"),
+                    "confluence": _safe_get_json(redis_client, f"v2:altdata:confluence:{symbol}:{timeframe}"),
+                    "moralis": _safe_get_json(redis_client, f"v2:features:moralis:{symbol}:{timeframe}"),
+                    "coinglass": _safe_get_json(redis_client, f"v2:altdata:coinank:funding:{symbol}"),
+                    "mark_index": _safe_get_json(redis_client, f"v2:market:funding:{symbol}"),
+                },
+                generated_utc=context.get("generated_at") or context.get("generated_utc") or "",
+            )
+            for _sq_key in (
+                "squeeze_probability",
+                "squeeze_direction",
+                "market_maker_trap_score",
+                "entry_block_required",
+                "hedge_required",
+                "reduce_required",
+            ):
+                if _sq_key in (squeeze or {}):
+                    context[f"fast_squeeze_{_sq_key}"] = squeeze[_sq_key]
+        except Exception:
+            context["fast_squeeze_error"] = True
         contexts.append(context)
         key = f"{CASCADE_PREFIX}{symbol}:{timeframe}"
         if _safe_set_json(redis_client, key, context, ttl_seconds=ttl_seconds):
