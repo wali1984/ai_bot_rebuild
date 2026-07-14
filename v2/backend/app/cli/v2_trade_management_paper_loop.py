@@ -254,6 +254,23 @@ PAPER_ATR_STOP_CLUSTER_MIN_COUNT = int(
 PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT = int(
     os.getenv("PAPER_NEGATIVE_BUCKET_QUARANTINE_MIN_COUNT", "2")
 )
+# Global-halt escalation needs MATERIAL evidence: a single quarantined bucket
+# only halts the whole book at >= this many closed outcomes. Smaller buckets
+# stay candidate_blocking (no re-entry into the bad bucket) but cannot freeze
+# every other lane — a 2-row bucket freezing the book also freezes the very
+# evidence flow that could clear it (operator continue-with-feedback directive).
+PAPER_GLOBAL_HALT_MIN_BUCKET_ROWS = int(
+    os.getenv("PAPER_GLOBAL_HALT_MIN_BUCKET_ROWS", "4")
+)
+# Breadth signal for systemic damage: this many DISTINCT losing rows across
+# all candidate_blocking buckets escalate globally even when every individual
+# bucket is below the material-sample floor. Distinct rows — not bucket count —
+# because one thin failing context projects into several bucket groupings
+# (side, timeframe, side_timeframe, ...) and those projections are the same
+# evidence, not independent signals.
+PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES = int(
+    os.getenv("PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES", "3")
+)
 PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_PATH = (
     TRADE_MANAGEMENT_PUBLIC_DIR / "paper_performance_circuit_breaker_status.json"
 )
@@ -20901,6 +20918,7 @@ def _paper_bucket_quarantine_status(
             return False, "WATCH_ONLY_POSITIVE_EXPECTANCY_PF_BELOW_1_BROAD_BUCKET"
         return True, None
 
+    blocking_loss_row_ids: set[int] = set()
     for key, group in grouped.items():
         all_rows = list(group.get("rows") or [])
         group_type = str(group.get("group_type") or "exact_context")
@@ -20930,6 +20948,20 @@ def _paper_bucket_quarantine_status(
         losing_atr_stop_rows = view["losing_atr_stop_rows"]
         metrics = view["metrics"]
         reasons = list(view["reasons"])
+        if blocking:
+            blocking_loss_row_ids.update(
+                id(row)
+                for row in rows
+                if (_paper_performance_realized_bps(row) or 0.0) <= 0.0
+            )
+        # Data-integrity fail-closed: a losing row with no parseable exit
+        # timestamp means the capture chain is broken — that escalates at any
+        # sample size (unlike statistical thinness, which stays bucket-scoped).
+        losing_row_missing_exit_ts = blocking and any(
+            (_paper_performance_realized_bps(row) or 0.0) <= 0.0
+            and _paper_row_exit_utc(row) is None
+            for row in rows
+        )
         quarantined.append({
             "bucket_key": key,
             "bucket_type": group_type,
@@ -20937,8 +20969,21 @@ def _paper_bucket_quarantine_status(
             "candidate_blocking": blocking,
             "non_blocking_watch_reason": watch_reason,
             "requires_exploration_size_cap": state == "WATCH_ONLY_SIZE_CAP",
-            "escalates_global_halt": blocking
-            and _paper_bucket_has_post_repair_loss(rows, exit_repair_deployed),
+            # Global escalation requires material sample size; below the floor
+            # the bucket stays candidate_blocking (no re-entry) but returns
+            # False here so one thin bucket cannot deadlock the whole book
+            # (global freeze would block the evidence that clears it). The
+            # fail-closed None pass-through (missing repair artifact/exit
+            # timestamps) is preserved for buckets at/above the floor.
+            "escalates_global_halt": (
+                (blocking and _paper_bucket_has_post_repair_loss(rows, exit_repair_deployed))
+                if (
+                    losing_row_missing_exit_ts
+                    or int(metrics.get("closed_outcome_count") or 0)
+                    >= PAPER_GLOBAL_HALT_MIN_BUCKET_ROWS
+                )
+                else False
+            ),
             "exit_repair_deployed_utc": (
                 exit_repair_deployed.isoformat(timespec="seconds").replace("+00:00", "Z")
                 if exit_repair_deployed
@@ -20998,12 +21043,22 @@ def _paper_bucket_quarantine_status(
         # Computed over the FULL quarantined list (quarantined_buckets below is
         # truncated for display); fail-closed when the repair artifact is
         # missing or a losing row lacks a parseable exit timestamp.
-        "global_halt_required": any(
-            bucket.get("escalates_global_halt") is not False for bucket in quarantined
+        "global_halt_required": (
+            any(
+                bucket.get("escalates_global_halt") is not False
+                for bucket in quarantined
+            )
+            # Systemic breadth: enough DISTINCT losing rows across blocking
+            # buckets escalates globally even when each bucket is below the
+            # material-sample floor.
+            or len(blocking_loss_row_ids) >= PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES
         ),
         "escalating_bucket_count": sum(
             1 for bucket in quarantined if bucket.get("escalates_global_halt") is not False
         ),
+        "global_halt_min_bucket_rows": PAPER_GLOBAL_HALT_MIN_BUCKET_ROWS,
+        "global_halt_min_distinct_losses": PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES,
+        "blocking_distinct_loss_row_count": len(blocking_loss_row_ids),
         "exit_repair_deployed_utc": (
             exit_repair_deployed.isoformat(timespec="seconds").replace("+00:00", "Z")
             if exit_repair_deployed

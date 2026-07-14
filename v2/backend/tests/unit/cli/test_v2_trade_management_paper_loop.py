@@ -14241,7 +14241,18 @@ def test_atr_stop_loss_cluster_quarantines_matching_bucket() -> None:
     assert status["places_real_order"] is False
 
 
-def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_positive() -> None:
+def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_positive(
+    tmp_path, monkeypatch
+) -> None:
+    # Pin the exit-repair artifact and give rows post-repair exit timestamps so
+    # this exercises the statistical (thin-bucket) path, not the
+    # missing-timestamp integrity fail-closed path.
+    artifact = tmp_path / "atr_stop_cluster_repair_status.json"
+    artifact.write_text(
+        '{"repair_test_passed": true, "repair_deployed_utc": "2026-07-01T00:00:00Z"}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(paper_loop, "PAPER_EXIT_REPAIR_STATUS_PATH", artifact)
     rows = [
         {
             **_phase1_closed_trade_row(
@@ -14280,6 +14291,8 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
             "side": "short",
         },
     ]
+    for row in rows:
+        row["exit_price_utc"] = "2026-07-02T09:00:00.000Z"
 
     status = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         rows,
@@ -14290,7 +14303,12 @@ def test_atr_stop_loss_cluster_quarantines_side_timeframe_bucket_when_aggregate_
         for row in status["bucket_quarantine_status"]["quarantined_buckets"]
     }
 
-    assert "BUCKET_QUARANTINE_ACTIVE" in status["block_reasons"]
+    # 2026-07-14: two thin timestamped ATR losses stay BUCKET-scoped -- the
+    # affected buckets block re-entry (asserted below) but the book keeps
+    # trading; global escalation needs a material bucket, breadth of distinct
+    # losses, or integrity failure (missing exit timestamps).
+    assert "BUCKET_QUARANTINE_ACTIVE" not in status["block_reasons"]
+    assert status["new_entries_allowed"] is True
     assert status["aggregate"]["profit_factor_numeric"] > 1.0
     assert status["aggregate"]["notional_weighted_expectancy_bps"] > 0.0
     assert "side:short" not in quarantined_by_key
@@ -15483,16 +15501,23 @@ def test_bucket_quarantine_pre_repair_losses_do_not_halt_globally(tmp_path, monk
     )
     assert "BUCKET_QUARANTINE_ACTIVE" not in circuit["block_reasons"]
 
-    # A post-repair loss escalates again.
+    # Post-repair losses re-block their buckets immediately; two thin losses
+    # stay bucket-scoped (2026-07-14), a third distinct loss is systemic
+    # breadth and escalates the global halt.
     post_repair = pre_repair + [_atr_loss("2026-07-06T19:30:00.000Z"), _atr_loss("2026-07-06T19:40:00.000Z")]
     circuit_post = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
         post_repair, generated_utc="2026-07-06T20:00:00Z"
     )
-    assert "BUCKET_QUARANTINE_ACTIVE" in circuit_post["block_reasons"]
+    assert "BUCKET_QUARANTINE_ACTIVE" not in circuit_post["block_reasons"]
     status_post = paper_loop._paper_bucket_quarantine_status(  # noqa: SLF001
         post_repair, generated_utc="2026-07-06T20:00:00Z"
     )
     assert status_post["blocked_bucket_keys"]  # post-repair losses re-block
+    breadth = post_repair + [_atr_loss("2026-07-06T19:50:00.000Z")]
+    circuit_breadth = paper_loop._paper_performance_circuit_breaker_status(  # noqa: SLF001
+        breadth, generated_utc="2026-07-06T20:00:00Z"
+    )
+    assert "BUCKET_QUARANTINE_ACTIVE" in circuit_breadth["block_reasons"]
 
     # Missing exit timestamps fail closed.
     no_ts = wins + [
@@ -16665,3 +16690,87 @@ def test_portfolio_cascade_guard_decision_core() -> None:
     d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
     assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
     assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"
+
+
+def _quarantine_row(
+    *,
+    symbol: str,
+    pnl_bps: float,
+    notional_usd: float,
+    strategy: str = "microstructure_momentum",
+    timeframe: str = "4h",
+    confidence: float = 0.72,
+) -> dict:
+    return {
+        "paper_only": True,
+        "paper_opportunity_tier": "POSITIVE_EDGE_PROBATION_PAPER",
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "side": "long",
+        "strategy_mode": strategy,
+        "market_regime": "TREND",
+        "confidence_calibrated": confidence,
+        "realized_pnl_bps": pnl_bps,
+        "realized_pnl_usd": pnl_bps / 10000.0 * notional_usd,
+        "gross_notional_usd": notional_usd,
+        "close_reason": "TIER_1_ATR_VOLATILITY_STOP" if pnl_bps <= 0 else "TIER_2_TRAILING_STOP",
+        "exit_time": "2026-07-14T01:38:45Z",
+    }
+
+
+@pytest.fixture()
+def _post_repair_epoch(monkeypatch):
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_verified_exit_repair_deployed_utc",
+        lambda: datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+
+
+def test_single_thin_bucket_blocks_bucket_but_not_whole_book(_post_repair_epoch) -> None:
+    """Regression (2026-07-14 deadlock): a 2-row bucket (one high-confidence
+    loss sized larger than its win) quarantined AND escalated a global halt.
+    The global freeze then blocked all new entries, so the bucket evidence
+    could never grow and the halt re-derived forever — operator directive is
+    bucket-scoped blocking with the book continuing. KITE-style diluting row
+    uses a different strategy so only the thin strategy bucket blocks."""
+    rows = [
+        _quarantine_row(symbol="CRVUSDT", pnl_bps=66.8, notional_usd=12.0),
+        _quarantine_row(symbol="FILUSDT", pnl_bps=-44.5, notional_usd=23.4),
+        _quarantine_row(symbol="KITEUSDT", pnl_bps=370.4, notional_usd=24.0, strategy="trend_mode"),
+    ]
+    status = paper_loop._paper_bucket_quarantine_status(rows, generated_utc="2026-07-14T09:00:00Z")
+    blocking = [b for b in status["quarantined_buckets"] if b.get("candidate_blocking")]
+    assert blocking, "thin bucket must still candidate-block (no re-entry)"
+    assert all(b.get("escalates_global_halt") is False for b in blocking)
+    assert status["global_halt_required"] is False
+    assert status["blocking_distinct_loss_row_count"] == 1
+
+
+def test_material_bucket_still_escalates_global_halt(_post_repair_epoch) -> None:
+    """A bucket at/above the material-sample floor with post-repair losses
+    keeps the fail-closed global escalation."""
+    rows = [
+        _quarantine_row(symbol="AUSDT", pnl_bps=-30.0, notional_usd=20.0),
+        _quarantine_row(symbol="BUSDT", pnl_bps=-25.0, notional_usd=20.0),
+        _quarantine_row(symbol="CUSDT", pnl_bps=10.0, notional_usd=5.0),
+        _quarantine_row(symbol="DUSDT", pnl_bps=-40.0, notional_usd=20.0),
+    ]
+    status = paper_loop._paper_bucket_quarantine_status(rows, generated_utc="2026-07-14T09:00:00Z")
+    assert status["global_halt_required"] is True
+    assert any(
+        b.get("escalates_global_halt") for b in status["quarantined_buckets"]
+    )
+
+
+def test_distinct_loss_breadth_escalates_across_thin_buckets(_post_repair_epoch) -> None:
+    """Three distinct losing rows spread over thin buckets is systemic damage
+    and must still halt the book, even though no single bucket reaches the
+    material-sample floor. Uses 3 strategies x 2 rows (win smaller than loss)."""
+    rows = []
+    for i, strat in enumerate(("s_alpha", "s_beta", "s_gamma")):
+        rows.append(_quarantine_row(symbol=f"W{i}USDT", pnl_bps=5.0, notional_usd=5.0, strategy=strat))
+        rows.append(_quarantine_row(symbol=f"L{i}USDT", pnl_bps=-60.0, notional_usd=25.0, strategy=strat))
+    status = paper_loop._paper_bucket_quarantine_status(rows, generated_utc="2026-07-14T09:00:00Z")
+    assert status["blocking_distinct_loss_row_count"] >= 3
+    assert status["global_halt_required"] is True
