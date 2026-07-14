@@ -249,3 +249,6 @@ raw_evidence/claude_realtime_monitor/
 raw_evidence/clean_3000_*/
 raw_evidence/portfolio_corruption_*/
 raw_evidence/pre_3000_reset_*/
+
+# Self-healing supervisor runtime output
+claude_worklog/self_healing/self_healing_status.json
