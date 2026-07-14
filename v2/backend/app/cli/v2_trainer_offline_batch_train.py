@@ -152,6 +152,93 @@ def build_independent_archive_view(real_root: Path, view_root: Path) -> Path:
     return view_root
 
 
+def seed_offline_view_cursor_near_tail(
+    view_root: Path,
+    *,
+    hours_back: float = 12.0,
+) -> dict[str, Any]:
+    """Seed the offline view's replay cursor ~hours_back before the manifest tail.
+
+    The independent view omits cursor files, so the offline loader started at
+    byte 0 — the OLDEST snapshots (June 22 at last audit, 3+ weeks stale). The
+    archive is append-only (~13k snapshots/hour), so 'first 21k from offset 0'
+    reproduced the same ancient window on every cache rebuild: bit-identical
+    H2L verdicts across rebuilds proved the flywheel never saw new data. Seeding
+    near the tail makes every rebuild train on the newest labelable rows, so
+    the brain-development loop actually follows the market. hours_back must
+    clear the 4.5h label embargo with headroom for label-horizon candles.
+
+    Binary-search on the manifest's monotone ``created_at`` ISO strings; a
+    mid-line offset is safe because the manifest reader skips unparseable
+    partial lines.
+    """
+    meta: dict[str, Any] = {"seeded": False, "hours_back": hours_back}
+    manifest = view_root / "manifest.jsonl"
+    try:
+        size = manifest.stat().st_size
+    except OSError:
+        return meta
+    if size <= 0:
+        return meta
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
+
+    target_iso = (
+        datetime.now(tz=timezone.utc) - timedelta(hours=hours_back)
+    ).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    def _created_at_after(offset: int) -> str | None:
+        with manifest.open("rb") as handle:
+            handle.seek(offset)
+            if offset:
+                handle.readline()  # discard the partial line
+            line = handle.readline()
+        if not line:
+            return None
+        try:
+            value = json.loads(line).get("created_at")
+            return str(value) if value else None
+        except Exception:
+            return None
+
+    first_created = _created_at_after(0)
+    if first_created is None or first_created >= target_iso:
+        # Archive younger than the window: start at 0, nothing to seed.
+        meta["reason"] = "archive_younger_than_window"
+        return meta
+    lo, hi = 0, size
+    while hi - lo > 65536:
+        mid = (lo + hi) // 2
+        created = _created_at_after(mid)
+        if created is None or created >= target_iso:
+            hi = mid
+        else:
+            lo = mid
+    try:
+        (view_root / "trusted_replay_cursor.json").write_text(
+            json.dumps(
+                {
+                    "manifest_offset": int(lo),
+                    "frontier_reached": False,
+                    "backfill_lane": False,
+                    "seeded_near_tail": True,
+                    "seed_target_created_at": target_iso,
+                }
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        return meta
+    meta.update(
+        {
+            "seeded": True,
+            "manifest_offset": int(lo),
+            "manifest_size": int(size),
+            "seed_target_created_at": target_iso,
+        }
+    )
+    return meta
+
+
 def load_or_build_examples(
     *,
     symbols: Sequence[str],
@@ -206,6 +293,7 @@ def load_or_build_examples(
     build_independent_archive_view(real_root, view_root)
     meta["archive_view_root"] = str(view_root)
     meta["live_cursor_untouched"] = True
+    meta["offline_cursor_seed"] = seed_offline_view_cursor_near_tail(view_root)
     loader = V2HybridTrainerDataLoader(trusted_replay_archive_root=view_root)
 
     started = time.perf_counter()

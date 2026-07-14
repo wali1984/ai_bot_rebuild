@@ -81,3 +81,63 @@ def test_default_offline_dir_is_not_the_live_dir() -> None:
     # Guard against a regression where the offline default points at live weights.
     assert bt.DEFAULT_OFFLINE_DIR != bt.LIVE_CHECKPOINT_DIR
     assert "offline" in bt.DEFAULT_OFFLINE_DIR
+
+
+def test_seed_offline_view_cursor_targets_recent_tail(tmp_path) -> None:
+    """Regression: the offline view cursor started at byte 0 (oldest snapshots,
+    weeks stale) so every cache rebuild reproduced the same ancient window and
+    the flywheel never trained on new data (bit-identical H2L verdicts across
+    rebuilds). The seed must land before-but-near the hours_back target."""
+    import json as _json
+    from datetime import datetime, timedelta, timezone
+
+    from v2.backend.app.cli.v2_trainer_offline_batch_train import (
+        seed_offline_view_cursor_near_tail,
+    )
+
+    manifest = tmp_path / "manifest.jsonl"
+    now = datetime.now(tz=timezone.utc)
+    lines = []
+    total = 20000
+    for i in range(total):  # oldest-first, spanning 48h -> now
+        created = now - timedelta(hours=48.0 * (total - 1 - i) / (total - 1))
+        lines.append(_json.dumps({
+            "snapshot_id": f"snap_{i:06d}",
+            "created_at": created.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            "blob_path": "blobs/xx/yy/zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+            "symbol": "BTCUSDT",
+            "timeframe": "1m",
+        }))
+    manifest.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    meta = seed_offline_view_cursor_near_tail(tmp_path, hours_back=12.0)
+    assert meta["seeded"] is True
+    offset = meta["manifest_offset"]
+    assert offset > manifest.stat().st_size * 0.5  # deep into the tail half
+    cursor = _json.loads((tmp_path / "trusted_replay_cursor.json").read_text())
+    assert cursor["manifest_offset"] == offset
+    # The record just after the offset must still be OLDER than the target
+    # (never overshoot: overshooting would skip labelable rows).
+    with manifest.open("rb") as fh:
+        fh.seek(offset)
+        if offset:
+            fh.readline()
+        rec = _json.loads(fh.readline())
+    assert rec["created_at"] < meta["seed_target_created_at"]
+
+
+def test_seed_offline_view_cursor_skips_young_archive(tmp_path) -> None:
+    """An archive younger than the window keeps offset 0 (nothing to seed)."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    from v2.backend.app.cli.v2_trainer_offline_batch_train import (
+        seed_offline_view_cursor_near_tail,
+    )
+
+    manifest = tmp_path / "manifest.jsonl"
+    now = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    manifest.write_text(_json.dumps({"snapshot_id": "s1", "created_at": now}) + "\n")
+    meta = seed_offline_view_cursor_near_tail(tmp_path, hours_back=12.0)
+    assert meta["seeded"] is False
+    assert not (tmp_path / "trusted_replay_cursor.json").exists()
