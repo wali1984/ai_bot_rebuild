@@ -17,7 +17,7 @@ _NAMES = [n for n, _ in FEATURE_SPEC]
 
 
 def test_feature_spec_grew_and_has_no_duplicates() -> None:
-    assert len(FEATURE_SPEC) == 458
+    assert len(FEATURE_SPEC) == 465
     assert len(_NAMES) == len(set(_NAMES)), "FEATURE_SPEC must have no duplicate names"
     taf = [n for n in _NAMES if n.startswith("taf_")]
     assert len(taf) == 155
@@ -36,7 +36,7 @@ def test_taf_features_resolve_from_ta_full_indicators() -> None:
         }
     }
     rec = b.build(symbol="BTCUSDT", timeframe="1m", payloads=payloads)
-    assert len(rec.model_vector) == len(FEATURE_SPEC) * 4 == 1832
+    assert len(rec.model_vector) == len(FEATURE_SPEC) * 4 == 1860
     assert rec.model_vector[_NAMES.index("taf_ta_adx")] == 27.5
     assert rec.model_vector[_NAMES.index("taf_rsi_14")] == 61.0
     assert rec.model_vector[_NAMES.index("taf_atr_14")] == 12.3
@@ -47,6 +47,6 @@ def test_taf_features_resolve_from_ta_full_indicators() -> None:
 def test_no_ta_full_payload_leaves_taf_missing_not_crashing() -> None:
     b = V2UnifiedFeatureTensorBuilder()
     rec = b.build(symbol="BTCUSDT", timeframe="1m", payloads={})
-    assert len(rec.model_vector) == 1832
+    assert len(rec.model_vector) == 1860
     taf_missing = sum(1 for n in _NAMES if n.startswith("taf_") and rec.missing_mask[_NAMES.index(n)] == 1)
     assert taf_missing == 155  # all taf_ honestly missing when no ta_full payload

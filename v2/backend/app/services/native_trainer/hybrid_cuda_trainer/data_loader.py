@@ -781,6 +781,7 @@ class V2HybridTrainerDataLoader:
             "microstructure": f"v2:market:microstructure:{symbol}",
             "trade_tape": f"v2:microstructure:trade_tape_confirmation:{symbol}",
             "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            "cascade_context": f"v2:microstructure:cascade_context:{symbol}:{timeframe}",
             "trade_tape_features": f"v2:market:trade_tape_features:{symbol}",
             "liquidations": "v2:liquidations:events",
             "liquidations_agg": f"v2:market:liquidations:aggregate:{symbol}",
@@ -968,6 +969,7 @@ class V2HybridTrainerDataLoader:
             f"v2:orderbook:top:kucoin:{symbol}",
             f"v2:market:orderbook:binance:{symbol}",
             f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:microstructure:cascade_context:{symbol}:{timeframe}",
             f"v2:features:moralis:{symbol}:{timeframe}",
             f"v2:altdata:confluence:{symbol}:{timeframe}",
             f"v2:smart_money:signals:{symbol}",
@@ -1064,6 +1066,7 @@ class V2HybridTrainerDataLoader:
             # confluence / moralis features, so they stay missing on the live
             # tensor AND (post archive-fix) never reach the replay archive.
             "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            "cascade_context": f"v2:microstructure:cascade_context:{symbol}:{timeframe}",
             "moralis_features": f"v2:features:moralis:{symbol}:{timeframe}",
             "altdata_confluence": f"v2:altdata:confluence:{symbol}:{timeframe}",
             "smart_money_signals": f"v2:smart_money:signals:{symbol}",

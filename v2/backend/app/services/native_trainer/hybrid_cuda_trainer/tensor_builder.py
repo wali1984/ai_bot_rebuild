@@ -480,6 +480,16 @@ FEATURE_SPEC: tuple[tuple[str, str], ...] = (
     ("taf_ta_wclprice", "v2:features:ta_full"),
     ("taf_ta_willr", "v2:features:ta_full"),
     ("taf_ta_wma", "v2:features:ta_full"),
+    # 2026-07-14 MM-move telemetry (cascade publisher + fused squeeze detector +
+    # cross-asset lead): gives the model the same real-time pump/dump context
+    # the protection/ride lanes act on.
+    ("cascade_risk_score", "v2:microstructure:cascade_context"),
+    ("cascade_event_component", "v2:microstructure:cascade_context"),
+    ("cascade_level_proximity_component", "v2:microstructure:cascade_context"),
+    ("fast_squeeze_probability", "v2:microstructure:cascade_context"),
+    ("fast_squeeze_trap_score", "v2:microstructure:cascade_context"),
+    ("fast_squeeze_direction_code", "v2:microstructure:cascade_context"),
+    ("cross_asset_lead_component", "v2:microstructure:cascade_context"),
 )
 
 
@@ -1613,6 +1623,23 @@ class V2UnifiedFeatureTensorBuilder:
         # payload (v2:features:ta_full, already computed by v2_full_talib_ta_loop) via
         # the taf_->indicator name map. A missing indicator stays None -> honest
         # missing_mask, exactly like every other source.
+        cascade_ctx = payloads.get("cascade_context")
+        if isinstance(cascade_ctx, Mapping):
+            _sq_dir = str(cascade_ctx.get("fast_squeeze_squeeze_direction") or "").lower()
+            for _cc_name, _cc_val in (
+                ("cascade_risk_score", cascade_ctx.get("cascade_risk_score")),
+                ("cascade_event_component", cascade_ctx.get("cascade_event_component")),
+                (
+                    "cascade_level_proximity_component",
+                    cascade_ctx.get("liquidation_level_proximity_component"),
+                ),
+                ("fast_squeeze_probability", cascade_ctx.get("fast_squeeze_squeeze_probability")),
+                ("fast_squeeze_trap_score", cascade_ctx.get("fast_squeeze_market_maker_trap_score")),
+                ("fast_squeeze_direction_code", {"up": 1.0, "down": -1.0}.get(_sq_dir)),
+                ("cross_asset_lead_component", cascade_ctx.get("cross_asset_component")),
+            ):
+                if _cc_val is not None and raw_by_name.get(_cc_name) is None:
+                    raw_by_name[_cc_name] = _cc_val
         ta_full_indicators = None
         if isinstance(ta_full, Mapping):
             # Real talib payload nests values under "indicators"; the synthetic

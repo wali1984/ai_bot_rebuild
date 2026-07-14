@@ -240,6 +240,44 @@ def _detect_existing_paper_loop_pid() -> int | None:
     return None
 
 
+
+_MAJORS_FOR_CROSS_ASSET = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+
+
+def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
+    """BTC/ETH/SOL short-horizon change_pct fallback for the cross-asset component.
+
+    Majors lead alts by seconds-to-minutes; the regime keys this source
+    normally comes from (v2:market:cross_asset_regime) are not published, so
+    without this fallback the component sat in every context's missing_mask.
+    """
+    out: dict[str, Any] = {}
+    for major in _MAJORS_FOR_CROSS_ASSET:
+        payload = _safe_get_json(redis_client, f"v2:market:ohlcv:binance:{major}:5m")
+        rows = None
+        if isinstance(payload, Mapping):
+            for field in ("klines", "candles", "rows"):
+                if isinstance(payload.get(field), list):
+                    rows = payload[field]
+                    break
+        elif isinstance(payload, list):
+            rows = payload
+        if not rows or len(rows) < 2:
+            continue
+
+        def _close(row: Any) -> float | None:
+            try:
+                if isinstance(row, Mapping):
+                    return float(row.get("close") or row.get("c"))
+                return float(row[4])
+            except (TypeError, ValueError, IndexError, KeyError):
+                return None
+
+        prev, last = _close(rows[-2]), _close(rows[-1])
+        if prev and last and prev > 0:
+            out[f"{major}_change_pct"] = (last - prev) / prev * 100.0
+    return out
+
 def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str, dict[str, Any] | None]:
     symbol = symbol.upper()
     timeframe = timeframe.lower()
@@ -287,7 +325,7 @@ def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str
         "spread": spread,
         "trade_tape": tape,
         "mark_index": mark_index,
-        "cross_asset": cross_asset,
+        "cross_asset": cross_asset or _cross_asset_source(redis_client),
     }
 
 
