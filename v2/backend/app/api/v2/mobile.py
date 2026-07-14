@@ -1225,18 +1225,38 @@ def _gpu_status_from_redis(r: Any) -> dict[str, Any]:
     }
 
 
+
+def _signal_latest_keys(r: Any) -> list[str]:
+    """Bounded signal-key list derived from the runtime symbol universe.
+
+    NEVER glob-SCAN v2:signals:latest:* here: the shared Redis holds >1.5M keys
+    and a full keyspace walk takes 10-30s, hanging the mobile endpoints.
+    """
+    try:
+        from app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
+        symbols = resolve_symbols(explicit=None, smoke_test=False)
+    except Exception:
+        symbols = []
+    keys = [f"v2:signals:latest:{symbol}" for symbol in symbols]
+    if not keys:
+        return []
+    try:
+        with r.pipeline(transaction=False) as pipe:
+            for key in keys:
+                pipe.exists(key)
+            flags = pipe.execute()
+        return [key for key, flag in zip(keys, flags) if flag]
+    except Exception:
+        return []
+
+
 def _signal_matrix_from_redis(r: Any, limit: int = 150) -> list[dict[str, Any]]:
     """Scan v2:signals:latest:* (per-symbol keys) and return sorted list."""
     rows: list[dict[str, Any]] = []
     try:
-        # Use pipeline to batch all per-symbol reads
-        cursor = 0
-        keys: list[str] = []
-        while True:
-            cursor, batch = r.scan(cursor, match="v2:signals:latest:*", count=200)
-            keys.extend(batch)
-            if cursor == 0:
-                break
+        # Bounded, universe-derived key list (no keyspace scan on 1.5M+ keys).
+        keys: list[str] = _signal_latest_keys(r)
         if keys:
             with r.pipeline(transaction=False) as pipe:
                 for k in keys:
@@ -1842,15 +1862,7 @@ async def get_mobile_dashboard(
     signal_count_capped = False
     if r:
         try:
-            cursor, keys = r.scan(0, match="v2:signals:latest:*", count=1)
-            all_sig_keys: list[str] = keys
-            scan_batches = 0
-            while cursor != 0 and scan_batches < 10 and len(all_sig_keys) < 500:
-                scan_batches += 1
-                cursor, batch = r.scan(cursor, match="v2:signals:latest:*", count=200)
-                all_sig_keys.extend(batch)
-            signal_count_capped = cursor != 0 or len(all_sig_keys) >= 500
-            signal_count = len(all_sig_keys)
+            signal_count = len(_signal_latest_keys(r))
         except Exception:
             signal_count = 0
 

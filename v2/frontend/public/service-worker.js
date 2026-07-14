@@ -12,7 +12,7 @@
 // that may still hold a stale built bundle. The activate handler deletes
 // every cache whose name differs from STATIC_CACHE on the next page load,
 // so changing this constant is sufficient to evict stale assets.
-const STATIC_CACHE = 'nervyx-one-static-v1-20260621';
+const STATIC_CACHE = 'nervyx-one-static-v2-20260713';
 const STATIC_ASSETS = ['/manifest.webmanifest'];
 
 // Hard list of root paths that must never be served from cache. The
@@ -91,8 +91,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   // SPA shell paths are always network-first. We never want to serve a
-  // cached older HTML/landing that points at a stale bundle hash.
-  if (FORCE_NETWORK_ROOT_PATHS.includes(url.pathname)) {
+  // cached older HTML/landing that points at a stale bundle hash. Applies to
+  // EVERY navigation (any SPA route refresh), not just the root path list.
+  if (req.mode === 'navigate' || FORCE_NETWORK_ROOT_PATHS.includes(url.pathname)) {
     event.respondWith(
       fetch(req, { cache: 'no-store' }).catch(() =>
         caches.match('/index.html'),
