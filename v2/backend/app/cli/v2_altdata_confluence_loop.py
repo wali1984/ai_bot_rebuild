@@ -23,6 +23,7 @@ from app.services.altdata.provider_consumption_status import (
     publish_provider_consumption_status,
 )
 from app.services.altdata.provider_feature_bridge import (
+    load_coinank_input,
     load_coinglass_input,
     load_moralis_input,
     load_santiment_input,
@@ -138,6 +139,7 @@ def run_once(
             coinglass=load_coinglass_input(redis_client, symbol, pair_timeframe),
             santiment=load_santiment_input(redis_client, symbol),
             moralis=load_moralis_input(redis_client, symbol, pair_timeframe),
+            coinank=load_coinank_input(redis_client, symbol, pair_timeframe),
             generated_utc=generated,
         )
         if redis_client is not None:

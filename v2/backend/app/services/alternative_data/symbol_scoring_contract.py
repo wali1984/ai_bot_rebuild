@@ -576,6 +576,7 @@ def build_symbol_score_payload(
     now = generated_utc or utc_iso()
     symbol = symbol.upper()
     moralis_bridge = _extract_moralis_feature_bridge(feature_payloads)
+    coinank_bridge = _extract_coinank_feature_bridge(feature_payloads)
     nansen = _extract_nansen(nansen_payload)
     lunar = _extract_lunar(lunarcrush_payload)
     coingecko = _extract_coingecko(coingecko_payload)
@@ -1207,7 +1208,17 @@ def build_symbol_score_payload(
             "market": bool(market_payloads),
             "features": bool(feature_payloads),
             "moralis_feature_bridge": bool(moralis_bridge),
+            "coinank_feature_bridge": bool(coinank_bridge),
         },
+        "coinank_feature_bridge": coinank_bridge,
+        "coinank_derivatives_score": coinank_bridge.get("coinank_derivatives_score"),
+        "coinank_funding_rate": coinank_bridge.get("coinank_funding_rate"),
+        "coinank_long_short_ratio": coinank_bridge.get("coinank_long_short_ratio"),
+        "coinank_liquidation_imbalance_usd": coinank_bridge.get(
+            "coinank_liquidation_imbalance_usd"
+        ),
+        "coinank_signal_present": coinank_bridge.get("coinank_derivatives_score")
+        is not None,
         "moralis_feature_bridge": moralis_bridge,
         "moralis_feature_bridge_ready": moralis_bridge.get("feature_bridge_ready"),
         "moralis_feature_bridge_status": moralis_bridge.get("status"),
@@ -1275,6 +1286,38 @@ def _extract_moralis_feature_bridge(feature_payloads: Mapping[str, Any] | None) 
         "wallet_watchlist_count": payload.get("wallet_watchlist_count"),
         "raw_key_exposed": bool(payload.get("raw_key_exposed", False)),
         "core_system_blocked": bool(payload.get("core_system_blocked", False)),
+    }
+
+
+def _extract_coinank_feature_bridge(feature_payloads: Mapping[str, Any] | None) -> dict[str, Any]:
+    """CoinAnk derivatives/liquidation intel bridged from the legacy runtime.
+
+    Reads ``feature_payloads['coinank']`` (``v2:features:coinank:*`` /
+    ``v2:coinank:symbol:*`` produced by v2_coinank_intel_bridge). Exposes the
+    CoinAnk-derived sub-scores in the symbol score output; it does not alter
+    the weighted aggregate ``altdata_symbol_score``.
+    """
+    if not isinstance(feature_payloads, Mapping):
+        return {}
+    payload = feature_payloads.get("coinank")
+    if not isinstance(payload, Mapping):
+        return {}
+    feats = payload.get("features") if isinstance(payload.get("features"), Mapping) else {}
+    return {
+        "provider": payload.get("provider") or "coinank",
+        "symbol": payload.get("symbol"),
+        "timeframe": payload.get("timeframe"),
+        "generated_utc": payload.get("generated_utc"),
+        "source_freshness_seconds": payload.get("source_freshness_seconds"),
+        "actual_payload_present": bool(payload.get("actual_payload_present")),
+        "coinank_derivatives_score": _round_score(
+            _coerce_float(payload.get("coinank_derivatives_score"))
+        ),
+        "coinank_funding_rate": _coerce_float(feats.get("coinank_funding_rate")),
+        "coinank_long_short_ratio": _coerce_float(feats.get("coinank_long_short_ratio")),
+        "coinank_liquidation_imbalance_usd": _coerce_float(
+            feats.get("coinank_liquidation_imbalance_usd")
+        ),
     }
 
 

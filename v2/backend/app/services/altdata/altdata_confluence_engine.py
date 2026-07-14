@@ -27,6 +27,9 @@ FRESHNESS_SECONDS_BY_PROVIDER = {
     # Sanbase Pro serves a plan-enforced ~31 day lag; the payload itself is
     # refreshed every 6h, and its regime metrics stay valid for a full day.
     "santiment": 86_400,
+    # CoinAnk derivatives/liquidation intel (bridged from the legacy runtime)
+    # refreshes on a minute cadence; allow a 10-minute staleness window.
+    "coinank": 600,
 }
 
 ALLOWED_ACTIONS = ("BLOCK", "REDUCE_SIZE", "REQUIRE_HEDGE", "CONFIDENCE_DELTA")
@@ -73,9 +76,15 @@ def build_confluence(
     coinglass: ProviderInput,
     santiment: ProviderInput,
     moralis: ProviderInput,
+    coinank: "ProviderInput | None" = None,
     generated_utc: str,
 ) -> dict[str, Any]:
     providers = {"coinglass": coinglass, "santiment": santiment, "moralis": moralis}
+    # CoinAnk is an optional fourth provider (bridged legacy derivatives /
+    # liquidation intel). It only participates when passed, so existing
+    # callers and tests are unaffected.
+    if coinank is not None:
+        providers["coinank"] = coinank
     present = [name for name, p in providers.items() if p.present and not p.stale]
     missing = [name for name, p in providers.items() if not p.present]
     stale = [name for name, p in providers.items() if p.present and p.stale]
@@ -91,6 +100,7 @@ def build_confluence(
     cg = coinglass.features if coinglass.present and not coinglass.stale else {}
     sa = santiment.features if santiment.present and not santiment.stale else {}
     mo = moralis.features if moralis.present and not moralis.stale else {}
+    ca = coinank.features if coinank is not None and coinank.present and not coinank.stale else {}
 
     # --- CoinGlass: derivatives pressure -------------------------------
     funding_z = _get(cg, "coinglass_funding_rate_zscore")
@@ -103,6 +113,16 @@ def build_confluence(
         derivatives_parts.append(_clip01(oi_div))
     if ls_extreme is not None:
         derivatives_parts.append(_clip01(ls_extreme))
+    # CoinAnk derivatives fallback: funding rate + long/short imbalance. Only
+    # contributes when CoinGlass provided nothing, so it fills the common
+    # gap (sparse CoinGlass coverage) without shifting CoinGlass-driven scores.
+    if not derivatives_parts:
+        ca_funding = _get(ca, "coinank_funding_rate")
+        ca_ls = _get(ca, "coinank_long_short_ratio")
+        if ca_funding is not None:
+            derivatives_parts.append(_squash(ca_funding, 0.0005))
+        if ca_ls is not None:
+            derivatives_parts.append(_squash(ca_ls - 1.0, 1.0))
     emit(
         "altdata_derivatives_pressure_score",
         sum(derivatives_parts) / len(derivatives_parts) if derivatives_parts else None,
@@ -115,6 +135,11 @@ def build_confluence(
         sweep_parts.append(_clip01(liq_cascade))
     if liq_imbalance is not None:
         sweep_parts.append(_squash(liq_imbalance, 5_000_000.0))
+    # CoinAnk liquidation fallback when CoinGlass is absent.
+    if not sweep_parts:
+        ca_liq_imbalance = _get(ca, "coinank_liquidation_imbalance_usd")
+        if ca_liq_imbalance is not None:
+            sweep_parts.append(_squash(ca_liq_imbalance, 1_000_000.0))
     emit("altdata_liquidation_sweep_risk_score", max(sweep_parts) if sweep_parts else None)
 
     # --- Santiment: social + regime (slow layer) -----------------------

@@ -76,6 +76,29 @@ def load_coinglass_input(redis_client: Any, symbol: str, timeframe: str) -> Prov
     )
 
 
+def load_coinank_input(redis_client: Any, symbol: str, timeframe: str) -> ProviderInput:
+    """Bridged CoinAnk derivatives/liquidation features (v2_coinank_intel_bridge).
+
+    Reads ``v2:features:coinank:{symbol}:{timeframe}``. Falls back to any
+    timeframe under the consolidated ``v2:coinank:symbol:{symbol}`` key so a
+    confluence pair still gets CoinAnk context when that exact timeframe was
+    not bridged.
+    """
+    payload = _load_json(redis_client, f"v2:features:coinank:{symbol}:{timeframe}")
+    if not payload or not payload.get("actual_payload_present"):
+        payload = _load_json(redis_client, f"v2:coinank:symbol:{symbol}")
+    if not payload or not payload.get("actual_payload_present"):
+        return ProviderInput(provider="coinank", present=False)
+    now = datetime.now(timezone.utc)
+    return ProviderInput(
+        provider="coinank",
+        present=True,
+        stale=_staleness(payload, "coinank", now),
+        features=_float_features(payload.get("features") or {}),
+        feature_cutoff=payload.get("feature_cutoff") or payload.get("generated_utc"),
+    )
+
+
 def load_santiment_input(redis_client: Any, symbol: str) -> ProviderInput:
     payload = _load_json(redis_client, f"v2:altdata:santiment:symbol:{symbol}")
     if not payload:
