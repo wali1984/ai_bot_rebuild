@@ -62,6 +62,11 @@ class ComponentSpec:
     max_staleness_seconds: int | None = None
     process_pattern: str | None = None
     heal_mode: HealMode = "auto"
+    # When the heartbeat is a TTL'd Redis key, a hung process lets the key EXPIRE,
+    # so a *missing* key on a long-running process is itself a hang signal. Only
+    # honored once the unit has been active longer than max_staleness (startup
+    # grace) so a just-restarted component is never falsely healed.
+    treat_missing_heartbeat_as_stale: bool = False
 
 
 @dataclass(frozen=True)
@@ -105,6 +110,7 @@ def decide_heal_action(
     deliberately_stopped: bool,
     recent_restart_count: int = 0,
     max_restarts_per_window: int = 3,
+    active_since_seconds: float | None = None,
 ) -> HealDecision:
     """Pure heal decision. Order encodes the safety precedence.
 
@@ -135,11 +141,21 @@ def decide_heal_action(
 
     is_dead = active_state in _DEAD_STATES
     is_active = active_state in _ACTIVE_STATES
-    stale = (
+    stale_present = (
         spec.max_staleness_seconds is not None
         and heartbeat_age_seconds is not None
         and heartbeat_age_seconds > spec.max_staleness_seconds
     )
+    # A missing TTL'd heartbeat on a process that has been up past the startup
+    # grace is a hang signal (the key expired because the loop stopped writing).
+    stale_missing = (
+        spec.treat_missing_heartbeat_as_stale
+        and spec.max_staleness_seconds is not None
+        and heartbeat_age_seconds is None
+        and active_since_seconds is not None
+        and active_since_seconds > spec.max_staleness_seconds
+    )
+    stale = stale_present or stale_missing
 
     if is_dead:
         if recent_restart_count >= max_restarts_per_window:
@@ -151,10 +167,14 @@ def decide_heal_action(
         if recent_restart_count >= max_restarts_per_window:
             return _mk(ACTION_SKIP_RATE_LIMITED, "restart rate limit reached (stale)")
         action = ACTION_ALERT_STALE if spec.heal_mode == "alert" else ACTION_RESTART_STALE
-        return _mk(
-            action,
-            f"heartbeat stale ({heartbeat_age_seconds:.0f}s > {spec.max_staleness_seconds}s)",
-        )
+        if stale_missing:
+            reason = (
+                f"heartbeat missing on process up {active_since_seconds:.0f}s "
+                f"(> {spec.max_staleness_seconds}s grace) -- hung"
+            )
+        else:
+            reason = f"heartbeat stale ({heartbeat_age_seconds:.0f}s > {spec.max_staleness_seconds}s)"
+        return _mk(action, reason)
 
     return _mk(ACTION_OK, f"healthy (state={active_state})")
 
@@ -179,67 +199,143 @@ def _svc(name: str, unit_stem: str, category: str, **kw) -> ComponentSpec:
 # process-liveness-only (still healed on process death). Staleness thresholds are
 # ~3-5x the component's publish interval. Trainer uses ~26min (its cycle is
 # 12-26min, pre-existing) to avoid false positives.
+_FE = "v2/frontend/public/operator_runtime"  # file-heartbeat prefix
+
 NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     # --- trainer subsystem ---
+    # Native trainer's own per-cycle artifact (cycle is 12-26min, pre-existing);
+    # 1800s avoids false positives. File heartbeat = the trainer writes it itself.
     _svc("native_cuda_trainer_persistent", "native-cuda-trainer-persistent", "trainer",
-         criticality="critical", heartbeat_redis_key="v2:trainer:hybrid_cuda:status",
+         criticality="critical",
+         heartbeat_file="v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/native_cuda_trainer_persistent_runtime_status.json",
          heartbeat_field="generated_utc", max_staleness_seconds=1800),
     _svc("continuous_offline_gpu_trainer", "continuous-offline-gpu-trainer", "trainer",
          criticality="normal", process_pattern="continuous_offline_gpu_trainer_loop.sh"),
-    _svc("trainer_checkpoint_evidence", "trainer-checkpoint-evidence", "trainer", criticality="normal"),
-    _svc("rl_core_inference_loop", "rl-core-inference-loop", "signal", criticality="critical"),
+    _svc("trainer_checkpoint_evidence", "trainer-checkpoint-evidence", "trainer", criticality="normal",
+         heartbeat_redis_key="v2:trainer:checkpoint:heartbeat", heartbeat_field="generated_utc",
+         max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
+    _svc("rl_core_inference_loop", "rl-core-inference-loop", "signal", criticality="critical",
+         heartbeat_redis_key="v2:trainer:heartbeat", heartbeat_field="finished_at",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+    # Anchored on a per-symbol prediction key; loose threshold so only a clear
+    # publish outage trips it, not transient per-symbol lag.
     _svc("all_timeframe_prediction_publisher", "all-timeframe-prediction-signal-price-target-publisher",
-         "signal", criticality="high"),
-    # --- risk / portfolio ---
-    _svc("risk_gateway", "risk-gateway-live-loop", "risk", criticality="critical"),
-    _svc("portfolio_cascade_guard", "portfolio-cascade-guard", "risk", criticality="critical"),
-    _svc("portfolio_state_publisher", "portfolio-state-publisher", "risk", criticality="high"),
-    _svc("position_history_tracker", "position-history-persistent-tracker", "risk", criticality="normal"),
+         "signal", criticality="high", heartbeat_redis_key="v2:prediction:BTCUSDT:1m",
+         heartbeat_field="generated_utc", max_staleness_seconds=600),
+    # --- risk / portfolio (TTL'd Redis heartbeats -> missing == hung) ---
+    _svc("risk_gateway", "risk-gateway-live-loop", "risk", criticality="critical",
+         heartbeat_redis_key="v2:risk:gateway:heartbeat", heartbeat_field="finished_at",
+         max_staleness_seconds=120, treat_missing_heartbeat_as_stale=True),
+    _svc("portfolio_cascade_guard", "portfolio-cascade-guard", "risk", criticality="critical",
+         heartbeat_redis_key="v2:paper:portfolio_cascade_guard", heartbeat_field="generated_utc",
+         max_staleness_seconds=90, treat_missing_heartbeat_as_stale=True),
+    _svc("portfolio_state_publisher", "portfolio-state-publisher", "risk", criticality="high",
+         heartbeat_redis_key="v2:portfolio:state", heartbeat_field="generated_utc",
+         max_staleness_seconds=120, treat_missing_heartbeat_as_stale=True),
+    _svc("position_history_tracker", "position-history-persistent-tracker", "risk", criticality="normal",
+         heartbeat_redis_key="v2:paper:position_history:heartbeat", heartbeat_field="generated_utc",
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     # --- orchestrator / decision ---
+    # Orchestrator publishes no usable string heartbeat key (decisions/proposals
+    # are non-string / TTL'd); process-liveness-only until a verified key exists.
     _svc("orchestrator_arbitration", "orchestrator-arbitration-loop", "orchestrator", criticality="critical"),
-    _svc("readonly_decision_observatory", "readonly-decision-observatory", "orchestrator", criticality="normal"),
-    _svc("paper_decision_lineage", "paper-decision-lineage-publisher", "orchestrator", criticality="normal"),
-    _svc("opportunity_tracker", "opportunity-tracker-publisher", "orchestrator", criticality="normal"),
-    _svc("operator_review_publisher", "operator-review-publisher", "orchestrator", criticality="normal"),
-    _svc("cascade_context_publisher", "cascade-context-publisher", "orchestrator", criticality="normal"),
+    _svc("readonly_decision_observatory", "readonly-decision-observatory", "orchestrator", criticality="normal",
+         heartbeat_file="claude_worklog/codex_legacy_v2_realtime_decision_observatory/codex_legacy_v2_realtime_decision_observatory_status.json",
+         heartbeat_field="generated_at", max_staleness_seconds=480),
+    _svc("paper_decision_lineage", "paper-decision-lineage-publisher", "orchestrator", criticality="normal",
+         heartbeat_file=f"{_FE}/v2_paper_decision_lineage/latest/v2_paper_decision_lineage.json",
+         heartbeat_field="generated_utc", max_staleness_seconds=240),
+    _svc("opportunity_tracker", "opportunity-tracker-publisher", "orchestrator", criticality="normal",
+         heartbeat_redis_key="v2:opportunity:summary", heartbeat_field="generated_utc",
+         max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
+    _svc("operator_review_publisher", "operator-review-publisher", "orchestrator", criticality="normal",
+         heartbeat_redis_key="v2:operator:review:status", heartbeat_field="generated_utc",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+    _svc("cascade_context_publisher", "cascade-context-publisher", "orchestrator", criticality="normal",
+         heartbeat_redis_key="v2:microstructure:cascade_context:summary", heartbeat_field="generated_at",
+         max_staleness_seconds=300),
     # --- paper / execution (hedges/stops/sizing live inside the paper loop) ---
-    _svc("trade_management_paper_loop", "trade-management-paper-loop", "execution", criticality="critical"),
-    _svc("paper_shadow_observation", "paper-shadow-observation", "execution", criticality="high"),
+    _svc("trade_management_paper_loop", "trade-management-paper-loop", "execution", criticality="critical",
+         heartbeat_redis_key="v2:paper:heartbeat", heartbeat_field="heartbeat_generated_at",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+    _svc("paper_shadow_observation", "paper-shadow-observation", "execution", criticality="high",
+         heartbeat_file=f"{_FE}/paper_shadow_observation/latest/paper_shadow_observation_status.json",
+         heartbeat_field="generated_at", max_staleness_seconds=240),
+    # Heartbeat file path unverified (observed 5+ days stale on an active process);
+    # process-liveness-only until confirmed.
     _svc("out_of_sample_evidence", "out-of-sample-evidence-producer", "paper", criticality="normal"),
-    _svc("edge_replay_factory", "edge-replay-factory", "paper", criticality="normal"),
+    _svc("edge_replay_factory", "edge-replay-factory", "paper", criticality="normal",
+         heartbeat_redis_key="v2:edge_factory:replay_status", heartbeat_field="generated_utc",
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     # --- edge guardian ---
-    _svc("continuous_edge_guardian", "continuous-edge-guardian", "guardian",
-         criticality="critical", heartbeat_redis_key="v2:continuous_edge_guardian:status",
-         heartbeat_field="generated_utc", max_staleness_seconds=900),
+    _svc("continuous_edge_guardian", "continuous-edge-guardian", "guardian", criticality="critical",
+         heartbeat_redis_key="v2:continuous_edge_guardian:status", heartbeat_field="generated_utc",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
     # --- strategy / signal / feature / altdata consumers ---
-    _svc("strategy_supply_publisher", "strategy-supply-publisher", "signal", criticality="high"),
-    _svc("a_plus_context_loop", "a-plus-context-loop", "signal", criticality="high"),
-    _svc("altdata_confluence_loop", "altdata-confluence-loop", "altdata", criticality="normal"),
+    _svc("strategy_supply_publisher", "strategy-supply-publisher", "signal", criticality="high",
+         heartbeat_redis_key="v2:strategy_supply:status", heartbeat_field="generated_utc",
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
+    _svc("a_plus_context_loop", "a-plus-context-loop", "signal", criticality="high",
+         heartbeat_file=f"{_FE}/v2_a_plus_context/latest/a_plus_context_status.json",
+         heartbeat_field="generated_utc", max_staleness_seconds=480),
+    _svc("altdata_confluence_loop", "altdata-confluence-loop", "altdata", criticality="normal",
+         heartbeat_redis_key="v2:altdata:confluence:BTCUSDT:1m", heartbeat_field="generated_utc",
+         max_staleness_seconds=240),
     _svc("alt_data_candidate_publisher", "alt-data-candidate-publisher-loop", "altdata", criticality="normal"),
-    _svc("alt_data_symbol_scoring", "alt-data-symbol-scoring-loop", "altdata", criticality="normal"),
-    _svc("alternative_data_status", "alternative-data-status-loop", "altdata", criticality="normal"),
+    _svc("alt_data_symbol_scoring", "alt-data-symbol-scoring-loop", "altdata", criticality="normal",
+         heartbeat_redis_key="v2:altdata:symbol_score:BTCUSDT", heartbeat_field="generated_utc",
+         max_staleness_seconds=900),
+    _svc("alternative_data_status", "alternative-data-status-loop", "altdata", criticality="normal",
+         heartbeat_redis_key="v2:altdata:provider_status", heartbeat_field="generated_utc",
+         max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
     _svc("aicoin_whale_intel", "aicoin-whale-intel-loop", "altdata", criticality="normal"),
     _svc("arkham_presence", "arkham-presence-loop", "altdata", criticality="normal"),
     _svc("lunarcrush_altdata", "lunarcrush-altdata-loop", "altdata", criticality="normal"),
     _svc("nansen_altdata", "nansen-altdata-loop", "altdata", criticality="normal"),
     _svc("public_intel_free_tier", "public-intel-free-tier-loop", "altdata", criticality="normal"),
-    _svc("feature_pipeline_native", "feature-pipeline-native-loop", "feature", criticality="high"),
-    _svc("feature_snapshot_builder", "feature-snapshot-builder", "feature", criticality="high"),
-    _svc("full_talib_ta_loop", "full-talib-ta-loop", "feature", criticality="high"),
-    _svc("technical_analysis_status", "technical-analysis-status-publisher", "feature", criticality="normal"),
-    _svc("liquidation_levels_engine", "liquidation-levels-engine", "feature", criticality="normal"),
-    _svc("liquidation_runtime_status", "liquidation-runtime-status-publisher", "feature", criticality="normal"),
-    _svc("dynamic_symbol_discovery", "dynamic-symbol-discovery-loop", "symbol", criticality="normal"),
-    _svc("symbol_universe_publisher", "symbol-universe-publisher", "symbol", criticality="high"),
+    _svc("feature_pipeline_native", "feature-pipeline-native-loop", "feature", criticality="high",
+         heartbeat_redis_key="v2:features:pipeline:heartbeat", heartbeat_field="finished_at",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+    _svc("feature_snapshot_builder", "feature-snapshot-builder", "feature", criticality="high",
+         heartbeat_file=f"{_FE}/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
+         heartbeat_field="last_run_ts", max_staleness_seconds=240),
+    _svc("full_talib_ta_loop", "full-talib-ta-loop", "feature", criticality="high",
+         heartbeat_redis_key="v2:features:ta:heartbeat", heartbeat_field="finished_at",
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+    _svc("technical_analysis_status", "technical-analysis-status-publisher", "feature", criticality="normal",
+         heartbeat_file=f"{_FE}/v2_technical_analysis_status/latest/v2_technical_analysis_status.json",
+         heartbeat_field="generated_utc", max_staleness_seconds=480),
+    _svc("liquidation_levels_engine", "liquidation-levels-engine", "feature", criticality="normal",
+         heartbeat_redis_key="v2:liquidations:levels:heartbeat", heartbeat_field="generated_utc",
+         max_staleness_seconds=120, treat_missing_heartbeat_as_stale=True),
+    _svc("liquidation_runtime_status", "liquidation-runtime-status-publisher", "feature", criticality="normal",
+         heartbeat_file=f"{_FE}/v2_liquidation_runtime_status/latest/v2_liquidation_runtime_status.json",
+         heartbeat_field="generated_utc", max_staleness_seconds=600),
+    _svc("dynamic_symbol_discovery", "dynamic-symbol-discovery-loop", "symbol", criticality="normal",
+         heartbeat_redis_key="v2:symbol_universe:dynamic_discovery_status", heartbeat_field="generated_utc",
+         max_staleness_seconds=86400),
+    _svc("symbol_universe_publisher", "symbol-universe-publisher", "symbol", criticality="high",
+         heartbeat_file=f"{_FE}/symbol_universe/latest/symbol_universe.json",
+         heartbeat_field="generated_at", max_staleness_seconds=300),
     _svc("market_chart_payload", "market-chart-payload-publisher", "publisher", criticality="normal"),
     _svc("professional_market_chart", "professional-market-chart-payload-publisher", "publisher", criticality="normal"),
-    _svc("opportunity_review_publisher", "log-errors-status-publisher", "publisher", criticality="normal"),
+    # Heartbeat file path unverified (observed 40 days stale on an active process);
+    # process-liveness-only until confirmed.
+    _svc("log_errors_status_publisher", "log-errors-status-publisher", "publisher", criticality="normal"),
     # --- self-heal / infra (the healers themselves; healed on death only) ---
-    _svc("agent_supervisor", "agent-supervisor", "self_heal", criticality="high"),
+    _svc("agent_supervisor", "agent-supervisor", "self_heal", criticality="high",
+         heartbeat_file="claude_worklog/agent_supervisor/status/supervisor_heartbeat.json",
+         heartbeat_field="last_loop_ts", max_staleness_seconds=600),
     _svc("worker_porting_orchestrator", "worker-porting-orchestrator", "self_heal", criticality="normal"),
-    _svc("parallel_scheduler", "parallel-scheduler", "self_heal", criticality="normal"),
+    _svc("parallel_scheduler", "parallel-scheduler", "self_heal", criticality="normal",
+         heartbeat_file="claude_worklog/agent_supervisor/status/parallel_capacity_scheduler_status.json",
+         heartbeat_field="generated_at", max_staleness_seconds=2400),
     _svc("codex_watchdog", "codex-watchdog", "self_heal", criticality="normal"),
-    _svc("memory_watchdog", "memory-watchdog", "self_heal", criticality="normal"),
+    _svc("memory_watchdog", "memory-watchdog", "self_heal", criticality="normal",
+         heartbeat_file="v2/frontend/public/v2_memory_watchdog/latest/memory_watchdog_status.json",
+         heartbeat_field="ts", max_staleness_seconds=120),
+    # Heartbeat file path unverified (observed 7+ days stale on an active process);
+    # process-liveness-only until confirmed.
     _svc("production_replacement_runtime_guard", "production-replacement-runtime-guard", "self_heal", criticality="normal"),
 )
 

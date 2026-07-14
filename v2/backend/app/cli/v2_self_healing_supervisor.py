@@ -64,12 +64,38 @@ def _run(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]
     return subprocess.run(args, text=True, capture_output=True, timeout=timeout, check=False)
 
 
-def _unit_state(unit: str) -> dict[str, str]:
+def _unit_state(unit: str, now: datetime) -> dict[str, Any]:
     active = (_run(["systemctl", "--user", "is-active", unit]).stdout or "").strip() or "unknown"
     enabled = (_run(["systemctl", "--user", "is-enabled", unit]).stdout or "").strip() or "unknown"
     installed = enabled not in {"not-found", "masked"} and "not-found" not in enabled
     enabled_bool = enabled in {"enabled", "enabled-runtime", "static", "indirect", "generated", "alias"}
-    return {"active": active, "enabled": enabled, "installed": str(installed), "enabled_bool": str(enabled_bool)}
+    active_since: float | None = None
+    show = _run(["systemctl", "--user", "show", unit, "-p", "ActiveEnterTimestamp"]).stdout or ""
+    ts_str = show.split("=", 1)[1].strip() if "=" in show else ""
+    if ts_str and ts_str.lower() not in {"", "n/a"}:
+        entered = _parse_systemd_timestamp(ts_str)
+        if entered is not None:
+            active_since = max(0.0, (now - entered).total_seconds())
+    return {
+        "active": active,
+        "enabled": enabled,
+        "installed": installed,
+        "enabled_bool": enabled_bool,
+        "active_since_seconds": active_since,
+    }
+
+
+def _parse_systemd_timestamp(value: str) -> datetime | None:
+    # systemd format e.g. "Tue 2026-07-14 18:34:43 EDT" -> parse the date/time part.
+    parts = value.split()
+    if len(parts) >= 3:
+        try:
+            naive = datetime.strptime(f"{parts[1]} {parts[2]}", "%Y-%m-%d %H:%M:%S")
+            # systemd prints local time; treat as local and convert to UTC.
+            return naive.astimezone().astimezone(timezone.utc)
+        except ValueError:
+            return None
+    return None
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -185,17 +211,18 @@ def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]
     restarted: list[str] = []
 
     for spec in NON_INGESTOR_COMPONENTS:
-        st = _unit_state(spec.unit)
+        st = _unit_state(spec.unit, now)
         age = _heartbeat_age_seconds(client, spec, now)
         decision = decide_heal_action(
             spec,
-            installed=st["installed"] == "True",
-            enabled=st["enabled_bool"] == "True",
+            installed=bool(st["installed"]),
+            enabled=bool(st["enabled_bool"]),
             active_state=st["active"],
             heartbeat_age_seconds=age,
             deliberately_stopped=spec.unit in stopped,
             recent_restart_count=_recent_restarts(client, spec.unit, now),
             max_restarts_per_window=MAX_RESTARTS_PER_WINDOW,
+            active_since_seconds=st["active_since_seconds"],
         )
         action_counts[decision.action] = action_counts.get(decision.action, 0) + 1
         row: dict[str, Any] = {

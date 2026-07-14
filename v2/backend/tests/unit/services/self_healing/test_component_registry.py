@@ -134,6 +134,30 @@ def test_precedence_denylist_beats_deliberately_stopped() -> None:
     assert d.action == ACTION_SKIP_DENYLISTED
 
 
+def test_missing_ttl_heartbeat_on_long_running_process_is_hung() -> None:
+    # TTL'd Redis heartbeat expired (age None) while process has been up well past
+    # the grace window -> hung -> restart.
+    spec = _spec(treat_missing_heartbeat_as_stale=True, max_staleness_seconds=120)
+    d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=1000.0)
+    assert d.action == ACTION_RESTART_STALE
+    assert "hung" in d.reason
+
+
+def test_missing_heartbeat_within_startup_grace_is_not_restarted() -> None:
+    # Just-restarted component that has not published its first heartbeat yet.
+    spec = _spec(treat_missing_heartbeat_as_stale=True, max_staleness_seconds=120)
+    d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=30.0)
+    assert d.action == ACTION_OK
+
+
+def test_missing_heartbeat_without_flag_is_ignored() -> None:
+    # Default conservative behavior: a missing heartbeat is not itself a restart
+    # trigger unless the component opts in.
+    spec = _spec(treat_missing_heartbeat_as_stale=False, max_staleness_seconds=120)
+    d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=99999.0)
+    assert d.action == ACTION_OK
+
+
 def test_registry_is_well_formed_and_has_no_denylisted_units() -> None:
     from v2.backend.app.services.self_healing.component_registry import NON_INGESTOR_COMPONENTS
 
