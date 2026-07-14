@@ -15,20 +15,57 @@
 **Status:** ACTIONABLE — Clear fix path
 
 ### ✅ Blocker 2: A+ Candidates = Zero
-**Diagnostic Status:** Feature pipeline validator ran; TA incomplete, Moralis 94% missing
-**Finding:**
+**Diagnostic Status:** COMPREHENSIVE agent audit + feature pipeline validator
+**Finding - PRIMARY BLOCKER (Gate Logic):**
+- **Max confidence in system:** 0.7865 (far below 0.9 threshold)
+- **A-grade execution gate status:** `A_GRADE_HALTED_PERFORMANCE`
+- **Gate blockers (19 total):**
+  1. INSUFFICIENT_ROLLING_100_TRADE_WINDOW: 0 / 100 required
+  2. INSUFFICIENT_ROLLING_300_TRADE_WINDOW: 0 / 300 required
+  3. INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES: 0 / 1,000 required
+  4. INSUFFICIENT_REALTIME_SYMBOL_COVERAGE: 0 / 50 required
+  5. ADAPTIVE_STRATEGY_BRAIN_BLOCKED (no A-grade strategies active)
+- **Root cause:** System is locked in Catch-22: can't enter A-grade without historical A-grade trades; can't build historical trades without A-grade entries allowed
+
+**Finding - SECONDARY BLOCKER (Confidence Calibration):**
+- Average calibrated confidence: 0.5355 (too conservative)
+- Temperature scaling: 1.4x (overaggressive downrating)
+- Coverage factor impact: -14 bps average due to missing features
+- **Missing features per prediction:** avg 17.1 (up to 97 for some symbols)
+  - Nansen, Lunarcrush, AICoin, Whale Walls, Mempool, News Sentiment, CoingGlass derivatives
+  - Symbols most impacted: COAIUSDT, ESPORTSUSDT, BABYUSDT (97, 97, 76 missing)
+
+**Finding - TERTIARY BLOCKER (Edge Control):**
+- Preemptive edge control rejecting 100% of candidates (0/13 accepted)
+- Loss probability gate too conservative: 11 rejections on loss_probability_too_high
+- ATR stop clustering: 2 additional rejections
+
+**Finding - Feature Pipeline:**
 - TA provider: 25 symbols × 5 timeframes, all missing required fields (0/25 complete)
 - Moralis: 1 of 25 complete (only BTCUSDT:1m)
 - CoingGlass: Sparse (1m only, missing 5m/15m/1h/4h)
 - CoinAnk: Not in v2:features:* namespace (critical gap)
-- Feature count: ~10% of required for A-grade
+- Overall: ~10% of required for A-grade
+
 **Action Taken:** 
 - Created v2_feature_pipeline_validator.py
 - Fixed squeeze detector input routing (line 549)
 - Created CoinAnk feature bridge (coinank_feature_bridge.py)
 - Created Moralis watchlist bootstrap
-**Next Step:** Expand CoingGlass timeframes; populate Moralis wallet watch-list; wire CoinAnk bridge
-**Status:** ACTIONABLE — Fixes staged, need execution
+- Mapped exact gate blockers and confidence calibration targets
+
+**Next Step:** 
+1. **Immediate (unlock A-grade emergence):**
+   - Fix feature pipeline (restore Nansen, Lunarcrush, AICoin, CoingGlass, Mempool)
+   - Relax loss probability thresholds in preemptive edge control (11 rejections too aggressive)
+   - Enable confidence trial to recalibrate temperature scaling
+2. **Medium-term (build historical evidence):**
+   - Allow B-grade (0.7-0.9) entries to accumulate rolling 100-trade window
+   - OR: run offline backtest to generate historical A-grade trade evidence
+3. **Long-term (redesign gate):**
+   - Implement gradual ramp (B→B+→A→A+) instead of hard 100-trade blocker
+
+**Status:** ROOT CAUSE IDENTIFIED — Gate is deliberate safety guard; unfreezing requires rebuilding historical evidence
 
 ### ✅ Blocker 3: Probation Incomplete (3/5)
 **Diagnostic Status:** Agent report completed
@@ -93,6 +130,25 @@
 | Feature pipeline validator created | ✅ DONE | v2_feature_pipeline_validator.py |
 | All 6 blockers diagnosed | ✅ DONE | Comprehensive agent reports |
 | Commit staged | ✅ DONE | ad236344fc |
+
+---
+
+## 🚨 CRITICAL DISCOVERY: A-Grade Gate is a Catch-22
+
+The system has a **deliberate safety gate** that requires:
+- 100 historical A-grade trades in rolling window (currently: 0)
+- 300 historical A-grade trades in larger window (currently: 0)  
+- 1,000 realized A-grade closed economic trades (currently: 0)
+- 50+ A-grade symbol coverage (currently: 0)
+
+**The Catch-22:** Gate blocks ALL new A-grade entries until historical trades exist, but can't build historical trades with gate blocking.
+
+**Solutions:**
+1. **Option A (Safe):** Allow B-grade (0.7-0.9) entries to accumulate evidence → graduate to A-grade after 100 B-grade trades succeed
+2. **Option B (Fast):** Run offline backtest on recent data → generate historical A-grade trade evidence to seed gate
+3. **Option C (Parallel):** Fix confidence calibration + feature pipeline → unlock gate via confidence trial mechanism
+
+**Recommended:** Option A + Option C in parallel. Option B as fallback.
 
 ---
 
