@@ -447,6 +447,22 @@ def run_batch_training(
         V2HybridPPOTrainer,
     )
 
+    # Hard per-process VRAM cap so this offline trainer can never starve the
+    # online resident trainer sharing the same GPU (they are both hidden-2048
+    # models on one 16GB RTX). Within the cap an oversized batch OOMs and the
+    # loop retries -- non-fatal -- instead of exhausting the online trainer's
+    # VRAM and hanging it. Env-tunable; unset = uncapped (single-GPU-owner runs).
+    _mem_frac = os.environ.get("V2_OFFLINE_CUDA_MEMORY_FRACTION")
+    if _mem_frac:
+        try:
+            import torch  # noqa: PLC0415
+
+            _frac = float(_mem_frac)
+            if torch.cuda.is_available() and 0.0 < _frac <= 1.0:
+                torch.cuda.set_per_process_memory_fraction(_frac, 0)
+        except Exception:  # pragma: no cover - best-effort guard
+            pass
+
     input_dim = len(examples[0].tensor.model_vector)
     prev_dropout = os.environ.get("V2_TRAINER_DROPOUT")
     os.environ["V2_TRAINER_DROPOUT"] = str(dropout)
