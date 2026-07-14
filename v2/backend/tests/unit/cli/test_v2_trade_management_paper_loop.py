@@ -16639,3 +16639,29 @@ def test_session_performance_sizing_factor_adapts_both_directions() -> None:
     assert 0.0 < budget["risk_budget_fraction_of_normal_adaptive"] <= 1.0
     # Reset to neutral for other tests.
     loop._set_session_performance_sizing_evidence([])
+
+
+def test_portfolio_cascade_guard_decision_core() -> None:
+    # Protect losers in confirmed cascades; let winners ride; close losers on
+    # portfolio worst-case breach; do nothing otherwise.
+    from app.cli.v2_portfolio_cascade_guard_loop import decide_directives
+
+    positions = [
+        {"symbol": "ALTAUSDT", "unrealized_pnl_bps": -25.0},
+        {"symbol": "ALTBUSDT", "unrealized_pnl_bps": +80.0},
+        {"symbol": "CALMUSDT", "unrealized_pnl_bps": -10.0},
+    ]
+    cascade = {
+        "ALTAUSDT": {"status": "EVENT_CONFIRMED", "score": 0.9, "timeframe": "1m"},
+        "ALTBUSDT": {"status": "EVENT_CONFIRMED", "score": 0.9, "timeframe": "1m"},
+        "CALMUSDT": {"status": "ABSENT_NO_TRADE", "score": 0.1, "timeframe": "1m"},
+    }
+    d = {x["symbol"]: x for x in decide_directives(positions, cascade, {})}
+    assert d["ALTAUSDT"]["action"] == "CLOSE"
+    assert d["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"  # winner rides the move
+    assert "CALMUSDT" not in d
+
+    breach = {"worst_case_liquidation_breached": True}
+    d2 = {x["symbol"]: x for x in decide_directives(positions, cascade, breach)}
+    assert d2["CALMUSDT"]["action"] == "CLOSE"  # portfolio breach closes losers
+    assert d2["ALTBUSDT"]["action"] == "RIDE_TIGHTEN"

@@ -1470,6 +1470,7 @@ def reconcile_paper_lifecycle(
     mark_prices: dict[str, Any] | None = None,
     generated_utc: str | None = None,
     config: PaperLifecycleConfig | None = None,
+    portfolio_guard: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     existing_ledger = existing_ledger or {}
     mark_prices = mark_prices or {}
@@ -1684,6 +1685,26 @@ def reconcile_paper_lifecycle(
                 else None
             ),
         )
+        # Portfolio cascade guard (paper-only): a confirmed cascade on a LOSING
+        # position, or a portfolio-level worst-case liquidation breach, forces a
+        # TIER_0 protective close -- one coin's MM move must never cascade the
+        # book (legacy failure mode). Winning positions are left to ride; the
+        # trailing/sweep-reversal exits own the reversal.
+        _guard_directives = {
+            str(d.get("symbol") or "").upper(): d
+            for d in ((portfolio_guard or {}).get("directives") or [])
+            if isinstance(d, dict)
+        }
+        _guard_hit = _guard_directives.get(symbol.upper())
+        if _guard_hit and str(_guard_hit.get("action") or "").upper() == "CLOSE":
+            exit_eval = {
+                "should_close": True,
+                "close_reason": "TIER_0_PORTFOLIO_CASCADE_GUARD",
+                "tier": 0,
+                "pnl_bps": position.unrealized_pnl_bps(),
+                "portfolio_cascade_guard_reason": _guard_hit.get("reason"),
+                "portfolio_cascade_guard_cascade_score": _guard_hit.get("cascade_score"),
+            }
         exit_eval["symbol"] = symbol
         exit_eval["mark_price_source"] = mark_source
         exit_eval["trailing_context_decision"] = trailing_context_decision

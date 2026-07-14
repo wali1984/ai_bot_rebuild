@@ -1323,10 +1323,23 @@ def build_symbol_universe_candidates(
                 else False,
             }
         )
+    # Operator preference 2026-07-14: BTC/ETH/SOL are the preferred majors for
+    # the full pipeline. Soft ranking WEIGHT only (score bonus, no exclusivity,
+    # no gate changes) so selection stays market-driven per the symbol-universe
+    # policy: a clearly stronger alt still outranks a weak major.
+    preferred_majors = {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
+    majors_rank_bonus = 0.05
+
+    def _ranking_score(row: dict) -> float:
+        score = row["altdata_symbol_score"] or 0.0
+        if str(row.get("symbol") or "").upper() in preferred_majors:
+            score += majors_rank_bonus
+        return score
+
     rows.sort(
         key=lambda row: (
             row["altdata_symbol_score"] is None,
-            -(row["altdata_symbol_score"] or 0.0),
+            -_ranking_score(row),
             -(row["provider_availability_score"] or 0.0),
             -(row["altdata_freshness_score"] or 0.0),
             row["symbol"],

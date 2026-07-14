@@ -29579,6 +29579,7 @@ def run_once() -> dict:
             disable_trailing_on_negative_runtime_expectancy=True,
             trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
         ),
+        portfolio_guard=_read_json_key(r, "v2:paper:portfolio_cascade_guard"),
     )
     lifecycle_blocked = list(lifecycle_result["blocked_entries"])
     if lifecycle_blocked:

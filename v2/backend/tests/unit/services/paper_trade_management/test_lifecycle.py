@@ -3783,3 +3783,44 @@ def test_admission_invalidated_position_still_stop_closes_within_one_cycle() -> 
     assert closed, "admission-invalidated position must be closeable"
     assert closed[0]["close_reason"] == "TIER_1_STOP_LOSS"
     assert result["open_positions"] == []
+
+
+def test_lifecycle_honors_portfolio_cascade_guard_close() -> None:
+    # The portfolio cascade guard's CLOSE directive forces a TIER_0 protective
+    # exit (one coin's MM move must never cascade the book).
+    fill = _fill(fill_id="guard1", symbol="ALTAUSDT", price=1.0, qty=10.0)
+    guard = {
+        "directives": [
+            {
+                "symbol": "ALTAUSDT",
+                "action": "CLOSE",
+                "reason": "CASCADE_CONFIRMED_ON_LOSING_POSITION",
+                "cascade_score": 0.9,
+            }
+        ]
+    }
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={"ALTAUSDT": 0.99},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+        portfolio_guard=guard,
+    )
+    closed = result.get("closed_trades") or []
+    assert any(
+        t.get("symbol") == "ALTAUSDT"
+        and (t.get("exit_reason") or t.get("close_reason")) == "TIER_0_PORTFOLIO_CASCADE_GUARD"
+        for t in closed
+    ), f"guard close not honored: {[(t.get('symbol'), t.get('exit_reason'), t.get('close_reason')) for t in closed]}"
+
+    # Without a directive the same position stays open (no spurious closes).
+    result2 = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="guard2", symbol="ALTBUSDT", price=1.0, qty=10.0)],
+        mark_prices={"ALTBUSDT": 0.999},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+        portfolio_guard={"directives": []},
+    )
+    assert any(p.get("symbol") == "ALTBUSDT" for p in result2.get("open_positions") or [])
