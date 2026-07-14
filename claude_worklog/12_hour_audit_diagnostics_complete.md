@@ -8,11 +8,36 @@
 ## Blocker Evidence Summary
 
 ### ✅ Blocker 1: Forward Trading Edge NOT Proven
-**Diagnostic Status:** Agent report completed
-**Finding:** Checkpoint ID not tracked in fills; pre/post-promotion cohorts not separated
-**Action Taken:** Identified exact gap; fix needs checkpoint_id field in paper fill records
-**Next Step:** Build forward-economics packet (requires 10+ post-promotion closes)
-**Status:** ACTIONABLE — Clear fix path
+**Diagnostic Status:** Agent report completed (full audit of Redis + filesystem)
+**Finding - CRITICAL:**
+- **No promotion event exists** in Redis: `v2:trainer:hybrid_cuda:latest_promoted_checkpoint` = NULL
+- **Checkpoint tracking incomplete:** 2/8 trades (25%) have checkpoint_id; 6/8 missing (75%)
+- **Gap timeline:** Field populated through 2026-07-14T00:40:48Z (trade #2), then stops
+- **Checkpoint usage proof:** ZERO trades verified to use latest checkpoint
+- **Forward economics:** Cannot compute (trades 3-8 lack checkpoint attribution)
+
+**Paper Trading Breakdown:**
+- Trades 1-2 (baseline): 1W-1L, +$0.0021, checkpoint_id ✓
+- Trades 3-8 (post-gap): 2W-4L, +$0.8399, checkpoint_id ✗
+- **Total:** 37.5% win rate, +$0.84 (but source checkpoint unknown)
+
+**Latest Checkpoint Status:**
+- ID: `v2_hybrid_ckpt_4260cdcc506bf3393b2ac488`
+- Generated: 2026-07-14T18:45:56Z (AFTER all trades)
+- Size: 143 MB
+- Status: Retained but NEVER used in any trade (zero evidence of usage)
+
+**Promotion Status Document:** Outdated (2026-05-26, 49 days old)
+
+**Action Taken:** Identified exact schema gap and missing promotion event
+**Next Step:** 
+1. Create promotion event in Redis (checkpoint_id, timestamp, baseline stats)
+2. Restore checkpoint_id field in fill records
+3. Tag trades 3-8 with checkpoint ID (retroactively if possible, OR collect new trades)
+4. Collect ≥10 new post-promotion trades with full checkpoint tracking
+5. Compute forward economics packet (win rate, PF, MAE/MFE, expectancy)
+
+**Status:** CRITICAL DATA GAP — Fixable but requires schema changes + new evidence collection
 
 ### ✅ Blocker 2: A+ Candidates = Zero
 **Diagnostic Status:** COMPREHENSIVE agent audit + feature pipeline validator
