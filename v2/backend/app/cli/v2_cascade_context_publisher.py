@@ -9,6 +9,7 @@ Safety:
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime
 import json
 import os
 import subprocess
@@ -276,6 +277,13 @@ def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
         prev, last = _close(rows[-2]), _close(rows[-1])
         if prev and last and prev > 0:
             out[f"{major}_change_pct"] = (last - prev) / prev * 100.0
+    if out:
+        # Stamp freshness so the cascade context's max-age policy (600s for
+        # cross_asset) accepts the source instead of silently discarding it.
+        now_iso = datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        out["generated_utc"] = now_iso
+        out["available_at"] = now_iso
+        out["event_time"] = now_iso
     return out
 
 def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str, dict[str, Any] | None]:
