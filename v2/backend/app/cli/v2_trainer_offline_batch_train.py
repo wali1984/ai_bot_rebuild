@@ -175,10 +175,23 @@ def load_or_build_examples(
         started = time.perf_counter()
         with open(cache_path, "rb") as fh:
             examples = pickle.load(fh)
-        meta["cache_hit"] = True
-        meta["load_seconds"] = round(time.perf_counter() - started, 3)
-        meta["examples"] = len(examples)
-        return examples, meta
+        # Arch-fingerprint guard: a cache built under an older FEATURE_SPEC has
+        # the wrong model_vector width and silently poisons H2L with
+        # cross-arch aborts. Auto-invalidate instead of relying on manual purges.
+        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (  # noqa: PLC0415
+            FEATURE_SPEC,
+        )
+        expected_dim = len(FEATURE_SPEC) * 4
+        if examples and len(examples[0].tensor.model_vector) != expected_dim:
+            meta["cache_dim_mismatch_rebuild"] = {
+                "cached_dim": len(examples[0].tensor.model_vector),
+                "expected_dim": expected_dim,
+            }
+        else:
+            meta["cache_hit"] = True
+            meta["load_seconds"] = round(time.perf_counter() - started, 3)
+            meta["examples"] = len(examples)
+            return examples, meta
 
     import tempfile  # noqa: PLC0415
     from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (  # noqa: PLC0415
