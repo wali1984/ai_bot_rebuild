@@ -1,0 +1,7 @@
+# Deliberately-stopped units — the self-healing supervisor will NOT restart any
+# unit listed here (one systemd unit name per line). Use this to stop a component
+# on purpose without the supervisor fighting you. Lines starting with # are
+# ignored. You can also add units to the Redis set v2:self_healing:deliberately_stopped.
+#
+# Example:
+# ai-bot-v2-orchestrator-arbitration-loop.service
