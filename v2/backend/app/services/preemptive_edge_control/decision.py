@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import os
 from typing import Any
+
+import redis
+
+logger = logging.getLogger(__name__)
+GATE_TUNING_KEY = "v2:orchestrator:adaptive_gate_tuning_state"
 
 from v2.backend.app.services.preemptive_edge_control.bucket_health import (
     build_bucket_health,
@@ -122,6 +129,25 @@ def _first_present(*values: Any) -> Any:
         if value not in (None, "", [], {}):
             return value
     return None
+
+
+def _get_adaptive_loss_probability_threshold() -> float:
+    """Read loss probability threshold from adaptive gate tuning state, fallback to 0.80."""
+    try:
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        redis_client = redis.from_url(redis_url, decode_responses=True)
+        tuning_json = redis_client.get(GATE_TUNING_KEY)
+        if tuning_json:
+            tuning_state = json.loads(tuning_json)
+            threshold = tuning_state.get("adaptive_confidence_threshold")
+            if threshold is not None:
+                try:
+                    return float(threshold)
+                except (TypeError, ValueError):
+                    pass
+    except Exception as e:
+        logger.debug(f"Failed to read adaptive loss probability threshold: {e}")
+    return 0.80  # Conservative default
 
 
 def _is_paper_risk_controller_exploration_candidate(candidate: dict[str, Any]) -> bool:
@@ -366,6 +392,10 @@ def evaluate_candidate(
         micro_action not in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
         and trust is not None
     )
+
+    # Read adaptive loss probability threshold (enables B-grade when tuned down)
+    adaptive_loss_prob_threshold = _get_adaptive_loss_probability_threshold()
+
     positive_edge_probation_eligible = (
         allow_positive_edge_probation
         and guardian_halted
@@ -401,7 +431,7 @@ def evaluate_candidate(
         bucket.get("bucket_negative")
         or matched_quarantine
         or atr_stop_cluster
-        or loss_probability >= 0.80
+        or loss_probability >= adaptive_loss_prob_threshold
         or advanced_block
     ):
         decision = "NO_TRADE"
@@ -541,6 +571,7 @@ def summarize_decisions(decisions: list[dict[str, Any]], *, accepted_rows: list[
     high_loss_accepted = 0
     reduce_without_guardian = 0
     accepted_advanced_indicator_block = 0
+    adaptive_loss_prob_threshold = _get_adaptive_loss_probability_threshold()
     for item in decisions:
         decision = str(item.get("preemptive_decision") or "MISSING")
         counts[decision] = counts.get(decision, 0) + 1
@@ -552,7 +583,7 @@ def summarize_decisions(decisions: list[dict[str, Any]], *, accepted_rows: list[
         decision = row.get("preemptive_decision")
         if not decision:
             missing += 1
-        if (_f(row.get("pre_trade_loss_probability")) or 0.0) >= 0.80:
+        if (_f(row.get("pre_trade_loss_probability")) or 0.0) >= adaptive_loss_prob_threshold:
             high_loss_accepted += 1
         if (
             row.get("paper_opportunity_tier") == "A_PLUS_BOOTSTRAP_REDUCED_SIZE"
