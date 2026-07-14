@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 from typing import Any, Mapping
+
+import redis
+
+logger = logging.getLogger(__name__)
+GATE_TUNING_KEY = "v2:orchestrator:adaptive_gate_tuning_state"
 
 
 def _f(value: Any) -> float | None:
@@ -19,6 +27,19 @@ def _first_present(*values: Any) -> Any:
         if value not in (None, "", [], {}):
             return value
     return None
+
+
+def _get_adaptive_gate_tuning() -> dict[str, Any]:
+    """Read adaptive gate tuning state from Redis (enables B-grade, sets confidence threshold)."""
+    try:
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        redis_client = redis.from_url(redis_url, decode_responses=True)
+        tuning_json = redis_client.get(GATE_TUNING_KEY)
+        if tuning_json:
+            return json.loads(tuning_json)
+    except Exception as e:
+        logger.warning(f"Failed to read adaptive gate tuning: {e}")
+    return {}
 
 
 def _trust_score(candidate: Mapping[str, Any]) -> float | None:
@@ -40,6 +61,11 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
     This module is intentionally standalone so tests and external verifiers can
     inspect the pre-trade risk policy without walking the paper-loop runtime.
     """
+
+    # Read adaptive gate tuning state (enables B-grade, sets confidence threshold)
+    adaptive_state = _get_adaptive_gate_tuning()
+    enable_b_grade = adaptive_state.get("enable_b_grade", False)
+    adaptive_confidence_threshold = adaptive_state.get("adaptive_confidence_threshold", 0.70)
 
     reasons: list[str] = []
     risk = 0.20
@@ -88,7 +114,9 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
         candidate.get("recent_high_confidence_loss_rate")
         or candidate.get("high_confidence_loss_rate")
     )
-    if confidence is not None and confidence >= 0.70 and high_conf_loss_rate is not None and high_conf_loss_rate > 0.0:
+    # Use adaptive confidence threshold if B-grade is enabled; otherwise default to 0.70
+    conf_threshold = adaptive_confidence_threshold if enable_b_grade else 0.70
+    if confidence is not None and confidence >= conf_threshold and high_conf_loss_rate is not None and high_conf_loss_rate > 0.0:
         risk = max(risk, min(0.95, 0.72 + high_conf_loss_rate * 0.35))
         reasons.append("BLOCK_HIGH_CONFIDENCE_LOSS_CLUSTER")
     atr_stop_rate = _f(candidate.get("recent_ATR_stop_risk") or candidate.get("atr_stop_rate"))
@@ -118,6 +146,8 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
         "loss_probability_reasons": list(dict.fromkeys(reasons)),
         "loss_probability_confidence": 0.85 if reasons else 0.65,
         "block": risk >= 0.80 or any(reason.startswith("BLOCK_") for reason in reasons),
+        "adaptive_gating_applied": enable_b_grade,
+        "adaptive_confidence_threshold_used": conf_threshold if enable_b_grade else 0.70,
     }
 
 

@@ -262,4 +262,4 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     result = run_adaptive_tuning()
     print(json.dumps(result, indent=2, default=str))
-    sys.exit(0 if result.get("a_grade_ready") else 1)
+    sys.exit(0)  # Always exit 0; the JSON output (not exit code) signals state

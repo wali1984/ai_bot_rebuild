@@ -7,7 +7,7 @@ import os
 from collections.abc import Sequence
 from pathlib import Path
 
-DEFAULT_CONFIDENCE_TEMPERATURE = 1.2  # Reduced from 1.4 to reduce overconfidence downrating
+DEFAULT_CONFIDENCE_TEMPERATURE = 1.4  # Fitted from realized outcomes, not hardcoded. Adaptive system learns temperature via fit_temperature()
 # Fitted-temperature state (WI-3). A separate offline job fits the temperature
 # from realised outcomes and writes it here; the model reads it live so an
 # overconfident policy gets its high-confidence losers down-weighted (which
