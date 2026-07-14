@@ -3106,6 +3106,21 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
         row["accuracy"] = round(row["correct_count"] / c, 4) if c > 0 else None
         row["timeframe"] = tf
 
+    # Universe + (symbol,timeframe) cell metadata: without these the dashboard
+    # UNIVERSE / TF CELLS / MISSING CELLS cards render "-" whenever this Redis
+    # fallback overrides the static accuracy file.
+    try:
+        from app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
+        _universe = resolve_symbols(explicit=None, smoke_test=False)
+    except Exception:
+        _universe = []
+    _tf_grid = ("1m", "5m", "15m", "1h")
+    _evaluated_cells = {
+        (str(t.get("symbol") or "").upper(), str(t.get("timeframe") or "").lower())
+        for t in evaluated
+    }
+
     return {
         "status": "EVALUATED_REDIS_LIVE",
         "source": "v2:paper:closed_trades",
@@ -3117,6 +3132,10 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
         "evaluated_realized_pnl_usd": round(total_pnl, 4),
         "by_timeframe": list(by_tf.values()),
         "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else None,
+        "symbol_universe_count": len(_universe),
+        "symbol_timeframe_cell_count": len(_universe) * len(_tf_grid),
+        "required_symbol_timeframe_cell_count": len(_universe) * len(_tf_grid),
+        "evaluated_symbol_timeframe_cell_count": len(_evaluated_cells),
     }
 
 
@@ -12548,6 +12567,33 @@ async def get_paper_runtime_status(
 
             hb = _read("v2:paper:heartbeat")
             tm = _read("v2:paper:trade_management:status")
+            # Market-feed truth for the runtime strip ("age not reported" fix).
+            _mkt_hb = _read("v2:market:coinapi:ohlcv:heartbeat")
+            _mkt_ts = _mkt_hb.get("finished_utc") or _mkt_hb.get("ts") or ""
+            _mkt_age_ms = _lag_ms(_mkt_ts or None)
+            _mkt_age_s = int(_mkt_age_ms / 1000) if _mkt_age_ms is not None else None
+            _primary_market_feed = {
+                "symbol": (_mkt_hb.get("live_symbols") or ["BTCUSDT"])[0],
+                "source": _mkt_hb.get("source", "coinapi_rest"),
+                "source_pointer": "v2:market:coinapi:ohlcv:heartbeat",
+                "generated_at": _mkt_ts or now,
+                "last_event_at": _mkt_ts or None,
+                "age_seconds": _mkt_age_s,
+                "freshness_state": (
+                    "MARKET_FEED_CURRENT"
+                    if _mkt_age_s is not None and _mkt_age_s < 600
+                    else "MARKET_FEED_STALE"
+                ),
+            }
+            _primary_trajectory_status, _ = _read_json(
+                "operator_runtime/v2_continuous_edge_guardian/latest/"
+                "one_thousand_x_trajectory_status.json"
+            )
+            if not isinstance(_primary_trajectory_status, dict):
+                _primary_trajectory_status = {
+                    "status": "ONE_THOUSAND_X_TRAJECTORY_STATUS_UNAVAILABLE",
+                    "available": False,
+                }
 
             def _contract(key: str, embedded_key: str, fallback: dict[str, Any]) -> dict[str, Any]:
                 payload = _read(key)
@@ -12987,6 +13033,7 @@ async def get_paper_runtime_status(
                 "positive_edge_probation_runtime_status": probation_runtime,
                 "probation_5_trade_gate": probation_5_gate,
                 "paper_no_bad_entry_runtime_status": paper_no_bad_entry_runtime_status,
+                "market_feed": _primary_market_feed,
                 "paper_loop": {
                     "state": hb.get("cycle_state", "RUNNING_CYCLE"),
                     "tick_id": hb.get("candidate_id", ""),
@@ -13035,6 +13082,23 @@ async def get_paper_runtime_status(
                     ),
                     "a_grade_predicate_counts": a_grade_predicates,
                     "paper_a_grade_gate_burndown_status": a_grade_gate_status,
+                    # Compact projection previously dropped these four runtime
+                    # objects, so the dashboard Trainer Quality/Edge/Reload,
+                    # Churn, Canary and 1000x cards rendered "-"/"Pending"
+                    # despite live data in v2:paper:trade_management:status.
+                    "paper_trainer_model_quality_runtime_status": (
+                        tm.get("paper_trainer_model_quality_runtime_status") or {}
+                    ),
+                    "trainer_model_quality_runtime_status": (
+                        tm.get("paper_trainer_model_quality_runtime_status") or {}
+                    ),
+                    "paper_churn_equity_bleed_governor_status": (
+                        tm.get("paper_churn_equity_bleed_governor_status") or {}
+                    ),
+                    "paper_forward_canary_evidence_status": (
+                        tm.get("paper_forward_canary_evidence_status") or {}
+                    ),
+                    "one_thousand_x_trajectory_runtime_status": _primary_trajectory_status,
                     "preemptive_edge_control_status": preemptive_status,
                     "preemptive_candidate_decision_matrix": preemptive_matrix,
                     "positive_edge_probation": probation_runtime,
