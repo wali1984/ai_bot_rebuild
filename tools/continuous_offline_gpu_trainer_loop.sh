@@ -36,12 +36,17 @@ export V2_LIVE="0"
 INTERVAL="${V2_OFFLINE_LOOP_INTERVAL_SECONDS:-90}"
 EPOCHS="${V2_OFFLINE_EPOCHS:-12}"
 STEPS_PER_EPOCH="${V2_OFFLINE_STEPS_PER_EPOCH:-60}"
-BATCH_SIZE="${V2_OFFLINE_BATCH_SIZE:-8192}"
+BATCH_SIZE="${V2_OFFLINE_BATCH_SIZE:-2048}"
 MIN_EPOCHS="${V2_OFFLINE_MIN_EPOCHS:-6}"
 EARLY_STOP="${V2_OFFLINE_EARLY_STOP:-4}"
-LIMIT="${V2_OFFLINE_LIMIT:-65536}"
-REBUILD_EVERY="${V2_OFFLINE_REBUILD_EVERY:-5}"
+LIMIT="${V2_OFFLINE_LIMIT:-49152}"
+# Rebuild the CPU-heavy example cache only occasionally so we do not starve the
+# real-time online trainer's per-cycle data prep. Matured labels change slowly
+# (4.5h embargo), so a rebuild every ~20 iterations is ample fresh data; between
+# rebuilds we reuse the cache and stay GPU-bound (cheap on CPU).
+REBUILD_EVERY="${V2_OFFLINE_REBUILD_EVERY:-20}"
 REPORT="$REPO/claude_worklog/trainer_atlas/continuous_offline_last_report.json"
+CACHE="${V2_OFFLINE_CACHE_PATH:-$REPO/claude_worklog/trainer_atlas/offline_batch_example_cache.pkl}"
 mkdir -p "$(dirname "$REPORT")"
 
 _running=1
@@ -50,10 +55,11 @@ trap '_running=0' INT TERM
 iter=0
 while [ "$_running" -eq 1 ]; do
   iter=$((iter + 1))
-  # Rebuild the example cache every Nth iteration to ingest newly-matured replay
-  # labels; warm-start / reuse cache otherwise for a tight GPU-busy cadence.
+  # Rebuild only every Nth iteration, AND never force a rebuild on a restart when
+  # a cache already exists (a restart must not trigger a fresh 49k-row scan that
+  # starves the online trainer). If no cache exists the CLI builds one once.
   rebuild=""
-  if [ "$REBUILD_EVERY" -gt 0 ] && [ $((iter % REBUILD_EVERY)) -eq 1 ]; then
+  if [ "$REBUILD_EVERY" -gt 0 ] && [ $((iter % REBUILD_EVERY)) -eq 0 ]; then
     rebuild="--rebuild-cache"
   fi
   echo "[continuous-offline] iter=$iter rebuild=${rebuild:-no} $(date -Is)"

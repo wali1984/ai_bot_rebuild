@@ -270,11 +270,23 @@ def build_payload(
             action["result"] = systemctl("enable", "--now", TRAINER_TIMER)
         actions.append(action)
 
-    if not active(TRAINING_LIVE_LOOP):
+    # The persistent CUDA trainer is the sole online trainer in the current
+    # topology; the legacy training-live-loop is superseded and deliberately
+    # disabled. Only fall back to it when the persistent trainer is NOT active,
+    # otherwise starting it would spawn a second, conflicting online trainer.
+    if not persistent_active_before and not active(TRAINING_LIVE_LOOP):
         action = {"action": "start_service", "unit": TRAINING_LIVE_LOOP, "dry_run": dry_run}
         if not dry_run:
             action["result"] = systemctl("start", TRAINING_LIVE_LOOP)
         actions.append(action)
+    elif persistent_active_before:
+        actions.append(
+            {
+                "action": "skip_start_training_live_loop_persistent_is_owner",
+                "unit": TRAINING_LIVE_LOOP,
+                "persistent_active": True,
+            }
+        )
 
     trainer_payload = read_json(NATIVE_TRAINER_RUNTIME) or read_json(TRAINER_DASHBOARD)
     runtime_truth = read_json(RUNTIME_TRUTH)

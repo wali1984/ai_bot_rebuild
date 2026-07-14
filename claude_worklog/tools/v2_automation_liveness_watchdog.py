@@ -41,11 +41,13 @@ SERVICE_UNITS = [
     "ai-bot-v2-parallel-scheduler.service",
     "ai-bot-v2-codex-watchdog.service",
     "ai-bot-v2-codex-shutdown-readiness-takeover.service",
-    "ai-bot-v2-paper-online-runtime.service",
     "ai-bot-v2-paper-shadow-observation.service",
     "ai-bot-v2-feature-snapshot-builder.service",
     "ai-bot-v2-symbol-universe-publisher.service",
-    "ai-bot-v2-trainer-bridge.service",
+    # Trainer subsystem (self-heal on process death; the durable-learning
+    # deadlock is separately healed by the continuous-training guard).
+    "ai-bot-v2-native-cuda-trainer-persistent.service",
+    "ai-bot-v2-continuous-offline-gpu-trainer.service",
 ]
 TIMER_UNITS = [
     "ai-bot-v2-automation-liveness-watchdog.timer",
@@ -58,11 +60,11 @@ PROCESS_PATTERNS = {
     "parallel_capacity_scheduler": "parallel_capacity_scheduler.py --daemon",
     "codex_non_live_watchdog": "codex_non_live_watchdog.py --daemon",
     "codex_shutdown_readiness_takeover": "codex_legacy_shutdown_readiness_takeover.py",
-    "paper_online_runtime": "paper_online_runtime",
     "paper_shadow_observation": "paper_shadow_observation",
     "feature_snapshot_builder": "v2_feature_snapshot_builder",
     "symbol_universe_publisher": "symbol_universe_public_payload",
-    "trainer_bridge": "-m v2.backend.app.cli.v2_trainer_bridge",
+    "native_cuda_trainer_persistent": "v2_native_cuda_trainer_persistent_loop",
+    "continuous_offline_gpu_trainer": "continuous_offline_gpu_trainer_loop.sh",
     "claude_worker": "claude --print",
 }
 
