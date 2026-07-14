@@ -286,6 +286,91 @@ def _cross_asset_source(redis_client: Any) -> dict[str, Any]:
         out["event_time"] = now_iso
     return out
 
+def derive_orderbook_squeeze_inputs(payload: Any, depth_levels: int = 20) -> dict[str, Any] | None:
+    """depth_imbalance + spread_bps from a RAW depth snapshot (bids/asks arrays).
+
+    The squeeze detector expects derived metrics, but v2:market:orderbook:{sym}
+    stores the raw Binance book — every cycle the detector got None for both
+    fields, leaving it a one-input (sweep-score-only) detector with permanently
+    'unclear' direction, so entry_block/hedge/ride-alignment could never fire.
+    """
+    if not isinstance(payload, Mapping):
+        return None
+    bids, asks = payload.get("bids"), payload.get("asks")
+    if not isinstance(bids, list) or not isinstance(asks, list) or not bids or not asks:
+        return None
+
+    def _qty_sum(levels: list[Any]) -> float:
+        total = 0.0
+        for level in levels[:depth_levels]:
+            try:
+                total += float(level[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+        return total
+
+    try:
+        best_bid, best_ask = float(bids[0][0]), float(asks[0][0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    if best_bid <= 0 or best_ask <= 0 or best_ask < best_bid:
+        return None
+    bid_qty, ask_qty = _qty_sum(bids), _qty_sum(asks)
+    total_qty = bid_qty + ask_qty
+    mid = (best_bid + best_ask) / 2.0
+    return {
+        "depth_imbalance": ((bid_qty - ask_qty) / total_qty) if total_qty > 0 else None,
+        "spread_bps": (best_ask - best_bid) / mid * 10000.0,
+        "depth_levels_used": depth_levels,
+        "derived_from": "v2_market_orderbook_raw_depth",
+    }
+
+
+def derive_tape_imbalance(payload: Any) -> dict[str, Any] | None:
+    """Signed taker (aggressor) imbalance from raw aggTrade rows.
+
+    Binance m=True means the BUYER was the maker (aggressive sell); m=False is
+    an aggressive buy. Notional-weighted so one whale print outweighs dust.
+    """
+    trades = payload.get("trades") if isinstance(payload, Mapping) else None
+    if not isinstance(trades, list) or not trades:
+        return None
+    buy_notional = sell_notional = 0.0
+    for trade in trades:
+        try:
+            notional = float(trade["p"]) * float(trade["q"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if trade.get("m") is True:
+            sell_notional += notional
+        else:
+            buy_notional += notional
+    total = buy_notional + sell_notional
+    if total <= 0:
+        return None
+    return {
+        "tape_imbalance": (buy_notional - sell_notional) / total,
+        "tape_trade_count": len(trades),
+        "derived_from": "v2_market_agg_trades_raw_tape",
+    }
+
+
+def derive_mark_index_divergence(payload: Any) -> dict[str, Any] | None:
+    """mark/index divergence in bps from the raw premiumIndex payload."""
+    if not isinstance(payload, Mapping):
+        return None
+    try:
+        mark, index = float(payload.get("markPrice")), float(payload.get("indexPrice"))
+    except (TypeError, ValueError):
+        return None
+    if index <= 0:
+        return None
+    return {
+        "mark_index_divergence_bps": (mark - index) / index * 10000.0,
+        "derived_from": "v2_market_funding_premium_index",
+    }
+
+
 def _source_payloads(redis_client: Any, symbol: str, timeframe: str) -> dict[str, dict[str, Any] | None]:
     symbol = symbol.upper()
     timeframe = timeframe.lower()
@@ -450,12 +535,21 @@ def publish_once(
                 symbol=symbol,
                 timeframe=timeframe,
                 context={
-                    "orderbook": _safe_get_json(redis_client, f"v2:market:orderbook:{symbol}"),
-                    "microstructure": _safe_get_json(redis_client, f"v2:market:microstructure:{symbol}"),
+                    # Raw book/tape/premium payloads carry no derived metrics;
+                    # derive them here so the detector sees real multi-input
+                    # signals with direction votes (was sweep-score-only).
+                    "orderbook": derive_orderbook_squeeze_inputs(
+                        _safe_get_json(redis_client, f"v2:market:orderbook:{symbol}")
+                    ),
+                    "microstructure": derive_tape_imbalance(
+                        _safe_get_json(redis_client, f"v2:market:agg_trades:{symbol}")
+                    ),
                     "confluence": _safe_get_json(redis_client, f"v2:altdata:confluence:{symbol}:{timeframe}"),
                     "moralis": _safe_get_json(redis_client, f"v2:features:moralis:{symbol}:{timeframe}"),
                     "coinglass": _safe_get_json(redis_client, f"v2:altdata:coinank:funding:{symbol}"),
-                    "mark_index": _safe_get_json(redis_client, f"v2:market:funding:{symbol}"),
+                    "mark_index": derive_mark_index_divergence(
+                        _safe_get_json(redis_client, f"v2:market:funding:{symbol}")
+                    ),
                 },
                 generated_utc=context.get("generated_at") or context.get("generated_utc") or "",
             )
