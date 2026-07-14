@@ -279,3 +279,35 @@ def test_infer_input_dim_skips_manifests_without_dim(tmp_path) -> None:
     now = retention.stat().st_mtime
     _os.utime(manifest, (now - 60, now - 60))  # retention manifest is newest
     assert h2l._infer_input_dim(str(tmp_path)) == 1908
+
+
+def test_heldout_proportional_split_when_supply_below_offset(monkeypatch) -> None:
+    """Regression: 12,198 fresh-tail examples < the 16,000 training-prefix
+    offset left an EMPTY heldout, so both H2L sides scored None and every run
+    aborted with NO_VALIDATION_SIGNAL. Short supply must fall back to a
+    proportional (still disjoint, suffix-newest) split."""
+    rows = [SimpleNamespace(idx=i) for i in range(1000)]
+    monkeypatch.setattr(
+        h2l, "load_or_build_examples", lambda **kw: (rows, {"cache_hit": True})
+    )
+    heldout, prefix, meta = h2l.load_h2l_heldout_examples(
+        symbols=["BTCUSDT"], timeframes=["1m"], limit=5000,
+        heldout_offset=16000, cache_path=None, rebuild_cache=False,
+    )
+    assert len(prefix) == 760 and len(heldout) == 240
+    assert meta["h2l_proportional_split_fallback"]["supply"] == 1000
+    # disjoint and ordered: heldout is the NEWEST suffix
+    assert prefix[-1].idx == 759 and heldout[0].idx == 760 and heldout[-1].idx == 999
+
+
+def test_heldout_normal_split_unchanged_when_supply_sufficient(monkeypatch) -> None:
+    rows = [SimpleNamespace(idx=i) for i in range(21000)]
+    monkeypatch.setattr(
+        h2l, "load_or_build_examples", lambda **kw: (rows, {"cache_hit": True})
+    )
+    heldout, prefix, meta = h2l.load_h2l_heldout_examples(
+        symbols=["BTCUSDT"], timeframes=["1m"], limit=5000,
+        heldout_offset=16000, cache_path=None, rebuild_cache=False,
+    )
+    assert len(prefix) == 16000 and len(heldout) == 5000
+    assert "h2l_proportional_split_fallback" not in meta

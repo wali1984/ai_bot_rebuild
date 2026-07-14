@@ -99,6 +99,20 @@ def load_h2l_heldout_examples(
             rebuild_cache=True,
         )
         meta["rebuilt_cache_reason"] = "cached_rows_shorter_than_h2l_heldout_offset"
+    if len(examples) <= offset and examples:
+        # Supply shorter than the requested training prefix (fresh tail windows
+        # legitimately yield fewer labelable rows than train_rows). The fixed
+        # offset would leave an EMPTY heldout, scoring both sides at None and
+        # aborting every run with NO_VALIDATION_SIGNAL. Fall back to a
+        # proportional split: newest ~24% (time-ordered suffix) becomes the
+        # out-of-sample heldout; the prefix stays the training set. Disjointness
+        # is preserved — only the boundary moves.
+        offset = max(1, int(len(examples) * 0.76))
+        meta["h2l_proportional_split_fallback"] = {
+            "supply": len(examples),
+            "requested_offset": max(0, int(heldout_offset)),
+            "effective_offset": offset,
+        }
     heldout_rows = examples[offset : offset + max(0, int(limit))]
     excluded_rows = examples[:offset]
     meta.update(

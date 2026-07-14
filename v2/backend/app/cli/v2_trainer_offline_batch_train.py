@@ -155,7 +155,7 @@ def build_independent_archive_view(real_root: Path, view_root: Path) -> Path:
 def seed_offline_view_cursor_near_tail(
     view_root: Path,
     *,
-    hours_back: float = 12.0,
+    hours_back: float = float(os.getenv("V2_OFFLINE_SEED_HOURS_BACK", "16") or 16.0),
 ) -> dict[str, Any]:
     """Seed the offline view's replay cursor ~hours_back before the manifest tail.
 
