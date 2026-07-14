@@ -54,7 +54,12 @@ GOAL_STATE_DIR = REPO_ROOT / "goal_state" / GOAL_ID
 OPERATOR_RUNTIME_DIR = REPO_ROOT / "v2/frontend/public/operator_runtime/v2_a_plus_context/latest"
 V2_REDIS_PREFIX = "v2:"
 REDIS_TTL_SECONDS = 900
-REGIME_TIMEFRAMES = ("15m", "1h", "4h")
+# 2026-07-14: extended to the fast timeframes the trainer actually trades.
+# The regime math reads closed candles per TF (TF-agnostic); leaving 1m/5m out
+# meant HALF the traded grid had no regime gate -- regime one-hot features
+# missing on every 1m/5m candidate and no regime-aware gating on the most
+# active lanes.
+REGIME_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 
 REQUIRED_HTF_FEATURE_FIELDS = (
     "htf_4h_ema50_delta_pct",
