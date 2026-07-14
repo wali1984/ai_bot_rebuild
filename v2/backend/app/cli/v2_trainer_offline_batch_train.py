@@ -284,9 +284,25 @@ def load_or_build_examples(
     from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (  # noqa: PLC0415
         default_archive_root,
     )
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (  # noqa: PLC0415
+        data_loader as _data_loader_module,
+    )
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (  # noqa: PLC0415
         V2HybridTrainerDataLoader,
     )
+
+    # OFFLINE-PROCESS-ONLY scan widening. Labels need +4h future candles from
+    # the row's OWN (symbol, timeframe) series. Redis closed-candle retention
+    # is far too short for tail-seeded rows (1m series spans ~3h; several
+    # majors' series are nil), so labels must come from IN-CHUNK archive
+    # candles — and at ~13k snapshots/hour the live cap (16,384/chunk ≈ 75min)
+    # can never span the 4h label horizon. One wide chunk (~100k rows ≈ 7.5h)
+    # lets later archive rows label earlier ones, symbol gaps included. The
+    # subprocess boundary keeps the resident trainer's caps untouched.
+    _offline_scan_cap = int(os.getenv("V2_OFFLINE_REPLAY_MAX_SCAN", "100000"))
+    _data_loader_module.TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE = _offline_scan_cap
+    _data_loader_module.TRUSTED_REPLAY_MIN_SCAN_PER_CYCLE = _offline_scan_cap
+    meta["offline_replay_scan_cap"] = _offline_scan_cap
 
     real_root = default_archive_root()
     view_root = Path(tempfile.mkdtemp(prefix="v2_offline_archive_view_"))
