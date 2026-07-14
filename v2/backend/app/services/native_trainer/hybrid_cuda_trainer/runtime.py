@@ -154,6 +154,15 @@ def _finite_float(value: Any) -> float | None:
 # not depend on Redis. It backs the rejection-streak escape that guarantees durable
 # learning can never be permanently frozen by the validation guard.
 _PROMOTION_REJECTION_STREAK: dict[str, int] = {"count": 0}
+# Divergence == validation loss actually REGRESSED. A diverging candidate must
+# NEVER be force-persisted: doing so would ratchet the deployed checkpoint worse
+# every escape. This set is the only reason the streak escape can never release.
+_DIVERGENCE_REJECTION_REASONS = frozenset({"VALIDATION_LOSS_REGRESSED"})
+# Reasons surfaced as "hard" for status/telemetry back-compat. TRAIN_VAL_OVERFIT_GAP
+# stays labelled hard (it blocks a normal cycle) but, unlike divergence, it is a
+# stable-but-wide-gap signal, so the streak escape is allowed to release it after a
+# prolonged deadlock (see _apply_promotion_rejection_streak_escape) -- the guarantee
+# that durable learning can never be permanently frozen.
 _HARD_PROMOTION_REJECTION_REASONS = frozenset(
     {"VALIDATION_LOSS_REGRESSED", "TRAIN_VAL_OVERFIT_GAP"}
 )
@@ -282,22 +291,50 @@ def _apply_promotion_rejection_streak_escape(
     prior_reject_streak: int,
     max_promotion_reject_streak: int,
 ) -> dict[str, Any]:
-    """Apply the rejection-streak escape without overriding hard validation failures."""
+    """Release a prolonged rejection streak without ever persisting a diverging model.
+
+    Precedence at the streak threshold:
+      1. Divergence (VALIDATION_LOSS_REGRESSED): never released -- stays blocked.
+      2. TRAIN_VAL_OVERFIT_GAP (stable, not diverging): released by default so
+         durable learning is never permanently frozen (env-gated, default on).
+      3. Other soft failures: released only when the operator opts in via
+         V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK.
+    """
     checkpoint_promotion["prior_promotion_rejection_streak"] = int(prior_reject_streak)
     checkpoint_promotion["max_promotion_rejection_streak"] = int(max_promotion_reject_streak)
     reason = str(checkpoint_promotion.get("checkpoint_promotion_reason") or "")
+    is_divergence = reason in _DIVERGENCE_REJECTION_REASONS
     checkpoint_promotion["hard_promotion_rejection_reason"] = (
         reason in _HARD_PROMOTION_REJECTION_REASONS
     )
+    checkpoint_promotion["divergence_rejection_reason"] = is_divergence
     force_enabled = _bool_env("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", False)
-    checkpoint_promotion["force_promote_after_rejection_streak_enabled"] = bool(
-        force_enabled
+    overfit_gap_releasable = reason == "TRAIN_VAL_OVERFIT_GAP" and _bool_env(
+        "V2_TRAINER_STREAK_ESCAPE_RELEASES_OVERFIT_GAP", True
     )
+    checkpoint_promotion["force_promote_after_rejection_streak_enabled"] = bool(force_enabled)
+    checkpoint_promotion["streak_escape_releases_overfit_gap"] = bool(overfit_gap_releasable)
     if (
         checkpoint_promotion.get("checkpoint_promotion_rejected")
         and prior_reject_streak + 1 >= max_promotion_reject_streak
     ):
-        if force_enabled and not checkpoint_promotion["hard_promotion_rejection_reason"]:
+        if is_divergence:
+            checkpoint_promotion["forced_promote_after_rejection_streak_blocked"] = (
+                prior_reject_streak + 1
+            )
+            checkpoint_promotion["forced_promote_block_reason"] = (
+                "DIVERGENCE_VALIDATION_REJECTION"
+            )
+        elif overfit_gap_releasable:
+            checkpoint_promotion.update(
+                {
+                    "checkpoint_promotion_allowed": True,
+                    "checkpoint_promotion_rejected": False,
+                    "checkpoint_promotion_reason": "ANTI_DEADLOCK_PROMOTE_STABLE_OVERFIT_GAP",
+                    "forced_promote_after_rejection_streak": prior_reject_streak + 1,
+                }
+            )
+        elif force_enabled and not checkpoint_promotion["hard_promotion_rejection_reason"]:
             checkpoint_promotion.update(
                 {
                     "checkpoint_promotion_allowed": True,

@@ -2953,7 +2953,13 @@ def adaptive_gpu_saturation_decision(
         classification = "OOM_BACKOFF"
         multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
         oom_events += 1
-    elif checkpoint_promotion_rejected or validation_regressed or overfit_gap_warning:
+    elif checkpoint_promotion_rejected or validation_regressed:
+        # Back off GPU intensity only on a GENUINE promotion rejection or a real
+        # validation regression. The advisory overfit_gap_warning must NOT halve
+        # steps on its own: when it fired every cycle (miscalibrated absolute
+        # threshold) it pinned steps_multiplier at MIN forever, starving the RTX
+        # (gpu_time_share ~0.4, ~160 steps/hr) and blocking the CPU-prep-bottleneck
+        # epoch-raise below. It is retained in telemetry, not as a backoff trigger.
         classification = "VALIDATION_CHECKPOINT_BACKOFF"
         multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
     elif accepted_rows < RESIDENT_DATA_STARVED_ROW_FLOOR:

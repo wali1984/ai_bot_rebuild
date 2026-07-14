@@ -246,10 +246,65 @@ def test_checkpoint_promotion_strict_overfit_still_rejects_even_on_improvement(
     assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
 
 
-def test_rejection_streak_escape_does_not_force_hard_validation_failure(
+def test_rejection_streak_escape_never_forces_a_diverging_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    # A DIVERGING model (validation loss actually regressed) must never be
+    # force-persisted, no matter how long the streak. This is the only truly
+    # unreleasable rejection reason.
     monkeypatch.delenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", raising=False)
+
+    decision = _apply_promotion_rejection_streak_escape(
+        {
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "VALIDATION_LOSS_REGRESSED",
+        },
+        prior_reject_streak=49,
+        max_promotion_reject_streak=50,
+    )
+
+    assert decision["checkpoint_promotion_allowed"] is False
+    assert decision["checkpoint_promotion_rejected"] is True
+    assert decision["divergence_rejection_reason"] is True
+    assert decision["forced_promote_after_rejection_streak_blocked"] == 50
+    assert decision["forced_promote_block_reason"] == "DIVERGENCE_VALIDATION_REJECTION"
+
+
+def test_rejection_streak_escape_releases_stable_overfit_gap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Anti-deadlock guarantee: a stable-but-wide-gap model (TRAIN_VAL_OVERFIT_GAP,
+    # NOT diverging) is released after a prolonged rejection streak so durable
+    # learning can never be permanently frozen (effective_trainer_mode stuck at
+    # INFERENCE_ONLY). Default on; no operator opt-in required.
+    monkeypatch.delenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", raising=False)
+    monkeypatch.delenv("V2_TRAINER_STREAK_ESCAPE_RELEASES_OVERFIT_GAP", raising=False)
+
+    decision = _apply_promotion_rejection_streak_escape(
+        {
+            "checkpoint_promotion_allowed": False,
+            "checkpoint_promotion_rejected": True,
+            "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+        },
+        prior_reject_streak=49,
+        max_promotion_reject_streak=50,
+    )
+
+    assert decision["checkpoint_promotion_allowed"] is True
+    assert decision["checkpoint_promotion_rejected"] is False
+    assert decision["divergence_rejection_reason"] is False
+    assert decision["streak_escape_releases_overfit_gap"] is True
+    assert decision["checkpoint_promotion_reason"] == "ANTI_DEADLOCK_PROMOTE_STABLE_OVERFIT_GAP"
+    assert decision["forced_promote_after_rejection_streak"] == 50
+
+
+def test_rejection_streak_escape_overfit_release_can_be_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Operators can restore the strict deadlock behavior if they want it.
+    monkeypatch.delenv("V2_TRAINER_FORCE_PROMOTE_AFTER_REJECTION_STREAK", raising=False)
+    monkeypatch.setenv("V2_TRAINER_STREAK_ESCAPE_RELEASES_OVERFIT_GAP", "0")
 
     decision = _apply_promotion_rejection_streak_escape(
         {
@@ -262,10 +317,7 @@ def test_rejection_streak_escape_does_not_force_hard_validation_failure(
     )
 
     assert decision["checkpoint_promotion_allowed"] is False
-    assert decision["checkpoint_promotion_rejected"] is True
-    assert decision["hard_promotion_rejection_reason"] is True
-    assert decision["force_promote_after_rejection_streak_enabled"] is False
-    assert decision["forced_promote_after_rejection_streak_blocked"] == 50
+    assert decision["streak_escape_releases_overfit_gap"] is False
     assert decision["forced_promote_block_reason"] == "HARD_VALIDATION_REJECTION"
 
 

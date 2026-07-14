@@ -43,6 +43,37 @@ def _finite_float_or_none(value: Any) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
+def _env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        parsed = float(raw)
+    except (TypeError, ValueError):
+        return default
+    return parsed if math.isfinite(parsed) else default
+
+
+def overfit_gap_threshold(train_loss: float) -> float:
+    """Overfit-warning threshold, scaled to the supervised-loss magnitude.
+
+    A purely ABSOLUTE 0.5 gap is miscalibrated at the real supervised-loss
+    scale (~5-10): validation naturally sits >0.5 above train every cycle, so
+    the warning fired on essentially every cycle even when the model
+    generalized fine. That false positive hard-rejected every checkpoint
+    (TRAIN_VAL_OVERFIT_GAP), so durable online learning never landed
+    (effective_trainer_mode=INFERENCE_ONLY) and the GPU-saturation controller
+    stayed pinned in VALIDATION_CHECKPOINT_BACKOFF. The threshold is now
+    max(absolute floor, relative fraction of |train_loss|) -- mirroring the
+    relative promotion tolerance already used by the checkpoint guard -- so a
+    genuinely growing generalization gap still trips it. Both terms env-tunable.
+    """
+    abs_floor = max(0.0, _env_float("V2_TRAINER_OVERFIT_GAP_ABS_FLOOR", 0.5))
+    rel_frac = max(0.0, _env_float("V2_TRAINER_OVERFIT_GAP_REL_FRAC", 0.35))
+    scale = abs(train_loss) if (train_loss is not None and math.isfinite(train_loss)) else 0.0
+    return max(abs_floor, rel_frac * scale)
+
+
 def _bounded_env_float(
     primary_name: str,
     fallback_name: str | None,
@@ -1659,8 +1690,10 @@ class V2HybridPPOTrainer:
             validation_metrics["validation_improved"] = bool(_delta <= 0.0)
         if _val_loss_value is not None and math.isfinite(_train_loss_final):
             _gap = _val_loss_value - _train_loss_final
+            _gap_threshold = overfit_gap_threshold(_train_loss_final)
             validation_metrics["train_val_generalization_gap"] = round(_gap, 6)
-            validation_metrics["overfit_gap_warning"] = bool(_gap > 0.5)
+            validation_metrics["overfit_gap_threshold"] = round(_gap_threshold, 6)
+            validation_metrics["overfit_gap_warning"] = bool(_gap > _gap_threshold)
         elapsed_seconds = max(1e-6, time.perf_counter() - started)
         parameter_vector_after = self._parameter_vector()
         parameter_hash_after = self._parameter_hash_from_vector(parameter_vector_after)

@@ -17,6 +17,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
     ENV_PPO_ENTROPY_COEFFICIENT_MAX,
     ENV_PPO_LEARNING_RATE_MAX,
     V2HybridPPOTrainer,
+    overfit_gap_threshold,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
@@ -222,6 +223,30 @@ def test_validation_split_is_evaluated_out_of_sample() -> None:
     assert isinstance(result.metrics["validation_supervised_loss_before"], float)
     assert isinstance(result.metrics["validation_loss_delta"], float)
     assert isinstance(result.metrics["validation_improved"], bool)
+
+
+def test_overfit_gap_threshold_scales_with_loss_magnitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("V2_TRAINER_OVERFIT_GAP_ABS_FLOOR", raising=False)
+    monkeypatch.delenv("V2_TRAINER_OVERFIT_GAP_REL_FRAC", raising=False)
+
+    # At the real supervised-loss scale (~6-10) the threshold is the relative
+    # term (0.35 * train_loss), so a natural ~1-2 gap no longer trips overfit.
+    assert overfit_gap_threshold(6.0) == pytest.approx(2.1)
+    assert overfit_gap_threshold(10.0) == pytest.approx(3.5)
+    # Small losses fall back to the absolute floor (0.5) -- never below it.
+    assert overfit_gap_threshold(0.5) == pytest.approx(0.5)
+    assert overfit_gap_threshold(0.0) == pytest.approx(0.5)
+    # Magnitude only (a negative loss cannot lower the threshold).
+    assert overfit_gap_threshold(-8.0) == pytest.approx(2.8)
+
+
+def test_overfit_gap_threshold_env_tunable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("V2_TRAINER_OVERFIT_GAP_ABS_FLOOR", "1.0")
+    monkeypatch.setenv("V2_TRAINER_OVERFIT_GAP_REL_FRAC", "0.5")
+    assert overfit_gap_threshold(6.0) == pytest.approx(3.0)
+    assert overfit_gap_threshold(1.0) == pytest.approx(1.0)  # abs floor wins
 
 
 def test_generalization_gap_and_knobs_reported_in_metrics() -> None:
