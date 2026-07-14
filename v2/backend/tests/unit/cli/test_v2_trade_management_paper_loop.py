@@ -16595,3 +16595,47 @@ def test_probation_supervisor_freeze_keeps_bootstrap_exploration_alive() -> None
     assert _paper_risk_controller_exploration_can_override_entry_freeze(
         intent=intent, paper_entry_freeze=generic_freeze
     ) is False
+
+
+def test_session_performance_sizing_factor_adapts_both_directions() -> None:
+    # Operator-directed: sizing must adapt to realized live performance.
+    from app.cli import v2_trade_management_paper_loop as loop
+
+    def _rows(n, pnl_usd, notional=100.0):
+        return [
+            {"realized_net_pnl_usd": pnl_usd, "gross_notional_usd": notional}
+            for _ in range(n)
+        ]
+
+    # Below the minimum sample: neutral 1.0 regardless of results.
+    loop._set_session_performance_sizing_evidence(_rows(3, 5.0))
+    f = loop._session_performance_sizing_factor()
+    assert f["session_performance_sizing_factor"] == 1.0
+    assert "INSUFFICIENT_EVIDENCE" in f["session_performance_sizing_reason"]
+
+    # Strong positive evidence (all wins) boosts, capped at 2.0.
+    loop._set_session_performance_sizing_evidence(_rows(20, 5.0))
+    f = loop._session_performance_sizing_factor()
+    assert 1.0 < f["session_performance_sizing_factor"] <= 2.0
+
+    # Deteriorating evidence (all losses) shrinks, floored at 0.5.
+    loop._set_session_performance_sizing_evidence(_rows(20, -5.0))
+    f = loop._session_performance_sizing_factor()
+    assert 0.5 <= f["session_performance_sizing_factor"] < 1.0
+
+    # Factor flows into the lane budget fraction, hard-capped at 1.0 of normal.
+    loop._set_session_performance_sizing_evidence(_rows(20, 5.0))
+    budget = loop._b_grade_exploration_budget_fraction(
+        confidence_calibrated=0.74,
+        drawdown_bps=0.0,
+        expected_move_after_cost_bps=20.0,
+        observed_spread_bps=2.0,
+        expected_slippage_bps=2.0,
+        fee_bps=4.0,
+        depth_utilization_pct=10.0,
+        long_short_ratio_status="V2_LONG_SHORT_RATIO_ATTACHED",
+    )
+    assert budget["session_performance_sizing_factor"] > 1.0
+    assert 0.0 < budget["risk_budget_fraction_of_normal_adaptive"] <= 1.0
+    # Reset to neutral for other tests.
+    loop._set_session_performance_sizing_evidence([])

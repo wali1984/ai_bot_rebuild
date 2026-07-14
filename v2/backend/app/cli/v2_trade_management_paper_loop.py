@@ -15979,20 +15979,26 @@ def _b_grade_exploration_budget_fraction(
         1.0,
     )
     drawdown_factor = 1.0 - drawdown_pressure
-    fraction = (
+    performance = _session_performance_sizing_factor()
+    performance_factor = float(performance["session_performance_sizing_factor"])
+    fraction = min(
+        1.0,  # never exceed the normal adaptive budget regardless of evidence
         B_GRADE_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL
         * uncertainty_factor
         * drawdown_factor
+        * performance_factor,
     )
     return {
         **floor,
+        **performance,
         "risk_budget_fraction_of_normal_adaptive": round(max(0.0, fraction), 8),
         "b_grade_exploration_uncertainty_factor": round(uncertainty_factor, 8),
         "b_grade_exploration_drawdown_factor": round(drawdown_factor, 8),
         "b_grade_exploration_confidence_floor_pass": True,
         "b_grade_exploration_budget_formula": (
-            "max_fraction_of_normal_adaptive"
+            "min(1.0, max_fraction_of_normal_adaptive"
             "*confidence_uncertainty_factor*drawdown_guard_factor"
+            "*session_performance_sizing_factor)"
         ),
     }
 
@@ -23916,6 +23922,76 @@ def _strategy_router_regime_context(strategy_router: dict[str, Any]) -> dict[str
 # closed rows the same way.
 _SYMBOL_TF_CLOSED_EVIDENCE_COUNTS: dict[tuple[str, str], int] = {}
 
+# Operator-directed 2026-07-14: sizing must ADAPT to realized performance from
+# live data, not sit on static bootstrap anchors. Per-cycle session evidence
+# (closed count, profit factor, notional-weighted expectancy) feeds a bounded
+# multiplier on the exploration/probation risk-budget fraction: strong realized
+# evidence scales size up (cap 2x), deteriorating evidence scales it down
+# (floor 0.5x), and below the minimum sample the factor is neutral (1.0).
+# The survival envelope (max_loss_per_trade_pct, leverage ladder, liquidation
+# buffer, drawdown fade-to-zero) is UNCHANGED and still bounds every trade.
+_SESSION_PERFORMANCE_SIZING_EVIDENCE: dict[str, Any] = {
+    "closed_count": 0,
+    "profit_factor": None,
+    "notional_weighted_expectancy_bps": None,
+}
+SESSION_PERFORMANCE_SIZING_MIN_CLOSES = 6
+SESSION_PERFORMANCE_SIZING_FACTOR_MAX = 2.0
+SESSION_PERFORMANCE_SIZING_FACTOR_MIN = 0.5
+
+
+def _set_session_performance_sizing_evidence(closed_rows: list[dict[str, Any]]) -> None:
+    rows = [r for r in (closed_rows or []) if isinstance(r, dict)]
+    net = [
+        _coerce_float(r.get("realized_net_pnl_usd")) or _coerce_float(r.get("realized_pnl_usd")) or 0.0
+        for r in rows
+    ]
+    notion = [_coerce_float(r.get("gross_notional_usd")) or 0.0 for r in rows]
+    wins = sum(v for v in net if v > 0)
+    losses = abs(sum(v for v in net if v < 0))
+    pf = (wins / losses) if losses > 0 else (None if wins <= 0 else 10.0)
+    wexp = (sum(net) / sum(notion) * 10000.0) if sum(notion) > 0 else None
+    _SESSION_PERFORMANCE_SIZING_EVIDENCE.update(
+        {
+            "closed_count": len(rows),
+            "profit_factor": pf,
+            "notional_weighted_expectancy_bps": wexp,
+        }
+    )
+
+
+def _session_performance_sizing_factor() -> dict[str, Any]:
+    ev = _SESSION_PERFORMANCE_SIZING_EVIDENCE
+    closed = int(ev.get("closed_count") or 0)
+    pf = _coerce_float(ev.get("profit_factor"))
+    wexp = _coerce_float(ev.get("notional_weighted_expectancy_bps"))
+    if closed < SESSION_PERFORMANCE_SIZING_MIN_CLOSES or pf is None:
+        return {
+            "session_performance_sizing_factor": 1.0,
+            "session_performance_sizing_reason": (
+                f"NEUTRAL_INSUFFICIENT_EVIDENCE_{closed}_OF_{SESSION_PERFORMANCE_SIZING_MIN_CLOSES}"
+            ),
+            "session_performance_closed_count": closed,
+            "session_performance_profit_factor": pf,
+            "session_performance_wexp_bps": wexp,
+        }
+    pf_term = _clamp_float(pf - 1.0, -0.5, 1.0)
+    wexp_term = _clamp_float((wexp or 0.0) / 50.0, -0.5, 1.0)
+    evidence_scale = _clamp_float(closed / 20.0, 0.3, 1.0)
+    factor = _clamp_float(
+        1.0 + evidence_scale * (0.5 * pf_term + 0.5 * wexp_term),
+        SESSION_PERFORMANCE_SIZING_FACTOR_MIN,
+        SESSION_PERFORMANCE_SIZING_FACTOR_MAX,
+    )
+    return {
+        "session_performance_sizing_factor": round(factor, 8),
+        "session_performance_sizing_reason": "REALIZED_EVIDENCE_SCALED",
+        "session_performance_closed_count": closed,
+        "session_performance_profit_factor": round(pf, 6),
+        "session_performance_wexp_bps": round(wexp, 4) if wexp is not None else None,
+    }
+
+
 
 def _set_symbol_tf_closed_evidence_counts(closed_rows: list[dict[str, Any]]) -> None:
     counts: dict[tuple[str, str], int] = {}
@@ -27617,6 +27693,7 @@ def run_once() -> dict:
     )
     existing_ledger = _read_existing_ledger_payload(r)
     _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
+    _set_session_performance_sizing_evidence(_closed_trade_rows(existing_ledger))
     existing_accepted = _read_existing_accepted_fills(r)
     existing_closed_rows = _closed_trade_rows(existing_ledger)
     pre_cycle_churn_equity_bleed_governor_status = (
