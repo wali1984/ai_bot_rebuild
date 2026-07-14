@@ -13,6 +13,7 @@ the auth router behavior in milestone D proper.
 """
 
 from app.api.middleware.approval import ApprovalMiddleware
+from app.api.middleware.cors import CORSMiddleware
 from app.api.middleware.db_error_translator import DbErrorTranslatorMiddleware
 from app.api.middleware.idempotency import IdempotencyMiddleware
 from app.api.middleware.ip_allowlist import IpAllowlistMiddleware
@@ -24,6 +25,7 @@ from app.api.middleware.request_id import RequestIdMiddleware
 from app.api.middleware.step_up_mfa import StepUpMfaMiddleware
 
 MIDDLEWARE_ORDER: tuple[type, ...] = (
+    CORSMiddleware,
     RequestIdMiddleware,
     IpAllowlistMiddleware,
     RateLimitMiddleware,
@@ -38,6 +40,7 @@ MIDDLEWARE_ORDER: tuple[type, ...] = (
 
 __all__ = [
     "ApprovalMiddleware",
+    "CORSMiddleware",
     "DbErrorTranslatorMiddleware",
     "IdempotencyMiddleware",
     "IpAllowlistMiddleware",

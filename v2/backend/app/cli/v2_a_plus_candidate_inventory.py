@@ -168,6 +168,67 @@ def _explicit_false(value: Any) -> bool:
     return str(value).strip().lower() in {"0", "false", "no", "n", "off"}
 
 
+_CONTRADICTED_MICROSTRUCTURE_TRUST_REASONS = {
+    "MICROSTRUCTURE_TRUST_MISSING",
+    "MICROSTRUCTURE_TRUST_LOW",
+    "MICROSTRUCTURE_TRUST_FAIL_CLOSED",
+    "HIGH_CONFIDENCE_WITHOUT_MICROSTRUCTURE_TRUST_EVIDENCE",
+    "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST",
+}
+
+
+def _normalized_score(value: Any) -> float | None:
+    score = _float(value)
+    if score is None:
+        return None
+    return score / 100.0 if score > 1.0 else score
+
+
+def _drop_contradicted_microstructure_trust_reasons(
+    reasons: list[str],
+    *,
+    microstructure_trust_score: Any,
+    composite_microstructure_trust_score: Any,
+    microstructure_trust_state: Any,
+    microstructure_trust_status: Any = None,
+) -> list[str]:
+    state = str(microstructure_trust_state or "").strip().upper()
+    status = str(microstructure_trust_status or "").strip().upper()
+    if state in {"UNSAFE", "FAIL_CLOSED"} or any(
+        token in status for token in ("REJECTED", "AFTER_DECISION", "STALE")
+    ):
+        return reasons
+    trust_score = _first_present(
+        _normalized_score(composite_microstructure_trust_score),
+        _normalized_score(microstructure_trust_score),
+    )
+    if trust_score is None or trust_score < 0.65:
+        return reasons
+    return [
+        reason
+        for reason in reasons
+        if str(reason).upper() not in _CONTRADICTED_MICROSTRUCTURE_TRUST_REASONS
+    ]
+
+
+def _inventory_final_state(
+    *,
+    a_plus_candidate_count: int,
+    live_ready_candidate_count: int,
+    hard_fail: bool,
+    primary_blocker: Any,
+) -> str:
+    if live_ready_candidate_count > 0:
+        return "A_PLUS_CANDIDATE_PRESENT_LIVE_BLOCKED_HUMAN_ONLY"
+    if a_plus_candidate_count > 0:
+        return "A_PLUS_PAPER_CANDIDATE_PRESENT_LIVE_BLOCKED_HUMAN_ONLY"
+    if hard_fail:
+        return "A_PLUS_INVENTORY_HARD_FAIL_LIVE_BLOCKED"
+    if primary_blocker:
+        return "A_PLUS_BLOCKERS_ACTIVE_LIVE_BLOCKED"
+    return "NO_CURRENT_A_PLUS_CANDIDATE_LIVE_BLOCKED"
+
+
 def _canonical_materialization_no_fill_reason(reason: Any) -> str | None:
     mapping = {
         "ALL_CURRENT_ROWS_MARKET_INTEGRITY_BLOCKED": "ALL_ROWS_MARKET_INTEGRITY_BLOCKED",
@@ -1732,6 +1793,20 @@ def _with_selected_side_diagnostic_usd(
     return enriched
 
 
+def _preemptive_cost_edge_bps_for_side(
+    *,
+    side: str,
+    signed_move_bps: float | None,
+) -> float | None:
+    """Translate signed paper-entry moves into side-agnostic preemptive edge."""
+
+    if signed_move_bps is None:
+        return None
+    if side == "short":
+        return abs(signed_move_bps) if signed_move_bps < 0.0 else -abs(signed_move_bps)
+    return signed_move_bps
+
+
 def _reason_tokens(upper: str) -> set[str]:
     normalized = upper.replace("-", "_").replace(":", "_").replace("/", "_")
     return {part for part in normalized.split("_") if part}
@@ -2538,6 +2613,13 @@ def _normalize_candidate(
         block_reasons.append("EVIDENCE_RECONSTRUCTED_OR_LEGACY_ROW_NOT_A_PLUS")
     if preemptive_action != "ALLOW_A_PLUS_CANDIDATE" or preemptive_decision != "ALLOW":
         block_reasons.append("PREEMPTIVE_ACTION_NOT_A_PLUS_ALLOW")
+    block_reasons = _drop_contradicted_microstructure_trust_reasons(
+        block_reasons,
+        microstructure_trust_score=microstructure_trust_score,
+        composite_microstructure_trust_score=composite_microstructure_trust_score,
+        microstructure_trust_state=row.get("microstructure_trust_state"),
+        microstructure_trust_status=row.get("microstructure_trust_status"),
+    )
 
     unique_reasons = list(dict.fromkeys(block_reasons))
     reason_classes = sorted({_blocker_class(reason) for reason in unique_reasons})
@@ -4185,6 +4267,41 @@ def _prediction_candidate(
     return decision
 
 
+def _matrix_row_prediction_context(
+    client: Any,
+    row: Mapping[str, Any],
+    predictions_by_id: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Return matching prediction context for a matrix row, never symbol-only drift.
+
+    A preemptive matrix row can lag the latest ``v2:prediction:{symbol}:{tf}``
+    payload. Merging that stale row with a newer same-symbol/timeframe prediction
+    creates mixed lineage: old decision_time plus new feature_cutoff/snapshot.
+    Require the prediction_id to match before borrowing the prediction payload.
+    """
+
+    row_prediction_id = str(row.get("prediction_id") or "").strip()
+    prediction = predictions_by_id.get(row_prediction_id) if row_prediction_id else None
+    if prediction is not None:
+        return dict(prediction)
+    symbol = str(row.get("symbol") or "").upper()
+    timeframe = str(row.get("timeframe") or "")
+    if not symbol or not timeframe:
+        return {}
+    key = f"v2:prediction:{symbol}:{timeframe}"
+    latest = _as_dict(_read_json(client, key))
+    latest_prediction_id = str(latest.get("prediction_id") or "").strip()
+    if (
+        not latest
+        or not row_prediction_id
+        or not latest_prediction_id
+        or latest_prediction_id != row_prediction_id
+    ):
+        return {}
+    latest["redis_key"] = key
+    return latest
+
+
 def build_inventory(
     *,
     client: Any,
@@ -4289,12 +4406,7 @@ def build_inventory(
     normalized: list[dict[str, Any]] = []
     seen_prediction_ids: set[str] = set()
     for row in matrix_rows:
-        prediction = predictions_by_id.get(str(row.get("prediction_id") or ""))
-        if prediction is None:
-            key = f"v2:prediction:{str(row.get('symbol') or '').upper()}:{row.get('timeframe')}"
-            prediction = _as_dict(_read_json(client, key))
-            if prediction:
-                prediction["redis_key"] = key
+        prediction = _matrix_row_prediction_context(client, row, predictions_by_id)
         item = _normalize_candidate(_with_price(dict(row)), prediction=prediction, generated_utc=generated)
         normalized.append(item)
         if item.get("prediction_id"):
@@ -4380,6 +4492,16 @@ def build_inventory(
                     if hypothesis_side == "short"
                     else selected_side_net_edge_bps
                 )
+            preemptive_expected_move_bps = _preemptive_cost_edge_bps_for_side(
+                side=hypothesis_side,
+                signed_move_bps=signed_expected_move_bps,
+            )
+            preemptive_expected_move_after_cost_bps = (
+                _preemptive_cost_edge_bps_for_side(
+                    side=hypothesis_side,
+                    signed_move_bps=signed_expected_move_after_cost_bps,
+                )
+            )
             explicit_long_net = _float(
                 _first_present(
                     hyp.get("long_expected_net_pnl_usd"),
@@ -4577,8 +4699,13 @@ def build_inventory(
                     json.dumps(dict(hyp), sort_keys=True, default=str).encode("utf-8")
                 ).hexdigest()[:32],
             }
+            preemptive_prediction = dict(pseudo_prediction)
+            preemptive_prediction["expected_move_bps"] = preemptive_expected_move_bps
+            preemptive_prediction["expected_move_after_cost_bps"] = (
+                preemptive_expected_move_after_cost_bps
+            )
             decision = _prediction_candidate(
-                pseudo_prediction,
+                preemptive_prediction,
                 guardian,
                 altdata_confluence=_confluence_for(
                     str(hyp.get("symbol") or "").upper(),
@@ -4883,6 +5010,20 @@ def build_inventory(
         "probation_final_a_plus_count": sum(1 for row in normalized if row.get("counts_as_probation") and row.get("counts_as_A_plus")),
         "reconstructed_final_a_plus_count": sum(1 for row in normalized if row.get("counts_as_reconstructed") and row.get("counts_as_A_plus")),
     }
+    hard_fail = any(int(value or 0) > 0 for value in hard_failures.values())
+    guardian_failure_reasons = [
+        dict(reason)
+        for reason in _as_list(guardian.get("failure_reasons"))
+        if isinstance(reason, Mapping)
+    ]
+    guardian_top_reason = _first_present(
+        *[
+            reason.get("reason")
+            for reason in guardian_failure_reasons
+            if isinstance(reason, Mapping)
+        ],
+        None,
+    )
     rejection_matrix = {
         "schema_version": "v2_a_plus_candidate_rejection_matrix_v1",
         "generated_utc": generated,
@@ -4946,6 +5087,15 @@ def build_inventory(
             performance_circuit_status.get("state")
             or performance_circuit_status.get("status")
         ),
+        "continuous_edge_guardian_gate_status": {
+            "status": guardian.get("status"),
+            "a_grade_new_entries_allowed": guardian.get("a_grade_new_entries_allowed"),
+            "new_entries_allowed": guardian.get("new_entries_allowed"),
+            "block_all_new_a_grade_entries": guardian.get("block_all_new_a_grade_entries"),
+            "generated_utc": guardian.get("generated_utc"),
+            "failure_reasons": guardian_failure_reasons,
+        },
+        "continuous_edge_guardian_top_reason": guardian_top_reason,
         "paper_exploration_materialization_queue_status": (
             materialization_queue_status
         ),
@@ -4962,9 +5112,19 @@ def build_inventory(
         "preemptive_status": status_payload,
         "live_gate": _first_present(live_gate_payload.get("live_gate"), "blocked_human_only"),
         "hard_failures": hard_failures,
-        "hard_fail": any(int(value or 0) > 0 for value in hard_failures.values()),
+        "hard_fail": hard_fail,
         "primary_blocker": rejection_matrix["top_blocker_class"],
-        "final_state": "OPERATOR_REVIEW_READY_FIRST_LIVE_CANARY" if live_ready_rows else "PRODUCTION_STACK_READY_LIVE_BLOCKED_ONE_REASON",
+        "final_state": _inventory_final_state(
+            a_plus_candidate_count=len(a_plus_rows),
+            live_ready_candidate_count=len(live_ready_rows),
+            hard_fail=hard_fail,
+            primary_blocker=rejection_matrix["top_blocker_class"],
+        ),
+        "exact_no_A_plus_reason": (
+            None
+            if a_plus_rows
+            else rejection_matrix["top_blocker_class"] or "NO_CURRENT_CANDIDATE_ROWS"
+        ),
         "order_submitted": False,
         "test_order_submitted": False,
         "leverage_mutated": False,

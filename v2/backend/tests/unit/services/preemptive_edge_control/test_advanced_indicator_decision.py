@@ -145,6 +145,53 @@ def test_fvg_confluence_uses_computed_exit_feasibility_score() -> None:
     assert result["advanced_indicator_shadow"] is False
 
 
+def test_fvg_confluence_accepts_market_state_integrity_score_as_trust_alias() -> None:
+    result = evaluate_candidate(
+        _candidate(
+            composite_microstructure_trust_score=None,
+            microstructure_trust_score=None,
+            market_state_integrity_score=91.0,
+            expected_move_after_cost_bps=50.0,
+            advanced_indicator_context={
+                "bullish_fvg_present": True,
+                "fvg_trade_tape_confirmation": 0.9,
+                "fvg_expected_edge_after_cost": 50.0,
+            },
+        ),
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate=GUARDIAN_ALLOW,
+    )
+
+    assert "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST" not in result[
+        "preemptive_decision_reasons"
+    ]
+    assert "MICROSTRUCTURE_TRUST_MISSING" not in result["preemptive_decision_reasons"]
+    assert result["advanced_indicator_shadow"] is False
+
+
+def test_fvg_confluence_keeps_low_market_state_integrity_blocked() -> None:
+    result = evaluate_candidate(
+        _candidate(
+            composite_microstructure_trust_score=None,
+            microstructure_trust_score=None,
+            market_state_integrity_score=30.0,
+            expected_move_after_cost_bps=50.0,
+            advanced_indicator_context={
+                "bullish_fvg_present": True,
+                "fvg_trade_tape_confirmation": 0.9,
+                "fvg_expected_edge_after_cost": 50.0,
+            },
+        ),
+        closed_rows=_winning_history(),
+        continuous_edge_guardian_gate=GUARDIAN_ALLOW,
+    )
+
+    assert "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST" in result[
+        "preemptive_decision_reasons"
+    ]
+    assert result["preemptive_decision"] != "ALLOW"
+
+
 def test_guardian_halted_executable_candidate_routes_to_paper_risk_controller_exploration_only() -> None:
     result = evaluate_candidate(
         _candidate(

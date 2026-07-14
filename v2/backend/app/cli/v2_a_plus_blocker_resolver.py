@@ -90,6 +90,127 @@ def _float(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _int_or_none(value: Any) -> int | None:
+    number = _float(value)
+    return None if number is None else int(number)
+
+
+def _iter_failure_reason_payloads(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    reasons: list[Mapping[str, Any]] = []
+    for field in (
+        "failure_reasons",
+        "guardian_block_reasons",
+        "continuous_edge_guardian_block_reasons",
+    ):
+        value = payload.get(field)
+        if isinstance(value, list):
+            reasons.extend(item for item in value if isinstance(item, Mapping))
+    for field in (
+        "guardian_gate_status",
+        "guardian_status",
+        "continuous_edge_guardian_status",
+        "continuous_edge_guardian_gate_status",
+        "source_owned_zero_supply_root_cause",
+    ):
+        value = payload.get(field)
+        if isinstance(value, Mapping):
+            reasons.extend(_iter_failure_reason_payloads(value))
+    return reasons
+
+
+def _guardian_pit_status_from_inventory(inventory_dir: Path) -> dict[str, Any]:
+    summary = _read_json(inventory_dir / "candidate_inventory_summary.json")
+    rows = _read_jsonl(inventory_dir / "candidate_inventory.jsonl")
+    first_guardian_blocker: str | None = None
+    for payload in [summary, *rows]:
+        for reason in _iter_failure_reason_payloads(payload):
+            reason_text = str(reason.get("reason") or "").strip().upper()
+            if reason_text and first_guardian_blocker is None:
+                first_guardian_blocker = reason_text
+            if reason_text != "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS":
+                continue
+            observed = _int_or_none(reason.get("observed"))
+            required = _int_or_none(reason.get("required"))
+            remaining = (
+                max(required - observed, 0)
+                if observed is not None and required is not None
+                else None
+            )
+            return {
+                "source": "guardian_failure_reasons",
+                "exact_blocker": reason_text,
+                "point_in_time_valid_prediction_count": observed,
+                "remaining_point_in_time_valid_predictions": remaining,
+                "required_point_in_time_valid_prediction_count": required,
+            }
+    if first_guardian_blocker:
+        return {
+            "source": "current_guardian_gate_no_pit_blocker",
+            "exact_blocker": first_guardian_blocker,
+            "point_in_time_valid_prediction_count": None,
+            "remaining_point_in_time_valid_predictions": 0,
+            "required_point_in_time_valid_prediction_count": None,
+        }
+    return {
+        "source": "missing_phase7_and_guardian_pit_status",
+        "exact_blocker": "GUARDIAN_PIT_STATUS_UNVERIFIED",
+        "point_in_time_valid_prediction_count": None,
+        "remaining_point_in_time_valid_predictions": None,
+        "required_point_in_time_valid_prediction_count": None,
+    }
+
+
+def _pit_status_for_guardian_action(inventory_dir: Path) -> dict[str, Any]:
+    guardian_status = _guardian_pit_status_from_inventory(inventory_dir)
+    if guardian_status["source"] == "guardian_failure_reasons":
+        return {
+            **guardian_status,
+            "phase7_pit_status_path": None,
+            "phase7_pit_threshold_met": False,
+        }
+    if guardian_status["source"] == "current_guardian_gate_no_pit_blocker":
+        return {
+            **guardian_status,
+            "phase7_pit_status_path": None,
+            "phase7_pit_threshold_met": True,
+        }
+    phase7_status_path = inventory_dir.parent / "phase7_pit_prediction_counter.json"
+    phase7_status = _read_json(phase7_status_path)
+    pit_count = _int_or_none(phase7_status.get("point_in_time_valid_prediction_count"))
+    pit_remaining = _int_or_none(
+        phase7_status.get("remaining_point_in_time_valid_predictions")
+    )
+    pit_required = _int_or_none(
+        phase7_status.get("required_point_in_time_valid_prediction_count")
+    )
+    phase7_counter_present = (
+        bool(phase7_status)
+        and pit_count is not None
+        and pit_remaining is not None
+        and pit_required is not None
+        and pit_required > 0
+    )
+    if phase7_counter_present:
+        return {
+            "source": "phase7_pit_prediction_counter",
+            "phase7_pit_status_path": str(phase7_status_path),
+            "exact_blocker": (
+                "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET"
+                if pit_remaining <= 0 and pit_count >= pit_required
+                else "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS"
+            ),
+            "point_in_time_valid_prediction_count": pit_count,
+            "remaining_point_in_time_valid_predictions": pit_remaining,
+            "required_point_in_time_valid_prediction_count": pit_required,
+            "phase7_pit_threshold_met": pit_remaining <= 0 and pit_count >= pit_required,
+        }
+    return {
+        **guardian_status,
+        "phase7_pit_status_path": None,
+        "phase7_pit_threshold_met": False,
+    }
+
+
 def _number_distribution(rows: list[Mapping[str, Any]], field: str) -> dict[str, Any]:
     values = [_float(row.get(field)) for row in rows]
     numbers = sorted(value for value in values if value is not None)
@@ -125,10 +246,21 @@ def _field_counts(rows: list[Mapping[str, Any]], field: str, *, limit: int | Non
 
 def _reason_set(row: Mapping[str, Any]) -> set[str]:
     reasons = set()
-    for field in ("block_reasons", "allocator_block_reasons"):
+    for field in (
+        "block_reasons",
+        "allocator_block_reasons",
+        "preemptive_block_reasons",
+        "preemptive_decision_reasons",
+        "rejection_reasons",
+        "loss_probability_reasons",
+    ):
         value = row.get(field)
         if isinstance(value, list):
             reasons.update(str(item).upper() for item in value)
+    for field in ("preemptive_action", "preemptive_decision", "primary_rejection_reason"):
+        value = row.get(field)
+        if value not in (None, ""):
+            reasons.add(str(value).upper())
     return reasons
 
 
@@ -144,7 +276,17 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
     if row.get("A_plus_candidate") or row.get("live_ready_candidate"):
         return None, []
     reasons = _reason_set(row)
+    preemptive_action = str(row.get("preemptive_action") or "").strip().upper()
+    compact_preemptive_row = bool(preemptive_action) and (
+        "current_price" not in row
+        and "expected_move" not in row
+        and "expected_move_bps" not in row
+        and "feature_vector_hash" not in row
+        and "feature_cutoff" not in row
+    )
     expected_move = _float(row.get("expected_move"))
+    if expected_move is None:
+        expected_move = _float(row.get("expected_move_bps"))
     expected_gross = _float(row.get("expected_gross_pnl_usd"))
     expected_cost = _float(row.get("expected_cost_usd")) or 0.0
     expected_net = _float(row.get("expected_net_pnl_usd"))
@@ -187,16 +329,37 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
         or no_side_reason.startswith("UNSUPPORTED_ACTION")
     ):
         causes.append("NO_SIDE_OR_HOLD_ACTION")
-    if row.get("current_price") is None:
+    if preemptive_action == "BLOCK_LOSS_PROBABILITY_TOO_HIGH":
+        causes.append("LOSS_PROBABILITY_TOO_HIGH")
+    if "BUCKET_QUARANTINE" in preemptive_action:
+        causes.append("BUCKET_QUARANTINE")
+    if "CURRENT_PRICE" in row and row.get("current_price") is None:
         causes.append("CURRENT_PRICE_MISSING")
-    if not row.get("feature_vector_hash") or not row.get("feature_cutoff"):
+    if (
+        ("feature_vector_hash" in row and not row.get("feature_vector_hash"))
+        or ("feature_cutoff" in row and not row.get("feature_cutoff"))
+    ):
         causes.append("FEATURE_SNAPSHOT_MISSING")
-    if expected_move is None:
+    if ("expected_move" in row or "expected_move_bps" in row) and expected_move is None:
         causes.append("EXPECTED_MOVE_MISSING")
-    elif not selected_side_net_positive and (
-        expected_move <= 0.0
+    elif (
+        (expected_move is not None and expected_move <= 0.0)
         or both_sides_non_positive
-        or _has_any(reasons, "EXPECTED_EDGE_NON_POSITIVE", "EXPECTED_MOVE_NON_POSITIVE")
+        or _has_any(
+            reasons,
+            "EXPECTED_EDGE_NON_POSITIVE",
+            "EXPECTED_MOVE_NON_POSITIVE",
+            "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+            "EXPECTED_MOVE_DOES_NOT_COVER_COST",
+        )
+    ) and not selected_side_net_positive:
+        causes.append("EXPECTED_MOVE_NON_POSITIVE")
+    elif expected_move is None and _has_any(
+        reasons,
+        "EXPECTED_EDGE_NON_POSITIVE",
+        "EXPECTED_MOVE_NON_POSITIVE",
+        "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+        "EXPECTED_MOVE_DOES_NOT_COVER_COST",
     ):
         causes.append("EXPECTED_MOVE_NON_POSITIVE")
     if expected_gross is not None and expected_gross <= 0.0:
@@ -236,6 +399,14 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
     if not causes:
         causes.append("UNKNOWN")
 
+    action_primary = {
+        "BLOCK_LOSS_PROBABILITY_TOO_HIGH": "LOSS_PROBABILITY_TOO_HIGH",
+        "BLOCK_BUCKET_QUARANTINE": "BUCKET_QUARANTINE",
+    }.get(preemptive_action)
+    cause_set = set(causes)
+    if compact_preemptive_row and action_primary in cause_set:
+        return action_primary, sorted(cause_set)
+
     priority = (
         "NO_SIDE_OR_HOLD_ACTION",
         "CURRENT_PRICE_MISSING",
@@ -260,7 +431,6 @@ def _primary_failure_cause(row: Mapping[str, Any]) -> tuple[str | None, list[str
         "ATR_STOP_CLUSTER",
         "UNKNOWN",
     )
-    cause_set = set(causes)
     for cause in priority:
         if cause in cause_set:
             return cause, sorted(cause_set)
@@ -747,27 +917,26 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
         reason_counts = matrix.get("rejection_reason_counts") if isinstance(matrix.get("rejection_reason_counts"), Mapping) else {}
         guardian_halted_count = int(reason_counts.get("GUARDIAN_HALTED_OR_MISSING") or 0)
         if guardian_halted_count > 0 and guardian_halted_count >= max(1, affected_count // 2):
-            phase7_status_path = inventory_dir.parent / "phase7_pit_prediction_counter.json"
-            phase7_status = _read_json(phase7_status_path)
-            pit_count = int(phase7_status.get("point_in_time_valid_prediction_count") or 0)
-            pit_remaining = int(phase7_status.get("remaining_point_in_time_valid_predictions") or 0)
-            pit_required = int(phase7_status.get("required_point_in_time_valid_prediction_count") or 0)
-            pit_threshold_met = pit_remaining <= 0 and (pit_required <= 0 or pit_count >= pit_required)
+            pit_status = _pit_status_for_guardian_action(inventory_dir)
+            pit_threshold_met = pit_status["phase7_pit_threshold_met"] is True
             if not pit_threshold_met:
                 return {
                     **base,
                     "action_name": "CONTINUE_GUARDIAN_PIT_PREDICTION_GROWTH",
                     "one_action_only": True,
-                    "exact_blocker": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+                    "exact_blocker": pit_status["exact_blocker"],
                     "guardian_halted_candidate_count": guardian_halted_count,
-                    "phase7_pit_status_path": str(phase7_status_path) if phase7_status else None,
-                    "point_in_time_valid_prediction_count": phase7_status.get("point_in_time_valid_prediction_count"),
-                    "remaining_point_in_time_valid_predictions": phase7_status.get(
+                    "phase7_pit_status_source": pit_status["source"],
+                    "phase7_pit_status_path": pit_status["phase7_pit_status_path"],
+                    "point_in_time_valid_prediction_count": pit_status[
+                        "point_in_time_valid_prediction_count"
+                    ],
+                    "remaining_point_in_time_valid_predictions": pit_status[
                         "remaining_point_in_time_valid_predictions"
-                    ),
-                    "required_point_in_time_valid_prediction_count": phase7_status.get(
+                    ],
+                    "required_point_in_time_valid_prediction_count": pit_status[
                         "required_point_in_time_valid_prediction_count"
-                    ),
+                    ],
                     "phase7_pit_threshold_met": False,
                     "planned_steps": [
                         "continue PIT-valid prediction publisher coverage",
@@ -783,12 +952,20 @@ def _action_for(blocker_class: str, *, inventory_dir: Path, affected_count: int)
                 **base,
                 "action_name": "CONTINUE_GUARDIAN_PERFORMANCE_EVIDENCE_MATURATION",
                 "one_action_only": True,
-                "exact_blocker": "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
+                "exact_blocker": pit_status.get("exact_blocker")
+                or "GUARDIAN_HALTED_AFTER_PIT_THRESHOLD_MET",
                 "guardian_halted_candidate_count": guardian_halted_count,
-                "phase7_pit_status_path": str(phase7_status_path) if phase7_status else None,
-                "point_in_time_valid_prediction_count": phase7_status.get("point_in_time_valid_prediction_count"),
-                "remaining_point_in_time_valid_predictions": phase7_status.get("remaining_point_in_time_valid_predictions"),
-                "required_point_in_time_valid_prediction_count": phase7_status.get("required_point_in_time_valid_prediction_count"),
+                "phase7_pit_status_source": pit_status["source"],
+                "phase7_pit_status_path": pit_status["phase7_pit_status_path"],
+                "point_in_time_valid_prediction_count": pit_status[
+                    "point_in_time_valid_prediction_count"
+                ],
+                "remaining_point_in_time_valid_predictions": pit_status[
+                    "remaining_point_in_time_valid_predictions"
+                ],
+                "required_point_in_time_valid_prediction_count": pit_status[
+                    "required_point_in_time_valid_prediction_count"
+                ],
                 "phase7_pit_threshold_met": True,
                 "planned_steps": [
                     "run continuous edge guardian after the PIT counter refresh",

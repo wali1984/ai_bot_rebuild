@@ -90,11 +90,19 @@ def _regime(candidate: dict[str, Any]) -> str | None:
 
 
 def _trust_score(candidate: dict[str, Any]) -> float | None:
-    return _f(
-        candidate.get("composite_microstructure_trust_score")
-        or candidate.get("microstructure_trust_score")
-        or candidate.get("public_orderbook_trust_score")
+    trust = _f(
+        _first_present(
+            candidate.get("composite_microstructure_trust_score"),
+            candidate.get("microstructure_trust_score"),
+            candidate.get("public_orderbook_trust_score"),
+        )
     )
+    if trust is not None:
+        return trust
+    market_integrity = _f(candidate.get("market_state_integrity_score"))
+    if market_integrity is None:
+        return None
+    return market_integrity / 100.0 if market_integrity > 1.0 else market_integrity
 
 
 def _guardian_halted(guardian: dict[str, Any] | None) -> bool:

@@ -14,6 +14,28 @@ def _f(value: Any) -> float | None:
         return None
 
 
+def _score(value: Any) -> float | None:
+    score = _f(value)
+    if score is None:
+        return None
+    return score / 100.0 if score > 1.0 else score
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value or "").strip().lower() in {"1", "true", "yes", "y", "on"}
+
+
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
 def _side(value: Any) -> str | None:
     text = str(value or "").strip().lower()
     if text in {"long", "buy"}:
@@ -128,10 +150,13 @@ def evaluate_advanced_indicator_context(candidate: dict[str, Any]) -> dict[str, 
         or context.get("fvg_trade_tape_confirmation")
         or candidate.get("trade_tape_confirmation_score")
     )
-    trust_score = _f(
-        context.get("fvg_orderbook_trust_confluence")
-        or candidate.get("composite_microstructure_trust_score")
-        or candidate.get("microstructure_trust_score")
+    trust_score = _score(
+        _first_present(
+            _dig(context, "fvg_orderbook_trust_confluence"),
+            candidate.get("composite_microstructure_trust_score"),
+            candidate.get("microstructure_trust_score"),
+            candidate.get("market_state_integrity_score"),
+        )
     )
     expected_edge = _f(
         context.get("fvg_expected_edge_after_cost")
@@ -139,8 +164,8 @@ def evaluate_advanced_indicator_context(candidate: dict[str, Any]) -> dict[str, 
     )
     exit_score = _f(candidate.get("exit_feasibility_score"))
 
-    bullish_fvg = context.get("bullish_fvg_present") is True
-    bearish_fvg = context.get("bearish_fvg_present") is True
+    bullish_fvg = _truthy(context.get("bullish_fvg_present"))
+    bearish_fvg = _truthy(context.get("bearish_fvg_present"))
     fvg_present = bullish_fvg or bearish_fvg
     fvg_aligned = (side == "long" and bullish_fvg) or (side == "short" and bearish_fvg)
     if fvg_present and not fvg_aligned:

@@ -10,12 +10,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable, Mapping
 
 from v2.backend.app.cli import v2_adaptive_capital_productivity_status as status_module
 
@@ -95,6 +96,7 @@ DEFAULT_PAPER_EVENTS_PATH = (
 )
 DEFAULT_INTEGRITY_STATUS_PATH = DEFAULT_OUT_DIR / "out_of_sample_evidence_integrity_status.json"
 _CHAIN_LAST_HASH_BY_PATH: dict[Path, str] = {}
+COMPACT_MANIFEST_HISTORY_ENV = "V2_OOS_COMPACT_MANIFEST_HISTORY"
 
 PENDING_ELIGIBLE_SOURCE_KINDS = {
     "filesystem_runtime_snapshot",
@@ -346,6 +348,23 @@ def _iter_jsonl_bounded(
         "truncated_by_max_rows": True,
         "max_rows": limit,
     }
+
+
+def _iter_jsonl_dicts(path: Path) -> Iterable[dict[str, Any]]:
+    if not path.exists():
+        return
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                payload.setdefault("_source_line_number", line_number)
+                yield payload
 
 
 def _present(value: Any) -> bool:
@@ -1069,9 +1088,8 @@ def _rows_from_json(path: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
 
 
 def _existing_identities(path: Path) -> set[str]:
-    rows, _status = _iter_jsonl(path)
     identities: set[str] = set()
-    for row in rows:
+    for row in _iter_jsonl_dicts(path):
         identity = str(row.get("candidate_identity") or row.get("position_identity") or "")
         if identity:
             identities.add(identity)
@@ -1079,9 +1097,8 @@ def _existing_identities(path: Path) -> set[str]:
 
 
 def _existing_rows_by_identity(path: Path) -> dict[str, dict[str, Any]]:
-    rows, _status = _iter_jsonl(path)
     by_identity: dict[str, dict[str, Any]] = {}
-    for row in rows:
+    for row in _iter_jsonl_dicts(path):
         identity = str(row.get("candidate_identity") or row.get("position_identity") or "")
         if identity and identity not in by_identity:
             by_identity[identity] = row
@@ -1104,6 +1121,48 @@ def _last_chain_hash(path: Path) -> str:
             if isinstance(payload, dict) and payload.get("chain_hash"):
                 last_hash = str(payload["chain_hash"])
     return last_hash
+
+
+def _compact_manifest_history_enabled() -> bool:
+    raw = str(os.getenv(COMPACT_MANIFEST_HISTORY_ENV, "1") or "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def _manifest_history_summary(manifest: Mapping[str, Any]) -> dict[str, Any]:
+    summary: dict[str, Any] = {}
+    for field in (
+        "schema_version",
+        "generated_utc",
+        "producer",
+        "status",
+        "processed_source_row_count",
+        "accepted_appended_count",
+        "pending_appended_count",
+        "rejected_appended_count",
+        "duplicate_skipped_count",
+        "registered_window_count",
+        "paper_only",
+        "places_real_order",
+        "test_orders",
+        "leverage_mutation",
+        "margin_mode_mutation",
+        "old_redis_writes",
+    ):
+        if field in manifest:
+            summary[field] = manifest.get(field)
+    coverage = manifest.get("holdout_prediction_coverage_status")
+    if isinstance(coverage, Mapping):
+        summary["holdout_prediction_coverage_status"] = {
+            "status": coverage.get("status"),
+            "processed_source_row_count": coverage.get("processed_source_row_count"),
+            "point_in_time_valid_prediction_count": coverage.get(
+                "point_in_time_valid_prediction_count"
+            ),
+            "symbol_count": coverage.get("symbol_count"),
+            "timeframe_count": coverage.get("timeframe_count"),
+            "rejected_prediction_count": coverage.get("rejected_prediction_count"),
+        }
+    return summary
 
 
 def _append_chain(
@@ -1149,6 +1208,7 @@ def _append_manifest_history(
     history_path = _manifest_history_path(manifest_path)
     manifest_payload = dict(manifest)
     manifest_hash = _sha256_payload(manifest_payload)
+    compact_history = _compact_manifest_history_enabled()
     if history_path not in _CHAIN_LAST_HASH_BY_PATH:
         _CHAIN_LAST_HASH_BY_PATH[history_path] = _last_chain_hash(history_path)
     previous_hash = _CHAIN_LAST_HASH_BY_PATH[history_path]
@@ -1161,8 +1221,17 @@ def _append_manifest_history(
         "sidecar_path": str(sidecar_path),
         "previous_hash": previous_hash,
         "manifest_hash": manifest_hash,
-        "manifest_payload": manifest_payload,
     }
+    if compact_history:
+        record.update(
+            {
+                "manifest_payload_omitted": True,
+                "manifest_payload_omission_reason": "compact_manifest_history_enabled",
+                "manifest_payload_summary": _manifest_history_summary(manifest_payload),
+            }
+        )
+    else:
+        record["manifest_payload"] = manifest_payload
     chain_hash = _sha256_payload(record)
     record["chain_hash"] = chain_hash
     _append_jsonl(history_path, record)
@@ -1425,6 +1494,7 @@ def verify_manifest_history(
     previous_hash = "GENESIS"
     event_type_counts: dict[str, int] = {}
     latest_record: dict[str, Any] | None = None
+    compact_payload_omitted_count = 0
 
     if not history_rows:
         failures.append({
@@ -1473,10 +1543,13 @@ def verify_manifest_history(
             })
         manifest_payload = record.get("manifest_payload")
         if not isinstance(manifest_payload, dict):
-            failures.append({
-                "index": index,
-                "reason": "MANIFEST_HISTORY_PAYLOAD_MISSING_OR_MALFORMED",
-            })
+            if record.get("manifest_payload_omitted") is True and record.get("manifest_hash"):
+                compact_payload_omitted_count += 1
+            else:
+                failures.append({
+                    "index": index,
+                    "reason": "MANIFEST_HISTORY_PAYLOAD_MISSING_OR_MALFORMED",
+                })
         else:
             expected_manifest_hash = _sha256_payload(manifest_payload)
             if record.get("manifest_hash") != expected_manifest_hash:
@@ -1506,6 +1579,7 @@ def verify_manifest_history(
         "history_path": str(history_path),
         "history_status": history_status,
         "history_record_count": len(history_rows),
+        "compact_payload_omitted_count": compact_payload_omitted_count,
         "current_manifest_hash": current_manifest_hash,
         "latest_history_manifest_hash": latest_record.get("manifest_hash") if latest_record else None,
         "latest_history_chain_hash": latest_record.get("chain_hash") if latest_record else None,
@@ -5049,6 +5123,71 @@ def _holdout_prediction_coverage_status(
     }
 
 
+def _holdout_prediction_coverage_count(status: Mapping[str, Any] | None) -> int:
+    if not isinstance(status, Mapping):
+        return 0
+    try:
+        return int(status.get("point_in_time_valid_prediction_count") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _holdout_prediction_coverage_safe(status: Mapping[str, Any] | None) -> bool:
+    if not isinstance(status, Mapping):
+        return False
+    if _holdout_prediction_coverage_count(status) <= 0:
+        return False
+    if status.get("counts_as_a_grade_evidence") is not False:
+        return False
+    if status.get("counts_no_trade_as_win") is not False:
+        return False
+    if status.get("counts_as_a_plus") is True:
+        return False
+    if status.get("counts_as_live_ready") is True:
+        return False
+    if status.get("post_outcome_candidate_selection_allowed") is True:
+        return False
+    if status.get("future_labels_used_as_decision_features_allowed") is True:
+        return False
+    return True
+
+
+def _merge_holdout_prediction_coverage_status(
+    current: dict[str, Any],
+    previous: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Keep append-only PIT coverage monotonic without admitting trade evidence."""
+    if not _holdout_prediction_coverage_safe(previous):
+        return current
+
+    current_count = _holdout_prediction_coverage_count(current)
+    previous_count = _holdout_prediction_coverage_count(previous)
+    if previous_count <= current_count:
+        return current
+
+    merged = dict(previous)
+    merged["monotonic_coverage_merge"] = {
+        "selected_source": "previous_safe_holdout_prediction_coverage_status",
+        "previous_point_in_time_valid_prediction_count": previous_count,
+        "current_producer_cycle_point_in_time_valid_prediction_count": current_count,
+        "policy": (
+            "PIT prediction coverage is append-only Phase 3 coverage only; "
+            "preserve the larger safe snapshot so later smaller source slices do not "
+            "reintroduce an already-cleared coverage blocker."
+        ),
+        "counts_as_a_grade_evidence": False,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+    }
+    merged["counts_as_a_grade_evidence"] = False
+    merged["counts_as_a_plus"] = False
+    merged["counts_as_live_ready"] = False
+    merged["counts_no_trade_as_win"] = False
+    merged["post_outcome_candidate_selection_allowed"] = False
+    merged["future_labels_used_as_decision_features_allowed"] = False
+    return merged
+
+
 def _candidate_record(
     row: dict[str, Any],
     *,
@@ -5454,7 +5593,11 @@ def _rejection_ledger_summary(
     *,
     max_rows: int | None = None,
 ) -> dict[str, Any]:
-    rows, source_status = _iter_jsonl_bounded(rejected_path, max_rows=max_rows)
+    rejected_path = _resolve_repo_relative_path(rejected_path)
+    limit = None if max_rows is None else max(0, int(max_rows))
+    parse_errors: list[dict[str, Any]] = []
+    scanned = 0
+    parsed_row_count = 0
     reason_counts: dict[str, int] = {}
     source_kind_counts: dict[str, int] = {}
     source_kind_reason_counts: dict[str, dict[str, int]] = {}
@@ -5463,7 +5606,30 @@ def _rejection_ledger_summary(
     missing_candidate_identity_count = 0
     samples_by_reason: dict[str, list[dict[str, Any]]] = {}
 
-    for row in rows:
+    def _rows() -> Iterable[dict[str, Any]]:
+        nonlocal scanned, parsed_row_count
+        if not rejected_path.exists():
+            return
+        with rejected_path.open("r", encoding="utf-8") as handle:
+            for line_number, line in enumerate(handle, start=1):
+                if limit is not None and scanned >= limit:
+                    break
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                scanned += 1
+                try:
+                    payload = json.loads(stripped)
+                except Exception as exc:  # noqa: BLE001
+                    if len(parse_errors) < 20:
+                        parse_errors.append({"line_number": line_number, "error": str(exc)})
+                    continue
+                if isinstance(payload, dict):
+                    payload.setdefault("_source_line_number", line_number)
+                    parsed_row_count += 1
+                    yield payload
+
+    for row in _rows():
         candidate_identity = row.get("candidate_identity")
         if candidate_identity in {None, ""}:
             missing_candidate_identity_count += 1
@@ -5527,9 +5693,41 @@ def _rejection_ledger_summary(
     duplicated_candidate_identity_count = sum(
         1 for count in candidate_identity_counts.values() if count > 1
     )
+    if not rejected_path.exists():
+        source_status = {
+            "path": str(rejected_path),
+            "exists": False,
+            "scanned_line_count": 0,
+            "parse_error_count": 0,
+            "parse_error_sample": [],
+            "sha256": None,
+            "bounded_reader_used": limit is not None,
+            "truncated_by_max_rows": False,
+            "max_rows": limit,
+            "streaming_reader_used": True,
+        }
+    else:
+        source_status = {
+            "path": str(rejected_path),
+            "exists": True,
+            "scanned_line_count": scanned,
+            "parse_error_count": len(parse_errors),
+            "parse_error_sample": parse_errors,
+            "sha256": (
+                None
+                if limit is not None
+                else _file_sha256(rejected_path)
+            ),
+            "bounded_reader_used": limit is not None,
+            "truncated_by_max_rows": limit is not None,
+            "max_rows": limit,
+            "streaming_reader_used": True,
+        }
+        if limit is not None:
+            source_status["sha256_omitted_reason"] = "bounded_summary_requested"
     return {
         "source_status": source_status,
-        "row_count": len(rows),
+        "row_count": parsed_row_count,
         "unique_candidate_identity_count": len(candidate_identity_counts),
         "missing_candidate_identity_count": missing_candidate_identity_count,
         "duplicated_candidate_identity_count": duplicated_candidate_identity_count,
@@ -8123,12 +8321,22 @@ def produce_holdout(
                 draft_decision_time_reject_reason_counts.get(str(reason), 0)
                 + int(count or 0)
             )
-    holdout_prediction_coverage = _holdout_prediction_coverage_status(
+    computed_holdout_prediction_coverage = _holdout_prediction_coverage_status(
         source_rows,
         registry=registry,
         expected_fingerprint=expected_fingerprint,
         source_sha256=source_status.get("sha256"),
         construction_subset_status=construction_subset_status,
+    )
+    previous_manifest = _load_json(manifest_path)
+    previous_holdout_prediction_coverage = (
+        previous_manifest.get("holdout_prediction_coverage_status")
+        if isinstance(previous_manifest, dict)
+        else None
+    )
+    holdout_prediction_coverage = _merge_holdout_prediction_coverage_status(
+        computed_holdout_prediction_coverage,
+        previous_holdout_prediction_coverage,
     )
     manifest = {
         "schema_version": SCHEMA_VERSION,

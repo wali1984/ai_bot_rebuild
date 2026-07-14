@@ -19,20 +19,31 @@ def _f(value: Any) -> float | None:
         return None
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
 def assess_cost_edge(candidate: dict[str, Any]) -> dict[str, Any]:
     spread = _f(
-        candidate.get("actual_observed_spread_entry_bps")
-        or candidate.get("observed_spread_bps")
-        or candidate.get("bid_ask_spread_bps")
-        or candidate.get("spread_bps")
+        _first_present(
+            candidate.get("actual_observed_spread_entry_bps"),
+            candidate.get("observed_spread_bps"),
+            candidate.get("bid_ask_spread_bps"),
+            candidate.get("spread_bps"),
+        )
     )
-    slippage = _f(candidate.get("expected_slippage_bps") or candidate.get("slippage_bps"))
-    fee = _f(candidate.get("pre_trade_fee_bps") or candidate.get("fee_bps"))
-    funding = _f(candidate.get("funding_bps") or candidate.get("funding_rate_bps"))
+    slippage = _f(_first_present(candidate.get("expected_slippage_bps"), candidate.get("slippage_bps")))
+    fee = _f(_first_present(candidate.get("pre_trade_fee_bps"), candidate.get("fee_bps")))
+    funding = _f(_first_present(candidate.get("funding_bps"), candidate.get("funding_rate_bps")))
     gross_edge = _f(
-        candidate.get("expected_move_bps")
-        or candidate.get("price_target_bps")
-        or candidate.get("expected_gross_move_bps")
+        _first_present(
+            candidate.get("expected_move_bps"),
+            candidate.get("price_target_bps"),
+            candidate.get("expected_gross_move_bps"),
+        )
     )
     explicit_net = _f(candidate.get("expected_move_after_cost_bps"))
 

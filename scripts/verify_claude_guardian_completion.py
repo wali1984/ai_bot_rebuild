@@ -228,8 +228,30 @@ def check_gates() -> list[dict]:
         except (TypeError, ValueError):
             return 0.0
 
-    _g08_portfolio = rget("v2:portfolio:state") or {}
-    _g08_trades = closed_trades  # already loaded above
+    def _g08_atomic_pair():
+        # Fetch portfolio:state and closed_trades in ONE pipeline round-trip so
+        # both reflect the same instant. Without this, attempt 0 compared a
+        # fresh portfolio read against the stale top-of-run closed_trades
+        # snapshot; if that read straddled the paper loop's two-key write
+        # (closed_trades and portfolio:state are separate SETs), the net sum
+        # lagged the accumulator by ~one trade's PnL and G08 false-failed
+        # (WQ-R15/R16/R17 transient recurrence). Atomic pair-read removes the
+        # read-skew; the retry loop still absorbs a genuine mid-write settle.
+        # Threshold ($0.02) and net-vs-net invariant are unchanged.
+        if not (REDIS_OK and _r):
+            return (rget("v2:portfolio:state") or {}), (closed_trades or [])
+        try:
+            pipe = _r.pipeline()
+            pipe.get("v2:portfolio:state")
+            pipe.get("v2:paper:closed_trades")
+            _ps_raw, _ct_raw = pipe.execute()
+            _ps = json.loads(_ps_raw) if _ps_raw else {}
+            _ct = json.loads(_ct_raw) if _ct_raw else []
+            return _ps, _ct
+        except Exception:
+            return (rget("v2:portfolio:state") or {}), (closed_trades or [])
+
+    _g08_portfolio, _g08_trades = _g08_atomic_pair()
     _g08_retries = 0
     while True:
         if _g08_trades and _g08_portfolio:
@@ -244,16 +266,11 @@ def check_gates() -> list[dict]:
             _g08_sum = 0.0
             _g08_ledger = 0.0
             _g08_diff = 9999.0
-        if _g08_diff <= 0.02 or _g08_retries >= 3:
+        if _g08_diff <= 0.02 or _g08_retries >= 5:
             break
         time.sleep(2)
         _g08_retries += 1
-        _g08_portfolio = rget("v2:portfolio:state") or {}
-        raw2 = _r.get("v2:paper:closed_trades") if REDIS_OK and _r else None
-        try:
-            _g08_trades = json.loads(raw2) if raw2 else []
-        except Exception:
-            _g08_trades = []
+        _g08_portfolio, _g08_trades = _g08_atomic_pair()
 
     portfolio = _g08_portfolio  # re-expose for G14/G15 which use this variable
     if _g08_portfolio and isinstance(_g08_trades, list):

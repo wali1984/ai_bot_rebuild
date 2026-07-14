@@ -1,0 +1,82 @@
+{
+  "schema_version": "trainer_scheduled_pretrain_status_v1",
+  "generated_utc": "2026-07-12T05:56:08.589828Z",
+  "training_prefix_rows": 20000,
+  "heldout_rows": 5000,
+  "split_meta": {
+    "cache_path": "claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl",
+    "cache_hit": false,
+    "archive_view_root": "/tmp/v2_offline_archive_view_uvr2lzwl",
+    "live_cursor_untouched": true,
+    "load_seconds": 66.097,
+    "examples": 25000,
+    "cache_written": true,
+    "h2l_heldout_offset": 20000,
+    "h2l_requested_rows": 25000,
+    "h2l_heldout_rows": 5000,
+    "h2l_excluded_prefix_rows": 20000
+  },
+  "paper_only": true,
+  "places_real_order": false,
+  "routes_to_live": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "live_gate": "blocked_human_only",
+  "auto_promote": true,
+  "auto_restart": false,
+  "pretrain": {
+    "epochs_run": 17,
+    "best_epoch": 12,
+    "best_validation_loss": 43.286956787109375,
+    "stopped_early": true,
+    "gpu_utilization_max_pct": 97.0,
+    "gpu_utilization_mean_pct": 9.38,
+    "rows_per_second": 16781.5,
+    "saved": {
+      "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_offline",
+      "is_live_dir": false,
+      "saved": true,
+      "checkpoint_id": "v2_hybrid_ckpt_995c493942684e69eaf53973"
+    }
+  },
+  "head_to_head": {
+    "schema_version": "trainer_h2l_promotion_v1",
+    "input_dim": 1248,
+    "held_out_rows": 5000,
+    "live": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_995c493942684e69eaf53973",
+      "validation_supervised_loss": 54.11262512207031,
+      "validation_rows_evaluated": 5000
+    },
+    "offline": {
+      "checkpoint_dir": ".local_models/v2_native_rl_masa_ppo_offline",
+      "loaded": true,
+      "checkpoint_id": "v2_hybrid_ckpt_995c493942684e69eaf53973",
+      "validation_supervised_loss": 53.55455780029297,
+      "validation_rows_evaluated": 5000
+    },
+    "min_improvement": 1.0,
+    "offline_loaded": true,
+    "live_loaded": true,
+    "heldout_overlap": {
+      "heldout_row_count": 5000,
+      "excluded_row_count": 20000,
+      "overlap_count": 0,
+      "overlap_samples": []
+    },
+    "paper_only": true,
+    "places_real_order": false,
+    "routes_to_live": false,
+    "leverage_mutated": false,
+    "margin_mutated": false,
+    "live_gate": "blocked_human_only",
+    "offline_better_by": 0.558067,
+    "decision": "REFUSE_OFFLINE_NOT_BETTER",
+    "promoted": false
+  },
+  "promoted": false,
+  "duration_seconds": 582.5,
+  "phase": "COMPLETE"
+}

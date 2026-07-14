@@ -14,6 +14,26 @@ def _f(value: Any) -> float | None:
         return None
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _trust_score(candidate: Mapping[str, Any]) -> float | None:
+    trust = _f(
+        _first_present(
+            candidate.get("microstructure_trust_score"),
+            candidate.get("composite_microstructure_trust_score"),
+            candidate.get("market_state_integrity_score"),
+        )
+    )
+    if trust is None:
+        return None
+    return trust / 100.0 if trust > 1.0 else trust
+
+
 def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
     """Return loss/profit probability plus hard block reasons.
 
@@ -24,12 +44,16 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
     reasons: list[str] = []
     risk = 0.20
     expected_net = _f(
-        candidate.get("pre_trade_expected_net_pnl_usd")
-        or candidate.get("expected_net_pnl_usd")
+        _first_present(
+            candidate.get("pre_trade_expected_net_pnl_usd"),
+            candidate.get("expected_net_pnl_usd"),
+        )
     )
     expected_bps = _f(
-        candidate.get("expected_move_after_cost_bps")
-        or candidate.get("expected_edge_after_cost_bps")
+        _first_present(
+            candidate.get("expected_move_after_cost_bps"),
+            candidate.get("expected_edge_after_cost_bps"),
+        )
     )
     if expected_net is None and expected_bps is None:
         risk = max(risk, 0.86)
@@ -40,13 +64,20 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
         risk = max(risk, 0.92)
         reasons.append("BLOCK_NEGATIVE_EXPECTANCY")
 
-    bucket_pf = _f(candidate.get("bucket_pf_window") or candidate.get("bucket_profit_factor"))
+    bucket_pf = _f(
+        _first_present(
+            candidate.get("bucket_pf_window"),
+            candidate.get("bucket_profit_factor"),
+        )
+    )
     if bucket_pf is not None and bucket_pf < 1.0:
         risk = max(risk, 0.90)
         reasons.append("BLOCK_PF_BELOW_1")
     bucket_expectancy = _f(
-        candidate.get("bucket_expectancy_usd_window")
-        or candidate.get("notional_weighted_bucket_expectancy")
+        _first_present(
+            candidate.get("bucket_expectancy_usd_window"),
+            candidate.get("notional_weighted_bucket_expectancy"),
+        )
     )
     if bucket_expectancy is not None and bucket_expectancy <= 0:
         risk = max(risk, 0.88)
@@ -64,10 +95,7 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
     if atr_stop_rate is not None and atr_stop_rate >= 0.40:
         risk = max(risk, min(0.94, 0.68 + atr_stop_rate * 0.30))
         reasons.append("BLOCK_ATR_STOP_CLUSTER")
-    trust = _f(
-        candidate.get("microstructure_trust_score")
-        or candidate.get("composite_microstructure_trust_score")
-    )
+    trust = _trust_score(candidate)
     if trust is None:
         risk = max(risk, 0.74)
         reasons.append("BLOCK_MICROSTRUCTURE_UNSAFE")

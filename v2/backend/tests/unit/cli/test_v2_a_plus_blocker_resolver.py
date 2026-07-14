@@ -110,6 +110,125 @@ def test_resolver_specializes_guardian_halted_risk_blocker_to_pit_growth(tmp_pat
     assert status["action"]["order_submitted"] is False
 
 
+def test_resolver_uses_guardian_pit_reasons_when_phase7_artifact_missing(
+    tmp_path: Path,
+) -> None:
+    inventory_dir = tmp_path / "inventory"
+    _write_json(
+        inventory_dir / "candidate_rejection_matrix.json",
+        {
+            "blocker_class_counts": {"RISK_GATEWAY_BLOCKER": 4},
+            "rejection_reason_counts": {
+                "GUARDIAN_HALTED_OR_MISSING": 4,
+                "RISK_GATEWAY_NOT_PASS": 4,
+            },
+            "total_candidate_count": 4,
+        },
+    )
+    _write_json(
+        inventory_dir / "candidate_inventory_summary.json",
+        {
+            "total_candidate_count": 4,
+            "continuous_edge_guardian_gate_status": {
+                "failure_reasons": [
+                    {
+                        "reason": "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS",
+                        "observed": 455,
+                        "required": 50000,
+                    }
+                ]
+            },
+        },
+    )
+
+    status = resolve_blocker(inventory_dir=inventory_dir, output_dir=inventory_dir)
+
+    assert status["selected_blocker_class"] == "RISK_GATEWAY_BLOCKER"
+    assert status["action"]["action_name"] == "CONTINUE_GUARDIAN_PIT_PREDICTION_GROWTH"
+    assert status["action"]["exact_blocker"] == "INSUFFICIENT_UNTOUCHED_HOLDOUT_PIT_VALID_PREDICTIONS"
+    assert status["action"]["phase7_pit_status_source"] == "guardian_failure_reasons"
+    assert status["action"]["phase7_pit_status_path"] is None
+    assert status["action"]["phase7_pit_threshold_met"] is False
+    assert status["action"]["point_in_time_valid_prediction_count"] == 455
+    assert status["action"]["remaining_point_in_time_valid_predictions"] == 49545
+    assert status["action"]["required_point_in_time_valid_prediction_count"] == 50000
+
+
+def test_resolver_does_not_treat_missing_pit_status_as_threshold_met(
+    tmp_path: Path,
+) -> None:
+    inventory_dir = tmp_path / "inventory"
+    _write_json(
+        inventory_dir / "candidate_rejection_matrix.json",
+        {
+            "blocker_class_counts": {"RISK_GATEWAY_BLOCKER": 4},
+            "rejection_reason_counts": {
+                "GUARDIAN_HALTED_OR_MISSING": 4,
+                "RISK_GATEWAY_NOT_PASS": 4,
+            },
+            "total_candidate_count": 4,
+        },
+    )
+    _write_json(inventory_dir / "candidate_inventory_summary.json", {"total_candidate_count": 4})
+
+    status = resolve_blocker(inventory_dir=inventory_dir, output_dir=inventory_dir)
+
+    assert status["selected_blocker_class"] == "RISK_GATEWAY_BLOCKER"
+    assert status["action"]["action_name"] == "CONTINUE_GUARDIAN_PIT_PREDICTION_GROWTH"
+    assert status["action"]["exact_blocker"] == "GUARDIAN_PIT_STATUS_UNVERIFIED"
+    assert status["action"]["phase7_pit_status_source"] == "missing_phase7_and_guardian_pit_status"
+    assert status["action"]["phase7_pit_threshold_met"] is False
+
+
+def test_resolver_uses_current_guardian_performance_reason_when_pit_is_not_blocking(
+    tmp_path: Path,
+) -> None:
+    inventory_dir = tmp_path / "inventory"
+    _write_json(
+        inventory_dir / "candidate_rejection_matrix.json",
+        {
+            "blocker_class_counts": {"RISK_GATEWAY_BLOCKER": 4},
+            "rejection_reason_counts": {
+                "GUARDIAN_HALTED_OR_MISSING": 4,
+                "RISK_GATEWAY_NOT_PASS": 4,
+            },
+            "total_candidate_count": 4,
+        },
+    )
+    _write_json(
+        inventory_dir / "candidate_inventory_summary.json",
+        {
+            "total_candidate_count": 4,
+            "continuous_edge_guardian_gate_status": {
+                "failure_reasons": [
+                    {
+                        "reason": "INSUFFICIENT_ROLLING_100_TRADE_WINDOW",
+                        "observed": 0,
+                        "required": 100,
+                    },
+                    {
+                        "reason": "INSUFFICIENT_REALTIME_A_GRADE_CLOSED_ECONOMIC_TRADES",
+                        "observed": 0,
+                        "required": 1000,
+                    },
+                ]
+            },
+        },
+    )
+
+    status = resolve_blocker(inventory_dir=inventory_dir, output_dir=inventory_dir)
+
+    assert status["selected_blocker_class"] == "RISK_GATEWAY_BLOCKER"
+    assert status["action"]["action_name"] == "CONTINUE_GUARDIAN_PERFORMANCE_EVIDENCE_MATURATION"
+    assert status["action"]["exact_blocker"] == "INSUFFICIENT_ROLLING_100_TRADE_WINDOW"
+    assert status["action"]["phase7_pit_status_source"] == "current_guardian_gate_no_pit_blocker"
+    assert status["action"]["phase7_pit_status_path"] is None
+    assert status["action"]["phase7_pit_threshold_met"] is True
+    assert status["action"]["remaining_point_in_time_valid_predictions"] == 0
+    assert status["action"]["order_submitted"] is False
+    assert status["action"]["test_order_submitted"] is False
+
+
 def test_resolver_stops_calling_completed_pit_threshold_the_guardian_blocker(tmp_path: Path) -> None:
     _write_json(
         tmp_path / "candidate_rejection_matrix.json",
@@ -331,3 +450,86 @@ def test_resolver_writes_phase0_truth_and_phase1_failure_decomposition(tmp_path:
     assert first_row["formula_expected_net_pnl_usd"] == -0.2
     assert phase4_root["positive_expected_net_pnl_usd_count"] == 0
     assert phase4_lab["promotion_summary"]["promoted_strategy_count"] == 0
+
+
+def test_phase1_compact_preemptive_loss_rows_use_actual_action_not_omitted_price(
+    tmp_path: Path,
+) -> None:
+    _write_json(
+        tmp_path / "candidate_rejection_matrix.json",
+        {
+            "blocker_class_counts": {"PREEMPTIVE_LOSS_PROBABILITY_BLOCKER": 1},
+            "total_candidate_count": 1,
+        },
+    )
+    _write_json(tmp_path / "candidate_inventory_summary.json", {"total_candidate_count": 1})
+    _write_jsonl(
+        tmp_path / "candidate_inventory.jsonl",
+        [
+            {
+                "candidate_id": "compact-loss-row",
+                "symbol": "ETHFIUSDT",
+                "side": "short",
+                "pre_trade_loss_probability": 0.92,
+                "preemptive_action": "BLOCK_LOSS_PROBABILITY_TOO_HIGH",
+                "preemptive_decision": "NO_TRADE",
+                "preemptive_decision_reasons": [
+                    "EXPECTED_EDGE_AFTER_COST_NON_POSITIVE",
+                    "EXPECTED_MOVE_DOES_NOT_COVER_COST",
+                    "HIGH_CONFIDENCE_LOSS_RATE_FORMING",
+                    "GUARDIAN_HALTED_OR_MISSING",
+                ],
+            }
+        ],
+    )
+
+    resolve_blocker(inventory_dir=tmp_path, output_dir=tmp_path)
+
+    phase1 = json.loads((tmp_path / "phase1_edge_failure_decomposition.json").read_text(encoding="utf-8"))
+    row = json.loads((tmp_path / "phase1_candidate_failure_matrix.jsonl").read_text(encoding="utf-8"))
+
+    assert phase1["primary_cause_counts"]["LOSS_PROBABILITY_TOO_HIGH"] == 1
+    assert row["primary_cause"] == "LOSS_PROBABILITY_TOO_HIGH"
+    assert "CURRENT_PRICE_MISSING" not in row["all_detected_causes"]
+    assert "EXPECTED_MOVE_MISSING" not in row["all_detected_causes"]
+
+
+def test_phase1_compact_preemptive_bucket_rows_use_actual_action_not_omitted_price(
+    tmp_path: Path,
+) -> None:
+    _write_json(
+        tmp_path / "candidate_rejection_matrix.json",
+        {
+            "blocker_class_counts": {"TRAINER_CONFIDENCE_BLOCKER": 1},
+            "total_candidate_count": 1,
+        },
+    )
+    _write_json(tmp_path / "candidate_inventory_summary.json", {"total_candidate_count": 1})
+    _write_jsonl(
+        tmp_path / "candidate_inventory.jsonl",
+        [
+            {
+                "candidate_id": "compact-bucket-row",
+                "symbol": "ARBUSDT",
+                "side": "long",
+                "pre_trade_loss_probability": 0.2,
+                "preemptive_action": "BLOCK_BUCKET_QUARANTINE",
+                "preemptive_decision": "NO_TRADE",
+                "preemptive_decision_reasons": [
+                    "FVG_CONFLUENCE_WITHOUT_SUFFICIENT_MICROSTRUCTURE_TRUST",
+                    "BUCKET_QUARANTINE_MATCH",
+                    "GUARDIAN_HALTED_OR_MISSING",
+                ],
+            }
+        ],
+    )
+
+    resolve_blocker(inventory_dir=tmp_path, output_dir=tmp_path)
+
+    phase1 = json.loads((tmp_path / "phase1_edge_failure_decomposition.json").read_text(encoding="utf-8"))
+    row = json.loads((tmp_path / "phase1_candidate_failure_matrix.jsonl").read_text(encoding="utf-8"))
+
+    assert phase1["primary_cause_counts"]["BUCKET_QUARANTINE"] == 1
+    assert row["primary_cause"] == "BUCKET_QUARANTINE"
+    assert "CURRENT_PRICE_MISSING" not in row["all_detected_causes"]
+    assert "EXPECTED_MOVE_MISSING" not in row["all_detected_causes"]

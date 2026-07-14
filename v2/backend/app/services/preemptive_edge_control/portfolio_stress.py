@@ -14,19 +14,46 @@ def _f(value: Any) -> float | None:
         return None
 
 
+def _first_present(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _trust_score(candidate: dict[str, Any]) -> float | None:
+    trust = _f(
+        _first_present(
+            candidate.get("composite_microstructure_trust_score"),
+            candidate.get("microstructure_trust_score"),
+            candidate.get("market_state_integrity_score"),
+        )
+    )
+    if trust is None:
+        return None
+    return trust / 100.0 if trust > 1.0 else trust
+
+
 def assess_portfolio_stress(candidate: dict[str, Any], *, expected_edge_after_cost_bps: float | None, bucket_profit_factor: float | None) -> dict[str, Any]:
     notional = _f(
-        candidate.get("target_notional_usd")
-        or candidate.get("gross_notional_usd")
-        or candidate.get("notional")
+        _first_present(
+            candidate.get("target_notional_usd"),
+            candidate.get("gross_notional_usd"),
+            candidate.get("notional"),
+        )
     ) or 0.0
-    margin = _f(candidate.get("allocated_margin_usd") or candidate.get("margin")) or 0.0
-    leverage = _f(candidate.get("recommended_leverage") or candidate.get("leverage_recommendation"))
+    margin = _f(_first_present(candidate.get("allocated_margin_usd"), candidate.get("margin"))) or 0.0
+    leverage = _f(
+        _first_present(
+            candidate.get("recommended_leverage"),
+            candidate.get("leverage_recommendation"),
+        )
+    )
     if leverage is None and margin > 0:
         leverage = notional / margin if margin else 1.0
     if leverage is None:
         leverage = 1.0
-    stop_bps = _f(candidate.get("stop_distance_bps") or candidate.get("max_loss_bps")) or 0.0
+    stop_bps = _f(_first_present(candidate.get("stop_distance_bps"), candidate.get("max_loss_bps"))) or 0.0
     max_loss = notional * max(stop_bps, 0.0) / 10000.0 if notional else 0.0
 
     reasons: list[str] = []
@@ -39,21 +66,33 @@ def assess_portfolio_stress(candidate: dict[str, Any], *, expected_edge_after_co
         adjusted_leverage = min(adjusted_leverage, 1.0)
         adjusted_notional = 0.0
         reasons.append("BUCKET_PF_BELOW_1_NO_LEVERAGE_INCREASE")
-    trust = _f(candidate.get("composite_microstructure_trust_score") or candidate.get("microstructure_trust_score"))
+    trust = _trust_score(candidate)
     if trust is not None and trust < 0.45:
         adjusted_notional *= 0.25
         reasons.append("LOW_MICROSTRUCTURE_TRUST_SIZE_HAIRCUT")
 
-    exposure_after = _f(candidate.get("portfolio_exposure_after_trade")) or adjusted_notional
-    correlation_after = _f(candidate.get("correlation_exposure_after_trade") or candidate.get("correlation_exposure_pct"))
+    exposure_after = _f(candidate.get("portfolio_exposure_after_trade"))
+    if exposure_after is None:
+        exposure_after = adjusted_notional
+    correlation_after = _f(
+        _first_present(
+            candidate.get("correlation_exposure_after_trade"),
+            candidate.get("correlation_exposure_pct"),
+        )
+    )
+    risk_budget = _f(candidate.get("risk_budget_usd"))
     risk_of_ruin_delta = min(1.0, (max_loss / max(adjusted_notional, 1.0)) if max_loss else 0.0)
 
     return {
         "target_notional_usd": round(adjusted_notional, 8),
         "allocated_margin_usd": margin if adjusted_notional > 0 else 0.0,
         "recommended_leverage": round(adjusted_leverage, 8),
-        "recommended_margin_mode": candidate.get("recommended_margin_mode") or candidate.get("margin_mode_recommendation") or "isolated_paper_simulated",
-        "risk_budget_usd": _f(candidate.get("risk_budget_usd")) or max_loss,
+        "recommended_margin_mode": _first_present(
+            candidate.get("recommended_margin_mode"),
+            candidate.get("margin_mode_recommendation"),
+            "isolated_paper_simulated",
+        ),
+        "risk_budget_usd": risk_budget if risk_budget is not None else max_loss,
         "max_loss_if_stop_hit": max_loss,
         "liquidation_price": _f(candidate.get("liquidation_price")),
         "liquidation_buffer": _f(candidate.get("liquidation_buffer_bps")),

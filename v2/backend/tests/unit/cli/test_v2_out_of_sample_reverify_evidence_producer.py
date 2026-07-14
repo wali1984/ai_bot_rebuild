@@ -795,6 +795,104 @@ def test_holdout_registry_manifest_history_is_append_only(tmp_path: Path) -> Non
     assert history_status["history_record_count"] == 2
 
 
+def test_manifest_history_defaults_to_compact_payload_with_hash_integrity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv(producer.COMPACT_MANIFEST_HISTORY_ENV, raising=False)
+    manifest_path = tmp_path / "manifest.json"
+    sidecar_path = tmp_path / "rows.jsonl"
+    manifest = {
+        "schema_version": producer.SCHEMA_VERSION,
+        "generated_utc": "2026-06-21T00:00:00Z",
+        "producer": "unit",
+        "status": "READY",
+        "processed_source_row_count": 1,
+        "large_payload": [{"x": idx} for idx in range(100)],
+        "paper_only": True,
+        "places_real_order": False,
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    producer._append_manifest_history(
+        manifest_path=manifest_path,
+        sidecar_path=sidecar_path,
+        manifest=manifest,
+        generated_utc="2026-06-21T00:00:00Z",
+    )
+
+    history_path = producer._manifest_history_path(manifest_path)
+    history_rows, _ = producer._iter_jsonl(history_path)
+    status = producer.verify_manifest_history(
+        manifest_path=manifest_path,
+        generated_utc="2026-06-21T00:01:00Z",
+    )
+
+    assert len(history_rows) == 1
+    assert history_rows[0]["manifest_payload_omitted"] is True
+    assert "manifest_payload" not in history_rows[0]
+    assert history_rows[0]["manifest_hash"] == producer._sha256_payload(manifest)
+    assert history_rows[0]["manifest_payload_summary"]["status"] == "READY"
+    assert status["status"] == "PASSED_MANIFEST_HISTORY_INTEGRITY"
+    assert status["compact_payload_omitted_count"] == 1
+
+
+def test_existing_identity_readers_stream_without_full_jsonl_loader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    rows_path = tmp_path / "rows.jsonl"
+    _write_jsonl(
+        rows_path,
+        [
+            {"candidate_identity": "id-1", "symbol": "BTCUSDT"},
+            {"position_identity": "id-2", "symbol": "ETHUSDT"},
+        ],
+    )
+
+    def fail_full_loader(_path):
+        raise AssertionError("_iter_jsonl should not be used for identity indexes")
+
+    monkeypatch.setattr(producer, "_iter_jsonl", fail_full_loader)
+
+    assert producer._existing_identities(rows_path) == {"id-1", "id-2"}
+    assert set(producer._existing_rows_by_identity(rows_path)) == {"id-1", "id-2"}
+
+
+def test_rejection_ledger_summary_streams_without_full_jsonl_loader(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    rejected_path = tmp_path / "rejected.jsonl"
+    _write_jsonl(
+        rejected_path,
+        [
+            {
+                "candidate_identity": "id-1",
+                "source_kind": "redis_prediction",
+                "reasons": ["SELECTOR_POLICY_FINGERPRINT_MISMATCH"],
+            },
+            {
+                "candidate_identity": "id-1",
+                "source_kind": "redis_prediction",
+                "reasons": ["SELECTOR_POLICY_FINGERPRINT_MISMATCH"],
+            },
+        ],
+    )
+
+    def fail_full_loader(_path):
+        raise AssertionError("_iter_jsonl should not be used for rejection summaries")
+
+    monkeypatch.setattr(producer, "_iter_jsonl", fail_full_loader)
+
+    summary = producer._rejection_ledger_summary(rejected_path)
+
+    assert summary["row_count"] == 2
+    assert summary["source_status"]["streaming_reader_used"] is True
+    assert summary["reason_counts"]["SELECTOR_POLICY_FINGERPRINT_MISMATCH"] == 2
+    assert summary["duplicated_candidate_identity_count"] == 1
+
+
 def test_holdout_window_candidate_audit_is_non_countable_and_decision_time_only(tmp_path: Path) -> None:
     first_day_winner = _row(
         row_id="candidate-audit-day-1-win",
@@ -4866,6 +4964,72 @@ def test_holdout_prediction_coverage_counts_pit_no_trade_without_a_grade_admissi
     assert coverage["counts_as_a_grade_evidence"] is False
     assert coverage["counts_no_trade_as_win"] is False
     assert coverage["prediction_reject_reason_counts"] == {}
+
+
+def test_holdout_prediction_coverage_merge_preserves_larger_safe_pit_snapshot() -> None:
+    current = {
+        "status": "READY_UNTOUCHED_HOLDOUT_PREDICTION_COVERAGE",
+        "point_in_time_valid_prediction_count": 455,
+        "symbol_count": 86,
+        "timeframe_count": 5,
+        "selected_policy_action_counts": {"LONG": 1, "NO_TRADE": 453, "SHORT": 1},
+        "counts_as_a_grade_evidence": False,
+        "counts_no_trade_as_win": False,
+        "post_outcome_candidate_selection_allowed": False,
+        "future_labels_used_as_decision_features_allowed": False,
+    }
+    previous = {
+        "status": "READY_UNTOUCHED_HOLDOUT_PREDICTION_COVERAGE",
+        "point_in_time_valid_prediction_count": 50369,
+        "symbol_count": 107,
+        "timeframe_count": 5,
+        "selected_policy_action_counts": {
+            "LONG": 23767,
+            "NO_TRADE": 13028,
+            "SHORT": 13574,
+        },
+        "counts_as_a_grade_evidence": False,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+        "counts_no_trade_as_win": False,
+        "post_outcome_candidate_selection_allowed": False,
+        "future_labels_used_as_decision_features_allowed": False,
+    }
+
+    merged = producer._merge_holdout_prediction_coverage_status(current, previous)
+
+    assert merged["point_in_time_valid_prediction_count"] == 50369
+    assert merged["symbol_count"] == 107
+    assert merged["selected_policy_action_counts"]["LONG"] == 23767
+    assert merged["counts_as_a_grade_evidence"] is False
+    assert merged["counts_as_a_plus"] is False
+    assert merged["counts_as_live_ready"] is False
+    assert merged["counts_no_trade_as_win"] is False
+    assert (
+        merged["monotonic_coverage_merge"]["current_producer_cycle_point_in_time_valid_prediction_count"]
+        == 455
+    )
+
+
+def test_holdout_prediction_coverage_merge_rejects_larger_unsafe_snapshot() -> None:
+    current = {
+        "status": "READY_UNTOUCHED_HOLDOUT_PREDICTION_COVERAGE",
+        "point_in_time_valid_prediction_count": 455,
+        "counts_as_a_grade_evidence": False,
+        "counts_no_trade_as_win": False,
+    }
+    previous = {
+        "status": "READY_UNTOUCHED_HOLDOUT_PREDICTION_COVERAGE",
+        "point_in_time_valid_prediction_count": 50369,
+        "counts_as_a_grade_evidence": True,
+        "counts_no_trade_as_win": False,
+    }
+
+    merged = producer._merge_holdout_prediction_coverage_status(current, previous)
+
+    assert merged is current
+    assert merged["point_in_time_valid_prediction_count"] == 455
+    assert "monotonic_coverage_merge" not in merged
 
 
 def test_rejection_ledger_summary_reports_total_reasons_by_source_kind(tmp_path: Path) -> None:

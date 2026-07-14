@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 from types import SimpleNamespace
 
@@ -130,6 +131,21 @@ def test_attention_encoder_is_off_by_default_and_env_gated(monkeypatch: pytest.M
     assert on.model_id != off.model_id
 
 
+def test_attention_off_preserves_legacy_model_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("V2_TRAINER_ATTENTION_ENCODER", raising=False)
+    model = V2HybridPolicyModel(input_dim=1248)
+
+    legacy_identity = (
+        f"{model.input_dim}|{model.seed}|{model.hidden_size}|{model.residual_block_count}"
+    )
+    expected_model_id = "v2_hybrid_policy_" + hashlib.sha256(
+        legacy_identity.encode()
+    ).hexdigest()[:24]
+
+    assert model.attention_encoder_enabled is False
+    assert model.model_id == expected_model_id
+
+
 def test_attention_encoder_only_enables_when_input_splits_into_four_blocks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -137,5 +153,23 @@ def test_attention_encoder_only_enables_when_input_splits_into_four_blocks(
     # 1247 is not divisible by 4 -> attention must stay disabled (safe fallback).
     odd = V2HybridPolicyModel(input_dim=1247)
     assert odd.attention_encoder_enabled is False
+    odd_identity = f"{odd.input_dim}|{odd.seed}|{odd.hidden_size}|{odd.residual_block_count}"
+    assert odd.model_id == "v2_hybrid_policy_" + hashlib.sha256(
+        odd_identity.encode()
+    ).hexdigest()[:24]
     even = V2HybridPolicyModel(input_dim=1248)
     assert even.attention_encoder_enabled is True
+
+
+def test_attention_model_identity_uses_effective_head_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("V2_TRAINER_ATTENTION_ENCODER", "true")
+    monkeypatch.setenv("V2_TRAINER_ATTENTION_HEADS", "5")
+    degraded = V2HybridPolicyModel(input_dim=1248)
+    monkeypatch.setenv("V2_TRAINER_ATTENTION_HEADS", "4")
+    explicit = V2HybridPolicyModel(input_dim=1248)
+
+    assert degraded.attention_encoder_enabled is True
+    assert degraded.attention_heads == 4
+    assert degraded.model_id == explicit.model_id

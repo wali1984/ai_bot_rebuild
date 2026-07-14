@@ -546,7 +546,7 @@ def publish_once(
                     ),
                     "confluence": _safe_get_json(redis_client, f"v2:altdata:confluence:{symbol}:{timeframe}"),
                     "moralis": _safe_get_json(redis_client, f"v2:features:moralis:{symbol}:{timeframe}"),
-                    "coinglass": _safe_get_json(redis_client, f"v2:altdata:coinank:funding:{symbol}"),
+                    "coinglass": _safe_get_json(redis_client, f"v2:features:coinglass:{symbol}:{timeframe}"),
                     "mark_index": derive_mark_index_divergence(
                         _safe_get_json(redis_client, f"v2:market:funding:{symbol}")
                     ),

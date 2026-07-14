@@ -40,6 +40,78 @@ COINGLASS_FEATURE_KEY = "v2:features:coinglass:{symbol}:{timeframe}"
 MORALIS_FEATURE_KEY = "v2:features:moralis:{symbol}:{timeframe}"
 COINGLASS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:coinglass:feature_bridge_status"
 MORALIS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:moralis:feature_bridge_status"
+PREEMPTIVE_MATRIX_KEY = "v2:paper:preemptive_candidate_decision_matrix"
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _candidate_symbol_timeframe_pairs(
+    redis_client: Any,
+    *,
+    limit: int,
+) -> list[tuple[str, str]]:
+    if redis_client is None:
+        return []
+    try:
+        raw = redis_client.get(PREEMPTIVE_MATRIX_KEY)
+    except Exception:
+        return []
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    if not raw:
+        return []
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return []
+    rows = payload.get("rows") if isinstance(payload, dict) else []
+    if not isinstance(rows, list):
+        return []
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        symbol = str(row.get("symbol") or "").upper()
+        timeframe = str(row.get("timeframe") or row.get("thesis_timeframe") or "").lower()
+        if not symbol or not timeframe:
+            continue
+        pair = (symbol, timeframe)
+        if pair in seen:
+            continue
+        seen.add(pair)
+        pairs.append(pair)
+        if len(pairs) >= max(0, int(limit)):
+            break
+    return pairs
+
+
+def _symbol_timeframe_pairs(
+    redis_client: Any,
+    *,
+    symbols: list[str],
+    timeframe: str,
+    include_current_candidates: bool,
+    max_candidate_pairs: int,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    base_pairs = {
+        (str(symbol or "").upper(), str(timeframe or "1m").lower())
+        for symbol in symbols
+        if str(symbol or "").strip()
+    }
+    candidate_pairs = (
+        _candidate_symbol_timeframe_pairs(redis_client, limit=max_candidate_pairs)
+        if include_current_candidates
+        else []
+    )
+    pairs = set(base_pairs)
+    pairs.update(candidate_pairs)
+    return sorted(pairs), candidate_pairs
 
 
 def run_once(
@@ -47,20 +119,29 @@ def run_once(
     *,
     symbols: list[str],
     timeframe: str = "1m",
+    include_current_candidates: bool = False,
+    max_candidate_pairs: int = 250,
 ) -> dict[str, Any]:
     generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
     rows: list[dict[str, Any]] = []
-    for symbol in symbols:
+    pairs, candidate_pairs = _symbol_timeframe_pairs(
+        redis_client,
+        symbols=symbols,
+        timeframe=timeframe,
+        include_current_candidates=include_current_candidates,
+        max_candidate_pairs=max_candidate_pairs,
+    )
+    for symbol, pair_timeframe in pairs:
         payload = build_confluence(
             symbol=symbol,
-            timeframe=timeframe,
-            coinglass=load_coinglass_input(redis_client, symbol, timeframe),
+            timeframe=pair_timeframe,
+            coinglass=load_coinglass_input(redis_client, symbol, pair_timeframe),
             santiment=load_santiment_input(redis_client, symbol),
-            moralis=load_moralis_input(redis_client, symbol, timeframe),
+            moralis=load_moralis_input(redis_client, symbol, pair_timeframe),
             generated_utc=generated,
         )
         if redis_client is not None:
-            key = CONFLUENCE_KEY.format(symbol=symbol, timeframe=timeframe)
+            key = CONFLUENCE_KEY.format(symbol=symbol, timeframe=pair_timeframe)
             redis_client.set(
                 key,
                 json.dumps(payload, sort_keys=True, default=str),
@@ -69,12 +150,13 @@ def run_once(
             _publish_provider_bridge_aliases(
                 redis_client,
                 symbol=symbol,
-                timeframe=timeframe,
+                timeframe=pair_timeframe,
                 generated_utc=generated,
             )
         rows.append(
             {
                 "symbol": symbol,
+                "timeframe": pair_timeframe,
                 "providers_present": payload["providers_present"],
                 "actual_payload_present": payload["actual_payload_present"],
                 "missing_feature_count": len(payload["missing_feature_flags"]),
@@ -86,6 +168,10 @@ def run_once(
         "generated_utc": generated,
         "timeframe": timeframe,
         "symbol_count": len(symbols),
+        "pair_count": len(pairs),
+        "include_current_candidates": bool(include_current_candidates),
+        "dynamic_candidate_pair_count": len(candidate_pairs),
+        "max_candidate_pairs": int(max_candidate_pairs),
         "rows": rows,
         "confluence_key_count": consumption.get("confluence_key_count"),
         "places_real_order": False,
@@ -227,6 +313,20 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("ALTDATA_CONFLUENCE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT"),
     )
     parser.add_argument("--timeframe", default=os.environ.get("ALTDATA_CONFLUENCE_TIMEFRAME", "1m"))
+    parser.add_argument(
+        "--include-current-candidates",
+        action=argparse.BooleanOptionalAction,
+        default=_env_bool("ALTDATA_CONFLUENCE_INCLUDE_CURRENT_CANDIDATES", True),
+        help=(
+            "also publish confluence for current preemptive matrix symbol/timeframe pairs; "
+            "use --no-include-current-candidates or ALTDATA_CONFLUENCE_INCLUDE_CURRENT_CANDIDATES=0 to disable"
+        ),
+    )
+    parser.add_argument(
+        "--max-candidate-pairs",
+        type=int,
+        default=int(os.environ.get("ALTDATA_CONFLUENCE_MAX_CANDIDATE_PAIRS", "250") or 250),
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--sleep-seconds", type=float, default=60.0)
     args = parser.parse_args(argv)
@@ -234,7 +334,13 @@ def main(argv: list[str] | None = None) -> int:
     redis_client = _redis_client(args.redis_url)
     symbols = _symbols(args.symbols)
     while True:
-        report = run_once(redis_client, symbols=symbols, timeframe=args.timeframe)
+        report = run_once(
+            redis_client,
+            symbols=symbols,
+            timeframe=args.timeframe,
+            include_current_candidates=bool(args.include_current_candidates),
+            max_candidate_pairs=max(0, int(args.max_candidate_pairs)),
+        )
         print(json.dumps(report, indent=2, sort_keys=True, default=str))
         if args.once:
             return 0
