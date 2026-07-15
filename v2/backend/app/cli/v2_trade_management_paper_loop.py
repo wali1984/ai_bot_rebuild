@@ -855,6 +855,18 @@ def _normalize_closed_paper_exploration_economics(row: dict[str, Any]) -> dict[s
         item["max_adverse_usd"] = _first_present(item.get("mae_usd"), item.get("MAE_usd"))
     if item.get("max_favorable_usd") in (None, ""):
         item["max_favorable_usd"] = _first_present(item.get("mfe_usd"), item.get("MFE_usd"))
+
+    if item.get("realized_pnl_usd") in (None, ""):
+        entry_price = _coerce_float(item.get("entry_price"))
+        exit_price = _coerce_float(item.get("exit_price"))
+        quantity = _coerce_float(item.get("quantity") or item.get("order_size"))
+        fees = _coerce_float(item.get("fees_usd") or item.get("fees") or 0.0) or 0.0
+        slippage = _coerce_float(item.get("slippage_usd") or item.get("slippage") or 0.0) or 0.0
+        if entry_price is not None and exit_price is not None and quantity is not None:
+            pnl_before_costs = (exit_price - entry_price) * quantity
+            realized_pnl_usd = round(pnl_before_costs - fees - slippage, 8)
+            item["realized_pnl_usd"] = realized_pnl_usd
+
     if item.get("win_loss") in (None, ""):
         winner = item.get("winner")
         if winner is True:
@@ -862,7 +874,7 @@ def _normalize_closed_paper_exploration_economics(row: dict[str, Any]) -> dict[s
         elif winner is False:
             item["win_loss"] = "loss"
         else:
-            net = _coerce_float(item.get("realized_net_pnl_usd"))
+            net = _coerce_float(item.get("realized_pnl_usd") or item.get("realized_net_pnl_usd"))
             if net is not None:
                 item["win_loss"] = "win" if net > 0 else "loss"
     if item.get("dirty_flag") is None:
