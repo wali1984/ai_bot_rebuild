@@ -35,6 +35,7 @@ from app.api.v2 import (
     public_status,
     realtime,
     replay,
+    self_healing_status,
     status_contracts,
     symbol_intel,
     system_metrics,
@@ -69,6 +70,7 @@ router.include_router(hourly_monitor.router)
 router.include_router(mobile.router)
 router.include_router(trader_snapshot.router)
 router.include_router(system_metrics.router)
+router.include_router(self_healing_status.router)
 router.include_router(symbol_intel.router)
 
 __all__ = ["router"]
