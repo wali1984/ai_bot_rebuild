@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
+
+import redis
 
 
 def _f(value: Any) -> float | None:
@@ -12,6 +16,29 @@ def _f(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _get_adaptive_microstructure_trust_threshold() -> float:
+    """Get adaptive microstructure trust threshold from Redis.
+
+    Returns adaptive threshold based on market conditions and model quality.
+    Defaults to 0.45 if adaptive state unavailable.
+    """
+    try:
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        client = redis.from_url(redis_url, decode_responses=True)
+        tuning_state = client.get("v2:orchestrator:adaptive_gate_tuning_state")
+        if tuning_state:
+            data = json.loads(tuning_state)
+            # When B-grade enabled, we can accept slightly lower trust scores
+            # because we have more historical data to learn from
+            if data.get("enable_b_grade") is True:
+                return 0.35  # Adaptive lower threshold when confidence in outcomes is high
+            # When B-grade disabled, keep stricter threshold
+            return 0.40
+    except Exception:
+        pass
+    return 0.45  # Conservative default
 
 
 def assess_candidate_loss_risk(
@@ -68,10 +95,11 @@ def assess_candidate_loss_risk(
         risk = max(risk, 0.65)
         reasons.append("EXIT_FEASIBILITY_WEAK")
 
+    adaptive_trust_threshold = _get_adaptive_microstructure_trust_threshold()
     if microstructure_trust_score is None:
         risk = max(risk, 0.70)
         reasons.append("MICROSTRUCTURE_TRUST_MISSING")
-    elif microstructure_trust_score < 0.45:
+    elif microstructure_trust_score < adaptive_trust_threshold:
         risk = max(risk, 0.75)
         reasons.append("MICROSTRUCTURE_TRUST_LOW")
 
