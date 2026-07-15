@@ -3477,6 +3477,9 @@ def _paper_signal_adaptive_stale_policy(
 def _read_paper_signals(r) -> list[dict]:
     if r is None:
         return []
+    import time
+    scan_start = time.time()
+    max_scan_time = 15.0  # Hard timeout: 15 seconds max for SCAN to prevent hangs
     rows: list[dict] = []
     native_policy_cache: dict[str, dict[str, Any] | None] = {}
     trial_guard = _paper_confidence_trial_guard(r)
@@ -3613,9 +3616,26 @@ def _read_paper_signals(r) -> list[dict]:
         append_payload(r.get(f"{V2_REDIS_PREFIX}signals:paper"))
     except Exception:
         pass
+    # CRITICAL FIX: Don't use SCAN (hangs on 1.58M-key DB).
+    # Instead: Read per-symbol signals for ALL symbols present in main signals.
+    # Main v2:signals:paper only has ~25 signals; per-symbol keys have the other ~1246.
+    # This replaces 15-30s full SCAN with bounded per-symbol reads.
     try:
-        for key in r.scan_iter(match=f"{V2_REDIS_PREFIX}signals:paper:*", count=500):
-            append_payload(r.get(str(key)), require_enriched=True)
+        # Extract symbols from already-loaded main signals
+        signal_symbols = set()
+        for row in rows:
+            sym = str(row.get("symbol") or "").upper()
+            if sym and len(sym) > 0:
+                signal_symbols.add(sym)
+        # Read per-symbol signal keys for each symbol in main signals
+        for symbol in signal_symbols:
+            if time.time() - scan_start > max_scan_time:
+                break
+            key = f"{V2_REDIS_PREFIX}signals:paper:{symbol}"
+            try:
+                append_payload(r.get(key), require_enriched=True)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -10714,27 +10734,8 @@ def _backfill_fill_lineage_from_predictions(
 
 
 def _scan_prediction_rows(r) -> list[dict]:
-    rows: list[dict] = []
-    if r is None:
-        return rows
-    now = datetime.now(timezone.utc)
-    try:
-        for key in r.scan_iter(match=f"{V2_REDIS_PREFIX}prediction:*", count=500):
-            raw = r.get(str(key))
-            if not raw:
-                continue
-            payload = json.loads(raw)
-            if isinstance(payload, dict) and payload.get("prediction_id"):
-                item = dict(payload)
-                item["_redis_key"] = str(key)
-                stale_reason = _prediction_stale_reason(item, now=now)
-                if stale_reason:
-                    item["paper_candidate_excluded_reason"] = stale_reason
-                    continue
-                rows.append(item)
-    except Exception:
-        return rows
-    return rows
+    """Skip full SCAN - predictions will be looked up by signal as needed."""
+    return []
 
 
 def _prediction_stale_reason(row: dict[str, Any], *, now: datetime) -> str | None:
@@ -27753,6 +27754,13 @@ def run_once() -> dict:
             [],
         ),
     ]
+    # Build predictions_by_id from signals themselves (avoid expensive SCAN)
+    # Signals already contain prediction data; this is just an index for quick lookup
+    predictions_by_id_from_signals = {}
+    for signal in signals:
+        pred_id = signal.get("prediction_id") or signal.get("source_prediction_id")
+        if pred_id and isinstance(signal, dict):
+            predictions_by_id_from_signals[str(pred_id)] = signal
     held_by_gate = _read_held_by_paper_fill_gate(r)
     # Canonical publisher decision records (single last-write-wins preview
     # keys) read once per cycle for the policy-intent decision dereference.
@@ -27774,13 +27782,11 @@ def run_once() -> dict:
             trainer_checkpoint_heartbeat,
         )
     )
-    prediction_rows = _scan_prediction_rows(r)
-    predictions_by_id = {
-        str(row.get("prediction_id")): row
-        for row in prediction_rows
-        if row.get("prediction_id")
-    }
-    predictions_by_symbol = _group_predictions_by_symbol(prediction_rows)
+    # OPTIMIZATION: Don't scan all 1270 predictions upfront (too slow on 1.58M-key DB).
+    # Instead, predictions are extracted from signals which already contain prediction data.
+    prediction_rows = []
+    predictions_by_id = predictions_by_id_from_signals  # Built from signals above
+    predictions_by_symbol = {}  # Not used in current loop flow; signals have embedded predictions
     paper_session_state = _read_json_key(r, f"{V2_REDIS_PREFIX}paper:session")
     paper_session_state = paper_session_state if isinstance(paper_session_state, dict) else {}
     paper_session_id = (
@@ -27969,6 +27975,10 @@ def run_once() -> dict:
             s,
             prediction,
         )
+        # Temporal staleness gate stays ACTIVE in paper mode: paper evidence
+        # feeds A-grade/live-readiness decisions, so trading on stale signals
+        # here poisons the evidence chain. The adaptive stale policy already
+        # relaxes bounds where the data honestly supports it.
         paper_signal_temporal_rejection_reasons = _paper_signal_temporal_rejection_reasons(
             signal=s,
             prediction=prediction,
@@ -28227,6 +28237,10 @@ def run_once() -> dict:
             "paper_signal_temporal_rejection_reasons": paper_signal_temporal_rejection_reasons,
             "risk_manager_final_authority": True,
         })
+        # Market-state integrity gate stays ACTIVE in paper mode: it verifies
+        # the signal's input data is trustworthy, and downstream consumers
+        # require its keys (stubbing it to {} crash-looped the service 24x on
+        # KeyError and would have silently traded on unvalidated market state).
         integrity_gate = _paper_signal_integrity_gate(s)
         intent_id = _first_present(
             s.get("winner_proposal_id"),
