@@ -250,9 +250,13 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
          heartbeat_redis_key="v2:paper:position_history:heartbeat", heartbeat_field="generated_utc",
          max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     # --- orchestrator / decision ---
-    # Orchestrator publishes no usable string heartbeat key (decisions/proposals
-    # are non-string / TTL'd); process-liveness-only until a verified key exists.
-    _svc("orchestrator_arbitration", "orchestrator-arbitration-loop", "orchestrator", criticality="critical"),
+    # Heartbeat re-enabled after the unbounded-SCAN hang fix: v2:orchestrator:heartbeat
+    # (ex=300, finished_at) is now reliably published each ~18s cycle. Generous
+    # threshold + debounce so only a real hang (e.g. keyspace-growth SCAN stall)
+    # restarts it.
+    _svc("orchestrator_arbitration", "orchestrator-arbitration-loop", "orchestrator", criticality="critical",
+         heartbeat_redis_key="v2:orchestrator:heartbeat", heartbeat_field="finished_at",
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     _svc("readonly_decision_observatory", "readonly-decision-observatory", "orchestrator", criticality="normal",
          heartbeat_file="claude_worklog/codex_legacy_v2_realtime_decision_observatory/codex_legacy_v2_realtime_decision_observatory_status.json",
          heartbeat_field="generated_at", max_staleness_seconds=480),

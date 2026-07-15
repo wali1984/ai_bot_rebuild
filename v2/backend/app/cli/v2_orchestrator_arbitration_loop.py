@@ -92,12 +92,32 @@ def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
         return False
 
 
+def _bounded_scan(r, pattern: str, *, count: int = 1000, budget_seconds: float = 20.0):
+    """SCAN with a large batch count + a hard time budget.
+
+    ``scan_iter`` defaults to count=10, so matching a sparse pattern against a
+    multi-million-key Redis costs ~keyspace/10 round trips -- hundreds of
+    thousands -- which blows past the loop interval and effectively HANGS the
+    orchestrator (observed: run_once stuck >2min, heartbeat TTL expired, no
+    arbitration for hours). A large count cuts round trips ~100x and the time
+    budget guarantees the scan can never hang the loop again.
+    """
+    deadline = time.time() + budget_seconds
+    cursor = 0
+    while True:
+        cursor, batch = r.scan(cursor, match=pattern, count=count)
+        for key in batch:
+            yield key
+        if cursor == 0 or time.time() > deadline:
+            break
+
+
 def _scan_predictions(r) -> list[dict]:
     if r is None:
         return []
     by_prediction_id: dict[str, dict] = {}
     out_without_id: list[dict] = []
-    for key in r.scan_iter(match=f"{V2_REDIS_PREFIX}prediction:*"):
+    for key in _bounded_scan(r, f"{V2_REDIS_PREFIX}prediction:*"):
         if ":rl_core:" in str(key):
             continue
         try:
