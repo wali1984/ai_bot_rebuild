@@ -12,7 +12,7 @@
 // that may still hold a stale built bundle. The activate handler deletes
 // every cache whose name differs from STATIC_CACHE on the next page load,
 // so changing this constant is sufficient to evict stale assets.
-const STATIC_CACHE = 'nervyx-one-static-v2-20260713';
+const STATIC_CACHE = 'nervyx-one-static-v2-20260715';
 const STATIC_ASSETS = ['/manifest.webmanifest'];
 
 // Hard list of root paths that must never be served from cache. The

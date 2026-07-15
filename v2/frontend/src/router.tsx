@@ -3,6 +3,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AdminShell } from './components/layout/AdminShell';
 import { PublicShell } from './components/layout/PublicShell';
 import { TraderShell } from './components/layout/TraderShell';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 import { ADMIN_PAGES, PUBLIC_PAGES, APP_PAGES } from './pages/registry';
 import { MERGED_LEGACY_PATHS } from './pages/productNavigation';
 
@@ -28,11 +29,16 @@ const legacyRedirectRoutes = Object.entries(MERGED_LEGACY_PATHS).map(([from, to]
   element: <Navigate to={to} replace />,
 }));
 
+// errorElement on every shell so a route/lazy-chunk failure is caught by the
+// RouteErrorBoundary (auto-reloads on a stale chunk after redeploy) instead of
+// React Router's blank "Unexpected Application Error!" default.
+const errorElement = <RouteErrorBoundary />;
+
 export const router = createBrowserRouter([
-  { path: '/', element: <PublicShell />, children: [{ index: true, element: <PublicLandingPage /> }] },
+  { path: '/', element: <PublicShell />, errorElement, children: [{ index: true, element: <PublicLandingPage /> }] },
   ...legacyRedirectRoutes,
-  { element: <PublicShell />, children: publicChildren },
-  { element: <TraderShell />, children: appChildren },
-  { element: <AdminShell />, children: adminChildren },
+  { element: <PublicShell />, errorElement, children: publicChildren },
+  { element: <TraderShell />, errorElement, children: appChildren },
+  { element: <AdminShell />, errorElement, children: adminChildren },
   { path: '*', element: <Navigate to="/landing" replace /> },
 ]);
