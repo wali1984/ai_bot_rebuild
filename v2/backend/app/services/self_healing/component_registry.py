@@ -275,6 +275,10 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("adaptive_gate_tuner", "adaptive-gate-tuner", "orchestrator", criticality="high",
          heartbeat_redis_key="v2:orchestrator:adaptive_gate_tuning_state", heartbeat_field="generated_at",
          max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
+    # Publishes the shared dashboard capital-productivity telemetry (~10-min batch
+    # loop). Process-liveness self-heal (it was previously an unsupervised orphan).
+    _svc("adaptive_capital_productivity", "adaptive-capital-productivity", "publisher", criticality="high",
+         process_pattern="adaptive_capital_refresh_loop.sh"),
     # --- paper / execution (hedges/stops/sizing live inside the paper loop) ---
     # Critical execution loop; generous threshold + debounce so only a real
     # multi-minute outage restarts it, never a transient cycle lag.

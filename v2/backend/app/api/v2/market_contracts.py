@@ -3370,6 +3370,78 @@ def _runtime_portfolio_state() -> tuple[dict[str, Any], str, SourceType, list[st
     return {}, "", "unavailable", warnings
 
 
+def _overlay_live_account_state(payload: dict[str, Any]) -> str | None:
+    """Overlay REAL-TIME account state onto the ~10-min analytical compact.
+
+    The adaptive-capital compact is a batch evidence snapshot (counterfactual
+    sweep, A-grade readiness, accuracy) rewritten only every ~10 min. The headline
+    live numbers the card shows (equity, realized/unrealized PnL, open notional,
+    utilization, PnL windows) are available FRESH in Redis and should not lag.
+    This mutates ``payload`` (a per-request COPY -- never the cached compact) with
+    live values from ``v2:portfolio:state`` (~30s cadence) and live PnL windows
+    from ``v2:paper:closed_trades``, and returns the freshest live timestamp so
+    the envelope's freshness reflects the real-time data (not the batch file).
+    The inherently-batch analytics (after-cost edge, counterfactual, accuracy)
+    are left as-is; the original batch time is preserved as analytics_generated_utc.
+    """
+    def _num(v: Any) -> float | None:
+        if v is None or isinstance(v, bool):
+            return None
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            return None
+        return n if n == n and abs(n) != float("inf") else None
+
+    live_ts: str | None = None
+    try:
+        r = get_redis()
+        raw = r.get("v2:portfolio:state") if r is not None else None
+        state = json.loads(raw) if raw else None
+    except Exception:
+        state = None
+
+    cap = payload.get("capital_productivity_runtime_status")
+    cap = dict(cap) if isinstance(cap, dict) else {}
+    if isinstance(state, dict):
+        ts = state.get("generated_utc")
+        live_ts = ts if isinstance(ts, str) else None
+        equity = _num(state.get("equity")) if _num(state.get("equity")) is not None else _num(state.get("paper_equity_usd"))
+        open_notional = _num(state.get("open_position_notional")) or _num(state.get("open_positions_notional"))
+        realized = _num(state.get("realized_net_pnl_usd"))
+        if realized is None:
+            realized = _num(state.get("realized_pnl_usd"))
+        unrealized = _num(state.get("unrealized_pnl_usd"))
+        open_positions = state.get("open_positions_count") if state.get("open_positions_count") is not None else state.get("open_position_count")
+        if equity is not None:
+            cap["paper_equity_usd"] = equity
+        if open_notional is not None:
+            cap["gross_open_notional_usd"] = open_notional
+            if equity and equity > 0:
+                cap["capital_utilization_pct"] = round(open_notional / equity, 6)
+        if realized is not None:
+            cap["realized_pnl_usd"] = realized
+        if unrealized is not None:
+            cap["unrealized_pnl_usd"] = unrealized
+        if open_positions is not None:
+            cap["open_position_count"] = open_positions
+        cap["live_account_generated_utc"] = live_ts
+        cap["live_account_source"] = "v2:portfolio:state"
+
+    # Live PnL windows from real closed trades (fresher than the batch file).
+    live_pnl = _redis_pnl_windows()
+    if live_pnl and live_pnl.get("closed_trade_count", 0) > 0:
+        payload["pnl_history_status"] = live_pnl
+        cap["pnl_history"] = live_pnl
+
+    payload["capital_productivity_runtime_status"] = cap
+    payload["analytics_generated_utc"] = payload.get("generated_utc")
+    if live_ts:
+        payload["live_account_generated_utc"] = live_ts
+        payload["generated_utc"] = live_ts
+    return live_ts
+
+
 def _payload_has_scope(payload: dict[str, Any] | None) -> bool:
     trader_id, paper_account_id = _payload_scope_values(payload)
     return bool(trader_id or paper_account_id)
@@ -4601,6 +4673,9 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
             warning="Adaptive capital productivity runtime payload is unavailable",
             mode="read_only",
         )
+    # Overlay real-time account state (equity/PnL/utilization/open-notional) from
+    # Redis onto the ~10-min batch compact, on a COPY (never the cached dict), so
+    # the headline live numbers are fresh and the envelope freshness is honest.
     readiness_context = _paper_a_grade_readiness_context(get_redis())
     payload = {
         **payload,
@@ -4610,6 +4685,8 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
         "readiness_blockers": readiness_context["readiness_blockers"],
         "top_blockers": readiness_context["readiness_blockers"][:8],
     }
+    live_timestamp = _overlay_live_account_state(payload)
+    effective_timestamp = live_timestamp or timestamp
     missing_fields = [
         field
         for field in (
@@ -4623,9 +4700,11 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
     response = _base_response(
         endpoint="/api/v2/adaptive-capital/dashboard",
         data=payload,
-        source=source,
-        source_type="static_payload",
-        timestamp=timestamp,
+        source=(
+            "redis:v2:portfolio:state + " + source if live_timestamp else source
+        ),
+        source_type="redis_live" if live_timestamp else "static_payload",
+        timestamp=effective_timestamp,
         missing_fields=missing_fields,
         warnings=[
             "Read-only compact telemetry projection from operator runtime payloads",
@@ -4633,11 +4712,13 @@ async def get_adaptive_capital_dashboard() -> dict[str, Any]:
         ],
         exchange=None,
         mode="read_only",
-        # Recomputed on a loop by v2_adaptive_capital_productivity_status (a ~2.5min
-        # counterfactual sweep). Fresh within 10 min, stale beyond 30 min — matches
-        # the analytical cadence rather than the tick-stream 30s/120s default.
-        fresh_max_seconds=600,
-        stale_min_seconds=1800,
+        # Freshness now tracks the REAL-TIME account overlay (v2:portfolio:state,
+        # ~30s cadence) so green == genuinely fresh live data. When the live
+        # overlay is unavailable it falls back to the batch analytical timestamp
+        # and correctly shows stale. The inherently-batch analytics carry their
+        # own age in analytics_generated_utc.
+        fresh_max_seconds=90,
+        stale_min_seconds=300,
     )
     response["real_trader_readiness"] = readiness_context
     response["a_grade_blocker_truth"] = readiness_context["a_grade_blocker_truth"]
