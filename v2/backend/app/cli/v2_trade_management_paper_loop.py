@@ -27933,6 +27933,31 @@ def run_once() -> dict:
             a_plus_scoped_context_cache[cache_key] = cached
         return cached
 
+    # Calculate adaptive risk envelope based on current performance
+    # This scales leverage and risk allocation dynamically as the model learns
+    from v2.backend.app.services.adaptive_capital_allocator.dynamic_envelope import (  # noqa: PLC0415
+        calculate_dynamic_risk_envelope,
+    )
+
+    _pre_cycle_aggregate = pre_cycle_paper_performance_circuit_breaker_status.get("aggregate") or {}
+    _pre_cycle_closed_count = pre_cycle_paper_performance_circuit_breaker_status.get("governed_closed_rows", 0)
+    _current_drawdown = max(
+        0.0,
+        (
+            (paper_starting_equity_usd - portfolio_context.get("current_equity_usd", paper_starting_equity_usd))
+            / max(1.0, paper_starting_equity_usd)
+        ),
+    )
+
+    dynamic_paper_envelope = calculate_dynamic_risk_envelope(
+        win_rate=_pre_cycle_aggregate.get("win_rate"),
+        profit_factor=_pre_cycle_aggregate.get("profit_factor"),
+        closed_trade_count=_pre_cycle_closed_count,
+        current_drawdown_pct=_current_drawdown,
+        model_avg_confidence=trainer_hybrid_cuda_status.get("avg_prediction_confidence", 0.5) if isinstance(trainer_hybrid_cuda_status, dict) else 0.5,
+        paper_mode=True,
+    )
+
     for s in signals:
         symbol = str(s.get("symbol") or _runtime_default_symbol()).upper()
         side = _first_present(s.get("side"), s.get("action"), s.get("selected_action"), "long")
@@ -28672,7 +28697,7 @@ def run_once() -> dict:
             correlation_contexts_by_symbol=correlation_contexts_by_symbol,
             fee_schedule_context=fee_schedule_context,
         )
-        allocation = allocate_paper_candidate(allocation_input)
+        allocation = allocate_paper_candidate(allocation_input, envelope=dynamic_paper_envelope)
         allocation_payload = allocation.to_payload()
         _attach_paper_sizing(intent, allocation_payload)
         mark_index_evidence = _read_v2_mark_index_evidence(r, symbol)
