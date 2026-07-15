@@ -34,6 +34,32 @@ DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT']
 
 REDIS_URL = "redis://localhost:6379/0"
 TTL_SECONDS = 600  # 10 minutes
+
+
+def _num(value):
+    """Coerce to a finite float, else None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n and abs(n) != float("inf") else None
+
+
+def _resolve_adaptive_symbols(fallback: list) -> list:
+    """Resolve the live market-driven symbol universe; fall back to majors on error.
+
+    Hardcoded symbol lists are forbidden (adaptive-universe policy); the service
+    runs with no --symbols so it tracks the live universe, re-resolved each cycle.
+    """
+    try:
+        from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
+        syms = resolve_symbols()
+        return [str(s) for s in syms] if syms else list(fallback)
+    except Exception:
+        return list(fallback)
 REQUIRED_EXCHANGE_FIELDS = ("price", "volume_24h", "funding_rate", "spread_bps")
 
 
@@ -173,53 +199,79 @@ class CrossExchangeIngestor:
             return False
 
     def fetch_exchange_data(self, symbol: str, exchange: str) -> Dict[str, Any]:
-        """
-        Fetch price and funding data from exchange.
-        
-        In production: Use ccxt or exchange APIs. This implementation has no
-        real exchange fetcher yet, so it fails closed unless --allow-synthetic
-        is explicitly set for local/manual testing.
-        
-        Args:
-            symbol: Trading pair (e.g., BTCUSDT)
-            exchange: Exchange name (binance, kucoin)
-            
-        Returns:
-            Dict with price, volume, funding, spread
-        """
-        try:
-            if not self.allow_synthetic:
-                return {}
+        """Read REAL per-exchange top-of-book from the ingested orderbook feed.
 
-            # TODO: Replace with actual exchange API calls:
-            # import ccxt
-            # binance = ccxt.binance()
-            # ticker = binance.fetch_ticker(symbol)
-            # funding = binance.fetch_funding_rate(symbol)
-            
-            # Synthetic local-test data only.
+        Source: ``v2:orderbook:top:{exchange}:{symbol}`` (written by the binance /
+        kucoin orderbook recorders). Yields real mid price and bid/ask spread so
+        the cross-exchange price-difference and spread-differential metrics are
+        genuine. Funding is not in the orderbook feed and is read separately.
+        ``--allow-synthetic`` keeps the old random data path for local testing.
+        """
+        if self.allow_synthetic:
             base_price = 62500
-            
             if exchange == "binance":
-                return {
-                    'price': base_price + random.uniform(-100, 100),
-                    'volume_24h': random.uniform(500000, 2000000),
-                    'funding_rate': random.uniform(0.00008, 0.00015),
-                    'spread_bps': random.uniform(1.0, 2.5),
-                }
-            elif exchange == "kucoin":
-                return {
-                    'price': base_price + random.uniform(-200, 200),
-                    'volume_24h': random.uniform(100000, 500000),
-                    'funding_rate': random.uniform(0.00003, 0.00010),
-                    'spread_bps': random.uniform(2.0, 4.0),
-                }
-            else:
-                return {}
-                
-        except Exception as e:
-            logger.error(f"Error fetching {exchange} data for {symbol}: {e}")
+                return {'price': base_price + random.uniform(-100, 100),
+                        'volume_24h': random.uniform(500000, 2000000),
+                        'funding_rate': random.uniform(0.00008, 0.00015),
+                        'spread_bps': random.uniform(1.0, 2.5)}
+            if exchange == "kucoin":
+                return {'price': base_price + random.uniform(-200, 200),
+                        'volume_24h': random.uniform(100000, 500000),
+                        'funding_rate': random.uniform(0.00003, 0.00010),
+                        'spread_bps': random.uniform(2.0, 4.0)}
             return {}
+        try:
+            if self.redis is None:
+                return {}
+            raw = self.redis.get(f"v2:orderbook:top:{exchange}:{symbol}")
+            if not raw:
+                return {}
+            book = json.loads(raw)
+            bid = _num(book.get("best_bid") if book.get("best_bid") is not None else book.get("bid"))
+            ask = _num(book.get("best_ask") if book.get("best_ask") is not None else book.get("ask"))
+            mid = _num(book.get("mid") if book.get("mid") is not None else book.get("bid_ask_mid"))
+            if (mid is None or mid <= 0) and bid and ask and bid > 0 and ask > 0:
+                mid = (bid + ask) / 2.0
+            if not mid or mid <= 0:
+                return {}
+            spread_bps = None
+            if bid and ask and ask > 0 and bid > 0 and ask >= bid:
+                spread_bps = (ask - bid) / mid * 10000.0
+            bid_sz = _num(book.get("best_bid_size") if book.get("best_bid_size") is not None else book.get("bid_size")) or 0.0
+            ask_sz = _num(book.get("best_ask_size") if book.get("best_ask_size") is not None else book.get("ask_size")) or 0.0
+            out = {'price': mid, 'volume_24h': (bid_sz + ask_sz) * mid}
+            if spread_bps is not None:
+                out['spread_bps'] = spread_bps
+            funding = self._fetch_funding_rate(symbol, exchange)
+            if funding is not None:
+                out['funding_rate'] = funding
+            return out
+        except Exception as e:
+            logger.error(f"Error reading {exchange} orderbook for {symbol}: {e}")
+            return {}
+
+    def _fetch_funding_rate(self, symbol: str, exchange: str):
+        """Best-effort real funding rate from ingested market/feature keys (None if absent)."""
+        if self.redis is None:
+            return None
+        for key, field in (
+            (f"v2:market:funding:{symbol}", "funding_rate"),
+            (f"v2:features:coinank:{symbol}:5m", "coinank_funding_rate"),
+        ):
+            try:
+                raw = self.redis.get(key)
+                if not raw:
+                    continue
+                payload = json.loads(raw)
+                val = payload.get(field)
+                if val is None and isinstance(payload.get("features"), dict):
+                    val = payload["features"].get(field)
+                n = _num(val)
+                if n is not None:
+                    return n
+            except Exception:
+                continue
+        return None
 
     def process_symbol(self, symbol: str) -> bool:
         """Process one symbol across exchanges"""
@@ -316,7 +368,11 @@ class CrossExchangeIngestor:
         while running:
             cycle += 1
             start_time = time.time()
-            
+            # Re-resolve the adaptive universe each cycle so the service tracks
+            # symbols added/removed by the market-driven selector without a restart.
+            if getattr(self, "_adaptive", False):
+                symbols = _resolve_adaptive_symbols(symbols)
+
             try:
                 successful, failed = self.run_cycle(symbols)
                 elapsed = time.time() - start_time
@@ -361,19 +417,24 @@ def main():
     args = parser.parse_args()
     
     # Parse symbols
+    adaptive = False
     if args.symbols:
         symbols = [s.strip() for s in args.symbols.split(",")]
     elif args.all_symbols:
         symbols = DEFAULT_SYMBOLS
     else:
-        symbols = DEFAULT_SYMBOLS[:5]
-    
+        # No explicit symbols -> track the live adaptive universe (re-resolved
+        # each cycle in run()). Never a hardcoded list.
+        symbols = _resolve_adaptive_symbols(DEFAULT_SYMBOLS)
+        adaptive = True
+
     # Create analyzer
     analyzer = CrossExchangeIngestor(
         redis_url=args.redis_url,
         allow_synthetic=args.allow_synthetic,
     )
-    
+    analyzer._adaptive = adaptive
+
     if not analyzer.redis:
         logger.error("Failed to connect to Redis")
         sys.exit(1)

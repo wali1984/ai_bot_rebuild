@@ -316,6 +316,10 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("lunarcrush_altdata", "lunarcrush-altdata-loop", "altdata", criticality="normal"),
     _svc("nansen_altdata", "nansen-altdata-loop", "altdata", criticality="normal"),
     _svc("public_intel_free_tier", "public-intel-free-tier-loop", "altdata", criticality="normal"),
+    # Real per-exchange orderbook diff + real enhanced liquidation (per-symbol
+    # output, no single heartbeat -> process-liveness self-heal).
+    _svc("crossexchange_analyzer", "crossexchange-analyzer", "altdata", criticality="normal"),
+    _svc("liquidation_enhanced", "liquidation-enhanced", "feature", criticality="normal"),
     _svc("feature_pipeline_native", "feature-pipeline-native-loop", "feature", criticality="high",
          heartbeat_redis_key="v2:features:pipeline:heartbeat", heartbeat_field="finished_at",
          max_staleness_seconds=600, treat_missing_heartbeat_as_stale=True),

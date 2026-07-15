@@ -35,6 +35,32 @@ DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT']
 
 REDIS_URL = "redis://localhost:6379/0"
 TTL_SECONDS = 300  # 5 minutes (real-time like orderbook)
+
+
+def _num(value):
+    """Coerce to a finite float, else None."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    return n if n == n and abs(n) != float("inf") else None
+
+
+def _resolve_adaptive_symbols(fallback: list) -> list:
+    """Resolve the live market-driven symbol universe; fall back to majors on error.
+
+    Hardcoded symbol lists are forbidden (adaptive-universe policy); the service
+    runs with no --symbols so it tracks the live universe, re-resolved each cycle.
+    """
+    try:
+        from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
+        syms = resolve_symbols()
+        return [str(s) for s in syms] if syms else list(fallback)
+    except Exception:
+        return list(fallback)
 REQUIRED_LIQUIDATION_FIELDS = (
     "price",
     "long_oi",
@@ -232,16 +258,8 @@ class EnhancedLiquidationIngestor:
         Returns:
             Dict with price, OI, liquidation levels
         """
-        try:
-            if not self.allow_synthetic:
-                return {}
-
-            # TODO: In production:
-            # Read from existing CoinAnk keys: v2:coinank:*
-            # Read from Binance: open interest, prices
-            
+        if self.allow_synthetic:
             base_price = 62500
-            
             return {
                 'price': base_price + random.uniform(-500, 500),
                 'long_oi': random.uniform(500000, 2000000),
@@ -251,9 +269,71 @@ class EnhancedLiquidationIngestor:
                 'liquidation_count_1m': random.randint(5, 50),
                 'liquidation_volume_1m': random.uniform(100000, 10000000),
             }
-            
+        # REAL source: the ingested liquidation-levels engine + the CoinAnk
+        # liquidation bridge. Fails closed (returns {}) if neither has data.
+        try:
+            if self.redis is None:
+                return {}
+            levels = self._read_liquidation_levels(symbol)
+            coinank = self._read_coinank_features(symbol)
+            if not levels and not coinank:
+                return {}
+            price = None
+            if levels:
+                price = _num(levels.get("liquidation_current_price"))
+            if price is None:
+                pr = self.redis.get(f"v2:orderbook:top:binance:{symbol}") or self.redis.get(
+                    f"v2:orderbook:top:kucoin:{symbol}")
+                if pr:
+                    book = json.loads(pr)
+                    price = _num(book.get("mid") or book.get("bid_ask_mid"))
+            long_turn = _num(coinank.get("coinank_liquidation_long_turnover")) or 0.0
+            short_turn = _num(coinank.get("coinank_liquidation_short_turnover")) or 0.0
+            data = {
+                'price': price or 0.0,
+                'long_oi': _num(coinank.get("coinank_open_interest")) or 0.0,
+                'short_oi': _num(coinank.get("coinank_open_interest")) or 0.0,
+                'liq_level_long': _num(levels.get("liquidation_long_level")) or 0.0,
+                'liq_level_short': _num(levels.get("liquidation_short_level")) or 0.0,
+                'liquidation_count_1m': int(_num(levels.get("liquidation_count_5m")) or 0),
+                'liquidation_volume_1m': long_turn + short_turn,
+                'liquidation_cascade_risk': _num(levels.get("liquidation_cascade_risk")),
+                'liquidation_pressure_direction': levels.get("liquidation_pressure_direction"),
+                'coinank_liquidation_imbalance_usd': _num(coinank.get("coinank_liquidation_imbalance_usd")),
+                '_real': True,
+            }
+            return data
         except Exception as e:
-            logger.error(f"Error fetching market data for {symbol}: {e}")
+            logger.error(f"Error reading real liquidation data for {symbol}: {e}")
+            return {}
+
+    def _read_liquidation_levels(self, symbol: str) -> Dict[str, Any]:
+        """Freshest v2:liquidations:levels:{symbol}:{tf} row across timeframes."""
+        if self.redis is None:
+            return {}
+        for tf in ("1m", "5m", "15m", "1h"):
+            try:
+                raw = self.redis.get(f"v2:liquidations:levels:{symbol}:{tf}")
+                if raw:
+                    payload = json.loads(raw)
+                    if isinstance(payload, dict):
+                        return payload
+            except Exception:
+                continue
+        return {}
+
+    def _read_coinank_features(self, symbol: str) -> Dict[str, Any]:
+        """CoinAnk per-symbol liquidation features (v2:coinank:symbol:{symbol})."""
+        if self.redis is None:
+            return {}
+        try:
+            raw = self.redis.get(f"v2:coinank:symbol:{symbol}")
+            if not raw:
+                return {}
+            payload = json.loads(raw)
+            feats = payload.get("features") if isinstance(payload, dict) else None
+            return feats if isinstance(feats, dict) else {}
+        except Exception:
             return {}
 
     def process_symbol(self, symbol: str) -> bool:
@@ -268,10 +348,29 @@ class EnhancedLiquidationIngestor:
                 )
                 return False
             
+            is_real = bool(data.get("_real"))
             metrics = self.calc.calculate_metrics(symbol, data)
             if not metrics:
                 return False
-            
+
+            if is_real:
+                metrics.update({
+                    "synthetic_data": False,
+                    "actual_payload_present": True,
+                    "excluded_from_training": False,
+                    "source": "liquidation_levels_engine+coinank_bridge",
+                    "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                })
+                key = f"v2:liquidation:enhanced:{symbol}"
+                self.redis.setex(key, TTL_SECONDS, json.dumps(metrics))
+                self._publish_status(
+                    symbol,
+                    status="REAL_LIQUIDATION_PUBLISHED",
+                    message=f"Real enhanced liquidation metrics written to {key}.",
+                )
+                logger.info(f"✅ Wrote {len(metrics)} REAL enhanced liquidation metrics for {symbol} to {key}")
+                return True
+
             metrics.update({
                 "synthetic_data": True,
                 "actual_payload_present": False,
@@ -285,7 +384,6 @@ class EnhancedLiquidationIngestor:
                 status="SYNTHETIC_LIQUIDATION_PUBLISHED_TO_NON_FEATURE_KEY",
                 message=f"Synthetic metrics written to {key}; actual feature key was not updated.",
             )
-            
             logger.info(f"✅ Wrote {len(metrics)} synthetic enhanced liquidation metrics for {symbol} to {key}")
             return True
             
@@ -346,11 +444,15 @@ class EnhancedLiquidationIngestor:
         while running:
             cycle += 1
             start_time = time.time()
-            
+            # Re-resolve the adaptive universe each cycle so the service tracks
+            # symbols added/removed by the market-driven selector without a restart.
+            if getattr(self, "_adaptive", False):
+                symbols = _resolve_adaptive_symbols(symbols)
+
             try:
                 successful, failed = self.run_cycle(symbols)
                 elapsed = time.time() - start_time
-                
+
                 logger.info(
                     f"Cycle {cycle}: {successful}/{len(symbols)} success ({elapsed:.2f}s)"
                 )
@@ -390,19 +492,24 @@ def main():
     args = parser.parse_args()
     
     # Parse symbols
+    adaptive = False
     if args.symbols:
         symbols = [s.strip() for s in args.symbols.split(",")]
     elif args.all_symbols:
         symbols = DEFAULT_SYMBOLS
     else:
-        symbols = DEFAULT_SYMBOLS[:5]
-    
+        # No explicit symbols -> track the live adaptive universe (re-resolved
+        # each cycle in run()). Never a hardcoded list.
+        symbols = _resolve_adaptive_symbols(DEFAULT_SYMBOLS)
+        adaptive = True
+
     # Create detector
     detector = EnhancedLiquidationIngestor(
         redis_url=args.redis_url,
         allow_synthetic=args.allow_synthetic,
     )
-    
+    detector._adaptive = adaptive
+
     if not detector.redis:
         logger.error("Failed to connect to Redis")
         sys.exit(1)
