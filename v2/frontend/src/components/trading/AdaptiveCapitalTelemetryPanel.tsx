@@ -867,6 +867,33 @@ export function AdaptiveCapitalTelemetryPanel({
     && trainerAccuracyBeatsBaseline
     && trainerEdgePositive;
   const view = resolveTelemetry(payload);
+  // Two-tier freshness: the headline account state (equity/PnL/utilization) is
+  // real-time from Redis (v2:portfolio:state, ~30s); the analytics evidence
+  // (counterfactual/A-grade/accuracy) is an inherently-batch ~10-min snapshot.
+  const liveGeneratedUtc =
+    (payload as { live_account_generated_utc?: string | null } | null | undefined)?.live_account_generated_utc
+    ?? view.generatedUtc;
+  const analyticsGeneratedUtc =
+    (payload as { analytics_generated_utc?: string | null } | null | undefined)?.analytics_generated_utc
+    ?? null;
+  const liveAgeSec = liveGeneratedUtc ? Math.max(0, (Date.now() - Date.parse(liveGeneratedUtc)) / 1000) : null;
+  const analyticsAgeMin = analyticsGeneratedUtc
+    ? Math.max(0, (Date.now() - Date.parse(analyticsGeneratedUtc)) / 60000)
+    : null;
+  const liveTone = liveAgeSec == null
+    ? 'var(--text-muted)'
+    : liveAgeSec <= 90
+      ? 'var(--buy,#10b981)'
+      : liveAgeSec <= 300
+        ? '#f59e0b'
+        : 'var(--sell,#ef4444)';
+  const liveAgeLabel = liveAgeSec == null
+    ? 'connecting'
+    : liveAgeSec < 90
+      ? `live · ${Math.round(liveAgeSec)}s`
+      : liveAgeSec < 3600
+        ? `${Math.round(liveAgeSec / 60)}m ago`
+        : `${Math.round(liveAgeSec / 3600)}h ago`;
   const capital = view.capital;
   const policy = view.policy;
   const readiness = view.readiness;
@@ -1014,9 +1041,31 @@ export function AdaptiveCapitalTelemetryPanel({
             }}>
               {publicTelemetryText(capital?.status ?? view.overallStatus ?? 'Pending')}
             </span>
+            <span
+              data-testid="capital-telemetry-freshness"
+              title={liveGeneratedUtc ? `Live account state generated ${liveGeneratedUtc}` : undefined}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '2px 7px',
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 800,
+                fontFamily: 'var(--font-mono)',
+                color: liveTone,
+                border: `1px solid ${liveTone}`,
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: liveTone }} />
+              {liveAgeLabel}
+            </span>
           </div>
           <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-            Real-time platform telemetry.
+            {'Equity, PnL & utilization are real-time (v2:portfolio:state). '}
+            {analyticsAgeMin != null
+              ? `Accuracy & A-grade evidence recompute on a batch cycle (${Math.round(analyticsAgeMin)}m ago).`
+              : 'Accuracy & A-grade evidence recompute on a batch cycle.'}
           </p>
         </div>
         <Link to="/signals" style={{ color: 'var(--accent,#3b82f6)', textDecoration: 'none', fontSize: 11, fontWeight: 700 }}>
