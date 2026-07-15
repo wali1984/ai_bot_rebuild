@@ -238,10 +238,16 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     enable_b_grade = should_enable_b_grade(outcomes)
     enable_a_grade = should_enable_a_grade(outcomes)
 
+    # Compute loss probability threshold (inverse of confidence: when we're confident, allow higher loss_prob)
+    # When B-grade enabled (markets favorable): raise threshold to accept more candidates (0.85)
+    # When B-grade disabled (markets tough): lower threshold to accept only safest (0.80)
+    loss_probability_threshold = 0.85 if enable_b_grade else 0.80
+
     tuning_state = {
         "outcomes": outcomes,
         "market_regime": regime,
         "adaptive_confidence_threshold": adaptive_confidence_threshold,
+        "adaptive_loss_probability_threshold": loss_probability_threshold,
         "enable_b_grade": enable_b_grade,
         "enable_a_grade": enable_a_grade,
         "a_grade_ready": enable_a_grade,
@@ -251,7 +257,7 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     # Publish state
     publish_gate_tuning(redis_client, tuning_state)
 
-    logger.info(f"Adaptive tuning: confidence_threshold={adaptive_confidence_threshold}, b_grade={enable_b_grade}, a_grade={enable_a_grade}")
+    logger.info(f"Adaptive tuning: confidence_threshold={adaptive_confidence_threshold}, loss_prob_threshold={loss_probability_threshold}, b_grade={enable_b_grade}, a_grade={enable_a_grade}")
 
     return tuning_state
 

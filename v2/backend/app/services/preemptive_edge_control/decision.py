@@ -132,14 +132,18 @@ def _first_present(*values: Any) -> Any:
 
 
 def _get_adaptive_loss_probability_threshold() -> float:
-    """Read loss probability threshold from adaptive gate tuning state, fallback to 0.80."""
+    """Read loss probability threshold from adaptive gate tuning state, fallback to 0.80.
+
+    When B-grade enabled (markets favorable): threshold=0.85 (accept more candidates)
+    When B-grade disabled (markets tough): threshold=0.80 (accept only safest)
+    """
     try:
         redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
         redis_client = redis.from_url(redis_url, decode_responses=True)
         tuning_json = redis_client.get(GATE_TUNING_KEY)
         if tuning_json:
             tuning_state = json.loads(tuning_json)
-            threshold = tuning_state.get("adaptive_confidence_threshold")
+            threshold = tuning_state.get("adaptive_loss_probability_threshold")
             if threshold is not None:
                 try:
                     return float(threshold)
