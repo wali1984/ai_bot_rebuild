@@ -746,6 +746,56 @@ public struct IngestorStatusResponse: Decodable, Equatable {
     public let live_gate: String?
 }
 
+// MARK: - Self-healing supervisor (/api/v2/self-healing/status)
+
+public struct SelfHealingService: Decodable, Equatable, Identifiable {
+    public let name: String?
+    public let unit: String?
+    public let category: String?
+    public let criticality: String?
+    public let action: String?
+    public let active_state: String?
+    public let reason: String?
+    public let heartbeat_age_seconds: Double?
+    public let max_staleness_seconds: Double?
+
+    public var id: String { unit ?? name ?? UUID().uuidString }
+
+    /// Traffic-light tone derived from the supervisor's heal action.
+    public var tone: String {
+        let a = (action ?? "").uppercased()
+        if a == "OK" || a.hasPrefix("SKIP_DELIBERATELY") || a == "SKIP_NOT_ENABLED"
+            || a == "SKIP_NOT_INSTALLED" || a == "SKIP_DENYLISTED" { return "ok" }
+        if a == "RESTART_DEAD" || a == "RESTART_STALE" || a == "STALE_PENDING" { return "warn" }
+        if a == "SKIP_RATE_LIMITED" || a.hasPrefix("ALERT") { return "error" }
+        let s = (active_state ?? "").lowercased()
+        return (s == "active" || s == "activating" || s == "reloading") ? "ok" : "error"
+    }
+}
+
+public struct SelfHealingBanner: Decodable, Equatable {
+    public let show: Bool
+    public let severity: String
+    public let count: Int
+    public let services: [SelfHealingService]
+    public let message: String
+}
+
+public struct SelfHealingStatus: Decodable, Equatable {
+    public let available: Bool
+    public let generated_utc: String?
+    public let supervisor_stale: Bool?
+    public let supervisor_age_seconds: Double?
+    public let component_count: Int?
+    public let healthy_count: Int?
+    public let unhealthy_count: Int?
+    public let restarted_units: [String]?
+    public let decisions: [SelfHealingService]?
+    public let banner: SelfHealingBanner
+
+    public var isHealthy: Bool { !(banner.show) || banner.severity == "ok" }
+}
+
 // MARK: - Per-ingestor metrics (/api/v2/ingestors/{name}/metrics)
 
 public struct IngestorMetricRow: Decodable, Equatable, Identifiable {

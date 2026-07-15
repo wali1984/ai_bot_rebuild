@@ -4,6 +4,7 @@ struct DashboardView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
     @State private var vm = DashboardViewModel()
+    @State private var healthVM = SelfHealingViewModel()
     @State private var pnlSeries = RollingSeries(capacity: 80)
     @State private var gpuSeries = RollingSeries(capacity: 80)
 
@@ -13,6 +14,9 @@ struct DashboardView: View {
                 NerVyx.bg.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: 16) {
+                        if let banner = healthVM.banner {
+                            SelfHealingBannerView(banner: banner)
+                        }
                         streamBar
                         RuntimeTruthLiveCard(title: "Runtime Truth")
                         if vm.isLoading && vm.dashboard == nil {
@@ -40,8 +44,14 @@ struct DashboardView: View {
             }
             .refreshable { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         }
-        .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
-        .onDisappear { vm.stopAutoRefresh() }
+        .onAppear {
+            vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL)
+            healthVM.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL)
+        }
+        .onDisappear {
+            vm.stopAutoRefresh()
+            healthVM.stop()
+        }
         .onChange(of: vm.dashboard?.paper.total_pnl) { _, newValue in
             if let newValue { pnlSeries.append(newValue) }
         }

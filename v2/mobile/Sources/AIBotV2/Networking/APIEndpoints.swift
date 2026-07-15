@@ -18,6 +18,7 @@ public enum APIEndpoints {
     public static let mobileAlerts = "/api/v2/mobile/alerts"
     public static let mobileHealth = "/api/v2/mobile/health"
     public static let mobileRiskStatus = "/api/v2/mobile/risk-status"
+    public static let selfHealingStatus = "/api/v2/self-healing/status"
     public static let mobilePaperSummary = "/api/v2/mobile/paper-summary"
     public static let mobileAdminSummary = "/api/v2/mobile/admin/summary"
     public static let mobilePushRegister = "/api/v2/mobile/push/register"

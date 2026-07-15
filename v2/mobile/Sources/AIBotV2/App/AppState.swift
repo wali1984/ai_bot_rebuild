@@ -33,6 +33,7 @@ public enum AppTab: Hashable {
     case risk
     case alerts
     case monitor
+    case serviceHealth
     case providers
     case admin
     case settings

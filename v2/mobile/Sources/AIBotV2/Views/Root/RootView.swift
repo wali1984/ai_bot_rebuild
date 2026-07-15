@@ -133,6 +133,7 @@ struct iPadLayout: View {
         case .alerts:      AlertsView()
         case .risk:        RiskControlView()
         case .monitor:     MonitorView()
+        case .serviceHealth: ServiceHealthView()
         case .providers:   ProvidersView()
         case .admin:       AdminDashboardView()
         case .settings:    SettingsView()
@@ -157,6 +158,7 @@ struct MoreView: View {
                 Section("NERVYX OBSERVE") {
                     NavigationLink("Alerts", destination: AlertsView())
                     NavigationLink("System Monitor", destination: MonitorView())
+                    NavigationLink("Service Health", destination: ServiceHealthView())
                     NavigationLink("Providers & Ingestors", destination: ProvidersView())
                     NavigationLink("Live Readiness", destination: LiveReadinessView())
                 }
