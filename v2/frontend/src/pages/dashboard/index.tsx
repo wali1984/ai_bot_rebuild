@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { canSee, normalizeRole } from '../../auth/rbac';
 import { MissionControlReadinessBanner } from '../../components/banners/MissionControlReadinessBanner';
+import { SelfHealingBanner } from '../../components/banners/SelfHealingBanner';
 import { StaleStateAlertsPanel } from '../../components/dashboard/StaleStateAlertsPanel';
 import { CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { healthStatusTone } from '../../components/system/healthStatus';
@@ -1418,6 +1419,9 @@ export default function DashboardPage(): JSX.Element {
       data-page-id={meta.id}
       className="nervyx-dashboard"
     >
+      {/* Global service-down alert (auto-heal exhausted / supervisor stale) */}
+      <SelfHealingBanner />
+
       {/* Header */}
       <div className="nervyx-dashboard__header">
         <div className="nervyx-dashboard__brand">

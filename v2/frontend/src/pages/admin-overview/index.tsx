@@ -2,6 +2,8 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { relativeAge } from '../../data/adminFieldRegistry';
 import { ServiceHealthGrid } from '../../components/admin';
+import { SelfHealingPanel } from '../../components/admin/SelfHealingPanel';
+import { SelfHealingBanner } from '../../components/banners/SelfHealingBanner';
 import type { AdminService, ServiceStatus } from '../../types/adminData';
 
 const VALID_STATUSES: ServiceStatus[] = ['ok', 'warn', 'error', 'unknown'];
@@ -100,6 +102,9 @@ export default function AdminOverviewPage(): JSX.Element {
   return (
     <div data-testid="admin-overview-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
+      {/* Global red banner: a service down after auto-heal, or supervisor stale */}
+      <SelfHealingBanner />
+
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Overview</h1>
@@ -155,6 +160,9 @@ export default function AdminOverviewPage(): JSX.Element {
           </div>
         )}
       </div>
+
+      {/* Self-healing supervisor: all non-ingestor services, auto-heal status */}
+      <SelfHealingPanel />
 
       {/* Detail panels */}
       {d && (d.trainer || d.risk || d.pipeline) && (
