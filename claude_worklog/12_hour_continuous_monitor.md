@@ -14222,3 +14222,15153 @@ INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.8
   "schema_version": "adaptive_gate_tuning_v1"
 }
 ```
+
+### Iteration 142 — T+141:00 (2026-07-15T00:41:08Z)
+```
+Timestamp: Tue Jul 14 08:41:08 PM EDT 2026
+Elapsed: 2h141m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:41:08.237392+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 132 — T+131:00 (2026-07-15T00:41:57Z)
+```
+Timestamp: Tue Jul 14 08:41:57 PM EDT 2026
+Elapsed: 2h131m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:41:57.386398+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 143 — T+142:00 (2026-07-15T00:42:08Z)
+```
+Timestamp: Tue Jul 14 08:42:08 PM EDT 2026
+Elapsed: 2h142m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:42:08.344994+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 133 — T+132:00 (2026-07-15T00:42:57Z)
+```
+Timestamp: Tue Jul 14 08:42:57 PM EDT 2026
+Elapsed: 2h132m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:42:57.481208+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 144 — T+143:00 (2026-07-15T00:43:08Z)
+```
+Timestamp: Tue Jul 14 08:43:08 PM EDT 2026
+Elapsed: 2h143m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:43:08.482904+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 134 — T+133:00 (2026-07-15T00:43:57Z)
+```
+Timestamp: Tue Jul 14 08:43:57 PM EDT 2026
+Elapsed: 2h133m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:43:57.580922+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 145 — T+144:00 (2026-07-15T00:44:08Z)
+```
+Timestamp: Tue Jul 14 08:44:08 PM EDT 2026
+Elapsed: 2h144m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:44:08.599753+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 135 — T+134:00 (2026-07-15T00:44:57Z)
+```
+Timestamp: Tue Jul 14 08:44:57 PM EDT 2026
+Elapsed: 2h134m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:44:57.700859+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 146 — T+145:00 (2026-07-15T00:45:08Z)
+```
+Timestamp: Tue Jul 14 08:45:08 PM EDT 2026
+Elapsed: 2h145m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:45:08.701063+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 136 — T+135:00 (2026-07-15T00:45:57Z)
+```
+Timestamp: Tue Jul 14 08:45:57 PM EDT 2026
+Elapsed: 2h135m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:45:57.808256+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 147 — T+146:00 (2026-07-15T00:46:08Z)
+```
+Timestamp: Tue Jul 14 08:46:08 PM EDT 2026
+Elapsed: 2h146m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:46:08.813318+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 137 — T+136:00 (2026-07-15T00:46:57Z)
+```
+Timestamp: Tue Jul 14 08:46:57 PM EDT 2026
+Elapsed: 2h136m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:46:57.900768+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 148 — T+147:00 (2026-07-15T00:47:08Z)
+```
+Timestamp: Tue Jul 14 08:47:08 PM EDT 2026
+Elapsed: 2h147m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:47:08.926789+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 138 — T+137:00 (2026-07-15T00:47:58Z)
+```
+Timestamp: Tue Jul 14 08:47:58 PM EDT 2026
+Elapsed: 2h137m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:47:58.022639+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 149 — T+148:00 (2026-07-15T00:48:09Z)
+```
+Timestamp: Tue Jul 14 08:48:09 PM EDT 2026
+Elapsed: 2h148m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:48:09.037373+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 139 — T+138:00 (2026-07-15T00:48:58Z)
+```
+Timestamp: Tue Jul 14 08:48:58 PM EDT 2026
+Elapsed: 2h138m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:48:58.130685+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 150 — T+149:00 (2026-07-15T00:49:09Z)
+```
+Timestamp: Tue Jul 14 08:49:09 PM EDT 2026
+Elapsed: 2h149m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:49:09.143438+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 140 — T+139:00 (2026-07-15T00:49:58Z)
+```
+Timestamp: Tue Jul 14 08:49:58 PM EDT 2026
+Elapsed: 2h139m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:49:58.257705+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 151 — T+150:00 (2026-07-15T00:50:09Z)
+```
+Timestamp: Tue Jul 14 08:50:09 PM EDT 2026
+Elapsed: 2h150m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:50:09.269015+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 141 — T+140:00 (2026-07-15T00:50:58Z)
+```
+Timestamp: Tue Jul 14 08:50:58 PM EDT 2026
+Elapsed: 2h140m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:50:58.360024+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 152 — T+151:00 (2026-07-15T00:51:09Z)
+```
+Timestamp: Tue Jul 14 08:51:09 PM EDT 2026
+Elapsed: 2h151m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:51:09.400132+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 142 — T+141:00 (2026-07-15T00:51:58Z)
+```
+Timestamp: Tue Jul 14 08:51:58 PM EDT 2026
+Elapsed: 2h141m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:51:58.464568+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 153 — T+152:00 (2026-07-15T00:52:09Z)
+```
+Timestamp: Tue Jul 14 08:52:09 PM EDT 2026
+Elapsed: 2h152m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:52:09.519276+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 143 — T+142:00 (2026-07-15T00:52:58Z)
+```
+Timestamp: Tue Jul 14 08:52:58 PM EDT 2026
+Elapsed: 2h142m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:52:58.585804+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 154 — T+153:00 (2026-07-15T00:53:09Z)
+```
+Timestamp: Tue Jul 14 08:53:09 PM EDT 2026
+Elapsed: 2h153m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:53:09.634239+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 144 — T+143:00 (2026-07-15T00:53:58Z)
+```
+Timestamp: Tue Jul 14 08:53:58 PM EDT 2026
+Elapsed: 2h143m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:53:58.692985+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 155 — T+154:00 (2026-07-15T00:54:09Z)
+```
+Timestamp: Tue Jul 14 08:54:09 PM EDT 2026
+Elapsed: 2h154m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:54:09.736835+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 145 — T+144:00 (2026-07-15T00:54:58Z)
+```
+Timestamp: Tue Jul 14 08:54:58 PM EDT 2026
+Elapsed: 2h144m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:54:58.795015+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 156 — T+155:00 (2026-07-15T00:55:09Z)
+```
+Timestamp: Tue Jul 14 08:55:09 PM EDT 2026
+Elapsed: 2h155m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:55:09.843135+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 146 — T+145:00 (2026-07-15T00:55:58Z)
+```
+Timestamp: Tue Jul 14 08:55:58 PM EDT 2026
+Elapsed: 2h145m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:55:58.903022+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 157 — T+156:00 (2026-07-15T00:56:09Z)
+```
+Timestamp: Tue Jul 14 08:56:09 PM EDT 2026
+Elapsed: 2h156m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:56:09.947590+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 147 — T+146:00 (2026-07-15T00:56:59Z)
+```
+Timestamp: Tue Jul 14 08:56:59 PM EDT 2026
+Elapsed: 2h146m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:56:59.022744+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 158 — T+157:00 (2026-07-15T00:57:10Z)
+```
+Timestamp: Tue Jul 14 08:57:10 PM EDT 2026
+Elapsed: 2h157m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:57:10.057555+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 148 — T+147:00 (2026-07-15T00:57:59Z)
+```
+Timestamp: Tue Jul 14 08:57:59 PM EDT 2026
+Elapsed: 2h147m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:57:59.166036+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 159 — T+158:00 (2026-07-15T00:58:10Z)
+```
+Timestamp: Tue Jul 14 08:58:10 PM EDT 2026
+Elapsed: 2h158m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:58:10.158495+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 149 — T+148:00 (2026-07-15T00:58:59Z)
+```
+Timestamp: Tue Jul 14 08:58:59 PM EDT 2026
+Elapsed: 2h148m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:58:59.266129+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 160 — T+159:00 (2026-07-15T00:59:10Z)
+```
+Timestamp: Tue Jul 14 08:59:10 PM EDT 2026
+Elapsed: 2h159m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:59:10.271173+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 150 — T+149:00 (2026-07-15T00:59:59Z)
+```
+Timestamp: Tue Jul 14 08:59:59 PM EDT 2026
+Elapsed: 2h149m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T00:59:59.404730+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 161 — T+160:00 (2026-07-15T01:00:10Z)
+```
+Timestamp: Tue Jul 14 09:00:10 PM EDT 2026
+Elapsed: 2h160m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:00:10.388690+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 151 — T+150:00 (2026-07-15T01:01:00Z)
+```
+Timestamp: Tue Jul 14 09:01:00 PM EDT 2026
+Elapsed: 2h150m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:01:00.464628+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 162 — T+161:00 (2026-07-15T01:01:10Z)
+```
+Timestamp: Tue Jul 14 09:01:10 PM EDT 2026
+Elapsed: 2h161m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:01:10.500721+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 152 — T+151:00 (2026-07-15T01:02:00Z)
+```
+Timestamp: Tue Jul 14 09:02:00 PM EDT 2026
+Elapsed: 2h151m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:02:00.577417+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 163 — T+162:00 (2026-07-15T01:02:10Z)
+```
+Timestamp: Tue Jul 14 09:02:10 PM EDT 2026
+Elapsed: 2h162m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:02:10.613800+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 153 — T+152:00 (2026-07-15T01:03:00Z)
+```
+Timestamp: Tue Jul 14 09:03:00 PM EDT 2026
+Elapsed: 2h152m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:03:00.713374+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 164 — T+163:00 (2026-07-15T01:03:10Z)
+```
+Timestamp: Tue Jul 14 09:03:10 PM EDT 2026
+Elapsed: 2h163m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:03:10.710812+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 154 — T+153:00 (2026-07-15T01:04:00Z)
+```
+Timestamp: Tue Jul 14 09:04:00 PM EDT 2026
+Elapsed: 2h153m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:04:00.825237+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 165 — T+164:00 (2026-07-15T01:04:10Z)
+```
+Timestamp: Tue Jul 14 09:04:10 PM EDT 2026
+Elapsed: 2h164m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:04:10.815225+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 155 — T+154:00 (2026-07-15T01:05:00Z)
+```
+Timestamp: Tue Jul 14 09:05:00 PM EDT 2026
+Elapsed: 2h154m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:05:00.931571+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 166 — T+165:00 (2026-07-15T01:05:11Z)
+```
+Timestamp: Tue Jul 14 09:05:11 PM EDT 2026
+Elapsed: 2h165m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:05:11.033588+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 156 — T+155:00 (2026-07-15T01:06:01Z)
+```
+Timestamp: Tue Jul 14 09:06:01 PM EDT 2026
+Elapsed: 2h155m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:06:01.031327+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 167 — T+166:00 (2026-07-15T01:06:11Z)
+```
+Timestamp: Tue Jul 14 09:06:11 PM EDT 2026
+Elapsed: 2h166m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:06:11.125132+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 157 — T+156:00 (2026-07-15T01:07:01Z)
+```
+Timestamp: Tue Jul 14 09:07:01 PM EDT 2026
+Elapsed: 2h156m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:07:01.149781+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 168 — T+167:00 (2026-07-15T01:07:11Z)
+```
+Timestamp: Tue Jul 14 09:07:11 PM EDT 2026
+Elapsed: 2h167m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:07:11.236407+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 158 — T+157:00 (2026-07-15T01:08:01Z)
+```
+Timestamp: Tue Jul 14 09:08:01 PM EDT 2026
+Elapsed: 2h157m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:08:01.282277+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 169 — T+168:00 (2026-07-15T01:08:11Z)
+```
+Timestamp: Tue Jul 14 09:08:11 PM EDT 2026
+Elapsed: 2h168m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:08:11.340817+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 159 — T+158:00 (2026-07-15T01:09:01Z)
+```
+Timestamp: Tue Jul 14 09:09:01 PM EDT 2026
+Elapsed: 2h158m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:09:01.384472+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 170 — T+169:00 (2026-07-15T01:09:11Z)
+```
+Timestamp: Tue Jul 14 09:09:11 PM EDT 2026
+Elapsed: 2h169m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:09:11.443250+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 160 — T+159:00 (2026-07-15T01:10:01Z)
+```
+Timestamp: Tue Jul 14 09:10:01 PM EDT 2026
+Elapsed: 2h159m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:10:01.504915+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 171 — T+170:00 (2026-07-15T01:10:11Z)
+```
+Timestamp: Tue Jul 14 09:10:11 PM EDT 2026
+Elapsed: 2h170m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:10:11.537149+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 161 — T+160:00 (2026-07-15T01:11:01Z)
+```
+Timestamp: Tue Jul 14 09:11:01 PM EDT 2026
+Elapsed: 2h160m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:11:01.602006+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 172 — T+171:00 (2026-07-15T01:11:11Z)
+```
+Timestamp: Tue Jul 14 09:11:11 PM EDT 2026
+Elapsed: 2h171m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:11:11.642948+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 162 — T+161:00 (2026-07-15T01:12:01Z)
+```
+Timestamp: Tue Jul 14 09:12:01 PM EDT 2026
+Elapsed: 2h161m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:12:01.887319+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 173 — T+172:00 (2026-07-15T01:12:11Z)
+```
+Timestamp: Tue Jul 14 09:12:11 PM EDT 2026
+Elapsed: 2h172m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:12:11.741720+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 163 — T+162:00 (2026-07-15T01:13:02Z)
+```
+Timestamp: Tue Jul 14 09:13:02 PM EDT 2026
+Elapsed: 2h162m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:13:02.006702+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 174 — T+173:00 (2026-07-15T01:13:11Z)
+```
+Timestamp: Tue Jul 14 09:13:11 PM EDT 2026
+Elapsed: 2h173m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:13:11.832818+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 164 — T+163:00 (2026-07-15T01:14:02Z)
+```
+Timestamp: Tue Jul 14 09:14:02 PM EDT 2026
+Elapsed: 2h163m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:14:02.133846+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 175 — T+174:00 (2026-07-15T01:14:11Z)
+```
+Timestamp: Tue Jul 14 09:14:11 PM EDT 2026
+Elapsed: 2h174m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:14:11.927322+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 165 — T+164:00 (2026-07-15T01:15:02Z)
+```
+Timestamp: Tue Jul 14 09:15:02 PM EDT 2026
+Elapsed: 2h164m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:15:02.245778+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 176 — T+175:00 (2026-07-15T01:15:12Z)
+```
+Timestamp: Tue Jul 14 09:15:12 PM EDT 2026
+Elapsed: 2h175m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:15:12.030818+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 166 — T+165:00 (2026-07-15T01:16:02Z)
+```
+Timestamp: Tue Jul 14 09:16:02 PM EDT 2026
+Elapsed: 2h165m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:16:02.339795+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 177 — T+176:00 (2026-07-15T01:16:12Z)
+```
+Timestamp: Tue Jul 14 09:16:12 PM EDT 2026
+Elapsed: 2h176m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:16:12.144836+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 167 — T+166:00 (2026-07-15T01:17:02Z)
+```
+Timestamp: Tue Jul 14 09:17:02 PM EDT 2026
+Elapsed: 2h166m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:17:02.460688+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 178 — T+177:00 (2026-07-15T01:17:12Z)
+```
+Timestamp: Tue Jul 14 09:17:12 PM EDT 2026
+Elapsed: 2h177m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:17:12.249052+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 168 — T+167:00 (2026-07-15T01:18:02Z)
+```
+Timestamp: Tue Jul 14 09:18:02 PM EDT 2026
+Elapsed: 2h167m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:18:02.584793+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 179 — T+178:00 (2026-07-15T01:18:12Z)
+```
+Timestamp: Tue Jul 14 09:18:12 PM EDT 2026
+Elapsed: 2h178m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:18:12.365205+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 169 — T+168:00 (2026-07-15T01:19:02Z)
+```
+Timestamp: Tue Jul 14 09:19:02 PM EDT 2026
+Elapsed: 2h168m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:19:02.709629+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 180 — T+179:00 (2026-07-15T01:19:12Z)
+```
+Timestamp: Tue Jul 14 09:19:12 PM EDT 2026
+Elapsed: 2h179m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:19:12.523047+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 170 — T+169:00 (2026-07-15T01:20:02Z)
+```
+Timestamp: Tue Jul 14 09:20:02 PM EDT 2026
+Elapsed: 2h169m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:20:02.827371+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 181 — T+180:00 (2026-07-15T01:20:12Z)
+```
+Timestamp: Tue Jul 14 09:20:12 PM EDT 2026
+Elapsed: 3h180m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:20:12.627586+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 171 — T+170:00 (2026-07-15T01:21:02Z)
+```
+Timestamp: Tue Jul 14 09:21:02 PM EDT 2026
+Elapsed: 2h170m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:21:02.938353+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 182 — T+181:00 (2026-07-15T01:21:12Z)
+```
+Timestamp: Tue Jul 14 09:21:12 PM EDT 2026
+Elapsed: 3h181m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:21:12.734622+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 172 — T+171:00 (2026-07-15T01:22:03Z)
+```
+Timestamp: Tue Jul 14 09:22:03 PM EDT 2026
+Elapsed: 2h171m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:22:03.042540+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 183 — T+182:00 (2026-07-15T01:22:12Z)
+```
+Timestamp: Tue Jul 14 09:22:12 PM EDT 2026
+Elapsed: 3h182m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:22:12.833794+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 173 — T+172:00 (2026-07-15T01:23:03Z)
+```
+Timestamp: Tue Jul 14 09:23:03 PM EDT 2026
+Elapsed: 2h172m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:23:03.153417+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 184 — T+183:00 (2026-07-15T01:23:12Z)
+```
+Timestamp: Tue Jul 14 09:23:12 PM EDT 2026
+Elapsed: 3h183m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:23:12.944539+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 174 — T+173:00 (2026-07-15T01:24:03Z)
+```
+Timestamp: Tue Jul 14 09:24:03 PM EDT 2026
+Elapsed: 2h173m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:24:03.278696+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 185 — T+184:00 (2026-07-15T01:24:13Z)
+```
+Timestamp: Tue Jul 14 09:24:13 PM EDT 2026
+Elapsed: 3h184m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:24:13.065470+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 175 — T+174:00 (2026-07-15T01:25:03Z)
+```
+Timestamp: Tue Jul 14 09:25:03 PM EDT 2026
+Elapsed: 2h174m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:25:03.380530+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 186 — T+185:00 (2026-07-15T01:25:13Z)
+```
+Timestamp: Tue Jul 14 09:25:13 PM EDT 2026
+Elapsed: 3h185m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:25:13.168569+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 176 — T+175:00 (2026-07-15T01:26:04Z)
+```
+Timestamp: Tue Jul 14 09:26:04 PM EDT 2026
+Elapsed: 2h175m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:26:04.209137+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 187 — T+186:00 (2026-07-15T01:26:13Z)
+```
+Timestamp: Tue Jul 14 09:26:13 PM EDT 2026
+Elapsed: 3h186m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:26:13.279904+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 177 — T+176:00 (2026-07-15T01:27:04Z)
+```
+Timestamp: Tue Jul 14 09:27:04 PM EDT 2026
+Elapsed: 2h176m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:27:04.333158+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 188 — T+187:00 (2026-07-15T01:27:13Z)
+```
+Timestamp: Tue Jul 14 09:27:13 PM EDT 2026
+Elapsed: 3h187m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:27:13.373416+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 178 — T+177:00 (2026-07-15T01:28:04Z)
+```
+Timestamp: Tue Jul 14 09:28:04 PM EDT 2026
+Elapsed: 2h177m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:28:04.454966+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 189 — T+188:00 (2026-07-15T01:28:13Z)
+```
+Timestamp: Tue Jul 14 09:28:13 PM EDT 2026
+Elapsed: 3h188m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:28:13.481486+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 179 — T+178:00 (2026-07-15T01:29:04Z)
+```
+Timestamp: Tue Jul 14 09:29:04 PM EDT 2026
+Elapsed: 2h178m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:29:04.582780+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 190 — T+189:00 (2026-07-15T01:29:13Z)
+```
+Timestamp: Tue Jul 14 09:29:13 PM EDT 2026
+Elapsed: 3h189m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:29:13.612236+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 180 — T+179:00 (2026-07-15T01:30:04Z)
+```
+Timestamp: Tue Jul 14 09:30:04 PM EDT 2026
+Elapsed: 2h179m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:30:04.957789+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 191 — T+190:00 (2026-07-15T01:30:14Z)
+```
+Timestamp: Tue Jul 14 09:30:14 PM EDT 2026
+Elapsed: 3h190m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:30:14.350048+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 181 — T+180:00 (2026-07-15T01:31:05Z)
+```
+Timestamp: Tue Jul 14 09:31:05 PM EDT 2026
+Elapsed: 3h180m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:31:05.070207+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 192 — T+191:00 (2026-07-15T01:31:14Z)
+```
+Timestamp: Tue Jul 14 09:31:14 PM EDT 2026
+Elapsed: 3h191m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:31:14.457996+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 182 — T+181:00 (2026-07-15T01:32:05Z)
+```
+Timestamp: Tue Jul 14 09:32:05 PM EDT 2026
+Elapsed: 3h181m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:32:05.187118+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 193 — T+192:00 (2026-07-15T01:32:14Z)
+```
+Timestamp: Tue Jul 14 09:32:14 PM EDT 2026
+Elapsed: 3h192m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:32:14.569062+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 183 — T+182:00 (2026-07-15T01:33:05Z)
+```
+Timestamp: Tue Jul 14 09:33:05 PM EDT 2026
+Elapsed: 3h182m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:33:05.296910+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 194 — T+193:00 (2026-07-15T01:33:14Z)
+```
+Timestamp: Tue Jul 14 09:33:14 PM EDT 2026
+Elapsed: 3h193m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:33:14.681346+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 184 — T+183:00 (2026-07-15T01:34:05Z)
+```
+Timestamp: Tue Jul 14 09:34:05 PM EDT 2026
+Elapsed: 3h183m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:34:05.415429+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 195 — T+194:00 (2026-07-15T01:34:14Z)
+```
+Timestamp: Tue Jul 14 09:34:14 PM EDT 2026
+Elapsed: 3h194m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:34:14.799438+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 185 — T+184:00 (2026-07-15T01:35:05Z)
+```
+Timestamp: Tue Jul 14 09:35:05 PM EDT 2026
+Elapsed: 3h184m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:35:05.548319+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 196 — T+195:00 (2026-07-15T01:35:14Z)
+```
+Timestamp: Tue Jul 14 09:35:14 PM EDT 2026
+Elapsed: 3h195m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:35:14.911162+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 186 — T+185:00 (2026-07-15T01:36:05Z)
+```
+Timestamp: Tue Jul 14 09:36:05 PM EDT 2026
+Elapsed: 3h185m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:36:05.673536+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 197 — T+196:00 (2026-07-15T01:36:15Z)
+```
+Timestamp: Tue Jul 14 09:36:15 PM EDT 2026
+Elapsed: 3h196m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:36:15.041826+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 187 — T+186:00 (2026-07-15T01:37:05Z)
+```
+Timestamp: Tue Jul 14 09:37:05 PM EDT 2026
+Elapsed: 3h186m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:37:05.782835+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 198 — T+197:00 (2026-07-15T01:37:15Z)
+```
+Timestamp: Tue Jul 14 09:37:15 PM EDT 2026
+Elapsed: 3h197m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:37:15.184539+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 188 — T+187:00 (2026-07-15T01:38:05Z)
+```
+Timestamp: Tue Jul 14 09:38:05 PM EDT 2026
+Elapsed: 3h187m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:38:05.904775+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 199 — T+198:00 (2026-07-15T01:38:15Z)
+```
+Timestamp: Tue Jul 14 09:38:15 PM EDT 2026
+Elapsed: 3h198m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:38:15.316804+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 189 — T+188:00 (2026-07-15T01:39:06Z)
+```
+Timestamp: Tue Jul 14 09:39:06 PM EDT 2026
+Elapsed: 3h188m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:39:06.019720+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 200 — T+199:00 (2026-07-15T01:39:15Z)
+```
+Timestamp: Tue Jul 14 09:39:15 PM EDT 2026
+Elapsed: 3h199m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:39:15.434420+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 190 — T+189:00 (2026-07-15T01:40:06Z)
+```
+Timestamp: Tue Jul 14 09:40:06 PM EDT 2026
+Elapsed: 3h189m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:40:06.131031+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 201 — T+200:00 (2026-07-15T01:40:15Z)
+```
+Timestamp: Tue Jul 14 09:40:15 PM EDT 2026
+Elapsed: 3h200m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:40:15.547293+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 191 — T+190:00 (2026-07-15T01:41:06Z)
+```
+Timestamp: Tue Jul 14 09:41:06 PM EDT 2026
+Elapsed: 3h190m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:41:06.253955+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 202 — T+201:00 (2026-07-15T01:41:15Z)
+```
+Timestamp: Tue Jul 14 09:41:15 PM EDT 2026
+Elapsed: 3h201m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:41:15.671214+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 192 — T+191:00 (2026-07-15T01:42:06Z)
+```
+Timestamp: Tue Jul 14 09:42:06 PM EDT 2026
+Elapsed: 3h191m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:42:06.366999+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 203 — T+202:00 (2026-07-15T01:42:15Z)
+```
+Timestamp: Tue Jul 14 09:42:15 PM EDT 2026
+Elapsed: 3h202m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:42:15.797127+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 193 — T+192:00 (2026-07-15T01:43:06Z)
+```
+Timestamp: Tue Jul 14 09:43:06 PM EDT 2026
+Elapsed: 3h192m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:43:06.466263+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 204 — T+203:00 (2026-07-15T01:43:15Z)
+```
+Timestamp: Tue Jul 14 09:43:15 PM EDT 2026
+Elapsed: 3h203m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:43:15.916115+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 194 — T+193:00 (2026-07-15T01:44:06Z)
+```
+Timestamp: Tue Jul 14 09:44:06 PM EDT 2026
+Elapsed: 3h193m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:44:06.594463+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 205 — T+204:00 (2026-07-15T01:44:16Z)
+```
+Timestamp: Tue Jul 14 09:44:16 PM EDT 2026
+Elapsed: 3h204m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:44:16.022287+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 195 — T+194:00 (2026-07-15T01:45:06Z)
+```
+Timestamp: Tue Jul 14 09:45:06 PM EDT 2026
+Elapsed: 3h194m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:45:06.710876+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 206 — T+205:00 (2026-07-15T01:45:16Z)
+```
+Timestamp: Tue Jul 14 09:45:16 PM EDT 2026
+Elapsed: 3h205m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:45:16.166969+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 196 — T+195:00 (2026-07-15T01:46:06Z)
+```
+Timestamp: Tue Jul 14 09:46:06 PM EDT 2026
+Elapsed: 3h195m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:46:06.818990+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 207 — T+206:00 (2026-07-15T01:46:16Z)
+```
+Timestamp: Tue Jul 14 09:46:16 PM EDT 2026
+Elapsed: 3h206m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:46:16.267149+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 197 — T+196:00 (2026-07-15T01:47:06Z)
+```
+Timestamp: Tue Jul 14 09:47:06 PM EDT 2026
+Elapsed: 3h196m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:47:06.916826+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 208 — T+207:00 (2026-07-15T01:47:16Z)
+```
+Timestamp: Tue Jul 14 09:47:16 PM EDT 2026
+Elapsed: 3h207m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:47:16.427888+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 198 — T+197:00 (2026-07-15T01:48:07Z)
+```
+Timestamp: Tue Jul 14 09:48:07 PM EDT 2026
+Elapsed: 3h197m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:48:07.024664+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 209 — T+208:00 (2026-07-15T01:48:16Z)
+```
+Timestamp: Tue Jul 14 09:48:16 PM EDT 2026
+Elapsed: 3h208m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:48:16.563078+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 199 — T+198:00 (2026-07-15T01:49:07Z)
+```
+Timestamp: Tue Jul 14 09:49:07 PM EDT 2026
+Elapsed: 3h198m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:49:07.125896+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 210 — T+209:00 (2026-07-15T01:49:16Z)
+```
+Timestamp: Tue Jul 14 09:49:16 PM EDT 2026
+Elapsed: 3h209m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:49:16.687044+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 200 — T+199:00 (2026-07-15T01:50:07Z)
+```
+Timestamp: Tue Jul 14 09:50:07 PM EDT 2026
+Elapsed: 3h199m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:50:07.227705+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 211 — T+210:00 (2026-07-15T01:50:16Z)
+```
+Timestamp: Tue Jul 14 09:50:16 PM EDT 2026
+Elapsed: 3h210m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:50:16.802377+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 201 — T+200:00 (2026-07-15T01:51:07Z)
+```
+Timestamp: Tue Jul 14 09:51:07 PM EDT 2026
+Elapsed: 3h200m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:51:07.349566+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 212 — T+211:00 (2026-07-15T01:51:16Z)
+```
+Timestamp: Tue Jul 14 09:51:16 PM EDT 2026
+Elapsed: 3h211m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:51:16.922170+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 202 — T+201:00 (2026-07-15T01:52:07Z)
+```
+Timestamp: Tue Jul 14 09:52:07 PM EDT 2026
+Elapsed: 3h201m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:52:07.468889+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 213 — T+212:00 (2026-07-15T01:52:17Z)
+```
+Timestamp: Tue Jul 14 09:52:17 PM EDT 2026
+Elapsed: 3h212m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:52:17.040991+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 203 — T+202:00 (2026-07-15T01:53:07Z)
+```
+Timestamp: Tue Jul 14 09:53:07 PM EDT 2026
+Elapsed: 3h202m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:53:07.789507+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 214 — T+213:00 (2026-07-15T01:53:17Z)
+```
+Timestamp: Tue Jul 14 09:53:17 PM EDT 2026
+Elapsed: 3h213m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:53:17.199467+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 204 — T+203:00 (2026-07-15T01:54:07Z)
+```
+Timestamp: Tue Jul 14 09:54:07 PM EDT 2026
+Elapsed: 3h203m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:54:07.903251+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 215 — T+214:00 (2026-07-15T01:54:17Z)
+```
+Timestamp: Tue Jul 14 09:54:17 PM EDT 2026
+Elapsed: 3h214m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:54:17.611961+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 205 — T+204:00 (2026-07-15T01:55:08Z)
+```
+Timestamp: Tue Jul 14 09:55:08 PM EDT 2026
+Elapsed: 3h204m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:55:08.013810+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 216 — T+215:00 (2026-07-15T01:55:17Z)
+```
+Timestamp: Tue Jul 14 09:55:17 PM EDT 2026
+Elapsed: 3h215m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:55:17.729234+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 206 — T+205:00 (2026-07-15T01:56:08Z)
+```
+Timestamp: Tue Jul 14 09:56:08 PM EDT 2026
+Elapsed: 3h205m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:56:08.132320+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 217 — T+216:00 (2026-07-15T01:56:17Z)
+```
+Timestamp: Tue Jul 14 09:56:17 PM EDT 2026
+Elapsed: 3h216m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:56:17.865214+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 207 — T+206:00 (2026-07-15T01:57:08Z)
+```
+Timestamp: Tue Jul 14 09:57:08 PM EDT 2026
+Elapsed: 3h206m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:57:08.228416+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 218 — T+217:00 (2026-07-15T01:57:17Z)
+```
+Timestamp: Tue Jul 14 09:57:17 PM EDT 2026
+Elapsed: 3h217m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:57:17.973115+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 208 — T+207:00 (2026-07-15T01:58:08Z)
+```
+Timestamp: Tue Jul 14 09:58:08 PM EDT 2026
+Elapsed: 3h207m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:58:08.348642+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 219 — T+218:00 (2026-07-15T01:58:18Z)
+```
+Timestamp: Tue Jul 14 09:58:18 PM EDT 2026
+Elapsed: 3h218m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:58:18.084175+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 209 — T+208:00 (2026-07-15T01:59:08Z)
+```
+Timestamp: Tue Jul 14 09:59:08 PM EDT 2026
+Elapsed: 3h208m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:59:08.486101+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 220 — T+219:00 (2026-07-15T01:59:18Z)
+```
+Timestamp: Tue Jul 14 09:59:18 PM EDT 2026
+Elapsed: 3h219m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T01:59:18.197743+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 210 — T+209:00 (2026-07-15T02:00:08Z)
+```
+Timestamp: Tue Jul 14 10:00:08 PM EDT 2026
+Elapsed: 3h209m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:00:08.626192+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 221 — T+220:00 (2026-07-15T02:00:18Z)
+```
+Timestamp: Tue Jul 14 10:00:18 PM EDT 2026
+Elapsed: 3h220m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:00:18.301008+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 211 — T+210:00 (2026-07-15T02:01:08Z)
+```
+Timestamp: Tue Jul 14 10:01:08 PM EDT 2026
+Elapsed: 3h210m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:01:08.747362+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 222 — T+221:00 (2026-07-15T02:01:18Z)
+```
+Timestamp: Tue Jul 14 10:01:18 PM EDT 2026
+Elapsed: 3h221m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:01:18.387775+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 212 — T+211:00 (2026-07-15T02:02:08Z)
+```
+Timestamp: Tue Jul 14 10:02:08 PM EDT 2026
+Elapsed: 3h211m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:02:08.839851+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 223 — T+222:00 (2026-07-15T02:02:18Z)
+```
+Timestamp: Tue Jul 14 10:02:18 PM EDT 2026
+Elapsed: 3h222m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:02:18.494987+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 213 — T+212:00 (2026-07-15T02:03:08Z)
+```
+Timestamp: Tue Jul 14 10:03:08 PM EDT 2026
+Elapsed: 3h212m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:03:08.938243+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 224 — T+223:00 (2026-07-15T02:03:18Z)
+```
+Timestamp: Tue Jul 14 10:03:18 PM EDT 2026
+Elapsed: 3h223m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:03:18.610654+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 214 — T+213:00 (2026-07-15T02:04:09Z)
+```
+Timestamp: Tue Jul 14 10:04:09 PM EDT 2026
+Elapsed: 3h213m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:04:09.024047+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 225 — T+224:00 (2026-07-15T02:04:18Z)
+```
+Timestamp: Tue Jul 14 10:04:18 PM EDT 2026
+Elapsed: 3h224m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:04:18.698639+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 215 — T+214:00 (2026-07-15T02:05:09Z)
+```
+Timestamp: Tue Jul 14 10:05:09 PM EDT 2026
+Elapsed: 3h214m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:05:09.125701+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 226 — T+225:00 (2026-07-15T02:05:18Z)
+```
+Timestamp: Tue Jul 14 10:05:18 PM EDT 2026
+Elapsed: 3h225m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:05:18.795728+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 216 — T+215:00 (2026-07-15T02:06:09Z)
+```
+Timestamp: Tue Jul 14 10:06:09 PM EDT 2026
+Elapsed: 3h215m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:06:09.233546+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 227 — T+226:00 (2026-07-15T02:06:18Z)
+```
+Timestamp: Tue Jul 14 10:06:18 PM EDT 2026
+Elapsed: 3h226m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:06:18.906935+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 217 — T+216:00 (2026-07-15T02:07:09Z)
+```
+Timestamp: Tue Jul 14 10:07:09 PM EDT 2026
+Elapsed: 3h216m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:07:09.336372+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 228 — T+227:00 (2026-07-15T02:07:19Z)
+```
+Timestamp: Tue Jul 14 10:07:19 PM EDT 2026
+Elapsed: 3h227m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:07:19.061518+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 218 — T+217:00 (2026-07-15T02:08:09Z)
+```
+Timestamp: Tue Jul 14 10:08:09 PM EDT 2026
+Elapsed: 3h217m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:08:09.452344+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 229 — T+228:00 (2026-07-15T02:08:19Z)
+```
+Timestamp: Tue Jul 14 10:08:19 PM EDT 2026
+Elapsed: 3h228m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:08:19.184479+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 219 — T+218:00 (2026-07-15T02:09:09Z)
+```
+Timestamp: Tue Jul 14 10:09:09 PM EDT 2026
+Elapsed: 3h218m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:09:09.565986+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 230 — T+229:00 (2026-07-15T02:09:19Z)
+```
+Timestamp: Tue Jul 14 10:09:19 PM EDT 2026
+Elapsed: 3h229m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:09:19.281077+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 220 — T+219:00 (2026-07-15T02:10:09Z)
+```
+Timestamp: Tue Jul 14 10:10:09 PM EDT 2026
+Elapsed: 3h219m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:10:09.703067+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 231 — T+230:00 (2026-07-15T02:10:19Z)
+```
+Timestamp: Tue Jul 14 10:10:19 PM EDT 2026
+Elapsed: 3h230m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:10:19.374935+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 221 — T+220:00 (2026-07-15T02:11:09Z)
+```
+Timestamp: Tue Jul 14 10:11:09 PM EDT 2026
+Elapsed: 3h220m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:11:09.827364+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 232 — T+231:00 (2026-07-15T02:11:19Z)
+```
+Timestamp: Tue Jul 14 10:11:19 PM EDT 2026
+Elapsed: 3h231m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:11:19.482925+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 222 — T+221:00 (2026-07-15T02:12:09Z)
+```
+Timestamp: Tue Jul 14 10:12:09 PM EDT 2026
+Elapsed: 3h221m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:12:09.932816+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 233 — T+232:00 (2026-07-15T02:12:19Z)
+```
+Timestamp: Tue Jul 14 10:12:19 PM EDT 2026
+Elapsed: 3h232m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:12:19.592390+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 223 — T+222:00 (2026-07-15T02:13:10Z)
+```
+Timestamp: Tue Jul 14 10:13:10 PM EDT 2026
+Elapsed: 3h222m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:13:10.041440+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 234 — T+233:00 (2026-07-15T02:13:19Z)
+```
+Timestamp: Tue Jul 14 10:13:19 PM EDT 2026
+Elapsed: 3h233m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:13:19.908584+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 224 — T+223:00 (2026-07-15T02:14:10Z)
+```
+Timestamp: Tue Jul 14 10:14:10 PM EDT 2026
+Elapsed: 3h223m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:14:10.139783+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 235 — T+234:00 (2026-07-15T02:14:20Z)
+```
+Timestamp: Tue Jul 14 10:14:20 PM EDT 2026
+Elapsed: 3h234m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:14:20.005050+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 225 — T+224:00 (2026-07-15T02:15:10Z)
+```
+Timestamp: Tue Jul 14 10:15:10 PM EDT 2026
+Elapsed: 3h224m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:15:10.256114+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 236 — T+235:00 (2026-07-15T02:15:20Z)
+```
+Timestamp: Tue Jul 14 10:15:20 PM EDT 2026
+Elapsed: 3h235m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:15:20.108729+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 226 — T+225:00 (2026-07-15T02:16:10Z)
+```
+Timestamp: Tue Jul 14 10:16:10 PM EDT 2026
+Elapsed: 3h225m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:16:10.372304+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 237 — T+236:00 (2026-07-15T02:16:20Z)
+```
+Timestamp: Tue Jul 14 10:16:20 PM EDT 2026
+Elapsed: 3h236m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:16:20.213637+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 227 — T+226:00 (2026-07-15T02:17:10Z)
+```
+Timestamp: Tue Jul 14 10:17:10 PM EDT 2026
+Elapsed: 3h226m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:17:10.494521+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 238 — T+237:00 (2026-07-15T02:17:20Z)
+```
+Timestamp: Tue Jul 14 10:17:20 PM EDT 2026
+Elapsed: 3h237m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:17:20.323905+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 228 — T+227:00 (2026-07-15T02:18:10Z)
+```
+Timestamp: Tue Jul 14 10:18:10 PM EDT 2026
+Elapsed: 3h227m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:18:10.604562+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 239 — T+238:00 (2026-07-15T02:18:20Z)
+```
+Timestamp: Tue Jul 14 10:18:20 PM EDT 2026
+Elapsed: 3h238m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:18:20.436896+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 229 — T+228:00 (2026-07-15T02:19:10Z)
+```
+Timestamp: Tue Jul 14 10:19:10 PM EDT 2026
+Elapsed: 3h228m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:19:10.713460+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 240 — T+239:00 (2026-07-15T02:19:20Z)
+```
+Timestamp: Tue Jul 14 10:19:20 PM EDT 2026
+Elapsed: 3h239m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:19:20.541657+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 230 — T+229:00 (2026-07-15T02:20:10Z)
+```
+Timestamp: Tue Jul 14 10:20:10 PM EDT 2026
+Elapsed: 3h229m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:20:10.858251+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 241 — T+240:00 (2026-07-15T02:20:20Z)
+```
+Timestamp: Tue Jul 14 10:20:20 PM EDT 2026
+Elapsed: 4h240m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:20:20.669122+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 231 — T+230:00 (2026-07-15T02:21:11Z)
+```
+Timestamp: Tue Jul 14 10:21:11 PM EDT 2026
+Elapsed: 3h230m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:21:11.173539+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 242 — T+241:00 (2026-07-15T02:21:20Z)
+```
+Timestamp: Tue Jul 14 10:21:20 PM EDT 2026
+Elapsed: 4h241m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:21:20.800084+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 232 — T+231:00 (2026-07-15T02:22:11Z)
+```
+Timestamp: Tue Jul 14 10:22:11 PM EDT 2026
+Elapsed: 3h231m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:22:11.303037+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 243 — T+242:00 (2026-07-15T02:22:20Z)
+```
+Timestamp: Tue Jul 14 10:22:20 PM EDT 2026
+Elapsed: 4h242m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:22:20.917943+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 233 — T+232:00 (2026-07-15T02:23:11Z)
+```
+Timestamp: Tue Jul 14 10:23:11 PM EDT 2026
+Elapsed: 3h232m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:23:11.405333+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 244 — T+243:00 (2026-07-15T02:23:21Z)
+```
+Timestamp: Tue Jul 14 10:23:21 PM EDT 2026
+Elapsed: 4h243m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:23:21.025533+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 234 — T+233:00 (2026-07-15T02:24:11Z)
+```
+Timestamp: Tue Jul 14 10:24:11 PM EDT 2026
+Elapsed: 3h233m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:24:11.515857+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 245 — T+244:00 (2026-07-15T02:24:21Z)
+```
+Timestamp: Tue Jul 14 10:24:21 PM EDT 2026
+Elapsed: 4h244m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:24:21.153882+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 235 — T+234:00 (2026-07-15T02:25:11Z)
+```
+Timestamp: Tue Jul 14 10:25:11 PM EDT 2026
+Elapsed: 3h234m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:25:11.635906+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 246 — T+245:00 (2026-07-15T02:25:21Z)
+```
+Timestamp: Tue Jul 14 10:25:21 PM EDT 2026
+Elapsed: 4h245m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:25:21.251700+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 236 — T+235:00 (2026-07-15T02:26:11Z)
+```
+Timestamp: Tue Jul 14 10:26:11 PM EDT 2026
+Elapsed: 3h235m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:26:11.784545+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 247 — T+246:00 (2026-07-15T02:26:21Z)
+```
+Timestamp: Tue Jul 14 10:26:21 PM EDT 2026
+Elapsed: 4h246m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:26:21.527274+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 237 — T+236:00 (2026-07-15T02:27:11Z)
+```
+Timestamp: Tue Jul 14 10:27:11 PM EDT 2026
+Elapsed: 3h236m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:27:11.910234+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 248 — T+247:00 (2026-07-15T02:27:21Z)
+```
+Timestamp: Tue Jul 14 10:27:21 PM EDT 2026
+Elapsed: 4h247m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:27:21.632598+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 238 — T+237:00 (2026-07-15T02:28:12Z)
+```
+Timestamp: Tue Jul 14 10:28:12 PM EDT 2026
+Elapsed: 3h237m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:28:12.018375+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 249 — T+248:00 (2026-07-15T02:28:21Z)
+```
+Timestamp: Tue Jul 14 10:28:21 PM EDT 2026
+Elapsed: 4h248m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:28:21.742231+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 239 — T+238:00 (2026-07-15T02:29:12Z)
+```
+Timestamp: Tue Jul 14 10:29:12 PM EDT 2026
+Elapsed: 3h238m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:29:12.131897+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 250 — T+249:00 (2026-07-15T02:29:21Z)
+```
+Timestamp: Tue Jul 14 10:29:21 PM EDT 2026
+Elapsed: 4h249m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:29:21.939947+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 240 — T+239:00 (2026-07-15T02:30:12Z)
+```
+Timestamp: Tue Jul 14 10:30:12 PM EDT 2026
+Elapsed: 3h239m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:30:12.251563+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 251 — T+250:00 (2026-07-15T02:30:22Z)
+```
+Timestamp: Tue Jul 14 10:30:22 PM EDT 2026
+Elapsed: 4h250m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:30:22.054561+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 241 — T+240:00 (2026-07-15T02:31:12Z)
+```
+Timestamp: Tue Jul 14 10:31:12 PM EDT 2026
+Elapsed: 4h240m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:31:12.371322+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 252 — T+251:00 (2026-07-15T02:31:22Z)
+```
+Timestamp: Tue Jul 14 10:31:22 PM EDT 2026
+Elapsed: 4h251m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:31:22.179617+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 242 — T+241:00 (2026-07-15T02:32:12Z)
+```
+Timestamp: Tue Jul 14 10:32:12 PM EDT 2026
+Elapsed: 4h241m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:32:12.487916+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 253 — T+252:00 (2026-07-15T02:32:22Z)
+```
+Timestamp: Tue Jul 14 10:32:22 PM EDT 2026
+Elapsed: 4h252m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:32:22.312770+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 243 — T+242:00 (2026-07-15T02:33:12Z)
+```
+Timestamp: Tue Jul 14 10:33:12 PM EDT 2026
+Elapsed: 4h242m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:33:12.592750+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 254 — T+253:00 (2026-07-15T02:33:22Z)
+```
+Timestamp: Tue Jul 14 10:33:22 PM EDT 2026
+Elapsed: 4h253m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:33:22.413300+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 244 — T+243:00 (2026-07-15T02:34:12Z)
+```
+Timestamp: Tue Jul 14 10:34:12 PM EDT 2026
+Elapsed: 4h243m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:34:12.703805+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 255 — T+254:00 (2026-07-15T02:34:22Z)
+```
+Timestamp: Tue Jul 14 10:34:22 PM EDT 2026
+Elapsed: 4h254m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:34:22.510598+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 245 — T+244:00 (2026-07-15T02:35:12Z)
+```
+Timestamp: Tue Jul 14 10:35:12 PM EDT 2026
+Elapsed: 4h244m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:35:12.823645+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 256 — T+255:00 (2026-07-15T02:35:22Z)
+```
+Timestamp: Tue Jul 14 10:35:22 PM EDT 2026
+Elapsed: 4h255m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:35:22.611774+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 246 — T+245:00 (2026-07-15T02:36:13Z)
+```
+Timestamp: Tue Jul 14 10:36:13 PM EDT 2026
+Elapsed: 4h245m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:36:12.994528+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 257 — T+256:00 (2026-07-15T02:36:22Z)
+```
+Timestamp: Tue Jul 14 10:36:22 PM EDT 2026
+Elapsed: 4h256m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:36:22.741892+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 247 — T+246:00 (2026-07-15T02:37:13Z)
+```
+Timestamp: Tue Jul 14 10:37:13 PM EDT 2026
+Elapsed: 4h246m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:37:13.092806+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 258 — T+257:00 (2026-07-15T02:37:22Z)
+```
+Timestamp: Tue Jul 14 10:37:22 PM EDT 2026
+Elapsed: 4h257m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:37:22.838750+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 248 — T+247:00 (2026-07-15T02:38:13Z)
+```
+Timestamp: Tue Jul 14 10:38:13 PM EDT 2026
+Elapsed: 4h247m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:38:13.214057+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 259 — T+258:00 (2026-07-15T02:38:22Z)
+```
+Timestamp: Tue Jul 14 10:38:22 PM EDT 2026
+Elapsed: 4h258m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:38:22.965409+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 249 — T+248:00 (2026-07-15T02:39:13Z)
+```
+Timestamp: Tue Jul 14 10:39:13 PM EDT 2026
+Elapsed: 4h248m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:39:13.336180+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 260 — T+259:00 (2026-07-15T02:39:23Z)
+```
+Timestamp: Tue Jul 14 10:39:23 PM EDT 2026
+Elapsed: 4h259m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:39:23.087912+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 250 — T+249:00 (2026-07-15T02:40:13Z)
+```
+Timestamp: Tue Jul 14 10:40:13 PM EDT 2026
+Elapsed: 4h249m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:40:13.565126+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 261 — T+260:00 (2026-07-15T02:40:23Z)
+```
+Timestamp: Tue Jul 14 10:40:23 PM EDT 2026
+Elapsed: 4h260m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:40:23.201755+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 251 — T+250:00 (2026-07-15T02:41:13Z)
+```
+Timestamp: Tue Jul 14 10:41:13 PM EDT 2026
+Elapsed: 4h250m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:41:13.694532+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 262 — T+261:00 (2026-07-15T02:41:23Z)
+```
+Timestamp: Tue Jul 14 10:41:23 PM EDT 2026
+Elapsed: 4h261m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:41:23.306154+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 252 — T+251:00 (2026-07-15T02:42:13Z)
+```
+Timestamp: Tue Jul 14 10:42:13 PM EDT 2026
+Elapsed: 4h251m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:42:13.810056+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 263 — T+262:00 (2026-07-15T02:42:23Z)
+```
+Timestamp: Tue Jul 14 10:42:23 PM EDT 2026
+Elapsed: 4h262m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:42:23.414146+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 253 — T+252:00 (2026-07-15T02:43:13Z)
+```
+Timestamp: Tue Jul 14 10:43:13 PM EDT 2026
+Elapsed: 4h252m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:43:13.907662+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 264 — T+263:00 (2026-07-15T02:43:23Z)
+```
+Timestamp: Tue Jul 14 10:43:23 PM EDT 2026
+Elapsed: 4h263m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:43:23.528976+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 254 — T+253:00 (2026-07-15T02:44:14Z)
+```
+Timestamp: Tue Jul 14 10:44:14 PM EDT 2026
+Elapsed: 4h253m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:44:14.036038+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 265 — T+264:00 (2026-07-15T02:44:23Z)
+```
+Timestamp: Tue Jul 14 10:44:23 PM EDT 2026
+Elapsed: 4h264m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:44:23.634608+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 255 — T+254:00 (2026-07-15T02:45:14Z)
+```
+Timestamp: Tue Jul 14 10:45:14 PM EDT 2026
+Elapsed: 4h254m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:45:14.154857+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 266 — T+265:00 (2026-07-15T02:45:23Z)
+```
+Timestamp: Tue Jul 14 10:45:23 PM EDT 2026
+Elapsed: 4h265m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:45:23.742273+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 256 — T+255:00 (2026-07-15T02:46:14Z)
+```
+Timestamp: Tue Jul 14 10:46:14 PM EDT 2026
+Elapsed: 4h255m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:46:14.372390+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 267 — T+266:00 (2026-07-15T02:46:23Z)
+```
+Timestamp: Tue Jul 14 10:46:23 PM EDT 2026
+Elapsed: 4h266m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:46:23.844735+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 257 — T+256:00 (2026-07-15T02:47:14Z)
+```
+Timestamp: Tue Jul 14 10:47:14 PM EDT 2026
+Elapsed: 4h256m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:47:14.473323+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 268 — T+267:00 (2026-07-15T02:47:23Z)
+```
+Timestamp: Tue Jul 14 10:47:23 PM EDT 2026
+Elapsed: 4h267m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:47:23.960048+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 258 — T+257:00 (2026-07-15T02:48:14Z)
+```
+Timestamp: Tue Jul 14 10:48:14 PM EDT 2026
+Elapsed: 4h257m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:48:14.566524+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 269 — T+268:00 (2026-07-15T02:48:24Z)
+```
+Timestamp: Tue Jul 14 10:48:24 PM EDT 2026
+Elapsed: 4h268m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:48:24.082881+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 259 — T+258:00 (2026-07-15T02:49:14Z)
+```
+Timestamp: Tue Jul 14 10:49:14 PM EDT 2026
+Elapsed: 4h258m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:49:14.682693+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 270 — T+269:00 (2026-07-15T02:49:24Z)
+```
+Timestamp: Tue Jul 14 10:49:24 PM EDT 2026
+Elapsed: 4h269m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:49:24.184674+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 260 — T+259:00 (2026-07-15T02:50:14Z)
+```
+Timestamp: Tue Jul 14 10:50:14 PM EDT 2026
+Elapsed: 4h259m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:50:14.796013+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 271 — T+270:00 (2026-07-15T02:50:24Z)
+```
+Timestamp: Tue Jul 14 10:50:24 PM EDT 2026
+Elapsed: 4h270m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:50:24.469040+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 261 — T+260:00 (2026-07-15T02:51:14Z)
+```
+Timestamp: Tue Jul 14 10:51:14 PM EDT 2026
+Elapsed: 4h260m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:51:14.898357+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 272 — T+271:00 (2026-07-15T02:51:24Z)
+```
+Timestamp: Tue Jul 14 10:51:24 PM EDT 2026
+Elapsed: 4h271m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:51:24.618146+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 262 — T+261:00 (2026-07-15T02:52:15Z)
+```
+Timestamp: Tue Jul 14 10:52:15 PM EDT 2026
+Elapsed: 4h261m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:52:15.018933+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 273 — T+272:00 (2026-07-15T02:52:24Z)
+```
+Timestamp: Tue Jul 14 10:52:24 PM EDT 2026
+Elapsed: 4h272m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:52:24.753150+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 263 — T+262:00 (2026-07-15T02:53:15Z)
+```
+Timestamp: Tue Jul 14 10:53:15 PM EDT 2026
+Elapsed: 4h262m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:53:15.119851+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 274 — T+273:00 (2026-07-15T02:53:24Z)
+```
+Timestamp: Tue Jul 14 10:53:24 PM EDT 2026
+Elapsed: 4h273m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:53:24.857489+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 264 — T+263:00 (2026-07-15T02:54:15Z)
+```
+Timestamp: Tue Jul 14 10:54:15 PM EDT 2026
+Elapsed: 4h263m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:54:15.247242+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 275 — T+274:00 (2026-07-15T02:54:25Z)
+```
+Timestamp: Tue Jul 14 10:54:25 PM EDT 2026
+Elapsed: 4h274m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:54:24.972022+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 265 — T+264:00 (2026-07-15T02:55:15Z)
+```
+Timestamp: Tue Jul 14 10:55:15 PM EDT 2026
+Elapsed: 4h264m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:55:15.380738+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 276 — T+275:00 (2026-07-15T02:55:25Z)
+```
+Timestamp: Tue Jul 14 10:55:25 PM EDT 2026
+Elapsed: 4h275m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:55:25.084725+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 266 — T+265:00 (2026-07-15T02:56:15Z)
+```
+Timestamp: Tue Jul 14 10:56:15 PM EDT 2026
+Elapsed: 4h265m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:56:15.625686+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 277 — T+276:00 (2026-07-15T02:56:25Z)
+```
+Timestamp: Tue Jul 14 10:56:25 PM EDT 2026
+Elapsed: 4h276m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:56:25.395120+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 267 — T+266:00 (2026-07-15T02:57:15Z)
+```
+Timestamp: Tue Jul 14 10:57:15 PM EDT 2026
+Elapsed: 4h266m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:57:15.748563+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 278 — T+277:00 (2026-07-15T02:57:25Z)
+```
+Timestamp: Tue Jul 14 10:57:25 PM EDT 2026
+Elapsed: 4h277m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:57:25.493366+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 268 — T+267:00 (2026-07-15T02:58:15Z)
+```
+Timestamp: Tue Jul 14 10:58:15 PM EDT 2026
+Elapsed: 4h267m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:58:15.867011+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 279 — T+278:00 (2026-07-15T02:58:25Z)
+```
+Timestamp: Tue Jul 14 10:58:25 PM EDT 2026
+Elapsed: 4h278m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:58:25.599580+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 269 — T+268:00 (2026-07-15T02:59:16Z)
+```
+Timestamp: Tue Jul 14 10:59:16 PM EDT 2026
+Elapsed: 4h268m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:59:15.998363+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 280 — T+279:00 (2026-07-15T02:59:25Z)
+```
+Timestamp: Tue Jul 14 10:59:25 PM EDT 2026
+Elapsed: 4h279m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T02:59:25.722405+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 270 — T+269:00 (2026-07-15T03:00:16Z)
+```
+Timestamp: Tue Jul 14 11:00:16 PM EDT 2026
+Elapsed: 4h269m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:00:16.107411+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 281 — T+280:00 (2026-07-15T03:00:25Z)
+```
+Timestamp: Tue Jul 14 11:00:25 PM EDT 2026
+Elapsed: 4h280m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:00:25.865684+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 271 — T+270:00 (2026-07-15T03:01:16Z)
+```
+Timestamp: Tue Jul 14 11:01:16 PM EDT 2026
+Elapsed: 4h270m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:01:16.215744+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 282 — T+281:00 (2026-07-15T03:01:26Z)
+```
+Timestamp: Tue Jul 14 11:01:26 PM EDT 2026
+Elapsed: 4h281m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:01:25.989695+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 272 — T+271:00 (2026-07-15T03:02:16Z)
+```
+Timestamp: Tue Jul 14 11:02:16 PM EDT 2026
+Elapsed: 4h271m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:02:16.327530+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 283 — T+282:00 (2026-07-15T03:02:26Z)
+```
+Timestamp: Tue Jul 14 11:02:26 PM EDT 2026
+Elapsed: 4h282m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:02:26.094531+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 273 — T+272:00 (2026-07-15T03:03:16Z)
+```
+Timestamp: Tue Jul 14 11:03:16 PM EDT 2026
+Elapsed: 4h272m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:03:16.441645+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 284 — T+283:00 (2026-07-15T03:03:26Z)
+```
+Timestamp: Tue Jul 14 11:03:26 PM EDT 2026
+Elapsed: 4h283m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:03:26.271865+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 274 — T+273:00 (2026-07-15T03:04:16Z)
+```
+Timestamp: Tue Jul 14 11:04:16 PM EDT 2026
+Elapsed: 4h273m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:04:16.547510+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 285 — T+284:00 (2026-07-15T03:04:26Z)
+```
+Timestamp: Tue Jul 14 11:04:26 PM EDT 2026
+Elapsed: 4h284m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:04:26.384732+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 275 — T+274:00 (2026-07-15T03:05:16Z)
+```
+Timestamp: Tue Jul 14 11:05:16 PM EDT 2026
+Elapsed: 4h274m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:05:16.653771+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 286 — T+285:00 (2026-07-15T03:05:26Z)
+```
+Timestamp: Tue Jul 14 11:05:26 PM EDT 2026
+Elapsed: 4h285m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:05:26.500077+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 276 — T+275:00 (2026-07-15T03:06:16Z)
+```
+Timestamp: Tue Jul 14 11:06:16 PM EDT 2026
+Elapsed: 4h275m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:06:16.760939+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 287 — T+286:00 (2026-07-15T03:06:26Z)
+```
+Timestamp: Tue Jul 14 11:06:26 PM EDT 2026
+Elapsed: 4h286m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:06:26.608147+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 277 — T+276:00 (2026-07-15T03:07:16Z)
+```
+Timestamp: Tue Jul 14 11:07:16 PM EDT 2026
+Elapsed: 4h276m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:07:16.861099+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 288 — T+287:00 (2026-07-15T03:07:26Z)
+```
+Timestamp: Tue Jul 14 11:07:26 PM EDT 2026
+Elapsed: 4h287m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:07:26.707498+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 278 — T+277:00 (2026-07-15T03:08:16Z)
+```
+Timestamp: Tue Jul 14 11:08:16 PM EDT 2026
+Elapsed: 4h277m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:08:16.968282+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 289 — T+288:00 (2026-07-15T03:08:26Z)
+```
+Timestamp: Tue Jul 14 11:08:26 PM EDT 2026
+Elapsed: 4h288m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:08:26.810651+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 279 — T+278:00 (2026-07-15T03:09:17Z)
+```
+Timestamp: Tue Jul 14 11:09:17 PM EDT 2026
+Elapsed: 4h278m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:09:17.082350+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 290 — T+289:00 (2026-07-15T03:09:26Z)
+```
+Timestamp: Tue Jul 14 11:09:26 PM EDT 2026
+Elapsed: 4h289m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:09:26.937316+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 280 — T+279:00 (2026-07-15T03:10:17Z)
+```
+Timestamp: Tue Jul 14 11:10:17 PM EDT 2026
+Elapsed: 4h279m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:10:17.210968+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 291 — T+290:00 (2026-07-15T03:10:27Z)
+```
+Timestamp: Tue Jul 14 11:10:27 PM EDT 2026
+Elapsed: 4h290m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:10:27.049396+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 281 — T+280:00 (2026-07-15T03:11:17Z)
+```
+Timestamp: Tue Jul 14 11:11:17 PM EDT 2026
+Elapsed: 4h280m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:11:17.342018+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 292 — T+291:00 (2026-07-15T03:11:27Z)
+```
+Timestamp: Tue Jul 14 11:11:27 PM EDT 2026
+Elapsed: 4h291m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:11:27.155096+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 282 — T+281:00 (2026-07-15T03:12:17Z)
+```
+Timestamp: Tue Jul 14 11:12:17 PM EDT 2026
+Elapsed: 4h281m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:12:17.684373+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```
+
+### Iteration 293 — T+292:00 (2026-07-15T03:12:27Z)
+```
+Timestamp: Tue Jul 14 11:12:27 PM EDT 2026
+Elapsed: 4h292m
+A-Grade Ready: FALSE
+Confidence Threshold: 0.8
+B-Grade Enabled: TRUE ✅
+
+Full Tuning State:
+INFO:__main__:Adaptive tuning: confidence_threshold=0.8, loss_prob_threshold=0.85, b_grade=True, a_grade=False
+{
+  "outcomes": {
+    "status": "OK",
+    "sample_size": 8,
+    "recent_sample": 8,
+    "confidence_bins": {
+      "high": {
+        "count": 0,
+        "win_rate": 0.0
+      },
+      "medium": {
+        "count": 8,
+        "win_rate": 0.625
+      },
+      "low": {
+        "count": 0,
+        "win_rate": 0.0
+      }
+    },
+    "overall_win_rate": 0.625,
+    "a_grade_count": 0,
+    "b_grade_count": 0,
+    "probation_count": 0,
+    "total_pnl_usd": 0.8418772932059472,
+    "average_pnl_per_trade": 0.1052346616507434
+  },
+  "market_regime": {
+    "status": "INSUFFICIENT_DATA"
+  },
+  "adaptive_confidence_threshold": 0.8,
+  "adaptive_loss_probability_threshold": 0.85,
+  "enable_b_grade": true,
+  "enable_a_grade": false,
+  "a_grade_ready": false,
+  "blockers_resolved": false,
+  "generated_at": "2026-07-15T03:12:27.653744+00:00",
+  "schema_version": "adaptive_gate_tuning_v1"
+}
+```

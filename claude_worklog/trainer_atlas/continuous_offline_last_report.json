@@ -1,0 +1,110 @@
+{
+  "schema_version": "trainer_offline_batch_train_v1",
+  "examples": 25353,
+  "epochs": 5,
+  "steps_per_epoch": 60,
+  "batch_size": 1024,
+  "total_gradient_steps": 300,
+  "wall_seconds": 231.26,
+  "gradient_steps_per_second": 1.297,
+  "rows_processed": 7605900,
+  "rows_per_second": 32889.0,
+  "loss_first": 53.46390914916992,
+  "loss_last": 11.652008056640625,
+  "loss_improved": true,
+  "best_validation_loss": 50.638858795166016,
+  "best_epoch": 4,
+  "checkpoint_selection_criterion": "risk_adjusted_composite",
+  "best_risk_composite": 0.5183980343932212,
+  "best_risk_sortino": 0.7683776018437629,
+  "best_risk_cvar": -249.9795674505417,
+  "best_risk_trades": 3593,
+  "early_stop_patience": 4,
+  "stopped_early": false,
+  "epochs_run": 5,
+  "kept_best_val_checkpoint": true,
+  "gpu": {
+    "gpu_telemetry_available": true,
+    "samples": 393,
+    "gpu_utilization_mean_pct": 17.04,
+    "gpu_utilization_max_pct": 98.0,
+    "vram_used_max_mb": 15059.0
+  },
+  "epoch_reports": [
+    {
+      "epoch": 0,
+      "loss_before": 53.46390914916992,
+      "loss_after": 29.58724594116211,
+      "validation_supervised_loss": 44.37474822998047,
+      "train_val_generalization_gap": 14.787502,
+      "ppo_entropy": 0.9971960783004761,
+      "learning_mode": null
+    },
+    {
+      "epoch": 1,
+      "loss_before": 29.61604118347168,
+      "loss_after": 29.507238388061523,
+      "validation_supervised_loss": 55.35332107543945,
+      "train_val_generalization_gap": 25.846083,
+      "ppo_entropy": 0.9267971515655518,
+      "learning_mode": null
+    },
+    {
+      "epoch": 2,
+      "loss_before": 29.535808563232422,
+      "loss_after": 20.569074630737305,
+      "validation_supervised_loss": 50.78128433227539,
+      "train_val_generalization_gap": 30.21221,
+      "ppo_entropy": 0.8597544431686401,
+      "learning_mode": null
+    },
+    {
+      "epoch": 3,
+      "loss_before": 20.53954315185547,
+      "loss_after": 14.4246187210083,
+      "validation_supervised_loss": 50.81884002685547,
+      "train_val_generalization_gap": 36.394221,
+      "ppo_entropy": 0.8682182431221008,
+      "learning_mode": null
+    },
+    {
+      "epoch": 4,
+      "loss_before": 14.404280662536621,
+      "loss_after": 11.652008056640625,
+      "validation_supervised_loss": 50.638858795166016,
+      "train_val_generalization_gap": 38.986851,
+      "ppo_entropy": 0.8417079448699951,
+      "learning_mode": null
+    }
+  ],
+  "point_in_time_safety": {
+    "schema_version": "trainer_offline_point_in_time_safety_v1",
+    "checked_rows": 25353,
+    "missing_trust_row_count": 0,
+    "missing_decision_time_count": 0,
+    "violation_count": 0,
+    "violations_sample": [],
+    "passed": true
+  },
+  "offline_only": true,
+  "writes_live_checkpoint": false,
+  "places_real_order": false,
+  "order_submitted": false,
+  "test_order_submitted": false,
+  "leverage_mutated": false,
+  "margin_mutated": false,
+  "routes_to_live": false,
+  "live_gate": "blocked_human_only",
+  "load": {
+    "cache_path": "claude_worklog/trainer_atlas/offline_batch_example_cache.pkl",
+    "cache_hit": true,
+    "load_seconds": 3.144,
+    "examples": 25353
+  },
+  "save": {
+    "offline_dir": "/home/wali/Desktop/AI BOT REBUILD/.local_models/v2_native_rl_masa_ppo_offline",
+    "is_live_dir": false,
+    "saved": true,
+    "checkpoint_id": "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488"
+  }
+}

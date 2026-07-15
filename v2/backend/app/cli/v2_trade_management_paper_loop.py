@@ -27665,6 +27665,9 @@ def run_once() -> dict:
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+    from v2.backend.app.services.paper_trade_management.side_performance import (
+        SideGateConfig,
+    )
     _entry_gate_cfg = PaperEntryGateConfig(
         symbol_exclusion_list=PAPER_AUDIT_SYMBOL_EXCLUSION_LIST,
         allowed_entry_timeframes=PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES,
@@ -27674,6 +27677,26 @@ def run_once() -> dict:
     runtime_now = datetime.now(timezone.utc)
     paper_active_runtime_owner_status = _paper_active_runtime_owner_status()
     r = _connect_redis()
+
+    # Read adaptive gate tuning state ONCE per cycle (not per-candidate)
+    _adaptive_config = {}
+    _adaptive_side_gate_cfg = SideGateConfig()  # Default config
+    try:
+        _adaptive_tuning_state = _read_json_key(r, "v2:orchestrator:adaptive_gate_tuning_state")
+        if _adaptive_tuning_state:
+            _adaptive_config = {
+                "enable_b_grade": _adaptive_tuning_state.get("enable_b_grade", False),
+                "adaptive_confidence_threshold": _adaptive_tuning_state.get("adaptive_confidence_threshold", 0.70),
+                "adaptive_loss_probability_threshold": _adaptive_tuning_state.get("adaptive_loss_probability_threshold", 0.80),
+            }
+            # Create adaptive side gate config: lower confidence floor when B-grade enabled (markets favorable)
+            if _adaptive_config.get("enable_b_grade") is True:
+                _adaptive_side_gate_cfg = SideGateConfig(
+                    long_confidence_floor=0.50,  # Lowered from 0.55 when B-grade enabled
+                    short_confidence_floor=0.50,
+                )
+    except Exception:
+        pass
     # Per-cycle cache of alt-data confluence payloads (CoinGlass+Santiment+
     # Moralis fusion) consumed by preemptive edge control; read-only.
     _altdata_confluence_cache: dict[tuple[str, str], dict[str, Any]] = {}
@@ -28830,6 +28853,7 @@ def run_once() -> dict:
             expected_move_after_cost_bps=_coerce_float(intent.get("expected_move_after_cost_bps")),
             redis_client=r,
             config=_entry_gate_cfg,
+            side_gate_config=_adaptive_side_gate_cfg,
         )
         intent["side_gate_result"] = _eg.get("side_gate_result") or {}
         if not _eg["allowed"]:

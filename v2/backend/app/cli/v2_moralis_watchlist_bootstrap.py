@@ -123,7 +123,7 @@ def bootstrap_moralis_watchlist(
         ex=86400,  # 24h TTL
     )
 
-    logger.info(f"Bootstrapped Moralis watchlist: {len(candidate)} symbols, {len(all_wallets)} wallets")
+    logger.info(f"Bootstrapped Moralis watchlist: {len(candidates)} symbols, {len(all_wallets)} wallets")
     return {"status": "bootstrapped", "watchlist": payload}
 
 
