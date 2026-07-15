@@ -15431,7 +15431,7 @@ def _preemptive_decision_rejection_reason_for_tier(
     return f"PREEMPTIVE_DECISION_DENIES_ENTRY:{decision or 'MISSING'}"
 
 
-def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any]) -> list[str]:
+def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any], redis_client: Any = None) -> list[str]:
     reasons: list[str] = []
     paper_tier = str(intent.get("paper_opportunity_tier") or "").strip().upper()
     tier_rejection = _preemptive_decision_rejection_reason_for_tier(
@@ -15451,8 +15451,18 @@ def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any]) -> lis
     loss_probability = _coerce_float(intent.get("pre_trade_loss_probability"))
     if loss_probability is None:
         reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED")
-    elif loss_probability >= 0.80:
-        reasons.append("PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND")
+    else:
+        adaptive_loss_prob_threshold = 0.80
+        if redis_client:
+            try:
+                tuning_state = redis_client.get("v2:orchestrator:adaptive_gate_tuning_state")
+                if tuning_state:
+                    tuning_data = json.loads(tuning_state)
+                    adaptive_loss_prob_threshold = tuning_data.get("adaptive_loss_probability_threshold", 0.80)
+            except Exception:
+                pass
+        if loss_probability >= adaptive_loss_prob_threshold:
+            reasons.append("PRE_TRADE_LOSS_PROBABILITY_ABOVE_ALLOWED_BOUND")
     if (
         paper_tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
         and loss_probability is not None
@@ -29370,7 +29380,8 @@ def run_once() -> dict:
             intent["paper_entry_freeze"] = paper_entry_freeze
             intent["probation_overrode_global_entry_freeze"] = True
         preemptive_admission_reasons = _paper_preemptive_admission_rejection_reasons(
-            intent
+            intent,
+            redis_client=r,
         )
         if preemptive_admission_reasons:
             _apply_preemptive_admission_block(intent, preemptive_admission_reasons)
