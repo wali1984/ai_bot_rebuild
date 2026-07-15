@@ -31563,12 +31563,20 @@ def run_once() -> dict:
             ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}decision:per_id_store_status")
+        aggregate_metrics = paper_performance_circuit_breaker_status.get("aggregate") or {}
         ledger_payload = {
             "paper_session_id": paper_session_id,
             "reset_session_id": paper_session_state.get("reset_session_id") or paper_session_id,
             "starting_equity_usd": paper_starting_equity_usd,
             "initial_capital": paper_starting_equity_usd,
             "paper_session_state_source": f"{V2_REDIS_PREFIX}paper:session" if paper_session_id else None,
+            "net_pnl_usd": aggregate_metrics.get("realized_pnl_usd"),
+            "win_rate_percent": (
+                round(aggregate_metrics.get("win_rate") * 100, 2)
+                if aggregate_metrics.get("win_rate") is not None
+                else None
+            ),
+            "profit_factor": aggregate_metrics.get("profit_factor"),
             "accepted_count": len(valid_accepted_for_ledger),
             "accepted_count_raw_before_invalid_admission_filter": len(accepted_for_ledger),
             "current_cycle_accepted_count": len(valid_current_accepted),
