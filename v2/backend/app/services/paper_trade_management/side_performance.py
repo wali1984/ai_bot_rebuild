@@ -17,13 +17,9 @@ Paper-only. Read-only against market state. Places no orders.
 
 from __future__ import annotations
 
-import json
 import math
-import os
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Mapping
-
-import redis
 
 SIDE_PERFORMANCE_SCHEMA_VERSION = "paper_side_performance_v1"
 SIDE_PERFORMANCE_REDIS_KEY = "v2:paper:side_performance"
@@ -43,29 +39,6 @@ class SideGateConfig:
     calibration_brier_penalty_start: float = 0.25
     calibration_penalty_scale: float = 0.5
     max_confidence_floor: float = 0.80
-
-
-def _get_adaptive_confidence_floor() -> float:
-    """Get adaptive confidence floor from market conditions.
-
-    Returns adaptive floor based on market favorability (B-grade enablement).
-    Defaults to 0.55 (conservative) if adaptive state unavailable.
-    """
-    try:
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        client = redis.from_url(redis_url, decode_responses=True)
-        tuning_state = client.get("v2:orchestrator:adaptive_gate_tuning_state")
-        if tuning_state:
-            data = json.loads(tuning_state)
-            # When B-grade enabled (favorable markets with positive outcomes)
-            # lower confidence floor to accept more candidates for learning
-            if data.get("enable_b_grade") is True:
-                return 0.50  # Adaptive lower floor when conditions are favorable
-            # When B-grade disabled (tough markets), keep stricter floor
-            return 0.52
-    except Exception:
-        pass
-    return 0.55  # Conservative default
 
 
 def _finite(value: Any) -> float | None:
@@ -258,8 +231,9 @@ def evaluate_side_gate(
     result["expectancy_bps"] = expectancy
     result["profit_factor"] = _finite(bucket.get("profit_factor"))
 
-    adaptive_base_floor = _get_adaptive_confidence_floor()
-    floor = adaptive_base_floor
+    floor = (
+        cfg.long_confidence_floor if normalized == "LONG" else cfg.short_confidence_floor
+    )
     if brier is not None and brier > cfg.calibration_brier_penalty_start:
         floor += (brier - cfg.calibration_brier_penalty_start) * cfg.calibration_penalty_scale
     floor = min(floor, cfg.max_confidence_floor)
