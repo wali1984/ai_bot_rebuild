@@ -661,15 +661,29 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
     economic_edge_bps = sizing_row.expected_move_after_cost_bps
     if row.risk_veto:
         return _block(row, mode=mode, decision="BLOCK_EXPOSURE_BUDGET", reason=row.risk_veto_reason or "risk_envelope_veto", envelope=envelope)
-    if row.market_state_integrity_score < 70.0:
+    # PAPER MODE: Relaxed thresholds for brain-building. LIVE MODE: Strict safety.
+    # Paper: Allow training across full range (even poor market state teaches model).
+    # Live: Strict - only trade in healthy market state.
+    min_market_state = 30.0 if mode == "paper" else 70.0
+    if row.market_state_integrity_score < min_market_state:
         return _block(row, mode=mode, decision="BLOCK_BAD_MARKET_STATE", reason="market_state_integrity_score_below_minimum", envelope=envelope)
-    if row.confidence_calibrated < 0.50:
+
+    # Paper: Accept low-confidence for diverse training signals. Live: Require confidence.
+    min_confidence = 0.30 if mode == "paper" else 0.50
+    if row.confidence_calibrated < min_confidence:
         return _block(row, mode=mode, decision="BLOCK_LOW_CONFIDENCE", reason="confidence_below_adaptive_minimum", envelope=envelope)
+
     if economic_edge_bps <= 0.0:
         return _block(row, mode=mode, decision="BLOCK_NO_EDGE", reason="expected_move_after_cost_not_positive", envelope=envelope)
-    if row.liquidity_score <= 0.05:
+
+    # PAPER MODE: Accept lower liquidity (learning from tail symbols). LIVE: Strict.
+    min_liquidity = 0.01 if mode == "paper" else 0.05
+    if row.liquidity_score <= min_liquidity:
         return _block(row, mode=mode, decision="BLOCK_INSUFFICIENT_LIQUIDITY", reason="liquidity_score_too_low", envelope=envelope)
-    if row.spread_bps + row.slippage_bps >= max(1.0, economic_edge_bps):
+
+    # PAPER MODE: Allow wider spread/slippage for diverse training. LIVE: Strict edge requirement.
+    max_spread_slippage_ratio = 2.0 if mode == "paper" else 1.0
+    if row.spread_bps + row.slippage_bps >= max(1.0, economic_edge_bps * max_spread_slippage_ratio):
         return _block(row, mode=mode, decision="BLOCK_SPREAD_SLIPPAGE", reason="spread_plus_slippage_exceeds_expected_edge", envelope=envelope)
     if row.drawdown_bps >= envelope.max_daily_drawdown_pct * 10000.0:
         return _block(row, mode=mode, decision="BLOCK_DRAWDOWN_GUARD", reason="drawdown_guard_breached", envelope=envelope)
