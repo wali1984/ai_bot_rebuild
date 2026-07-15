@@ -63,6 +63,19 @@ def _env_float_or_none(name: str) -> float | None:
     return float(raw)
 
 
+def _gpu_free_vram_mb() -> float | None:
+    """Free VRAM on GPU 0 via nvidia-smi; None when telemetry is unavailable."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=3.0, check=False,
+        )
+        line = (out.stdout or "").strip().splitlines()
+        return float(line[0].strip()) if line else None
+    except (FileNotFoundError, OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def _publish(status: dict[str, Any]) -> None:
     try:
         from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO  # noqa: PLC0415
@@ -139,6 +152,19 @@ def run_scheduled_pretrain(
     }
     if len(training_prefix) < max(64, batch_size // 4):
         status["phase"] = "ABORT_INSUFFICIENT_TRAINING_ROWS"
+        _publish(status)
+        return status
+
+    # GPU-contention guard: this GPU is shared with the resident loop and the
+    # continuous adaptive offline trainer. Proceeding into a CUDA OOM crashes
+    # the unit (exit 1) and loses the run; aborting gracefully lets the 90-min
+    # timer retry when VRAM frees up. None (no telemetry) proceeds as before.
+    free_vram_mb = _gpu_free_vram_mb()
+    min_free_mb = float(os.getenv("V2_PRETRAIN_MIN_FREE_VRAM_MB", "4096") or 4096)
+    status["gpu_free_vram_mb"] = free_vram_mb
+    status["gpu_min_free_vram_mb"] = min_free_mb
+    if free_vram_mb is not None and free_vram_mb < min_free_mb:
+        status["phase"] = "ABORT_GPU_BUSY_INSUFFICIENT_VRAM"
         _publish(status)
         return status
 
