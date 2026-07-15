@@ -63,7 +63,9 @@ def test_dead_process_is_restarted() -> None:
 
 
 def test_alive_but_stale_heartbeat_is_restarted() -> None:
-    d = _decide(_spec(), active_state="active", heartbeat_age_seconds=999.0)
+    # Second consecutive stale observation clears the debounce -> restart.
+    d = _decide(_spec(), active_state="active", heartbeat_age_seconds=999.0,
+                consecutive_stale_count=1)
     assert d.action == ACTION_RESTART_STALE
     assert d.heartbeat_age_seconds == 999.0
 
@@ -118,7 +120,9 @@ def test_not_installed_is_skipped() -> None:
 def test_restart_rate_limit_prevents_storm() -> None:
     d = _decide(_spec(), active_state="failed", recent_restart_count=3, max_restarts_per_window=3)
     assert d.action == ACTION_SKIP_RATE_LIMITED
-    d_stale = _decide(_spec(), heartbeat_age_seconds=999.0, recent_restart_count=5)
+    # Past the debounce (streak 1) so the stale branch reaches the rate-limit check.
+    d_stale = _decide(_spec(), heartbeat_age_seconds=999.0, recent_restart_count=5,
+                      consecutive_stale_count=1)
     assert d_stale.action == ACTION_SKIP_RATE_LIMITED
 
 
@@ -138,7 +142,8 @@ def test_missing_ttl_heartbeat_on_long_running_process_is_hung() -> None:
     # TTL'd Redis heartbeat expired (age None) while process has been up well past
     # the grace window -> hung -> restart.
     spec = _spec(treat_missing_heartbeat_as_stale=True, max_staleness_seconds=120)
-    d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=1000.0)
+    d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=1000.0,
+                consecutive_stale_count=1)
     assert d.action == ACTION_RESTART_STALE
     assert "hung" in d.reason
 
@@ -156,6 +161,28 @@ def test_missing_heartbeat_without_flag_is_ignored() -> None:
     spec = _spec(treat_missing_heartbeat_as_stale=False, max_staleness_seconds=120)
     d = _decide(spec, active_state="active", heartbeat_age_seconds=None, active_since_seconds=99999.0)
     assert d.action == ACTION_OK
+
+
+def test_stale_debounce_first_observation_only_pends() -> None:
+    from v2.backend.app.services.self_healing.component_registry import ACTION_STALE_PENDING
+
+    # First stale observation (streak 0 -> 1 of 2): observe, do not restart.
+    d = _decide(_spec(), active_state="active", heartbeat_age_seconds=999.0,
+                consecutive_stale_count=0, min_stale_observations=2)
+    assert d.action == ACTION_STALE_PENDING
+
+
+def test_stale_debounce_second_observation_restarts() -> None:
+    # Second consecutive stale observation (streak 1 -> 2 of 2): restart.
+    d = _decide(_spec(), active_state="active", heartbeat_age_seconds=999.0,
+                consecutive_stale_count=1, min_stale_observations=2)
+    assert d.action == ACTION_RESTART_STALE
+
+
+def test_dead_process_ignores_debounce() -> None:
+    # A dead process is unambiguous -- restart immediately, no debounce.
+    d = _decide(_spec(), active_state="failed", consecutive_stale_count=0, min_stale_observations=2)
+    assert d.action == ACTION_RESTART_DEAD
 
 
 def test_registry_is_well_formed_and_has_no_denylisted_units() -> None:

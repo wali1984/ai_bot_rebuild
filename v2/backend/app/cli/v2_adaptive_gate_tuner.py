@@ -262,10 +262,31 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     return tuning_state
 
 
+def main(argv=None) -> int:
+    import argparse
+    import time
+
+    parser = argparse.ArgumentParser(prog="v2_adaptive_gate_tuner")
+    parser.add_argument("--loop", action="store_true", help="run continuously")
+    parser.add_argument("--interval-seconds", type=float, default=60.0)
+    parser.add_argument("--once", action="store_true", help="run one tuning pass (default)")
+    args = parser.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO)
+    if args.loop:
+        while True:
+            try:
+                run_adaptive_tuning()
+            except Exception as exc:  # one bad cycle must never kill the loop
+                logger.warning("adaptive tuning cycle failed: %s", exc)
+            time.sleep(max(5.0, float(args.interval_seconds)))
+    result = run_adaptive_tuning()
+    print(json.dumps(result, indent=2, default=str))
+    return 0
+
+
 if __name__ == "__main__":
     import sys
 
-    logging.basicConfig(level=logging.INFO)
-    result = run_adaptive_tuning()
-    print(json.dumps(result, indent=2, default=str))
+    sys.exit(main())
     sys.exit(0)  # Always exit 0; the JSON output (not exit code) signals state

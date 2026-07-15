@@ -90,6 +90,9 @@ ACTION_SKIP_NOT_INSTALLED = "SKIP_NOT_INSTALLED"
 ACTION_SKIP_NOT_ENABLED = "SKIP_NOT_ENABLED"
 ACTION_SKIP_DELIBERATELY_STOPPED = "SKIP_DELIBERATELY_STOPPED"
 ACTION_SKIP_RATE_LIMITED = "SKIP_RATE_LIMITED"
+# A live process observed stale, but not yet for enough consecutive passes to
+# restart (debounce against transient lag). No action taken this pass.
+ACTION_STALE_PENDING = "STALE_PENDING"
 
 _ACTIVE_STATES = {"active", "activating", "reloading"}
 _DEAD_STATES = {"inactive", "failed", "deactivating"}
@@ -111,6 +114,8 @@ def decide_heal_action(
     recent_restart_count: int = 0,
     max_restarts_per_window: int = 3,
     active_since_seconds: float | None = None,
+    consecutive_stale_count: int = 0,
+    min_stale_observations: int = 2,
 ) -> HealDecision:
     """Pure heal decision. Order encodes the safety precedence.
 
@@ -164,6 +169,15 @@ def decide_heal_action(
         return _mk(action, f"process not active (state={active_state})")
 
     if is_active and stale:
+        # Debounce: a single stale observation is often transient lag (GC, a heavy
+        # cycle). Require the process to be stale for min_stale_observations
+        # consecutive passes before restarting it -- one blip never restarts a
+        # live, especially critical, component.
+        if consecutive_stale_count + 1 < max(1, min_stale_observations):
+            return _mk(
+                ACTION_STALE_PENDING,
+                f"stale observation {consecutive_stale_count + 1}/{min_stale_observations} -- observing",
+            )
         if recent_restart_count >= max_restarts_per_window:
             return _mk(ACTION_SKIP_RATE_LIMITED, "restart rate limit reached (stale)")
         action = ACTION_ALERT_STALE if spec.heal_mode == "alert" else ACTION_RESTART_STALE
@@ -216,19 +230,19 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
          max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
     _svc("rl_core_inference_loop", "rl-core-inference-loop", "signal", criticality="critical",
          heartbeat_redis_key="v2:trainer:heartbeat", heartbeat_field="finished_at",
-         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
-    # Anchored on a per-symbol prediction key; loose threshold so only a clear
-    # publish outage trips it, not transient per-symbol lag.
+         max_staleness_seconds=600, treat_missing_heartbeat_as_stale=True),
+    # No reliable single service heartbeat (per-symbol prediction keys are not a
+    # dependable anchor -- observed 12min stale on a healthy publisher);
+    # process-liveness-only until a real heartbeat key exists.
     _svc("all_timeframe_prediction_publisher", "all-timeframe-prediction-signal-price-target-publisher",
-         "signal", criticality="high", heartbeat_redis_key="v2:prediction:BTCUSDT:1m",
-         heartbeat_field="generated_utc", max_staleness_seconds=600),
+         "signal", criticality="high"),
     # --- risk / portfolio (TTL'd Redis heartbeats -> missing == hung) ---
     _svc("risk_gateway", "risk-gateway-live-loop", "risk", criticality="critical",
          heartbeat_redis_key="v2:risk:gateway:heartbeat", heartbeat_field="finished_at",
-         max_staleness_seconds=120, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     _svc("portfolio_cascade_guard", "portfolio-cascade-guard", "risk", criticality="critical",
          heartbeat_redis_key="v2:paper:portfolio_cascade_guard", heartbeat_field="generated_utc",
-         max_staleness_seconds=90, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
     _svc("portfolio_state_publisher", "portfolio-state-publisher", "risk", criticality="high",
          heartbeat_redis_key="v2:portfolio:state", heartbeat_field="generated_utc",
          max_staleness_seconds=120, treat_missing_heartbeat_as_stale=True),
@@ -254,10 +268,15 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("cascade_context_publisher", "cascade-context-publisher", "orchestrator", criticality="normal",
          heartbeat_redis_key="v2:microstructure:cascade_context:summary", heartbeat_field="generated_at",
          max_staleness_seconds=300),
+    _svc("adaptive_gate_tuner", "adaptive-gate-tuner", "orchestrator", criticality="high",
+         heartbeat_redis_key="v2:orchestrator:adaptive_gate_tuning_state", heartbeat_field="generated_at",
+         max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),
     # --- paper / execution (hedges/stops/sizing live inside the paper loop) ---
+    # Critical execution loop; generous threshold + debounce so only a real
+    # multi-minute outage restarts it, never a transient cycle lag.
     _svc("trade_management_paper_loop", "trade-management-paper-loop", "execution", criticality="critical",
          heartbeat_redis_key="v2:paper:heartbeat", heartbeat_field="heartbeat_generated_at",
-         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
     _svc("paper_shadow_observation", "paper-shadow-observation", "execution", criticality="high",
          heartbeat_file=f"{_FE}/paper_shadow_observation/latest/paper_shadow_observation_status.json",
          heartbeat_field="generated_at", max_staleness_seconds=240),
@@ -270,7 +289,7 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     # --- edge guardian ---
     _svc("continuous_edge_guardian", "continuous-edge-guardian", "guardian", criticality="critical",
          heartbeat_redis_key="v2:continuous_edge_guardian:status", heartbeat_field="generated_utc",
-         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=600, treat_missing_heartbeat_as_stale=True),
     # --- strategy / signal / feature / altdata consumers ---
     _svc("strategy_supply_publisher", "strategy-supply-publisher", "signal", criticality="high",
          heartbeat_redis_key="v2:strategy_supply:status", heartbeat_field="generated_utc",
@@ -295,13 +314,13 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("public_intel_free_tier", "public-intel-free-tier-loop", "altdata", criticality="normal"),
     _svc("feature_pipeline_native", "feature-pipeline-native-loop", "feature", criticality="high",
          heartbeat_redis_key="v2:features:pipeline:heartbeat", heartbeat_field="finished_at",
-         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=600, treat_missing_heartbeat_as_stale=True),
     _svc("feature_snapshot_builder", "feature-snapshot-builder", "feature", criticality="high",
          heartbeat_file=f"{_FE}/v2_feature_snapshot_builder/latest/v2_feature_snapshot_builder_status.json",
          heartbeat_field="last_run_ts", max_staleness_seconds=240),
     _svc("full_talib_ta_loop", "full-talib-ta-loop", "feature", criticality="high",
          heartbeat_redis_key="v2:features:ta:heartbeat", heartbeat_field="finished_at",
-         max_staleness_seconds=240, treat_missing_heartbeat_as_stale=True),
+         max_staleness_seconds=600, treat_missing_heartbeat_as_stale=True),
     _svc("technical_analysis_status", "technical-analysis-status-publisher", "feature", criticality="normal",
          heartbeat_file=f"{_FE}/v2_technical_analysis_status/latest/v2_technical_analysis_status.json",
          heartbeat_field="generated_utc", max_staleness_seconds=480),

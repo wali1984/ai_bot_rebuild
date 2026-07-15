@@ -26,11 +26,14 @@ from app.services.self_healing.component_registry import (
     decide_heal_action,
     ACTION_RESTART_DEAD,
     ACTION_RESTART_STALE,
+    ACTION_STALE_PENDING,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 STATUS_KEY = "v2:self_healing:status"
 RESTART_LEDGER_KEY = "v2:self_healing:restart_ledger"
+STALE_STREAK_KEY = "v2:self_healing:stale_streak"
+MIN_STALE_OBSERVATIONS = 2
 DELIBERATELY_STOPPED_KEY = "v2:self_healing:deliberately_stopped"
 DELIBERATELY_STOPPED_FILE = REPO_ROOT / "claude_worklog/self_healing/deliberately_stopped_units.txt"
 STATUS_FILE = REPO_ROOT / "claude_worklog/self_healing/self_healing_status.json"
@@ -203,9 +206,31 @@ def _record_restart(client: Any, unit: str, now: datetime) -> None:
         pass
 
 
+def _read_stale_streaks(client: Any) -> dict[str, int]:
+    if client is None:
+        return {}
+    try:
+        raw = client.get(STALE_STREAK_KEY)
+        data = json.loads(raw) if raw else {}
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_stale_streaks(client: Any, streaks: dict[str, int]) -> None:
+    if client is None:
+        return
+    try:
+        client.set(STALE_STREAK_KEY, json.dumps(streaks), ex=3600)
+    except Exception:
+        pass
+
+
 def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]:
     now = _utc_now()
     stopped = _deliberately_stopped(client)
+    stale_streaks = _read_stale_streaks(client)
+    next_streaks: dict[str, int] = {}
     decisions: list[dict[str, Any]] = []
     action_counts: dict[str, int] = {}
     restarted: list[str] = []
@@ -213,6 +238,7 @@ def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]
     for spec in NON_INGESTOR_COMPONENTS:
         st = _unit_state(spec.unit, now)
         age = _heartbeat_age_seconds(client, spec, now)
+        prior_stale_streak = int(stale_streaks.get(spec.unit, 0) or 0)
         decision = decide_heal_action(
             spec,
             installed=bool(st["installed"]),
@@ -223,7 +249,15 @@ def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]
             recent_restart_count=_recent_restarts(client, spec.unit, now),
             max_restarts_per_window=MAX_RESTARTS_PER_WINDOW,
             active_since_seconds=st["active_since_seconds"],
+            consecutive_stale_count=prior_stale_streak,
+            min_stale_observations=MIN_STALE_OBSERVATIONS,
         )
+        # Track the consecutive-stale streak: grows while stale/pending, resets on
+        # anything else (incl. a restart, so post-restart starts fresh).
+        if decision.action in (ACTION_STALE_PENDING,):
+            next_streaks[spec.unit] = prior_stale_streak + 1
+        elif decision.action != ACTION_RESTART_STALE:
+            next_streaks[spec.unit] = 0
         action_counts[decision.action] = action_counts.get(decision.action, 0) + 1
         row: dict[str, Any] = {
             "name": spec.name,
@@ -247,6 +281,8 @@ def run_once(client: Any, *, dry_run: bool, write_redis: bool) -> dict[str, Any]
                     restarted.append(spec.unit)
                     _record_restart(client, spec.unit, now)
         decisions.append(row)
+
+    _write_stale_streaks(client, next_streaks)
 
     payload = {
         "schema_version": "v2_self_healing_supervisor_status_v1",
