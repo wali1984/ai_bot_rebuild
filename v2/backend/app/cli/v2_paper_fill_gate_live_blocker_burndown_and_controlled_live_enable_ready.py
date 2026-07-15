@@ -169,7 +169,8 @@ def _scan_predictions(r: Any) -> list[dict[str, Any]]:
         return []
     rows: list[dict[str, Any]] = []
     try:
-        for key in r.scan_iter(match=f"{V2_REDIS_PREFIX}prediction:*"):
+        # count=1000: avoid the default count=10 SCAN stall on the 2M-key Redis.
+        for key in r.scan_iter(match=f"{V2_REDIS_PREFIX}prediction:*", count=1000):
             value = _redis_json(r, str(key), {})
             if isinstance(value, dict):
                 rows.append(value)

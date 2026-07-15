@@ -4462,7 +4462,10 @@ def retire_stale_routeable_prediction_keys(
         return 0
     retired = 0
     try:
-        keys = list(client.scan_iter(match="v2:prediction:*"))
+        # count=1000: scan_iter defaults to count=10, which on the multi-million-key
+        # Redis costs ~keyspace/10 round trips and can stall the publish loop for
+        # minutes (same class of hang that silently killed the orchestrator).
+        keys = list(client.scan_iter(match="v2:prediction:*", count=1000))
     except Exception as exc:  # noqa: BLE001
         store.audit.errors.append(f"scan_failed:v2:prediction:*:{type(exc).__name__}")
         return 0
