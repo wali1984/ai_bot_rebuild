@@ -5,7 +5,8 @@ from typing import Any
 
 from .accounting import coerce_float
 from .caps import PaperExposureCaps, evaluate_exposure_caps
-from .exits import PAPER_EXIT_POLICY_VERSION, PaperExitConfig, evaluate_exit
+from .exits import PAPER_EXIT_POLICY_VERSION, PaperExitConfig, effective_atr_stop_bps, evaluate_exit
+from .hedging import evaluate_adaptive_hedge_trigger, evaluate_adaptive_hedge_unwind
 from .netting import classify_fill
 from .outcomes import build_close_event
 from .policy_funding_repair import repair_policy_funding_rows
@@ -14,6 +15,7 @@ from .position_state import (
     PaperNetPosition,
     first_present,
     position_from_fill,
+    seconds_between,
     utc_iso_from_any,
     utc_now_iso,
 )
@@ -72,6 +74,9 @@ class PaperLifecycleConfig:
     fee_bps: float = 4.0
     slippage_bps: float = 2.0
     allow_explicit_hedge: bool = False
+    # Portfolio drawdown (bps) at cycle start; feeds the adaptive hedge
+    # trigger's drawdown pressure term when explicit hedging is enabled.
+    portfolio_drawdown_bps: float = 0.0
     portfolio_equity_usdt: float | None = None
     disable_trailing_on_negative_runtime_expectancy: bool = False
     trailing_runtime_min_closed_trades: int = 50
@@ -594,16 +599,30 @@ def _trailing_stop_runtime_circuit_breaker(
     }
 
 
+def _hedge_position_key(symbol: str) -> str:
+    return f"{str(symbol).upper()}::HEDGE"
+
+
+def _is_hedge_child_row(row: dict[str, Any]) -> bool:
+    return bool(row.get("hedge_parent_id")) and str(row.get("hedge_state") or "").upper() == "HEDGE_CHILD"
+
+
 def _prior_positions_by_symbol(existing_ledger: dict[str, Any]) -> dict[str, dict[str, Any]]:
     prior: dict[str, dict[str, Any]] = {}
     positions_by_symbol = existing_ledger.get("positions_by_symbol")
     if isinstance(positions_by_symbol, dict):
         for symbol, row in positions_by_symbol.items():
             if isinstance(row, dict):
-                prior[str(symbol).upper()] = dict(row)
+                key = str(symbol).upper()
+                if _is_hedge_child_row(row) and not key.endswith("::HEDGE"):
+                    key = _hedge_position_key(key)
+                prior[key] = dict(row)
     for row in existing_ledger.get("open_positions") or []:
         if isinstance(row, dict) and row.get("symbol"):
-            prior[str(row["symbol"]).upper()] = dict(row)
+            key = str(row["symbol"]).upper()
+            if _is_hedge_child_row(row):
+                key = _hedge_position_key(key)
+            prior[key] = dict(row)
     return prior
 
 
@@ -1540,6 +1559,70 @@ def reconcile_paper_lifecycle(
                 price = 1.0  # Fallback: unit price for accounting purposes
         else:
             price = float(price)
+        # Explicit adaptive hedge routing (operator-gated via
+        # config.allow_explicit_hedge): a tagged hedge fill opens a paired
+        # hedge position under "{symbol}::HEDGE" and must NEVER fall through
+        # to the opposite-side netting close below — same-symbol netting is
+        # load-bearing for untagged fills (TIER_3_MODEL_REVERSAL_NETTING).
+        if (
+            config.allow_explicit_hedge
+            and fill.get("hedge_intent") is True
+            and fill.get("hedge_parent_id")
+        ):
+            hedge_key = _hedge_position_key(symbol)
+            if hedge_key in positions:
+                netting_events.append(
+                    {
+                        "symbol": symbol,
+                        "event": "EXPLICIT_HEDGE_DUPLICATE_SKIPPED",
+                        "side": side,
+                        "quantity": quantity,
+                    }
+                )
+                continue
+            cap = evaluate_exposure_caps(
+                positions=positions,
+                symbol=symbol,
+                candidate_notional=notional,
+                caps=config.exposure_caps,
+                portfolio_equity_usdt=config.portfolio_equity_usdt,
+            )
+            cap_evaluations.append(cap)
+            if not cap["allowed"]:
+                rejected = dict(fill)
+                rejected["paper_lifecycle_status"] = "ENTRY_BLOCKED"
+                rejected["paper_lifecycle_block_reasons"] = list(cap["blockers"])
+                rejected["paper_hedge_admission_blocked_by_exposure_caps"] = True
+                blocked_entries.append(rejected)
+                continue
+            positions[hedge_key] = position_from_fill(
+                fill, fill_id=fill_id, side=side, quantity=quantity, price=price
+            )
+            _carry_prior_position_state(positions[hedge_key], prior_positions.get(hedge_key))
+            parent_position = positions.get(symbol)
+            if parent_position is not None:
+                parent_position.hedge_state = "HEDGED"
+                parent_position.hedge_reason = str(
+                    fill.get("hedge_reason") or "ADAPTIVE_ADVERSE_EXCURSION_HEDGE"
+                )
+                parent_position.hedge_child_id = str(fill_id)
+            accepted_open_fills.append(
+                _accepted_fill_with_position_metadata(
+                    fill,
+                    status="HEDGE_POSITION_OPENED",
+                    position=positions[hedge_key],
+                )
+            )
+            netting_events.append(
+                {
+                    "symbol": symbol,
+                    "event": "EXPLICIT_HEDGE_OPENED",
+                    "side": side,
+                    "quantity": quantity,
+                    "hedge_parent_id": fill.get("hedge_parent_id"),
+                }
+            )
+            continue
         existing = positions.get(symbol)
         if existing is None:
             cap = evaluate_exposure_caps(
@@ -1671,7 +1754,133 @@ def reconcile_paper_lifecycle(
             )
         )
 
+    # ── Adaptive hedge pair management (pre-pass) ─────────────────────────
+    # Hedge children ("{SYM}::HEDGE" keys) are owned by the pair manager, not
+    # the standard exit tiers. Evaluate unwind/close-both for every pair
+    # before standard exits so a HOLD verdict can defer the parent's TIER_1
+    # ATR stop below (TIER_0 tiers are never deferred).
+    hedge_directives: list[dict[str, Any]] = []
+    hedge_pair_events: list[dict[str, Any]] = []
+    hedge_protected_symbols: set[str] = set()
+    if config.allow_explicit_hedge:
+        for hedge_key in [k for k in list(positions.keys()) if k.endswith("::HEDGE")]:
+            hedge_position = positions.get(hedge_key)
+            if hedge_position is None:
+                continue
+            base_symbol = hedge_key.split("::")[0]
+            parent_position = positions.get(base_symbol)
+            mark, _mark_src = _mark_for_symbol(
+                mark_prices, base_symbol, hedge_position.last_mark_price or hedge_position.avg_entry_price
+            )
+            if mark is None or mark <= 0:
+                hedge_pair_events.append(
+                    {"symbol": base_symbol, "action": "HOLD", "reason": "MARK_PRICE_MISSING"}
+                )
+                if parent_position is not None:
+                    hedge_protected_symbols.add(base_symbol)
+                continue
+            hedge_position.update_mark(mark_price=mark, mark_time=generated_utc)
+            hedge_pnl_bps_value = hedge_position.unrealized_pnl_bps()
+            parent_pnl_bps_value = None
+            parent_payload: dict[str, Any] = {}
+            if parent_position is not None:
+                parent_position.update_mark(mark_price=mark, mark_time=generated_utc)
+                parent_pnl_bps_value = parent_position.unrealized_pnl_bps()
+                parent_payload = parent_position.to_payload(generated_utc=generated_utc)
+            hedge_best_excursion = None
+            if (
+                hedge_position.best_favorable_price
+                and hedge_position.avg_entry_price
+                and hedge_position.avg_entry_price > 0
+            ):
+                if hedge_position.side == "long":
+                    hedge_best_excursion = (
+                        (hedge_position.best_favorable_price - hedge_position.avg_entry_price)
+                        / hedge_position.avg_entry_price
+                        * 10000.0
+                    )
+                else:
+                    hedge_best_excursion = (
+                        (hedge_position.avg_entry_price - hedge_position.best_favorable_price)
+                        / hedge_position.avg_entry_price
+                        * 10000.0
+                    )
+            parent_atr_stop = None
+            if parent_position is not None:
+                parent_atr_stop = effective_atr_stop_bps(
+                    atr_bps=parent_position.entry_atr_bps,
+                    confidence_calibrated=parent_position.confidence_calibrated,
+                    strategy_selected_mode=parent_position.strategy_selected_mode,
+                    market_regime=parent_position.market_regime_at_entry,
+                    config=config.exit_config,
+                )
+            unwind = evaluate_adaptive_hedge_unwind(
+                parent_payload=parent_payload,
+                hedge_payload=hedge_position.to_payload(generated_utc=generated_utc),
+                parent_pnl_bps=parent_pnl_bps_value,
+                hedge_pnl_bps=hedge_pnl_bps_value,
+                hedge_best_excursion_bps=hedge_best_excursion,
+                parent_atr_stop_bps=parent_atr_stop,
+                hedge_hold_seconds=seconds_between(hedge_position.opened_est, generated_utc),
+                max_hold_seconds=float(config.exit_config.max_hold_seconds),
+                fee_bps=config.fee_bps,
+                slippage_bps=config.slippage_bps,
+            )
+            action = str(unwind.get("action") or "HOLD")
+            hedge_pair_events.append({"symbol": base_symbol, **unwind})
+            if action in ("UNWIND_HEDGE", "ORPHAN_UNWIND"):
+                close_event, outcome, dirty_block = _close_position(
+                    positions=positions,
+                    symbol=hedge_key,
+                    close_quantity=hedge_position.net_quantity,
+                    exit_price=mark,
+                    exit_time=generated_utc,
+                    close_reason="TIER_2_HEDGE_UNWIND_EXHAUSTED",
+                    fee_bps=config.fee_bps,
+                    slippage_bps=config.slippage_bps,
+                    exit_audit_context=_exit_audit_context(exit_config=config.exit_config),
+                )
+                if dirty_block is not None:
+                    dirty_close_blocks.append(dirty_block)
+                elif close_event is not None and outcome is not None:
+                    closed_trades.append(close_event)
+                    outcome_labels.append(outcome)
+                    new_close_events.append(close_event)
+                    new_outcomes.append(outcome)
+                if parent_position is not None:
+                    parent_position.hedge_state = "HEDGE_UNWOUND"
+                    parent_position.hedge_reason = str(unwind.get("reason") or "HEDGE_UNWOUND")
+            elif action == "CLOSE_BOTH":
+                for close_key, close_pos in ((hedge_key, hedge_position), (base_symbol, parent_position)):
+                    if close_pos is None or close_key not in positions:
+                        continue
+                    close_event, outcome, dirty_block = _close_position(
+                        positions=positions,
+                        symbol=close_key,
+                        close_quantity=close_pos.net_quantity,
+                        exit_price=mark,
+                        exit_time=generated_utc,
+                        close_reason="TIER_2_HEDGE_PAIR_CLOSE",
+                        fee_bps=config.fee_bps,
+                        slippage_bps=config.slippage_bps,
+                        exit_audit_context=_exit_audit_context(exit_config=config.exit_config),
+                    )
+                    if dirty_block is not None:
+                        dirty_close_blocks.append(dirty_block)
+                    elif close_event is not None and outcome is not None:
+                        closed_trades.append(close_event)
+                        outcome_labels.append(outcome)
+                        new_close_events.append(close_event)
+                        new_outcomes.append(outcome)
+            else:
+                if parent_position is not None:
+                    hedge_protected_symbols.add(base_symbol)
+
     for symbol, position in list(positions.items()):
+        if symbol.endswith("::HEDGE"):
+            # Hedge children are pair-managed above; standard exit tiers must
+            # not close them independently.
+            continue
         mark, mark_source = _mark_for_symbol(mark_prices, symbol, position.last_mark_price or position.avg_entry_price)
         exit_spread_bps, exit_spread_source, exit_spread_available_at = _exit_spread_from_mapping(
             mark_prices.get(symbol.upper()) if isinstance(mark_prices, dict) else None
@@ -1723,6 +1932,90 @@ def reconcile_paper_lifecycle(
                 "portfolio_cascade_guard_reason": _guard_hit.get("reason"),
                 "portfolio_cascade_guard_cascade_score": _guard_hit.get("cascade_score"),
             }
+        # ── Adaptive hedging hooks (operator-gated) ───────────────────────
+        if config.allow_explicit_hedge and mark is not None:
+            _would_atr_stop = (
+                exit_eval.get("should_close") is True
+                and str(exit_eval.get("close_reason") or "") == "TIER_1_ATR_VOLATILITY_STOP"
+            )
+            if symbol in hedge_protected_symbols and _would_atr_stop:
+                # An active hedge already covers this adverse move; the pair
+                # manager owns the exit. TIER_0 tiers are never deferred.
+                exit_eval = {
+                    "should_close": False,
+                    "close_reason": None,
+                    "tier": None,
+                    "blocker": "ATR_STOP_DEFERRED_TO_ACTIVE_HEDGE",
+                    "pnl_bps": exit_eval.get("pnl_bps"),
+                    "deferred_close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+                }
+                _would_atr_stop = False
+            elif (
+                symbol not in hedge_protected_symbols
+                and (exit_eval.get("should_close") is not True or _would_atr_stop)
+                and str(position.hedge_state or "NO_HEDGE").upper() in ("", "NO_HEDGE", "NONE")
+            ):
+                _pnl_bps_now = position.unrealized_pnl_bps()
+                _atr_stop_now = coerce_float(exit_eval.get("atr_stop_bps"))
+                if _atr_stop_now is None or _atr_stop_now <= 0:
+                    _atr_stop_now = effective_atr_stop_bps(
+                        atr_bps=position.entry_atr_bps,
+                        confidence_calibrated=position.confidence_calibrated,
+                        strategy_selected_mode=position.strategy_selected_mode,
+                        market_regime=position.market_regime_at_entry,
+                        config=effective_exit_config,
+                    )
+                trigger = evaluate_adaptive_hedge_trigger(
+                    position_payload=position.to_payload(generated_utc=generated_utc),
+                    pnl_bps=_pnl_bps_now,
+                    atr_stop_bps=_atr_stop_now,
+                    portfolio_drawdown_bps=config.portfolio_drawdown_bps,
+                    drawdown_emergency_bps=effective_exit_config.drawdown_emergency_bps,
+                    fee_bps=config.fee_bps,
+                    slippage_bps=config.slippage_bps,
+                )
+                if trigger.get("trigger") is True:
+                    position.hedge_state = "HEDGE_PENDING"
+                    position.hedge_reason = str(trigger.get("reason"))
+                    hedge_directives.append(
+                        {
+                            "symbol": symbol,
+                            "parent_position_id": position.position_id,
+                            "parent_entry_fill_id": (
+                                position.fill_ids[0] if position.fill_ids else position.position_id
+                            ),
+                            "hedge_side": trigger.get("hedge_side"),
+                            "hedge_ratio": trigger.get("hedge_ratio"),
+                            "hedge_quantity": round(
+                                position.net_quantity * float(trigger.get("hedge_ratio") or 0.0), 12
+                            ),
+                            "mark_price": mark,
+                            "parent_pnl_bps_at_trigger": _pnl_bps_now,
+                            "atr_stop_bps_at_trigger": _atr_stop_now,
+                            "reason": trigger.get("reason"),
+                            "trigger_diagnostics": {
+                                k: v
+                                for k, v in trigger.items()
+                                if k not in ("trigger", "reason", "hedge_side", "hedge_ratio")
+                            },
+                            "generated_utc": generated_utc,
+                            "paper_only": True,
+                            "places_real_order": False,
+                        }
+                    )
+                    if _would_atr_stop:
+                        # Convert the imminent full stop-out into a hedge:
+                        # position stays open, hedge fill synthesizes next
+                        # cycle, TIER_0 catastrophic floor stays armed.
+                        exit_eval = {
+                            "should_close": False,
+                            "close_reason": None,
+                            "tier": None,
+                            "blocker": "ATR_STOP_CONVERTED_TO_HEDGE_DIRECTIVE",
+                            "pnl_bps": _pnl_bps_now,
+                            "deferred_close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+                            "hedge_directive_emitted": True,
+                        }
         exit_eval["symbol"] = symbol
         exit_eval["mark_price_source"] = mark_source
         exit_eval["trailing_context_decision"] = trailing_context_decision
@@ -1767,7 +2060,12 @@ def reconcile_paper_lifecycle(
             new_outcomes.append(outcome)
 
     open_positions = [pos.to_payload(generated_utc=generated_utc) for pos in positions.values()]
-    positions_by_symbol = {row["symbol"]: row for row in open_positions}
+    # Hedge children key under "{SYM}::HEDGE" so they never overwrite the
+    # parent row (both payloads carry the same base symbol field).
+    positions_by_symbol = {
+        (_hedge_position_key(row["symbol"]) if _is_hedge_child_row(row) else row["symbol"]): row
+        for row in open_positions
+    }
     policy_funding_repair_accepted_rows = [
         *accepted_open_fills,
         *closed_previously_fills,
@@ -1860,6 +2158,21 @@ def reconcile_paper_lifecycle(
             "events": netting_events,
             "opposite_side_netting_count": sum(1 for row in netting_events if row.get("event") == "OPPOSITE_SIDE_REDUCED_OR_CLOSED"),
             "same_side_netting_count": sum(1 for row in netting_events if row.get("event") == "NET_SAME_DIRECTION"),
+        },
+        "hedge_directives": hedge_directives,
+        "paper_adaptive_hedge_status": {
+            "enabled": bool(config.allow_explicit_hedge),
+            "active_hedge_pairs": sorted(
+                k.split("::")[0] for k in positions.keys() if k.endswith("::HEDGE")
+            ),
+            "hedge_protected_symbols": sorted(hedge_protected_symbols),
+            "directives_emitted": len(hedge_directives),
+            "pair_events": hedge_pair_events[:25],
+            "explicit_hedge_opens": sum(
+                1 for row in netting_events if row.get("event") == "EXPLICIT_HEDGE_OPENED"
+            ),
+            "paper_only": True,
+            "places_real_order": False,
         },
         "paper_exit_coordinator_status": {
             "tiers_enabled": ["TIER_0", "TIER_1", "TIER_2", "TIER_3", "TIER_4"],

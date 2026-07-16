@@ -212,6 +212,13 @@ class PaperNetPosition:
     strategy_selected_mode: str | None = None
     hedge_state: str | None = None
     hedge_reason: str | None = None
+    # Adaptive hedging pair linkage (2026-07-16): a hedge child position keys
+    # under "{symbol}::HEDGE" and carries its parent's position id; the parent
+    # carries the child fill id while hedged.
+    hedge_parent_id: str | None = None
+    hedge_child_id: str | None = None
+    hedge_ratio: float | None = None
+    hedge_entry_parent_pnl_bps: float | None = None
     drawdown_at_entry: float | None = None
     market_regime_at_entry: str | None = None
     liquidity_zone_context: dict[str, Any] | None = None
@@ -680,6 +687,10 @@ class PaperNetPosition:
             "strategy_selected_mode": self.strategy_selected_mode,
             "hedge_state": self.hedge_state,
             "hedge_reason": self.hedge_reason,
+            "hedge_parent_id": self.hedge_parent_id,
+            "hedge_child_id": self.hedge_child_id,
+            "hedge_ratio": self.hedge_ratio,
+            "hedge_entry_parent_pnl_bps": self.hedge_entry_parent_pnl_bps,
             "drawdown_at_entry": self.drawdown_at_entry,
             "market_regime_at_entry": self.market_regime_at_entry,
             "liquidity_zone_context": self.liquidity_zone_context,
@@ -1168,8 +1179,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         if not missing_score_fields
         else "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:" + ",".join(missing_score_fields)
     )
+    is_hedge_child = bool(fill.get("hedge_intent") is True and fill.get("hedge_parent_id"))
     return PaperNetPosition(
-        position_id=f"paper_pos_{symbol}",
+        position_id=f"paper_pos_{symbol}_hedge" if is_hedge_child else f"paper_pos_{symbol}",
         symbol=symbol,
         side=side,
         net_quantity=quantity,
@@ -1372,6 +1384,26 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         strategy_selected_mode=fill.get("strategy_selected_mode"),
         hedge_state=fill.get("hedge_state") or "NO_HEDGE",
         hedge_reason=fill.get("hedge_reason") or "NO_HEDGE_CONTEXT",
+        hedge_parent_id=(
+            str(fill.get("hedge_parent_id"))
+            if fill.get("hedge_intent") is True and fill.get("hedge_parent_id")
+            else None
+        ),
+        hedge_child_id=(
+            str(fill.get("hedge_child_id"))
+            if fill.get("hedge_intent") is True and fill.get("hedge_child_id")
+            else None
+        ),
+        hedge_ratio=(
+            coerce_float(fill.get("hedge_ratio"))
+            if fill.get("hedge_intent") is True
+            else None
+        ),
+        hedge_entry_parent_pnl_bps=(
+            coerce_float(fill.get("hedge_entry_parent_pnl_bps"))
+            if fill.get("hedge_intent") is True
+            else None
+        ),
         drawdown_at_entry=first_present(fill.get("drawdown_at_entry"), fill.get("drawdown_bps")),
         market_regime_at_entry=",".join(str(item) for item in fill.get("strategy_regime_labels") or [])
         if isinstance(fill.get("strategy_regime_labels"), list)

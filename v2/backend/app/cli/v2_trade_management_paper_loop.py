@@ -24420,7 +24420,12 @@ def _read_existing_ledger_payload(r) -> dict[str, Any]:
     if open_positions:
         payload["open_positions"] = open_positions
         payload["positions_by_symbol"] = {
-            str(row["symbol"]).upper(): row
+            (
+                f"{str(row['symbol']).upper()}::HEDGE"
+                if row.get("hedge_parent_id")
+                and str(row.get("hedge_state") or "").upper() == "HEDGE_CHILD"
+                else str(row["symbol"]).upper()
+            ): row
             for row in open_positions
             if isinstance(row, dict) and row.get("symbol")
         }
@@ -24628,6 +24633,166 @@ def _portfolio_equity_context(r) -> dict[str, float]:
 
 EXIT_OVERSHOOT_ESTIMATE_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:exit_overshoot_estimate"
 _EXIT_OVERSHOOT_MAX_SAMPLE = 20
+
+# Adaptive hedging (paper-only). Dangerous-setting rule: default OFF; the
+# operator enables via environment (systemd drop-in) after explicit approval.
+# Operator approval recorded 2026-07-16: hedge adverse moves instead of
+# eating full ATR stop-outs; hedging preferred over closing losses.
+PAPER_ADAPTIVE_HEDGE_ENABLED = str(
+    os.environ.get("PAPER_ADAPTIVE_HEDGE_ENABLED", "")
+).strip().lower() in ("1", "true", "yes", "on")
+HEDGE_DIRECTIVES_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:hedge_directives"
+HEDGE_DIRECTIVES_MAX_AGE_SECONDS = 300.0
+
+
+def _synthesize_adaptive_hedge_fills(
+    r,
+    *,
+    existing_ledger: dict[str, Any],
+    existing_accepted: list[dict[str, Any]],
+    accepted: list[dict[str, Any]],
+    paper_session_id: str | None,
+    starting_equity_usd: float | None,
+) -> dict[str, Any]:
+    """Turn prior-cycle hedge directives into tagged paper hedge fills.
+
+    The hedge fill is a copy of the parent's persisted entry fill (which
+    guarantees the classify_fill lineage contract: prediction_id,
+    risk_decision_id, orchestrator_decision_id) with side flipped, quantity
+    scaled by the adaptive hedge_ratio, and hedge pair tags set. It rides the
+    normal accepted-fills pipeline; the lifecycle routes it to a
+    "{SYM}::HEDGE" position instead of netting the parent closed.
+    """
+    status: dict[str, Any] = {
+        "enabled": True,
+        "synthesized": 0,
+        "skipped": [],
+        "paper_only": True,
+        "places_real_order": False,
+    }
+    payload = _read_json_any_key(r, HEDGE_DIRECTIVES_REDIS_KEY)
+    if not isinstance(payload, dict):
+        status["reason"] = "NO_PENDING_HEDGE_DIRECTIVES"
+        return status
+    directives = payload.get("directives")
+    if not isinstance(directives, list) or not directives:
+        status["reason"] = "NO_PENDING_HEDGE_DIRECTIVES"
+        return status
+    generated_utc = str(payload.get("generated_utc") or "")
+    age_seconds = _seconds_since_iso(generated_utc)
+    if age_seconds is None or age_seconds > HEDGE_DIRECTIVES_MAX_AGE_SECONDS:
+        status["reason"] = "HEDGE_DIRECTIVES_STALE"
+        status["directive_age_seconds"] = age_seconds
+        try:
+            r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
+        except Exception:
+            pass
+        return status
+    positions_by_symbol = (
+        existing_ledger.get("positions_by_symbol")
+        if isinstance(existing_ledger.get("positions_by_symbol"), dict)
+        else {}
+    )
+    accepted_by_identity = {
+        _accepted_fill_identity(row): row
+        for row in existing_accepted
+        if isinstance(row, dict)
+    }
+    for directive in directives:
+        if not isinstance(directive, dict):
+            continue
+        symbol = str(directive.get("symbol") or "").upper()
+        parent_position_id = str(directive.get("parent_position_id") or "")
+        hedge_side = str(directive.get("hedge_side") or "").lower()
+        hedge_quantity = _coerce_float(directive.get("hedge_quantity"))
+        mark_price = _coerce_float(directive.get("mark_price"))
+        if not symbol or hedge_side not in ("long", "short") or not hedge_quantity or hedge_quantity <= 0:
+            status["skipped"].append({"symbol": symbol, "reason": "DIRECTIVE_FIELDS_INVALID"})
+            continue
+        if symbol not in positions_by_symbol:
+            status["skipped"].append({"symbol": symbol, "reason": "PARENT_POSITION_NO_LONGER_OPEN"})
+            continue
+        if f"{symbol}::HEDGE" in positions_by_symbol:
+            status["skipped"].append({"symbol": symbol, "reason": "HEDGE_ALREADY_OPEN"})
+            continue
+        parent_fill = accepted_by_identity.get(str(directive.get("parent_entry_fill_id") or ""))
+        if parent_fill is None:
+            parent_fill = next(
+                (
+                    row
+                    for row in existing_accepted
+                    if isinstance(row, dict)
+                    and str(row.get("symbol") or "").upper() == symbol
+                    and row.get("hedge_intent") is not True
+                ),
+                None,
+            )
+        if parent_fill is None:
+            status["skipped"].append({"symbol": symbol, "reason": "PARENT_ENTRY_FILL_NOT_FOUND"})
+            continue
+        if mark_price is None or mark_price <= 0:
+            mark_price, _px_source, _px_utc = _read_v2_market_price(r, symbol)
+        if mark_price is None or mark_price <= 0:
+            status["skipped"].append({"symbol": symbol, "reason": "HEDGE_MARK_PRICE_UNAVAILABLE"})
+            continue
+        directive_ts = str(directive.get("generated_utc") or generated_utc)
+        hedge_fill_id = f"{parent_position_id}:hedge:{directive_ts}"
+        hedge_notional = abs(hedge_quantity * mark_price)
+        hedge_fill = dict(parent_fill)
+        hedge_fill.update(
+            {
+                "fill_id": hedge_fill_id,
+                "intent_id": hedge_fill_id,
+                "side": hedge_side,
+                "selected_action": hedge_side,
+                "quantity": hedge_quantity,
+                "fill_price": mark_price,
+                "price": mark_price,
+                "notional": hedge_notional,
+                "notional_usd": hedge_notional,
+                "hedge_intent": True,
+                "hedge_parent_id": parent_position_id,
+                "hedge_child_id": hedge_fill_id,
+                "hedge_ratio": _coerce_float(directive.get("hedge_ratio")),
+                "hedge_state": "HEDGE_CHILD",
+                "hedge_reason": str(directive.get("reason") or "ADAPTIVE_ADVERSE_EXCURSION_HEDGE"),
+                "hedge_entry_parent_pnl_bps": _coerce_float(
+                    directive.get("parent_pnl_bps_at_trigger")
+                ),
+                "hedge_budget_usd": hedge_notional,
+                "unwind_plan": "adaptive_exhaustion_or_parent_recovery",
+                "decision": "ACCEPTED_PAPER_FILL",
+                "paper_fill_allowed": True,
+                "paper_hedge_fill": True,
+                "paper_fast_path": False,
+                "generated_utc": _utc_iso(),
+                "paper_only": True,
+                "places_real_order": False,
+                "routes_to_live": False,
+            }
+        )
+        hedge_fill = _with_paper_session_metadata(
+            hedge_fill,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=starting_equity_usd,
+        )
+        accepted.append(hedge_fill)
+        status["synthesized"] += 1
+    try:
+        r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
+    except Exception:
+        pass
+    return status
+
+
+def _seconds_since_iso(value: str) -> float | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - parsed).total_seconds())
 
 
 def _paper_exit_overshoot_premium_bps(r, existing_ledger: dict[str, Any]) -> float | None:
@@ -30482,6 +30647,22 @@ def run_once() -> dict:
             "execution_live_symbols": live_context["execution_live_symbols"],
         })
     keys_written: list[str] = []
+    # ── Adaptive hedge fill synthesis (operator-gated, paper-only) ─────────
+    # Prior-cycle hedge directives (emitted by the lifecycle pair manager)
+    # become tagged hedge fills that ride the normal merge -> lineage ->
+    # reconcile pipeline. The lifecycle routes them to "{SYM}::HEDGE" instead
+    # of netting the parent closed.
+    if PAPER_ADAPTIVE_HEDGE_ENABLED:
+        hedge_synthesis_status = _synthesize_adaptive_hedge_fills(
+            r,
+            existing_ledger=existing_ledger,
+            existing_accepted=existing_accepted,
+            accepted=accepted,
+            paper_session_id=paper_session_id,
+            starting_equity_usd=paper_starting_equity_usd,
+        )
+    else:
+        hedge_synthesis_status = {"enabled": False, "synthesized": 0}
     merged_accepted_fills = _merge_persistent_accepted_fills(existing_accepted, accepted)
     accepted_lineage_contexts = _lineage_context_by_prediction_id(merged_accepted_fills)
     accepted_replay_predictions = _read_replay_snapshot_predictions(r, accepted_lineage_contexts)
@@ -30552,8 +30733,39 @@ def run_once() -> dict:
             ),
             disable_trailing_on_negative_runtime_expectancy=True,
             trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
+            allow_explicit_hedge=PAPER_ADAPTIVE_HEDGE_ENABLED,
+            portfolio_drawdown_bps=portfolio_context["drawdown_bps"],
         ),
         portfolio_guard=_read_json_key(r, "v2:paper:portfolio_cascade_guard"),
+    )
+    # Publish this cycle's hedge directives for next-cycle fill synthesis and
+    # surface the adaptive hedge status for Monitor Center / GUI.
+    if PAPER_ADAPTIVE_HEDGE_ENABLED:
+        _lifecycle_hedge_directives = lifecycle_result.get("hedge_directives") or []
+        if _lifecycle_hedge_directives:
+            _safe_write(
+                r,
+                HEDGE_DIRECTIVES_REDIS_KEY,
+                json.dumps(
+                    {
+                        "generated_utc": _utc_iso(),
+                        "directives": _lifecycle_hedge_directives,
+                        "paper_only": True,
+                    }
+                ),
+                ex=600,
+            )
+    _safe_write(
+        r,
+        f"{V2_REDIS_PREFIX}paper:adaptive_hedge_status",
+        json.dumps(
+            {
+                **(lifecycle_result.get("paper_adaptive_hedge_status") or {}),
+                "fill_synthesis": hedge_synthesis_status,
+                "generated_utc": _utc_iso(),
+            }
+        ),
+        ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
     )
     lifecycle_blocked = list(lifecycle_result["blocked_entries"])
     if lifecycle_blocked:
