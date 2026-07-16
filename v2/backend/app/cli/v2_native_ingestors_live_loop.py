@@ -219,11 +219,15 @@ def _ticker_cache_age_seconds(ticker: dict) -> float | None:
     if close_time_ms is not None and close_time_ms > 0:
         return max(0.0, time.time() - close_time_ms / 1000.0)
     # Resolver-written payloads carry ISO-8601 closeTime strings.
+    # NOTE: ``from datetime import datetime`` (module shadowed) — the class,
+    # not the module, is in scope here.
     if isinstance(close_time, str) and close_time:
         try:
-            parsed = datetime.datetime.fromisoformat(close_time.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(close_time.replace("Z", "+00:00"))
         except ValueError:
             return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
         return max(0.0, time.time() - parsed.timestamp())
     return None
 
@@ -469,6 +473,35 @@ def _fetch_long_short_ratio(symbol: str, period: str = "5m", limit: int = 1, *, 
     }
 
 
+# A cached order book older than this must NOT be re-emitted: two of the
+# cache keys below are this ingestor's OWN output keys, so without a
+# freshness gate a stale book echoes forever (each cycle re-reads the frozen
+# snapshot and rewrites it with a fresh TTL) and the REST depth fallback is
+# unreachable (2026-07-16 incident: v2:market:orderbook:BTCUSDT frozen at
+# 18:03:18Z for 4.5h after the WSS transport died, freezing microstructure
+# trust / A+ supply with it). Same bug class as TICKER_CACHE_MAX_AGE_SECONDS.
+ORDERBOOK_CACHE_MAX_AGE_SECONDS = 120.0
+
+
+def _orderbook_cache_age_seconds(book: dict) -> float | None:
+    for field in ("available_at", "received_at", "generated_at", "fetched_utc"):
+        value = book.get(field)
+        if isinstance(value, str) and value:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return max(0.0, time.time() - parsed.timestamp())
+    # REST depth snapshots carry Binance ms timestamps (E = message output
+    # time, T = transaction time) and no ISO fields.
+    event_ms = _safe_float(book.get("E") or book.get("T"))
+    if event_ms is not None and event_ms > 0:
+        return max(0.0, time.time() - event_ms / 1000.0)
+    return None
+
+
 def _fetch_orderbook_top(symbol: str, depth: int = 20, *, redis_client: Any = None) -> dict | None:
     """Fetch public order-book top from WebSocket cache, with REST fallback.
 
@@ -487,6 +520,11 @@ def _fetch_orderbook_top(symbol: str, depth: int = 20, *, redis_client: Any = No
             or cached.get("best_bid")
             or cached.get("best_ask")
         ):
+            cache_age = _orderbook_cache_age_seconds(cached)
+            if cache_age is None or cache_age > ORDERBOOK_CACHE_MAX_AGE_SECONDS:
+                # Stale or undated cache payload: fail closed on the echo and
+                # fall through to the next source / REST depth snapshot.
+                continue
             return {
                 **cached,
                 "symbol": cached.get("symbol") or symbol,

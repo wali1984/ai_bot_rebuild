@@ -47,6 +47,11 @@ class FakeRedis:
             elif k == match:
                 yield k
 
+    def scan(self, cursor: int = 0, match: str | None = None, count: int = 500):  # noqa: ARG002
+        # Single-pass cursor semantics: return everything and cursor 0, which
+        # is what the orchestrator's _bounded_scan expects for termination.
+        return 0, list(self.scan_iter(match=match, count=count))
+
     def type(self, key: str) -> str:
         return "string" if key in self.store else "none"
 

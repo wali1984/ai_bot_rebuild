@@ -232,6 +232,33 @@ def fetch_open_interest(symbol: str, *, redis_client: Any = None) -> Dict[str, A
     }
 
 
+# A cached order book older than this must NOT be echoed into
+# v2:market:orderbook_top:* — the keys read below are written by the direct
+# recorder / native ingestors loop, and when their upstream WSS transport
+# dies the frozen snapshot would otherwise propagate here forever while the
+# public REST depth fallback stays unreachable (2026-07-16 incident: books
+# frozen at 18:03:18Z for 4.5h). Same bug class as the ticker cache-echo fix.
+ORDERBOOK_CACHE_MAX_AGE_SECONDS = 120.0
+
+
+def _orderbook_cache_age_seconds(payload: Dict[str, Any]) -> Optional[float]:
+    for field in ("available_at", "received_at", "generated_at", "fetched_utc"):
+        value = payload.get(field)
+        if isinstance(value, str) and value:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+            return max(0.0, time.time() - parsed.timestamp())
+    # REST depth snapshots carry Binance ms timestamps and no ISO fields.
+    event_ms = _safe_float(payload.get("E") or payload.get("T") or payload.get("ev_time_ms"))
+    if event_ms is not None and event_ms > 0:
+        return max(0.0, time.time() - event_ms / 1000.0)
+    return None
+
+
 def fetch_orderbook(symbol: str, limit: int = 20, *, redis_client: Any = None) -> Dict[str, Any]:
     for key in (
         f"v2:orderbook:top:binance:{symbol}",
@@ -240,6 +267,11 @@ def fetch_orderbook(symbol: str, limit: int = 20, *, redis_client: Any = None) -
     ):
         cached = _read_json(redis_client, key)
         if not isinstance(cached, dict):
+            continue
+        cache_age = _orderbook_cache_age_seconds(cached)
+        if cache_age is None or cache_age > ORDERBOOK_CACHE_MAX_AGE_SECONDS:
+            # Stale or undated cache payload: fail closed on the echo and
+            # fall through to the next source / REST depth snapshot.
             continue
         bids = cached.get("bids") if isinstance(cached.get("bids"), list) else []
         asks = cached.get("asks") if isinstance(cached.get("asks"), list) else []
