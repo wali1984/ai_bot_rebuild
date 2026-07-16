@@ -4121,10 +4121,11 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
             pipe.get(f"v2:market:funding:{symbol}")
             pipe.get(f"v2:market:open_interest:{symbol}")
             pipe.get(f"v2:market:long_short:{symbol}")
+            pipe.get(f"v2:market:prices:{symbol}")
         results = pipe.execute()
         for index, symbol in enumerate(ordered_symbols):
             row = rows_by_symbol[symbol]
-            funding_raw, oi_raw, ls_raw = results[index * 3 : index * 3 + 3]
+            funding_raw, oi_raw, ls_raw, prices_raw = results[index * 4 : index * 4 + 4]
             try:
                 funding = json.loads(funding_raw) if funding_raw else None
                 if isinstance(funding, dict):
@@ -4139,6 +4140,21 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                     row["long_short_ratio"] = _float(
                         long_short.get("long_short_ratio") or long_short.get("longShortRatio")
                     )
+                # 24h aggregates from the Binance 24hr ticker (change/volume/high/low)
+                # were null on the overview rows, blanking dashboard Market Pulse.
+                prices = json.loads(prices_raw) if prices_raw else None
+                ticker = prices.get("ticker_24hr") if isinstance(prices, dict) else None
+                if isinstance(ticker, dict):
+                    if row.get("change_24h") is None:
+                        row["change_24h"] = _float(ticker.get("priceChangePercent"))
+                    if row.get("volume_24h") is None:
+                        row["volume_24h"] = _float(ticker.get("quoteVolume") or ticker.get("volume"))
+                    if row.get("high_24h") is None:
+                        row["high_24h"] = _float(ticker.get("highPrice"))
+                    if row.get("low_24h") is None:
+                        row["low_24h"] = _float(ticker.get("lowPrice"))
+                    if row.get("last_price") is None:
+                        row["last_price"] = _float(ticker.get("lastPrice"))
             except (TypeError, ValueError):
                 continue
     except Exception:

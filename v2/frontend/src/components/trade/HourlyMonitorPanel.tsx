@@ -157,6 +157,16 @@ export function HourlyMonitorPanel(): JSX.Element {
   const shap = d.shap ?? {};
   const om = d.outcome_memory ?? {};
 
+  // The hourly-monitor publisher can freeze (it was ~25 days stale) while the
+  // payload has no staleness_seconds, so useRealtimeResource reports it "fresh".
+  // Guard on generated_at directly so old numbers are never shown as current.
+  const genAtMs = d.generated_at ? new Date(d.generated_at).getTime() : null;
+  const ageMs = genAtMs != null && !Number.isNaN(genAtMs) ? Date.now() - genAtMs : null;
+  const monitorStale = ageMs != null && ageMs > 2 * 3600 * 1000; // hourly cadence
+  const ageLabel = ageMs == null ? '' : ageMs < 3_600_000
+    ? `${Math.round(ageMs / 60_000)}m ago`
+    : ageMs < 86_400_000 ? `${(ageMs / 3_600_000).toFixed(1)}h ago` : `${Math.round(ageMs / 86_400_000)}d ago`;
+
   const markerText = d.final_marker ?? 'UNKNOWN';
   const markerBlocked = markerText.includes('BLOCKED');
   const soakMet = soak.soak_met === true;
@@ -169,6 +179,12 @@ export function HourlyMonitorPanel(): JSX.Element {
   return (
     <div style={{ padding: '4px 12px 24px', fontSize: 13, minHeight: 200 }}>
 
+      {monitorStale && (
+        <div style={{ margin: '4px 0 12px', padding: '8px 12px', borderRadius: 8, background: 'rgba(239,83,80,0.1)', border: '1px solid rgba(239,83,80,0.35)', color: '#ef8b88', fontSize: 12 }}>
+          ⚠ Hourly monitor is stale — last published {ageLabel}. The values below are historical, not current; the monitor publisher may be stopped.
+        </div>
+      )}
+
       {/* ── Final Marker / Gate ── */}
       <SectionHead
         title="Execution Guard / Final Marker"
@@ -179,7 +195,7 @@ export function HourlyMonitorPanel(): JSX.Element {
       <Row label="Execution Guard" value={(d.live_gate ?? '—').replace(/_/g, ' ').toUpperCase()} tone="block" />
       <Row label="Exchange Mutation" value={d.mutates_exchange ? 'YES — ALERT' : 'FALSE (safe)'} tone={d.mutates_exchange ? 'block' : 'ok'} />
       <Row label="Live Mutation Count" value={num(pnl.live_mutation_count_must_be_zero)} tone={mutZero ? 'ok' : 'block'} />
-      <Row label="Last Updated" value={d.generated_at ?? '—'} tone="neutral" />
+      <Row label="Last Updated" value={`${d.generated_at ?? '—'}${ageLabel ? ` · ${ageLabel}` : ''}`} tone={monitorStale ? 'block' : 'neutral'} />
 
       {/* ── Soak Progress ── */}
       <SectionHead

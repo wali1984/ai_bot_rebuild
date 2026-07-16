@@ -90,6 +90,8 @@ interface SignalMatrixData {
 interface SignalExplanation {
   summary: string;
   signal_strength: string;
+  decision_narrative?: string;
+  market_context_narrative?: string;
   confidence_narrative: string;
   data_quality_narrative: string;
   market_integrity_narrative: string;
@@ -687,10 +689,12 @@ function AIReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: st
         {[
           { icon: '📊', title: 'Signal Summary', text: exp.summary },
           { icon: '💪', title: 'Signal Strength', text: exp.signal_strength },
+          { icon: '🧮', title: 'Why This Action — Edge vs Cost', text: exp.decision_narrative },
+          { icon: '⚡', title: 'Model Heads (MASA + PPO)', text: exp.technical_drivers },
+          { icon: '🌊', title: 'Live Market Drivers', text: exp.market_context_narrative },
           { icon: '🎯', title: 'Confidence Calibration', text: exp.confidence_narrative },
           { icon: '📉', title: 'Data Quality', text: exp.data_quality_narrative },
           { icon: '🏗️', title: 'Market Integrity', text: exp.market_integrity_narrative },
-          { icon: '⚡', title: 'Technical Drivers', text: exp.technical_drivers },
           { icon: '💰', title: 'Price Target', text: exp.price_target_narrative },
           { icon: '🔒', title: 'Risk Gate', text: exp.risk_gate_narrative },
           { icon: '🔄', title: 'Pipeline State', text: exp.pipeline_state_narrative },
@@ -1283,7 +1287,7 @@ export default function SignalsPage(): JSX.Element {
 
         <div className="trader-metric-grid" style={{ marginBottom: 12 }}>
           <CanonicalMetricCard label="Active Signal ID" metric={signalMetric('signal.id')} />
-          <CanonicalMetricCard label="Executable Signal Confidence" metric={signalMetric('signal.confidence')} />
+          <CanonicalMetricCard label="Signal Confidence (calibrated)" metric={signalMetric('signal.confidence')} />
         </div>
 
         {/* Route filter */}

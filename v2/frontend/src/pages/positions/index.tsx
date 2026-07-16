@@ -271,16 +271,14 @@ export default function PortfolioPage(): JSX.Element {
   });
   const runtimeData = runtimePositions.data ?? null;
   const closedPositions = runtimeData?.closed_trades ?? [];
-  const historicalPositions = closedPositions;
   const selectedPositions = positionTab === 'open'
     ? openPositions as Array<Record<string, unknown>>
-    : positionTab === 'closed'
-      ? closedPositions
-      : historicalPositions;
+    : closedPositions;
   const positionTabs: Array<{ key: PositionTab; label: string; count: number }> = [
     { key: 'open', label: 'Open', count: openPositions.length },
     { key: 'closed', label: 'Closed', count: runtimeData?.summary?.closed_trade_count ?? closedPositions.length },
-    { key: 'historical', label: 'Historical', count: historicalPositions.length },
+    // "Historical" was an exact duplicate of "Closed" (no distinct source), so it
+    // is dropped rather than showing the same rows twice.
   ];
   const { source } = state.account;
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status;
