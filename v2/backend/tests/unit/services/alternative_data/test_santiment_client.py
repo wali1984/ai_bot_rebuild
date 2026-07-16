@@ -143,6 +143,8 @@ def test_fetch_normalize_publish_writes_only_v2_santiment_keys() -> None:
     assert sorted(fake_redis.store) == [
         "v2:altdata:santiment:status",
         "v2:altdata:santiment:symbol:BTCUSDT",
+        "v2:features:santiment:BTCUSDT:1h",
+        "v2:provider:santiment:feature_bridge_status",
     ]
     assert "v2:altdata:santiment:state" in fake_redis.hashes
     assert (

@@ -403,8 +403,13 @@ def frontend_registered_routes() -> dict[str, str]:
             continue
         folder = route_file.parent.name
         # A route file alone is not enough; it must be imported by the
-        # registry to actually render through the router.
-        if f"from './{folder}'" not in registry_text:
+        # registry to actually render through the router. The registry has
+        # used both barrel imports (from './folder') and per-file imports
+        # (from './folder/route'); accept either form.
+        registry_import_re = re.compile(
+            rf"from\s+['\"]\./{re.escape(folder)}(?:/route)?['\"]"
+        )
+        if not registry_import_re.search(registry_text):
             continue
         raw_path = match.group(1)
         routes[raw_path] = folder
