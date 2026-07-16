@@ -21173,14 +21173,41 @@ def _paper_recovery_high_confidence_loss_cluster_status(
         exit_utc = _paper_row_exit_utc(row)
         return exit_utc is None or exit_utc >= _cluster_repair_epoch
 
-    high_confidence_loss_rows = [
+    # A cluster is TEMPORAL: losses CONCENTRATING in the recent record. The
+    # previous cumulative lifetime count latched a permanent global halt after
+    # any 2 post-epoch high-confidence losses (wins never offset, losses never
+    # aged out — observed 2026-07-16T22:08Z: 2 losses latched the halt against
+    # a 4-win/2-loss post-epoch record). Cluster evidence is now the loss
+    # count within the most recent K high-confidence outcomes
+    # (K = 2x configured min count): back-to-back high-confidence losses
+    # still halt immediately, aggregate profitability still cannot mask them,
+    # and subsequent banked wins roll old losses out of the window so the
+    # halt self-clears through evidence instead of persisting forever.
+    _cluster_window = max(
+        PAPER_RECOVERY_HIGH_CONFIDENCE_LOSS_CLUSTER_MIN_COUNT * 2, 4
+    )
+    _post_epoch_rows = [
         row
         for row in source_rows
-        if (_paper_row_confidence(row) or 0.0)
-        >= PAPER_RECOVERY_HIGH_CONFIDENCE_MIN_SCORE
-        and _strict_loss(row)
-        and _post_epoch_loss(row)
+        if _post_epoch_loss(row) or not _strict_loss(row)
     ]
+    _recent_high_confidence_rows = sorted(
+        (
+            row
+            for row in _post_epoch_rows
+            if (_paper_row_confidence(row) or 0.0)
+            >= PAPER_RECOVERY_HIGH_CONFIDENCE_MIN_SCORE
+        ),
+        key=lambda row: _paper_row_exit_utc(row) or datetime.min.replace(tzinfo=timezone.utc),
+    )[-_cluster_window:]
+    high_confidence_loss_rows = [
+        row
+        for row in _recent_high_confidence_rows
+        if _strict_loss(row) and _post_epoch_loss(row)
+    ]
+    _recent_high_confidence_win_count = sum(
+        1 for row in _recent_high_confidence_rows if not _strict_loss(row)
+    )
     sample_rows = [
         {
             "symbol": row.get("symbol"),
@@ -21269,6 +21296,8 @@ def _paper_recovery_high_confidence_loss_cluster_status(
         "cluster_detected": cluster,
         "high_confidence_min_score": PAPER_RECOVERY_HIGH_CONFIDENCE_MIN_SCORE,
         "cluster_min_loss_count": PAPER_RECOVERY_HIGH_CONFIDENCE_LOSS_CLUSTER_MIN_COUNT,
+        "cluster_rolling_window_rows": _cluster_window,
+        "recent_high_confidence_win_count": _recent_high_confidence_win_count,
         "high_confidence_loss_count": len(high_confidence_loss_rows),
         "sample_high_confidence_losses": sample_rows,
         # Bucket-specific quarantine: exact symbols with any high-confidence loss
@@ -21429,6 +21458,12 @@ def _paper_performance_circuit_breaker_status(
             ],
             "high_confidence_loss_count": non_strict_high_confidence_loss_diagnostic.get(
                 "high_confidence_loss_count"
+            ),
+            "cluster_rolling_window_rows": non_strict_high_confidence_loss_diagnostic.get(
+                "cluster_rolling_window_rows"
+            ),
+            "recent_high_confidence_win_count": non_strict_high_confidence_loss_diagnostic.get(
+                "recent_high_confidence_win_count"
             ),
             "governs_strict_circuit": False,
         },

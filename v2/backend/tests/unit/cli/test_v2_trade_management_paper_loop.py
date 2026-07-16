@@ -13830,9 +13830,13 @@ def test_non_strict_high_confidence_loss_cluster_surfaces_but_does_not_block(
     assert status["new_entries_allowed"] is True
 
     # Non-blocking diagnostic still surfaces the non-strict miscalibration.
+    # 2026-07-16: cluster evidence is a rolling concentration window (K = 2x
+    # min count) so the count reports recent concentration, not lifetime
+    # totals - a fully saturated window is the strongest cluster signal.
     diagnostic = status["non_strict_high_confidence_loss_diagnostic"]
     assert diagnostic["cluster_detected"] is True
-    assert diagnostic["high_confidence_loss_count"] == len(rows)
+    assert diagnostic["high_confidence_loss_count"] == diagnostic["cluster_rolling_window_rows"]
+    assert diagnostic["recent_high_confidence_win_count"] == 0
     assert diagnostic["governs_strict_circuit"] is False
     assert status["routes_to_live"] is False
     assert status["places_real_order"] is False
