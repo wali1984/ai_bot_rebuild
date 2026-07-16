@@ -345,6 +345,41 @@ public struct ChampionChallengerStatus: Decodable, Equatable {
     public var displayStatus: String {
         (status ?? "MISSING_RUNTIME_EVIDENCE").replacingOccurrences(of: "_", with: " ")
     }
+
+    /// True when the champion/challenger evaluation has real runtime evidence
+    /// (the publisher ran and wrote the Redis key).
+    public var hasEvidence: Bool {
+        guard let value = status?.uppercased() else { return false }
+        return !value.isEmpty && value != "MISSING_RUNTIME_EVIDENCE" && value != "INVALID_RUNTIME_EVIDENCE"
+    }
+
+    /// True when the challenger passed its untouched-holdout gate and is running
+    /// as a paper (B-grade) challenger. Live/A-grade promotion is a SEPARATE,
+    /// human-gated step — being paper-ready is the healthy operating state.
+    public var isPaperReady: Bool {
+        let s = (status ?? "").uppercased()
+        let r = (result_status ?? "").uppercased()
+        return paper_challenger_enabled == true
+            || r.contains("PASSED")
+            || s.contains("PAPER_READY")
+    }
+
+    /// Compact, honest challenger label for the dashboard.
+    public var challengerLabel: String {
+        if !hasEvidence { return "AWAITING EVIDENCE" }
+        if isPaperReady { return "PAPER-READY" }
+        return displayStatus.uppercased()
+    }
+
+    /// Honest promotion label. Live/A-grade promotion stays operator-gated by
+    /// design, so a paper-ready challenger reads as "OPERATOR-GATED", not a
+    /// scary "BLOCKED".
+    public var promotionLabel: String {
+        if promotion_allowed == true { return "ALLOWED" }
+        if !hasEvidence { return "AWAITING EVIDENCE" }
+        if isPaperReady { return "OPERATOR-GATED" }
+        return "EDGE NOT PROVEN"
+    }
 }
 
 public struct GPUState: Decodable, Equatable {

@@ -370,13 +370,23 @@ struct DashboardView: View {
             )
             DataRow(
                 label: "Challenger",
-                value: trainer.champion_challenger_status?.displayStatus.uppercased() ?? "MISSING RUNTIME EVIDENCE",
-                valueColor: (trainer.champion_challenger_status?.promotion_allowed == true) ? NerVyx.validation : NerVyx.warning
+                value: trainer.champion_challenger_status?.challengerLabel ?? "AWAITING EVIDENCE",
+                valueColor: {
+                    guard let cc = trainer.champion_challenger_status else { return NerVyx.textMuted }
+                    if !cc.hasEvidence { return NerVyx.textMuted }
+                    return cc.isPaperReady ? NerVyx.validation : NerVyx.warning
+                }()
             )
             DataRow(
                 label: "Promotion",
-                value: trainer.champion_challenger_status?.promotion_allowed == true ? "ALLOWED" : "BLOCKED",
-                valueColor: trainer.champion_challenger_status?.promotion_allowed == true ? NerVyx.validation : NerVyx.warning
+                value: trainer.champion_challenger_status?.promotionLabel ?? "AWAITING EVIDENCE",
+                valueColor: {
+                    guard let cc = trainer.champion_challenger_status else { return NerVyx.textMuted }
+                    if cc.promotion_allowed == true { return NerVyx.validation }
+                    if !cc.hasEvidence { return NerVyx.textMuted }
+                    // Paper-ready but live/A-grade is operator-gated by design: informational, not an error.
+                    return cc.isPaperReady ? NerVyx.primary : NerVyx.warning
+                }()
             )
             NerVyxDivider()
             HStack {
