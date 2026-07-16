@@ -27790,13 +27790,38 @@ def run_once() -> dict:
         )
     )
     dlog("before_read_signals")
-    signals = [
-        *_read_paper_signals(r),
-        *paper_exploration_materialization_queue_status.get(
-            "_active_signal_rows",
-            [],
-        ),
-    ]
+    # EMERGENCY LOGGING: Write immediately to disk
+    with open("/tmp/paper_loop_debug.log", "a") as f:
+        f.write(f"[{datetime.now(timezone.utc).isoformat()}] Starting signal read\n")
+        f.flush()
+
+    try:
+        orchestrator_signals = _read_paper_signals(r)
+        with open("/tmp/paper_loop_debug.log", "a") as f:
+            f.write(f"[{datetime.now(timezone.utc).isoformat()}] Orchestrator signals read: {len(orchestrator_signals)}\n")
+            f.flush()
+    except Exception as e:
+        with open("/tmp/paper_loop_debug.log", "a") as f:
+            f.write(f"[{datetime.now(timezone.utc).isoformat()}] ERROR reading orchestrator signals: {e}\n")
+            f.flush()
+        orchestrator_signals = []
+
+    try:
+        exploration_signals = paper_exploration_materialization_queue_status.get("_active_signal_rows", [])
+        with open("/tmp/paper_loop_debug.log", "a") as f:
+            f.write(f"[{datetime.now(timezone.utc).isoformat()}] Exploration signals: {len(exploration_signals)}\n")
+            f.flush()
+    except Exception as e:
+        with open("/tmp/paper_loop_debug.log", "a") as f:
+            f.write(f"[{datetime.now(timezone.utc).isoformat()}] ERROR getting exploration signals: {e}\n")
+            f.flush()
+        exploration_signals = []
+
+    signals = [*orchestrator_signals, *exploration_signals]
+    with open("/tmp/paper_loop_debug.log", "a") as f:
+        f.write(f"[{datetime.now(timezone.utc).isoformat()}] Total signals: {len(signals)}\n")
+        f.flush()
+
     dlog(f"signals_loaded_{len(signals)}")
     # Build predictions_by_id from signals themselves (avoid expensive SCAN)
     # Signals already contain prediction data; this is just an index for quick lookup
