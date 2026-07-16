@@ -29,6 +29,7 @@ import json
 import os
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime
@@ -55,9 +56,15 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
 from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
     REST_FALLBACK_ENV,
     binance_rest_fallback_allowed,
+    report_binance_rest_response,
     require_binance_rest_fallback,
 )
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price  # noqa: E402
+# Shared CoinAnk open-interest backup mapper (contracts; single source of
+# truth for provider-tier semantics lives in the native ingestors loop).
+from v2.backend.app.cli.v2_native_ingestors_live_loop import (  # noqa: E402
+    _coinank_point_open_interest,
+)
 DEFAULT_INTERVAL_S = 30
 DEFAULT_TTL_S = 300
 HTTP_TIMEOUT_S = 6.0
@@ -86,8 +93,22 @@ def _http_get_json(url: str) -> Any:
         )
         raise RuntimeError(message) from exc
     req = urllib.request.Request(url, method="GET")
-    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        # Ban protection: 429/418 arms the shared cross-process cooldown so
+        # ALL Binance fallback traffic on this host stops before escalation.
+        if "binance.com" in url:
+            try:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            except Exception:
+                retry_after = None
+            report_binance_rest_response(
+                status_code=int(exc.code),
+                retry_after_seconds=float(retry_after) if retry_after else None,
+            )
+        raise
 
 
 def _read_json(r: Any, key: str) -> Any:
@@ -201,6 +222,42 @@ def fetch_premium_index(symbol: str, *, redis_client: Any = None) -> Dict[str, A
     return out
 
 
+# An open-interest cache payload older than this — or carrying no timestamp
+# at all — must NOT be echoed back into v2:market:open_interest:*: this fetch
+# reads its OWN output key (also written by the native ingestors loop), and
+# the 2026-07-16 18:03Z incident left an UNDATED payload echoing between the
+# two services forever while REST stayed unreachable. The old echo also
+# re-mapped time/timestamp into binance_time_ms without ever reading
+# binance_time_ms back, so the first echo destroyed the timestamp and every
+# later cycle re-published an undated snapshot. Same bug class as the
+# ticker/orderbook cache-echo fixes.
+OPEN_INTEREST_CACHE_MAX_AGE_SECONDS = 120.0
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _open_interest_cache_age_seconds(payload: Dict[str, Any]) -> Optional[float]:
+    """Age of an open-interest cache payload, or None when it is undated."""
+    event_ms = _safe_float(
+        payload.get("time") or payload.get("timestamp") or payload.get("binance_time_ms")
+    )
+    if event_ms is not None and event_ms > 0:
+        return max(0.0, time.time() - event_ms / 1000.0)
+    for field in ("fetched_utc", "available_at"):
+        value = payload.get(field)
+        if isinstance(value, str) and value:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=ZoneInfo("UTC"))
+            return max(0.0, time.time() - parsed.timestamp())
+    return None
+
+
 def fetch_open_interest(symbol: str, *, redis_client: Any = None) -> Dict[str, Any]:
     cached = _read_json(redis_client, f"v2:market:open_interest:{symbol}")
     if isinstance(cached, dict) and cached:
@@ -209,24 +266,53 @@ def fetch_open_interest(symbol: str, *, redis_client: Any = None) -> Dict[str, A
             or cached.get("openInterest")
             or cached.get("open_interest")
         )
-        return {
-            "symbol": cached.get("symbol") or symbol,
-            "open_interest_contracts": value,
-            "binance_time_ms": cached.get("time") or cached.get("timestamp"),
-            "source": cached.get("source") or "binance_public_websocket_cache_primary",
-            "transport": _cache_transport(cached),
-        }
+        cache_age = _open_interest_cache_age_seconds(cached)
+        if (
+            value is not None
+            and cache_age is not None
+            and cache_age <= OPEN_INTEREST_CACHE_MAX_AGE_SECONDS
+        ):
+            # Fresh, dated payload: echo it while PRESERVING its original
+            # timestamps (re-stamping an echo would launder staleness).
+            return {
+                "symbol": cached.get("symbol") or symbol,
+                "open_interest": value,
+                "open_interest_contracts": value,
+                "binance_time_ms": (
+                    cached.get("time")
+                    or cached.get("timestamp")
+                    or cached.get("binance_time_ms")
+                ),
+                "fetched_utc": cached.get("fetched_utc") or cached.get("available_at"),
+                "source": cached.get("source") or "binance_public_websocket_cache_primary",
+                "transport": _cache_transport(cached),
+            }
+        # Stale or undated cache payload: fail closed on the echo and fall
+        # through to the provider-backup tier / public REST snapshot.
+    provider = _coinank_point_open_interest(symbol, redis_client=redis_client)
+    if isinstance(provider, dict):
+        provider_age = _open_interest_cache_age_seconds(provider)
+        if provider_age is not None and provider_age <= OPEN_INTEREST_CACHE_MAX_AGE_SECONDS:
+            # CoinAnk rows (contracts) as fresh as the cache bar: prefer them
+            # over REST to conserve the shared Binance fallback budget.
+            return {
+                **provider,
+                "open_interest_contracts": provider.get("open_interest"),
+                "binance_time_ms": provider.get("time"),
+            }
     body = _http_get_json(
         f"{FAPI_BASE}/fapi/v1/openInterest?symbol={urllib.parse.quote(symbol)}"
     )
+    value = _safe_float(body.get("openInterest"))
     return {
         "symbol": body.get("symbol"),
-        "open_interest_contracts": (
-            float(body.get("openInterest"))
-            if body.get("openInterest") is not None
-            else None
-        ),
+        # ``open_interest`` is the canonical field the feature pipeline reads
+        # (open_interest/openInterest/sumOpenInterest); keep the legacy
+        # ``open_interest_contracts`` alias for existing GUI consumers.
+        "open_interest": value,
+        "open_interest_contracts": value,
         "binance_time_ms": body.get("time"),
+        "fetched_utc": _utc_now_iso(),
         "source": "binance_public_rest_open_interest_fallback",
         "transport": "rest_fallback",
     }
@@ -372,6 +458,12 @@ def write_redis(r, symbol: str, *, premium: Dict[str, Any], oi: Dict[str, Any],
         (f"v2:market:orderbook_top:{symbol}", book),
     ]
     for key, payload in payloads:
+        # Fail closed: when every fetch tier failed the entry is an empty
+        # dict — never overwrite a real (even expiring) payload with ``{}``
+        # (2026-07-16 incident class: empty-object writes masking outages).
+        if not payload:
+            written[key] = 0
+            continue
         try:
             r.set(key, json.dumps(payload, separators=(",", ":")), ex=ttl_s)
             written[key] = 1

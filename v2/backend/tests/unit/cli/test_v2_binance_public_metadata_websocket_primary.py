@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 import json
+import time
+from datetime import datetime, timezone
 from typing import Any
 
 import pytest
 
 from v2.backend.app.cli import v2_binance_public_metadata_ingestor as metadata
 from v2.backend.app.cli import v2_native_ingestors_live_loop as native_loop
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class FakeRedis:
@@ -40,12 +50,17 @@ def test_public_metadata_fetches_websocket_cache_before_rest(monkeypatch: pytest
             "v2:market:open_interest:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "openInterest": "99398.552",
+                # Cache-echo freshness gate: an undated or stale payload must
+                # fail through to REST, so a fresh timestamp is required for
+                # the cache-primary path to be taken.
+                "time": _now_ms(),
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:orderbook:top:binance:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "best_bid": 62877.8,
                 "best_ask": 62877.9,
+                "available_at": _now_iso(),
                 "source": "direct_binance",
             },
         }
@@ -77,12 +92,14 @@ def test_public_metadata_report_records_no_rest_when_cache_primary(monkeypatch: 
             "v2:market:open_interest:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "openInterest": "99398.552",
+                "time": _now_ms(),
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:orderbook:top:binance:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "best_bid": 62877.8,
                 "best_ask": 62877.9,
+                "available_at": _now_iso(),
                 "source": "direct_binance",
             },
         }
@@ -118,7 +135,14 @@ def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: py
         {
             "v2:market:prices:BTCUSDT": {
                 "symbol": "BTCUSDT",
-                "ticker_24hr": {"lastPrice": "62840.2"},
+                # closeTime + quoteVolume required: a stale/undated or
+                # price-only (no 24h stats) cache echo must fail through
+                # instead of masquerading as a live 24hr ticker.
+                "ticker_24hr": {
+                    "lastPrice": "62840.2",
+                    "quoteVolume": "1234567890.12",
+                    "closeTime": _now_ms(),
+                },
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:market:funding:BTCUSDT": {
@@ -129,6 +153,7 @@ def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: py
             "v2:market:open_interest:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "openInterest": "99398.552",
+                "time": _now_ms(),
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:orderbook:top:binance:BTCUSDT": {
@@ -153,6 +178,9 @@ def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: py
             ],
         }
     )
+    # Deterministic regardless of ambient env: with a fresh cache no REST is
+    # needed, and _fail_rest still guards any accidental REST attempt.
+    monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
     monkeypatch.setattr(native_loop, "_http_get_json", _fail_rest)
 
     bundle = native_loop._fetch_symbol_bundle(

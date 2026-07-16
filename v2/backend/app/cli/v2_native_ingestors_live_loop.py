@@ -298,7 +298,10 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
                 f"{BINANCE_FAPI}/fapi/v1/ticker/24hr?symbol={symbol}",
                 fallback_reason="ticker_websocket_cache_missing_stale_or_price_only",
             )
-        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
+        # RuntimeError covers REST_FALLBACK_BUDGET_EXHAUSTED / ban-protection
+        # cooldowns from require_binance_rest_fallback: treat as "fallback
+        # unavailable this cycle" and degrade to the resolver price below.
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError, RuntimeError):
             data = None
         if isinstance(data, dict):
             data["source"] = "binance_public_rest_ticker_fallback"
@@ -367,6 +370,90 @@ OPEN_INTEREST_CACHE_MAX_AGE_SECONDS = 120.0
 # lag before declaring the cached history a frozen echo and refetching.
 OPEN_INTEREST_HIST_CACHE_MAX_AGE_SECONDS = 900.0
 
+# Alternative-provider backup tier (operator directive 2026-07-16): CoinAnk
+# publishes Binance openInterest klines in CONTRACTS — the same unit as
+# /fapi/v1/openInterest and sumOpenInterest, verified against live values —
+# under latest:coinank:open_interest:{symbol}:{tf} (read-only legacy keys).
+# Tier order per OI fetch:
+#   1. own v2 cache (fresh, <=120s)
+#   2. CoinAnk rows when as fresh as the cache bar (saves REST budget)
+#   3. Binance REST (budgeted by ban protection)
+#   4. CoinAnk rescue within a bounded staleness window when REST is
+#      unavailable (budget exhausted / cooldown / disabled) — honestly dated
+#      with the provider's own row time, provenance labeled, never re-stamped.
+# CoinGlass OI is deliberately NOT mapped: its open-interest USD figure does
+# not reconcile with Binance contract*price values (unit/scope unverifiable).
+COINANK_OI_KEY_TEMPLATES = (
+    "latest:coinank:open_interest:{symbol}:5m",
+    "latest:coinank:open_interest:{symbol}:1h",
+)
+COINANK_OI_BUCKET_MS = {"5m": 300_000, "1h": 3_600_000}
+PROVIDER_OI_RESCUE_MAX_AGE_SECONDS = 3600.0
+
+
+def _coinank_oi_hist_rows(symbol: str, *, redis_client: Any = None) -> list[dict] | None:
+    """CoinAnk openInterest klines mapped to the Binance hist row schema.
+
+    Returns ascending rows of ``{symbol, sumOpenInterest, timestamp, source}``
+    (contracts + ms bucket-close time) or None. Rows without a verifiable
+    numeric ``begin``/``close`` are skipped (some symbols use a different
+    row schema), so unverifiable data can never masquerade as real OI.
+    """
+    for template in COINANK_OI_KEY_TEMPLATES:
+        tf = template.rsplit(":", 1)[-1].replace("{symbol}", "")
+        payload = _read_json(redis_client, template.format(symbol=symbol))
+        if not isinstance(payload, dict):
+            continue
+        fetched_ms = _safe_float(payload.get("ts_ms") or payload.get("timestamp"))
+        inner = payload.get("data")
+        rows = inner.get("data") if isinstance(inner, dict) else None
+        if not isinstance(rows, list):
+            continue
+        bucket_ms = COINANK_OI_BUCKET_MS.get(tf, 300_000)
+        mapped: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            begin = _safe_float(row.get("begin"))
+            close = _safe_float(row.get("close"))
+            if begin is None or begin <= 0 or close is None or close <= 0:
+                continue
+            # OI-at-bucket-close; the newest (possibly open) bucket is only
+            # current up to the provider's own fetch time.
+            row_ms = begin + bucket_ms
+            if fetched_ms is not None and fetched_ms > 0:
+                row_ms = min(row_ms, fetched_ms)
+            mapped.append(
+                {
+                    "symbol": symbol,
+                    "sumOpenInterest": close,
+                    "timestamp": int(row_ms),
+                    "source": "coinank_open_interest_kline_backup",
+                }
+            )
+        if mapped:
+            mapped.sort(key=lambda r: r["timestamp"])
+            return mapped
+    return None
+
+
+def _coinank_point_open_interest(symbol: str, *, redis_client: Any = None) -> dict | None:
+    """Newest CoinAnk OI row as a point open-interest payload (contracts)."""
+    rows = _coinank_oi_hist_rows(symbol, redis_client=redis_client)
+    if not rows:
+        return None
+    last = rows[-1]
+    return {
+        "symbol": symbol,
+        "open_interest": last["sumOpenInterest"],
+        "openInterest": last["sumOpenInterest"],
+        "time": last["timestamp"],
+        "fetched_utc": _utc_iso(),
+        "unit": "contracts",
+        "source": "coinank_open_interest_kline_backup",
+        "transport": "provider_backup_cache",
+    }
+
 
 def _open_interest_cache_age_seconds(payload: dict) -> float | None:
     """Age of an open-interest cache payload, or None when it is undated."""
@@ -402,26 +489,44 @@ def _fetch_open_interest(symbol: str, *, redis_client: Any = None) -> dict | Non
                 "transport": "websocket_cache_primary",
             }
         # Stale or undated cache payload: fail closed on the echo and fall
-        # through to the public REST open-interest snapshot.
-    if _rest_fallback_disabled():
-        return None
-    try:
-        data = _http_get_json(
-            f"{BINANCE_FAPI}/fapi/v1/openInterest?symbol={symbol}",
-            fallback_reason="open_interest_websocket_cache_missing_or_stale",
-        )
-    except Exception:
-        return None
-    if not isinstance(data, dict):
-        return None
-    # Canonical field alias + wall-clock stamp so the written payload is
-    # always dated and readable by the feature pipeline
-    # (open_interest/openInterest/sumOpenInterest).
-    data["open_interest"] = _safe_float(data.get("openInterest"))
-    data["fetched_utc"] = _utc_iso()
-    data["source"] = "binance_public_rest_open_interest_fallback"
-    data["transport"] = "rest_fallback"
-    return data
+        # through to the provider-backup / public REST tiers.
+    provider = _coinank_point_open_interest(symbol, redis_client=redis_client)
+    provider_age = _open_interest_cache_age_seconds(provider) if provider else None
+    if (
+        provider is not None
+        and provider_age is not None
+        and provider_age <= OPEN_INTEREST_CACHE_MAX_AGE_SECONDS
+    ):
+        # Provider data as fresh as the cache bar: prefer it over REST to
+        # conserve the shared Binance fallback budget.
+        return provider
+    if not _rest_fallback_disabled():
+        try:
+            data = _http_get_json(
+                f"{BINANCE_FAPI}/fapi/v1/openInterest?symbol={symbol}",
+                fallback_reason="open_interest_websocket_cache_missing_or_stale",
+            )
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            # Canonical field alias + wall-clock stamp so the written payload
+            # is always dated and readable by the feature pipeline
+            # (open_interest/openInterest/sumOpenInterest).
+            data["open_interest"] = _safe_float(data.get("openInterest"))
+            data["fetched_utc"] = _utc_iso()
+            data["source"] = "binance_public_rest_open_interest_fallback"
+            data["transport"] = "rest_fallback"
+            return data
+    # Degraded rescue tier: REST unavailable (disabled / budget exhausted /
+    # error) — bounded-staleness CoinAnk value beats no OI at all, and its
+    # honest row time keeps downstream freshness gates authoritative.
+    if (
+        provider is not None
+        and provider_age is not None
+        and provider_age <= PROVIDER_OI_RESCUE_MAX_AGE_SECONDS
+    ):
+        return {**provider, "degraded_staleness_seconds": round(provider_age, 1)}
+    return None
 
 
 def _fetch_klines(
@@ -497,20 +602,41 @@ def _fetch_open_interest_hist(symbol: str, period: str = "5m", limit: int = 13, 
         cache_age = _oi_hist_last_row_age_seconds(cached)
         if cache_age is not None and cache_age <= OPEN_INTEREST_HIST_CACHE_MAX_AGE_SECONDS:
             return cached[-max(1, min(int(limit), len(cached))) :]
-        # Stale or undated rows: fail closed on the echo, refetch over REST.
-    if _rest_fallback_disabled():
-        return None
-    try:
-        data = _http_get_json(
-            f"{BINANCE_FAPI}/futures/data/openInterestHist"
-            f"?symbol={symbol}&period={period}&limit={int(limit)}",
-            fallback_reason="open_interest_history_cache_missing_or_stale",
-        )
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
-        return None
-    if not isinstance(data, list):
-        return None
-    return data
+        # Stale or undated rows: fail closed on the echo and fall through to
+        # the provider-backup / REST tiers.
+    provider_rows = _coinank_oi_hist_rows(symbol, redis_client=redis_client)
+    provider_age = _oi_hist_last_row_age_seconds(provider_rows) if provider_rows else None
+    if (
+        provider_rows
+        and provider_age is not None
+        and provider_age <= OPEN_INTEREST_HIST_CACHE_MAX_AGE_SECONDS
+    ):
+        # CoinAnk rows (contracts, same unit as Binance sumOpenInterest) as
+        # fresh as the cache bar: prefer them over REST to save budget.
+        return provider_rows[-max(1, min(int(limit), len(provider_rows))) :]
+    if not _rest_fallback_disabled():
+        try:
+            data = _http_get_json(
+                f"{BINANCE_FAPI}/futures/data/openInterestHist"
+                f"?symbol={symbol}&period={period}&limit={int(limit)}",
+                fallback_reason="open_interest_history_cache_missing_or_stale",
+            )
+        # RuntimeError = REST budget exhausted / ban-protection cooldown: skip
+        # this cycle instead of crashing the loop, then try the rescue tier.
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError, RuntimeError):
+            data = None
+        if isinstance(data, list) and data:
+            return data
+    # Degraded rescue tier: REST unavailable — bounded-staleness CoinAnk rows
+    # beat a silent None, and their honest per-row timestamps keep downstream
+    # freshness gates authoritative.
+    if (
+        provider_rows
+        and provider_age is not None
+        and provider_age <= PROVIDER_OI_RESCUE_MAX_AGE_SECONDS
+    ):
+        return provider_rows[-max(1, min(int(limit), len(provider_rows))) :]
+    return None
 
 
 def _fetch_long_short_ratio(symbol: str, period: str = "5m", limit: int = 1, *, redis_client: Any = None) -> dict | None:
