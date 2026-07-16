@@ -35,6 +35,30 @@ _history: deque[dict[str, Any]] = deque(maxlen=_HISTORY_MAX_SAMPLES)
 _history_last_at = 0.0
 
 
+def _prime_samplers() -> None:
+    """Prime the psutil CPU reference and the network counter baseline at import.
+
+    ``psutil.cpu_percent(interval=None)`` returns 0.0 on its first call per
+    process (no prior reference), and ``_net_prev`` is None until the first
+    sample — so a freshly-(re)started backend served cpu_total=0 and
+    recv/sent_bytes_per_sec=null on the FIRST System Health load. Priming here
+    means the first real request already computes a delta against this baseline.
+    """
+    global _net_prev
+    try:
+        import psutil
+
+        psutil.cpu_percent(interval=None)
+        psutil.cpu_percent(interval=None, percpu=True)
+        net = psutil.net_io_counters()
+        _net_prev = (time.monotonic(), net.bytes_recv, net.bytes_sent)
+    except Exception:
+        pass
+
+
+_prime_samplers()
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 

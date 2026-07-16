@@ -326,6 +326,26 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     # When B-grade disabled (markets tough): lower threshold to accept only safest (0.80)
     loss_probability_threshold = 0.85 if enable_b_grade else 0.80
 
+    # ADAPTIVE GATING: Compute all dynamic thresholds based on market/trainer/portfolio conditions
+
+    # Entry gate confidence floors - scale with trainer health and volatility
+    long_confidence_floor = max(0.40, min(0.70,
+        0.50 * (volatility_factor / 1.0) * (trainer_performance_factor / 1.0)
+    ))
+    short_confidence_floor = max(0.40, min(0.70,
+        0.50 * (volatility_factor / 1.0) * (trainer_performance_factor / 1.0)
+    ))
+
+    # Side gate expectancy floor - looser when portfolio is recovering, stricter when profitable
+    portfolio_pnl = float(outcomes.get("total_pnl_usd", 0))
+    expectancy_floor = -5.0 if portfolio_pnl <= 0 else -2.0  # Loosen during recovery
+
+    # Entry freeze policy - allow more entries during recovery, tighten after wins
+    entry_freeze_allowance = 0.9 if portfolio_pnl <= 0 else 0.5  # More lenient recovery factor
+
+    # A+ gate strictness - less strict when trainer is weak (need to learn), more strict when strong
+    a_plus_strictness = max(0.5, min(1.5, 1.0 / trainer_performance_factor))
+
     tuning_state = {
         "outcomes": outcomes,
         "market_regime": regime,
@@ -339,6 +359,12 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
         "volatility_factor": volatility_factor,
         "trainer_performance_factor": trainer_performance_factor,
         "portfolio_performance_factor": portfolio_performance_factor,
+        # NEW ADAPTIVE THRESHOLDS - replace hardcoded values in gates
+        "adaptive_long_confidence_floor": long_confidence_floor,
+        "adaptive_short_confidence_floor": short_confidence_floor,
+        "adaptive_expectancy_floor": expectancy_floor,
+        "adaptive_entry_freeze_allowance": entry_freeze_allowance,
+        "adaptive_a_plus_strictness": a_plus_strictness,
     }
 
     # Publish state

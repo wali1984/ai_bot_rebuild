@@ -217,6 +217,22 @@ def expected_move_after_cost_favorable_for_side(
     ) is None
 
 
+def _get_adaptive_confidence_floors(redis_client: Any | None) -> tuple[float, float]:
+    """Read adaptive confidence floors from Redis tuning state, fallback to defaults."""
+    if redis_client is None:
+        return 0.50, 0.50
+    try:
+        raw = redis_client.get("v2:orchestrator:adaptive_gate_tuning_state")
+        if raw:
+            state = json.loads(raw)
+            long_floor = float(state.get("adaptive_long_confidence_floor", 0.50))
+            short_floor = float(state.get("adaptive_short_confidence_floor", 0.50))
+            return long_floor, short_floor
+    except Exception:
+        pass
+    return 0.50, 0.50
+
+
 def evaluate_entry_gate(
     *,
     symbol: str,
@@ -318,10 +334,17 @@ def evaluate_entry_gate(
         reasons.append(f"TREND_MODE_MICRO_CAP_GAP_RISK:{sym}")
 
     # 4. Minimum confidence
-    if cfg.min_confidence_calibrated > 0 and confidence_calibrated is not None:
-        if confidence_calibrated < cfg.min_confidence_calibrated:
+    # ADAPTIVE: Read confidence floor from Redis if available, otherwise use config
+    confidence_floor = cfg.min_confidence_calibrated
+    if confidence_floor <= 0:
+        # No config floor, try to get adaptive floor from Redis
+        long_floor, short_floor = _get_adaptive_confidence_floors(redis_client)
+        confidence_floor = long_floor if (side or "").lower() == "long" else short_floor
+
+    if confidence_floor > 0 and confidence_calibrated is not None:
+        if confidence_calibrated < confidence_floor:
             reasons.append(
-                f"CONFIDENCE_BELOW_ENTRY_GATE:{confidence_calibrated:.3f}<{cfg.min_confidence_calibrated:.3f}"
+                f"CONFIDENCE_BELOW_ENTRY_GATE:{confidence_calibrated:.3f}<{confidence_floor:.3f}"
             )
 
     # 5. Expected move directionality
