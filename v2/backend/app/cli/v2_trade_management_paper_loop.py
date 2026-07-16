@@ -27896,6 +27896,31 @@ def _build_allocation_input(
         intent["correlation_pair_count"] = derived_correlation_context.get("correlation_pair_count")
         if isinstance(derived_correlation_context.get("correlation_diagnostics"), dict):
             intent["correlation_diagnostics"] = derived_correlation_context.get("correlation_diagnostics")
+        # 2026-07-16 adaptive gating: MISSING pairwise return data fail-closed
+        # correlation at 1.0 (100%), which zeroed the multiplicative sizing
+        # budget for EVERY candidate (correlation factor = 0) and pinned all
+        # paper fills to blocked/1x. Confident paper-learning intents now
+        # fail-REDUCE to half the LIVE envelope's correlation ceiling
+        # (adaptive: scales with realized-performance envelope), taking a
+        # ~50% sizing haircut instead of a hard zero. Real measured
+        # correlations (READY) are never touched.
+        _corr_source = str(derived_correlation_context.get("correlation_input_source") or "")
+        if "FAIL_CLOSED" in _corr_source:
+            _corr_conf = _coerce_float(
+                intent.get("confidence_calibrated") or intent.get("confidence")
+            )
+            _env_max_corr = _coerce_float(
+                portfolio_context.get("envelope_max_correlation_exposure_pct")
+            )
+            if _corr_conf is not None and _corr_conf >= 0.70 and _env_max_corr and _env_max_corr > 0:
+                _reduced_corr = round(0.5 * _env_max_corr, 8)
+                if correlation_exposure > _reduced_corr:
+                    correlation_exposure = _reduced_corr
+                    intent["correlation_exposure_pct"] = _reduced_corr
+                    intent["correlation_input_status"] = (
+                        "MISSING_DATA_REDUCED_FOR_CONFIDENT_PAPER_LEARNING"
+                    )
+                    intent["correlation_fail_reduced_from_fail_closed"] = True
     else:
         correlation_exposure = 0.0
         intent["correlation_exposure_pct"] = 0.0
@@ -28409,6 +28434,8 @@ def run_once() -> dict:
     )
     dlog("before_envelope_calc")
 
+    # Correlation fail-reduce (below) scales off the LIVE envelope so the
+    # reduction is adaptive, never a static constant.
     dynamic_paper_envelope = calculate_dynamic_risk_envelope(
         win_rate=_pre_cycle_aggregate.get("win_rate"),
         profit_factor=_pre_cycle_aggregate.get("profit_factor"),
@@ -28416,6 +28443,9 @@ def run_once() -> dict:
         current_drawdown_pct=_current_drawdown,
         model_avg_confidence=trainer_hybrid_cuda_status.get("avg_prediction_confidence", 0.5) if isinstance(trainer_hybrid_cuda_status, dict) else 0.5,
         paper_mode=True,
+    )
+    portfolio_context["envelope_max_correlation_exposure_pct"] = float(
+        dynamic_paper_envelope.max_correlation_exposure_pct
     )
     dlog("after_envelope_calc")
     dlog("starting_signal_evaluation_loop")
