@@ -30742,6 +30742,8 @@ def run_once() -> dict:
                 **(lifecycle_result.get("paper_adaptive_hedge_status") or {}),
                 "fill_synthesis": hedge_synthesis_status,
                 "generated_utc": _utc_iso(),
+                "writer_pid": os.getpid(),
+                "env_flag_at_import": PAPER_ADAPTIVE_HEDGE_ENABLED,
             }
         ),
         ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
