@@ -28350,11 +28350,18 @@ def run_once() -> dict:
     _pre_cycle_aggregate = pre_cycle_paper_performance_circuit_breaker_status.get("aggregate") or {}
     _pre_cycle_closed_count = pre_cycle_paper_performance_circuit_breaker_status.get("governed_closed_rows", 0)
     dlog("before_drawdown_calc")
+    # Fresh-session guard: paper_starting_equity_usd is None when the
+    # v2:paper:session key is absent (new redis / new session) — None
+    # arithmetic here crashed the whole cycle. Fall back to live equity so
+    # drawdown reads 0 until the session record exists.
+    _dd_baseline_equity = _coerce_float(paper_starting_equity_usd)
+    if _dd_baseline_equity is None or _dd_baseline_equity <= 0:
+        _dd_baseline_equity = float(portfolio_context.get("equity") or 0.0)
     _current_drawdown = max(
         0.0,
         (
-            (paper_starting_equity_usd - portfolio_context.get("current_equity_usd", paper_starting_equity_usd))
-            / max(1.0, paper_starting_equity_usd)
+            (_dd_baseline_equity - float(portfolio_context.get("current_equity_usd", _dd_baseline_equity) or _dd_baseline_equity))
+            / max(1.0, _dd_baseline_equity)
         ),
     )
     dlog("before_envelope_calc")
@@ -29681,13 +29688,28 @@ def run_once() -> dict:
                 or ""
             ).upper().split(",")
         }
+        # The preemptive edge-control verdict (which carries the directional-
+        # collapse guard outcome) is binding on the fast path too — a
+        # protective NO_TRADE verdict must not be bypassable by confidence.
+        _fast_path_preemptive_verdict = str(
+            _first_present(
+                intent.get("preemptive_decision"),
+                (intent.get("preemptive_edge_control") or {}).get("preemptive_decision")
+                if isinstance(intent.get("preemptive_edge_control"), dict)
+                else None,
+            )
+            or ""
+        ).upper()
         _fast_path_no_trade_verdict = (
             _fast_path_mode == "no_trade_mode"
             or "NO_TRADE" in _fast_path_regime_tokens
+            or _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
         )
         if _fast_path_no_trade_verdict:
             intent["paper_fast_path_blocked_reason"] = (
-                "STRATEGY_ROUTER_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
+                "PREEMPTIVE_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
+                if _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+                else "STRATEGY_ROUTER_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
             )
         if (
             local_trade_gates_pass
