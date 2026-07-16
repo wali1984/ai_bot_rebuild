@@ -24858,6 +24858,52 @@ def _synthesize_adaptive_hedge_fills(
     return status
 
 
+def _ensure_margin_leverage_consistency_rows(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Margin invariant: an admitted fill with real notional must carry
+    allocated_margin_usd = notional / effective_leverage.
+
+    Blocked-allocation payloads contribute margin 0.0 even when the fill is
+    admitted with a real notional and an adaptive leverage recommendation
+    (observed 2026-07-16: every open position showed allocated_margin_usd=0.0
+    — 'margin seems random'). Derivation is annotated, never overwrites a
+    real allocator-sized margin, and keeps gross_notional/leverage fields
+    self-consistent for G10 coverage and trainer feedback.
+    """
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        notional = _coerce_float(
+            _first_present(
+                row.get("notional"),
+                row.get("notional_usd"),
+                row.get("gross_notional_usd"),
+            )
+        )
+        if notional is None or notional <= 0:
+            continue
+        leverage = _coerce_float(
+            _first_present(row.get("effective_leverage"), row.get("recommended_leverage"))
+        )
+        if leverage is None or leverage < 1.0:
+            leverage = 1.0
+        margin = _coerce_float(row.get("allocated_margin_usd"))
+        if margin is None or margin <= 0:
+            row["allocated_margin_usd"] = round(notional / leverage, 8)
+            row["allocated_margin_source"] = "DERIVED_NOTIONAL_OVER_EFFECTIVE_LEVERAGE"
+        gross = _coerce_float(row.get("gross_notional_usd"))
+        if gross is None or gross <= 0:
+            row["gross_notional_usd"] = round(notional, 8)
+        if _coerce_float(row.get("effective_leverage")) in (None, 0.0):
+            row["effective_leverage"] = leverage
+        if _coerce_float(row.get("recommended_leverage")) in (None, 0.0):
+            row["recommended_leverage"] = leverage
+        if row.get("margin_mode_simulated") in (None, ""):
+            row["margin_mode_simulated"] = "isolated_paper_simulated"
+    return rows
+
+
 def _seconds_since_iso(value: str) -> float | None:
     if not value:
         return None
@@ -30968,6 +31014,7 @@ def run_once() -> dict:
         paper_session_id=paper_session_id,
         starting_equity_usd=paper_starting_equity_usd,
     )
+    accepted_for_ledger = _ensure_margin_leverage_consistency_rows(accepted_for_ledger)
     accepted_for_ledger = _with_operator_et_timestamp_rows(accepted_for_ledger)
     accepted_for_ledger = _bind_challenger_b_grade_canary_metadata_rows(
         _normalize_paper_owner_attribution_rows(accepted_for_ledger),
