@@ -179,20 +179,35 @@ def _canonical_account(
     positions = _list(_dict(_response_data(positions_response)).get("positions"))
     orders = _list(_dict(_response_data(orders_response)).get("orders"))
     executions = _list(_dict(_response_data(executions_response)).get("executions"))
+
+    def _first_finite(*keys: str) -> float | None:
+        # The canonical portfolio:state exposes PnL under *_usd suffixed keys; the
+        # older flat names are not always present, so accept either spelling.
+        for key in keys:
+            value = _finite_number(portfolio.get(key))
+            if value is not None:
+                return value
+        return None
+
+    total_pnl = _first_finite("total_pnl", "total_pnl_usd", "paper_total_pnl_usd")
+    realized_pnl = _first_finite("realized_pnl", "realized_pnl_usd", "realized_net_pnl_usd", "paper_realized_pnl_usd")
+    unrealized_pnl = _first_finite("unrealized_pnl", "unrealized_pnl_usd", "paper_unrealized_pnl_usd")
     account = {
         "trader_id": user.get("trader_id"),
         "account_id": user.get("paper_account_id"),
         "mode": portfolio.get("mode") or "paper",
         "connection_status": "CONNECTED" if user.get("trader_id") and user.get("paper_account_id") else "UNAVAILABLE",
         "equity": _finite_number(portfolio.get("equity")),
-        "available_balance": _finite_number(portfolio.get("available_balance")),
-        "used_balance": _finite_number(portfolio.get("used_balance")),
-        "realized_pnl": _finite_number(portfolio.get("realized_pnl")),
-        "unrealized_pnl": _finite_number(portfolio.get("unrealized_pnl")),
-        "daily_pnl": _finite_number(portfolio.get("daily_pnl")),
-        "total_pnl": _finite_number(portfolio.get("total_pnl")),
-        "exposure": _finite_number(portfolio.get("total_open_notional")),
-        "drawdown": _finite_number(portfolio.get("drawdown")),
+        "available_balance": _first_finite("available_balance", "available_balance_usd", "paper_balance"),
+        "used_balance": _first_finite("used_balance", "allocated_margin_usd", "used_margin_usd"),
+        "realized_pnl": realized_pnl,
+        "unrealized_pnl": unrealized_pnl if unrealized_pnl is not None else 0.0,
+        "daily_pnl": _first_finite("daily_pnl", "daily_pnl_usd", "session_pnl_usd", "day_pnl_usd"),
+        "total_pnl": total_pnl if total_pnl is not None else (
+            (realized_pnl or 0.0) + (unrealized_pnl or 0.0) if (realized_pnl is not None or unrealized_pnl is not None) else None
+        ),
+        "exposure": _first_finite("total_open_notional", "gross_open_notional_usd", "total_open_notional_usd"),
+        "drawdown": _first_finite("drawdown", "drawdown_pct", "max_drawdown_pct", "current_drawdown_pct"),
         "open_position_count": _integer(portfolio.get("open_position_count")) if portfolio.get("open_position_count") is not None else len(positions),
         "open_order_count": _integer(portfolio.get("open_order_count")) if portfolio.get("open_order_count") is not None else len(orders),
         "execution_count": _integer(portfolio.get("execution_count")) if portfolio.get("execution_count") is not None else len(executions),
