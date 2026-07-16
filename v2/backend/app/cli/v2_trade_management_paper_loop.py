@@ -22402,6 +22402,7 @@ def _paper_block_new_entry_by_performance_circuit(
     intent: dict[str, Any],
     allocation: dict[str, Any],
     performance_circuit_breaker_status: dict[str, Any],
+    halted_empty_book_probe_context: dict[str, Any] | None = None,
 ) -> bool:
     reasons: list[str] = []
     if performance_circuit_breaker_status.get("new_entries_allowed") is not True:
@@ -22554,6 +22555,45 @@ def _paper_block_new_entry_by_performance_circuit(
             target["places_real_order"] = False
             target["routes_to_live"] = False
             target["paper_only"] = True
+        return False
+    # ── Halted-empty-book probe (evidence-driven recovery) ────────────────
+    # Every recovery window (loss cluster, rolling PF, bucket loss rates)
+    # rolls ONLY on new closed outcomes. A full entry halt with a FLAT book
+    # therefore freezes forever — no evidence can ever clear it (observed
+    # 2026-07-16T22:56Z: 3 fast stop-outs emptied the book and latched a
+    # 3-reason halt). After an adaptive cooling period, ONE tiny probe per
+    # cycle (highest-confidence first — the loop iterates majors/confidence
+    # sorted) is admitted at a mandatory size haircut to generate the next
+    # outcome. A probe WIN rolls the windows open; a probe LOSS keeps the
+    # halt (windows stay saturated) and the next probe waits a full cooldown.
+    _probe = halted_empty_book_probe_context
+    if (
+        isinstance(_probe, dict)
+        and int(_probe.get("remaining") or 0) > 0
+        and int(_probe.get("open_position_count") or 0) == 0
+        and float(_probe.get("seconds_since_last_close") or 0.0) >= 300.0
+        and (confidence or 0.0) >= 0.75
+        and not hard_matched_blocked_bucket_keys
+        and not hard_matched_loss_cluster_keys
+    ):
+        _probe["remaining"] = int(_probe.get("remaining") or 0) - 1
+        for target in (intent, allocation):
+            target["paper_performance_circuit_breaker_blocked"] = False
+            target["paper_performance_circuit_breaker_observed_reasons"] = sorted(set(reasons))
+            target["paper_halted_empty_book_probe"] = True
+            target["paper_halted_empty_book_probe_cooling_seconds"] = float(
+                _probe.get("seconds_since_last_close") or 0.0
+            )
+            target["mandatory_size_haircut"] = True
+            target["places_real_order"] = False
+            target["routes_to_live"] = False
+            target["paper_only"] = True
+        # Probe size: quarter-size regardless of allocator sizing so a probe
+        # loss costs a fraction of a normal stop-out.
+        for field in ("quantity", "notional", "notional_usd"):
+            value = _coerce_float(intent.get(field))
+            if value is not None and value > 0:
+                intent[field] = round(value * 0.25, 12)
         return False
     for target in (intent, allocation):
         target["paper_performance_circuit_breaker_blocked"] = True
@@ -28568,6 +28608,23 @@ def run_once() -> dict:
     portfolio_context["envelope_max_correlation_exposure_pct"] = float(
         dynamic_paper_envelope.max_correlation_exposure_pct
     )
+    # Halted-empty-book probe context (one probe per cycle, cooling-gated):
+    # keeps the evidence flow alive when a full entry halt coincides with a
+    # flat book — otherwise the recovery windows can never roll.
+    _hebp_open_count = len(
+        existing_ledger.get("open_positions") or existing_ledger.get("positions") or []
+    )
+    _hebp_last_close = None
+    for _row in existing_closed_rows:
+        _ts = str(_row.get("exit_price_utc") or _row.get("closed_at") or "")
+        if _ts and (_hebp_last_close is None or _ts > _hebp_last_close):
+            _hebp_last_close = _ts
+    _hebp_age = _seconds_since_iso(_hebp_last_close) if _hebp_last_close else None
+    halted_empty_book_probe_context = {
+        "remaining": 1,
+        "open_position_count": _hebp_open_count,
+        "seconds_since_last_close": float(_hebp_age) if _hebp_age is not None else 0.0,
+    }
     dlog("after_envelope_calc")
     dlog("starting_signal_evaluation_loop")
     dlog(f"signal_count_{len(signals)}")
@@ -29515,6 +29572,7 @@ def run_once() -> dict:
             performance_circuit_breaker_status=(
                 pre_cycle_paper_performance_circuit_breaker_status
             ),
+            halted_empty_book_probe_context=halted_empty_book_probe_context,
         )
         # The exploration bucket-policy split must be stamped BEFORE any
         # exploration-eligibility evaluation reads the intent, so the
