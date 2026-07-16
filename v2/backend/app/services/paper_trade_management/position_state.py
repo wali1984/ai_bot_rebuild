@@ -537,7 +537,23 @@ class PaperNetPosition:
             "adaptive_capital_policy_version": adaptive_capital_policy_version,
             "policy_activated_at": policy_activated_at,
             "gross_notional_usd": self.gross_notional_usd if self.gross_notional_usd is not None else self.notional,
-            "allocated_margin_usd": self.allocated_margin_usd,
+            # Margin invariant through partial closes: the isolated-margin
+            # simulation releases margin as quantity nets down, so live margin
+            # caps at current notional / leverage instead of the stale
+            # entry-time figure (observed: margin $64.68 against a
+            # post-netting $8.76 notional). Entry-time margin stays for audit.
+            "allocated_margin_usd": (
+                round(self.notional / max(1.0, float(self.effective_leverage or 1.0)), 8)
+                if (
+                    self.notional is not None
+                    and self.notional > 0
+                    and self.allocated_margin_usd is not None
+                    and self.allocated_margin_usd
+                    > self.notional / max(1.0, float(self.effective_leverage or 1.0))
+                )
+                else self.allocated_margin_usd
+            ),
+            "allocated_margin_usd_at_entry": self.allocated_margin_usd,
             "effective_leverage": self.effective_leverage,
             "recommended_leverage": self.recommended_leverage,
             "recommended_margin_mode": self.recommended_margin_mode,
