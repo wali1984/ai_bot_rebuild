@@ -28528,7 +28528,6 @@ def run_once() -> dict:
         )
         # DEBUG: Log edge data status for first 10 intents
         try:
-            import json
             global _debug_em_after_count
             if "_debug_em_after_count" not in globals():
                 _debug_em_after_count = 0
@@ -28594,7 +28593,6 @@ def run_once() -> dict:
                     object.__setattr__(fee_gate, 'adaptive_override_reason', f"HIGH_CONFIDENCE_{confidence:.2f}_ALLOWS_UP_TO_{adaptive_max_ratio:.2f}")
                     # LOG: Track fee_gate override
                     try:
-                        import json
                         global _debug_fee_override_count
                         if "_debug_fee_override_count" not in globals():
                             _debug_fee_override_count = 0
@@ -29391,7 +29389,6 @@ def run_once() -> dict:
             ))
             # DEBUG: Log first few blocked intents to file
             try:
-                import json
                 with open("/tmp/entry_gate_blocks.log", "a") as f:
                     f.write(json.dumps({
                         "symbol": symbol,
@@ -29406,7 +29403,6 @@ def run_once() -> dict:
         else:
             # DEBUG: Log accepted intents (first 10)
             try:
-                import json
                 global _debug_accepted_count
                 if "_debug_accepted_count" not in globals():
                     _debug_accepted_count = 0
@@ -29430,7 +29426,6 @@ def run_once() -> dict:
                 _debug_post_entry_gate_count = 0
             _debug_post_entry_gate_count += 1
             if _debug_post_entry_gate_count <= 10:
-                import json
                 with open("/tmp/post_entry_gate_intents.log", "a") as f:
                     f.write(json.dumps({
                         "symbol": symbol,
@@ -29492,7 +29487,6 @@ def run_once() -> dict:
                         _debug_a_plus_override_count = 0
                     _debug_a_plus_override_count += 1
                     if _debug_a_plus_override_count <= 20:
-                        import json
                         with open("/tmp/a_plus_overrides.log", "a") as f:
                             f.write(json.dumps({
                                 "symbol": symbol,
@@ -29511,7 +29505,6 @@ def run_once() -> dict:
                     _debug_a_plus_reject_count = 0
                 _debug_a_plus_reject_count += 1
                 if _debug_a_plus_reject_count <= 10:
-                    import json
                     with open("/tmp/a_plus_gate_rejects.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": symbol,
@@ -29577,7 +29570,6 @@ def run_once() -> dict:
                 _debug_local_block_total += 1
             # Log totals every 10 intents
             if (_debug_local_pass_total + _debug_local_block_total) % 10 == 0:
-                import json
                 with open("/tmp/gate_pass_counts.log", "a") as f:
                     f.write(json.dumps({
                         "pass_count": _debug_local_pass_total,
@@ -29589,7 +29581,6 @@ def run_once() -> dict:
         # GATE-BY-GATE BLOCKER DEBUG LOGGING
         if not local_trade_gates_pass:
             try:
-                import json
                 gate_status = {
                     "symbol": symbol,
                     "confidence": _coerce_float(intent.get("confidence_calibrated")),
@@ -29685,7 +29676,6 @@ def run_once() -> dict:
                 accepted.append(accepted_intent)
 
                 # Log execution
-                import json
                 global _debug_fastpath_fills
                 if "_debug_fastpath_fills" not in globals():
                     _debug_fastpath_fills = 0
@@ -30109,7 +30099,6 @@ def run_once() -> dict:
                     _debug_fastpath_eval_count = 0
                 _debug_fastpath_eval_count += 1
                 if _debug_fastpath_eval_count <= 30:
-                    import json
                     with open("/tmp/fastpath_eval.log", "a") as f:
                         f.write(json.dumps({"symbol": symbol, "conf": conf, "will_accept": (conf is not None and conf >= 0.65)}) + "\n")
             except:
@@ -30131,7 +30120,6 @@ def run_once() -> dict:
                     _debug_fastpath_count = 0
                 _debug_fastpath_count += 1
                 if _debug_fastpath_count <= 20:
-                    import json
                     with open("/tmp/accepted_fills.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": symbol,
@@ -30150,7 +30138,6 @@ def run_once() -> dict:
                     _debug_local_pass_count = 0
                 _debug_local_pass_count += 1
                 if _debug_local_pass_count <= 10:
-                    import json
                     with open("/tmp/local_gates_passed.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": intent.get("symbol"),
@@ -30189,7 +30176,6 @@ def run_once() -> dict:
                     _debug_tier_override_count = 0
                 _debug_tier_override_count += 1
                 if _debug_tier_override_count <= 20:
-                    import json
                     with open("/tmp/paper_tier_overrides.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": symbol,
@@ -30205,7 +30191,6 @@ def run_once() -> dict:
                 _debug_paper_tier_check_count = 0
             _debug_paper_tier_check_count += 1
             if _debug_paper_tier_check_count <= 30:
-                import json
                 with open("/tmp/paper_tier_check_status.log", "a") as f:
                     f.write(json.dumps({
                         "symbol": symbol,
@@ -30228,7 +30213,6 @@ def run_once() -> dict:
                     _debug_shadow_count = 0
                 _debug_shadow_count += 1
                 if _debug_shadow_count <= 10:
-                    import json
                     with open("/tmp/downstream_shadow_observations.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": intent.get("symbol"),
@@ -30300,7 +30284,6 @@ def run_once() -> dict:
                 _debug_cycle_count = 0
             _debug_cycle_count += 1
             if _debug_cycle_count == 1:  # First intent of cycle - log cycle state
-                import json
                 with open("/tmp/cycle_state.log", "a") as f:
                     f.write(json.dumps({
                         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -30323,7 +30306,6 @@ def run_once() -> dict:
         # DEBUG: Log entry freeze override evaluation
         if paper_entry_freeze.get("paper_new_entries_halted") is True:
             try:
-                import json
                 global _debug_freeze_override_count
                 if "_debug_freeze_override_count" not in globals():
                     _debug_freeze_override_count = 0
@@ -30389,7 +30371,6 @@ def run_once() -> dict:
                 with open("/tmp/preemptive_count_marker.txt", "w") as f:
                     f.write(f"START_PREEMPTIVE_CHECK_{_debug_preempt_check_count}\n")
             if _debug_preempt_check_count <= 15:
-                import json
                 with open("/tmp/preemptive_admission_candidates.log", "a") as f:
                     f.write(json.dumps({
                         "symbol": intent.get("symbol"),
@@ -30410,7 +30391,6 @@ def run_once() -> dict:
             blocked.append(intent)
             # DEBUG: Log preemptive admission blocks (first 10)
             try:
-                import json
                 global _debug_preempt_block_count
                 if "_debug_preempt_block_count" not in globals():
                     _debug_preempt_block_count = 0
@@ -30438,7 +30418,6 @@ def run_once() -> dict:
                 _debug_accepted_fill_count = 0
             _debug_accepted_fill_count += 1
             if _debug_accepted_fill_count <= 20:
-                import json
                 with open("/tmp/accepted_fills.log", "a") as f:
                     f.write(json.dumps({
                         "symbol": intent.get("symbol"),
