@@ -27649,6 +27649,7 @@ def _build_allocation_input(
     market_microstructure: dict[str, Any] | None = None,
     correlation_contexts_by_symbol: dict[str, dict[str, Any]] | None = None,
     fee_schedule_context: dict[str, Any] | None = None,
+    redis_client: Any = None,
 ):
     from v2.backend.app.services.adaptive_capital_allocator import AllocationInput
 
@@ -27697,7 +27698,31 @@ def _build_allocation_input(
         features,
         price=price,
     )
-    if atr_bps is not None:
+    if (atr_bps is None or atr_bps <= 0) and redis_client is not None:
+        # Signals/predictions currently carry no ATR field (or a stamped
+        # 0.0), while the live TA pipeline maintains real ATR in the
+        # v2:ta_flat:{sym}:{tf} hashes (ta_NATR percent-units, ta_ATR_14
+        # price-units). Without this the adaptive stop, exit-aligned sizing,
+        # hedge triggers, and the A+ exit_plan_valid check all degrade to
+        # missing-ATR floor behavior.
+        _atr_tf = str(
+            _first_present(intent.get("timeframe"), signal.get("timeframe"), "1m")
+        ).lower()
+        try:
+            _ta_flat = redis_client.hmget(
+                f"{V2_REDIS_PREFIX}ta_flat:{symbol}:{_atr_tf}", ["ta_NATR", "ta_ATR_14"]
+            )
+        except Exception:
+            _ta_flat = [None, None]
+        _natr = _coerce_float(_ta_flat[0] if _ta_flat else None)
+        _atr_abs = _coerce_float(_ta_flat[1] if _ta_flat and len(_ta_flat) > 1 else None)
+        if _natr is not None and _natr > 0:
+            atr_bps = abs(_natr) * 100.0
+            intent["entry_atr_bps_source"] = "v2_ta_flat_NATR_FALLBACK"
+        elif _atr_abs is not None and _atr_abs > 0 and price and float(price) > 0:
+            atr_bps = abs(_atr_abs) / float(price) * 10000.0
+            intent["entry_atr_bps_source"] = "v2_ta_flat_ATR14_OVER_PRICE_FALLBACK"
+    if atr_bps is not None and atr_bps > 0:
         intent["entry_atr_bps"] = atr_bps
         intent["atr_bps"] = atr_bps
     volatility = _coerce_float(_first_present(
@@ -29473,6 +29498,7 @@ def run_once() -> dict:
             market_microstructure=market_microstructure,
             correlation_contexts_by_symbol=correlation_contexts_by_symbol,
             fee_schedule_context=fee_schedule_context,
+            redis_client=r,
         )
         allocation = allocate_paper_candidate(allocation_input, envelope=dynamic_paper_envelope)
         allocation_payload = allocation.to_payload()

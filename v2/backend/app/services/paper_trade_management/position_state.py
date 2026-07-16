@@ -80,11 +80,17 @@ def atr_bps_from_payloads(*payloads: dict[str, Any] | None, price: Any = None) -
     pct_keys = ("atr_pct", "true_range_pct", "ta_NATR", "ta_NATR_14")
     price_keys = ("atr_14", "ta_ATR", "ta_ATR_14", "ATR", "TRANGE", "ta_TRANGE")
 
+    # A literal 0.0 stamped upstream is MISSING evidence, not a real ATR — a
+    # zero average true range does not exist in a live market. Treating it as
+    # present short-circuited every fallback (2026-07-16: intents carried
+    # entry_atr_bps=0.0, degrading the adaptive stop, exit-aligned sizing,
+    # hedge triggers, and the A+ exit_plan_valid check while real ATR sat in
+    # the pct/price fallbacks).
     for payload in payloads:
         if not isinstance(payload, dict):
             continue
         parsed = first_number(*(payload.get(key) for key in bps_keys))
-        if parsed is not None:
+        if parsed is not None and abs(parsed) > 0:
             return abs(parsed)
 
     # Current feature pct fields are percent-units: 0.05 means 0.05%, or 5 bps.
@@ -92,7 +98,7 @@ def atr_bps_from_payloads(*payloads: dict[str, Any] | None, price: Any = None) -
         if not isinstance(payload, dict):
             continue
         parsed = first_number(*(payload.get(key) for key in pct_keys))
-        if parsed is not None:
+        if parsed is not None and abs(parsed) > 0:
             return abs(parsed) * 100.0
 
     reference_price = first_number(price)
@@ -101,7 +107,7 @@ def atr_bps_from_payloads(*payloads: dict[str, Any] | None, price: Any = None) -
             if not isinstance(payload, dict):
                 continue
             parsed = first_number(*(payload.get(key) for key in price_keys))
-            if parsed is not None:
+            if parsed is not None and abs(parsed) > 0:
                 return abs(parsed) / reference_price * 10000.0
     return None
 
