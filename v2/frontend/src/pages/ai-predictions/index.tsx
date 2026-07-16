@@ -123,10 +123,147 @@ interface TrainerSummary {
   drift_alarm_count?: number | null;
 }
 
+interface TrainerLearningStatus {
+  learning_active?: boolean | null;
+  weights_updating?: boolean | null;
+  learning_update_lane?: string | null;
+  loss_before?: number | null;
+  loss_after?: number | null;
+  optimizer_steps_this_cycle?: number | null;
+  optimizer_steps_total?: number | null;
+  weight_delta_norm?: number | null;
+  last_successful_weight_update_at?: string | null;
+  feedback_rows_consumed?: number | null;
+  trusted_replay_rows_loaded?: number | null;
+  checkpoint_reload_verified?: boolean | null;
+}
+interface PpoRuntimeStatus {
+  ppo_objective_used?: boolean | null;
+  ppo_value_entropy_active?: boolean | null;
+  ppo_value_loss?: number | null;
+  ppo_policy_loss?: number | null;
+  ppo_entropy?: number | null;
+  ppo_on_policy_rows?: number | null;
+  exact_blocker?: string | null;
+}
+interface GpuRuntime {
+  gpu_name?: string | null;
+  cuda_available?: boolean | null;
+  model_device?: string | null;
+  current_vram_used_mb?: number | null;
+  vram_reserved_mb?: number | null;
+  vram_cap_mb?: number | null;
+  gpu_train_time_ms?: number | null;
+  data_loader_time_ms?: number | null;
+  backtest_rows_per_second?: number | null;
+  throughput_predictions_per_second?: number | null;
+  training_steps_per_minute?: number | null;
+  mixed_precision_enabled?: boolean | null;
+  oom_count?: number | null;
+  target_batch_size?: number | null;
+  actual_batch_size?: number | null;
+  cpu_prep_bottleneck?: boolean | null;
+}
+interface ModelEdgeBacktest {
+  win_rate?: number | null;
+  expectancy_after_cost_bps?: number | null;
+  profit_factor_proxy?: number | null;
+  rows_evaluated?: number | null;
+  a_plus_readiness_signal?: boolean | null;
+  evidence_class?: string | null;
+  status?: string | null;
+}
+interface RuntimeMode {
+  effective_trainer_mode?: string | null;
+  online_learning_status?: string | null;
+  cuda_inference_status?: string | null;
+  trainer_process_status?: string | null;
+  prediction_publication_status?: string | null;
+  prediction_examples_built?: number | null;
+  prediction_failure_count?: number | null;
+  replay_buffer_size?: number | null;
+  replay_buffer_limit?: number | null;
+  symbols_count?: number | null;
+  timeframes?: string[] | null;
+  examples_built?: number | null;
+  paper_shadow_only?: boolean | null;
+  checkpoint_promoted_this_cycle?: boolean | null;
+  checkpoint_promotion_reason?: string | null;
+}
+interface LearningMetricsExtra {
+  train_val_generalization_gap?: number | null;
+  validation_loss_delta?: number | null;
+  validation_supervised_loss?: number | null;
+  validation_improved?: boolean | null;
+  overfit_gap_warning?: boolean | null;
+  expected_move_loss?: number | null;
+  masa_loss?: number | null;
+  confidence_loss?: number | null;
+  entropy_coefficient?: number | null;
+}
+interface ModelArchitecture {
+  hidden_size?: number | null;
+  residual_block_count?: number | null;
+  action_count?: number | null;
+  dropout?: number | null;
+  value_head?: boolean | null;
+  confidence_head?: boolean | null;
+  expected_move_head?: boolean | null;
+  masa_auxiliary_head?: boolean | null;
+  ppo_policy_head?: boolean | null;
+  masa_adapter_blend?: boolean | null;
+  temporal_encoder?: string | null;
+  temporal_encoder_enabled?: boolean | null;
+  temporal_seq_len?: number | null;
+}
+interface ChampionChallengerHoldout {
+  directional_accuracy?: number | null;
+  after_cost_expectancy_bps?: number | null;
+  trade_count?: number | null;
+  false_positive_rate?: number | null;
+}
+interface ChampionChallengerStatus {
+  status?: string | null;
+  result_status?: string | null;
+  best_challenger_id?: string | null;
+  promotion_allowed?: boolean | null;
+  promotion_reason?: string | null;
+  paper_challenger_enabled?: boolean | null;
+  holdout_metrics?: ChampionChallengerHoldout | null;
+}
+interface AGradeTrainer {
+  online_learning_status?: string | null;
+  effective_trainer_mode?: string | null;
+  checkpoint_promotion_reason?: string | null;
+  validation_loss_delta?: number | null;
+  train_val_generalization_gap?: number | null;
+}
+interface AGradeSection {
+  A_grade_rows?: number | null;
+  near_A_grade_rows?: number | null;
+  status?: string | null;
+  guardian_status?: string | null;
+  guardian_new_entries_allowed?: boolean | null;
+}
+interface AGradeBlockerTruth {
+  status?: string | null;
+  primary_blocker?: string | null;
+  trainer?: AGradeTrainer | null;
+  a_grade?: AGradeSection | null;
+}
+interface RealTraderReadiness {
+  live_ready?: boolean | null;
+  live_submit_allowed?: boolean | null;
+  exact_no_live_reason?: string | null;
+  readiness_blockers?: string[] | null;
+  operator_flip_required?: boolean | null;
+}
+
 interface TrainerStatusContract {
   state?: string | null;
   checkpoint_id?: string | null;
   model_source?: string | null;
+  model_id?: string | null;
   cuda_active?: boolean | null;
   data_coverage?: number | null;
   live_gate?: string | null;
@@ -137,9 +274,26 @@ interface TrainerStatusContract {
   source?: string | null;
   input_dim?: number | null;
   feature_count?: number | null;
+  feature_schema_status?: string | null;
   temporal_encoder?: string | null;
   temporal_encoder_enabled?: boolean | null;
   temporal_seq_len?: number | null;
+  learning_active?: boolean | null;
+  weights_updating?: boolean | null;
+  last_training_step?: string | null;
+  trainer_learning_status?: TrainerLearningStatus | null;
+  ppo_runtime_status?: PpoRuntimeStatus | null;
+  gpu_runtime?: GpuRuntime | null;
+  model_edge_backtest?: ModelEdgeBacktest | null;
+  runtime_mode?: RuntimeMode | null;
+  learning_metrics_extra?: LearningMetricsExtra | null;
+  model_architecture?: ModelArchitecture | null;
+  champion_challenger_status?: ChampionChallengerStatus | null;
+  a_grade_blocker_truth?: AGradeBlockerTruth | null;
+  real_trader_readiness?: RealTraderReadiness | null;
+  live_ready?: boolean | null;
+  exact_no_live_reason?: string | null;
+  readiness_blockers?: string[] | null;
 }
 
 interface ProviderStatusCard {
@@ -515,7 +669,7 @@ function PredExpandedRow({ row }: { row: PredRow }): JSX.Element {
 // ─── Trainer card ─────────────────────────────────────────────────────────
 
 function TrainerCard(): JSX.Element {
-  const { envelope } = useRealtimeResource<TrainerSummary>({
+  const { envelope } = useRealtimeResource<TrainerStatusContract>({
     url: '/api/v2/trainer/summary',
     source: '/api/v2/trainer/summary',
     pollIntervalMs: 30_000,
@@ -523,36 +677,36 @@ function TrainerCard(): JSX.Element {
   });
   const t = envelope.data;
   const state = t?.state ?? 'LOADING';
-  const stateColor = state === 'MISSING_EVIDENCE' ? '#f59e0b' : state === 'OK' ? '#26c281' : state === 'LOADING' ? 'var(--text-muted)' : '#ef5350';
+  const active = (state ?? '').toUpperCase().includes('ACTIVE');
+  const stateColor = state === 'MISSING_EVIDENCE' ? '#f59e0b' : (active || state === 'OK') ? '#26c281' : state === 'LOADING' ? 'var(--text-muted)' : '#ef5350';
+  // Real, populated fields (the legacy uptime/win_rate_30d/episodes/drift fields
+  // are null in the contract, so surface live runtime truths instead).
+  const mode = t?.runtime_mode?.effective_trainer_mode ?? null;
+  const weights = t?.weights_updating ?? t?.trainer_learning_status?.weights_updating ?? null;
+  const winRate = t?.model_edge_backtest?.win_rate ?? null;
+  const coverage = t?.data_coverage ?? null;
+  const gpu = t?.gpu_runtime?.gpu_name ?? (t?.cuda_active ? 'CUDA' : null);
+  const cell = (label: string, value: React.ReactNode, color?: string) => (
+    <div>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-secondary)' }}>{value}</div>
+    </div>
+  );
   return (
     <div style={{ background: 'rgba(99,102,241,0.04)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 10, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 20, alignItems: 'center' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 16 }}>🧠</span>
         <div>
           <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Trainer</div>
-          <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: stateColor }}>{state}</div>
+          <div style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)', color: stateColor }}>{(state ?? '').replace(/_/g, ' ')}</div>
         </div>
       </div>
-      {t?.checkpoint_id && <div>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Checkpoint</div>
-        <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{t.checkpoint_id.slice(0, 20)}…</div>
-      </div>}
-      {t?.uptime_days != null && <div>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Uptime</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{t.uptime_days.toFixed(1)}d</div>
-      </div>}
-      {t?.win_rate_30d != null && <div>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Win Rate 30d</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: t.win_rate_30d >= 0.6 ? '#26c281' : '#f59e0b' }}>{(t.win_rate_30d * 100).toFixed(1)}%</div>
-      </div>}
-      {t?.episodes_total != null && <div>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Episodes</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{t.episodes_total.toLocaleString()}</div>
-      </div>}
-      {t?.drift_alarm_count != null && <div>
-        <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Drift Alarms</div>
-        <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: t.drift_alarm_count > 0 ? '#ef5350' : '#26c281' }}>{t.drift_alarm_count}</div>
-      </div>}
+      {mode && cell('Mode', mode.replace(/_/g, ' '), '#8bd6ff')}
+      {weights != null && cell('Learning', weights ? 'WEIGHTS UPDATING' : 'IDLE', weights ? '#26c281' : '#f59e0b')}
+      {winRate != null && cell('Model Win Rate', `${(winRate * 100).toFixed(1)}%`, winRate >= 0.55 ? '#26c281' : winRate >= 0.5 ? '#f59e0b' : '#ef5350')}
+      {coverage != null && cell('Data Coverage', `${coverage.toFixed(1)}%`, coverage >= 80 ? '#26c281' : '#f59e0b')}
+      {gpu && cell('Compute', gpu, '#26c281')}
+      {t?.checkpoint_id && cell('Checkpoint', `${publicRuntimeId(t.checkpoint_id)?.slice(0, 18) ?? t.checkpoint_id.slice(0, 18)}…`)}
       <div style={{ marginLeft: 'auto' }}>
         <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
       </div>
@@ -655,6 +809,168 @@ function TrainerBrainSummary(): JSX.Element {
           );
         })}
       </div>
+    </section>
+  );
+}
+
+// ─── Trainer deep telemetry ───────────────────────────────────────────────
+
+function TCell({ label, value, color, note }: { label: string; value: React.ReactNode; color?: string; note?: string }): JSX.Element {
+  return (
+    <div style={{ padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)', minWidth: 0 }}>
+      <div style={{ fontSize: 8.5, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-secondary)', overflowWrap: 'anywhere' }}>{value}</div>
+      {note && <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,0.22)', fontStyle: 'italic', marginTop: 1 }}>{note}</div>}
+    </div>
+  );
+}
+
+function TSection({ title, accent, children }: { title: string; accent?: string; children: React.ReactNode }): JSX.Element {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: accent ?? '#8b8fdb', marginBottom: 6 }}>{title}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(128px, 1fr))', gap: 7 }}>{children}</div>
+    </div>
+  );
+}
+
+function fmtNum(n: number | null | undefined, d = 2): string {
+  if (n == null) return '—';
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function boolCell(v: boolean | null | undefined, onLabel = 'YES', offLabel = 'NO'): { text: string; color: string } {
+  if (v == null) return { text: '—', color: 'var(--text-muted)' };
+  return v ? { text: onLabel, color: '#26c281' } : { text: offLabel, color: '#f59e0b' };
+}
+
+function TrainerDeepTelemetry(): JSX.Element | null {
+  const { envelope } = useRealtimeResource<TrainerStatusContract>({
+    url: '/api/v2/trainer/status',
+    source: '/api/v2/trainer/status',
+    pollIntervalMs: 30_000,
+    staleThresholdMs: 90_000,
+    mode: 'read_only',
+  });
+  const d = envelope.data;
+  if (!d) return null;
+  const learn = d.trainer_learning_status ?? {};
+  const gpu = d.gpu_runtime ?? {};
+  const edge = d.model_edge_backtest ?? {};
+  const mode = d.runtime_mode ?? {};
+  const lm = d.learning_metrics_extra ?? {};
+  const arch = d.model_architecture ?? {};
+  const ppo = d.ppo_runtime_status ?? {};
+  const cc = d.champion_challenger_status ?? {};
+  const holdout = cc.holdout_metrics ?? {};
+  const readiness = d.real_trader_readiness ?? {};
+  const agt = d.a_grade_blocker_truth ?? {};
+  const agrade = agt.a_grade ?? {};
+  const blockers = d.readiness_blockers ?? readiness.readiness_blockers ?? [];
+
+  const lossBefore = learn.loss_before;
+  const lossAfter = learn.loss_after;
+  const lossImproving = lossBefore != null && lossAfter != null ? lossAfter <= lossBefore : null;
+  const heads: Array<[string, boolean | null | undefined]> = [
+    ['value', arch.value_head], ['confidence', arch.confidence_head], ['expected-move', arch.expected_move_head],
+    ['masa-aux', arch.masa_auxiliary_head], ['ppo-policy', arch.ppo_policy_head],
+  ];
+  const activeHeads = heads.filter(([, on]) => on).map(([n]) => n);
+  const learningStr = boolCell(learn.weights_updating ?? d.weights_updating, 'UPDATING', 'IDLE');
+  const winRate = edge.win_rate;
+  const dirAcc = holdout.directional_accuracy;
+
+  return (
+    <section
+      data-testid="ai-trainer-deep-telemetry"
+      style={{ marginBottom: 12, padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(99,102,241,0.18)', background: 'rgba(99,102,241,0.03)' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+        <div>
+          <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Trainer deep telemetry</strong>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: 'var(--text-muted)' }}>
+            Live RTX runtime, online-learning, model edge, architecture and live-readiness — read-only from v2:trainer:hybrid_cuda:status.
+          </span>
+        </div>
+        <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
+      </div>
+
+      <TSection title="Runtime & online learning" accent="#26c281">
+        <TCell label="Trainer mode" value={(mode.effective_trainer_mode ?? '—').replace(/_/g, ' ')} color="#8bd6ff" />
+        <TCell label="Online learning" value={(mode.online_learning_status ?? '—').replace(/_/g, ' ')} color={learningStr.color} />
+        <TCell label="Weights" value={learningStr.text} color={learningStr.color} />
+        <TCell label="Process" value={(mode.trainer_process_status ?? '—')} color={mode.trainer_process_status === 'ACTIVE' ? '#26c281' : '#f59e0b'} />
+        <TCell label="Update lane" value={(learn.learning_update_lane ?? '—').replace(/_/g, ' ')} />
+        <TCell label="Loss before→after" value={`${fmtNum(lossBefore, 4)}→${fmtNum(lossAfter, 4)}`} color={lossImproving == null ? undefined : lossImproving ? '#26c281' : '#f59e0b'} note="lower is better" />
+        <TCell label="Optimizer steps" value={learn.optimizer_steps_this_cycle ?? '—'} note="this cycle" />
+        <TCell label="Weight Δ norm" value={fmtNum(learn.weight_delta_norm, 3)} color={(learn.weight_delta_norm ?? 0) > 0 ? '#26c281' : 'var(--text-muted)'} note="params moved" />
+        <TCell label="Last weight update" value={fmtAge(learn.last_successful_weight_update_at ? runtimeAgeSeconds(learn.last_successful_weight_update_at) : null)} />
+        <TCell label="Feedback rows" value={countText(learn.feedback_rows_consumed)} note="consumed" />
+        <TCell label="Replay rows" value={countText(learn.trusted_replay_rows_loaded)} note="trusted replay" />
+        <TCell label="Predictions" value={countText(mode.prediction_examples_built)} color={mode.prediction_publication_status === 'ACTIVE' ? '#26c281' : '#f59e0b'} note={String(mode.prediction_publication_status ?? '').toLowerCase() || undefined} />
+      </TSection>
+
+      <TSection title="Model edge (holdout backtest + challenger)" accent="#f0b429">
+        <TCell label="Backtest win rate" value={winRate != null ? `${(winRate * 100).toFixed(1)}%` : '—'} color={winRate != null ? (winRate >= 0.55 ? '#26c281' : winRate >= 0.5 ? '#f59e0b' : '#ef5350') : 'var(--text-muted)'} />
+        <TCell label="After-cost expectancy" value={edge.expectancy_after_cost_bps != null ? `${edge.expectancy_after_cost_bps.toFixed(1)} bps` : '—'} color={(edge.expectancy_after_cost_bps ?? 0) > 0 ? '#26c281' : '#ef5350'} />
+        <TCell label="Profit factor" value={fmtNum(edge.profit_factor_proxy, 2)} color={(edge.profit_factor_proxy ?? 0) >= 1.2 ? '#26c281' : (edge.profit_factor_proxy ?? 0) >= 1 ? '#f59e0b' : '#ef5350'} />
+        <TCell label="Rows evaluated" value={countText(edge.rows_evaluated)} />
+        <TCell label="Challenger" value={(cc.result_status ?? cc.status ?? '—').replace(/_/g, ' ')} color={cc.paper_challenger_enabled ? '#26c281' : '#f59e0b'} />
+        <TCell label="Challenger dir. acc" value={dirAcc != null ? `${(dirAcc * 100).toFixed(1)}%` : '—'} color={dirAcc != null ? (dirAcc >= 0.55 ? '#26c281' : '#f59e0b') : 'var(--text-muted)'} />
+        <TCell label="Challenger expectancy" value={holdout.after_cost_expectancy_bps != null ? `${holdout.after_cost_expectancy_bps.toFixed(1)} bps` : '—'} color={(holdout.after_cost_expectancy_bps ?? 0) > 0 ? '#26c281' : '#ef5350'} />
+        <TCell label="Challenger trades" value={countText(holdout.trade_count)} note="holdout" />
+        <TCell label="Evidence class" value={(edge.evidence_class ?? '—').replace(/_/g, ' ').toLowerCase()} note="not A+ until forward-canary" />
+      </TSection>
+
+      <TSection title="GPU / throughput" accent="#8b5cf6">
+        <TCell label="GPU" value={gpu.gpu_name ?? '—'} color="#26c281" note={gpu.model_device ?? undefined} />
+        <TCell label="VRAM used" value={gpu.current_vram_used_mb != null ? `${(gpu.current_vram_used_mb / 1024).toFixed(2)} GB` : '—'} note={gpu.vram_cap_mb != null ? `cap ${(gpu.vram_cap_mb / 1024).toFixed(0)}GB` : undefined} />
+        <TCell label="Throughput" value={gpu.throughput_predictions_per_second != null ? `${gpu.throughput_predictions_per_second.toFixed(1)}/s` : '—'} note="predictions" />
+        <TCell label="Steps / min" value={fmtNum(gpu.training_steps_per_minute, 1)} />
+        <TCell label="Backtest rows/s" value={gpu.backtest_rows_per_second != null ? countText(Math.round(gpu.backtest_rows_per_second)) : '—'} />
+        <TCell label="Batch" value={`${gpu.actual_batch_size ?? '—'} / ${gpu.target_batch_size ?? '—'}`} note="actual / target" />
+        <TCell label="GPU train time" value={gpu.gpu_train_time_ms != null ? `${(gpu.gpu_train_time_ms / 1000).toFixed(1)}s` : '—'} note={gpu.data_loader_time_ms != null ? `loader ${(gpu.data_loader_time_ms / 1000).toFixed(1)}s` : undefined} />
+        <TCell label="Mixed precision" value={boolCell(gpu.mixed_precision_enabled).text} color={boolCell(gpu.mixed_precision_enabled).color} />
+        <TCell label="OOM count" value={gpu.oom_count ?? '—'} color={(gpu.oom_count ?? 0) > 0 ? '#ef5350' : '#26c281'} />
+      </TSection>
+
+      <TSection title="Architecture & PPO" accent="#38bdf8">
+        <TCell label="Hidden size" value={countText(arch.hidden_size)} />
+        <TCell label="Residual blocks" value={arch.residual_block_count ?? '—'} />
+        <TCell label="Action count" value={arch.action_count ?? '—'} />
+        <TCell label="Active heads" value={activeHeads.length ? activeHeads.join(', ') : '—'} note="output heads" />
+        <TCell label="MASA blend" value={boolCell(arch.masa_adapter_blend).text} color={boolCell(arch.masa_adapter_blend).color} />
+        <TCell label="PPO objective" value={boolCell(ppo.ppo_objective_used, 'ON', 'OFF').text} color={boolCell(ppo.ppo_objective_used, 'ON', 'OFF').color} note="on-policy" />
+        <TCell label="PPO value loss" value={fmtNum(ppo.ppo_value_loss, 4)} />
+        <TCell label="PPO entropy" value={fmtNum(ppo.ppo_entropy, 4)} />
+        {ppo.exact_blocker && <TCell label="PPO note" value={ppo.exact_blocker.replace(/_/g, ' ').toLowerCase()} note="outcome-supervised active" />}
+      </TSection>
+
+      <TSection title="Validation & promotion" accent="#f59e0b">
+        <TCell label="Generalization gap" value={fmtNum(lm.train_val_generalization_gap, 2)} color={(lm.train_val_generalization_gap ?? 0) > 5 ? '#ef5350' : '#26c281'} note="train vs val" />
+        <TCell label="Val loss delta" value={fmtNum(lm.validation_loss_delta, 3)} color={(lm.validation_loss_delta ?? 0) < 0 ? '#26c281' : '#f59e0b'} note="negative = improving" />
+        <TCell label="Val improved" value={boolCell(lm.validation_improved).text} color={boolCell(lm.validation_improved).color} />
+        <TCell label="Overfit warning" value={boolCell(lm.overfit_gap_warning, 'ACTIVE', 'CLEAR').text} color={lm.overfit_gap_warning ? '#f59e0b' : '#26c281'} />
+        <TCell label="Promoted (cycle)" value={boolCell(mode.checkpoint_promoted_this_cycle).text} color={boolCell(mode.checkpoint_promoted_this_cycle).color} />
+        <TCell label="Promotion reason" value={(mode.checkpoint_promotion_reason ?? '—').replace(/_/g, ' ').toLowerCase()} />
+      </TSection>
+
+      <TSection title="Live readiness (operator-gated)" accent="#ef5350">
+        <TCell label="Live ready" value={boolCell(d.live_ready ?? readiness.live_ready, 'READY', 'NOT READY').text} color={(d.live_ready ?? readiness.live_ready) ? '#26c281' : '#f59e0b'} />
+        <TCell label="Exact reason" value={(d.exact_no_live_reason ?? readiness.exact_no_live_reason ?? '—').replace(/_/g, ' ').toLowerCase()} />
+        <TCell label="A-grade rows" value={`${agrade.A_grade_rows ?? 0}`} note={`${agrade.near_A_grade_rows ?? 0} near`} color={(agrade.A_grade_rows ?? 0) > 0 ? '#26c281' : '#f59e0b'} />
+        <TCell label="Guardian" value={(agrade.guardian_status ?? '—').replace(/_/g, ' ').toLowerCase()} color={agrade.guardian_new_entries_allowed ? '#26c281' : '#f59e0b'} />
+        <TCell label="Adaptation" value={(agt.status ?? '—').replace(/_/g, ' ').toLowerCase()} />
+      </TSection>
+
+      {blockers.length > 0 && (
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 2 }}>
+          {blockers.slice(0, 8).map((b) => (
+            <span key={b} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 10, background: 'rgba(239,83,80,0.1)', border: '1px solid rgba(239,83,80,0.25)', color: '#ef8b88', fontFamily: 'var(--font-mono)' }}>
+              {b.replace(/_/g, ' ').toLowerCase()}
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -796,6 +1112,7 @@ export default function AIPredictionsPage(): JSX.Element {
 
         <div style={{ marginBottom: 12 }}><TrainerCard /></div>
         <TrainerBrainSummary />
+        <TrainerDeepTelemetry />
 
         {/* KPI strip */}
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>

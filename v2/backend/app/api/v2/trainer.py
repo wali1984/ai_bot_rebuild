@@ -441,6 +441,81 @@ def _attach_model_identity_status(shape: dict[str, Any], r: Any) -> dict[str, An
         if not out.get(key) and payload.get(key):
             out[key] = payload.get(key)
 
+    # ── GPU / throughput telemetry (RTX runtime), model-edge backtest, runtime
+    # mode and validation metrics. These are published to the status key but were
+    # never surfaced by this read-only route, so the AI page could not show them.
+    gpu = _dict_value(payload.get("cuda_cpu_resource_utilization"))
+    if gpu:
+        backtest = _dict_value(gpu.get("policy_backtest"))
+        vram_target = _dict_value(gpu.get("vram_target_mb"))
+        out["gpu_runtime"] = {
+            "schema_version": "trainer_status_gpu_runtime_v1",
+            "source": f"redis:{TRAINER_HYBRID_CUDA_STATUS_KEY}",
+            "gpu_name": gpu.get("gpu_name"),
+            "cuda_available": gpu.get("cuda_available"),
+            "model_device": payload.get("model_device"),
+            "current_vram_used_mb": _numeric_metric(gpu.get("current_vram_used_mb")),
+            "vram_reserved_mb": _numeric_metric(gpu.get("vram_reserved_mb")),
+            "vram_cap_mb": _numeric_metric(vram_target.get("cap")),
+            "gpu_utilization_limit_percent": _numeric_metric(vram_target.get("gpu_utilization_limit_percent")),
+            "gpu_train_time_ms": _numeric_metric(gpu.get("gpu_train_time_ms")),
+            "data_loader_time_ms": _numeric_metric(gpu.get("data_loader_time_ms")),
+            "backtest_rows_per_second": _numeric_metric(gpu.get("backtest_rows_per_second")),
+            "throughput_predictions_per_second": _numeric_metric(gpu.get("throughput_predictions_per_second")),
+            "training_steps_per_minute": _numeric_metric(gpu.get("training_steps_per_minute")),
+            "mixed_precision_enabled": gpu.get("mixed_precision_enabled"),
+            "oom_count": _numeric_metric(gpu.get("oom_count")),
+            "target_batch_size": _numeric_metric(gpu.get("target_batch_size")),
+            "actual_batch_size": _numeric_metric(gpu.get("actual_batch_size")),
+            "cpu_prep_bottleneck": _dict_value(payload.get("training_batch_policy")).get("cpu_prep_bottleneck"),
+        }
+        if backtest:
+            out["model_edge_backtest"] = {
+                "schema_version": "trainer_status_model_edge_backtest_v1",
+                "source": f"redis:{TRAINER_HYBRID_CUDA_STATUS_KEY}",
+                "win_rate": _numeric_metric(backtest.get("win_rate")),
+                "expectancy_after_cost_bps": _numeric_metric(backtest.get("expectancy_after_cost_bps")),
+                "profit_factor_proxy": _numeric_metric(backtest.get("profit_factor_proxy")),
+                "rows_evaluated": _numeric_metric(backtest.get("rows_evaluated")),
+                "a_plus_readiness_signal": backtest.get("a_plus_readiness_signal"),
+                "evidence_class": backtest.get("evidence_class"),
+                "status": backtest.get("status"),
+            }
+    learning_metrics = _dict_value(payload.get("learning_metrics"))
+    out["runtime_mode"] = {
+        "schema_version": "trainer_status_runtime_mode_v1",
+        "source": f"redis:{TRAINER_HYBRID_CUDA_STATUS_KEY}",
+        "effective_trainer_mode": payload.get("effective_trainer_mode"),
+        "online_learning_status": payload.get("online_learning_status"),
+        "cuda_inference_status": payload.get("cuda_inference_status"),
+        "trainer_process_status": payload.get("trainer_process_status"),
+        "prediction_publication_status": payload.get("prediction_publication_status"),
+        "prediction_examples_built": _numeric_metric(payload.get("prediction_examples_built")),
+        "prediction_failure_count": _numeric_metric(payload.get("prediction_failure_count")),
+        "replay_buffer_size": _numeric_metric(payload.get("replay_buffer_size")),
+        "replay_buffer_limit": _numeric_metric(payload.get("replay_buffer_limit")),
+        "symbols_count": _numeric_metric(payload.get("symbols_count")),
+        "timeframes": payload.get("timeframes") if isinstance(payload.get("timeframes"), list) else None,
+        "examples_built": _numeric_metric(payload.get("examples_built")),
+        "paper_shadow_only": payload.get("paper_shadow_only"),
+        "checkpoint_promoted_this_cycle": payload.get("checkpoint_promoted_this_cycle"),
+        "checkpoint_promotion_reason": payload.get("checkpoint_promotion_reason"),
+    }
+    if learning_metrics:
+        out["learning_metrics_extra"] = {
+            "schema_version": "trainer_status_learning_metrics_extra_v1",
+            "source": f"redis:{TRAINER_HYBRID_CUDA_STATUS_KEY}",
+            "train_val_generalization_gap": _numeric_metric(learning_metrics.get("train_val_generalization_gap")),
+            "validation_loss_delta": _numeric_metric(learning_metrics.get("validation_loss_delta")),
+            "validation_supervised_loss": _numeric_metric(learning_metrics.get("validation_supervised_loss")),
+            "validation_improved": learning_metrics.get("validation_improved"),
+            "overfit_gap_warning": learning_metrics.get("overfit_gap_warning"),
+            "expected_move_loss": _numeric_metric(learning_metrics.get("expected_move_loss")),
+            "masa_loss": _numeric_metric(learning_metrics.get("masa_loss")),
+            "confidence_loss": _numeric_metric(learning_metrics.get("confidence_loss")),
+            "entropy_coefficient": _numeric_metric(learning_metrics.get("entropy_coefficient")),
+        }
+
     pretrain = _latest_scheduled_pretrain_report()
     if pretrain:
         h2h = _dict_value(pretrain.get("head_to_head"))
