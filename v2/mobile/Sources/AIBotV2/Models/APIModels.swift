@@ -39,6 +39,12 @@ public struct LiveGateState: Decodable, Equatable {
     public var exchangeRouteLabel: String { places_real_order ? "EXCHANGE LIVE" : "OPERATOR GATED" }
 }
 
+public struct EquityPoint: Decodable, Equatable {
+    public let t: String?
+    public let cumulative_pnl: Double?
+    public let pnl: Double?
+}
+
 public struct PaperState: Decodable, Equatable {
     public let paper_session_id: String?
     public let equity: Double?
@@ -74,8 +80,20 @@ public struct PaperState: Decodable, Equatable {
     public let intents_blocked: Int
     public let classification: String
     public let places_real_order: Bool
+    // Chart series (emitted by the mobile dashboard from v2:paper:closed_trades).
+    public let equity_curve: [EquityPoint]?
+    public let win_rate: Double?
+    public let win_count: Int?
+    public let loss_count: Int?
 
     public var total_pnl: Double { paper_total_pnl_usd ?? realized_pnl_usd + unrealized_pnl_usd }
+    /// Cumulative-equity values (starting capital + running realized PnL) for the trend chart.
+    public var equityTrend: [Double] {
+        guard let curve = equity_curve, !curve.isEmpty else { return [] }
+        let base = starting_equity_usd ?? initial_capital ?? ((effectiveEquity ?? 0) - (curve.last?.cumulative_pnl ?? 0))
+        return [base] + curve.map { base + ($0.cumulative_pnl ?? 0) }
+    }
+    public var perTradePnl: [Double] { (equity_curve ?? []).map { $0.pnl ?? 0 } }
     public var effectiveEquity: Double? { paper_equity_usd ?? paper_equity ?? equity ?? paper_balance }
     public var acceptanceRate: Double {
         let total = intents_accepted + intents_blocked

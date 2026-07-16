@@ -151,6 +151,105 @@ struct MiniBarChart: View {
     }
 }
 
+/// Donut / composition chart (win-loss, direction) with a centre label + legend.
+struct DonutChart: View {
+    struct Slice: Identifiable {
+        let id = UUID()
+        let label: String
+        let value: Double
+        let color: Color
+    }
+
+    let slices: [DonutChart.Slice]
+    var centerText: String = ""
+    var centerLabel: String = ""
+    var size: CGFloat = 96
+    var lineWidth: CGFloat = 14
+
+    private var total: Double { max(slices.map(\.value).reduce(0, +), 0.0001) }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                ForEach(Array(sliceAngles.enumerated()), id: \.offset) { _, item in
+                    Circle()
+                        .trim(from: item.start, to: item.end)
+                        .stroke(item.color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                        .rotationEffect(.degrees(-90))
+                        .padding(lineWidth / 2)
+                }
+                VStack(spacing: 1) {
+                    Text(centerText)
+                        .font(.system(size: size * 0.2, weight: .bold, design: .monospaced))
+                        .foregroundStyle(NerVyx.textPrimary)
+                        .lineLimit(1).minimumScaleFactor(0.5)
+                    if !centerLabel.isEmpty {
+                        Text(centerLabel)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(NerVyx.textMuted)
+                            .tracking(0.5)
+                    }
+                }
+            }
+            .frame(width: size, height: size)
+            HStack(spacing: 10) {
+                ForEach(slices) { slice in
+                    HStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 2).fill(slice.color).frame(width: 8, height: 8)
+                        Text("\(slice.label) \(Int((slice.value / total) * 100))%")
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(NerVyx.textSecondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private var sliceAngles: [(start: CGFloat, end: CGFloat, color: Color)] {
+        var acc: CGFloat = 0
+        return slices.map { slice in
+            let frac = CGFloat(slice.value / total)
+            let start = acc
+            acc += frac
+            return (start, acc, slice.color)
+        }
+    }
+}
+
+/// Diverging vertical bars coloured by sign — per-trade PnL, funding, etc.
+struct DivergingBars: View {
+    let values: [Double]
+    var posColor: Color = NerVyx.buy
+    var negColor: Color = NerVyx.sell
+    var height: CGFloat = 90
+
+    var body: some View {
+        let maxAbs = max(values.map { abs($0) }.max() ?? 1, 0.0001)
+        HStack(alignment: .center, spacing: 3) {
+            ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                let frac = CGFloat(abs(value) / maxAbs)
+                VStack(spacing: 0) {
+                    ZStack(alignment: .bottom) {
+                        Color.clear.frame(height: height / 2)
+                        if value >= 0 {
+                            RoundedRectangle(cornerRadius: 2).fill(posColor).frame(height: max(frac * (height / 2), 2))
+                        }
+                    }
+                    Rectangle().fill(NerVyx.borderSubtle).frame(height: 1)
+                    ZStack(alignment: .top) {
+                        Color.clear.frame(height: height / 2)
+                        if value < 0 {
+                            RoundedRectangle(cornerRadius: 2).fill(negColor).frame(height: max(frac * (height / 2), 2))
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: height)
+    }
+}
+
 /// Rolling numeric series recorder for client-side sparkline history.
 struct RollingSeries {
     private(set) var values: [Double] = []

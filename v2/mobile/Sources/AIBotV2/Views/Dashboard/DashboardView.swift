@@ -117,6 +117,8 @@ struct DashboardView: View {
             signalTrainerStatsRow(d)
             // PnL summary
             pnlSection(d.paper)
+            // Performance charts — equity curve, win/loss donut, per-trade PnL
+            performanceChartsSection(d.paper)
             // Capital productivity quick stats
             capitalQuickStats(d.paper)
             // Paper loop
@@ -238,6 +240,51 @@ struct DashboardView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(pnlColor.opacity(0.35), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func performanceChartsSection(_ paper: PaperState) -> some View {
+        let trend = paper.equityTrend
+        let perTrade = paper.perTradePnl
+        let wins = paper.win_count ?? perTrade.filter { $0 > 0 }.count
+        let losses = paper.loss_count ?? perTrade.filter { $0 < 0 }.count
+        let winRate = paper.win_rate ?? ((wins + losses) > 0 ? Double(wins) / Double(wins + losses) : nil)
+        if trend.count > 1 || !perTrade.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Performance", accent: NerVyx.primary, trailing: "\(paper.closed_trades) closed")
+                if trend.count > 1 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("EQUITY CURVE")
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
+                        Sparkline(values: trend, color: NerVyx.primary).frame(height: 96)
+                    }
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    if (wins + losses) > 0 {
+                        DonutChart(
+                            slices: [
+                                .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
+                                .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
+                            ],
+                            centerText: winRate != nil ? "\(Int((winRate ?? 0) * 100))%" : "—",
+                            centerLabel: "WIN RATE"
+                        )
+                    }
+                    if !perTrade.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("PER-TRADE PNL")
+                                .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
+                            DivergingBars(values: perTrade)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .padding(16)
+            .background(NerVyx.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(NerVyx.borderSubtle, lineWidth: 1))
+        }
     }
 
     private func capitalQuickStats(_ paper: PaperState) -> some View {
