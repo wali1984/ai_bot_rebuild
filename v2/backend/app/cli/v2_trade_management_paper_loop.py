@@ -29118,6 +29118,22 @@ def run_once() -> dict:
                 a_plus_result["adaptive_gate_override_applied"] = True
                 a_plus_result["adaptive_override_reason"] = "ENTRY_GATE_PASSED_WITH_SUFFICIENT_CONFIDENCE"
                 intent["paper_adaptive_gate_override"] = True
+                # LOG: Track adaptive override
+                try:
+                    global _debug_a_plus_override_count
+                    if "_debug_a_plus_override_count" not in globals():
+                        _debug_a_plus_override_count = 0
+                    _debug_a_plus_override_count += 1
+                    if _debug_a_plus_override_count <= 20:
+                        import json
+                        with open("/tmp/a_plus_overrides.log", "a") as f:
+                            f.write(json.dumps({
+                                "symbol": symbol,
+                                "confidence": confidence,
+                                "override": "APPLIED"
+                            }) + "\n")
+                except:
+                    pass
 
         a_plus_evaluations.append(a_plus_result)
         if not a_plus_result["a_plus"]:
@@ -29747,6 +29763,24 @@ def run_once() -> dict:
         # Accepted fill: passes both the local gates AND the
         # strict upstream paper-fill gate (P0.2F). Goes to
         # v2:paper:positions.
+        # LOG: Track accepted fills ready for execution
+        try:
+            global _debug_accepted_fill_count
+            if "_debug_accepted_fill_count" not in globals():
+                _debug_accepted_fill_count = 0
+            _debug_accepted_fill_count += 1
+            if _debug_accepted_fill_count <= 20:
+                import json
+                with open("/tmp/accepted_fills.log", "a") as f:
+                    f.write(json.dumps({
+                        "symbol": intent.get("symbol"),
+                        "side": intent.get("side"),
+                        "count": _debug_accepted_fill_count,
+                        "status": "READY_FOR_EXECUTION"
+                    }) + "\n")
+        except:
+            pass
+
         accepted_intent = _with_paper_session_metadata(
             intent,
             paper_session_id=paper_session_id,
