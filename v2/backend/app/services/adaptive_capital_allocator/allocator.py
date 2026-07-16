@@ -20,6 +20,7 @@ from .sizing_model import (
     volatility_adjustment,
 )
 from v2.backend.app.services.hedge_engine import evaluate_hedge_intent, simulate_cross_margin_stress
+from v2.backend.app.services.paper_trade_management.exits import PaperExitConfig, effective_atr_stop_bps
 
 
 MAX_DYNAMIC_HEDGE_BUDGET_PCT_OF_RISK = 0.35
@@ -611,12 +612,41 @@ def _result(
 
 
 def _stop_distance_bps(row: AllocationInput) -> float:
+    """Stop distance used for notional sizing (risk_budget / stop_distance).
+
+    2026-07-16 G13/G14 root cause: sizing used the intent's explicit stop
+    (14.8-23.2bps on the losing cohort) while the exit engine enforced its
+    floor-clamped, overshoot-carrying ATR stop (~35-81bps realized), so
+    realized losses ran 2.0-4.8x the sized risk budget on exactly the
+    high-confidence trades the allocator up-sized. Sizing now uses the WIDER
+    of the explicit stop and the exit engine's own effective stop (same
+    formula via effective_atr_stop_bps) plus round-trip execution drag.
+    """
+    entry_atr = row.entry_atr_bps if (row.entry_atr_bps or 0) > 0 else None
+    exit_engine_stop: float | None = None
+    round_trip_cost = max(0.0, row.spread_bps) + max(0.0, row.slippage_bps) + max(0.0, row.fee_bps)
+    if entry_atr is not None:
+        # Only rows carrying real entry ATR (all runtime intents with ATR
+        # evidence — the entire observed mis-sized cohort) get the unified
+        # stop; ATR-less rows keep the legacy fallback semantics.
+        exit_engine_stop = effective_atr_stop_bps(
+            atr_bps=entry_atr,
+            confidence_calibrated=row.confidence_calibrated,
+            strategy_selected_mode=row.strategy_selected_mode,
+            market_regime=row.market_regime,
+            config=PaperExitConfig(atr_stop_overshoot_premium_bps=row.exit_overshoot_premium_bps),
+        )
     explicit = row.stop_distance_bps if row.stop_distance_bps is not None else None
     if explicit is not None and explicit > 0:
+        if exit_engine_stop is not None:
+            return max(float(explicit), exit_engine_stop + round_trip_cost)
         return float(explicit)
-    cost_floor = max(1.0, row.spread_bps + row.slippage_bps + row.fee_bps)
+    cost_floor = max(1.0, round_trip_cost)
     volatility_floor = max(10.0, row.volatility_bps * 1.5)
-    return max(cost_floor * 2.0, volatility_floor)
+    base = max(cost_floor * 2.0, volatility_floor)
+    if exit_engine_stop is not None:
+        base = max(base, exit_engine_stop + round_trip_cost)
+    return base
 
 
 def _liquidation_distance_bps(*, leverage: float, maintenance_margin_rate: float) -> float:

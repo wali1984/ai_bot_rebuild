@@ -79,6 +79,9 @@ from v2.backend.app.services.market_structure import (
     compute_vwap_features,
 )
 from v2.backend.app.services.paper_trade_management.exits import PAPER_EXIT_POLICY_VERSION
+from v2.backend.app.services.paper_trade_management.outcome_memory_updater import (
+    rebuild_outcome_memory_from_closed_trades,
+)
 from v2.backend.app.services.paper_trade_management.position_state import atr_bps_from_payloads
 from v2.backend.app.services.paper_trade_management.position_validity import (
     validate_paper_fill_write_invariant,
@@ -24623,6 +24626,63 @@ def _portfolio_equity_context(r) -> dict[str, float]:
     }
 
 
+EXIT_OVERSHOOT_ESTIMATE_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:exit_overshoot_estimate"
+_EXIT_OVERSHOOT_MAX_SAMPLE = 20
+
+
+def _paper_exit_overshoot_premium_bps(r, existing_ledger: dict[str, Any]) -> float | None:
+    """Rolling median of (|realized gross pnl_bps| - atr_stop_bps) over recent
+    TIER_1 ATR stop closes.
+
+    The 60s cycle overshoots the nominal stop by an observed 1.5-46bps; the
+    premium feeds both the exit engine (wider enforced stop) and the allocator
+    (wider sizing stop) so sized risk equals realized risk. Returns None until
+    post-fix closes carrying atr_stop_bps telemetry accumulate (cold start).
+    """
+    rows = existing_ledger.get("closed_trades") if isinstance(existing_ledger, dict) else None
+    if not isinstance(rows, list):
+        return None
+    samples: list[float] = []
+    for row in reversed(rows):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("exit_reason") or row.get("close_reason") or "") != "TIER_1_ATR_VOLATILITY_STOP":
+            continue
+        stop_bps = _coerce_float(row.get("atr_stop_bps"))
+        pnl_bps = _coerce_float(
+            _first_present(row.get("realized_gross_pnl_bps"), row.get("realized_pnl_bps"))
+        )
+        if stop_bps is None or stop_bps <= 0 or pnl_bps is None:
+            continue
+        samples.append(max(0.0, abs(pnl_bps) - stop_bps))
+        if len(samples) >= _EXIT_OVERSHOOT_MAX_SAMPLE:
+            break
+    if len(samples) < 2:
+        return None
+    samples.sort()
+    mid = len(samples) // 2
+    median = samples[mid] if len(samples) % 2 else (samples[mid - 1] + samples[mid]) / 2.0
+    premium = round(float(median), 4)
+    if r is not None:
+        try:
+            r.set(
+                EXIT_OVERSHOOT_ESTIMATE_REDIS_KEY,
+                json.dumps(
+                    {
+                        "generated_utc": _utc_iso(),
+                        "exit_overshoot_premium_bps": premium,
+                        "sample_size": len(samples),
+                        "source": "rolling_median_tier1_atr_stop_closes",
+                        "paper_only": True,
+                    }
+                ),
+                ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+            )
+        except Exception:
+            pass
+    return premium
+
+
 def _open_exposures_from_ledger(ledger: dict[str, Any]) -> tuple[dict[str, float], float]:
     symbol_exposures: dict[str, float] = {}
     total = 0.0
@@ -27664,6 +27724,22 @@ def _build_allocation_input(
             "orchestrator_decision_id": intent.get("orchestrator_decision_id"),
             "market_state_id": intent.get("market_state_id"),
         },
+        # Sizing/exit stop unification inputs: the allocator recomputes the
+        # exit engine's effective ATR stop from these so notional sizing can
+        # never assume a tighter stop than the exit engine enforces.
+        "entry_atr_bps": _coerce_float(intent.get("entry_atr_bps")),
+        "strategy_selected_mode": _first_present(
+            intent.get("strategy_selected_mode"), signal.get("strategy_selected_mode")
+        ),
+        "market_regime": _first_present(
+            intent.get("market_regime_at_entry"),
+            intent.get("market_regime"),
+            signal.get("market_regime"),
+            prediction.get("market_regime"),
+        ),
+        "exit_overshoot_premium_bps": _coerce_float(
+            portfolio_context.get("exit_overshoot_premium_bps")
+        ),
     }
     if fee_bps is not None:
         allocation_kwargs["fee_bps"] = float(fee_bps)
@@ -27979,6 +28055,9 @@ def run_once() -> dict:
     dlog("after_trainer_status")
     dlog("before_portfolio")
     portfolio_context = _portfolio_equity_context(r)
+    portfolio_context["exit_overshoot_premium_bps"] = _paper_exit_overshoot_premium_bps(
+        r, existing_ledger
+    )
     dlog("after_portfolio")
     dlog("before_exposures")
     symbol_exposures, total_exposure = _open_exposures_from_ledger(existing_ledger)
@@ -29396,8 +29475,38 @@ def run_once() -> dict:
         # Bypass: exploration tier checks, directional guards, allocator sizing,
         # churn rejection, entry freeze, preemptive checks, everything.
         # This is the PRIMARY execution path for high-confidence trades.
+        #
+        # 2026-07-16: the strategy router's own NO_TRADE verdict stays binding
+        # on the fast path. HMSTRUSDT/REUSDT (the session's two largest losses,
+        # -$2.33 combined at max-confidence sizing) entered here with
+        # strategy_selected_mode=no_trade_mode and regime NO_TRADE,RISK_OFF and
+        # were ATR-stopped within minutes. This honors an existing adaptive
+        # signal rather than adding a static threshold.
         conf = _coerce_float(confidence_calibrated)
-        if local_trade_gates_pass and conf is not None and conf >= 0.65:
+        _fast_path_mode = str(intent.get("strategy_selected_mode") or "").lower()
+        _fast_path_regime_tokens = {
+            token.strip()
+            for token in str(
+                _first_present(
+                    intent.get("market_regime_at_entry"), intent.get("market_regime")
+                )
+                or ""
+            ).upper().split(",")
+        }
+        _fast_path_no_trade_verdict = (
+            _fast_path_mode == "no_trade_mode"
+            or "NO_TRADE" in _fast_path_regime_tokens
+        )
+        if _fast_path_no_trade_verdict:
+            intent["paper_fast_path_blocked_reason"] = (
+                "STRATEGY_ROUTER_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
+            )
+        if (
+            local_trade_gates_pass
+            and not _fast_path_no_trade_verdict
+            and conf is not None
+            and conf >= 0.65
+        ):
             try:
                 # Create accepted intent for execution
                 accepted_intent = _with_paper_session_metadata(
@@ -30437,6 +30546,9 @@ def run_once() -> dict:
                 static_profit_lock_enabled=False,
                 static_profit_bank_enabled=False,
                 static_max_hold_enabled=False,
+                atr_stop_overshoot_premium_bps=portfolio_context.get(
+                    "exit_overshoot_premium_bps"
+                ),
             ),
             disable_trailing_on_negative_runtime_expectancy=True,
             trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
@@ -32593,6 +32705,26 @@ def run_once() -> dict:
             ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}paper:closed_trades")
+        # 2026-07-16: outcome-memory buckets are the designed adaptive
+        # per-bucket win-rate feedback into sizing/entry gating, but the
+        # updater was never invoked from the close path (zero
+        # v2:paper:outcome_memory:* keys at runtime). Rebuild from the freshly
+        # written closed trades whenever this cycle produced new closes.
+        if lifecycle_result.get("new_close_events"):
+            try:
+                _om_summary = rebuild_outcome_memory_from_closed_trades(
+                    closed_trade_rows=[row for row in closes if isinstance(row, dict)],
+                    redis_client=r,
+                    write=True,
+                )
+                _safe_write(
+                    r,
+                    f"{V2_REDIS_PREFIX}paper:outcome_memory:last_rebuild",
+                    json.dumps(_om_summary),
+                    ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+                )
+            except Exception:
+                pass
         keys_written.extend(
             _write_paper_open_position_state(
                 r,

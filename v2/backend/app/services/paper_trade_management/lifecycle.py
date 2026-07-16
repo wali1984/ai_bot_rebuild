@@ -1460,6 +1460,16 @@ def _exit_audit_context(
             if isinstance(trailing_context_decision.get("selected_context"), dict)
             else None
         ),
+        # ATR stop telemetry: the fired stop distance and its adaptive inputs,
+        # so the runtime can compute the rolling exit-overshoot premium
+        # (|realized gross pnl_bps| - atr_stop_bps) from closed trades.
+        "atr_stop_bps": exit_eval.get("atr_stop_bps"),
+        "atr_stop_multiplier_used": exit_eval.get("atr_stop_multiplier_used"),
+        "atr_stop_confidence_used": exit_eval.get("atr_stop_confidence_used"),
+        "atr_stop_confidence_gain_used": exit_eval.get("atr_stop_confidence_gain_used"),
+        "atr_stop_regime_scale_used": exit_eval.get("atr_stop_regime_scale_used"),
+        "atr_stop_floor_applied": exit_eval.get("atr_stop_floor_applied"),
+        "atr_stop_overshoot_premium_bps": exit_eval.get("atr_stop_overshoot_premium_bps"),
     }
 
 

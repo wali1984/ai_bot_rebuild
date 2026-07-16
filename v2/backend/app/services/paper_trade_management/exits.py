@@ -221,13 +221,31 @@ class PaperExitConfig:
     # strategy-mode multiplier. VOLATILE_EXPANSION widens the stop so noise
     # does not cluster ATR losses; RANGING tightens it because adverse moves
     # in a range are less likely to be noise before continuation.
+    # Runtime regime strings are comma-joined token lists (e.g.
+    # "HIGH_VOLATILITY,NO_TRADE,RISK_OFF"), so the lookup tokenizes and takes
+    # the max scale across matched tokens; the map must therefore use the
+    # taxonomy the runtime actually emits alongside the legacy keys.
     atr_stop_regime_scale: Mapping[str, float] = field(
         default_factory=lambda: {
             "VOLATILE_EXPANSION": 1.3,
             "LIQUIDITY_SWEEP": 1.3,
             "RANGING": 0.8,
+            "HIGH_VOLATILITY": 1.3,
+            "RISK_OFF": 1.15,
         }
     )
+    # 2026-07-16 G13/G14 root cause: all 8 TIER_1 stop-outs fired at the static
+    # 35bps floor with confidence 0.55-0.86 treated identically, and 7/8
+    # reverted favorably after exit. The stop distance now scales with the
+    # position's own calibrated confidence: effective multiplier =
+    # atr_stop_multiplier * (1 + atr_stop_confidence_gain * (conf-0.5)/0.5),
+    # so conf 0.85 earns ~2.4x the base runway while conf 0.55 keeps ~1.1x.
+    atr_stop_confidence_gain: float = 2.0
+    # Rolling median of (|realized gross pnl_bps| - atr_stop_bps) over recent
+    # TIER_1 stop closes, computed by the runtime and passed in. Compensates
+    # the 60s-cycle overshoot (observed 1.5-46bps) so the sized risk matches
+    # the realized exit. None = no premium (cold start).
+    atr_stop_overshoot_premium_bps: float | None = None
     # A+ goal Phase 8: compressed-volatility floor for the ATR-derived stop.
     # The 2026-07-05 cluster fired at ~19-21bps because entry ATR was 6.3-7.1bps,
     # so even the 3.0x trend multiplier sat inside round-trip cost (~11bps) plus
@@ -254,6 +272,59 @@ class PaperExitConfig:
     static_profit_lock_enabled: bool = True
     static_profit_bank_enabled: bool = True
     static_max_hold_enabled: bool = True
+
+
+def effective_atr_stop_bps(
+    *,
+    atr_bps: float | None,
+    confidence_calibrated: float | None,
+    strategy_selected_mode: str | None,
+    market_regime: str | None,
+    config: PaperExitConfig | None = None,
+) -> float:
+    """The effective ATR stop distance the exit engine will enforce.
+
+    Shared by evaluate_exit and the adaptive capital allocator so notional
+    sizing (risk_budget / stop_distance) uses the SAME stop the exit engine
+    fires at. Sizing with a tighter stop than the exit enforces made realized
+    losses 2.0-4.8x the sized risk budget (2026-07-16 G13/G14 root cause).
+    """
+    cfg = config or PaperExitConfig()
+    if atr_bps is None or atr_bps <= 0:
+        stop = float(cfg.atr_stop_floor_bps) if cfg.atr_stop_floor_bps > 0 else float(cfg.catastrophic_floor_stop_bps)
+    else:
+        is_trend = (strategy_selected_mode or "").lower() == "trend_mode"
+        mult = (
+            cfg.atr_stop_multiplier_trend_mode
+            if (is_trend and cfg.atr_stop_multiplier_trend_mode is not None)
+            else cfg.atr_stop_multiplier
+        )
+        conf = coerce_float(confidence_calibrated)
+        if conf is not None and conf > 0.5 and cfg.atr_stop_confidence_gain > 0:
+            mult *= 1.0 + cfg.atr_stop_confidence_gain * min(1.0, (conf - 0.5) / 0.5)
+        scale = 1.0
+        regime_key = str(market_regime or "").upper()
+        scale_map = cfg.atr_stop_regime_scale or {}
+        if regime_key and scale_map:
+            matched = []
+            for token in (t.strip() for t in regime_key.split(",")):
+                if not token:
+                    continue
+                try:
+                    val = scale_map.get(token)
+                    if val is not None:
+                        matched.append(float(val))
+                except (TypeError, ValueError):
+                    continue
+            if matched:
+                scale = max(matched)
+        stop = atr_bps * mult * scale
+        if cfg.atr_stop_floor_bps > 0 and stop < cfg.atr_stop_floor_bps:
+            stop = float(cfg.atr_stop_floor_bps)
+    premium = coerce_float(cfg.atr_stop_overshoot_premium_bps)
+    if premium is not None and premium > 0:
+        stop += premium
+    return float(stop)
 
 
 def evaluate_exit(
@@ -433,19 +504,51 @@ def evaluate_exit(
             if (_is_trend and config.atr_stop_multiplier_trend_mode is not None)
             else config.atr_stop_multiplier
         )
+        # 2026-07-16: confidence-adaptive runway. The floor-dominated static
+        # stop shook out 7/8 reverting high-confidence positions while the
+        # allocator had up-sized exactly those trades. Higher calibrated
+        # confidence now earns proportionally more ATR runway; conf <= 0.5 or
+        # missing confidence keeps the base multiplier unchanged.
+        _exit_confidence = coerce_float(
+            (model_context or {}).get("confidence_calibrated")
+            if (model_context or {}).get("confidence_calibrated") is not None
+            else getattr(position, "confidence_calibrated", None)
+        )
+        _conf_gain_used = 1.0
+        if _exit_confidence is not None and _exit_confidence > 0.5 and config.atr_stop_confidence_gain > 0:
+            _conf_gain_used = 1.0 + config.atr_stop_confidence_gain * min(1.0, (_exit_confidence - 0.5) / 0.5)
+        _atr_mult_eff = _atr_mult * _conf_gain_used
         # A+ goal Phase 7: regime-aware scale on top of the mode multiplier.
+        # Runtime regime strings are comma-joined token lists; tokenize and
+        # take the max scale across matched tokens (previously the joined
+        # string never matched any map key, silently pinning scale to 1.0).
         _regime_scale = 1.0
         _regime_key = str(regime or position.market_regime_at_entry or "").upper()
-        if _regime_key:
-            try:
-                _regime_scale = float((config.atr_stop_regime_scale or {}).get(_regime_key, 1.0))
-            except (TypeError, ValueError):
-                _regime_scale = 1.0
-        atr_stop = atr_bps * _atr_mult * _regime_scale
+        _regime_scale_map = config.atr_stop_regime_scale or {}
+        if _regime_key and _regime_scale_map:
+            _matched_scales = []
+            for _token in (t.strip() for t in _regime_key.split(",")):
+                if not _token:
+                    continue
+                try:
+                    _scale_val = _regime_scale_map.get(_token)
+                    if _scale_val is not None:
+                        _matched_scales.append(float(_scale_val))
+                except (TypeError, ValueError):
+                    continue
+            if _matched_scales:
+                _regime_scale = max(_matched_scales)
+        atr_stop = atr_bps * _atr_mult_eff * _regime_scale
         _atr_floor_applied = False
         if config.atr_stop_floor_bps > 0 and atr_stop < config.atr_stop_floor_bps:
             atr_stop = float(config.atr_stop_floor_bps)
             _atr_floor_applied = True
+        # Rolling exit-overshoot premium: the 60s cycle overshoots the nominal
+        # stop by an observed 1.5-46bps, so the enforced distance carries the
+        # runtime's rolling estimate to keep sized risk equal to realized risk.
+        _overshoot_premium = coerce_float(config.atr_stop_overshoot_premium_bps)
+        if _overshoot_premium is not None and _overshoot_premium > 0:
+            atr_stop += _overshoot_premium
         if pnl_bps_value <= -abs(atr_stop):
             return {
                 "should_close": True,
@@ -454,11 +557,14 @@ def evaluate_exit(
                 "pnl_bps": pnl_bps_value,
                 "atr_bps": atr_bps,
                 "atr_stop_bps": atr_stop,
-                "atr_stop_multiplier_used": _atr_mult,
+                "atr_stop_multiplier_used": _atr_mult_eff,
+                "atr_stop_confidence_used": _exit_confidence,
+                "atr_stop_confidence_gain_used": _conf_gain_used,
                 "atr_stop_regime": _regime_key or None,
                 "atr_stop_regime_scale_used": _regime_scale,
                 "atr_stop_floor_applied": _atr_floor_applied,
                 "atr_stop_floor_bps": config.atr_stop_floor_bps,
+                "atr_stop_overshoot_premium_bps": _overshoot_premium,
             }
     if config.static_stop_loss_enabled and pnl_bps_value <= -abs(config.stop_loss_bps):
         return {

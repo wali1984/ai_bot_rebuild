@@ -72,6 +72,15 @@ class AllocationInput:
     lineage_ids: dict[str, Any] = field(default_factory=dict)
     risk_veto: bool = False
     risk_veto_reason: str | None = None
+    # 2026-07-16 sizing/exit unification: the allocator must size with the SAME
+    # stop the exit engine enforces (realized losses were 2.0-4.8x sized risk
+    # because the intent's explicit stop was tighter than the exit-engine stop).
+    entry_atr_bps: float | None = None
+    strategy_selected_mode: str | None = None
+    market_regime: str | None = None
+    # Rolling median exit overshoot (|realized gross pnl_bps| - atr_stop_bps)
+    # over recent TIER_1 stop closes, published by the paper loop.
+    exit_overshoot_premium_bps: float | None = None
 
 
 @dataclass(frozen=True)
