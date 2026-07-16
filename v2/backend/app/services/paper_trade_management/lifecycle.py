@@ -650,6 +650,9 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
     )
     position.hedge_state = first_present(position.hedge_state, prior.get("hedge_state"))
     position.hedge_reason = first_present(position.hedge_reason, prior.get("hedge_reason"))
+    position.hedge_pending_since = first_present(
+        position.hedge_pending_since, prior.get("hedge_pending_since")
+    )
     position.drawdown_at_entry = first_present(position.drawdown_at_entry, prior.get("drawdown_at_entry"))
     position.market_regime_at_entry = first_present(
         position.market_regime_at_entry,
@@ -1951,6 +1954,36 @@ def reconcile_paper_lifecycle(
                 }
                 _would_atr_stop = False
             elif (
+                _would_atr_stop
+                and str(position.hedge_state or "").upper() == "HEDGE_PENDING"
+            ):
+                # The hedge fill is in flight (directive emitted, synthesis
+                # lands next cycle). Without this, the stop closes the parent
+                # before the hedge can open (observed: BARDUSDT directive at
+                # one cycle, TIER_1 close the next, synthesis skipped with
+                # PARENT_POSITION_NO_LONGER_OPEN). The deferral is BOUNDED:
+                # ~2 directive lifetimes, after which the pending state
+                # clears and the stop fires normally; the TIER_0 catastrophic
+                # floor stays armed throughout.
+                _pending_age = seconds_between(
+                    position.hedge_pending_since or position.opened_est, generated_utc
+                )
+                if _pending_age <= 600:
+                    exit_eval = {
+                        "should_close": False,
+                        "close_reason": None,
+                        "tier": None,
+                        "blocker": "ATR_STOP_DEFERRED_HEDGE_FILL_IN_FLIGHT",
+                        "pnl_bps": exit_eval.get("pnl_bps"),
+                        "deferred_close_reason": "TIER_1_ATR_VOLATILITY_STOP",
+                        "hedge_pending_age_seconds": _pending_age,
+                    }
+                    _would_atr_stop = False
+                else:
+                    position.hedge_state = "NO_HEDGE"
+                    position.hedge_reason = "HEDGE_PENDING_EXPIRED_STOP_RESUMES"
+                    position.hedge_pending_since = None
+            elif (
                 symbol not in hedge_protected_symbols
                 and (exit_eval.get("should_close") is not True or _would_atr_stop)
                 and str(position.hedge_state or "NO_HEDGE").upper() in ("", "NO_HEDGE", "NONE")
@@ -1977,6 +2010,7 @@ def reconcile_paper_lifecycle(
                 if trigger.get("trigger") is True:
                     position.hedge_state = "HEDGE_PENDING"
                     position.hedge_reason = str(trigger.get("reason"))
+                    position.hedge_pending_since = generated_utc
                     hedge_directives.append(
                         {
                             "symbol": symbol,

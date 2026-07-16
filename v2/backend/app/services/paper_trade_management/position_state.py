@@ -219,6 +219,9 @@ class PaperNetPosition:
     hedge_child_id: str | None = None
     hedge_ratio: float | None = None
     hedge_entry_parent_pnl_bps: float | None = None
+    # Set when the adaptive trigger marks HEDGE_PENDING; bounds how long the
+    # parent's TIER_1 stop stays deferred while the hedge fill is in flight.
+    hedge_pending_since: str | None = None
     drawdown_at_entry: float | None = None
     market_regime_at_entry: str | None = None
     liquidity_zone_context: dict[str, Any] | None = None
@@ -707,6 +710,7 @@ class PaperNetPosition:
             "hedge_child_id": self.hedge_child_id,
             "hedge_ratio": self.hedge_ratio,
             "hedge_entry_parent_pnl_bps": self.hedge_entry_parent_pnl_bps,
+            "hedge_pending_since": self.hedge_pending_since,
             "drawdown_at_entry": self.drawdown_at_entry,
             "market_regime_at_entry": self.market_regime_at_entry,
             "liquidity_zone_context": self.liquidity_zone_context,
