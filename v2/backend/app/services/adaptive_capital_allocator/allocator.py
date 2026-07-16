@@ -168,20 +168,45 @@ def _adaptive_leverage_target_selection(
     raw_target = float(recommendation.get("recommended_leverage") or 1.0)
     target = raw_target
     reason = str(recommendation.get("reason_tier") or "paper_phase8_leverage_recommendation")
+    confidence = float(row.confidence_calibrated or row.confidence or 0.5)
+
     if violations:
-        target = 1.0
-        reason = "phase8_leverage_recommendation_invariant_violation"
+        # ADAPTIVE: High-confidence intents can bypass some validation violations for learning
+        if confidence >= 0.80:
+            # Use trainer recommendation even with violations - paper learning mode
+            reason = "phase8_leverage_recommendation_confidence_override"
+        else:
+            target = 1.0
+            reason = "phase8_leverage_recommendation_invariant_violation"
     elif edge_bps < max(PAPER_MIN_EDGE_BPS_FOR_DYNAMIC_LEVERAGE, cost_drag_bps * 1.5):
-        target = 1.0
-        reason = "after_cost_edge_too_small_for_dynamic_leverage"
+        # ADAPTIVE: High-confidence can trade small edge
+        if confidence >= 0.75:
+            reason = "after_cost_edge_small_but_confidence_override"
+        else:
+            target = 1.0
+            reason = "after_cost_edge_too_small_for_dynamic_leverage"
     elif drawdown_pressure >= 0.50:
-        target = 1.0
-        reason = "drawdown_pressure_caps_leverage_at_1x"
+        # ADAPTIVE: High-confidence can trade in drawdown
+        if confidence >= 0.85:
+            reason = "high_drawdown_but_high_confidence_override"
+        else:
+            target = 1.0
+            reason = "drawdown_pressure_caps_leverage_at_1x"
     elif correlation_pressure >= 0.75:
-        target = 1.0
-        reason = "correlation_pressure_caps_leverage_at_1x"
+        # ADAPTIVE: High-confidence can ignore correlation
+        if confidence >= 0.80:
+            reason = "high_correlation_but_high_confidence_override"
+        else:
+            target = 1.0
+            reason = "correlation_pressure_caps_leverage_at_1x"
     elif drawdown_pressure >= 0.25 or correlation_pressure >= 0.50:
-        target = min(target, 2.0)
+        # ADAPTIVE: Scale cap based on confidence
+        if confidence >= 0.80:
+            target = min(target, 5.0)  # 5x max for high confidence
+        elif confidence >= 0.70:
+            target = min(target, 3.0)  # 3x for good confidence
+        else:
+            target = min(target, 2.0)  # 2x otherwise
         reason = f"{reason}|risk_pressure_caps_leverage_at_2x"
     target = _clamp(target, 1.0, max(1.0, envelope.max_effective_leverage))
     diagnostics.update({

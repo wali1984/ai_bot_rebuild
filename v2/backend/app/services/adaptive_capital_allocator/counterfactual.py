@@ -17,10 +17,10 @@ class CounterfactualRiskEnvelope:
     max_effective_leverage: float = 3.0
 
 
-DEFAULT_NOTIONAL_MULTIPLIERS = (0.25, 0.5, 1.0, 1.5, 2.0)
-DEFAULT_LEVERAGE_VALUES = (1.0, 2.0, 3.0)
-DEFAULT_STOP_MULTIPLIERS = (0.75, 1.0, 1.5)
-DEFAULT_TAKE_PROFIT_PLANS = ("none", "one_r", "two_r")
+DEFAULT_NOTIONAL_MULTIPLIERS = (0.25, 0.5, 1.0, 2.0, 3.0, 5.0)  # up to 5x notional for counterfactual
+DEFAULT_LEVERAGE_VALUES = (1.0, 2.0, 5.0, 10.0, 20.0)  # explore up to 20x leverage
+DEFAULT_STOP_MULTIPLIERS = (0.5, 0.75, 1.0, 1.5, 2.0)  # wider stops for volatility
+DEFAULT_TAKE_PROFIT_PLANS = ("none", "one_r", "two_r", "three_r")  # more profit targets
 DEFAULT_MARGIN_MODES = ("isolated", "cross")
 DEFAULT_HEDGE_FLAGS = (False, True)
 COUNTERFACTUAL_HEDGE_COST_BPS = 3.0

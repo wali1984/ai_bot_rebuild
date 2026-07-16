@@ -55,52 +55,52 @@ def calculate_dynamic_risk_envelope(
     if closed_trade_count < 3:
         return base
 
-    # === PAPER MODE: Aggressive scaling for brain-building ===
+    # === PAPER MODE: AGGRESSIVE scaling for 1000x growth target ===
     if paper_mode:
-        # Win rate multiplier: if 60% win rate, multiply by 1.5x
-        # If 70% win rate, multiply by 2.0x
-        # If 80%+ win rate, multiply by 3.0x
+        # AGGRESSIVE win rate multiplier: exponential scaling for compounding growth
+        # 50% win rate → 2.0x, 60% → 4.0x, 70% → 8.0x, 80% → 15.0x, 90%+ → 25.0x
         win_rate_factor = 1.0
         if win_rate is not None and win_rate > 0.50:
-            win_rate_factor = 1.0 + (win_rate - 0.50) * 4.0  # 50% → 1x, 70% → 1.8x, 85% → 2.4x
-        win_rate_factor = _clamp(win_rate_factor, 1.0, 3.0)
+            win_rate_factor = 2.0 ** ((win_rate - 0.50) * 10.0)  # exponential growth
+        win_rate_factor = _clamp(win_rate_factor, 1.0, 25.0)  # up to 25x for 90%+ win rate
 
-        # Profit factor multiplier: if PF > 1.0, scale up
-        # PF=1.5 → 1.3x, PF=2.5 → 2.0x, PF=5.0+ → 3.0x
+        # Aggressive profit factor multiplier: exponential scaling
+        # PF=1.5 → 2.5x, PF=2.5 → 5.0x, PF=5.0+ → 12.0x
         pf_factor = 1.0
         if profit_factor is not None and profit_factor > 1.0:
-            pf_factor = 1.0 + (min(profit_factor - 1.0, 4.0) / 4.0) * 2.0
-        pf_factor = _clamp(pf_factor, 1.0, 3.0)
+            pf_factor = 1.0 + ((min(profit_factor - 1.0, 10.0) / 10.0) ** 0.8) * 12.0
+        pf_factor = _clamp(pf_factor, 1.0, 12.0)
 
-        # Confidence multiplier: higher confidence = higher leverage allowed
-        # conf=0.5 → 0.8x, conf=0.7 → 1.2x, conf=0.85+ → 1.5x
-        confidence_factor = 0.8 + (model_avg_confidence - 0.50) * 1.6
-        confidence_factor = _clamp(confidence_factor, 0.7, 1.5)
+        # AGGRESSIVE confidence multiplier: high confidence = high leverage
+        # conf=0.5 → 1.0x, conf=0.7 → 3.0x, conf=0.85+ → 6.0x, conf=0.95+ → 10.0x
+        confidence_factor = 1.0 + ((model_avg_confidence - 0.50) ** 1.2) * 10.0
+        confidence_factor = _clamp(confidence_factor, 0.8, 10.0)
 
-        # Drawdown penalty: if already down 3%+, reduce risk
-        # drawdown=0% → 1.0x, drawdown=2% → 0.9x, drawdown=5%+ → 0.5x
-        drawdown_factor = max(0.5, 1.0 - (current_drawdown_pct * 10.0))
+        # Drawdown penalty: aggressive but not draconian
+        # drawdown=0% → 1.0x, drawdown=2% → 0.95x, drawdown=5% → 0.75x, drawdown=10%+ → 0.4x
+        drawdown_factor = 1.0 - (current_drawdown_pct ** 1.2) * 0.6
+        drawdown_factor = _clamp(drawdown_factor, 0.3, 1.0)
 
-        # Combine all factors (multiplicative scaling)
+        # Combine all factors (multiplicative scaling) - NO CEILING for paper mode
         combined_factor = win_rate_factor * pf_factor * confidence_factor * drawdown_factor
-        combined_factor = _clamp(combined_factor, 0.5, 5.0)
+        combined_factor = _clamp(combined_factor, 0.5, 50.0)  # up to 50x leverage for paper
 
-        # Scale the envelope limits
+        # Scale the envelope limits - AGGRESSIVE for 1000x growth target
         return RiskEnvelope(
             max_total_portfolio_risk_pct=_clamp(
                 base.max_total_portfolio_risk_pct * combined_factor,
-                0.30,  # floor: never go below 30%
-                2.50,  # ceiling: never exceed 250% (paper-only safety)
+                0.50,  # floor: 50% minimum (1x leverage)
+                50.00,  # ceiling: 5000% (50x leverage) for compounding growth
             ),
             max_single_symbol_exposure_pct=_clamp(
                 base.max_single_symbol_exposure_pct * combined_factor,
-                0.05,  # floor: 5% per symbol minimum
-                0.50,  # ceiling: 50% per symbol max in paper
+                0.10,  # floor: 10% per symbol minimum
+                2.00,  # ceiling: 200% (2x notional) per symbol for high-confidence concentrated bets
             ),
             max_daily_drawdown_pct=_clamp(
-                base.max_daily_drawdown_pct * min(1.5, combined_factor),
-                0.03,  # floor: 3% daily max loss
-                0.20,  # ceiling: 20% daily max loss
+                base.max_daily_drawdown_pct * min(2.0, combined_factor),
+                0.10,  # floor: 10% daily max loss (allows recovery)
+                0.50,  # ceiling: 50% daily max loss (paper-only, learning phase)
             ),
             max_loss_per_trade_pct=_clamp(
                 base.max_loss_per_trade_pct * combined_factor,
