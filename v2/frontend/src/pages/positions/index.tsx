@@ -4,6 +4,8 @@ import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
+import { EquityAreaChart, PnLBars, Donut, DonutLegend, RadialGauge, ChartFrame } from '../../components/charts/NervyxCharts';
+import { buildEquityCharts } from '../../components/charts/nervyxChartTheme';
 import {
   adaptiveStatusColor,
   formatAdaptiveMoney,
@@ -32,6 +34,7 @@ const PORTFOLIO_ENDPOINT = '/api/v2/portfolio';
 interface RuntimePositionEvidence {
   positions?: Array<Record<string, unknown>>;
   closed_trades?: Array<Record<string, unknown>>;
+  equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>;
   summary?: {
     open_position_count?: number | null;
     closed_trade_count?: number | null;
@@ -284,6 +287,16 @@ export default function PortfolioPage(): JSX.Element {
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const oneDay = pnlWindow(pnlHistory, '1d');
+  // Chart-ready performance derivations (shared helper) from the closed-trade curve.
+  const equityNum = (fieldId: string): number | null => {
+    const v = accountMetric(fieldId).value;
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  };
+  const charts = buildEquityCharts(runtimeData?.equity_curve, {
+    equity: equityNum('account.equity'),
+    totalPnl: equityNum('account.total_pnl'),
+  });
+  const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
 
   return (
     <div
@@ -338,6 +351,47 @@ export default function PortfolioPage(): JSX.Element {
             <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: adaptiveStatusColor(capitalStatus?.status), overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{capitalStatusText(capitalStatus?.status)}</span>
           </div>
         </div>
+      </div>
+
+      {/* Performance charts — real closed-trade equity curve, per-trade PnL, win/loss, accuracy */}
+      <div style={{ padding: '0 24px 16px' }}>
+        <section style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 16 }}>📈</span>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Performance</h2>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{charts.trades} closed paper trades</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 14 }}>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Equity curve" subtitle="cumulative · paper" height={200}>
+                {charts.equitySeries.length >= 2
+                  ? <EquityAreaChart data={charts.equitySeries} height={200} color="#7c5cff" />
+                  : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>Awaiting closed trades</div>}
+              </ChartFrame>
+            </div>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <ChartFrame title="Prediction accuracy" height={160}>
+                <RadialGauge value={accuracyStatus?.overall_accuracy} height={160} label="accuracy" />
+              </ChartFrame>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 14 }}>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Per-trade PnL" subtitle="realized, each closed trade" height={160}>
+                {charts.perTradePnl.length
+                  ? <PnLBars data={charts.perTradePnl} height={160} />
+                  : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No closed trades yet</div>}
+              </ChartFrame>
+            </div>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Win / loss split" height={160}>
+                {charts.winLossData.length
+                  ? <><Donut data={charts.winLossData} height={150} centerValue={charts.winRate != null ? `${charts.winRate.toFixed(0)}%` : '—'} centerLabel="win rate" /><DonutLegend data={charts.winLossData} /></>
+                  : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No outcomes yet</div>}
+              </ChartFrame>
+            </div>
+          </div>
+        </section>
       </div>
 
       <PortfolioCanonicalPnlPanel />

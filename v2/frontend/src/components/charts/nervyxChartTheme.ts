@@ -80,3 +80,40 @@ export function fmtPct(n: number | null | undefined, digits = 1): string {
   const v = Math.abs(n) <= 1 ? n * 100 : n;
   return `${v.toFixed(digits)}%`;
 }
+
+export interface EquityCurvePoint { t?: string; pnl?: number; winner?: boolean }
+export interface EquityChartData {
+  equitySeries: Array<{ label: string; value: number }>;
+  perTradePnl: Array<{ label: string; value: number }>;
+  winLossData: Array<{ name: string; value: number; color: string }>;
+  winRate: number | null;
+  trades: number;
+}
+
+/**
+ * Build cumulative-equity + per-trade-PnL + win/loss chart data from a
+ * closed-trade equity curve ({t,pnl,winner}[]). Shared by every trader page so
+ * the equity visualisations are consistent. `base` seeds the running equity.
+ */
+export function buildEquityCharts(
+  curve: EquityCurvePoint[] | null | undefined,
+  opts: { startingCapital?: number | null; equity?: number | null; totalPnl?: number | null } = {},
+): EquityChartData {
+  const per = (curve ?? [])
+    .map((p, i) => ({ label: `#${i + 1}`, value: Number(p?.pnl ?? 0) }))
+    .filter((p) => Number.isFinite(p.value));
+  const wins = per.filter((p) => p.value > 0).length;
+  const losses = per.filter((p) => p.value < 0).length;
+  const flat = per.length - wins - losses;
+  const base = opts.startingCapital
+    ?? (opts.equity != null && opts.totalPnl != null ? opts.equity - opts.totalPnl : (opts.equity ?? 3000));
+  let run = base;
+  const equitySeries = per.length ? [{ label: 'Start', value: base }] : [];
+  per.forEach((p, i) => { run += p.value; equitySeries.push({ label: `#${i + 1}`, value: run }); });
+  const winLossData = [
+    { name: 'Wins', value: wins, color: '#22c55e' },
+    { name: 'Losses', value: losses, color: '#ef4444' },
+    ...(flat > 0 ? [{ name: 'Flat', value: flat, color: '#f59e0b' }] : []),
+  ].filter((d) => d.value > 0);
+  return { equitySeries, perTradePnl: per, winLossData, winRate: per.length ? (wins / per.length) * 100 : null, trades: per.length };
+}
