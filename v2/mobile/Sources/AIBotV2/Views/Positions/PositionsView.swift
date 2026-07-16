@@ -127,12 +127,70 @@ struct PositionsView: View {
                 if let pricing = vm.response?.position_pricing {
                     pricingCard(pricing)
                 }
+                closedPerformanceSection
 
                 lanePicker
                 positionsSection(rows: selectedRows)
             }
             .padding(16)
             .padding(.bottom, 24)
+        }
+    }
+
+    @ViewBuilder
+    private var closedPerformanceSection: some View {
+        let ordered = vm.closedPositions.sorted { ($0.closed_at ?? "") < ($1.closed_at ?? "") }
+        if !ordered.isEmpty {
+            let perTrade = ordered.map { $0.realized_pnl }
+            let wins = perTrade.filter { $0 > 0 }.count
+            let losses = perTrade.filter { $0 < 0 }.count
+            let winRate: Double? = (wins + losses) > 0 ? Double(wins) / Double(wins + losses) : nil
+            let trend: [Double] = {
+                var cum = 0.0
+                return [0.0] + ordered.map { cum += $0.realized_pnl; return cum }
+            }()
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Performance")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(NerVyx.textPrimary)
+                    Spacer()
+                    Text("\(ordered.count) closed")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(NerVyx.textMuted)
+                }
+                if trend.count > 1 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("CUMULATIVE PNL")
+                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
+                        Sparkline(values: trend, color: NerVyx.primary).frame(height: 90)
+                    }
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    if (wins + losses) > 0 {
+                        DonutChart(
+                            slices: [
+                                .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
+                                .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
+                            ],
+                            centerText: winRate != nil ? "\(Int((winRate ?? 0) * 100))%" : "—",
+                            centerLabel: "WIN RATE"
+                        )
+                    }
+                    if !perTrade.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("PER-TRADE PNL")
+                                .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
+                            DivergingBars(values: perTrade)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            .padding(16)
+            .background(NerVyx.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(NerVyx.borderSubtle, lineWidth: 1))
         }
     }
 
