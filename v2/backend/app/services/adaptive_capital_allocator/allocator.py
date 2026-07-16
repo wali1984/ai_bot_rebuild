@@ -10,8 +10,10 @@ from .explanation import explain_allocation
 from .risk_budget import available_margin_budget_usdt, risk_envelope_gross_notional_ceiling
 from .sizing_model import (
     adaptive_budget_pct,
+    confidence_adjustment,
     correlation_adjustment,
     drawdown_adjustment,
+    edge_adjustment,
     exposure_adjustment,
     liquidity_adjustment,
     market_state_adjustment,
@@ -289,7 +291,15 @@ def _adaptive_margin_mode_selection(
     return "isolated_paper_simulated", diagnostics
 
 
-def _block(row: AllocationInput, *, mode: str, decision: str, reason: str, envelope: RiskEnvelope) -> AllocationResult:
+def _block(
+    row: AllocationInput,
+    *,
+    mode: str,
+    decision: str,
+    reason: str,
+    envelope: RiskEnvelope,
+    extra_diagnostics: dict[str, Any] | None = None,
+) -> AllocationResult:
     leverage_selection = {
         "leverage_selection_mode": mode,
         "leverage_cost_drag_bps": round(
@@ -322,6 +332,8 @@ def _block(row: AllocationInput, *, mode: str, decision: str, reason: str, envel
         "selected_leverage": 1.0,
         "leverage_selection_reason": f"blocked_allocation_uses_1x_leverage:{reason}",
     }
+    if extra_diagnostics:
+        leverage_selection.update(extra_diagnostics)
     return _result(
         row,
         mode=mode,
@@ -753,7 +765,32 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
     risk_budget_usd = row.equity * budget_pct
     stop_distance_bps = _stop_distance_bps(row)
     if risk_budget_usd <= 0:
-        return _block(row, mode=mode, decision="BLOCK_NO_EDGE", reason="risk_budget_after_adjustments_is_zero", envelope=envelope)
+        # Signal Explainability Rule: a zeroed adaptive budget must say WHICH
+        # multiplicative factor zeroed it, or the block is undiagnosable.
+        zero_diag = {
+            "budget_factor_confidence": round(confidence_adjustment(sizing_row), 8),
+            "budget_factor_edge": round(edge_adjustment(sizing_row), 8),
+            "budget_factor_market_state": round(market_state_adjustment(sizing_row), 8),
+            "budget_factor_volatility": round(volatility_adjustment(sizing_row), 8),
+            "budget_factor_liquidity": round(liquidity_adjustment(sizing_row), 8),
+            "budget_factor_spread_slippage": round(spread_slippage_adjustment(sizing_row), 8),
+            "budget_factor_drawdown": round(drawdown_adjustment(sizing_row, envelope), 8),
+            "budget_factor_exposure": round(exposure_adjustment(sizing_row, envelope), 8),
+            "budget_factor_correlation": round(correlation_adjustment(sizing_row, envelope), 8),
+            "budget_factor_regime": round(regime_adjustment(sizing_row), 8),
+            "budget_max_loss_per_trade_pct": round(envelope.max_loss_per_trade_pct, 8),
+            "budget_equity_usd": round(row.equity, 8),
+            "budget_total_exposure_usdt": round(row.total_exposure_usdt, 8),
+            "budget_envelope_max_total_portfolio_risk_pct": round(envelope.max_total_portfolio_risk_pct, 8),
+        }
+        return _block(
+            row,
+            mode=mode,
+            decision="BLOCK_NO_EDGE",
+            reason="risk_budget_after_adjustments_is_zero",
+            envelope=envelope,
+            extra_diagnostics=zero_diag,
+        )
     target_notional = min(risk_budget_usd / (stop_distance_bps / 10000.0), ceiling)
     min_notional = min_order_notional(min_qty=row.min_qty, min_notional=row.min_notional, price=row.price)
     if min_notional > 0 and target_notional < min_notional:
