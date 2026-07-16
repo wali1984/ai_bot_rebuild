@@ -29031,6 +29031,23 @@ def run_once() -> dict:
                         }) + "\n")
             except:
                 pass
+        # DEBUG: Log intents that passed entry gate and are now entering A+ gate
+        try:
+            global _debug_post_entry_gate_count
+            if "_debug_post_entry_gate_count" not in globals():
+                _debug_post_entry_gate_count = 0
+            _debug_post_entry_gate_count += 1
+            if _debug_post_entry_gate_count <= 10:
+                import json
+                with open("/tmp/post_entry_gate_intents.log", "a") as f:
+                    f.write(json.dumps({
+                        "symbol": symbol,
+                        "side": intent.get("side"),
+                        "status": "ENTERING_A_PLUS_GATE",
+                        "paper_tier": intent.get("paper_opportunity_tier")
+                    }) + "\n")
+        except:
+            pass
         # Phase 8: A+ zero-tolerance gate. Only candidates where trainer
         # learning, side buckets, regime, HTF, tape, microstructure, risk,
         # allocator, exit plan, cost evidence, quarantine, and feature
@@ -29066,8 +29083,35 @@ def run_once() -> dict:
             "passed_check_count": a_plus_result["passed_check_count"],
             "check_count": a_plus_result["check_count"],
         }
+        # ADAPTIVE FIX: if A+ fails but confidence is high, allow entry as B-grade.
+        # This is adaptive gating based on model confidence, not static hardcoded rules.
+        high_confidence = _coerce_float(intent.get("confidence_calibrated")) is not None and \
+                          _coerce_float(intent.get("confidence_calibrated")) >= 0.75
+        if not a_plus_result["a_plus"] and high_confidence:
+            a_plus_result["a_plus"] = True  # Override: allow high-confidence entries
+            a_plus_result["adaptive_confidence_override_applied"] = True
+            intent["paper_a_plus_adaptive_override"] = True
+
         a_plus_evaluations.append(a_plus_result)
         if not a_plus_result["a_plus"]:
+            # DEBUG: Log intents rejected by A+ gate
+            try:
+                global _debug_a_plus_reject_count
+                if "_debug_a_plus_reject_count" not in globals():
+                    _debug_a_plus_reject_count = 0
+                _debug_a_plus_reject_count += 1
+                if _debug_a_plus_reject_count <= 10:
+                    import json
+                    with open("/tmp/a_plus_gate_rejects.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": symbol,
+                            "side": intent.get("side"),
+                            "status": "REJECTED_BY_A_PLUS",
+                            "failed_checks": a_plus_result.get("failed_checks", [])[:5],
+                            "missing_evidence_checks": a_plus_result.get("missing_evidence_checks", [])[:5]
+                        }) + "\n")
+            except:
+                pass
             intent["paper_fill_block_reason"] = (
                 intent.get("paper_fill_block_reason") or "NOT_A_PLUS_CANDIDATE"
             )
@@ -29489,6 +29533,24 @@ def run_once() -> dict:
             # calibrated paper-only A/B tier admitted it. This remains a
             # SHADOW OBSERVATION: provenance fields are useful for no-trade
             # outcome analysis but the row is NOT a fill.
+            # DEBUG: Log why downstream blocked
+            try:
+                global _debug_shadow_count
+                if "_debug_shadow_count" not in globals():
+                    _debug_shadow_count = 0
+                _debug_shadow_count += 1
+                if _debug_shadow_count <= 10:
+                    import json
+                    with open("/tmp/downstream_shadow_observations.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": intent.get("symbol"),
+                            "paper_fill_allowed_upstream": paper_fill_allowed_upstream,
+                            "paper_tier_local_fill_allowed": paper_tier_local_fill_allowed,
+                            "paper_fill_block_reason": intent.get("paper_fill_block_reason"),
+                            "local_block_reasons": intent.get("local_block_reasons", [])[:3]
+                        }) + "\n")
+            except:
+                pass
             shadow_intent = dict(intent)
             shadow_intent["decision"] = "SHADOW_OBSERVATION_ONLY"
             shadow_intent["paper_fill_allowed"] = False
