@@ -6,6 +6,7 @@ import { SourceBadge } from '../../components/data/SourceBadge';
 import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { Donut, DonutLegend, MetricBars, RadialGauge, ChartFrame, pctThresholdColor } from '../../components/charts/NervyxCharts';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
 import type { CanonicalMetric } from '../../selectors/accountSelectors';
 import {
@@ -997,6 +998,14 @@ function SortTh({ label, col, current, dir, onSort }: { label: string; col: Sort
 
 // ─── Main page ────────────────────────────────────────────────────────────
 
+function EmptyChartAI({ label }: { label: string }): JSX.Element {
+  return (
+    <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>
+      {label}
+    </div>
+  );
+}
+
 export default function AIPredictionsPage(): JSX.Element {
   const [selectedSymbols, setSelectedSymbols] = useState<Set<string>>(new Set(DEFAULT_SYMBOLS));
   const [selectedTFs, setSelectedTFs] = useState<Set<TF>>(new Set(TIMEFRAMES));
@@ -1088,6 +1097,43 @@ export default function AIPredictionsPage(): JSX.Element {
   const totalAccuracyCells = accuracyStatus?.symbol_timeframe_cell_count
     ?? accuracyStatus?.required_symbol_timeframe_cell_count;
   const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
+
+  // ── Chart derivations from the live prediction matrix + accuracy status ──
+  const actionDist = useMemo(() => {
+    let long = 0, short = 0, hold = 0;
+    for (const r of rows) {
+      const a = (r.action ?? '').toLowerCase();
+      if (a.includes('long')) long += 1; else if (a.includes('short')) short += 1; else hold += 1;
+    }
+    return [
+      { name: 'Long', value: long, color: '#22c55e' },
+      { name: 'Short', value: short, color: '#ef4444' },
+      { name: 'Hold', value: hold, color: '#f59e0b' },
+    ].filter((d) => d.value > 0);
+  }, [rows]);
+  const confByTf = useMemo(() => {
+    const order = ['1m', '5m', '15m', '1h', '4h'];
+    const agg: Record<string, { sum: number; n: number }> = {};
+    for (const r of rows) {
+      const tf = r.timeframe;
+      if (r.confidence_calibrated == null) continue;
+      (agg[tf] ??= { sum: 0, n: 0 });
+      agg[tf].sum += r.confidence_calibrated; agg[tf].n += 1;
+    }
+    return order.filter((tf) => agg[tf]?.n).map((tf) => ({ label: tf, value: (agg[tf].sum / agg[tf].n) * 100 }));
+  }, [rows]);
+  const accByTf = useMemo(() => {
+    const bt = (accuracyStatus?.by_timeframe ?? {}) as Record<string, { accuracy?: number; overall_accuracy?: number }>;
+    const order = ['1m', '5m', '15m', '1h', '4h'];
+    return order
+      .filter((tf) => bt[tf] != null)
+      .map((tf) => {
+        const raw = bt[tf].accuracy ?? bt[tf].overall_accuracy ?? 0;
+        return { label: tf, value: (Math.abs(raw) <= 1 ? raw * 100 : raw) };
+      })
+      .filter((d) => Number.isFinite(d.value));
+  }, [accuracyStatus]);
+
   const canonicalSignal = selectActiveSignal(traderSnapshot);
   // Public fallback: the trader signal snapshot is 401-gated, so for logged-out
   // viewers surface the strongest CURRENT model prediction (highest-confidence
@@ -1205,6 +1251,42 @@ export default function AIPredictionsPage(): JSX.Element {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Prediction analytics charts — action mix, confidence & accuracy by timeframe */}
+      <div style={{ padding: '12px 16px 0' }}>
+        <section style={{ background: 'var(--bg-panel)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 12, padding: '14px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <span style={{ fontSize: 16 }}>🧠</span>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Prediction Analytics</h2>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rows.length} live predictions</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Action mix" subtitle="long / short / hold" height={150}>
+                {actionDist.length
+                  ? <><Donut data={actionDist} height={150} centerValue={String(actionDist.reduce((s, d) => s + d.value, 0))} centerLabel="preds" /><DonutLegend data={actionDist} /></>
+                  : <EmptyChartAI label="No predictions yet" />}
+              </ChartFrame>
+            </div>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Avg calibrated confidence" subtitle="by timeframe" height={150}>
+                {confByTf.length
+                  ? <MetricBars data={confByTf} height={150} suffix="%" domainMax={100} colorFn={pctThresholdColor} />
+                  : <EmptyChartAI label="No confidence data" />}
+              </ChartFrame>
+            </div>
+            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+              <ChartFrame title="Accuracy by timeframe" subtitle="evaluated outcomes" height={150}>
+                {accByTf.length
+                  ? <MetricBars data={accByTf} height={150} suffix="%" domainMax={100} colorFn={pctThresholdColor} />
+                  : <div style={{ height: 150, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                      <RadialGauge value={accuracyStatus?.overall_accuracy} height={130} label="overall" />
+                    </div>}
+              </ChartFrame>
+            </div>
+          </div>
+        </section>
       </div>
 
       <div style={{ padding: '12px 16px 0' }}>

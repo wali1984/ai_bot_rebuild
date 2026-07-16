@@ -98,6 +98,34 @@ export function PnLBars({ data, height = 180, usd = true }: {
   );
 }
 
+// ── Magnitude bars (single measure across categories; threshold colour) ─────
+export function MetricBars({ data, height = 160, suffix = '', domainMax, colorFn, accent = CHART.accent }: {
+  data: Array<{ label: string; value: number }>; height?: number; suffix?: string;
+  domainMax?: number; colorFn?: (v: number) => string; accent?: string;
+}): JSX.Element {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data} margin={{ top: 8, right: 8, left: 2, bottom: 0 }}>
+        <CartesianGrid stroke={CHART.grid} vertical={false} />
+        <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={{ stroke: CHART.grid }} interval={0} minTickGap={2} />
+        <YAxis domain={[0, domainMax ?? 'auto']} tick={axisTick} tickLine={false} axisLine={false} width={40}
+          tickFormatter={(v) => `${Number(v).toFixed(0)}${suffix}`} />
+        <Tooltip cursor={{ fill: 'rgba(148,163,184,0.08)' }}
+          content={({ active, payload, label }) => active && payload?.length
+            ? <TipBox rows={[{ label: String(label), value: `${Number(payload[0].value).toFixed(1)}${suffix}`, color: colorFn ? colorFn(Number(payload[0].value)) : accent }]} /> : null} />
+        <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={46}>
+          {data.map((d, i) => <Cell key={i} fill={colorFn ? colorFn(d.value) : accent} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Accuracy/probability threshold colour: >=55 green, >=45 amber, else red. */
+export function pctThresholdColor(v: number): string {
+  return v >= 55 ? CHART.pos : v >= 45 ? CHART.neutral : CHART.neg;
+}
+
 // ── Donut (composition; direct labels + legend + centre total) ──────────────
 export function Donut({ data, height = 180, centerLabel, centerValue, palette }: {
   data: Array<{ name: string; value: number; color?: string }>; height?: number;
