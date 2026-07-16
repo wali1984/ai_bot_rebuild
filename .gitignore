@@ -259,3 +259,8 @@ raw_evidence/pre_3000_reset_*/
 
 # Self-healing supervisor runtime output
 claude_worklog/self_healing/self_healing_status.json
+# Runtime status artifacts rewritten continuously by services (disk janitor
+# timer, continuous offline trainer) — kept out of the index so the working
+# tree stays clean.
+claude_worklog/disk_janitor/disk_janitor_status.json
+claude_worklog/trainer_atlas/continuous_offline_last_report.json
