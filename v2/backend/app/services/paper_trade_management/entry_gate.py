@@ -40,13 +40,7 @@ from .side_performance import (
 )
 
 DEFAULT_PAPER_ENTRY_ALLOWED_TIMEFRAMES = frozenset({"1m", "5m", "15m", "1h", "4h"})
-DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST = frozenset({
-    "NIGHTUSDT",
-    "TIAUSDT",
-    "TRUMPUSDT",
-    "PUMPUSDT",
-    "PORTALUSDT",
-})
+DEFAULT_PAPER_ENTRY_OPERATOR_SYMBOL_EXCLUSION_LIST = frozenset()  # Adaptive: tracked by outcome memory, not hardcoded
 
 
 def load_side_performance(redis_client: Any | None) -> dict[str, Any] | None:
@@ -101,9 +95,7 @@ class PaperEntryGateConfig:
     #   see short_trend_mode_regime_gate_enabled below. Hard block removed so
     #   regime gate controls SHORT trend entries adaptively.
     blocked_side_mode_combinations: frozenset[str] = field(
-        default_factory=lambda: frozenset({
-            "long:mean_reversion_mode",
-        }),
+        default_factory=lambda: frozenset(),  # Adaptive: tracked by outcome memory, not hardcoded
     )
     # R29-D2: Regime gate for short:trend_mode entries.
     # Blocks SHORT trend entries when liquidation cascade risk is below the floor

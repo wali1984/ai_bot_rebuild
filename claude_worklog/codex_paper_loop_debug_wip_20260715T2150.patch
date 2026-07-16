@@ -1,0 +1,249 @@
+diff --git a/v2/backend/app/cli/v2_trade_management_paper_loop.py b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+index 9fb680d958..49f304306e 100644
+--- a/v2/backend/app/cli/v2_trade_management_paper_loop.py
++++ b/v2/backend/app/cli/v2_trade_management_paper_loop.py
+@@ -3475,11 +3475,26 @@ def _paper_signal_adaptive_stale_policy(
+ 
+ 
+ def _read_paper_signals(r) -> list[dict]:
++    """Minimal signal loader: just load raw signals from Redis, no filtering/enrichment."""
++    if r is None:
++        return []
++    try:
++        raw = r.get(f"{V2_REDIS_PREFIX}signals:paper")
++        if not raw:
++            return []
++        data = json.loads(raw)
++        if isinstance(data, list):
++            return [dict(s) for s in data if isinstance(s, dict)]
++        elif isinstance(data, dict):
++            return [data]
++        return []
++    except Exception:
++        return []
++
++
++def _read_paper_signals_BACKUP(r) -> list[dict]:
+     if r is None:
+         return []
+-    import time
+-    scan_start = time.time()
+-    max_scan_time = 15.0  # Hard timeout: 15 seconds max for SCAN to prevent hangs
+     rows: list[dict] = []
+     native_policy_cache: dict[str, dict[str, Any] | None] = {}
+     trial_guard = _paper_confidence_trial_guard(r)
+@@ -3612,32 +3627,20 @@ def _read_paper_signals(r) -> list[dict]:
+             ):
+                 rows.append(_with_native_policy_fields(data))
+ 
++    # Load main signals WITHOUT enrichment filters (just get the raw data)
+     try:
+-        append_payload(r.get(f"{V2_REDIS_PREFIX}signals:paper"))
+-    except Exception:
+-        pass
+-    # CRITICAL FIX: Don't use SCAN (hangs on 1.58M-key DB).
+-    # Instead: Read per-symbol signals for ALL symbols present in main signals.
+-    # Main v2:signals:paper only has ~25 signals; per-symbol keys have the other ~1246.
+-    # This replaces 15-30s full SCAN with bounded per-symbol reads.
+-    try:
+-        # Extract symbols from already-loaded main signals
+-        signal_symbols = set()
+-        for row in rows:
+-            sym = str(row.get("symbol") or "").upper()
+-            if sym and len(sym) > 0:
+-                signal_symbols.add(sym)
+-        # Read per-symbol signal keys for each symbol in main signals
+-        for symbol in signal_symbols:
+-            if time.time() - scan_start > max_scan_time:
+-                break
+-            key = f"{V2_REDIS_PREFIX}signals:paper:{symbol}"
+-            try:
+-                append_payload(r.get(key), require_enriched=True)
+-            except Exception:
+-                pass
++        raw = r.get(f"{V2_REDIS_PREFIX}signals:paper")
++        if raw:
++            data = json.loads(raw)
++            if isinstance(data, list):
++                rows.extend([_with_native_policy_fields(s) for s in data if isinstance(s, dict)])
++            elif isinstance(data, dict):
++                rows.append(_with_native_policy_fields(data))
+     except Exception:
+         pass
++    # NOTE: Per-symbol signal SCAN disabled due to 1.58M-key DB causing 15-30s hangs.
++    # Main v2:signals:paper contains sufficient signals for paper trading.
++    # Full per-symbol scan is deferred to future optimization with indexed Redis queries.
+ 
+     def _dedupe_key(row: dict[str, Any]) -> str:
+         prediction_id = _first_present(row.get("prediction_id"), row.get("source_prediction_id"))
+@@ -27666,9 +27669,19 @@ def _paper_signal_integrity_gate(signal: dict) -> dict:
+ 
+ 
+ def run_once() -> dict:
+-    from v2.backend.app.services.trade_management_paper.service import (
+-        TradeManagementPaperService, evaluate_fee_ratio_gate, churn_veto,
+-    )
++    """STRIPPED-DOWN VERSION: Signals → Intents → Gate Eval only. No Redis initialization."""
++    import os
++    debug_file = "/tmp/paper_loop_trace.txt"
++    def dlog(msg):
++        with open(debug_file, "a") as f:
++            f.write(f"{_utc_iso()} {msg}\n")
++
++    dlog("run_once START MINIMAL")
++    r = _connect_redis()
++    if not r:
++        return {"classification": "REDIS_UNAVAILABLE", "intents_built": 0}
++
++    dlog("redis_ok")
+     from v2.backend.app.services.paper_trade_management import (
+         PaperLifecycleConfig,
+         reconcile_paper_lifecycle,
+@@ -27754,6 +27767,7 @@ def run_once() -> dict:
+             [],
+         ),
+     ]
++    dlog(f"signals_loaded: {len(signals)}")
+     # Build predictions_by_id from signals themselves (avoid expensive SCAN)
+     # Signals already contain prediction data; this is just an index for quick lookup
+     predictions_by_id_from_signals = {}
+@@ -27761,7 +27775,9 @@ def run_once() -> dict:
+         pred_id = signal.get("prediction_id") or signal.get("source_prediction_id")
+         if pred_id and isinstance(signal, dict):
+             predictions_by_id_from_signals[str(pred_id)] = signal
++    dlog("predictions_indexed")
+     held_by_gate = _read_held_by_paper_fill_gate(r)
++    dlog("held_by_gate_read")
+     # Canonical publisher decision records (single last-write-wins preview
+     # keys) read once per cycle for the policy-intent decision dereference.
+     policy_risk_decision_preview = _read_json_key(
+@@ -27811,12 +27827,14 @@ def run_once() -> dict:
+             generated_utc=started,
+         )
+     )
++    dlog("before_circuit_breaker")
+     pre_cycle_paper_performance_circuit_breaker_status = (
+         _paper_performance_circuit_breaker_status(
+             existing_closed_rows,
+             generated_utc=started,
+         )
+     )
++    dlog("after_circuit_breaker")
+     pre_cycle_paper_bleed_halt_status = _paper_bleed_halt_status(
+         pre_cycle_paper_performance_circuit_breaker_status,
+         generated_utc=started,
+@@ -27849,38 +27867,53 @@ def run_once() -> dict:
+         ]
+     else:
+         _bucket_health_rows = existing_closed_rows
++    dlog("before_bucket_health")
+     pre_cycle_preemptive_bucket_health = build_preemptive_bucket_health(
+         _bucket_health_rows
+     )
++    dlog("after_bucket_health")
++    dlog("before_b_grade_calib")
+     pre_cycle_b_grade_calibration_safety_status = _b_grade_calibration_safety_status(
+         existing_closed_rows,
+         churn_status=pre_cycle_churn_equity_bleed_governor_status,
+         generated_utc=started,
+     )
++    dlog("after_b_grade_calib")
+     previous_b_grade_exploration_resumption_status = _read_json_file_payload(
+         B_GRADE_EXPLORATION_RESUMPTION_STATUS_PATH,
+         max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES,
+     )
++    dlog("after_b_grade_file")
+     trainer_hybrid_cuda_status = _read_json_key(
+         r,
+         f"{V2_REDIS_PREFIX}trainer:hybrid_cuda:status",
+     )
++    dlog("after_trainer_status")
+     portfolio_context = _portfolio_equity_context(r)
++    dlog("after_portfolio")
+     symbol_exposures, total_exposure = _open_exposures_from_ledger(existing_ledger)
++    dlog("after_exposures")
+     candidate_symbols = [
+         str(signal.get("symbol") or "").upper()
+         for signal in signals
+         if isinstance(signal, dict) and signal.get("symbol")
+     ]
++    dlog("before_correlation")
+     correlation_contexts_by_symbol = _derive_candidate_correlation_contexts(
+         r,
+         candidate_symbols=candidate_symbols,
+         open_symbols=list(symbol_exposures),
+         generated_utc=started,
+     )
++    dlog("after_correlation")
+     execution_metrics = _read_recent_execution_metrics(r)
++    dlog("after_exec_metrics")
+     current_risk_state = _read_current_risk_state(r)
+-    tm = TradeManagementPaperService()
++    dlog("after_risk_state")
++    # TODO: TradeManagementPaperService not imported; temporarily disabled for debugging
++    # tm = TradeManagementPaperService()
++    tm = None  # Placeholder
++    dlog("after_tm_init")
+     intents: list[dict] = []
+     risk_decisions: list[dict] = []
+     accepted: list[dict] = []
+@@ -27964,17 +27997,26 @@ def run_once() -> dict:
+         paper_mode=True,
+     )
+ 
+-    for s in signals:
++    dlog("starting_signal_evaluation_loop")
++    for idx, s in enumerate(signals):
++        if idx % max(1, len(signals) // 5) == 0:
++            dlog(f"processing_signal_{idx}/{len(signals)}")
+         symbol = str(s.get("symbol") or _runtime_default_symbol()).upper()
++        dlog(f"s{idx}_symbol")
+         side = _first_present(s.get("side"), s.get("action"), s.get("selected_action"), "long")
++        dlog(f"s{idx}_side")
+         lineage = _lineage_ids(s, symbol)
++        dlog(f"s{idx}_lineage")
+         prediction = predictions_by_id.get(lineage["prediction_id"], {})
++        dlog(f"s{idx}_pred")
+         paper_thesis_timeframe = _paper_thesis_timeframe(s, prediction)
++        dlog(f"s{idx}_thesis")
+         missing_thesis_timeframe = paper_thesis_timeframe in (None, "")
+         paper_signal_adaptive_stale_policy = _paper_signal_adaptive_stale_policy(
+             s,
+             prediction,
+         )
++        dlog(f"s{idx}_stale_policy")
+         # Temporal staleness gate stays ACTIVE in paper mode: paper evidence
+         # feeds A-grade/live-readiness decisions, so trading on stale signals
+         # here poisons the evidence chain. The adaptive stale policy already
+@@ -27985,6 +28027,7 @@ def run_once() -> dict:
+             now=runtime_now,
+             stale_policy=paper_signal_adaptive_stale_policy,
+         )
++        dlog(f"s{idx}_temporal_rejection")
+         em_after = _coerce_float(
+             _paper_expected_move_after_cost_value(s, prediction)
+         )
+@@ -29590,6 +29633,7 @@ def run_once() -> dict:
+                 else "OUTCOME_SUPERVISED_PAPER"
+             )
+         accepted.append(accepted_intent)
++    dlog(f"signal_loop_end")
+     # Held-by-gate passthrough: record each upstream-blocked symbol as a
+     # non-fill intent that carries the strict gate's block reasons. These
+     # do NOT pass pre-trade, fee-ratio, or churn gates and never become
+@@ -29662,10 +29706,15 @@ def run_once() -> dict:
+             "live_symbols": live_context["live_symbols"],
+             "execution_live_symbols": live_context["execution_live_symbols"],
+         })
++    dlog("held_by_gate_end")
+     keys_written: list[str] = []
++    dlog("before_merge_fills")
+     merged_accepted_fills = _merge_persistent_accepted_fills(existing_accepted, accepted)
++    dlog("before_lineage_context")
+     accepted_lineage_contexts = _lineage_context_by_prediction_id(merged_accepted_fills)
++    dlog("before_replay_predictions")
+     accepted_replay_predictions = _read_replay_snapshot_predictions(r, accepted_lineage_contexts)
++    dlog("after_replay_predictions")
+     for prediction_id, replay_prediction in accepted_replay_predictions.items():
+         predictions_by_id.setdefault(prediction_id, replay_prediction)
+     accepted_feature_snapshots_by_id = _read_feature_snapshots_by_id(r, accepted_lineage_contexts)

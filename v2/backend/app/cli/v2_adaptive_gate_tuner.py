@@ -224,6 +224,84 @@ def publish_gate_tuning(redis_client: redis.Redis, tuning_state: dict) -> None:
     )
 
 
+def _compute_volatility_factor(redis_client: redis.Redis) -> float:
+    """Compute market volatility factor from recent price action."""
+    try:
+        volatility_bps = 0.0
+        price_count = 0
+        for symbol in ["BTCUSDT", "ETHUSDT", "SOLUSDT"]:
+            key = f"v2:market:candle:latest:{symbol}"
+            candle_json = redis_client.get(key)
+            if candle_json:
+                candle = json.loads(candle_json)
+                close = float(candle.get("close", 0) or 0)
+                high = float(candle.get("high", 0) or 0)
+                low = float(candle.get("low", 0) or 0)
+                if close > 0:
+                    sym_volatility = ((high - low) / close) * 10000  # in bps
+                    volatility_bps += sym_volatility
+                    price_count += 1
+
+        if price_count > 0:
+            avg_vol = volatility_bps / price_count
+            # Map volatility to factor: 0-50 bps → 0.7, 50-100 → 1.0, 100+ → 1.5
+            if avg_vol < 50:
+                return 0.7
+            elif avg_vol < 100:
+                return 1.0
+            else:
+                return 1.5
+    except Exception as e:
+        logger.debug(f"Failed to compute volatility factor: {e}")
+    return 1.0
+
+
+def _compute_trainer_performance_factor(redis_client: redis.Redis) -> float:
+    """Compute trainer performance factor from model metrics."""
+    try:
+        trainer_json = redis_client.get("v2:trainer:hybrid_cuda:metrics")
+        if trainer_json:
+            metrics = json.loads(trainer_json)
+            win_rate = float(metrics.get("win_rate_percent", 50)) / 100.0
+            profit_factor = float(metrics.get("profit_factor", 1.0))
+
+            # Trainer factor scales 0.5-1.5
+            # High performance (>60% WR, >1.5 PF) → 1.5
+            # Medium performance (50-60% WR) → 1.0
+            # Low performance (<50% WR) → 0.5
+            if win_rate > 0.60 and profit_factor > 1.5:
+                return 1.5
+            elif win_rate > 0.50:
+                return 1.0
+            else:
+                return 0.5
+    except Exception as e:
+        logger.debug(f"Failed to compute trainer performance factor: {e}")
+    return 1.0
+
+
+def _compute_portfolio_performance_factor(outcomes: dict[str, Any]) -> float:
+    """Compute portfolio performance factor from PnL and win rate."""
+    try:
+        total_pnl = float(outcomes.get("total_pnl_usd", 0))
+        win_rate = float(outcomes.get("overall_win_rate", 0.5))
+
+        # Portfolio factor scales 0.5-1.5
+        # Positive PnL and good WR → 1.5
+        # Breakeven or negative PnL → 0.5-1.0
+        if total_pnl > 0.5 and win_rate > 0.55:
+            return 1.5
+        elif total_pnl > 0 and win_rate > 0.50:
+            return 1.2
+        elif total_pnl > 0:
+            return 1.0
+        else:
+            return 0.7
+    except Exception as e:
+        logger.debug(f"Failed to compute portfolio performance factor: {e}")
+    return 1.0
+
+
 def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     """Run one iteration of adaptive gate tuning."""
     if redis_client is None:
@@ -232,6 +310,11 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
     # Analyze current state
     outcomes = analyze_paper_outcomes(redis_client)
     regime = learn_market_regime(redis_client)
+
+    # Compute performance factors
+    volatility_factor = _compute_volatility_factor(redis_client)
+    trainer_performance_factor = _compute_trainer_performance_factor(redis_client)
+    portfolio_performance_factor = _compute_portfolio_performance_factor(outcomes)
 
     # Compute adaptive thresholds
     adaptive_confidence_threshold = compute_adaptive_confidence_threshold(outcomes, regime)
@@ -252,12 +335,16 @@ def run_adaptive_tuning(redis_client: redis.Redis = None) -> dict[str, Any]:
         "enable_a_grade": enable_a_grade,
         "a_grade_ready": enable_a_grade,
         "blockers_resolved": False,  # Will be set by higher-level monitor
+        # Performance factors - critical for entry gate and other adaptive decisions
+        "volatility_factor": volatility_factor,
+        "trainer_performance_factor": trainer_performance_factor,
+        "portfolio_performance_factor": portfolio_performance_factor,
     }
 
     # Publish state
     publish_gate_tuning(redis_client, tuning_state)
 
-    logger.info(f"Adaptive tuning: confidence_threshold={adaptive_confidence_threshold}, loss_prob_threshold={loss_probability_threshold}, b_grade={enable_b_grade}, a_grade={enable_a_grade}")
+    logger.info(f"Adaptive tuning: confidence={adaptive_confidence_threshold:.2f}, loss_prob={loss_probability_threshold:.2f}, b_grade={enable_b_grade}, volatility={volatility_factor:.2f}, trainer={trainer_performance_factor:.2f}, portfolio={portfolio_performance_factor:.2f}")
 
     return tuning_state
 

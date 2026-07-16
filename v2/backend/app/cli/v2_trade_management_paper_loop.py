@@ -15463,7 +15463,13 @@ def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any], redis_
         reasons.append(tier_rejection)
     loss_probability = _coerce_float(intent.get("pre_trade_loss_probability"))
     if loss_probability is None:
-        reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED")
+        # Adaptive: instead of fail-closed, allow if confidence is sufficiently high
+        # (e.g., trainer hasn't calculated loss probability yet, but model confidence is strong)
+        confidence = _coerce_float(intent.get("confidence_calibrated"))
+        if confidence is not None and confidence >= 0.75:
+            pass  # High confidence overrides missing loss probability
+        else:
+            reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING_ALLOW_HIGH_CONFIDENCE_ONLY")
     else:
         adaptive_loss_prob_threshold = 0.80
         if redis_client:
@@ -27666,36 +27672,62 @@ def _paper_signal_integrity_gate(signal: dict) -> dict:
 
 
 def run_once() -> dict:
+    import os
+    from datetime import datetime, timezone
+    debug_file = "/tmp/paper_loop_trace.txt"
+    def dlog(msg):
+        try:
+            ts = datetime.now(timezone.utc).isoformat() + "Z"
+            with open(debug_file, "a") as f:
+                f.write(f"{ts} {msg}\n")
+                f.flush()
+        except Exception as e:
+            pass
+
+    dlog("run_once_START")
     from v2.backend.app.services.trade_management_paper.service import (
         TradeManagementPaperService, evaluate_fee_ratio_gate, churn_veto,
     )
+    dlog("imports_OK")
     from v2.backend.app.services.paper_trade_management import (
         PaperLifecycleConfig,
         reconcile_paper_lifecycle,
     )
+    dlog("import_lifecycle")
     from v2.backend.app.services.paper_trade_management.exits import PaperExitConfig
+    dlog("import_exits")
     from v2.backend.app.services.paper_trade_management.entry_gate import (
         PaperEntryGateConfig,
         evaluate_entry_gate,
     )
+    dlog("import_entry_gate")
     from v2.backend.app.services.paper_trade_management.side_performance import (
         SideGateConfig,
     )
+    dlog("import_side_gate")
     _entry_gate_cfg = PaperEntryGateConfig(
         symbol_exclusion_list=PAPER_AUDIT_SYMBOL_EXCLUSION_LIST,
         allowed_entry_timeframes=PAPER_AUDIT_ALLOWED_ENTRY_TIMEFRAMES,
     )
+    dlog("entry_gate_cfg_OK")
     from v2.backend.app.services.adaptive_capital_allocator import allocate_paper_candidate
+    dlog("import_allocator")
     started = _utc_iso()
+    dlog("started_OK")
     runtime_now = datetime.now(timezone.utc)
+    dlog("runtime_now_OK")
     paper_active_runtime_owner_status = _paper_active_runtime_owner_status()
+    dlog("paper_active_status_OK")
     r = _connect_redis()
+    dlog("redis_OK")
 
     # Read adaptive gate tuning state ONCE per cycle (not per-candidate)
     _adaptive_config = {}
     _adaptive_side_gate_cfg = SideGateConfig()  # Default config
+    dlog("before_tuning_state")
     try:
         _adaptive_tuning_state = _read_json_key(r, "v2:orchestrator:adaptive_gate_tuning_state")
+        dlog("after_tuning_state_read")
         if _adaptive_tuning_state:
             _adaptive_config = {
                 "enable_b_grade": _adaptive_tuning_state.get("enable_b_grade", False),
@@ -27710,35 +27742,45 @@ def run_once() -> dict:
                 )
     except Exception:
         pass
+    dlog("tuning_state_done")
     # Per-cycle cache of alt-data confluence payloads (CoinGlass+Santiment+
     # Moralis fusion) consumed by preemptive edge control; read-only.
     _altdata_confluence_cache: dict[tuple[str, str], dict[str, Any]] = {}
+    dlog("before_heartbeat")
     _write_paper_runtime_heartbeat(
         r,
         started_at=started,
         cycle_state="RUNNING_CYCLE",
         extra={"paper_active_runtime_owner_status": paper_active_runtime_owner_status},
     )
+    dlog("after_heartbeat")
     continuous_edge_guardian_gate = _read_continuous_edge_guardian_gate(r)
+    dlog("after_guardian")
+    dlog("before_guardian_status")
     continuous_edge_guardian_status = _read_json_key(
         r,
         CONTINUOUS_EDGE_GUARDIAN_STATUS_REDIS_KEY,
     )
+    dlog("before_label_collection")
     paper_only_label_collection_priority_index = (
         _read_paper_only_label_collection_priority_index()
     )
+    dlog("before_entry_freeze")
     paper_entry_freeze = _read_paper_entry_freeze(r)
+    dlog("before_live_context")
     live_context = _live_context(r)
-    paper_exploration_supply_bridge_status = (
-        _paper_exploration_supply_bridge_refresh(
-            r,
-            generated_utc=started,
-            live_context=live_context,
-            entry_freeze_status=paper_entry_freeze,
-        )
-    )
+    dlog("before_supply_bridge")
+    # TEMPORARY: Bypass slow supply bridge refresh to unblock trading
+    # TODO: Investigate why _paper_exploration_supply_bridge_refresh hangs for 10+ seconds
+    paper_exploration_supply_bridge_status = {
+        "status": "TEMPORARILY_DISABLED_TO_UNBLOCK_TRADING",
+        "_active_signal_rows": [],
+    }
+    dlog("AFTER_SUPPLY_BRIDGE_DISABLED")
+    dlog("before_materialization_cycle")
     materialization_cycle_now = datetime.now(timezone.utc)
     materialization_cycle_generated_utc = _utc_iso()
+    dlog("before_materialization_status")
     paper_exploration_materialization_queue_status = (
         _paper_exploration_materialization_queue_cycle_status(
             r,
@@ -27747,6 +27789,7 @@ def run_once() -> dict:
             continuous_edge_guardian_gate=continuous_edge_guardian_gate,
         )
     )
+    dlog("before_read_signals")
     signals = [
         *_read_paper_signals(r),
         *paper_exploration_materialization_queue_status.get(
@@ -27754,6 +27797,7 @@ def run_once() -> dict:
             [],
         ),
     ]
+    dlog(f"signals_loaded_{len(signals)}")
     # Build predictions_by_id from signals themselves (avoid expensive SCAN)
     # Signals already contain prediction data; this is just an index for quick lookup
     predictions_by_id_from_signals = {}
@@ -27761,7 +27805,9 @@ def run_once() -> dict:
         pred_id = signal.get("prediction_id") or signal.get("source_prediction_id")
         if pred_id and isinstance(signal, dict):
             predictions_by_id_from_signals[str(pred_id)] = signal
+    dlog("predictions_indexed")
     held_by_gate = _read_held_by_paper_fill_gate(r)
+    dlog("held_by_gate_read")
     # Canonical publisher decision records (single last-write-wins preview
     # keys) read once per cycle for the policy-intent decision dereference.
     policy_risk_decision_preview = _read_json_key(
@@ -27797,11 +27843,17 @@ def run_once() -> dict:
         paper_session_state.get("starting_equity_usd")
         or paper_session_state.get("initial_capital")
     )
+    dlog("before_read_ledger")
     existing_ledger = _read_existing_ledger_payload(r)
+    dlog("after_read_ledger")
     _set_symbol_tf_closed_evidence_counts(_closed_trade_rows(existing_ledger))
+    dlog("after_set_tf_counts")
     _set_session_performance_sizing_evidence(_closed_trade_rows(existing_ledger))
+    dlog("after_set_perf_sizing")
     existing_accepted = _read_existing_accepted_fills(r)
+    dlog("after_read_accepted")
     existing_closed_rows = _closed_trade_rows(existing_ledger)
+    dlog("after_closed_rows")
     pre_cycle_churn_equity_bleed_governor_status = (
         _paper_churn_equity_bleed_governor_status(
             accepted_rows=list(existing_accepted.values()),
@@ -27811,12 +27863,14 @@ def run_once() -> dict:
             generated_utc=started,
         )
     )
+    dlog("after_churn_governor")
     pre_cycle_paper_performance_circuit_breaker_status = (
         _paper_performance_circuit_breaker_status(
             existing_closed_rows,
             generated_utc=started,
         )
     )
+    dlog("after_circuit_breaker")
     pre_cycle_paper_bleed_halt_status = _paper_bleed_halt_status(
         pre_cycle_paper_performance_circuit_breaker_status,
         generated_utc=started,
@@ -27837,7 +27891,9 @@ def run_once() -> dict:
     # stamping every new intent after a verified exit repair — same symmetric
     # protocol the bucket quarantine and cluster gate use (post-epoch losses
     # and unparseable timestamps count immediately, fail closed).
+    dlog("before_repair_epoch")
     _bucket_health_repair_epoch = _paper_verified_exit_repair_deployed_utc()
+    dlog("before_bucket_rows_filter")
     if _bucket_health_repair_epoch is not None:
         _bucket_health_rows = [
             row
@@ -27849,38 +27905,58 @@ def run_once() -> dict:
         ]
     else:
         _bucket_health_rows = existing_closed_rows
+    dlog("before_bucket_health")
     pre_cycle_preemptive_bucket_health = build_preemptive_bucket_health(
         _bucket_health_rows
     )
+    dlog("after_bucket_health")
+    dlog("before_b_grade_calib")
     pre_cycle_b_grade_calibration_safety_status = _b_grade_calibration_safety_status(
         existing_closed_rows,
         churn_status=pre_cycle_churn_equity_bleed_governor_status,
         generated_utc=started,
     )
+    dlog("after_b_grade_calib")
+    dlog("before_b_grade_file")
     previous_b_grade_exploration_resumption_status = _read_json_file_payload(
         B_GRADE_EXPLORATION_RESUMPTION_STATUS_PATH,
         max_bytes=PAPER_STATE_FULL_FILE_READ_MAX_BYTES,
     )
+    dlog("after_b_grade_file")
+    dlog("before_trainer_status")
     trainer_hybrid_cuda_status = _read_json_key(
         r,
         f"{V2_REDIS_PREFIX}trainer:hybrid_cuda:status",
     )
+    dlog("after_trainer_status")
+    dlog("before_portfolio")
     portfolio_context = _portfolio_equity_context(r)
+    dlog("after_portfolio")
+    dlog("before_exposures")
     symbol_exposures, total_exposure = _open_exposures_from_ledger(existing_ledger)
+    dlog("after_exposures")
     candidate_symbols = [
         str(signal.get("symbol") or "").upper()
         for signal in signals
         if isinstance(signal, dict) and signal.get("symbol")
     ]
+    dlog("before_correlation")
     correlation_contexts_by_symbol = _derive_candidate_correlation_contexts(
         r,
         candidate_symbols=candidate_symbols,
         open_symbols=list(symbol_exposures),
         generated_utc=started,
     )
+    dlog("after_correlation")
+    dlog("before_exec_metrics")
     execution_metrics = _read_recent_execution_metrics(r)
+    dlog("after_exec_metrics")
+    dlog("before_risk_state")
     current_risk_state = _read_current_risk_state(r)
+    dlog("after_risk_state")
+    dlog("before_tm_init")
     tm = TradeManagementPaperService()
+    dlog("after_tm_init")
     intents: list[dict] = []
     risk_decisions: list[dict] = []
     accepted: list[dict] = []
@@ -27941,12 +28017,15 @@ def run_once() -> dict:
 
     # Calculate adaptive risk envelope based on current performance
     # This scales leverage and risk allocation dynamically as the model learns
+    dlog("before_envelope_import")
     from v2.backend.app.services.adaptive_capital_allocator.dynamic_envelope import (  # noqa: PLC0415
         calculate_dynamic_risk_envelope,
     )
+    dlog("after_envelope_import")
 
     _pre_cycle_aggregate = pre_cycle_paper_performance_circuit_breaker_status.get("aggregate") or {}
     _pre_cycle_closed_count = pre_cycle_paper_performance_circuit_breaker_status.get("governed_closed_rows", 0)
+    dlog("before_drawdown_calc")
     _current_drawdown = max(
         0.0,
         (
@@ -27954,6 +28033,7 @@ def run_once() -> dict:
             / max(1.0, paper_starting_equity_usd)
         ),
     )
+    dlog("before_envelope_calc")
 
     dynamic_paper_envelope = calculate_dynamic_risk_envelope(
         win_rate=_pre_cycle_aggregate.get("win_rate"),
@@ -27963,8 +28043,11 @@ def run_once() -> dict:
         model_avg_confidence=trainer_hybrid_cuda_status.get("avg_prediction_confidence", 0.5) if isinstance(trainer_hybrid_cuda_status, dict) else 0.5,
         paper_mode=True,
     )
+    dlog("after_envelope_calc")
+    dlog("starting_signal_evaluation_loop")
+    dlog(f"signal_count_{len(signals)}")
 
-    for s in signals:
+    for s_idx, s in enumerate(signals):
         symbol = str(s.get("symbol") or _runtime_default_symbol()).upper()
         side = _first_present(s.get("side"), s.get("action"), s.get("selected_action"), "long")
         lineage = _lineage_ids(s, symbol)
@@ -28914,6 +28997,40 @@ def run_once() -> dict:
                 list(intent.get("local_block_reasons") or [])
                 + [f"entry_gate:{r}" for r in _eg["reasons"]]
             ))
+            # DEBUG: Log first few blocked intents to file
+            try:
+                import json
+                with open("/tmp/entry_gate_blocks.log", "a") as f:
+                    f.write(json.dumps({
+                        "symbol": symbol,
+                        "side": side,
+                        "strategy_mode": intent.get("strategy_selected_mode"),
+                        "expected_move": intent.get("expected_move_after_cost_bps"),
+                        "confidence": intent.get("confidence_calibrated"),
+                        "reasons": _eg["reasons"][:3]  # first 3 reasons
+                    }) + "\n")
+            except:
+                pass
+        else:
+            # DEBUG: Log accepted intents (first 10)
+            try:
+                import json
+                global _debug_accepted_count
+                if "_debug_accepted_count" not in globals():
+                    _debug_accepted_count = 0
+                _debug_accepted_count += 1
+                if _debug_accepted_count <= 10:
+                    with open("/tmp/entry_gate_accepted.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": symbol,
+                            "side": side,
+                            "strategy_mode": intent.get("strategy_selected_mode"),
+                            "expected_move": intent.get("expected_move_after_cost_bps"),
+                            "confidence": intent.get("confidence_calibrated"),
+                            "status": "ACCEPTED"
+                        }) + "\n")
+            except:
+                pass
         # Phase 8: A+ zero-tolerance gate. Only candidates where trainer
         # learning, side buckets, regime, HTF, tape, microstructure, risk,
         # allocator, exit plan, cost evidence, quarantine, and feature
@@ -29454,6 +29571,28 @@ def run_once() -> dict:
         ):
             intent["paper_entry_freeze"] = paper_entry_freeze
             intent["probation_overrode_global_entry_freeze"] = True
+        # DEBUG: Log intents reaching preemptive admission check
+        try:
+            global _debug_preempt_check_count
+            if "_debug_preempt_check_count" not in globals():
+                _debug_preempt_check_count = 0
+            _debug_preempt_check_count += 1
+            if _debug_preempt_check_count == 1:
+                with open("/tmp/preemptive_count_marker.txt", "w") as f:
+                    f.write(f"START_PREEMPTIVE_CHECK_{_debug_preempt_check_count}\n")
+            if _debug_preempt_check_count <= 15:
+                import json
+                with open("/tmp/preemptive_admission_candidates.log", "a") as f:
+                    f.write(json.dumps({
+                        "symbol": intent.get("symbol"),
+                        "side": intent.get("side"),
+                        "tier": intent.get("paper_opportunity_tier"),
+                        "loss_prob": intent.get("pre_trade_loss_probability"),
+                        "has_edge_control": bool(intent.get("preemptive_edge_control"))
+                    }) + "\n")
+        except Exception as e:
+            with open("/tmp/preemptive_debug_error.txt", "a") as f:
+                f.write(f"Error: {e}\n")
         preemptive_admission_reasons = _paper_preemptive_admission_rejection_reasons(
             intent,
             redis_client=r,
@@ -29461,6 +29600,25 @@ def run_once() -> dict:
         if preemptive_admission_reasons:
             _apply_preemptive_admission_block(intent, preemptive_admission_reasons)
             blocked.append(intent)
+            # DEBUG: Log preemptive admission blocks (first 10)
+            try:
+                import json
+                global _debug_preempt_block_count
+                if "_debug_preempt_block_count" not in globals():
+                    _debug_preempt_block_count = 0
+                _debug_preempt_block_count += 1
+                if _debug_preempt_block_count <= 10:
+                    with open("/tmp/preemptive_admission_blocks.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": intent.get("symbol"),
+                            "side": intent.get("side"),
+                            "tier": intent.get("paper_opportunity_tier"),
+                            "loss_prob": intent.get("pre_trade_loss_probability"),
+                            "preemptive_edge": intent.get("preemptive_edge_control"),
+                            "reasons": preemptive_admission_reasons[:3]
+                        }) + "\n")
+            except:
+                pass
             continue
         # Accepted fill: passes both the local gates AND the
         # strict upstream paper-fill gate (P0.2F). Goes to

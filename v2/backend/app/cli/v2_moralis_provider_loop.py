@@ -55,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--symbol", default=os.environ.get("MORALIS_SYMBOL", "BTCUSDT"))
     parser.add_argument("--timeframe", default=os.environ.get("MORALIS_TIMEFRAME", "1m"))
     parser.add_argument("--once", action="store_true")
-    parser.add_argument("--sleep-seconds", type=float, default=60.0)
+    parser.add_argument("--sleep-seconds", type=float, default=300.0)
     args = parser.parse_args(argv)
     try:
         from v2.backend.app.services.safe_env_loader import bootstrap_process_env

@@ -1,3 +1,11 @@
+"""
+DEPRECATED: 2026-07-16
+This module is no longer used and has been replaced by v2_trade_management_paper_loop.py
+Service ai-bot-v2-paper-online-runtime.service has been disabled and stopped.
+This file is kept for reference only and should not be invoked.
+Do not enable or run this service.
+"""
+
 from __future__ import annotations
 
 import argparse

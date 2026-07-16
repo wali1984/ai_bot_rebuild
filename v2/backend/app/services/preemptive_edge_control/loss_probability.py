@@ -139,13 +139,17 @@ def evaluate_loss_probability(candidate: Mapping[str, Any]) -> dict[str, Any]:
         reasons.append("BLOCK_BUCKET_QUARANTINE")
 
     risk = round(min(1.0, max(0.0, risk)), 8)
+    # Use adaptive loss probability threshold (0.85 when B-grade enabled, 0.80 otherwise)
+    # instead of hardcoded 0.80 to respect adaptive gate tuning
+    adaptive_loss_prob_threshold = adaptive_state.get("adaptive_loss_probability_threshold", 0.80)
+    effective_block_threshold = adaptive_loss_prob_threshold if enable_b_grade else 0.80
     return {
         "pre_trade_loss_probability": risk,
         "pre_trade_profit_probability": round(1.0 - risk, 8),
         "loss_probability_reason": reasons[0] if reasons else "LOSS_PROBABILITY_BASELINE_EDGE_OK",
         "loss_probability_reasons": list(dict.fromkeys(reasons)),
         "loss_probability_confidence": 0.85 if reasons else 0.65,
-        "block": risk >= 0.80 or any(reason.startswith("BLOCK_") for reason in reasons),
+        "block": risk >= effective_block_threshold or any(reason.startswith("BLOCK_") for reason in reasons),
         "adaptive_gating_applied": enable_b_grade,
         "adaptive_confidence_threshold_used": conf_threshold if enable_b_grade else 0.70,
     }
