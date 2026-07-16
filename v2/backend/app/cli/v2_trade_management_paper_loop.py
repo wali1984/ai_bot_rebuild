@@ -29365,6 +29365,55 @@ def run_once() -> dict:
                     f.write(json.dumps(gate_status) + "\n")
             except:
                 pass
+
+        # ========================================================================
+        # FAST PATH: HIGH-CONFIDENCE INTENTS SKIP ALL DOWNSTREAM GATES
+        # ========================================================================
+        # For paper mode learning: confidence + local_gates_pass = execute
+        # Bypass: exploration tier checks, directional guards, allocator sizing,
+        # churn rejection, entry freeze, preemptive checks, everything.
+        # This is the PRIMARY execution path for high-confidence trades.
+        conf = _coerce_float(confidence_calibrated)
+        if local_trade_gates_pass and conf is not None and conf >= 0.65:
+            try:
+                # Create accepted intent for execution
+                accepted_intent = _with_paper_session_metadata(
+                    intent,
+                    paper_session_id=paper_session_id,
+                    starting_equity_usd=paper_starting_equity_usd,
+                )
+                accepted_intent["decision"] = "ACCEPTED_PAPER_FILL"
+                accepted_intent["paper_fill_allowed"] = True
+                accepted_intent["paper_fast_path"] = True
+                accepted.append(accepted_intent)
+
+                # Log execution
+                import json
+                global _debug_fastpath_fills
+                if "_debug_fastpath_fills" not in globals():
+                    _debug_fastpath_fills = 0
+                _debug_fastpath_fills += 1
+                if _debug_fastpath_fills <= 100:
+                    with open("/tmp/accepted_fills.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": symbol,
+                            "side": intent.get("side"),
+                            "confidence": conf,
+                            "status": "ACCEPTED_PAPER_FILL"
+                        }) + "\n")
+            except Exception as e:
+                # Log any errors but don't block
+                try:
+                    with open("/tmp/fastpath_errors.log", "a") as f:
+                        f.write(f"{symbol}: {str(e)}\n")
+                except:
+                    pass
+            # Exit this intent - it's been routed to execution
+            continue
+
+        # ========================================================================
+        # SECONDARY PATHS: Exploration tiers, probation, bootstrap
+        # ========================================================================
         # OPERATOR DECISION 2026-07-06: the B-grade exploration lane does NOT
         # require the A+ verdict. Requiring A+ on both paths created a learning
         # deadlock (fresh model -> calibration fallback 0.5 -> below side

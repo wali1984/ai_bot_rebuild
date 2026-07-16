@@ -1,0 +1,106 @@
+{
+  "analyzers": {
+    "python_generator_sha256": "7a2b8e24919b5c180b58250dea836c66a0689a231b1850608675449c8445b3c4",
+    "typescript_builder_sha256": "29f05b90d6d96d2ca36d1ba7b0b7c395ce162cd7a52cc22876cfc09a82d517a2",
+    "typescript_parser": "typescript@5.6.2"
+  },
+  "artifacts": [
+    {
+      "name": "API_ROUTE_REGISTRY.json",
+      "sha256": "e3ad2a2f289ae97d42272013704acd5e1ca9fbf73e3e71ee53d8d977557d3f73",
+      "size_bytes": 271227
+    },
+    {
+      "name": "ATLAS_METADATA.json",
+      "sha256": "c1a3eded20d6a392079ea3e813823c4bd6299f2dbbf95595acef6acda6d38e72",
+      "size_bytes": 16887
+    },
+    {
+      "name": "ATLAS_SUMMARY.md",
+      "sha256": "e4371c2b6c231576b15fdc640eaee0ddaba20e1c1fa1f6d74d4ea697662640b6",
+      "size_bytes": 7185
+    },
+    {
+      "name": "CHANGE_IMPACT_INDEX.json",
+      "sha256": "70dfaaba86b73f5b2189ffa74e6716a74f4d838d2217240dcb2dfb3902c5d962",
+      "size_bytes": 147165987
+    },
+    {
+      "name": "CONFIG_ENV_REGISTRY.json",
+      "sha256": "b33e9dbfa0539ec72f8a1c13217579c86da3d212cf2faa2ea946402f9135944b",
+      "size_bytes": 2790045
+    },
+    {
+      "name": "DATA_CONTRACTS.json",
+      "sha256": "1069a0f49474400faf194198353231748a83a19714bdbc96425b16675476484e",
+      "size_bytes": 3099379
+    },
+    {
+      "name": "DATA_CONTRACT_FIELD_REGISTRY.json",
+      "sha256": "23d513246e244f99503dc85832b69004e866451701aa45db05cc92c47586ccff",
+      "size_bytes": 90514050
+    },
+    {
+      "name": "ENTRYPOINT_SERVICE_REGISTRY.json",
+      "sha256": "b5dd2837274891b0ec2a38e3ae11cac2768c39fa206718ae697cfbb7a078774f",
+      "size_bytes": 683866
+    },
+    {
+      "name": "EXCHANGE_MUTATION_REFERENCE_REGISTRY.json",
+      "sha256": "7b1d605dfd4c770064f2bf5ef95fb95b64fce5cbfd79b8418174b4b3ad3d47ac",
+      "size_bytes": 32401
+    },
+    {
+      "name": "FILE_MODULE_CATALOG.json",
+      "sha256": "9bb969d3986278dd19117656e301d7045137a71b39d4374970fa05c28f00bb87",
+      "size_bytes": 16112310
+    },
+    {
+      "name": "MODULE_BY_MODULE_INDEX.md",
+      "sha256": "08d0a8216e14590b6c0b0b573ecf256c4e22cf497af017d54e6cd23467bf2d85",
+      "size_bytes": 686557
+    },
+    {
+      "name": "PYTHON_CALL_GRAPH.json",
+      "sha256": "12df3e1fc0f804f06b68a081cc374b19d9b82eef976a01b864a23648e55443ec",
+      "size_bytes": 42132997
+    },
+    {
+      "name": "PYTHON_IMPORT_GRAPH.json",
+      "sha256": "3e6435d0db3ffe0e68b344d21aff2c309b1034d6d9c91a07f41dfc9138288788",
+      "size_bytes": 7249322
+    },
+    {
+      "name": "PYTHON_SYMBOL_CATALOG.json",
+      "sha256": "ed072e1845f52c50f38d25e896c54fcd8d332ad3048a83fcbf196ba034bf2e5e",
+      "size_bytes": 28598913
+    },
+    {
+      "name": "REDIS_KEY_USAGE_REGISTRY.json",
+      "sha256": "a670f75ffad38750426a52834a368643a69db2667885f35f99e68961df199753",
+      "size_bytes": 2828739
+    },
+    {
+      "name": "SWIFT_SYMBOL_CONTRACT_CATALOG.json",
+      "sha256": "5659bba316588f1835af823545fae1967bfde1e27a93fc9da991988fcea3189f",
+      "size_bytes": 684845
+    },
+    {
+      "name": "TYPESCRIPT_JAVASCRIPT_ATLAS.json",
+      "sha256": "d61b454f12012fec3f59c392c900e151d08b64cdbafa46229bb979c0a760ed28",
+      "size_bytes": 17118936
+    }
+  ],
+  "atlas_schema_version": 2,
+  "generated_at": "2026-07-16T09:38:22.668289Z",
+  "publication_rule": "All listed artifacts are staged in one sibling directory, then the complete directory is swapped by same-filesystem rename. Failed promotion attempts restore the prior directory; if restoration also fails, its recovery directory is preserved and reported. Readers must reject an absent or hash-mismatching generation and retry.",
+  "regeneration_command": "python3 tools/build_system_reverse_engineering_atlas.py --repo-root . --out-dir docs/system_audit_2026_master/atlas",
+  "schema_version": 1,
+  "source": {
+    "cataloged_path_count": 9272,
+    "git_head_end": "2dd584d632790c54c1054f7c4453cb9d36d0987c",
+    "git_head_start": "2dd584d632790c54c1054f7c4453cb9d36d0987c",
+    "git_tracked_path_count": 9272,
+    "snapshot_consistent": true
+  }
+}

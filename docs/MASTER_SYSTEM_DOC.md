@@ -1,326 +1,132 @@
-# AI BOT V2 — Master System Document
+# AI Bot V2 master system document
 
-**Generated:** 2026-06-23 | **Branch:** codex/pipeline-trust-refresh | **Status:** NON-LIVE. PAPER ONLY. LIVE TRADING: BLOCKED.
+**Current documentation cut:** 2026-07-16
 
----
+**Mode observed:** paper/shadow; live transport disarmed but present in source
 
-## 1. Mission
+**Decision:** NO-GO for live trading and NO-GO for using current paper results as clean promotion evidence.
 
-Build a GUI-first, fully auditable trading control platform (V2) that replaces the legacy bot without touching its live runtime. Target: 90%+ win-rate signal quality, zero liquidation, compounding toward 1000x equity over time. Survival and auditability come before returns.
+This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
----
+Older June/July documents remain historical snapshots. They are not current when they claim one trainer, read-only V2 APIs, operational SQL persistence, risk as final paper authority, no order transport, or the earlier service/module/test counts.
 
-## 2. Active Codex Agents (as of 2026-06-23)
+## System identity
 
-| Agent | Goal | Touch zones — do NOT conflict |
-|---|---|---|
-| Codex Agent 1 | 90%+ win-rate / 1000x trainer quality | v2_trade_management_paper_loop.py, trainer bridge, signal publisher, goal_state/V2_CONTINUOUS_90P_* |
-| Codex Agent 2 | Website + iOS redesign (NerVyx theme) | v2/frontend/, v2/mobile/, docs/nervyx-* |
+AI Bot V2 is a Redis-centered distributed crypto trading research platform. On the audited workstation it comprises market/provider ingestion, temporal feature assembly, a native GPU policy/trainer, prediction/signal publication, orchestration, risk records, paper execution/lifecycle/accounting, portfolio/guardian/feedback loops, a FastAPI backend, React/Vite web client, SwiftUI/watch/CLI clients and a large autonomous operations/evidence layer.
 
-Codex config (`.codex/config.toml`): `approval_policy = never`, `sandbox_mode = danger-full-access`. These agents have FULL repo access with no approval gates. Any change they make is immediate.
+It is not reproducible from a Git clone alone. Effective systemd units/drop-ins, mutable runtime/model/replay data, Redis state/config, local auth, ignored frontend build, machine packages/CUDA and Cloudflare provider-side routing are also required.
 
----
+## Verified scale
 
-## 3. System Architecture
+- 9,272 tracked paths in the content-revalidated atlas snapshot.
+- 3,213 parsed Python modules; 32,272 Python symbols.
+- 3,334 TypeScript/JavaScript and 693 Swift symbols.
+- 25,389 Python import edges and 161,112 call references retained.
+- 1,807 declared data/schema contracts and 39,538 field names.
+- 2,918 environment-key names, 2,040 Redis patterns and 905 API definition/reference records.
+- 157 installed `ai-bot*` user units at the earlier operations snapshot; 81 services running, 36 active timers and 3 failed services. The direct recheck found 156 installed basenames and 35 active timers, confirming deployed topology is mutable.
+- Current OpenAPI snapshot: 189 paths/193 HTTP operations, plus seven mounted WebSocket paths outside OpenAPI.
+- Redis snapshot: about 1.11 million keys and 31 GiB against a 32 GiB `allkeys-lru` limit, RDB-only/AOF disabled.
+- Native model contract: 477 ordered features × values/missing/stale/availability = 1,908 inputs.
 
-### 3.1 Codebase Map
+## Architecture
 
-```
-/home/wali/Desktop/AI BOT REBUILD/
-├── legacy_reference/      # READ-ONLY. The old bot. Never edit.
-├── v2/
-│   ├── backend/           # FastAPI backend (943 .py files)
-│   │   ├── app/
-│   │   │   ├── api/v1/    # V1 API routes (28/79 are stub skeletons)
-│   │   │   ├── api/v2/    # V2 API routes (real implementations)
-│   │   │   ├── api/middleware/ # 10-layer middleware stack
-│   │   │   ├── cli/       # 226 CLI worker scripts
-│   │   │   ├── adapters/  # Redis, trainer, exchange, DB adapters
-│   │   │   ├── services/  # Business logic
-│   │   │   └── auth/      # Auth, RBAC, session security
-│   │   └── tests/         # 1419 test files
-│   ├── frontend/          # React/Vite frontend (66 pages, 389 .ts/.tsx files)
-│   ├── mobile/            # SwiftUI iOS/iPadOS/watchOS app (54 Swift files)
-│   └── workers/           # Stub launcher dirs (actual code in cli/)
-├── claude_worklog/        # Audit logs, task tracking, evidence
-├── goal_state/            # Active Codex goal state directories
-├── legacy_owned_runtime/  # GITIGNORED. Live bot runtime data.
-└── docs/                  # Documentation (you are here)
-```
+```text
+exchange/provider readers
+  → Redis market/provider truth
+  → closed-candle/native feature/TA/context snapshot
+  → 477-field + masks tensor
+  → native policy/trainer/checkpoint
+  → prediction/replay/archive publication
+  → all-timeframe publisher
+  → orchestrator proposal
+       ├─→ risk ALLOW/DENY record
+       └─→ paper signal
+  → paper trade-management/lifecycle/accounting
+  → positions/portfolio/guardian/outcome/replay/feedback
 
-### 3.2 Backend Stack
+FastAPI REST/WebSocket/static → React/Vite + SwiftUI/watch/CLI
 
-- **Framework:** FastAPI + uvicorn (py3.11+)
-- **Database:** SQLite via SQLAlchemy + Alembic migrations. Path: `v2/backend/v2_paper_trading.db`
-- **Redis:** Shared instance with legacy bot. V2 writes ONLY to `v2:` prefix namespace. Never writes to legacy keys.
-- **Auth:** Cookie-based session tokens, RBAC with roles: viewer, admin, superadmin
-
-### 3.3 Middleware Stack (outermost to innermost)
-
-1. **RequestIdMiddleware** — attach X-Request-ID to every request
-2. **IpAllowlistMiddleware** — IP-based gating
-3. **RateLimitMiddleware** — request rate limiting
-4. **StepUpMfaMiddleware** — MFA for dangerous admin actions
-5. **RbacMiddleware** — role-based access control enforcement
-6. **IdempotencyMiddleware** — dedup repeat requests
-7. **LineageValidatorMiddleware** — signal lineage chain enforcement
-8. **ApprovalMiddleware** — human approval gate for sensitive ops
-9. **LiveBlockGuardMiddleware** — **blocks ALL `/api/v1/live/**` with HTTP 403 at all times**
-10. **DbErrorTranslatorMiddleware** — translate DB errors to structured API errors
-
-Source: `v2/backend/app/api/middleware/__init__.py`
-
-### 3.4 Frontend Stack
-
-- **Framework:** React + TypeScript + Vite
-- **Pages:** 66 pages covering all CLAUDE.md required pages
-- **Routing:** React Router v6 (see `v2/frontend/src/router.tsx`)
-- **Theme:** NerVyx Midnight Neural (active Codex Agent 2 redesign)
-
-### 3.5 Mobile Stack
-
-- **Platform:** SwiftUI — iOS, iPadOS, watchOS
-- **Files:** 54 Swift files in `v2/mobile/`
-- **Backend endpoints:** 10 routes at `/api/v2/mobile/*`
-- **Status:** TestFlight build 5 uploaded (App Store icons fixed 2026-06-22)
-
-### 3.6 Trainer Integration Boundary
-
-- **Rule:** V2 NEVER directly imports the legacy trainer runtime. Subprocess boundary only.
-- **Adapter:** `v2/backend/app/adapters/trainer/subprocess_adapter.py`
-- **Safety checks in adapter:** path validation, forbidden shell metacharacters (`;|&&$(``), env allowlist enforcement, configurable timeout, full audit event emission on every call
-- **Redis writes:** adapter enforces zero writes to legacy Redis keys. Legacy reads are read-only via explicit helpers.
-
-### 3.7 Redis Namespace Strategy
-
-| Prefix | Owner | Mode |
-|---|---|---|
-| `v2:` | V2 backend | Read + Write |
-| (legacy keys) | Legacy bot | Read-only from V2 |
-
----
-
-## 4. API Surface
-
-### 4.1 V1 API — /api/v1/ (Partial stub)
-
-28 of 79 route files are `milestone_d_status = skeleton`: OPTIONS-only shims that return route metadata but no real data.
-
-**Stub routes (no real handler bodies):**
-`accounts`, `audit`, `auth`, `claude_admin`, `codex_review`, `decisions`, `discovery`, `evidence`, `exchanges`, `features`, `fleet`, `governance`, `health`, `ingestors`, `intents`, `live_mode`, `live_readiness`, `mission_control`, `monitor`, `ollama_assistant`, `paper`, `predictions`, `replay`, `risk`, `risk_decisions`, `selection`, `signals`, `universe`
-
-**Real routes (V2 layer or auth_rbac):**
-- `/api/auth/login`, `/api/auth/logout`, `/api/admin/*` — full implementation in `auth_rbac.py`
-- `/api/v2/*` — market contracts, pipeline control, landing
-- `/api/v2/mobile/*` — 10 mobile endpoints
-
-### 4.2 Live Block — Permanent Default
-
-**`/api/v1/live/**` is permanently blocked with HTTP 403** enforced in middleware layer 9. This is code-level enforcement, not config — a config change alone cannot bypass it. Response: `{"error": {"class": "live.blocked_default", "message": "Live mode is blocked by default.", "details": {"banner": "LIVE TRADING: BLOCKED"}}}`.
-
----
-
-## 5. Worker Inventory (Key Workers)
-
-All 226 CLI worker scripts live in `v2/backend/app/cli/`. Workers are started via launcher stubs in `v2/workers/` subdirectories.
-
-| Worker | Purpose | Status |
-|---|---|---|
-| `v2_trade_management_paper_loop.py` | Paper trade lifecycle, B-grade quality telemetry | Active — Codex Agent 1 today |
-| `v2_risk_gateway_runtime_worker.py` | Risk gate enforcement | Running |
-| `v2_feature_snapshot_builder.py` | Feature pipeline assembly | Running |
-| `v2_trainer_bridge.py` | Subprocess trainer adapter | Running |
-| `v2_signal_publisher.py` | Signal publication to Redis | Running |
-| `v2_market_ingestor.py` | Market data ingestion | Running |
-| `v2_native_trainer_prediction_publisher.py` | Prediction publication | Running |
-| `v2_paper_execution_worker.py` | Paper-mode execution | Running |
-| `v2_script_monitor.py` | Health monitor for all other workers | Running |
-
----
-
-## 6. Goal State — Current Blockers
-
-### Primary Goal: 90%+ A-grade edge, zero liquidation, 1000x compounding release
-
-**Status: BLOCKED** (source: `goal_state/V2_CONTINUOUS_90P_A_GRADE_EDGE_ZERO_LIQUIDATION_AND_1000X_COMPOUNDING_RELEASE/CURRENT_BLOCKERS.json`)
-
-1. **HOLDOUT_EVIDENCE_ACQUISITION_BLOCKED** — Need ≥50,000 point-in-time-valid predictions before release. Currently: 0 countable untouched holdout rows.
-2. **ALL_HOLDOUT_CANDIDATES_REJECTED** — 39,356 rows reviewed; 38,737 rejected (DYNAMIC_BUCKET_NOT_A_GRADE_ELIGIBLE); 39,356 rejected (NO_PRE_REGISTERED_HOLDOUT_WINDOW)
-3. **INSUFFICIENT_UNTOUCHED_HOLDOUT_SYMBOL_COVERAGE** — needs ≥100 symbols; currently 0
-
-**Codex Agent 1 work today (2026-06-23):** Added B-grade paper quality telemetry to `v2_trade_management_paper_loop.py` — directional accuracy, Brier score, ECE, MAE, precision/recall by symbol/timeframe/side/strategy/regime/confidence bucket. Explicitly marked as non-A-grade, non-promotable, not live-ready evidence. ✅
-
----
-
-## 7. Safety Gates
-
-### Hard Code-Level Safety (cannot be bypassed by config)
-
-| Gate | Location | Enforces |
-|---|---|---|
-| LiveBlockGuardMiddleware | `api/middleware/live_block_guard.py` | 403 all `/api/v1/live/**` requests |
-| LIVE_GATE_BLOCKED constant | `v2_trade_management_paper_loop.py:25` | Paper loop checks gate at every intent |
-| SubprocessTrainerAdapter | `adapters/trainer/subprocess_adapter.py` | Subprocess boundary, no direct legacy import |
-| V2_MODE default | `app/settings.py` | Defaults to `paper`, never `live` |
-| LIVE_APPROVAL_TOKEN | `app/settings.py` | Required for any gate flip |
-
-### Operations Requiring Explicit Human Approval (L4/L5 gate)
-
-- Enable live trading
-- Activate live exchange API keys
-- Increase max position size or daily loss limits
-- Disable kill switch or mandatory stop
-- Enable hedge/DCA/ADJUST_LEVERAGE modes
-- Flip V2_MODE from paper to live
-
----
-
-## 8. Audit Findings — Issues & Gaps
-
-### 8.1 CRITICAL: 3002 node_modules Files Tracked in Git
-
-`v2/frontend/node_modules/` has 3002 files committed to git. `.gitignore` updated 2026-06-23. Git history remains bloated until operator runs cleanup:
-
-```bash
-git rm -r --cached v2/frontend/node_modules/
-git commit -m "chore: remove node_modules from git tracking"
+Dormant guarded branch → Binance WebSocket order.place
 ```
 
-### 8.2 HIGH: SQLite Databases Tracked in Git
+## Temporal contract
 
-Three `.db` files are tracked (runtime artifacts, not source):
-- `leases.db` at root
-- `v2/backend/v2_paper_trading.db`  
-- `claude_worklog/final_readiness/v2_closed_loop_spark/state/leases.db`
+The following are never interchangeable:
 
-`.gitignore` updated with `*.db`, `*.db-wal`, `*.db-shm`. Operator cleanup:
+- `event_time`: source event occurred;
+- `ingested_at`: system received/persisted it;
+- `available_at`: exact value became safe to use;
+- `generated_at`: derived record was computed;
+- `feature_cutoff`: newest information represented;
+- `decision_time`: policy decision was fixed;
+- `execution_time`: paper/live materialization occurred.
 
-```bash
-git rm --cached leases.db v2/backend/v2_paper_trading.db
-git rm --cached "claude_worklog/final_readiness/v2_closed_loop_spark/state/leases.db"
-git commit -m "chore: remove sqlite databases from git tracking"
-```
+All contributing availability and final candle close times must be no later than decision time; MASA cutoff must be no later than PPO decision time; decision must be no later than execution. The canonical candle/trust modules enforce much of this. Current external feature enrichment does not preserve/check every contributing source envelope, so end-to-end point-in-time proof is incomplete.
 
-### 8.3 HIGH: 356 Log Files Tracked in Git
+## Current model/training truth
 
-`claude_worklog/final_readiness/v2_closed_loop_execution/latest/logs/` has 356 `.log` files tracked. Largest: 48MB, 16MB, 12MB. `.gitignore` updated with `*.log`. Operator cleanup:
+The native network is a residual PyTorch policy with optional attention/GRU and policy/value/expected-move/confidence/MASA heads. Active config used larger width/depth than source defaults. Inference selects only hold/long/short from the seven-action head. MASA is one learned auxiliary scalar blended with a deterministic adapter, not a multi-agent system.
 
-```bash
-git ls-files "*.log" | xargs git rm --cached
-git commit -m "chore: remove log files from git tracking"
-```
+The trainer is a hybrid PPO-shaped/supervised implementation. It requires on-policy entry fields when using the PPO term, but advantage is immediate reward minus old value; gamma/done do not create GAE/discounted trajectory returns. Its clipped ratio does not prove that old and new probabilities describe the same behavior action or probability transformation; a supervised single-direction guard can substitute hold for a taken long/short target. AdamW is recreated, optimizer state is not checkpointed, and direct output-head nudges occur after gradient updates.
 
-### 8.4 MEDIUM: 28 V1 API Routes Are Stub Skeletons
+Training evidence has current blockers: external temporal lineage gaps, masked/missing-trust exceptions, a signed-direction replay label defect, transaction-cost disagreement, holdout not enforced by the main loader, architecture rather than weight identity, and archive/replay publication failure that can still leak downstream lineage. The active GRU windower also falls back to incoming list index because `TrainingExample` lacks a top-level `decision_time`; after source/PPO reordering, a target can receive a frame whose real nested decision time is later, which is future leakage.
 
-All 28 V1 routes (`/api/v1/`) are OPTIONS-only scaffolds — no real data flows through them. Frontend pages backed by these routes (Monitor Center, Signal Explainability, Risk Control, Paper Trading, etc.) may be rendering mock or empty data.
+## Current decision/execution truth
 
-**Impact on 90%+ win-rate goal:** If prediction/signal/paper-trade data doesn't reach the frontend, the monitoring loop is broken and operator cannot verify progress.
+The orchestrator creates a provisional risk ID and paper flag before gateway evaluation. The gateway may write a real `DENY`; paper dereference records it, but ordinary A-grade admission tests ID existence plus local pre-trade rather than requiring action `ALLOW`.
 
-### 8.5 MEDIUM: Redis V2 Adapter Is a Stub
+The active paper loop also contains confidence overrides. At confidence ≥0.65 a fast path accepts and continues before tier/upstream enforcement, direction, sizing, churn, portfolio freeze, preemptive admission, fill invariant, accounting annotations and PPO entry stamping. Higher thresholds relax additional gates. One fee override writes a frozen dataclass and causes runtime exceptions.
 
-`v2/backend/app/adapters/redis_v2/client.py` and `streams.py` are placeholder files with no implementation. Workers likely bypass this adapter and use raw Redis — meaning the `v2:` namespace enforcement is not uniformly guaranteed.
+Therefore current paper fills are research artifacts until individually classified by risk action, admission path, temporal completeness, invariant/position state, label/cost version, durability and PPO-field completeness.
 
-### 8.6 MEDIUM: 423 Bare `except Exception:` in CLI Workers
+## Live boundary
 
-123 CLI worker files have bare exception handlers (423 occurrences). Documented cases (`# noqa: BLE001`) are intentional loop-continuations. Undocumented ones silently swallow errors, making failures invisible to monitoring.
+No active authorized real submitter was observed; release mode was effectively non-live and live gate disarmed. Real Binance order transport and dormant callers exist, including a runtime whose transport call defaults non-dry-run. Any edit/enablement of live/order/cancel/modify behavior requires explicit operator approval and a new safety audit.
 
-Top undocumented offenders:
-- `v2_market_ingestor.py` — 5 occurrences  
-- `v2_prediction_signal_natural_language_explainer.py` — 4
-- `v2_dynamic_symbol_discovery_free_tier.py` — 4
-- `v2_operator_review_publisher.py` — 3
+## Deployment/operations truth
 
-### 8.7 LOW: No CORS Middleware in FastAPI Stack
+- Effective backend: four Uvicorn workers, `127.0.0.1:8000`, mutable repo source, stacked user-systemd drop-ins overriding an older release symlink.
+- Effective frontend: Vite preview, `0.0.0.0:5173`, ignored prebuilt `dist`; source edits are not deployed until a controlled build.
+- Installed and versioned unit sets diverge; eight units have invalid unquoted path-with-spaces `PYTHONPATH`; some services mask child failures.
+- Persistent/offline trainers and duplicate portfolio publishers are concurrently active.
+- Two destructive retention policies conflict. At the `2026-07-16T08:32:41Z` observation, the failed 100 GiB rollover still had an enabled active persistent six-hour timer, while the 15-minute 300 GiB/five-day janitor was already running without `--dry-run`. Its `08:27:21Z` status recorded ten temporary holdout files deleted, so evidence preservation was actively racing retention automation; repairing the rollover would let its existing timer invoke the harsher policy.
+- Redis is near its limit without discovered HA/tested restore.
+- The central application/paper ORM and Alembic plane is uninitialized, while optional user/revocation/alert/trader-account SQL repositories are implemented but can create tables outside Alembic. The observed deployment used local JSON, Redis, files and one separate closed-loop SQLite WAL database instead.
+- Auth/security middleware is mostly pass-through; route dependencies protect some handlers; four workers can race on local JSON state.
+- Tunnel credential handling is unsafe and provider-side routing is not captured locally.
+- Backend/frontend CI and dependency manifests are incomplete; full tests are unsafe against current live-like workspace state.
 
-The 10-layer middleware stack has no `CORSMiddleware`. Acceptable if nginx handles CORS for the production domain. Verify: nginx at `dashboard.wajidali.us` must add CORS headers for `/api/*` so the iOS app and any third-party tool can reach the API.
+## Canonical documents
 
-### 8.8 LOW: Root-Level Artifact Clutter
+- [Full master audit](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md)
+- [Operator manual](system_audit_2026_master/AI_BOT_V2_MASTER_OPERATOR_MANUAL.md)
+- [Technical reference](../v2/docs/V2_SYSTEM_TECHNICAL_REFERENCE.md)
+- [Findings/risk register](system_audit_2026_master/CURRENT_FINDINGS_AND_RISK_REGISTER.md)
+- [Validation and limitations](system_audit_2026_master/VALIDATION_AND_LIMITATIONS_2026-07-16.md)
+- [Historical artifact classification](system_audit_2026_master/HISTORICAL_ARTIFACT_CLASSIFICATION.md)
+- [Rebuild blueprint](system_audit_2026_master/REBUILD_BLUEPRINT.md)
+- [Runtime/deployment internals](system_audit_2026_master/components/RUNTIME_PROCESS_AND_DEPLOYMENT.md)
+- [Temporal data/features](system_audit_2026_master/components/DATA_TEMPORAL_LINEAGE_AND_FEATURES.md)
+- [Trainer/PPO/MASA/replay/checkpoints](system_audit_2026_master/components/TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md)
+- [Decision/risk/paper/live execution](system_audit_2026_master/components/DECISION_RISK_PAPER_AND_LIVE_EXECUTION.md)
+- [API/auth/storage/web/mobile](system_audit_2026_master/components/API_AUTH_STORAGE_WEB_AND_MOBILE.md)
+- [Config/contracts/change impact](system_audit_2026_master/components/CONFIG_KEYS_CONTRACTS_AND_CHANGE_IMPACT.md)
+- [Function-level atlas summary](system_audit_2026_master/atlas/ATLAS_SUMMARY.md)
+- [One-row-per-module index](system_audit_2026_master/atlas/MODULE_BY_MODULE_INDEX.md)
+- [Exact audit command/tool ledger](system_audit_2026_master/COMMANDS_RUN.md)
 
-Many large audit JSONs, pass/evidence run directories, and runtime status files are at repo root. `.gitignore` updated 2026-06-23 to prevent new additions. Existing tracked artifacts that should be moved or removed:
+## Change protocol
 
-- `QUARANTINE_REVIEW_20260612_*.md` and `.targets.json`
-- `PASS2A_*.md`, `PASS2B_*.md`, `PASS4A_*.md`
-- `PIPELINE_TRUST_AUDIT.md`, `PIPELINE_TRUST_VERIFICATION.md`
-- `PUBLISHER_PROOF_BLOCKERS_*.md`, `PUBLISHER_PROOF_RESULT_*.md`
-- Large legacy inventory JSONs: `legacy_hybrid_trainer_*.json`, `trainer_*.json`
-- `pass2b_edge_proof/`, `pass3*_*/` directories
-- `publisher_proof/` directory
+Before any change:
 
----
+1. find the exact symbol/key/field/config/route/unit in the atlas;
+2. read direct and recursive callers/importers plus dynamic state consumers;
+3. identify temporal, model, risk, position, persistence and client implications;
+4. compare effective installed units/drop-ins, not only tracked files;
+5. isolate tests from current Redis/paper/auth/runtime state;
+6. preserve evidence and rollback;
+7. obtain explicit approval for strategy, PPO, MASA, risk, live execution or destructive retention;
+8. regenerate the atlas and update docs after implementation.
 
-## 9. Codex Behavior Audit — Intentional Bugs Check
-
-**Verdict: No intentional sabotage or goal-blocking code found.**
-
-Reviewed:
-- `LiveBlockGuardMiddleware` — correctly enforces 403 on all live paths ✅
-- `v2_trade_management_paper_loop.py` — LIVE_GATE_BLOCKED enforced at every intent, no live execution paths ✅  
-- `subprocess_adapter.py` — properly blocks direct runtime import, shell metacharacter injection, and Redis writes ✅
-- B-grade telemetry added 2026-06-23 — correctly marked non-A-grade, non-promotable, no live implications ✅
-
-**Structural debt Codex has been building around rather than filling:**
-
-1. V1 API stubs remain after many sprints. Codex has been building CLI workers instead of wiring the API layer. Frontend may be operating on mocked data for the dashboards it needs most.
-2. Redis V2 adapter stub means namespace isolation is not uniformly enforced — a risk if workers accidentally write to legacy keys.
-
-These are architectural debts, not intentional bugs. They block the monitoring loop needed to verify the 90%+ target.
-
----
-
-## 10. Repo Cleanliness — Changes Made 2026-06-23
-
-### .gitignore Additions
-
-| Pattern | Reason |
-|---|---|
-| `node_modules/`, `**/node_modules/` | 3002 frontend files tracked |
-| `*.db`, `*.db-wal`, `*.db-shm` | SQLite runtime files tracked |
-| `*.log` | 356 log files tracked |
-| `worker_pool_status.json` | Runtime status file |
-| `operator_dashboard_payload.json` at root | Runtime artifact |
-| `legacy_hybrid_trainer_*.json` | Large regeneratable audit JSONs |
-| `pass2b_edge_proof/`, `pass3*_*/`, etc. | Audit run snapshots |
-| `goal_state/*/operator_dashboard_payload.json` | Runtime payloads up to 35MB each |
-
-### Pending Operator Cleanup
-
-All three actions below affect currently tracked files — they must be confirmed by operator before execution.
-
-1. `git rm -r --cached v2/frontend/node_modules/` (3002 files)
-2. `git rm --cached leases.db v2/backend/v2_paper_trading.db` (2 db files)
-3. `git ls-files "*.log" | xargs git rm --cached` (356 log files)
-
----
-
-## 11. Live Readiness Gate Summary
-
-**Status: BLOCKED — multiple gates unmet**
-
-| Gate | Required | Current |
-|---|---|---|
-| Holdout predictions (A-grade) | ≥50,000 | 0 countable |
-| Holdout symbol coverage | ≥100 | 0 countable |
-| A-grade model quality | Required | B-grade only |
-| Paper soak | In progress | Running |
-| V1 API completeness | All routes real | 28 stubs |
-| Redis V2 adapter | Real implementation | Stub |
-| CORS verification | Confirmed | Unverified |
-
----
-
-## 12. Key File Locations
-
-| Concern | File |
-|---|---|
-| Live block middleware | `v2/backend/app/api/middleware/live_block_guard.py` |
-| Trainer subprocess adapter | `v2/backend/app/adapters/trainer/subprocess_adapter.py` |
-| V2 settings + env vars | `v2/backend/app/settings.py` |
-| RBAC auth routes | `v2/backend/app/api/auth_rbac.py` |
-| Paper trade loop (Codex Agent 1) | `v2/backend/app/cli/v2_trade_management_paper_loop.py` |
-| Risk gateway worker | `v2/backend/app/cli/v2_risk_gateway_runtime_worker.py` |
-| Frontend router | `v2/frontend/src/router.tsx` |
-| iOS app | `v2/mobile/` (54 Swift files) |
-| Codex config | `.codex/config.toml` |
-| Agent rules | `AGENTS.md` |
-| Current goal blockers | `goal_state/V2_CONTINUOUS_90P_A_GRADE_EDGE_ZERO_LIQUIDATION_AND_1000X_COMPOUNDING_RELEASE/CURRENT_BLOCKERS.json` |
-| This document | `docs/MASTER_SYSTEM_DOC.md` |
+The full machine-level answer to “what will this small function affect?” is `docs/system_audit_2026_master/atlas/CHANGE_IMPACT_INDEX.json`, joined with the Redis/config/data/API/entrypoint registries and the effective runtime snapshot.

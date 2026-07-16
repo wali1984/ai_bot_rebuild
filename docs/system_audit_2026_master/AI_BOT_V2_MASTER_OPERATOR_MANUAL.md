@@ -1,837 +1,733 @@
-# AI BOT V2 — Master Operator Manual
-Generated: 2026-07-01T22:56:31Z
-Operator: Wali
+# AI Bot V2 master operator manual
 
----
+**Updated:** 2026-07-16
 
-## 1. System Overview
+**Audience:** operator/SRE/developer maintaining the audited workstation
 
-AI BOT V2 is a **non-live** algorithmic trading research platform. It ingests market data from multiple providers, builds features, trains a GPU-native reinforcement learning model (PPO + MASA), generates predictions, and paper-trades those predictions to collect outcomes and refine the model. **Live trading is permanently blocked until explicit operator approval.**
+**Default stance:** observe first, preserve state, fail closed, keep live trading disarmed.
 
-Current mode: **PAPER / SHADOW ONLY** — no real orders, no real money at risk.
+This is the safe operating manual for the current system. It reflects the deployed workstation, not merely checked-in service files. Commands are run from `/home/wali/Desktop/AI BOT REBUILD` unless an absolute path is shown.
 
----
+## 1. Non-negotiable safety rules
 
-## 2. Architecture Diagram
+1. **Do not enable, arm or test real order submission from this manual.** Real Binance order transport exists even though no authorized submitter was active at audit time.
+2. **Do not edit exchange-touching, order, cancellation, modification, strategy, PPO, MASA or risk logic without explicit operator approval.**
+3. **Do not repair/reload/start the failed orderbook replay rollover without approval.** Its enabled persistent timer already retries every six hours. Repairing the broken service path would let the next scheduled trigger apply a conflicting 100 GiB deletion policy to a replay tree observed between roughly 247 and 259 GiB during this audit.
+4. **Do not run the full backend integration suite against the current workspace/Redis.** Tests have previously overwritten real paper state and destroyed closed-trade history.
+5. **Do not treat a process, heartbeat, status JSON, dashboard, risk ID or “accepted” counter as proof of success.** Verify the authoritative contract and lineage.
+6. **Do not use unfinished candles or a feature whose `available_at` is later than `decision_time`.** Preserve each timestamp’s meaning.
+7. **Do not put passwords, API keys, cookies, bearer tokens, private URLs or raw environment values in commands, tickets, docs or chat.** No approved credential-retrieval mechanism or named security owner was proven at audit time. Do not retrieve credentials until the authorized human operator/security owner establishes a protected mechanism and a non-secret procedure reference.
+8. **Do not repair/restart multiple services at once.** Capture before-state, change one authority, observe a full cycle, and retain rollback evidence.
+9. **Do not assume Git describes deployment.** Effective user-systemd units/drop-ins run from mutable repo state and diverge from versioned files.
+10. **Do not add manual deletion or change/pause/disable/mask retention without approval and a before-state capture.** A separate enabled 15-minute janitor is already non-dry-run and mutates replay/cache/log/temporary holdout artifacts; evidence preservation is racing that automation until authorities and protected datasets are reconciled.
 
-```
-EXCHANGE (Binance USDM Futures)
-    │ (read-only websocket / REST)
-    ▼
-INGESTORS (16 services — public or credentialed, all read-only)
-    │
-    ▼
-FEATURE PIPELINE (TA-Lib + multi-source aggregation)
-    │ v2:features:latest:{sym}:{tf}
-    ▼
-SNAPSHOT BUILDER (indexes feature vectors with lineage hashes)
-    │ v2:features:snapshot:v2_fsnap_{hash}
-    ▼
-NATIVE CUDA TRAINER (RTX 5080, PPO+MASA, checkpoint .npz)
-    │ v2:prediction:{sym}:{tf}
-    ▼
-ORCHESTRATOR (arbitration — 393 preds → 130 winners)
-    │ v2:orchestrator:decisions
-    ▼
-RISK GATEWAY (rule engine — currently deny_default)
-    │ v2:risk:gateway:decisions
-    ▼
-PAPER TRADER (sole owner; no real orders)
-    │ v2:paper:ledger
-    ▼
-FEEDBACK LOOP (outcome labels → trainer)
-    └──────────────────────────────────────► TRAINER (reward signal)
+## 2. What is running
 
-WEBSITE BACKEND (FastAPI / uvicorn)
-    │ REST + SSE
-    ▼
-FRONTEND (React/Vite)
-    + Mobile app (SwiftUI, TestFlight build 5)
+The earlier 2026-07-16 operations snapshot found 157 installed `ai-bot*` user-unit files, 81 running services, 36 active timers and 3 failed services. A direct recheck found 156 installed basenames and 35 active timers. Counts change continuously.
+
+Functional flow:
+
+```text
+provider/exchange readers
+  → Redis market/provider keys
+  → feature/TA/context/snapshot workers
+  → persistent/offline trainers and publishers
+  → all-timeframe publisher
+  → orchestrator
+  → risk records + paper signals
+  → paper trade-management/lifecycle/accounting
+  → portfolio/guardian/outcomes/replay
+  → API/public artifacts/web/mobile
 ```
 
----
+Automation supervisors, watchdogs, retention and report publishers operate around that flow. Two trainer authorities and two portfolio publishers were active. Backend ran four Uvicorn workers from the mutable repository on loopback port 8000. Vite preview served ignored `dist` on all interfaces at port 5173.
 
-## 3. Data-Source / Ingestor Table
+## 3. Operator truth hierarchy
 
-| Ingestor | Provider | Status | Credential | Key Written |
-|----------|---------|--------|-----------|-------------|
-| Binance Kline WSS | Binance USDM | WORKING | None (public) | v2:features:latest:{sym}:{tf} |
-| Binance Liq WSS | Binance forceOrder | WORKING | None (public) | v2:liq:events:stream |
-| Liquidation Levels | Internal | WORKING | None | v2:liq:levels:{sym} |
-| CoinAPI WSDS | CoinAPI | WORKING | COINAPI_KEY (present) | v2:market:coinapi:ohlcv:{sym}:{tf} |
-| CoinAPI REST | CoinAPI | WORKING | COINAPI_KEY (present) | v2:market:coinapi:rest:{sym}:{tf} |
-| KuCoin REST | KuCoin | WORKING | None (public) | v2:features:kucoin:{sym}:{tf} |
-| CoinAnk Live | CoinAnk | WORKING | COINANK_KEY (present) | v2:altdata:coinank:{sym} |
-| CoinAnk Aggregator | CoinAnk | WORKING | COINANK_KEY (present) | v2:altdata:coinank:global |
-| AICoin Whale Walls | AICoin | CRED_BLOCKED | 5 keys MISSING | v2:altdata:aicoin:symbol:{sym} (partial) |
-| LunarCrush | LunarCrush | UNKNOWN | LUNARCRUSH_KEY | v2:altdata:lunarcrush:{sym} |
-| Nansen | Nansen | UNKNOWN | NANSEN_KEY | v2:altdata:nansen:{sym} |
-| Public Intel | CoinGecko/CoinGlass | WORKING | None | v2:altdata:public_intel:global |
-| TA-Lib | Internal | WORKING | None | v2:features:ta_full:{sym}:{tf} |
-| Feature Pipeline | Internal | WORKING | None | v2:features:latest:{sym}:{tf} |
-| Symbol Discovery | Binance exchange info | WORKING | None | v2:altdata:symbol_score:{sym} |
-| Arkham (presence) | Internal stub | WORKING | None | v2:alt_data:arkham:presence |
+Use the narrowest primary truth for the question:
 
----
+| Question | Check first | Confirm with |
+|---|---|---|
+| Is a worker running? | `systemctl --user show` effective unit/PID/result | sanitized process identity and worker-specific heartbeat |
+| Is data fresh? | producer payload’s event/available/generated/cutoff fields | TTL and upstream heartbeat |
+| Did a prediction publish durably? | prediction payload plus replay/archive write evidence | lineage and archive/blob existence; publisher return handling is currently defective |
+| Did risk allow? | matched risk record action | ID, decision/prediction hash and time; ID existence is not allow |
+| Is a paper fill valid? | lifecycle/ledger record after invariant checks | admission path, risk action, position transition, accounting and execution time |
+| Is the trainer learning? | accepted rows, optimizer/weight delta and checkpoint load evidence | rejection reasons and clean holdout exclusion |
+| Is UI accurate? | primary Redis/file contract | public artifact age and client decode |
+| Is live safe? | effective release/live/armed/transport state and active callers | live-readiness gates; never infer from one flag |
 
-## 4. Redis Key and Payload Map
+## 4. Start-of-shift snapshot
 
-| Key Pattern | Producer | Consumer | Purpose |
-|-------------|---------|---------|---------|
-| v2:features:latest:{sym}:{tf} | Feature Pipeline | Trainer | Feature vector per symbol/timeframe |
-| v2:features:snapshot:v2_fsnap_{hash} | Snapshot Builder | Trainer | Immutable feature snapshot with lineage |
-| v2:features:ta_full:{sym}:{tf} | TA-Lib loop | Feature Pipeline | Technical indicators |
-| v2:liq:levels:{sym} | Liq Engine | Risk Gateway | Liquidation price levels |
-| v2:prediction:{sym}:{tf} | Trainer Publisher | Orchestrator | Model predictions |
-| v2:orchestrator:decisions | Orchestrator | Risk Gateway | Selected arbitrated signals |
-| v2:risk:gateway:decisions | Risk Gateway | Paper Trader | Risk-approved/denied decisions |
-| v2:paper:ledger | Paper Trader | Website | Open positions, PnL |
-| v2:paper:closed_trades | Paper Trader | Feedback Loop | Closed trade history |
-| v2:trainer:feedback:outcomes | Feedback Loop | Trainer | Outcome labels for training |
-| v2:trainer:hybrid_cuda:heartbeat | Trainer | Monitor | Trainer health |
-| v2:paper:heartbeat | Paper Trader | Monitor | Paper trader health |
-| v2:live_gate:state | Operator (manual) | All | Live gate config |
+Run read-only checks and save the output in an operator-controlled incident/worklog location with secrets redacted.
 
-Full map: `docs/system_audit_2026_master/redis_keyspace_map.json`
-
----
-
-## 5. How Market Data Becomes Features
-
-1. **Binance Kline WSS** streams 1m, 5m, 15m, 1h, 4h candles → `v2:market:kline:{sym}:{tf}`
-2. **KuCoin REST** provides cross-exchange price/volume → `v2:features:kucoin:{sym}:{tf}`
-3. **CoinAPI WSDS/REST** provides multi-exchange OHLCV → `v2:market:coinapi:ohlcv:{sym}:{tf}`
-4. **TA-Lib loop** reads candle data and computes 50+ technical indicators → `v2:features:ta_full:{sym}:{tf}`
-5. **CoinAnk** provides funding rate, OI, long/short ratio, basis → `v2:altdata:coinank:{sym}`
-6. **Liquidation WSS** provides recent liq events; **Liq Levels Engine** computes estimated liq levels
-7. **Feature Pipeline** aggregates all sources → unified feature vector → `v2:features:latest:{sym}:{tf}`
-8. **Snapshot Builder** adds lineage hash and writes immutable snapshot → `v2:features:snapshot:v2_fsnap_{hash}`
-
----
-
-## 6. How Trainer Learns
-
-1. Trainer reads feature snapshots from Redis (`v2:features:snapshot:*`) in batches of ~4,000
-2. Constructs tensors from feature vectors
-3. Runs PPO actor-critic forward pass on CUDA (RTX 5080)
-4. Computes PPO loss: clip ratio + entropy bonus + value loss
-5. Runs backward pass and updates AdamW optimizer
-6. Saves checkpoint to `.local_models/v2_native_rl_masa_ppo/{checkpoint_id}.weights.npz`
-7. Reads outcome labels from `v2:trainer:feedback:outcomes` to update reward signal
-8. **CURRENT ISSUE**: 741/741 feedback rows quarantined → trainer learning from paper outcomes is broken
-
----
-
-## 7. How Predictions Are Produced
-
-1. After each training step, trainer runs inference on latest feature snapshot
-2. Outputs: `direction`, `selected_action`, `confidence_raw`, `confidence_calibrated`, `expected_move_bps`, `action_probabilities`, `price_targets`, `checkpoint_id`, `feature_snapshot_id`, `feature_cutoff`
-3. Written to `v2:prediction:{symbol}:{timeframe}` (1,070 keys at audit time)
-4. All-timeframe publisher aggregates and writes to website payload
-
----
-
-## 8. How Signals Are Produced
-
-1. Orchestrator reads all 1,070 prediction keys every cycle
-2. Groups by (symbol, side) buckets
-3. Selects winner per bucket (highest `confidence_calibrated`)
-4. If LONG and SHORT conflict: `OPPOSITE_SIDES_DOMINANT_CONFIDENCE_WINS` rule selects one
-5. 393 predictions → 130 bucket winners at audit time
-6. Winners written to `v2:orchestrator:decisions` + `v2:signals:paper`
-
----
-
-## 9. How Strategy Router Works
-
-The **Continuous Edge Guardian** (`v2_continuous_edge_guardian`) acts as the A-grade gate:
-- Evaluates whether signals meet quality thresholds
-- Writes gate status to `v2:continuous_edge_guardian:a_grade_execution_gate`
-- Orchestrator checks this gate before routing to paper trader
-- If A-grade gate is FAIL, intents are held
-
----
-
-## 10. How Risk Controller Works
-
-The **Risk Gateway** (`v2_risk_gateway_live_loop`) evaluates each orchestrator proposal:
-- Checks live gate state (currently: blocked_human_only → deny_default ALL)
-- If live were enabled: checks data freshness, confidence, expected move, spread, liquidity, drawdown, exposure
-- Writes `ALLOW` or `DENY` to `v2:risk:gateway:decisions`
-- **Current**: 130/130 decisions = DENY (deny_default)
-- `fail_closed = true` — any unknown state → DENY
-
----
-
-## 11. How Orchestrator Works
-
-See section 8 above. Additional details:
-- Script: `v2_orchestrator_arbitration_loop.py`
-- Cannot bypass risk gateway (`cannot_bypass_risk_gateway: true`)
-- Holds intents if paper fill gate is active
-- Runs continuously; each cycle takes ~6 seconds
-
----
-
-## 12. How Paper Trader Works
-
-The **Paper Trader** (`v2_trade_management_paper_loop`) is the sole paper owner (since 2026-06-27):
-- Reads orchestrator decisions from `v2:signals:paper`
-- Checks risk-approved decisions from `v2:risk:gateway:paper_online_decisions`
-- Simulates fills at mark price ± slippage + fee
-- Manages position lifecycle (LONG/SHORT → hold → close on exit signal/TP/SL)
-- Writes fill to `v2:paper:ledger`, closed trade to `v2:paper:closed_trades`
-- **Current state**: 456 accepted fills, 743 closed trades, -$253.49 realized PnL
-
----
-
-## 13. How Live Trader Is Gated
-
-Live trading is **permanently blocked** unless:
-1. `live_gate` state updated to `live_enabled` (operator action)
-2. `order_transport_submit_enabled` set to true (operator action)
-3. Live symbols configured and matching accepted symbols
-4. Kill switch inactive
-5. Operator approved = true
-
-Current status: BLOCKED (5 active blockers). See Phase 9 audit.
-
-**NEVER enable live trading without:**
-- Positive paper trading edge (currently negative)
-- Trainer feedback loop repaired (currently 100% quarantined)
-- Full pre-flight checklist completed
-
----
-
-## 14. How Adaptive Capital/Leverage/Margin Works
-
-Adaptive allocator (`v2/backend/app/services/adaptive_capital_allocator/`):
-- Computes position size based on confidence, expected move, risk budget
-- Enforces exchange min notional and lot size filters
-- Tracks portfolio exposure and drawdown
-- **In paper mode**: max_leverage = 1.0 (hard cap from live gate state)
-- `v2_adaptive_capital_productivity_status.py` (13,098 lines) is the full status report
-
----
-
-## 15. Website Route Guide
-
-Access the website at: `http://localhost:8000` (or configured host/port)
-
-Login: `admin` user with `Trader2026!` password (from `.auth_process_secret`)
-
-| Page | URL | Purpose |
-|------|-----|---------|
-| Dashboard | /dashboard | System overview, key metrics |
-| Markets | /markets | Market overview, symbol list |
-| Market Detail | /market/{symbol} | Chart, TA, signals for one symbol |
-| Trader | /trader | Paper trading terminal |
-| Paper Trading | /paper-trading | Paper position management |
-| Signals | /signals | Signal status |
-| AI Predictions | /ai-predictions | Model prediction grid |
-| Risk Control | /risk-control | Risk gateway status |
-| Monitor Center | /monitor-center | All monitors |
-| Ingestors | /ingestors | Ingestor status |
-| Trainer Admin | /trainer-admin | Trainer status |
-| Live Readiness | /live-readiness | Live gate checklist |
-| Audit Ledger | /audit-ledger | Audit events |
-| Config Admin | /config-admin | Config management |
-| System Health | /system-health | All services health |
-
----
-
-## 16. Runtime Health Checklist
-
-Run these commands to verify system health:
+### 4.1 Repository provenance
 
 ```bash
-# Check all V2 services
-systemctl --user list-units 'ai-bot-v2-*' --no-legend | grep -v 'running'
-
-# Check failed services
-systemctl --user --failed --no-legend | grep 'ai-bot'
-
-# Check core service heartbeats (should all have TTL > 0)
-redis-cli --no-auth-warning ttl v2:paper:heartbeat
-redis-cli --no-auth-warning ttl v2:trainer:hybrid_cuda:heartbeat
-redis-cli --no-auth-warning ttl v2:risk:gateway:heartbeat
-redis-cli --no-auth-warning ttl v2:orchestrator:heartbeat
-redis-cli --no-auth-warning ttl v2:features:pipeline:heartbeat
-
-# Verify live gate is blocked (MUST show blocked_human_only)
-redis-cli --no-auth-warning get v2:live_gate:state | python3 -c "import sys,json; d=json.load(sys.stdin); print('live_gate:', d['live_gate']); print('places_real_order:', d['places_real_order'])"
-
-# Check paper trader is sole owner (forbidden_entry_process_count must be 0)
-redis-cli --no-auth-warning get v2:paper:active_runtime_owner_status | python3 -c "import sys,json; d=json.load(sys.stdin); print('status:', d.get('status','')); print('forbidden_entry_process_count:', d.get('forbidden_entry_process_count',99))"
-
-# Check website is serving
-curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/api/v1/health
+date --iso-8601=seconds
+git rev-parse HEAD
+git status --short --untracked-files=all
+git log -5 --oneline --decorate
 ```
 
-Expected outputs:
-- All services: `active running`
-- TTLs: all > 0 (fresh heartbeats)
-- live_gate: `blocked_human_only` (ALWAYS)
-- places_real_order: `false` (ALWAYS)
-- forbidden_entry_process_count: `0`
-- Health check: `200`
+Interpretation:
 
----
+- A dirty worktree is expected in this active workspace. Do not discard or overwrite changes you do not own.
+- Git HEAD can advance while auditing. Record start/end commits and start/end
+  content fingerprints for every in-scope mutable artifact; commit equality alone
+  does not prove stable dirty-worktree bytes.
+- Git status records path state, not file content. Preserve owned/concurrent diff
+  provenance separately without copying secret values.
+- Ignored runtime/model/frontend-build/effective-deployment files are not shown by
+  ordinary Git status. Record their sizes and SHA-256 values in a secret-safe
+  bundle manifest together with canonical docs, atlas, units/drop-ins, dist and
+  checkpoints. No complete global bundle manifest was proven at audit time.
 
-## 17. Daily Startup Checklist
+### 4.2 Installed/running systemd state
 
 ```bash
-# 1. Verify all V2 services are running
-systemctl --user list-units 'ai-bot-v2-*' | grep -c 'running'
-# Expected: ~53
-
-# 2. Check no failed services
-systemctl --user --failed | grep 'ai-bot'
-# Expected: only ai-bot-v2-autonomous-no-manual-next-task-policy (known/acceptable)
-
-# 3. Verify live gate blocked
-redis-cli --no-auth-warning get v2:live_gate:state | python3 -m json.tool | grep live_gate
-# Expected: "live_gate": "blocked_human_only"
-
-# 4. Verify feature pipeline heartbeat is fresh
-redis-cli --no-auth-warning ttl v2:features:pipeline:heartbeat
-# Expected: 200-400 (seconds remaining; pipeline is writing every few minutes)
-
-# 5. Verify trainer heartbeat is fresh
-redis-cli --no-auth-warning ttl v2:trainer:hybrid_cuda:heartbeat
-# Expected: 100-300
-
-# 6. Check paper trader status
-redis-cli --no-auth-warning get v2:paper:heartbeat | python3 -c "import sys,json; d=json.load(sys.stdin); print('cycle_state:', d.get('cycle_state','')); print('paper_only:', d.get('paper_only','')); print('places_real_order:', d.get('places_real_order',''))"
-# Expected: cycle_state=RUNNING_CYCLE, paper_only=true, places_real_order=false
-
-# 7. Check website is responding
-curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
+systemctl --user list-unit-files 'ai-bot*' --no-pager
+systemctl --user list-units 'ai-bot*' --type=service --all --no-pager
+systemctl --user list-timers 'ai-bot*' --all --no-pager
+systemctl --user --failed --no-pager
 ```
 
----
-
-## 18. Daily Shutdown Checklist
+For one service:
 
 ```bash
-# Safe V2 services can be stopped individually
-systemctl --user stop ai-bot-v2-{service-name}.service
-
-# NEVER stop the legacy trader
-# NEVER stop the legacy trainer  
-# NEVER restart legacy processes
-
-# Log paper PnL before shutdown
-redis-cli --no-auth-warning get v2:paper:ledger | python3 -c "import sys,json; d=json.load(sys.stdin); print('realized_pnl:', d.get('realized_pnl_usd',0)); print('closed_trades:', d.get('closed_trade_count',0))"
+systemctl --user show SERVICE.service \
+  -p Id -p LoadState -p ActiveState -p SubState -p Result \
+  -p MainPID -p NRestarts -p FragmentPath -p DropInPaths \
+  -p WorkingDirectory -p ExecStart --no-pager
 ```
 
----
+Do not paste effective `Environment` or an unredacted process command into a report; credentials can be embedded in arguments.
 
-## 19. Every Systemd Service and What It Does
+### 4.3 Listener and HTTP liveness
 
-| Service Name | Purpose | Critical? |
-|-------------|---------|-----------|
-| ai-bot-v2-public-website-backend.service | FastAPI/uvicorn website server | YES |
-| ai-bot-v2-trade-management-paper-loop.service | Primary paper trader | YES |
-| ai-bot-v2-risk-gateway-live-loop.service | Risk gateway | YES |
-| ai-bot-v2-binance-kline-wss-loop.service | Binance kline data | YES |
-| ai-bot-v2-feature-pipeline-native-loop.service | Feature computation | YES |
-| ai-bot-v2-full-talib-ta-loop.service | TA indicators | YES |
-| ai-bot-v2-liquidation-wss-paper-shadow.service | Liquidation events | YES |
-| ai-bot-v2-liquidation-levels-engine.service | Liquidation levels | YES |
-| ai-bot-v2-coinapi-wsds-loop.service | CoinAPI WSDS | NO (fallback) |
-| ai-bot-v2-coinapi-rest-fallback-loop.service | CoinAPI REST | NO (fallback) |
-| ai-bot-v2-kucoin-public-rest-loop.service | KuCoin price data | NO (enrichment) |
-| ai-bot-v2-coinank-live-direct.service | CoinAnk live data | NO (enrichment) |
-| ai-bot-v2-coinank-global-aggregator-direct.service | CoinAnk global | NO (enrichment) |
-| ai-bot-v2-coinank-direct-status-publisher.service | CoinAnk status | NO |
-| ai-bot-v2-lunarcrush-altdata-loop.service | LunarCrush social | NO (enrichment) |
-| ai-bot-v2-nansen-altdata-loop.service | Nansen on-chain | NO (enrichment) |
-| ai-bot-v2-public-intel-free-tier-loop.service | Fear/greed etc. | NO (enrichment) |
-| ai-bot-v2-aicoin-whale-intel-loop.service | AICoin whale walls | NO (cred blocked) |
-| ai-bot-v2-arkham-presence-loop.service | Arkham presence | NO |
-| ai-bot-v2-dynamic-symbol-discovery-loop.service | Symbol discovery | NO |
-| ai-bot-v2-alt-data-symbol-scoring-loop.service | Alt data scoring | NO |
-| ai-bot-v2-alt-data-candidate-publisher-loop.service | Alt data publisher | NO |
-| ai-bot-v2-feature-snapshot-builder.service | Feature snapshots | YES |
-| ai-bot-v2-all-timeframe-prediction-signal-price-target-publisher.service | Prediction publisher | YES |
-| ai-bot-v2-market-chart-payload-publisher.service | Chart payloads | NO |
-| ai-bot-v2-professional-market-chart-payload-publisher.service | Pro chart payloads | NO |
-| ai-bot-v2-rl-core-inference-loop.service | RL sidecar (advisory) | NO |
-| ai-bot-v2-ingestors-status-publisher.service | Ingestor status | NO |
-| ai-bot-v2-log-errors-status-publisher.service | Log errors status | NO |
-| ai-bot-v2-technical-analysis-status-publisher.service | TA status | NO |
-| ai-bot-v2-liquidation-runtime-status-publisher.service | Liq status | NO |
-| ai-bot-v2-trainer-checkpoint-evidence.service | Checkpoint evidence | NO |
-| ai-bot-v2-symbol-universe-publisher.service | Symbol universe | NO |
-| ai-bot-v2-continuous-edge-guardian.service | A-grade execution gate | YES |
-| ai-bot-v2-memory-watchdog.service | Memory alerts | NO |
-| ai-bot-v2-codex-watchdog.service | Codex watchdog | NO |
-| ai-bot-v2-agent-supervisor.service | Agent supervisor | NO |
-| ai-bot-v2-closed-loop-claude-worker@{1,2,3}.service | Claude workers | NO |
-| ai-bot-v2-closed-loop-codex-worker@{1,2,3}.service | Codex workers | NO |
-
----
-
-## 20. How to Restart a Safe V2 Service
+Inspect listeners first:
 
 ```bash
-# Safe to restart: any non-critical ingestor or publisher
-systemctl --user restart ai-bot-v2-kucoin-public-rest-loop.service
-
-# Expected output after restart:
-systemctl --user status ai-bot-v2-kucoin-public-rest-loop.service
-# Should show: Active: active (running)
-
-# Verify Redis key is updated after restart:
-redis-cli --no-auth-warning ttl v2:features:kucoin:BTCUSDT:1h
-# Should show positive TTL (key being written)
+ss -ltnp
 ```
 
----
-
-## 21. What Never to Restart
-
-**NEVER restart:**
-- `../AI BOT/**` — legacy trader/trainer processes
-- Any legacy Redis consumer
-- Any live exchange connection (v2_binance_live_order_transport_*) while positions are open
-- `ai-bot-v2-trade-management-paper-loop.service` while positions are open (will lose position state)
-
-**NEVER:**
-- Run `redis-cli FLUSHDB` or `redis-cli FLUSHALL`
-- Delete `v2:paper:*` keys
-- Modify the live gate state without following the full operator checklist
-- Set `order_transport_submit_enabled: true` without full sign-off
-
----
-
-## 22. How to Verify Ingestors
+Run each HTTP check separately so its captured output remains one valid JSON
+document. Backend process liveness:
 
 ```bash
-# Check feature pipeline heartbeat age
-redis-cli --no-auth-warning ttl v2:features:pipeline:heartbeat
-# Expected: 100-400 seconds (fresh)
-
-# Check a specific feature key
-redis-cli --no-auth-warning ttl "v2:features:latest:BTCUSDT:1h"
-# Expected: positive TTL
-
-# Check ingestor status payload
-redis-cli --no-auth-warning get v2:market:coinapi:rest:heartbeat | python3 -m json.tool | head -10
-# Expected: finished_utc within last 60 minutes
-
-# Check CoinAnk status
-redis-cli --no-auth-warning get v2:altdata:aicoin:status | python3 -m json.tool | head -10
-# Expected: credential_presence shows false (AICoin credentials not set)
-
-# Check liquidation levels
-redis-cli --no-auth-warning ttl v2:liq:levels:BTCUSDT
-# Expected: positive TTL (levels are computed and fresh)
+curl --fail --connect-timeout 3 --max-time 10 --silent --show-error \
+  http://127.0.0.1:8000/health | \
+  python3 -c 'import json,sys; p=json.load(sys.stdin); print(json.dumps(p, indent=2, sort_keys=True)); sys.exit(0 if p.get("status") == "ok" else "ERROR: backend health is not ok")'
 ```
 
----
-
-## 23. How to Verify Trainer
+Redis-backed backend health:
 
 ```bash
-# Check trainer heartbeat
-redis-cli --no-auth-warning ttl v2:trainer:hybrid_cuda:heartbeat
-# Expected: 100-300 seconds remaining
-
-# Read trainer heartbeat
-redis-cli --no-auth-warning get v2:trainer:hybrid_cuda:heartbeat | python3 -c "import sys,json; d=json.load(sys.stdin); print('live_gate:', d.get('live_gate','')); print('trainer_source:', d.get('trainer_source',''))"
-# Expected: live_gate=blocked_human_only, trainer_source=V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW
-
-# Verify checkpoint is loadable
-redis-cli --no-auth-warning get v2:trainer:checkpoint:evidence | python3 -c "import sys,json; d=json.load(sys.stdin); print('checkpoint_id:', d.get('selected_checkpoint_id','')); print('inventory_status:', d.get('inventory_status',''))"
-
-# Check predictions are fresh
-redis-cli --no-auth-warning ttl v2:prediction:BTCUSDT:1h
-# Expected: positive TTL (< 600 seconds old)
+curl --fail --connect-timeout 3 --max-time 10 --silent --show-error \
+  http://127.0.0.1:8000/api/v2/system/health | \
+  python3 -c 'import json,sys; p=json.load(sys.stdin); print(json.dumps(p, indent=2, sort_keys=True)); sys.exit(0 if p.get("data", {}).get("redis_available") is True else "ERROR: backend answered but Redis is unavailable")'
 ```
 
----
-
-## 24. How to Verify Paper Trading
+Frontend listener:
 
 ```bash
-# Check paper trader heartbeat
-redis-cli --no-auth-warning ttl v2:paper:heartbeat
-# Expected: 3000-3600 seconds (1-hour TTL)
-
-# Read paper ledger
-redis-cli --no-auth-warning get v2:paper:ledger | python3 -c "import sys,json; d=json.load(sys.stdin); print('closed_trade_count:', d.get('closed_trade_count',0)); print('realized_pnl:', d.get('realized_pnl_usd',0)); print('feedback_consumable:', d.get('trainer_feedback_consumable_row_count',0))"
-# Current: closed=743, realized_pnl=-253.49, feedback_consumable=0 (CRITICAL)
-
-# Verify paper is sole owner
-redis-cli --no-auth-warning get v2:paper:active_runtime_owner_status | python3 -c "import sys,json; d=json.load(sys.stdin); print('status:', d.get('status','')); print('forbidden_count:', d.get('forbidden_entry_process_count',99))"
-# Expected: status=PASS_ACTIVE_RUNTIME_OWNER_VALIDATION, forbidden_count=0
+curl --fail --connect-timeout 3 --max-time 10 --silent --show-error \
+  http://127.0.0.1:5173/ >/dev/null
 ```
 
----
+`/health` proves only that the FastAPI process answered with its expected status.
+`/api/v2/system/health` itself returns HTTP 200 in degraded mode, so `curl
+--fail` alone is insufficient; the parser above exits nonzero unless
+`data.redis_available` is exactly true. Neither check proves providers, trainer,
+paper lifecycle or public tunnel routing.
 
-## 25. How to Verify Live Is Blocked
+### 4.4 Redis capacity and persistence
+
+These commands do not dump values:
 
 ```bash
-# ALWAYS run this first — verify live is blocked
-redis-cli --no-auth-warning get v2:live_gate:state | python3 -c "import sys,json; d=json.load(sys.stdin); print('=== LIVE GATE VERIFICATION ==='); print('live_gate:', d['live_gate']); print('places_real_order:', d['places_real_order']); print('order_transport_submit_enabled:', d['order_transport_submit_enabled']); print('live_trading_enabled:', d['live_trading_enabled'])"
-# Expected ALL of:
-# live_gate: blocked_human_only
-# places_real_order: False
-# order_transport_submit_enabled: False
-# live_trading_enabled: False
-
-# Verify paper heartbeat also says no live
-redis-cli --no-auth-warning get v2:paper:heartbeat | python3 -c "import sys,json; d=json.load(sys.stdin); print('routes_to_live:', d.get('routes_to_live',True)); print('places_real_order:', d.get('places_real_order',True))"
-# Expected: routes_to_live=False, places_real_order=False
+redis-cli --no-auth-warning PING
+redis-cli --no-auth-warning DBSIZE
+redis-cli --no-auth-warning INFO memory | \
+  rg '^(used_memory_human|maxmemory_human|maxmemory_policy|used_memory_rss_human|used_memory_peak_human):'
+redis-cli --no-auth-warning INFO persistence | \
+  rg '^(rdb_last_bgsave_status|rdb_last_bgsave_time_sec|rdb_changes_since_last_save|aof_enabled):'
+redis-cli --no-auth-warning INFO stats | \
+  rg '^(evicted_keys|expired_keys|keyspace_hits|keyspace_misses|rejected_connections):'
 ```
 
----
+Escalate if:
 
-## 26. How to Verify No Real Orders
+- `used_memory` approaches the 32 GiB cap;
+- `evicted_keys` increases;
+- RDB background save fails;
+- changes-since-save remains large;
+- RSS or swap pressure threatens the host.
+
+Because policy is `allkeys-lru`, critical keys have no protected namespace. Do not respond by deleting keys ad hoc.
+
+### 4.5 Disk state
 
 ```bash
-# Check exchange mutation freeze
-redis-cli --no-auth-warning get v2:exchange:mutation_freeze 2>/dev/null
-
-# Check risk gateway — no exchange action taken
-redis-cli --no-auth-warning get v2:risk:gateway:heartbeat | python3 -c "import sys,json; d=json.load(sys.stdin); print('exchange_action_taken:', d.get('exchange_action_taken','?'))"
-# Expected: exchange_action_taken: False
-
-# Check paper heartbeat
-redis-cli --no-auth-warning get v2:paper:heartbeat | python3 -c "import sys,json; d=json.load(sys.stdin); print('places_real_order:', d.get('places_real_order','?'))"
-# Expected: places_real_order: false
+df -hT /
+du -sh v2/runtime .local_models claude_worklog goal_state legacy_reference raw_evidence logs 2>/dev/null
 ```
 
----
+Do not start rollover or run cleanup from pressure alone. Capture the largest consumers, protected replay/evidence/model sets, active writers and both retention policies first.
 
-## 27. How to Interpret GO/NO-GO Artifacts
-
-The GO/NO-GO file is at: `docs/system_audit_2026_master/GO_NO_GO.md`
-
-- `V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL_READY` = documentation complete
-- `V2_REBUILD_MASTER_END_TO_END_SYSTEM_AUDIT_AND_OPERATOR_MANUAL_BLOCKED` = gaps remain
-
-The **LIVE READINESS** marker is separate from the audit marker. Even if audit is READY, live trading requires its own separate gate passage.
-
----
-
-## 28. How to Run Backend Tests
+At the read-only `2026-07-16T08:32:41Z` observation, both
+`ai-bot-v2-orderbook-replay-rollover.timer` and
+`ai-bot-v2-disk-retention-janitor.timer` were loaded, enabled, active and
+persistent. The former last triggered at `03:06:24 EDT` and was next scheduled
+for `09:06:24 EDT`; the latter last triggered at `04:27:21 EDT` and was next
+scheduled for `04:42:21 EDT`. Refresh those values before acting:
 
 ```bash
-cd "/home/wali/Desktop/AI BOT REBUILD/v2/backend"
-
-# Run all tests
-source .venv/bin/activate
-python -m pytest tests/ -v --timeout=60 2>&1 | tail -30
-
-# Run specific subsystem
-python -m pytest tests/unit/composition/ -v
-python -m pytest tests/integration/cli/test_v2_trade_management_paper_loop.py -v
-python -m pytest tests/contract/ -v
-
-# Expected: ~3,493 passing (from 2026-06-27 baseline)
+systemctl --user list-timers \
+  ai-bot-v2-orderbook-replay-rollover.timer \
+  ai-bot-v2-disk-retention-janitor.timer --all --no-pager
+systemctl --user cat \
+  ai-bot-v2-orderbook-replay-rollover.timer \
+  ai-bot-v2-orderbook-replay-rollover.service \
+  ai-bot-v2-disk-retention-janitor.timer \
+  ai-bot-v2-disk-retention-janitor.service --no-pager
 ```
 
----
+The effective 15-minute service invokes
+`claude_worklog/tools/v2_disk_retention_janitor.py` without `--dry-run`. That
+script deletes replay day directories older than five days or beyond its 300 GiB
+and free-space policies, tail-replaces oversized JSONL, truncates oversized `.out`
+logs, and deletes `/tmp/holdout_tail_*` older than six hours
+(`claude_worklog/tools/v2_disk_retention_janitor.py:31-62`, `:99-173`,
+`:176-255`). Its status at `2026-07-16T08:27:21.352199+00:00` reported
+`dry_run=false`, ten temporary holdout files deleted and 89,478 bytes reclaimed;
+no replay directory, JSONL tail or `.out` log was changed in that particular
+cycle. Mutation during the audit is therefore observed, not hypothetical.
 
-## 29. How to Run Frontend Tests
+### 4.6 Live-readiness observation
 
 ```bash
-cd "/home/wali/Desktop/AI BOT REBUILD/v2/frontend"
-
-# Type check
-npm run typecheck
-
-# Build check
-npm run build
-
-# Playwright E2E (requires running backend)
-npx playwright test
-# 48 spec files
-
-# If backend is not running, start it first:
-systemctl --user status ai-bot-v2-public-website-backend.service
+curl --fail --connect-timeout 3 --max-time 10 --silent --show-error \
+  http://127.0.0.1:8000/api/v2/live-readiness | python3 -m json.tool
 ```
 
----
+This is observation only. At audit time zero of eight gates passed. Never use the endpoint as an activation command or as proof that dormant live callers are absent.
 
-## 30. How to Run Route Crawls
+## 5. Service-family checks
+
+Service names may drift. Resolve the effective unit before relying on an example.
+
+### 5.1 Market/provider ingestion
+
+Check:
+
+- unit active/result/restarts;
+- producer heartbeat generated time;
+- representative key TTL and payload timestamps;
+- upstream connectivity/rate-limit state;
+- symbol/timeframe coverage;
+- final-candle and availability fields;
+- error-rate/log growth.
+
+Do not label a provider healthy merely because a credential name is present. Do not print credential values.
+
+For a key, prefer metadata over content:
 
 ```bash
-cd "/home/wali/Desktop/AI BOT REBUILD/v2/backend"
-source .venv/bin/activate
-
-# API route inventory
-python -c "from app.main import create_app; app = create_app(); [print(r.path) for r in app.routes]"
-
-# Or use the e2e verification
-python app/cli/run_e2e_verification.py
+redis-cli --no-auth-warning TYPE 'v2:KEY'
+redis-cli --no-auth-warning TTL 'v2:KEY'
+redis-cli --no-auth-warning MEMORY USAGE 'v2:KEY'
 ```
 
----
+When payload inspection is necessary, select only non-secret fields with a local parser. Never dump an entire provider/auth/order payload into a shared log.
 
-## 31. How to Inspect Logs
+### 5.2 Feature pipeline
+
+Primary entrypoint: `v2.backend.app.cli.v2_feature_pipeline_native_loop`.
+
+For a representative symbol/timeframe verify:
+
+1. the newest candle is explicitly closed;
+2. candle close is not later than `model_decision_time`;
+3. every contributing source `available_at` is not later than `model_decision_time`;
+4. snapshot `feature_cutoff` describes the newest information used;
+5. MASA `feature_cutoff` is not later than the PPO `model_decision_time`;
+6. per-source enrichment lineage exists;
+7. missing/stale masks match data;
+8. latest and archive writes succeeded;
+9. snapshot age is within timeframe policy.
+
+Current limitation: enrichment sources merged by `_merge_a_plus_context_features` and `_merge_external_v2_features` do not all carry a checked per-source temporal envelope. A green `feature_freshness_state` proves the core closed OHLCV state, not every merged field.
+
+Use the exact stage fields throughout prediction, risk and paper investigation:
+
+```text
+each source available_at <= model_decision_time
+MASA feature_cutoff <= PPO model_decision_time
+model_decision_time <= paper_admission_decision_time <= execution_time
+signal generated/available time <= paper_admission_decision_time < signal expiry/freshness deadline
+```
+
+`event_time` is when the source event occurred, `ingested_at` is receipt/persist
+time, and `generated_at` is when a derived record was computed. They retain those
+semantic roles; do not collapse them into generic `decision_time` or infer one
+universal total ordering between `available_at` and `feature_cutoff`.
+
+### 5.3 Trainer
+
+Relevant active authorities at audit time:
+
+- persistent native CUDA trainer;
+- continuous offline GPU trainer;
+- RL inference sidecar and checkpoint/evidence publishers.
+
+Before diagnosing:
 
 ```bash
-# Paper trader logs
-journalctl --user -u ai-bot-v2-trade-management-paper-loop.service -n 50 --no-pager
-
-# Risk gateway logs
-journalctl --user -u ai-bot-v2-risk-gateway-live-loop.service -n 50 --no-pager
-
-# Trainer logs
-journalctl --user -u ai-bot-v2-trainer-training-loop.service -n 50 --no-pager 2>/dev/null || \
-journalctl --user | grep 'trainer' | tail -50
-
-# Website backend logs
-journalctl --user -u ai-bot-v2-public-website-backend.service -n 50 --no-pager
-
-# All V2 errors
-journalctl --user | grep -E 'ai-bot-v2.*ERROR|ai-bot-v2.*CRITICAL' | tail -50
+systemctl --user show ai-bot-v2-native-cuda-trainer-persistent.service \
+  -p ActiveState -p SubState -p Result -p MainPID -p NRestarts \
+  -p FragmentPath -p DropInPaths -p WorkingDirectory -p ExecStart --no-pager
+systemctl --user show ai-bot-v2-continuous-offline-gpu-trainer.service \
+  -p ActiveState -p SubState -p Result -p MainPID -p NRestarts \
+  -p FragmentPath -p DropInPaths -p WorkingDirectory -p ExecStart --no-pager
+nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,utilization.gpu,temperature.gpu \
+  --format=csv,noheader
 ```
 
----
+Trainer health requires all of:
 
-## 32. How to Troubleshoot Stale Predictions
+- clean accepted-row count greater than zero;
+- rejection reasons accounted for;
+- input dimension 1,908 and exact feature schema hash/order;
+- finite loss/gradients/parameters;
+- actual parameter/weight delta when a learning step is claimed;
+- checkpoint blob safely loadable and tied to the reported manifest;
+- publication/replay/archive success propagated;
+- train/validation/holdout identities non-overlapping;
+- no promotion by disabled/forced validation guard unless explicitly approved and labeled.
+
+The audit-time ordered 477-feature contract is documented in
+[TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md](components/TRAINER_PPO_MASA_REPLAY_AND_CHECKPOINTS.md#51-ordered-feature-contract).
+Its compact-JSON SHA-256 is
+`263b7ce4feae6fcbc34ff4aad593bb8bde7aa3e6469d6662ab8b5186c200b239`.
+Dimension 1,908 alone cannot detect a same-length reorder. This read-only AST
+check avoids importing trainer runtime code and exits nonzero on count/order
+drift:
 
 ```bash
-# Check prediction TTL
-redis-cli --no-auth-warning ttl v2:prediction:BTCUSDT:1h
-# If 0 or negative: prediction expired; trainer may have stopped
+python3 - <<'PY'
+import ast
+import hashlib
+import json
+from pathlib import Path
 
-# Check trainer heartbeat
-redis-cli --no-auth-warning ttl v2:trainer:hybrid_cuda:heartbeat
-# If 0: trainer stopped; check logs
-
-# Check feature pipeline
-redis-cli --no-auth-warning ttl v2:features:pipeline:heartbeat
-# If 0: feature pipeline stopped; trainer has no input data
-
-# If feature pipeline stopped:
-systemctl --user restart ai-bot-v2-feature-pipeline-native-loop.service
-# Wait 2-3 minutes for heartbeat to refresh
+path = Path("v2/backend/app/services/native_trainer/hybrid_cuda_trainer/tensor_builder.py")
+tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+node = next(
+    item for item in tree.body
+    if isinstance(item, ast.AnnAssign)
+    and getattr(item.target, "id", None) == "FEATURE_SPEC"
+)
+spec = ast.literal_eval(node.value)
+expected = "263b7ce4feae6fcbc34ff4aad593bb8bde7aa3e6469d6662ab8b5186c200b239"
+actual = hashlib.sha256(
+    json.dumps(spec, separators=(",", ":")).encode()
+).hexdigest()
+print(json.dumps({
+    "feature_count": len(spec),
+    "ordered_spec_sha256": actual,
+    "matches_audit_contract": actual == expected,
+}, sort_keys=True))
+raise SystemExit(0 if len(spec) == 477 and actual == expected else 1)
+PY
 ```
 
----
+Do not restart trainers casually. AdamW and the AMP scaler are recreated on every
+`train()` call, not only at process restart, so there is no ordinary cycle-to-cycle
+optimizer/scaler continuity to preserve. A process restart additionally clears
+the in-memory replay deque and GRU temporal buffers, then follows the configured
+checkpoint-load/promotion path; that can change the effective prediction
+authority. The scheduled pretrain unit includes auto-promote/auto-restart flags
+and was failed at audit time.
 
-## 33. How to Troubleshoot Stale Ingestors
+### 5.4 Prediction and publication
+
+Verify:
+
+- required trainer/model/live-block fields;
+- feature snapshot/tensor/checkpoint IDs;
+- per-source `event_time`, `ingested_at`, `available_at`, derived `generated_at`,
+  `feature_cutoff`, and the stage-specific ordering above;
+- replay snapshot ready and actual write success;
+- durable archive write success;
+- prediction Redis write return;
+- downstream lineage emitted only after success.
+
+Known defect: the publisher copies the payload, mutates only that copy on archive/replay failure, and the caller ignores its boolean before publishing lineage from the original. Treat lineage as unproven unless the durable writes are independently verified.
+
+### 5.5 Orchestrator and risk
+
+The orchestrator’s `risk_decision_id` is provisional lineage. It is not an allow action.
+
+For every candidate/fill being investigated, join on:
+
+- prediction ID;
+- orchestrator decision ID;
+- exact risk decision ID;
+- symbol/side/timeframe;
+- model/checkpoint and feature snapshot IDs;
+- `model_decision_time`, signal generated/available/expiry fields,
+  `paper_admission_decision_time`, and `execution_time`;
+- payload hashes where available.
+
+Then require the matched risk action to be explicit allow. Current ordinary paper code does not reliably do this; a recorded `DENY` can coexist with a fill-allowed proposal.
+
+### 5.6 Paper trade-management
+
+Primary entrypoint: `v2.backend.app.cli.v2_trade_management_paper_loop`.
+
+Do not judge it from the cycle summary alone. Inspect a candidate’s full path:
+
+```text
+prediction trust
+→ orchestrator lineage
+→ matched risk action
+→ strategy/pre-trade/fee/A+/1m/temporal gates
+→ tier and sizing
+→ churn and portfolio freeze
+→ preemptive admission
+→ position transition
+→ fill-write invariant
+→ lifecycle reconciliation
+→ accounting and PPO entry fields
+```
+
+Known current behaviors:
+
+- supply bridge is marked temporarily disabled;
+- confidence thresholds relax multiple gates;
+- fee is omitted from the strict local conjunction;
+- confidence ≥0.65 fast path skips later checks;
+- one fee override raises `FrozenInstanceError`;
+- risk `DENY` is not a universal ordinary-paper block.
+
+Any paper performance window must identify and segregate rows created by those paths.
+
+### 5.7 Portfolio and guardian
+
+Portfolio state is derived from valid paper state and market prices. Verify:
+
+- duplicate portfolio publisher processes;
+- source ledger/session IDs;
+- exclusion of invalid admission lineage;
+- price freshness;
+- initial-capital source rather than fallback;
+- equity/PnL reconciliation;
+- artifact generated time and Redis TTL.
+
+Guardian output combines disk and Redis evidence. A stale disk artifact can disagree with current Redis state. Trace every blocker to its source artifact and generated time.
+
+## 6. Backend, frontend and mobile
+
+### 6.1 Backend
+
+Effective deployment is four Uvicorn workers from mutable `v2/backend`, not the old release symlink. Before a backend restart capture:
 
 ```bash
-# Check if Binance kline data is arriving
-redis-cli --no-auth-warning ttl "v2:features:latest:BTCUSDT:1m"
-# Should be < 120 seconds (1m candle every 60s)
-
-# If stale:
-journalctl --user -u ai-bot-v2-binance-kline-wss-loop.service -n 20 --no-pager
-# Look for connection errors / reconnecting
-
-# Restart Binance kline ingestor (safe to restart if no positions being filled)
-systemctl --user restart ai-bot-v2-binance-kline-wss-loop.service
-
-# Verify restart worked (wait 30s then check)
-redis-cli --no-auth-warning ttl "v2:features:latest:BTCUSDT:1m"
+systemctl --user show ai-bot-v2-public-website-backend.service \
+  -p FragmentPath -p DropInPaths -p WorkingDirectory -p ExecStart \
+  -p MainPID -p ActiveEnterTimestamp --no-pager
+git rev-parse HEAD
+git status --short --untracked-files=all
 ```
 
----
+A restart can load dirty source. Four workers also mean:
 
-## 34. How to Troubleshoot Trainer Not Learning
+- local JSON locks are not cross-process;
+- in-memory metrics/history are fragmented;
+- module globals/caches exist per worker;
+- mixed import namespaces can duplicate state within a process.
+
+### 6.2 API/auth
+
+Do not infer auth from OpenAPI; it declares security on zero operations. Inspect route dependencies and actual middleware. Nine middleware layers are pass-through. Some API operations mutate paper/admin state or launch subprocesses.
+
+Auth health:
 
 ```bash
-# Check trainer feedback quarantine (CRITICAL CURRENT ISSUE)
-redis-cli --no-auth-warning get v2:paper:ledger | python3 -c "import sys,json; d=json.load(sys.stdin); print('consumable:', d.get('trainer_feedback_consumable_row_count',0)); print('quarantined:', d.get('trainer_feedback_quarantined_row_count',0))"
-# If consumable=0 and quarantined>0: feedback loop is broken
-
-# Check feedback key
-redis-cli --no-auth-warning type v2:trainer:feedback:outcomes
-redis-cli --no-auth-warning get v2:trainer:feedback:outcomes | python3 -m json.tool | head -20
-
-# Look for quarantine reasons in logs
-journalctl --user | grep -i 'quarantine\|feedback' | tail -20
+curl --fail --connect-timeout 3 --max-time 10 --silent --show-error \
+  http://127.0.0.1:8000/api/auth/health | python3 -m json.tool
 ```
 
----
+At audit time auth was local-file/non-production, durable stores and MFA were not ready, and token/cookie behavior was development-oriented. Never include a login password in documentation. Tighten local file modes and rotate/migrate credentials only through an approved security change.
 
-## 35. How to Troubleshoot Paper PnL Mismatch
+### 6.3 Frontend
+
+Vite preview serves ignored `v2/frontend/dist`; source edits have no effect until a controlled build. The backend can also serve the same dist. Before deployment compare:
 
 ```bash
-# Read full paper ledger
-redis-cli --no-auth-warning get v2:paper:ledger | python3 -m json.tool | head -60
-
-# Sample recent closed trade
-redis-cli --no-auth-warning get v2:paper:closed_trades | python3 -c "import sys,json; d=json.load(sys.stdin); trades=d if isinstance(d,list) else []; print('count:', len(trades)); print(json.dumps(trades[0] if trades else {}, indent=2))"
-
-# Check paper reconciliation timer
-journalctl --user | grep 'equity_reconciliation\|paper_fill_position' | tail -20
+stat -c '%y %s %n' v2/frontend/dist/index.html v2/frontend/src/main.tsx v2/frontend/src/router.tsx
+find v2/frontend/src -type f -newer v2/frontend/dist/index.html | wc -l
+npm --prefix v2/frontend ls --depth=0
 ```
 
----
+The last command currently fails because dependencies are incomplete; do not treat a failed build as a runtime outage without preserving the existing dist.
 
-## 36. How to Troubleshoot Website Stale Data
+Runtime public assets require explicit build inclusion because ordinary public-directory copying is disabled.
+
+### 6.4 Mobile/watch/CLI
+
+Swift targets duplicate endpoint/client/model contracts. A backend schema change requires:
+
+1. atlas lookup for the API path and field;
+2. TypeScript client/reference review;
+3. both Swift API/model definition reviews;
+4. decode tests with missing/additional/null fields;
+5. backwards-compatible server rollout before client release.
+
+## 7. Failure triage playbooks
+
+### 7.1 A service is failed or restarting
+
+1. Capture effective unit, drop-ins, result, PID, restart count and Git state.
+2. Identify whether nonzero is deliberate policy output, path/env syntax, worker exception, dependency failure or OOM.
+3. Read the unit’s configured output destination; user journal may be empty.
+4. Check whether a supervisor will restart it automatically.
+5. Determine whether starting it is mutating/destructive.
+6. Reproduce only in isolated non-live state if possible.
+7. Change one thing, run `systemd-analyze --user verify`, then restart only with approval.
+
+Do not “fix” the orderbook rollover failure under this generic playbook.
+
+### 7.2 Redis memory/eviction pressure
+
+1. Record memory/persistence/stats and key count.
+2. Determine whether evictions are already increasing.
+3. Capture key-pattern counts and memory sampling without dumping values.
+4. Identify TTL/no-TTL producers in the atlas.
+5. Protect paper/auth/risk/lineage evidence before any pruning.
+6. Obtain approval for export/backup and for any maxmemory/retention change.
+7. Validate restore before deleting.
+
+Increasing memory or deleting keys without finding unbounded producers only delays recurrence.
+
+### 7.3 Feature/prediction becomes stale
+
+Trace upstream, do not restart everything:
+
+```text
+provider heartbeat/key
+→ final candle/availability
+→ feature worker heartbeat/latest/archive
+→ tensor eligibility/rejection
+→ trainer prediction/publication
+→ all-timeframe/orchestrator consumption
+```
+
+If core OHLCV is current but an enrichment is stale/missing, the current pipeline may still mark aggregate freshness current. Inspect source-specific context.
+
+### 7.4 Trainer reports no learning
+
+Check, in order:
+
+1. loaded row count;
+2. clean trust classification and rejection reasons;
+3. on-policy field completeness versus outcome-supervised mode;
+4. batch/train/validation selection;
+5. finite loss and optimizer steps;
+6. parameter hash/delta;
+7. checkpoint write/load;
+8. prediction publication result;
+9. feedback/replay label version and cost model;
+10. holdout overlap.
+
+A heartbeat and GPU utilization alone are insufficient.
+
+### 7.5 Paper fills stop
+
+Do not lower gates reflexively. Count rejection reasons at each stage and distinguish:
+
+- no candidate supply;
+- stale/dirty data;
+- publication/archive failure;
+- orchestrator arbitration;
+- risk deny;
+- local strategy/pre-trade/A+/temporal gates;
+- tier/sizing/churn/freeze;
+- invalid position transition;
+- lifecycle/accounting quarantine;
+- runtime exception such as frozen fee mutation.
+
+Gate relaxation changes the research policy and requires explicit approval and tests.
+
+### 7.6 Paper fills occur despite risk deny
+
+This is a known defect. Preserve:
+
+- exact prediction/orchestrator/risk/fill IDs and payload hashes;
+- risk action and generated time;
+- local gate result and override markers;
+- admission tier/path;
+- fast-path marker;
+- position/lifecycle/accounting records;
+- whether PPO entry fields exist.
+
+Quarantine the row from performance/training evidence. Do not rewrite/delete history.
+
+### 7.7 Website is wrong but workers look healthy
+
+Trace:
+
+```text
+primary Redis/file state
+→ backend route/resource-plane payload
+→ public runtime JSON generated time
+→ explicit Vite build copy/prune
+→ dist artifact
+→ Vite/backend static serving
+→ browser cache/client decode
+```
+
+Remember that source can be newer than dist and remote tunnel routing is provider-side.
+
+## 8. Restart and deployment change protocol
+
+There is no trustworthy global “restart all” procedure. For a single non-live service:
+
+### Before
+
+- explicit scope/approval;
+- Git HEAD, dirty-state and in-scope content-fingerprint capture;
+- effective unit/drop-ins and environment-key names (not values);
+- authoritative state and last-good artifact/checkpoint IDs;
+- consumer list/change-impact review;
+- rollback command/path;
+- proof the service is non-destructive and not a live submitter;
+- one-cycle acceptance criteria.
+
+### Validate definition
 
 ```bash
-# Check if website backend is running
-systemctl --user status ai-bot-v2-public-website-backend.service
-
-# Check if API responds
-curl -s http://localhost:8000/api/v1/health | python3 -m json.tool
-
-# Check static payload files
-ls -la "/home/wali/Desktop/AI BOT REBUILD/v2/frontend/public/operator_runtime/" | head -10
-
-# Check prediction publisher is running
-systemctl --user status ai-bot-v2-all-timeframe-prediction-signal-price-target-publisher.service
-
-# If payloads are stale, restart publisher
-systemctl --user restart ai-bot-v2-all-timeframe-prediction-signal-price-target-publisher.service
+systemd-analyze --user verify /home/wali/.config/systemd/user/SERVICE.service
 ```
 
----
+For a timer, verify both service and timer. Warnings about paths with spaces, bad URL escapes, wrong sections and unknown escapes are material.
 
-## 37. How to Rotate/Restart Observers Safely
+### Restart only after approval
 
 ```bash
-# Observers (read-only monitoring scripts) are safe to restart anytime
-systemctl --user restart ai-bot-v2-readonly-decision-observatory.service
-systemctl --user restart ai-bot-v2-ingestors-status-publisher.service
-systemctl --user restart ai-bot-v2-log-errors-status-publisher.service
-systemctl --user restart ai-bot-v2-technical-analysis-status-publisher.service
-
-# Verify they come back up
-systemctl --user status ai-bot-v2-ingestors-status-publisher.service
+systemctl --user restart SERVICE.service
+systemctl --user show SERVICE.service \
+  -p ActiveState -p SubState -p Result -p MainPID -p NRestarts --no-pager
 ```
 
----
+Then verify primary outputs and downstream consumers for a complete cycle. Do not use this protocol for live transport, order, destructive retention, trainer promotion, paper/risk policy or multi-service restarts without a dedicated approved plan.
 
-## 38. How to Add a New Symbol Safely
+## 9. Backup and recovery requirements
 
-```bash
-# 1. Check if symbol is in discovery universe
-redis-cli --no-auth-warning get v2:altdata:symbol_score:NEWUSDT
+The current system has no proven full recovery. Before claiming backup readiness, capture and restore-test:
 
-# 2. Add symbol to config (versioned config via config-admin API)
-# Use /config-admin page in website
+- Redis consistent snapshot/export, config, key/TTL schema and version;
+- model NPZ blobs, manifests, architecture/schema and checksums;
+- replay/archive blobs, indexes, manifest/tombstones and label versions;
+- paper lifecycle/ledger/closed trades/portfolio source state;
+- auth users/revocations with protected permissions;
+- SQLite main DB plus WAL/SHM using SQLite backup/checkpoint semantics;
+- installed unit files/drop-ins and enable/mask/link state;
+- frontend dist hash and exact source/dependency build provenance;
+- Cloudflare routing export and newly rotated credential reference;
+- OS/Python/Node/Swift/CUDA/Redis package versions;
+- operator/runbook commit plus exact content hashes for dirty/untracked canonical
+  docs and the validated `atlas/ATLAS_BUILD_MANIFEST.json`;
+- secret-safe bundle manifest for effective units/drop-ins, dist, checkpoints and
+  other ignored deployment artifacts whose bytes Git cannot identify.
 
-# 3. Binance kline WSS auto-subscribes to new symbols from universe
-# Feature pipeline auto-includes new symbols from universe
+Copying a live SQLite main file without its WAL is not a backup. A checkpoint directory is not a full-system backup. An RDB without a tested restore and post-snapshot loss bound is not disaster recovery.
 
-# 4. Wait 2-3 minutes for first features to appear
-redis-cli --no-auth-warning ttl "v2:features:latest:NEWUSDT:1m"
+## 10. Retention/change control
 
-# 5. Verify prediction is generated within 5 minutes
-redis-cli --no-auth-warning ttl "v2:prediction:NEWUSDT:1m"
+Current automatic mutation must be recorded even when the operator initiates no
+cleanup. The six-hour persistent rollover timer repeatedly invokes a currently
+broken service whose source would delete oldest replay directories until the
+tree is at most 100 GiB (`tools/orderbook_replay_rollover.py:10-12`, `:46-83`).
+Merely fixing/reloading that service can let the already-active timer execute it.
+The separate 15-minute non-dry-run janitor is already executing the mutation
+surfaces listed in §4.5. Pausing, disabling or masking either timer is itself a
+state change and requires approval; until then, preservation/holdout work must
+account for the race and capture every trigger/result.
 
-# SAFETY: Do not add symbols with very low liquidity or untested markets
-```
+Before changing retention:
 
----
+1. inventory all writers and readers;
+2. classify raw replay, derived cache, audit evidence, current authority and reconstructible data;
+3. reconcile 100 GiB and 300 GiB policies;
+4. produce a dry-run deletion manifest with bytes/date/count;
+5. protect manifest/checksum/index integrity;
+6. confirm no holdout/training/paper investigation references the candidate data;
+7. back up and restore-test;
+8. obtain approval;
+9. delete in bounded batches with free-space and service monitoring.
 
-## 39. How to Add a New Ingestor Safely
+## 11. Change-impact checklist
 
-1. Write ingestor script following the V2 namespace convention (`v2:` prefix on all keys)
-2. Place in `v2/backend/app/cli/`
-3. Write corresponding unit test in `v2/backend/tests/`
-4. Write systemd service file in `~/.config/systemd/user/`
-5. Add to `file_inventory_backend.json` and `script_catalog.md`
-6. Verify: `systemctl --user enable --now ai-bot-v2-{service}.service`
-7. Verify no legacy Redis keys are written: `redis-cli keys "old_*" | grep -c .`
+For every code/config/unit/schema change:
 
----
+- exact file/symbol/line and owner;
+- why current behavior is wrong;
+- callers/importers from `atlas/CHANGE_IMPACT_INDEX.json`;
+- Redis readers/writers and TTLs;
+- env/config consumers and safe default behavior;
+- data fields and client decoders;
+- API producers/consumers;
+- timestamp/finality/dirty-sample consequences;
+- strategy/PPO/MASA/risk/live-execution classification;
+- position-state transition impact;
+- tests using isolated state;
+- deployment/drop-in/import-namespace impact;
+- rollback and evidence preservation;
+- atlas regeneration and doc update.
 
-## 40. Emergency Stop / Incident Response
+## 12. Incident severity
 
-### If Real Orders Are Placed (CRITICAL)
-```bash
-# 1. Kill switch (if live canary is running)
-python3 v2/backend/app/cli/v2_live_canary_kill_switch.py
+| Severity | Examples | Immediate stance |
+|---|---|---|
+| SEV-0 | active unauthorized real order/mutation, credential compromise | do not improvise: no single vetted repository-wide kill procedure was proven; immediately escalate to the authorized human operator/security incident owner, preserve evidence, and contain/rotate only under an approved scope-specific procedure |
+| SEV-1 | invalid paper fills contaminating training, future leakage, Redis data loss/eviction, destructive retention activation | stop affected producer/consumer with approval, quarantine evidence, preserve state |
+| SEV-2 | trainer/publisher outage, stale features, broken API/auth state, repeated crash loop | isolate component, prevent bad downstream data, restore last-good non-live state |
+| SEV-3 | dashboard/report drift, optional provider outage, noncritical automation failure | record and repair without broad restarts |
 
-# 2. Disarm submit
-python3 v2/backend/app/cli/v2_live_submit_disarm.py
+Never use severity as permission to enable live behavior or make an unreviewed strategy/risk change.
 
-# 3. Stop paper loop
-systemctl --user stop ai-bot-v2-trade-management-paper-loop.service
+The two discovered disarm tools are not interchangeable and do not constitute a
+vetted repository-wide SEV-0 procedure. `v2_live_canary_kill_switch.py` writes only
+the `v2:live_canary:*` namespace and its default arm expires after 86,400 seconds
+(`v2/backend/app/cli/v2_live_canary_kill_switch.py:1-18`, `:86-102`;
+`v2/backend/app/services/live_canary/execution_adapter.py:106`).
+`v2_live_submit_disarm.py` can mutate broader live-gate, trader-execution and
+transport state; it requires an explicit Redis URL, reason and `--apply`, and its
+backups expire by default (`v2/backend/app/cli/v2_live_submit_disarm.py:128-197`,
+`:200-217`). Before either is promoted into emergency guidance, an authorized
+owner must identify every active caller/transport, approve exact stop/disarm
+actions, define credential-containment and evidence-preservation steps, and test
+post-action verification and escalation.
 
-# 4. Verify no more orders can be placed
-redis-cli --no-auth-warning get v2:live_gate:state | python3 -c "import sys,json; d=json.load(sys.stdin); print('submit_enabled:', d.get('order_transport_submit_enabled',True))"
-# Must show: False
-```
+## 13. End-of-shift handoff
 
-### If Feature Pipeline Dies
-```bash
-systemctl --user restart ai-bot-v2-binance-kline-wss-loop.service
-systemctl --user restart ai-bot-v2-feature-pipeline-native-loop.service
-systemctl --user restart ai-bot-v2-full-talib-ta-loop.service
-# Wait 3 minutes, then verify
-redis-cli --no-auth-warning ttl v2:features:pipeline:heartbeat
-```
+Record:
 
-### If Trainer Dies
-```bash
-journalctl --user -u ai-bot-v2-trainer-training-loop.service -n 50 --no-pager
-# Check for OOM or CUDA errors
-# Restart only if no CUDA OOM
-systemctl --user restart ai-bot-v2-trainer-training-loop.service 2>/dev/null
-# Or restart via the correct service name
-```
+- time/timezone, Git start/end HEAD and in-scope start/end content fingerprints;
+- dirty/untracked files separated into owned versus concurrent, with secret-safe
+  hashes/bundle-manifest references for bytes not identified by HEAD;
+- installed/running/failed service/timer counts;
+- Redis memory, eviction and persistence state;
+- disk state; every automatic janitor/rollover trigger, result, deletion count
+  and bytes reclaimed; and any separate operator-initiated retention action;
+- trainer authorities, checkpoint IDs/load state and clean-row metrics;
+- feature/prediction/risk/paper/portfolio sample lineage;
+- readiness blockers;
+- incidents and quarantined sample IDs;
+- exact commands run and exit status;
+- files changed;
+- approvals and next safe action.
 
----
-
-## 41. Live-Readiness Checklist
-
-**DO NOT check this until paper trading demonstrates positive edge.**
-
-Current status: **NOT READY**
-
-Blockers:
-- [ ] Trainer feedback loop is 100% quarantined (P0)
-- [ ] Paper trading PnL is negative (-$253.49)
-- [ ] Live gate state is intentionally stale
-- [ ] Operator has not approved live enable
-- [ ] No live symbols configured
-
-Requirements before live enable:
-- [ ] Trainer feedback consumable_row_count > 0
-- [ ] Paper trading positive expectancy over 1,000+ trades
-- [ ] Continuous edge guardian A-grade gate = PASS
-- [ ] Full pre-live checklist completed
-- [ ] Operator explicit approval
-
----
-
-## 42. Known Current Blockers
-
-| Blocker | Severity | Description |
-|---------|---------|-------------|
-| Trainer feedback 100% quarantined | P0 | 741/741 feedback rows quarantined; trainer not learning from paper outcomes |
-| Paper PnL negative | P1 | -$253.49 realized; underlying model quality unknown |
-| Risk deny_default blocks all paper | P1 | All signals denied; paper trader not generating new fills |
-| AICoin credentials missing | P2 | 5 env vars absent; whale wall data unavailable |
-| LunarCrush/Nansen credential status unknown | P2 | Social/on-chain features may be partial |
-| Live gate state stale | P3 | Intentional; refreshed only on operator action |
-| 1 failed service | P3 | ai-bot-v2-autonomous-no-manual-next-task-policy (non-critical) |
-
----
-
-## 43. Glossary
-
-| Term | Meaning |
-|------|---------|
-| PPO | Proximal Policy Optimization — RL algorithm |
-| MASA | Multi-Agent State Abstraction — model architecture head |
-| Feature snapshot | Immutable, hashed feature vector for one symbol/timeframe at one candle close |
-| Lineage | Chain of hashes linking prediction → feature snapshot → tensor → candle timestamps |
-| deny_default | Risk gateway response when live gate is blocked — all decisions denied |
-| A-grade gate | Continuous edge guardian threshold — required before orchestrator routes signals |
-| Paper fill gate | Rate/quality gate that can hold paper intents until quality threshold is met |
-| Challenger v2 | The current paper policy ID (v2_cuda_exitless model) |
-| decision_time | Timestamp when prediction was computed |
-| available_at | Timestamp when prediction was available for trading (decision_time + latency) |
-| feature_cutoff | Most recent candle timestamp used in prediction features |
-| blocked_human_only | Live gate state meaning live trading is blocked until explicit human approval |
-| V2 namespace | All Redis keys must use v2: prefix — never write legacy/old keys |
-| Bridge exit | Completed migration from legacy trainer bridge to native V2 trainer |
-| RL core sidecar | Advisory-only RL inference that does not route to paper or live |
-| OOM | Out Of Memory — GPU memory exhaustion (currently 0 occurrences) |
-| MFE/MAE | Maximum Favorable/Adverse Excursion — trade performance metrics |
-| deny_default | Default deny for all signals when live gate is not enabled |
+The canonical issue list is `CURRENT_FINDINGS_AND_RISK_REGISTER.md`; exact source/contract impact is in `atlas/`; reconstruction requirements are in `REBUILD_BLUEPRINT.md`.

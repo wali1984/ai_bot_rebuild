@@ -1,4 +1,6 @@
 # Script-by-Script Reference — AI BOT V2 CLI
+
+> **Historical snapshot — superseded by the 2026-07-16 reconstruction.** Do not use this file alone for current behavior, operations, safety, or change-impact decisions. Start with [REVERSE_ENGINEERING_INDEX.md](REVERSE_ENGINEERING_INDEX.md).
 Generated: 2026-07-01
 Total: 231 scripts in v2/backend/app/cli/
 

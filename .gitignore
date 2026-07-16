@@ -161,6 +161,12 @@ legacy_pnl_accounting_to_v2_parity_status.json
 legacy_strategy_to_v2_strategy_parity_status.json
 trainer_feature_function_parity_status.json
 native_trainer_continuous_training_and_checkpoint_parity_status.json
+
+# Full low-level reverse-engineering atlas machine indexes are deterministic,
+# regeneratable, and hundreds of MB when expanded. Keep the human summaries
+# and generator in git; rebuild the JSON catalogs locally when needed.
+docs/system_audit_2026_master/atlas/*.json
+!docs/system_audit_2026_master/atlas/ATLAS_BUILD_MANIFEST.json
 liquidity_zone_and_liquidation_level_parity_status.json
 
 # Root-level pass/evidence run directories (audit run snapshots)
