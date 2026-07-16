@@ -6,6 +6,7 @@ import { SourceBadge } from '../../components/data/SourceBadge';
 import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { Donut, DonutLegend, RadialGauge, ChartFrame } from '../../components/charts/NervyxCharts';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
 import {
   publicRuntimeId,
@@ -1240,6 +1241,34 @@ export default function SignalsPage(): JSX.Element {
   const totalAccuracyCells = accuracyStatus?.symbol_timeframe_cell_count
     ?? accuracyStatus?.required_symbol_timeframe_cell_count;
   const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
+
+  // ── Chart derivations: signal direction + routing composition ────────────
+  const directionDist = useMemo(() => {
+    let long = 0, short = 0, hold = 0;
+    for (const r of rows) {
+      const a = String(r.action ?? r.side ?? '').toLowerCase();
+      if (a.includes('long') || a.includes('buy')) long += 1;
+      else if (a.includes('short') || a.includes('sell')) short += 1;
+      else hold += 1;
+    }
+    return [
+      { name: 'Long', value: long, color: '#22c55e' },
+      { name: 'Short', value: short, color: '#ef4444' },
+      { name: 'Hold', value: hold, color: '#f59e0b' },
+    ].filter((d) => d.value > 0);
+  }, [rows]);
+  const routingDist = useMemo(() => {
+    let ready = 0, gated = 0;
+    for (const r of rows) {
+      const fill = String((r.paper_fill_gate_status ?? r.paper_fill_status) ?? '').toLowerCase();
+      if (['open', 'allow', 'allowed', 'ready', 'routed'].some((t) => fill.includes(t))) ready += 1; else gated += 1;
+    }
+    return [
+      { name: 'Paper-ready', value: ready, color: '#3b82f6' },
+      { name: 'Gated', value: gated, color: '#f59e0b' },
+    ].filter((d) => d.value > 0);
+  }, [rows]);
+
   const canonicalSignal = selectActiveSignal(traderSnapshot);
   const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
 
@@ -1288,6 +1317,29 @@ export default function SignalsPage(): JSX.Element {
         <div className="trader-metric-grid" style={{ marginBottom: 12 }}>
           <CanonicalMetricCard label="Active Signal ID" metric={signalMetric('signal.id')} />
           <CanonicalMetricCard label="Signal Confidence (calibrated)" metric={signalMetric('signal.confidence')} />
+        </div>
+
+        {/* Signal analytics charts — direction mix, routing composition, accuracy */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <ChartFrame title="Direction mix" subtitle="live signal matrix" height={150}>
+              {directionDist.length
+                ? <><Donut data={directionDist} height={150} centerValue={String(directionDist.reduce((s, d) => s + d.value, 0))} centerLabel="signals" /><DonutLegend data={directionDist} /></>
+                : <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No signals yet</div>}
+            </ChartFrame>
+          </div>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <ChartFrame title="Routing" subtitle="paper-ready vs gated" height={150}>
+              {routingDist.length
+                ? <><Donut data={routingDist} height={150} centerValue={String(readyCount)} centerLabel="ready" /><DonutLegend data={routingDist} /></>
+                : <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No signals yet</div>}
+            </ChartFrame>
+          </div>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <ChartFrame title="Prediction accuracy" subtitle="evaluated outcomes" height={150}>
+              <RadialGauge value={accuracyStatus?.overall_accuracy} height={150} label="accuracy" />
+            </ChartFrame>
+          </div>
         </div>
 
         {/* Route filter */}
