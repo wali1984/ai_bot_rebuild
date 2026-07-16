@@ -4,6 +4,7 @@ import { useOptionalAuth } from '../../hooks/useAuth';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
+import type { CanonicalMetric } from '../../selectors/accountSelectors';
 import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
 import { marketFavoriteSymbolSet } from '../../lib/traderPageHelpers';
 
@@ -21,6 +22,8 @@ interface TickerRow {
   funding_rate?: number | null;
   open_interest?: number | null;
   long_short_ratio?: number | null;
+  mark_price?: number | null;
+  index_price?: number | null;
 }
 
 interface MarketOverviewData {
@@ -409,6 +412,27 @@ export default function MarketsPage(): JSX.Element {
   const canonicalBtcMarket = selectMarketBySymbol(traderSnapshot, 'BTCUSDT') ?? {};
   const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalBtcMarket, fieldId);
 
+  // The authenticated trader snapshot is 401-gated; for logged-out visitors fall
+  // back to the public /api/v2/market/overview BTC row so the canonical price
+  // cards still render real, fresh values instead of "Source offline".
+  const publicBtcRow = allTickers.find((r) => r.symbol === 'BTCUSDT') ?? null;
+  const overviewEnvelope = marketOverview.envelope;
+  const marketMetric = (fieldId: string, publicKey: keyof TickerRow): CanonicalMetric => {
+    const authed = canonicalMarketMetric(fieldId);
+    if (authed.value != null) return authed;
+    const publicValue = publicBtcRow ? (publicBtcRow[publicKey] as number | null | undefined) ?? null : null;
+    if (publicValue == null) return authed;
+    return {
+      ...authed,
+      value: publicValue,
+      source: overviewEnvelope.source ?? '/api/v2/market/overview',
+      sourceType: overviewEnvelope.source_type ?? 'static_payload',
+      timestamp: overviewEnvelope.timestamp != null ? new Date(overviewEnvelope.timestamp).toISOString() : null,
+      ageMs: overviewEnvelope.lag_ms ?? null,
+      quality: 'valid',
+    };
+  };
+
   const TABS: Array<{ id: TabId; label: string; count?: number }> = [
     { id: 'overview', label: 'Overview', count: allTickers.length },
     { id: 'gainers', label: 'Gainers', count: gainers },
@@ -529,9 +553,9 @@ export default function MarketsPage(): JSX.Element {
         </div>
 
         <div className="trader-metric-grid" style={{ marginTop: 14 }}>
-          <CanonicalMetricCard label="BTCUSDT Last Price" metric={canonicalMarketMetric('market.last_price')} />
-          <CanonicalMetricCard label="BTCUSDT Mark Price" metric={canonicalMarketMetric('market.mark_price')} />
-          <CanonicalMetricCard label="BTCUSDT Index Price" metric={canonicalMarketMetric('market.index_price')} />
+          <CanonicalMetricCard label="BTCUSDT Last Price" metric={marketMetric('market.last_price', 'last_price')} />
+          <CanonicalMetricCard label="BTCUSDT Mark Price" metric={marketMetric('market.mark_price', 'mark_price')} />
+          <CanonicalMetricCard label="BTCUSDT Index Price" metric={marketMetric('market.index_price', 'index_price')} />
         </div>
 
         <MarketProviderCoverage data={providerStatus.envelope.data} />

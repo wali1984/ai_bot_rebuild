@@ -25,10 +25,16 @@ from v2.backend.app.services.operator_truth.trade_derivatives_runtime import (  
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_derivatives_runtime_payload_publisher")
-    parser.add_argument("--symbols", default="", help="Comma-separated symbols; defaults to accepted live symbols.")
+    parser.add_argument(
+        "--symbols",
+        default="",
+        help="Comma-separated symbols; defaults to the adaptive derivatives universe.",
+    )
     args = parser.parse_args(argv)
-    symbols = [item.strip().upper() for item in args.symbols.split(",") if item.strip()] or accepted_symbols()
-    payload = publish_derivatives_payload(symbols=symbols)
+    explicit = [item.strip().upper() for item in args.symbols.split(",") if item.strip()]
+    # No explicit list -> let the publisher broaden to the adaptive derivatives
+    # universe (accepted majors first, then the resolved symbol universe capped).
+    payload = publish_derivatives_payload(symbols=explicit or None)
     print(
         json.dumps(
             {

@@ -488,12 +488,24 @@ def build_trade_terminal_payload(symbol: str = "BTCUSDT", client: Any = None) ->
     }
 
 
+def _coinglass_funding(client: Any, symbol: str) -> dict[str, Any]:
+    """Cross-source CoinGlass funding view (rate, z-score, next-funding countdown)."""
+    cg = redis_json(client, f"v2:coinglass:funding:{symbol}", {}) or {}
+    feats = dict_or_empty(cg.get("features")) or cg
+    return {
+        "coinglass_funding_rate": first_number(feats.get("coinglass_funding_rate")),
+        "coinglass_funding_rate_zscore": first_number(feats.get("coinglass_funding_rate_zscore")),
+        "coinglass_next_funding_minutes": first_number(feats.get("coinglass_next_funding_minutes")),
+    }
+
+
 def _funding_row(client: Any, symbol: str) -> dict[str, Any]:
     payload = redis_json(client, f"v2:market:funding:{symbol}", {}) or {}
     coinank = coinank_latest(client, "funding", symbol)
+    coinglass = _coinglass_funding(client, symbol)
     v2_rate = first_number(payload.get("lastFundingRate"), payload.get("funding_rate"))
     coinank_rate = coinank_last_number(coinank, ("fundingRate", "fr", "funding_rate", "rate"), (1, 2))
-    rate = first_number(v2_rate, coinank_rate)
+    rate = first_number(v2_rate, coinank_rate, coinglass.get("coinglass_funding_rate"))
     mark = first_number(payload.get("markPrice"), payload.get("mark_price"))
     index = first_number(payload.get("indexPrice"), payload.get("index_price"))
     return {
@@ -503,6 +515,9 @@ def _funding_row(client: Any, symbol: str) -> dict[str, Any]:
         "index_price": index,
         "basis_bps": ((mark - index) / index) * 10_000.0 if mark is not None and index not in (None, 0.0) else None,
         "next_funding_time": payload.get("nextFundingTime") or payload.get("next_funding_time"),
+        "coinglass_funding_rate": coinglass.get("coinglass_funding_rate"),
+        "coinglass_funding_rate_zscore": coinglass.get("coinglass_funding_rate_zscore"),
+        "coinglass_next_funding_minutes": coinglass.get("coinglass_next_funding_minutes"),
         "age_seconds": age_from_ms(payload.get("time")) or age_from_iso(payload.get("generated_est")),
         "source_key": f"v2:market:funding:{symbol}" if v2_rate is not None else f"latest:coinank:funding:{symbol}:15m",
         "data_status": "CURRENT_OR_RECENT" if rate is not None else "NO_CURRENT_FUNDING_SOURCE",
@@ -548,38 +563,238 @@ def _long_short_row(client: Any, symbol: str) -> dict[str, Any]:
     }
 
 
-def _liquidation_row(client: Any, symbol: str) -> dict[str, Any]:
-    keys = redis_keys(client, f"v2:liquidations:levels:{symbol}:*", limit=20)
-    rows = [redis_json(client, key, {}) for key in keys]
-    payload = next((row for row in rows if isinstance(row, dict) and row), {})
-    latest_events = stream_latest_rows(client, "v2:liquidations:events", 200)
-    symbol_events = [row for row in latest_events if str(row.get("symbol") or "").upper() == symbol]
+_LIQ_LEVEL_TFS = ("1m", "5m", "15m", "1h", "4h")
+
+
+def _levels_direct(client: Any, symbol: str) -> tuple[dict[str, Any], int]:
+    """Freshest liquidation-levels row via DIRECT GETs (never a keyspace scan).
+
+    A ``scan_iter(match="v2:liquidations:levels:{symbol}:*")`` walks the 2M-key
+    keyspace per symbol and blew the publisher past its cycle budget; the
+    timeframes are known, so GET them directly.
+    """
+    found = 0
+    best: dict[str, Any] = {}
+    for tf in _LIQ_LEVEL_TFS:
+        row = redis_json(client, f"v2:liquidations:levels:{symbol}:{tf}", None)
+        if isinstance(row, dict) and row:
+            found += 1
+            if not best:
+                best = row
+    return best, found
+
+
+def _liquidation_row(client: Any, symbol: str, levels: dict[str, Any] | None = None, levels_count: int = 0) -> dict[str, Any]:
+    if levels is None:
+        levels, levels_count = _levels_direct(client, symbol)
+    payload = levels or {}
     long_level = first_number(payload.get("liquidation_long_level"))
     short_level = first_number(payload.get("liquidation_short_level"))
+    has_stream = stream_len(client, "v2:liquidations:events") is not None
     return {
         "symbol": symbol,
-        "event_count_latest_window": len(symbol_events),
-        "levels_count": len(keys),
+        "event_count_latest_window": to_int(payload.get("liquidation_count_5m")) or 0,
+        "levels_count": levels_count,
         "long_level": long_level,
         "short_level": short_level,
         "long_distance_pct": first_number(payload.get("liquidation_long_distance_pct")),
         "short_distance_pct": first_number(payload.get("liquidation_short_distance_pct")),
-        "source_keys": keys[:8] + ["v2:liquidations:events"],
-        "age_seconds": age_from_ms(payload.get("liquidation_updated_ts_ms") or payload.get("updated_ts_ms"))
+        "source_keys": [f"v2:liquidations:levels:{symbol}:1m", "v2:liquidation:enhanced:" + symbol],
+        "age_seconds": age_from_ms(payload.get("liquidation_last_event_ts") or payload.get("liquidation_updated_ts_ms") or payload.get("updated_ts_ms"))
         or age_from_iso(payload.get("generated_est")),
-        "data_status": "LEVELS_PRESENT" if keys else "EVENT_WINDOW_EMPTY_BUT_WSS_ACTIVE" if stream_len(client, "v2:liquidations:events") is not None else "NO_CURRENT_LIQUIDATION_EVENT_WINDOW",
+        "data_status": "LEVELS_PRESENT" if levels_count else "EVENT_WINDOW_EMPTY_BUT_WSS_ACTIVE" if has_stream else "NO_CURRENT_LIQUIDATION_EVENT_WINDOW",
     }
+
+
+def _global_regime(client: Any) -> dict[str, Any]:
+    """Market-wide derivatives regime from the CoinAnk global bridge.
+
+    Source: ``v2:coinank:global:latest`` (v2_coinank_intel_bridge) -- aggregate
+    open interest / long-short / funding / liquidations plus sentiment, fear-greed,
+    BTC/ETH dominance, alt-season and volatility. This is the whole-market context
+    the per-symbol tables lacked.
+    """
+    g = redis_json(client, "v2:coinank:global:latest", {}) or {}
+    mrc = dict_or_empty(g.get("market_regime_context"))
+    members = dict_or_empty(g.get("members"))
+
+    def _member(name: str) -> float | None:
+        row = members.get(name)
+        if isinstance(row, Mapping):
+            return to_float(row.get("value"))
+        return to_float(row)
+
+    total_oi = first_number(mrc.get("total_open_interest_usd"), _member("total_oi"))
+    ls_ratio = first_number(mrc.get("aggregate_long_short_ratio"), _member("long_short_ratio"))
+    avg_funding = first_number(mrc.get("avg_funding_rate"), _member("funding_rate_avg"))
+    total_liq = first_number(mrc.get("total_liquidations_usd"), _member("total_liquidations"))
+
+    def _plausible(value: float | None, low: float) -> float | None:
+        # CoinAnk free tier reports fear-greed / alt-season / dominance / volatility as
+        # placeholder ~0 values; only surface them when a plausible reading is present.
+        return value if value is not None and value > low else None
+
+    fear_greed = _plausible(first_number(mrc.get("fear_greed"), _member("fear_greed")), 0.0)
+    alt_season = _plausible(first_number(mrc.get("alt_season_index"), _member("alt_season_index")), 0.0)
+    btc_dom = _plausible(first_number(mrc.get("btc_dominance"), _member("btc_dominance")), 1.0)
+    eth_dom = _plausible(first_number(mrc.get("eth_dominance"), _member("eth_dominance")), 1.0)
+    volatility = _plausible(first_number(mrc.get("volatility_index"), _member("volatility_index")), 0.0)
+    return {
+        "data_status": "CURRENT_OR_RECENT" if g else "NO_CURRENT_GLOBAL_REGIME_SOURCE",
+        "generated_utc": g.get("generated_utc"),
+        "age_seconds": age_from_iso(g.get("generated_utc")),
+        "present_member_count": g.get("present_member_count"),
+        "is_fresh": g.get("is_fresh"),
+        "total_open_interest_usd": total_oi,
+        "total_volume_usd": _member("total_volume"),
+        "total_liquidations_usd": total_liq,
+        "aggregate_long_short_ratio": ls_ratio,
+        "avg_funding_rate": avg_funding,
+        "market_sentiment": first_number(mrc.get("market_sentiment"), _member("market_sentiment")),
+        "fear_greed": fear_greed,
+        "alt_season_index": alt_season,
+        "btc_dominance": btc_dom,
+        "eth_dominance": eth_dom,
+        "volatility_index": volatility,
+        "source_key": "v2:coinank:global:latest",
+        "missing_reason_if_any": None if g else "NO_CURRENT_GLOBAL_REGIME_SOURCE",
+    }
+
+
+def _cross_exchange_row(client: Any, symbol: str) -> dict[str, Any]:
+    """Binance/KuCoin cross-exchange comparison from v2:crossexchange:analysis."""
+    payload = redis_json(client, f"v2:crossexchange:analysis:{symbol}", {}) or {}
+    present = bool(payload) and payload.get("actual_payload_present") is not False
+    return {
+        "symbol": symbol,
+        "price_spread_pct": first_number(payload.get("arb_spread_pct")),
+        "price_spread_direction": payload.get("arb_direction"),
+        "funding_spread_bps": first_number(payload.get("funding_rate_spread_bps")),
+        "binance_funding_pct": first_number(payload.get("binance_funding_rate_pct")),
+        "kucoin_funding_pct": first_number(payload.get("kucoin_funding_rate_pct")),
+        "binance_spread_bps": first_number(payload.get("binance_spread_bps")),
+        "kucoin_spread_bps": first_number(payload.get("kucoin_spread_bps")),
+        "spread_differential": first_number(payload.get("spread_differential")),
+        "volume_concentration": first_number(payload.get("volume_concentration")),
+        "better_liquidity_exchange": "binance"
+        if first_number(payload.get("better_liquidity_exchange")) == 1.0
+        else ("kucoin" if payload.get("better_liquidity_exchange") is not None else None),
+        "source_key": f"v2:crossexchange:analysis:{symbol}",
+        "data_status": "CURRENT_OR_RECENT" if present else "NO_CURRENT_CROSS_EXCHANGE_SOURCE",
+    }
+
+
+def _enhanced_liquidation(client: Any, symbol: str, levels: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Enhanced liquidation intelligence (v2:liquidation:enhanced + levels engine)."""
+    enh = redis_json(client, f"v2:liquidation:enhanced:{symbol}", {}) or {}
+    levels = levels or {}
+    return {
+        "cascade_risk": first_number(levels.get("liquidation_cascade_risk")),
+        "cascade_probability": first_number(enh.get("liquidation_cascade_probability")),
+        "pressure_direction": levels.get("liquidation_pressure_direction") or enh.get("ratio_direction"),
+        "market_stress": first_number(enh.get("market_stress_indicator")),
+        "predicted_long_zone": first_number(enh.get("predicted_long_liq_zone")),
+        "predicted_short_zone": first_number(enh.get("predicted_short_liq_zone")),
+        "long_short_ratio": first_number(enh.get("long_short_ratio")),
+    }
+
+
+def _liq_ladder(levels: dict[str, Any] | None, depth: int = 6) -> dict[str, Any]:
+    """Compact liquidation heatmap ladder (top long/short zones price+strength).
+
+    Source: ``liquidation_levels_json`` on the levels-engine row -- the full
+    price/strength ladder the levels engine derives from the liquidation stream.
+    """
+    raw = json_parse((levels or {}).get("liquidation_levels_json")) or {}
+
+    def _zones(*names: str) -> list[dict[str, Any]]:
+        rows: list[Any] = []
+        for name in names:
+            candidate = raw.get(name)
+            if isinstance(candidate, list) and candidate:
+                rows = candidate
+                break
+        out: list[dict[str, Any]] = []
+        for item in rows[:depth]:
+            if isinstance(item, Mapping):
+                price = first_number(item.get("price"), item.get("level"), item.get("p"))
+                strength = first_number(item.get("strength"), item.get("volume"), item.get("size"), item.get("s"))
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                price, strength = first_number(item[0]), first_number(item[1])
+            else:
+                price, strength = first_number(item), None
+            if price is not None:
+                out.append({"price": price, "strength": strength})
+        return out
+
+    return {
+        "long_zones": _zones("top_long", "levels_long", "long"),
+        "short_zones": _zones("top_short", "levels_short", "short"),
+    }
+
+
+def _coinank_symbol_intel(client: Any, symbol: str) -> dict[str, Any]:
+    """CoinAnk composite derivatives score + liquidation turnover/imbalance.
+
+    Source: ``v2:coinank:symbol:{symbol}`` (v2_coinank_intel_bridge) -- the same
+    payload mirrored to ``v2:features:coinank:{symbol}:15m``.
+    """
+    cs = redis_json(client, f"v2:coinank:symbol:{symbol}", {}) or {}
+    feats = dict_or_empty(cs.get("features"))
+    return {
+        "coinank_derivatives_score": first_number(cs.get("coinank_derivatives_score"), feats.get("coinank_derivatives_score")),
+        "coinank_open_interest_usd": first_number(feats.get("coinank_open_interest")),
+        "coinank_long_turnover_usd": first_number(feats.get("coinank_liquidation_long_turnover")),
+        "coinank_short_turnover_usd": first_number(feats.get("coinank_liquidation_short_turnover")),
+        "coinank_liquidation_imbalance_usd": first_number(feats.get("coinank_liquidation_imbalance_usd")),
+    }
+
+
+def _derivatives_symbols(explicit: Iterable[str] | None) -> list[str]:
+    """Broaden coverage beyond the 6 accepted symbols to the live universe."""
+    if explicit:
+        picked = [str(s).upper() for s in explicit if str(s or "").strip()]
+        if picked:
+            return picked
+    try:
+        from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
+
+        universe = [str(s).upper() for s in (resolve_symbols() or []) if str(s or "").strip()]
+    except Exception:
+        universe = []
+    if not universe:
+        universe = accepted_symbols()
+    # Cap to keep the per-cycle Redis fan-out bounded; accepted symbols come first.
+    accepted = accepted_symbols()
+    ordered = list(dict.fromkeys([*accepted, *universe]))
+    return ordered[:48]
 
 
 def build_derivatives_payload(client: Any = None, symbols: Iterable[str] | None = None) -> dict[str, Any]:
     client = client or connect_redis()
-    selected = [str(item).upper() for item in (symbols or accepted_symbols()) if str(item or "").strip()]
+    selected = _derivatives_symbols(symbols)
     if not selected:
         selected = list(ACCEPTED_SYMBOL_FALLBACK)
+    regime = _global_regime(client)
+    # One CoinAnk composite read per symbol, shared across long_short + liquidation.
+    coinank_intel = {symbol: _coinank_symbol_intel(client, symbol) for symbol in selected}
     funding_rows = [_funding_row(client, symbol) for symbol in selected]
     oi_rows = [_oi_row(client, symbol) for symbol in selected]
     long_short_rows = [_long_short_row(client, symbol) for symbol in selected]
-    liquidation_rows = [_liquidation_row(client, symbol) for symbol in selected]
+    for row in long_short_rows:
+        row["coinank_derivatives_score"] = coinank_intel.get(row["symbol"], {}).get("coinank_derivatives_score")
+    cross_exchange_rows = [_cross_exchange_row(client, symbol) for symbol in selected]
+    liquidation_rows = []
+    for symbol in selected:
+        levels, levels_count = _levels_direct(client, symbol)
+        row = _liquidation_row(client, symbol, levels=levels, levels_count=levels_count)
+        row.update(_enhanced_liquidation(client, symbol, levels=levels))
+        row.update(_liq_ladder(levels))
+        intel = coinank_intel.get(symbol, {})
+        row["long_turnover_usd"] = intel.get("coinank_long_turnover_usd")
+        row["short_turnover_usd"] = intel.get("coinank_short_turnover_usd")
+        row["turnover_imbalance_usd"] = intel.get("coinank_liquidation_imbalance_usd")
+        liquidation_rows.append(row)
     basis_rows = [
         {
             "symbol": row["symbol"],
@@ -618,6 +833,25 @@ def build_derivatives_payload(client: Any = None, symbols: Iterable[str] | None 
             "rows": liquidation_rows,
             "missing_reason_if_any": None if any(row.get("levels_count") for row in liquidation_rows) else "NO_CURRENT_LIQUIDATION_EVENT_WINDOW",
         },
+        "cross_exchange": {
+            "data_status": "CURRENT_OR_RECENT" if any(row.get("price_spread_pct") is not None or row.get("funding_spread_bps") is not None for row in cross_exchange_rows) else "NO_CURRENT_CROSS_EXCHANGE_SOURCE",
+            "rows": cross_exchange_rows,
+            "missing_reason_if_any": None if any(row.get("price_spread_pct") is not None or row.get("funding_spread_bps") is not None for row in cross_exchange_rows) else "NO_CURRENT_CROSS_EXCHANGE_SOURCE",
+        },
+    }
+    # Real market-wide aggregate from the CoinAnk global regime (accurate whole-
+    # market numbers) with a per-symbol fallback derived from the funding rows.
+    funding_values = [r.get("funding_rate") for r in funding_rows if r.get("funding_rate") is not None]
+    aggregate = {
+        "total_oi_usd": regime.get("total_open_interest_usd"),
+        "total_liq_24h": regime.get("total_liquidations_usd"),
+        "avg_funding": regime.get("avg_funding_rate")
+        if regime.get("avg_funding_rate") is not None
+        else (sum(funding_values) / len(funding_values) if funding_values else None),
+        "aggregate_long_short_ratio": regime.get("aggregate_long_short_ratio"),
+        "funding_positive_count": sum(1 for v in funding_values if v > 0),
+        "funding_negative_count": sum(1 for v in funding_values if v < 0),
+        "source": "v2:coinank:global:latest" if regime.get("total_open_interest_usd") is not None else "per_symbol_funding_rows",
     }
     return {
         "schema_version": "v2_derivatives_payload_v1",
@@ -626,11 +860,13 @@ def build_derivatives_payload(client: Any = None, symbols: Iterable[str] | None 
         "payload_age_seconds": 0,
         "symbols": selected,
         "source_keys": {
-            "funding": "v2:market:funding:{symbol} / latest:coinank:funding:{symbol}:15m",
+            "funding": "v2:market:funding:{symbol} / latest:coinank:funding:{symbol}:15m / v2:coinglass:funding:{symbol}",
             "open_interest": "v2:market:open_interest:{symbol} / latest:coinank:open_interest:{symbol}:15m",
-            "long_short": "v2:market:long_short:{symbol} / latest:coinank:long_short:{symbol}:15m",
+            "long_short": "v2:market:long_short:{symbol} / latest:coinank:long_short:{symbol}:15m / v2:coinank:symbol:{symbol}.coinank_derivatives_score",
             "basis": "v2:market:funding:{symbol}.markPrice/indexPrice",
-            "liquidations": "v2:liquidations:events + v2:liquidations:levels:{symbol}:* + latest:coinank:liquidations:{symbol}:15m",
+            "liquidations": "v2:liquidations:events + v2:liquidations:levels:{symbol}:* + v2:liquidation:enhanced:{symbol} + v2:coinank:symbol:{symbol} turnover",
+            "cross_exchange": "v2:crossexchange:analysis:{symbol}",
+            "global_regime": "v2:coinank:global:latest",
         },
         "live_gate": hold.get("live_gate"),
         "trader_state": hold.get("trader_state"),
@@ -640,6 +876,8 @@ def build_derivatives_payload(client: Any = None, symbols: Iterable[str] | None 
         "live_submit_allowed": False,
         "live_submit_blocker": (hold.get("blockers") or ["INSUFFICIENT_AVAILABLE_BALANCE_FOR_MIN_ORDER"])[0],
         "accepted_symbols": hold.get("accepted_symbols") or [],
+        "global_regime": regime,
+        "aggregate": aggregate,
         "modules": modules,
         "exchanges": {
             "generated_est": est_now(),

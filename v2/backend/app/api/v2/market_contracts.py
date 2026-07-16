@@ -4114,6 +4114,7 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                 if isinstance(funding, dict):
                     row["funding_rate"] = _float(funding.get("lastFundingRate"))
                     row["mark_price"] = _float(funding.get("markPrice"))
+                    row["index_price"] = _float(funding.get("indexPrice"))
                 oi = json.loads(oi_raw) if oi_raw else None
                 if isinstance(oi, dict):
                     row["open_interest"] = _float(oi.get("openInterest"))
@@ -4401,6 +4402,11 @@ async def get_derivatives_contract() -> dict[str, Any]:
             "Public/Redis derivatives sources cannot approve final A+ execution by themselves",
         ],
         mode="read_only",
+        # Publisher timer republishes every 60s and upstream derivatives sources
+        # (CoinAnk global 60s, cross-exchange 300s) update on the minute scale, so a
+        # 90s fresh window matches the natural cadence instead of the 30s tick default.
+        fresh_max_seconds=90,
+        stale_min_seconds=240,
     )
 
 
