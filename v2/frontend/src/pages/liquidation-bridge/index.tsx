@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { PnLBars, Donut, DonutLegend, ChartFrame } from '../../components/charts/NervyxCharts';
+import { CATEGORICAL } from '../../components/charts/nervyxChartTheme';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
@@ -675,6 +677,19 @@ export default function DerivativesPage(): JSX.Element {
   const regime = data?.regime ?? null;
   const rows = data?.rows ?? [];
 
+  // ── Chart derivations: top funding (bps, diverging) + OI share ───────────
+  const topFunding = useMemo(() => [...rows]
+    .filter((r) => r.funding_rate != null)
+    .sort((a, b) => Math.abs(b.funding_rate ?? 0) - Math.abs(a.funding_rate ?? 0))
+    .slice(0, 10)
+    .map((r) => ({ label: r.symbol.replace('USDT', ''), value: (r.funding_rate ?? 0) * 10000 })), [rows]);
+  const oiShare = useMemo(() => {
+    const withOi = [...rows].filter((r) => (r.open_interest_value ?? 0) > 0).sort((a, b) => (b.open_interest_value ?? 0) - (a.open_interest_value ?? 0));
+    const top = withOi.slice(0, 6).map((r, i) => ({ name: r.symbol.replace('USDT', ''), value: r.open_interest_value ?? 0, color: CATEGORICAL[i % CATEGORICAL.length] }));
+    const rest = withOi.slice(6).reduce((s, r) => s + (r.open_interest_value ?? 0), 0);
+    return rest > 0 ? [...top, { name: 'Others', value: rest, color: '#64748b' }] : top;
+  }, [rows]);
+
   return (
     <div
       data-testid="page-derivatives"
@@ -716,6 +731,26 @@ export default function DerivativesPage(): JSX.Element {
 
       {/* Global regime */}
       {regime && <RegimePanel regime={regime} />}
+
+      {/* Derivatives analytics charts — top funding rates + OI distribution */}
+      {rows.length > 0 && (
+        <div style={{ margin: '16px 24px 0', display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 14 }}>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <ChartFrame title="Top funding rates" subtitle="basis points · longs pay shorts when positive" height={180}>
+              {topFunding.length
+                ? <PnLBars data={topFunding} height={180} usd={false} />
+                : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No funding data</div>}
+            </ChartFrame>
+          </div>
+          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <ChartFrame title="Open-interest share" subtitle="top symbols by notional" height={180}>
+              {oiShare.length
+                ? <><Donut data={oiShare} height={160} centerLabel="symbols" centerValue={String(oiShare.length)} /><DonutLegend data={oiShare} /></>
+                : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No OI data</div>}
+            </ChartFrame>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 0, background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)', marginTop: 16, overflowX: 'auto' }}>
