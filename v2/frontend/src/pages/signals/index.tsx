@@ -1183,9 +1183,9 @@ export default function SignalsPage(): JSX.Element {
   // Route filter
   const filteredRows = useMemo(() => {
     if (routeFilter === 'all') return rows;
-    if (routeFilter === 'ready') return rows.filter(r => ['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => (r.paper_fill_gate_status ?? '').toLowerCase().includes(token)));
+    if (routeFilter === 'ready') return rows.filter(r => ['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => ((r.paper_fill_gate_status ?? r.paper_fill_status) ?? '').toLowerCase().includes(token)));
     if (routeFilter === 'live') return rows.filter(r => (r.live_gate ?? '').toLowerCase().includes('open') && !(r.live_gate ?? '').toLowerCase().includes('blocked'));
-    if (routeFilter === 'blocked') return rows.filter(r => (r.live_gate ?? '').toLowerCase().includes('blocked') && !['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => (r.paper_fill_gate_status ?? '').toLowerCase().includes(token)));
+    if (routeFilter === 'blocked') return rows.filter(r => (r.live_gate ?? '').toLowerCase().includes('blocked') && !['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => ((r.paper_fill_gate_status ?? r.paper_fill_status) ?? '').toLowerCase().includes(token)));
     return rows;
   }, [rows, routeFilter]);
 
@@ -1223,7 +1223,7 @@ export default function SignalsPage(): JSX.Element {
     return filter ? pool.filter(s => s.includes(filter)) : pool;
   }, [showAllSymbols, allSymbols, symbolSearch]);
 
-  const readyCount = rows.filter(r => ['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => (r.paper_fill_gate_status ?? '').toLowerCase().includes(token))).length;
+  const readyCount = rows.filter(r => ['open', 'allow', 'allowed', 'ready', 'routed'].some((token) => ((r.paper_fill_gate_status ?? r.paper_fill_status) ?? '').toLowerCase().includes(token))).length;
   const liveCount = rows.filter(r => (r.live_gate ?? '').toLowerCase() === 'open').length;
   const avgConf = rows.length > 0
     ? rows.reduce((s, r) => s + (r.confidence_executable_trade ?? r.confidence_selected_action ?? r.confidence ?? 0), 0) / rows.length
@@ -1399,7 +1399,7 @@ export default function SignalsPage(): JSX.Element {
                           <td style={{ padding: '10px 12px' }}><ConfBar value={row.confidence_executable_trade ?? null} /></td>
                           <td style={{ padding: '10px 12px' }}><AccuracyBadge cell={accuracy} /></td>
                           <td style={{ padding: '10px 12px' }}><PriceTargetCell target={row.price_target_after_cost ?? row.price_target} moveBps={row.expected_move_bps} action={row.action} /></td>
-                          <td style={{ padding: '10px 12px' }}><RoutingBadge gateStatus={row.live_gate} paperFill={row.paper_fill_gate_status} /></td>
+                          <td style={{ padding: '10px 12px' }}><RoutingBadge gateStatus={row.live_gate} paperFill={row.paper_fill_gate_status ?? row.paper_fill_status} /></td>
                           <td style={{ padding: '10px 12px', fontFamily: 'var(--font-mono)', fontSize: 11, color: row.data_coverage_percent != null && row.data_coverage_percent >= 80 ? '#26c281' : '#f59e0b' }}>
                             {row.data_coverage_percent != null ? `${row.data_coverage_percent.toFixed(0)}%` : '—'}
                           </td>

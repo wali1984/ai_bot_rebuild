@@ -155,7 +155,9 @@ export function ProChartSymbolPanel({ activeSymbol, onSymbolSelect }: ProChartSy
       <div className="symbol-panel__list" role="listbox" aria-label="Symbol watchlist">
         {filtered.map(s => {
           const isActive = s.symbol === activeSymbol;
-          const dir = s.signal?.includes('BUY') ? 'buy' : s.signal?.includes('SELL') ? 'sell' : null;
+          // The signal vocabulary is long/short/hold (not BUY/SELL), so the old
+          // 'BUY'/'SELL' substring test never matched and no arrow ever rendered.
+          const dir = /long|buy/i.test(s.signal ?? '') ? 'buy' : /short|sell/i.test(s.signal ?? '') ? 'sell' : null;
           const displayName = s.symbol.replace('USDT', '');
           const priceStr = s.price != null
             ? `$${s.price.toLocaleString('en-US', { maximumFractionDigits: 4 })}`

@@ -87,8 +87,11 @@ function gateTone(gate: string | undefined): 'ok' | 'warn' | 'block' {
 
 function trainerTone(state: string | undefined): 'ok' | 'warn' | 'neutral' {
   if (!state) return 'neutral';
-  if (state === 'running' || state === 'active') return 'ok';
-  if (state === 'error' || state === 'crashed') return 'warn';
+  const s = state.toLowerCase();
+  // The trainer publishes states like ACTIVE_REDIS_EVIDENCE / REPLAY_AND_ONLINE_LEARNING /
+  // WEIGHTS_UPDATING — all healthy. Match on substrings so a live trainer reads green.
+  if (s.includes('error') || s.includes('crash') || s.includes('halt') || s.includes('frozen') || s.includes('stale') || s.includes('missing')) return 'warn';
+  if (s.includes('active') || s.includes('running') || s.includes('learning') || s.includes('updating') || s.includes('ok') || s.includes('evidence')) return 'ok';
   return 'neutral';
 }
 

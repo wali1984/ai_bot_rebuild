@@ -131,7 +131,7 @@ export function TradeTerminal(): JSX.Element {
         </div>
         <div>
           <span>AI Signal</span>
-          <strong><CanonicalMetricValue metric={signalMetric('signal.id')} /></strong>
+          <strong><CanonicalMetricValue metric={signalMetric('signal.direction')} /></strong>
         </div>
         <div>
           <span>Confidence</span>

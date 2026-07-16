@@ -521,7 +521,12 @@ export default function AccountSettingsPage(): JSX.Element {
           <div className="cockpit-metric">
             <span>Last account refresh</span>
             <strong>
-              <CanonicalMetricValue metric={accountMetric('account.connection_status')} emptyText="Source offline" />
+              {(() => {
+                // Render the account section's actual refresh timestamp, not the
+                // connection_status string (which is already shown as "Account Connection").
+                const ts = accountMetric('account.equity').timestamp;
+                return ts ? new Date(ts).toLocaleString() : 'Source offline';
+              })()}
             </strong>
           </div>
         </div>

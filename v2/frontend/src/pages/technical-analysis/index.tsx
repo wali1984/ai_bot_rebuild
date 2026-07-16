@@ -30,8 +30,14 @@ interface TAStatusData {
 }
 
 interface FeaturePipelineData {
-  classification: string;
-  snapshots_built: number;
+  // /api/v2/ai/predictions does not emit `classification`/`snapshots_built`; it
+  // returns trainer_status + count + feature_count + data_coverage. Map to those.
+  classification?: string;
+  snapshots_built?: number;
+  trainer_status?: string;
+  count?: number;
+  feature_count?: number;
+  data_coverage?: number;
 }
 
 function fmt(v: number | null | undefined): string {
@@ -118,8 +124,9 @@ export default function TechnicalAnalysisPage(): JSX.Element {
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)' }}>Feature Pipeline</h2>
             <KPIGrid columns={3}>
-              <MetricCard label="Classification" value={fpData.classification ?? '—'} freshness={ta.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale'} />
-              <MetricCard label="Snapshots Built" value={fpData.snapshots_built?.toString() ?? '—'} />
+              <MetricCard label="Classification" value={fpData.classification ?? fpData.trainer_status ?? '—'} freshness={ta.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale'} />
+              <MetricCard label="Predictions Built" value={(fpData.snapshots_built ?? fpData.count)?.toString() ?? '—'} />
+              <MetricCard label="Feature Coverage" value={fpData.data_coverage != null ? `${fpData.data_coverage.toFixed(1)}%` : (fpData.feature_count != null ? `${fpData.feature_count} feats` : '—')} />
             </KPIGrid>
           </section>
         )}
@@ -133,7 +140,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
                 <MetricCard label="Classification" value={data.classification ?? '—'} />
                 <MetricCard label="Symbols Covered" value={data.symbols_covered?.toString() ?? '—'} />
                 <MetricCard label="Symbols Fresh" value={data.symbols_fresh?.toString() ?? '—'} freshness={data.symbols_fresh === data.symbols_covered ? 'fresh' : 'stale'} />
-                <MetricCard label="TA Keys Fresh / Total" value={`${data.ta_keys_fresh ?? 0} / ${data.ta_keys_total ?? 0}`} freshness={data.ta_keys_fresh > 0 ? 'fresh' : 'offline'} />
+                <MetricCard label="TA Keys Fresh / Total" value={`${data.ta_keys_fresh ?? 0} / ${data.ta_keys_total ?? 0}`} freshness={data.ta_keys_total > 0 && data.ta_keys_fresh / data.ta_keys_total >= 0.9 ? 'fresh' : data.ta_keys_fresh > 0 ? 'stale' : 'offline'} />
               </KPIGrid>
             </section>
 

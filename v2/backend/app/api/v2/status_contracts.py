@@ -301,15 +301,26 @@ async def get_ai_model_state() -> dict[str, Any]:
                         if key_str.endswith("BTCUSDT:1m") and sample_btc_1m is None:
                             data = json.loads(raw)
                             if isinstance(data, dict):
+                                # ta_full stores the real indicator values in a
+                                # nested `indicators` dict (rsi_14, macd, atr_14,
+                                # sma_20, ema_*, bb_width_pct, …) and family names in
+                                # `families_present`. The old code filtered top-level
+                                # `ta_`-prefixed scalars, which produced an EMPTY map
+                                # (all 8 Research tiles rendered "—").
+                                nested = data.get("indicators")
+                                indicators_src = nested if isinstance(nested, dict) else data
+                                families = data.get("families_present")
+                                if not isinstance(families, list):
+                                    families = [k for k in indicators_src if str(k).startswith("ta_")]
                                 sample_btc_1m = {
                                     "symbol": "BTCUSDT",
                                     "timeframe": "1m",
                                     "generated_utc": data.get("generated_utc") or now,
                                     "source_label": str(data.get("source") or "redis"),
-                                    "families_present": [k for k in data if k.startswith("ta_")][: 8],
+                                    "families_present": [str(f) for f in families][:12],
                                     "indicators": {
-                                        k: v for k, v in data.items()
-                                        if k.startswith("ta_") and isinstance(v, (int, float))
+                                        k: v for k, v in indicators_src.items()
+                                        if isinstance(v, (int, float)) and not isinstance(v, bool)
                                     },
                                 }
                 except Exception:

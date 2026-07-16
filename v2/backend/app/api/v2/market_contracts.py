@@ -4018,6 +4018,16 @@ def _redis_paper_signal_response(
         "direction": action.title() if action else None,
         "confidence_calibrated": confidence,
         "confidence": confidence,
+        # Executable-trade confidence + label are published on the signal key and
+        # were being dropped, leaving the dashboard/trade/signals "Executable
+        # Confidence" tiles blank. Source has them (e.g. 0.98, "Unproven confidence").
+        "confidence_executable_trade": _float(payload.get("confidence_executable_trade")),
+        "confidence_selected_action": _float(payload.get("confidence_selected_action")),
+        "confidence_display_label": payload.get("confidence_display_label") or None,
+        "confidence_tradeability_block_reasons": _as_list(payload.get("confidence_tradeability_block_reasons")),
+        "confidence_a_plus_eligible": payload.get("confidence_a_plus_eligible") is True,
+        "expected_net_edge_bps": _float(payload.get("expected_net_edge_bps") or payload.get("best_side_net_edge_bps")),
+        "paper_exploration_tier": payload.get("paper_exploration_tier") or None,
         "strategy": "All-timeframe paper signal",
         "model_version": payload.get("prediction_id"),
         "price_target": _float(payload.get("price_target")),
@@ -10965,11 +10975,16 @@ async def get_risk_status() -> dict[str, Any]:
             "denials_breakdown": denials_breakdown,
         },
         source="redis:v2:risk",
-        source_type="static_payload" if not missing else "unavailable",
+        # This handler reads live v2:risk:* Redis keys (gateway latest + heartbeat),
+        # so it is a live source, not a static payload. The heartbeat updates on a
+        # ~15s cadence -> a 45s fresh window keeps it green between beats.
+        source_type="redis_live" if not missing else "unavailable",
         timestamp=timestamp,
         missing_fields=missing,
         warnings=["Live trading is BLOCKED -- risk gateway status is read-only"],
         mode="paper",
+        fresh_max_seconds=45,
+        stale_min_seconds=150,
     )
     # Hoist convenience fields to outer envelope so admin-risk frontend can read them directly
     _resp["live_gate"] = _live_gate
