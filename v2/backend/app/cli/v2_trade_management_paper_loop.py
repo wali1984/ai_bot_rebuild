@@ -30686,7 +30686,13 @@ def run_once() -> dict:
     # reconcile pipeline. The lifecycle routes them to "{SYM}::HEDGE" instead
     # of netting the parent closed.
     adaptive_hedge_enabled = _adaptive_hedge_enabled(r)
-    if adaptive_hedge_enabled:
+    # Directive-queue consumption is OWNER-ONLY (env flag = the systemd paper
+    # loop). Foreign run_once callers (soak/equivalence tools, enabled via the
+    # redis flag for consistent lifecycle SEMANTICS) must never consume the
+    # queue: their synthesized fills live only in their own memory, so a
+    # foreign consume deletes the directive without ever opening the hedge
+    # (observed 2026-07-16: writer_pid 256351 stole the first directive).
+    if PAPER_ADAPTIVE_HEDGE_ENABLED:
         hedge_synthesis_status = _synthesize_adaptive_hedge_fills(
             r,
             existing_ledger=existing_ledger,
@@ -30696,7 +30702,11 @@ def run_once() -> dict:
             starting_equity_usd=paper_starting_equity_usd,
         )
     else:
-        hedge_synthesis_status = {"enabled": False, "synthesized": 0}
+        hedge_synthesis_status = {
+            "enabled": bool(adaptive_hedge_enabled),
+            "synthesized": 0,
+            "reason": "SYNTHESIS_IS_OWNER_ONLY" if adaptive_hedge_enabled else "DISABLED",
+        }
     merged_accepted_fills = _merge_persistent_accepted_fills(existing_accepted, accepted)
     accepted_lineage_contexts = _lineage_context_by_prediction_id(merged_accepted_fills)
     accepted_replay_predictions = _read_replay_snapshot_predictions(r, accepted_lineage_contexts)
@@ -30774,7 +30784,7 @@ def run_once() -> dict:
     )
     # Publish this cycle's hedge directives for next-cycle fill synthesis and
     # surface the adaptive hedge status for Monitor Center / GUI.
-    if adaptive_hedge_enabled:
+    if PAPER_ADAPTIVE_HEDGE_ENABLED:
         _lifecycle_hedge_directives = lifecycle_result.get("hedge_directives") or []
         if _lifecycle_hedge_directives:
             _safe_write(
@@ -30789,24 +30799,34 @@ def run_once() -> dict:
                 ),
                 ex=600,
             )
-    _safe_write(
-        r,
-        f"{V2_REDIS_PREFIX}paper:adaptive_hedge_status",
-        json.dumps(
-            {
-                **(lifecycle_result.get("paper_adaptive_hedge_status") or {}),
-                "fill_synthesis": hedge_synthesis_status,
-                "generated_utc": _utc_iso(),
-                "writer_pid": os.getpid(),
-                "env_flag_at_import": PAPER_ADAPTIVE_HEDGE_ENABLED,
-                "resolved_enabled": adaptive_hedge_enabled,
-                "enable_source": (
-                    "env" if PAPER_ADAPTIVE_HEDGE_ENABLED else ("redis_operator_flag" if adaptive_hedge_enabled else "disabled")
-                ),
-            }
-        ),
-        ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
-    )
+    # Status telemetry is owner-first: foreign run_once callers only write it
+    # when the key is absent, so the systemd loop's view is never clobbered.
+    _hedge_status_key = f"{V2_REDIS_PREFIX}paper:adaptive_hedge_status"
+    _skip_hedge_status_write = False
+    if not PAPER_ADAPTIVE_HEDGE_ENABLED:
+        try:
+            _skip_hedge_status_write = bool(r is not None and r.exists(_hedge_status_key))
+        except Exception:
+            _skip_hedge_status_write = False
+    if not _skip_hedge_status_write:
+        _safe_write(
+            r,
+            _hedge_status_key,
+            json.dumps(
+                {
+                    **(lifecycle_result.get("paper_adaptive_hedge_status") or {}),
+                    "fill_synthesis": hedge_synthesis_status,
+                    "generated_utc": _utc_iso(),
+                    "writer_pid": os.getpid(),
+                    "env_flag_at_import": PAPER_ADAPTIVE_HEDGE_ENABLED,
+                    "resolved_enabled": adaptive_hedge_enabled,
+                    "enable_source": (
+                        "env" if PAPER_ADAPTIVE_HEDGE_ENABLED else ("redis_operator_flag" if adaptive_hedge_enabled else "disabled")
+                    ),
+                }
+            ),
+            ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
+        )
     lifecycle_blocked = list(lifecycle_result["blocked_entries"])
     if lifecycle_blocked:
         blocked.extend(lifecycle_blocked)
