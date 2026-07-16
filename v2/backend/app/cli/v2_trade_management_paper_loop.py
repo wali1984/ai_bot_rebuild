@@ -20891,10 +20891,26 @@ def _paper_bucket_quarantine_status(
         profit_factor = _paper_quality_profit_factor_numeric(metrics.get("profit_factor"))
         closed_outcome_count = int(metrics.get("closed_outcome_count") or 0)
         reasons: list[str] = []
+        # An EARNING bucket (realized PF >= 1 AND positive notional-weighted
+        # expectancy on its own record) has paid for its high-confidence
+        # losses with bigger wins — that is the adaptive-stop design working
+        # (fewer, larger winners with some high-confidence losers), not
+        # miscalibration. Quarantining it punished success: observed
+        # 2026-07-16 timeframe:1h at PF 3.35 quarantined by loss rate alone,
+        # escalating a GLOBAL halt against a winning book. The moment the
+        # bucket stops earning (PF < 1 or expectancy <= 0) the loss-rate
+        # reason fires again at the same adaptive bound.
+        _bucket_is_earning = (
+            profit_factor is not None
+            and profit_factor >= 1.0
+            and expectancy_bps is not None
+            and expectancy_bps > 0.0
+        )
         if (
             high_confidence_loss_rate is not None
             and len(high_confidence_rows) >= 2
             and high_confidence_loss_rate > PAPER_HIGH_CONFIDENCE_LOSS_RATE_BOUND
+            and not _bucket_is_earning
         ):
             reasons.append("HIGH_CONFIDENCE_LOSS_RATE_ABOVE_ADAPTIVE_BOUND")
         if (
@@ -21056,6 +21072,19 @@ def _paper_bucket_quarantine_status(
             str(row.get("bucket_key") or ""),
         )
     )
+    _post_repair_aggregate = _paper_performance_metrics(quarantine_rows)
+    _post_repair_pf = _paper_quality_profit_factor_numeric(
+        _post_repair_aggregate.get("profit_factor")
+    )
+    _post_repair_ev = _coerce_float(
+        _post_repair_aggregate.get("notional_weighted_expectancy_bps")
+    )
+    _post_repair_aggregate_earning = (
+        _post_repair_pf is not None
+        and _post_repair_pf >= 1.0
+        and _post_repair_ev is not None
+        and _post_repair_ev > 0.0
+    )
     blocked_bucket_keys = [
         row["bucket_key"]
         for row in quarantined
@@ -21092,9 +21121,20 @@ def _paper_bucket_quarantine_status(
             )
             # Systemic breadth: enough DISTINCT losing rows across blocking
             # buckets escalates globally even when each bucket is below the
-            # material-sample floor.
-            or len(blocking_loss_row_ids) >= PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES
+            # material-sample floor — but ONLY when the same post-repair
+            # evidence window is NOT earning in aggregate. Losses inside a
+            # winning book (observed: 3 losses in a 13-trade 10W/3L window,
+            # aggregate PF > 2) are variance the bucket-scoped blocks already
+            # contain; the moment aggregate PF drops below 1 or expectancy
+            # goes non-positive, the breadth escalation fires as before.
+            or (
+                len(blocking_loss_row_ids) >= PAPER_GLOBAL_HALT_MIN_DISTINCT_LOSSES
+                and not _post_repair_aggregate_earning
+            )
         ),
+        "post_repair_aggregate_earning": _post_repair_aggregate_earning,
+        "post_repair_aggregate_profit_factor": _post_repair_pf,
+        "post_repair_aggregate_expectancy_bps": _post_repair_ev,
         "escalating_bucket_count": sum(
             1 for bucket in quarantined if bucket.get("escalates_global_halt") is not False
         ),
