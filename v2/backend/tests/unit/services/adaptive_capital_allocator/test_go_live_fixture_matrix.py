@@ -191,9 +191,12 @@ def test_dynamic_leverage_can_exceed_1x_in_paper() -> None:
 
 
 def test_dynamic_leverage_shrinks_on_drawdown() -> None:
-    normal = allocate_paper_candidate(_alloc())
-    drawn = allocate_paper_candidate(_alloc(drawdown_bps=400.0))
-    assert drawn.recommended_leverage <= normal.recommended_leverage
+    # Below the 0.85-confidence override band, drawdown pressure still shrinks
+    # leverage monotonically down to 1x. (At >=0.85 confidence the allocator
+    # deliberately keeps the trainer target with an explicit override label.)
+    normal = allocate_paper_candidate(_alloc(confidence_calibrated=0.80))
+    drawn = allocate_paper_candidate(_alloc(confidence_calibrated=0.80, drawdown_bps=400.0))
+    assert drawn.recommended_leverage < normal.recommended_leverage
     assert drawn.recommended_leverage == 1.0
 
 

@@ -54,7 +54,9 @@ def test_high_confidence_and_edge_sizes_larger_than_weak_edge() -> None:
 
 
 def test_low_confidence_blocks() -> None:
-    result = allocate_paper_candidate(_row(confidence_calibrated=0.49))
+    # Paper mode deliberately admits low-confidence rows for brain-building
+    # down to the adaptive floor (0.30); below it the allocation hard-blocks.
+    result = allocate_paper_candidate(_row(confidence_calibrated=0.29))
 
     assert result.decision == "BLOCK_LOW_CONFIDENCE"
     assert result.target_notional_usdt == 0.0
@@ -67,6 +69,17 @@ def test_low_confidence_blocks() -> None:
     assert result.model_inputs["selected_margin_mode"] == "isolated_paper_simulated"
     assert result.model_inputs["hedge_budget_selection_reason"] == "hedge_budget_not_required_for_current_risk"
 
+    # Between the paper floor and the sizing floor, low confidence still never
+    # sizes a position: the adaptive risk budget collapses to zero.
+    marginal = allocate_paper_candidate(_row(confidence_calibrated=0.49))
+    assert marginal.decision == "BLOCK_NO_EDGE"
+    assert marginal.target_notional_usdt == 0.0
+
+    # Live mode keeps the stricter 0.50 confidence floor.
+    live = allocate_live_candidate(_row(confidence_calibrated=0.49))
+    assert live.decision == "BLOCK_LOW_CONFIDENCE"
+    assert live.target_notional_usdt == 0.0
+
 
 def test_high_volatility_reduces_size() -> None:
     calm = allocate_paper_candidate(_row(volatility_bps=35.0))
@@ -76,9 +89,16 @@ def test_high_volatility_reduces_size() -> None:
 
 
 def test_wide_spread_blocks_when_cost_exceeds_edge() -> None:
-    result = allocate_paper_candidate(_row(expected_move_after_cost_bps=8.0, spread_bps=7.0, slippage_bps=2.0))
+    # Paper mode fail-closes when spread+slippage reaches 2x the after-cost
+    # edge (deliberate wider training tolerance band).
+    result = allocate_paper_candidate(_row(expected_move_after_cost_bps=8.0, spread_bps=12.0, slippage_bps=5.0))
 
     assert result.decision == "BLOCK_SPREAD_SLIPPAGE"
+    assert result.target_notional_usdt == 0.0
+
+    # Live mode keeps the strict 1x threshold: cost >= edge blocks.
+    live = allocate_live_candidate(_row(expected_move_after_cost_bps=8.0, spread_bps=7.0, slippage_bps=2.0))
+    assert live.decision == "BLOCK_SPREAD_SLIPPAGE"
 
 
 def test_paper_short_uses_negative_signed_move_as_positive_economic_edge() -> None:
@@ -469,9 +489,10 @@ def test_phase6_simulation_fields_scale_with_risk_and_do_not_mutate_live() -> No
 
 
 def test_paper_leverage_stays_at_one_when_after_cost_edge_is_too_small() -> None:
+    # Below the 0.75-confidence override band the small-edge cap still applies.
     result = allocate_paper_candidate(
         _row(
-            confidence_calibrated=0.88,
+            confidence_calibrated=0.70,
             expected_move_after_cost_bps=28.0,
             volatility_bps=15.0,
             stop_distance_bps=80.0,
@@ -482,15 +503,17 @@ def test_paper_leverage_stays_at_one_when_after_cost_edge_is_too_small() -> None
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert result.recommended_leverage == 1.0
-    assert result.model_inputs["raw_leverage_target"] == 3.0
+    assert result.model_inputs["raw_leverage_target"] == 2.0
     assert result.model_inputs["leverage_target"] == 1.0
     assert result.model_inputs["leverage_selection_reason"] == "after_cost_edge_too_small_for_dynamic_leverage"
 
 
 def test_high_spread_and_funding_pressure_caps_dynamic_leverage() -> None:
+    # Below the 0.75-confidence override band, cost drag (spread + slippage +
+    # fees + funding) that dwarfs the edge still caps leverage at 1x.
     result = allocate_paper_candidate(
         _row(
-            confidence_calibrated=0.90,
+            confidence_calibrated=0.70,
             expected_move_after_cost_bps=120.0,
             volatility_bps=15.0,
             stop_distance_bps=80.0,
@@ -508,9 +531,11 @@ def test_high_spread_and_funding_pressure_caps_dynamic_leverage() -> None:
 
 
 def test_paper_leverage_risk_pressure_caps_high_confidence_target() -> None:
+    # Below the 0.80-confidence correlation override band, correlation pressure
+    # still caps a 3x recommendation back to 1x.
     result = allocate_paper_candidate(
         _row(
-            confidence_calibrated=0.88,
+            confidence_calibrated=0.78,
             expected_move_after_cost_bps=95.0,
             volatility_bps=15.0,
             stop_distance_bps=80.0,
@@ -523,6 +548,75 @@ def test_paper_leverage_risk_pressure_caps_high_confidence_target() -> None:
     assert result.model_inputs["raw_leverage_target"] == 3.0
     assert result.model_inputs["leverage_target"] == 1.0
     assert result.model_inputs["leverage_selection_reason"] == "correlation_pressure_caps_leverage_at_1x"
+
+
+def test_paper_high_confidence_overrides_are_deliberate_and_labeled() -> None:
+    # Deliberate paper-mode behavior (operator 1000x research objective):
+    # confidence at/above the override bands keeps the trainer leverage target
+    # instead of capping at 1x — but every override must carry an explicit,
+    # auditable label, and live mode must remain untouched (1x operator-gated).
+    small_edge = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=28.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            spread_bps=1.0,
+            slippage_bps=1.0,
+        )
+    )
+    assert small_edge.recommended_leverage == 3.0
+    assert small_edge.model_inputs["leverage_selection_reason"] == (
+        "after_cost_edge_small_but_confidence_override"
+    )
+
+    high_correlation = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=95.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            correlation_exposure_pct=0.16,
+        )
+    )
+    assert high_correlation.recommended_leverage == 3.0
+    assert high_correlation.model_inputs["leverage_selection_reason"] == (
+        "high_correlation_but_high_confidence_override"
+    )
+
+    high_drawdown = allocate_paper_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=95.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            drawdown_bps=400.0,
+        )
+    )
+    assert high_drawdown.recommended_leverage == 3.0
+    assert high_drawdown.model_inputs["leverage_selection_reason"] == (
+        "high_drawdown_but_high_confidence_override"
+    )
+
+    for overridden in (small_edge, high_correlation, high_drawdown):
+        assert overridden.model_inputs["leverage_live_mutation_allowed"] is False
+        # Overrides never exceed the envelope's max effective leverage.
+        assert overridden.recommended_leverage <= RiskEnvelope().max_effective_leverage
+
+    # Live mode ignores every paper override: always 1x without operator approval.
+    live = allocate_live_candidate(
+        _row(
+            confidence_calibrated=0.88,
+            expected_move_after_cost_bps=95.0,
+            volatility_bps=15.0,
+            stop_distance_bps=80.0,
+            drawdown_bps=400.0,
+        )
+    )
+    assert live.recommended_leverage == 1.0
+    assert live.model_inputs["leverage_selection_reason"] == (
+        "live_mode_requires_operator_approval_for_dynamic_leverage_change"
+    )
 
 
 def test_live_leverage_selection_remains_lowest_safe_without_operator_approval() -> None:

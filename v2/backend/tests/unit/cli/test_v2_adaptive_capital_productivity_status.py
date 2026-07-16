@@ -4184,11 +4184,13 @@ def test_counterfactual_sweep_uses_paper_signal_source_rows() -> None:
     assert counterfactual["observed_required_symbol_timeframe_cell_count"] == 5
     assert counterfactual["missing_required_symbol_timeframe_cell_count"] == 0
     assert counterfactual["sweep_result_count"] > 0
-    assert counterfactual["config_space_audit"]["per_candidate_theoretical_configuration_count"] == 540
+    # 2026-07-16 deliberate grid expansion: 2400 configurations per candidate
+    # (6 notional x 5 leverage x 2 margin x 5 stop x 4 take-profit x 2 hedge).
+    assert counterfactual["config_space_audit"]["per_candidate_theoretical_configuration_count"] == 2400
     assert counterfactual["config_space_audit"]["candidate_count"] == 5
     assert counterfactual["config_space_audit"]["event_time_valid_candidate_count"] == 5
-    assert counterfactual["config_space_audit"]["theoretical_configuration_count"] == 2700
-    assert counterfactual["config_space_audit"]["considered_count"] == 2700
+    assert counterfactual["config_space_audit"]["theoretical_configuration_count"] == 12000
+    assert counterfactual["config_space_audit"]["considered_count"] == 12000
     assert counterfactual["config_space_audit"]["feasible_count"] == counterfactual["sweep_result_count"]
     assert counterfactual["config_space_audit"]["pruned_count"] == counterfactual["config_space_audit"]["pruned_configuration_count"]
     assert counterfactual["config_space_audit"]["configuration_count_reconciled"] is True
@@ -4233,8 +4235,8 @@ def test_counterfactual_sweep_uses_paper_signal_source_rows() -> None:
     assert progress["a_grade_source_kind_readiness"]["paper_signal"]["best_configuration_count"] == 5
     assert progress["configuration_count_reconciled"] is True
     assert progress["feasible_plus_pruned_reconciled"] is True
-    assert progress["theoretical_configuration_count"] == 2700
-    assert progress["configurations_considered_count"] == 2700
+    assert progress["theoretical_configuration_count"] == 12000
+    assert progress["configurations_considered_count"] == 12000
     selected = counterfactual["best_configurations_sample"][0]["selected"]
     assert selected["market_cost_evidence_sources"] == {
         "fee_bps": "fee_bps",
@@ -5482,8 +5484,8 @@ def test_near_a_grade_counterfactual_probe_is_non_gating() -> None:
     assert probe["skipped_no_feasible_configuration_sample"] == []
     assert probe["best_configuration_count"] == 5
     assert probe["config_space_audit"]["candidate_count"] == 5
-    assert probe["config_space_audit"]["theoretical_configuration_count"] == 2700
-    assert probe["config_space_audit"]["considered_count"] == 2700
+    assert probe["config_space_audit"]["theoretical_configuration_count"] == 12000
+    assert probe["config_space_audit"]["considered_count"] == 12000
     assert probe["config_space_audit"]["feasible_count"] == probe["sweep_result_count"]
     assert probe["hedge_accounting_audit"]["status"] == "PASSED"
 
@@ -5637,8 +5639,13 @@ def test_near_a_grade_counterfactual_probe_exposes_no_feasible_count_and_sample(
         "MISSING_MARKET_DEPTH": 1,
         "MISSING_SLIPPAGE": 1,
     }
+    # With the 2026-07-16 expanded grid, the envelope also prunes the
+    # aggressive tail on the 4 depth-complete candidates (400 depth-capacity +
+    # 1200 leverage-limit pruned configs each) — fail-closed exploration.
     assert next_gaps["near_a_grade_pruned_configuration_reason_counts"] == {
-        "MISSING_MARKET_DEPTH": 540,
+        "DEPTH_CAPACITY_EXCEEDED": 1600,
+        "EFFECTIVE_LEVERAGE_LIMIT_BREACH": 4800,
+        "MISSING_MARKET_DEPTH": 2400,
     }
     assert probe["probe_participates_in_counterfactual_pass_gate"] is False
     assert probe["status"] == "NO_GO_COUNTERFACTUAL_REPLAY_NOT_COMPLETE"

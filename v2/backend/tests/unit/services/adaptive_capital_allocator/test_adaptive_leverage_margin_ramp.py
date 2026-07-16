@@ -74,14 +74,36 @@ def test_low_liquidation_buffer_caps_leverage() -> None:
 
 
 def test_high_spread_caps_leverage() -> None:
-    res = allocate_paper_candidate(_mk(spread_bps=40.0, slippage_bps=30.0))
+    # Extreme spread/slippage (cost >= 2x edge in paper mode) still fail-closes
+    # the whole allocation, even at maximum confidence: no leverage, no size.
+    res = allocate_paper_candidate(_mk(spread_bps=60.0, slippage_bps=35.0))
+    assert res.decision == "BLOCK_SPREAD_SLIPPAGE"
     assert res.recommended_leverage == 1.0
     assert res.gross_notional_usd == 0.0  # blocked on spread/slippage cost
+    # Below the 0.75-confidence override band, a costly book still caps dynamic
+    # leverage to 1x relative to the same candidate with a clean book.
+    clean = allocate_paper_candidate(_mk(confidence_calibrated=0.70))
+    costly = allocate_paper_candidate(
+        _mk(confidence_calibrated=0.70, spread_bps=40.0, slippage_bps=30.0)
+    )
+    assert costly.recommended_leverage == 1.0
+    assert costly.recommended_leverage < clean.recommended_leverage
 
 
 def test_high_funding_cost_caps_leverage() -> None:
-    res = allocate_paper_candidate(_mk(expected_funding_bps=60.0))
+    # Below the 0.75-confidence override band, heavy funding drag caps leverage
+    # to 1x while the same candidate without funding cost earns dynamic leverage.
+    res = allocate_paper_candidate(_mk(confidence_calibrated=0.70, expected_funding_bps=60.0))
+    baseline = allocate_paper_candidate(_mk(confidence_calibrated=0.70))
     assert res.recommended_leverage == 1.0
+    assert res.recommended_leverage < baseline.recommended_leverage
+    # Deliberate paper-mode override (operator 1000x objective): >=0.75
+    # confidence may keep the trainer leverage target despite funding drag,
+    # but the override must be explicitly labeled for auditability.
+    override = allocate_paper_candidate(_mk(expected_funding_bps=60.0))
+    assert override.model_inputs["leverage_selection_reason"] == (
+        "after_cost_edge_small_but_confidence_override"
+    )
 
 
 def test_good_bucket_pf_expands_paper_utilization() -> None:
@@ -99,16 +121,22 @@ def test_good_bucket_pf_expands_paper_utilization() -> None:
 
 def test_loss_cluster_freezes_exact_bucket() -> None:
     # Portfolio drawdown pressure (the loss-cluster proxy at the allocator layer)
-    # caps leverage back to 1x for the affected candidate.
-    res = allocate_paper_candidate(_mk(drawdown_bps=400.0))
+    # caps leverage back to 1x below the 0.85-confidence override band.
+    res = allocate_paper_candidate(_mk(confidence_calibrated=0.80, drawdown_bps=400.0))
     assert res.recommended_leverage == 1.0
+    assert res.model_inputs["leverage_selection_reason"] == "drawdown_pressure_caps_leverage_at_1x"
 
 
 def test_portfolio_drawdown_caps_total_margin() -> None:
-    normal = allocate_paper_candidate(_mk())
-    drawn = allocate_paper_candidate(_mk(drawdown_bps=400.0))
-    assert drawn.recommended_leverage <= normal.recommended_leverage
+    # Below the 0.85-confidence override band, drawdown still shrinks leverage
+    # monotonically down to 1x.
+    normal = allocate_paper_candidate(_mk(confidence_calibrated=0.80))
+    drawn = allocate_paper_candidate(_mk(confidence_calibrated=0.80, drawdown_bps=400.0))
+    assert drawn.recommended_leverage < normal.recommended_leverage
     assert drawn.recommended_leverage == 1.0
+    # Live mode stays operator-gated at 1x regardless of drawdown state.
+    live = allocate_live_candidate(_mk(drawdown_bps=400.0))
+    assert live.recommended_leverage == 1.0
 
 
 def test_hedge_available_allows_safer_notional_than_unhedged() -> None:

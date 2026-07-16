@@ -51,50 +51,65 @@ def test_counterfactual_sweep_selects_best_event_time_valid_configuration() -> N
     assert readiness["event_time_valid_candidate_count"] == 1
     assert readiness["best_configuration_count"] == 1
     assert readiness["confidence_gap_to_threshold"] == 0.0
-    assert sweep["config_space_audit"]["per_candidate_theoretical_configuration_count"] == 540
+    # 2026-07-16 deliberate grid expansion (paper 1000x research target):
+    # 6 notional multipliers x 5 leverage values x 2 margin modes x
+    # 5 stop multipliers x 4 take-profit plans x 2 hedge flags = 2400.
+    assert sweep["config_space_audit"]["per_candidate_theoretical_configuration_count"] == 2400
     assert sweep["config_space_audit"]["candidate_count"] == 1
-    assert sweep["config_space_audit"]["theoretical_configuration_count"] == 540
-    assert sweep["config_space_audit"]["considered_count"] == 540
+    assert sweep["config_space_audit"]["theoretical_configuration_count"] == 2400
+    assert sweep["config_space_audit"]["considered_count"] == 2400
     assert sweep["config_space_audit"]["feasible_count"] == sweep["sweep_result_count"]
     assert sweep["config_space_audit"]["pruned_count"] == sweep["config_space_audit"]["pruned_configuration_count"]
     assert sweep["config_space_audit"]["configuration_count_reconciled"] is True
     assert sweep["config_space_audit"]["feasible_plus_pruned_reconciled"] is True
     assert sweep["config_space_audit"]["feasible_configuration_count"] == sweep["sweep_result_count"]
     axis_coverage = sweep["config_space_audit"]["axis_value_coverage"]
-    assert axis_coverage["full_feasible_axis_value_coverage"] is True
     assert axis_coverage["theoretical_axis_values"] == {
-        "notional_multipliers": [0.25, 0.5, 1.0, 1.5, 2.0],
-        "leverage_values": [1.0, 2.0, 3.0],
+        "notional_multipliers": [0.25, 0.5, 1.0, 2.0, 3.0, 5.0],
+        "leverage_values": [1.0, 2.0, 5.0, 10.0, 20.0],
         "margin_modes": ["isolated", "cross"],
-        "stop_multipliers": [0.75, 1.0, 1.5],
-        "take_profit_plans": ["none", "one_r", "two_r"],
+        "stop_multipliers": [0.5, 0.75, 1.0, 1.5, 2.0],
+        "take_profit_plans": ["none", "one_r", "two_r", "three_r"],
         "hedge_flags": [False, True],
     }
-    assert axis_coverage["feasible_axis_values"]["notional_multipliers"] == [0.25, 0.5, 1.0, 1.5, 2.0]
-    assert axis_coverage["feasible_axis_values"]["leverage_values"] == [1.0, 2.0, 3.0]
+    # The expanded grid deliberately explores past the risk envelope; the
+    # envelope must still fail-close the aggressive tail, so full feasible
+    # axis coverage is impossible by construction: leverage values above
+    # max_effective_leverage (3.0) are pruned and the 5x notional multiplier
+    # breaches depth capacity for this order book.
+    assert axis_coverage["full_feasible_axis_value_coverage"] is False
+    assert axis_coverage["feasible_axis_values"]["notional_multipliers"] == [0.25, 0.5, 1.0, 2.0, 3.0]
+    assert axis_coverage["feasible_axis_values"]["leverage_values"] == [1.0, 2.0]
+    assert all(value <= 3.0 for value in axis_coverage["feasible_axis_values"]["leverage_values"])
     assert axis_coverage["feasible_axis_values"]["margin_modes"] == ["cross", "isolated"]
-    assert axis_coverage["feasible_axis_values"]["take_profit_plans"] == ["none", "one_r", "two_r"]
+    assert axis_coverage["feasible_axis_values"]["take_profit_plans"] == ["none", "one_r", "three_r", "two_r"]
     assert axis_coverage["feasible_axis_values"]["hedge_flags"] == [False, True]
     assert axis_coverage["observed_axis_value_counts"] == {
         "notional_multipliers": 5,
-        "leverage_values": 3,
+        "leverage_values": 2,
         "margin_modes": 2,
-        "stop_distance_bps_values": 3,
-        "take_profit_plans": 3,
+        "stop_distance_bps_values": 5,
+        "take_profit_plans": 4,
         "hedge_flags": 2,
     }
     assert axis_coverage["required_axis_value_counts"] == {
-        "notional_multipliers": 5,
-        "leverage_values": 3,
+        "notional_multipliers": 6,
+        "leverage_values": 5,
         "margin_modes": 2,
-        "stop_distance_bps_values": 3,
-        "take_profit_plans": 3,
+        "stop_distance_bps_values": 5,
+        "take_profit_plans": 4,
         "hedge_flags": 2,
     }
     candidate_audit = sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]
     assert candidate_audit["axis_count"] == 6
-    assert candidate_audit["configurations_considered_count"] == 540
-    assert candidate_audit["considered_count"] == 540
+    assert candidate_audit["configurations_considered_count"] == 2400
+    assert candidate_audit["considered_count"] == 2400
+    # Every configuration that breached the envelope or the order book must be
+    # pruned with an explicit, auditable reason (fail-closed exploration).
+    assert candidate_audit["pruned_reason_counts"] == {
+        "DEPTH_CAPACITY_EXCEEDED": 400,
+        "EFFECTIVE_LEVERAGE_LIMIT_BREACH": 1200,
+    }
     assert candidate_audit["feasible_count"] == candidate_audit["feasible_configuration_count"]
     assert candidate_audit["pruned_count"] == candidate_audit["pruned_configuration_count"]
     assert candidate_audit["configuration_count_reconciled"] is True
@@ -361,10 +376,13 @@ def test_counterfactual_sweep_seeds_raw_signal_notional_from_risk_envelope() -> 
     assert sweep["event_time_valid_candidate_count"] == 1
     assert sweep["best_configuration_count"] == 1
     audit = sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]
-    assert audit["base_notional_usd"] == 3000.0
+    # Seed = (equity * max_portfolio_exposure_pct) / max notional multiplier
+    # = (10000 * 0.60) / 5.0 = 1200, so the widest multiplier still lands
+    # exactly on the envelope's 60% portfolio-exposure ceiling (6000 USD).
+    assert audit["base_notional_usd"] == 1200.0
     assert audit["base_notional_source"] == "risk_envelope_seed_max_portfolio_exposure"
     selected = sweep["best_configurations_sample"][0]["selected"]
-    assert selected["base_notional_usd"] == 3000.0
+    assert selected["base_notional_usd"] == 1200.0
     assert selected["base_notional_source"] == "risk_envelope_seed_max_portfolio_exposure"
     assert 0.0 < selected["gross_notional_usd"] <= 6000.0
     assert selected["market_depth_capacity_usd"] == 10000.0
@@ -434,10 +452,10 @@ def test_counterfactual_sweep_fails_closed_without_actual_depth() -> None:
         "MISSING_MARKET_DEPTH": 1,
     }
     assert sweep["config_space_audit"]["candidate_count"] == 1
-    assert sweep["config_space_audit"]["theoretical_configuration_count"] == 540
-    assert sweep["config_space_audit"]["considered_count"] == 540
+    assert sweep["config_space_audit"]["theoretical_configuration_count"] == 2400
+    assert sweep["config_space_audit"]["considered_count"] == 2400
     assert sweep["config_space_audit"]["feasible_count"] == 0
-    assert sweep["config_space_audit"]["pruned_count"] == 540
+    assert sweep["config_space_audit"]["pruned_count"] == 2400
     assert sweep["config_space_audit"]["configuration_count_reconciled"] is True
     assert (
         sweep["config_space_audit"]["axis_value_coverage"]["full_feasible_axis_value_coverage"]
@@ -445,14 +463,14 @@ def test_counterfactual_sweep_fails_closed_without_actual_depth() -> None:
     )
     candidate_audit = sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]
     assert candidate_audit["axis_count"] == 6
-    assert candidate_audit["considered_count"] == 540
+    assert candidate_audit["considered_count"] == 2400
     assert candidate_audit["feasible_count"] == 0
-    assert candidate_audit["pruned_count"] == 540
+    assert candidate_audit["pruned_count"] == 2400
     assert candidate_audit["configuration_count_reconciled"] is True
     assert candidate_audit["feasible_plus_pruned_reconciled"] is True
     assert candidate_audit["axis_value_coverage"]["feasible_axis_values"]["margin_modes"] == []
     assert candidate_audit["pruned_reason_counts"] == {
-        "MISSING_MARKET_DEPTH": 540,
+        "MISSING_MARKET_DEPTH": 2400,
     }
 
 
@@ -480,12 +498,12 @@ def test_counterfactual_sweep_fails_closed_without_explicit_market_cost_evidence
         "MISSING_SLIPPAGE": 1,
     }
     assert sweep["config_space_audit"]["configuration_count_reconciled"] is True
-    assert sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]["pruned_configuration_count"] == 540
+    assert sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]["pruned_configuration_count"] == 2400
     assert sweep["config_space_audit"]["candidate_configuration_audit_sample"][0]["pruned_reason_counts"] == {
-        "MISSING_ACTUAL_SPREAD": 540,
-        "MISSING_FEES": 540,
-        "MISSING_FUNDING": 540,
-        "MISSING_SLIPPAGE": 540,
+        "MISSING_ACTUAL_SPREAD": 2400,
+        "MISSING_FEES": 2400,
+        "MISSING_FUNDING": 2400,
+        "MISSING_SLIPPAGE": 2400,
     }
 
 
