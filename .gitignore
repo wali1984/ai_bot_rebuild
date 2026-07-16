@@ -91,6 +91,7 @@ claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD_STATUS.md
 claude_worklog/quota/CLAUDE_CODE_QUOTA_GUARD.log
 .local_scratch/
 .local_data/
+.local_data
 v2/.venv-control-plane
 v2/runtime/
 v2/frontend/public/operator_runtime/

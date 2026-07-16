@@ -1310,6 +1310,7 @@ export default function DashboardPage(): JSX.Element {
   const riskStream = useDashboardStream<{ active_profile?: RiskProfile; latest_gateway_result?: RiskGatewayResult; heartbeat?: RiskHeartbeat }>('/api/v2/risk/status', 15_000);
   const marketStream = useDashboardStream<{ tickers?: TickerRow[] }>('/api/v2/market/overview', 20_000);
   const healthStream = useDashboardStream<{ overall?: string; surfaces?: HealthSurface[] }>('/api/v2/data-health', 30_000);
+  const paperStatusStream = useDashboardStream<{ equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>; closed_trades?: Array<Record<string, unknown>> }>('/api/v2/paper/status', 15_000);
 
   // Derived
   const portfolioData = portfolioStream.data;
@@ -1365,6 +1366,45 @@ export default function DashboardPage(): JSX.Element {
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
+
+  // ── Chart-ready derivations (real closed-trade equity curve) ──────────────
+  const equityCurveRaw = paperStatusStream.data?.equity_curve ?? [];
+  const perTradePnl = useMemo(
+    () => equityCurveRaw
+      .map((p, i) => ({ label: `#${i + 1}`, value: Number(p?.pnl ?? 0), winner: p?.winner === true }))
+      .filter((p) => Number.isFinite(p.value)),
+    [equityCurveRaw],
+  );
+  const equitySeries = useMemo(() => {
+    if (perTradePnl.length === 0) return [] as Array<{ label: string; value: number }>;
+    const base = startingCapital ?? (equity != null && totalPnl != null ? equity - totalPnl : (equity ?? 3000));
+    let run = base;
+    const pts = [{ label: 'Start', value: base }];
+    perTradePnl.forEach((p, i) => { run += p.value; pts.push({ label: `#${i + 1}`, value: run }); });
+    return pts;
+  }, [perTradePnl, startingCapital, equity, totalPnl]);
+  const winCount = perTradePnl.filter((p) => p.value > 0).length;
+  const lossCount = perTradePnl.filter((p) => p.value < 0).length;
+  const flatCount = perTradePnl.length - winCount - lossCount;
+  const winLossData = useMemo(() => ([
+    { name: 'Wins', value: winCount, color: '#22c55e' },
+    { name: 'Losses', value: lossCount, color: '#ef4444' },
+    ...(flatCount > 0 ? [{ name: 'Flat', value: flatCount, color: '#f59e0b' }] : []),
+  ]).filter((d) => d.value > 0), [winCount, lossCount, flatCount]);
+  const directionData = useMemo(() => {
+    let long = 0, short = 0, hold = 0;
+    for (const f of fills) {
+      const side = String((f as { side?: string }).side ?? '').toLowerCase();
+      if (side.includes('long') || side.includes('buy')) long += 1;
+      else if (side.includes('short') || side.includes('sell')) short += 1;
+      else hold += 1;
+    }
+    return ([
+      { name: 'Long', value: long, color: '#22c55e' },
+      { name: 'Short', value: short, color: '#ef4444' },
+      ...(hold > 0 ? [{ name: 'Hold', value: hold, color: '#f59e0b' }] : []),
+    ]).filter((d) => d.value > 0);
+  }, [fills]);
   const showAdminDiagnostics = user?.role ? canSee(normalizeRole(user.role), 'admin') : false;
   const accountMetric = (fieldId: string) => selectAccountMetric(traderSnapshot, fieldId);
   const canonicalSignal = selectActiveSignal(traderSnapshot, activeSignal?.symbol);
