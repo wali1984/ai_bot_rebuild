@@ -29621,6 +29621,27 @@ def run_once() -> dict:
                 paper_entry_freeze=paper_entry_freeze,
             )
         )
+        # DEBUG: Log entry freeze status
+        try:
+            global _debug_entry_freeze_count, _debug_entry_freeze_halted_count
+            if "_debug_entry_freeze_count" not in globals():
+                _debug_entry_freeze_count = 0
+                _debug_entry_freeze_halted_count = 0
+            _debug_entry_freeze_count += 1
+            if paper_entry_freeze.get("paper_new_entries_halted"):
+                _debug_entry_freeze_halted_count += 1
+            if _debug_entry_freeze_count <= 3:
+                import json
+                with open("/tmp/entry_freeze_status.log", "a") as f:
+                    f.write(json.dumps({
+                        "symbol": symbol,
+                        "entry_freeze_halted": paper_entry_freeze.get("paper_new_entries_halted"),
+                        "tier": intent.get("paper_opportunity_tier"),
+                        "reason": paper_entry_freeze.get("reason")
+                    }) + "\n")
+        except:
+            pass
+
         if (
             paper_entry_freeze.get("paper_new_entries_halted") is True
             and intent.get("paper_opportunity_tier")
