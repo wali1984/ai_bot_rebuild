@@ -29529,6 +29529,24 @@ def run_once() -> dict:
             intent["strict_paper_fill_allowed_upstream"] = False
             intent["places_real_order"] = False
             intent["paper_only"] = True
+        # DEBUG: Log if local gates pass (before shadow check)
+        try:
+            if local_trade_gates_pass:
+                global _debug_local_pass_count
+                if "_debug_local_pass_count" not in globals():
+                    _debug_local_pass_count = 0
+                _debug_local_pass_count += 1
+                if _debug_local_pass_count <= 10:
+                    import json
+                    with open("/tmp/local_gates_passed.log", "a") as f:
+                        f.write(json.dumps({
+                            "symbol": intent.get("symbol"),
+                            "side": intent.get("side"),
+                            "status": "LOCAL_GATES_PASSED"
+                        }) + "\n")
+        except:
+            pass
+
         if not paper_fill_allowed_upstream and not paper_tier_local_fill_allowed:
             # Local gates pass but the strict paper-fill gate did NOT
             # mark this intent as paper_fill_allowed=true, and no
