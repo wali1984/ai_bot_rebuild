@@ -495,6 +495,30 @@ function sourceReadiness(
     ?? null;
 }
 
+function closestSourceKindLabel(value: string | null | undefined): string | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  if (!raw) return null;
+  if (raw === 'paper_signal') return 'signal';
+  if (raw === 'paper_intent') return 'intent';
+  if (raw === 'paper_ledger' || raw === 'paper_ledger_accepted') return 'ledger';
+  if (raw === 'prediction') return 'prediction';
+  if (raw.includes('replay')) return 'replay';
+  return raw.replace(/[_-]+/g, ' ');
+}
+
+function rowAgeLabel(value: string | null | undefined): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return null;
+  const ageMs = Date.now() - parsed;
+  if (!Number.isFinite(ageMs) || ageMs < 0) return null;
+  const ageMinutes = ageMs / 60_000;
+  if (ageMinutes < 60) return `${Math.max(1, Math.round(ageMinutes))}m old`;
+  const ageHours = ageMinutes / 60;
+  if (ageHours < 48) return `${Math.round(ageHours)}h old`;
+  return `${Math.round(ageHours / 24)}d old`;
+}
+
 function HeaderMetric({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
   return (
     <div style={{ minWidth: 0 }}>
@@ -914,10 +938,20 @@ export function AdaptiveCapitalTelemetryPanel({
     ?? replayProgress?.prediction_a_grade_readiness
     ?? null;
   const predictionAgrade = sourceReadiness(predictionReadiness, null, 'prediction');
-  const closestAgrade = replayProgress?.closest_near_a_grade
+  // Runtime-first: prefer the paper_signal-scoped closest row so a frozen
+  // replay dataset row can never masquerade as the live "closest signal".
+  const closestAgrade = aGradeReadiness?.closest_near_a_grade_by_source_kind?.paper_signal
+    ?? replayProgress?.closest_near_a_grade_by_source_kind?.paper_signal
     ?? paperSignalAgrade?.closest_near_a_grade
-    ?? aGradeReadiness?.closest_near_a_grade_by_source_kind?.paper_signal
+    ?? replayProgress?.closest_near_a_grade
     ?? null;
+  const closestAgradeSourceKind = closestSourceKindLabel(closestAgrade?.source_kind);
+  const closestAgradeAge = rowAgeLabel(
+    closestAgrade?.available_at
+    ?? closestAgrade?.generated_at
+    ?? closestAgrade?.decision_time,
+  );
+  const closestAgradeIsReplay = closestAgradeSourceKind === 'replay';
   const paperSignalSourceCount = replayProgress?.a_grade_source_kind_counts?.paper_signal
     ?? aGradeReadiness?.source_kind_counts?.paper_signal
     ?? paperSignalAgrade?.row_count;
@@ -1460,7 +1494,14 @@ export function AdaptiveCapitalTelemetryPanel({
           />
           <HeaderMetric
             label="Closest Signal"
-            value={closestAgrade?.symbol && closestAgrade?.timeframe ? `${closestAgrade.symbol} ${closestAgrade.timeframe}` : '—'}
+            value={closestAgrade?.symbol && closestAgrade?.timeframe
+              ? [
+                `${closestAgrade.symbol} ${closestAgrade.timeframe}`,
+                closestAgradeSourceKind,
+                closestAgradeAge,
+              ].filter(Boolean).join(' · ')
+              : '—'}
+            color={closestAgradeIsReplay ? '#f59e0b' : undefined}
           />
           <HeaderMetric
             label="A-grade Reasons"

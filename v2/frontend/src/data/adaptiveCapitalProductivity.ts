@@ -298,6 +298,10 @@ export interface AdaptiveCapitalNearAGrade {
   symbol?: string | null;
   timeframe?: string | null;
   side?: string | null;
+  source_kind?: string | null;
+  decision_time?: string | null;
+  available_at?: string | null;
+  generated_at?: string | null;
   confidence?: number | null;
   confidence_threshold?: number | null;
   confidence_gap_to_a_grade?: number | null;
@@ -355,7 +359,13 @@ export interface AdaptiveCapitalCounterfactualReplayProgress {
   closest_confidence_gap_to_a_grade?: number | null;
   closest_edge_gap_to_positive_bps?: number | null;
   closest_near_a_grade?: AdaptiveCapitalNearAGrade | null;
+  closest_near_a_grade_including_replay?: AdaptiveCapitalNearAGrade | null;
+  closest_near_a_grade_selection_policy?: string;
   closest_near_a_grade_by_source_kind?: Record<string, AdaptiveCapitalNearAGrade>;
+  replay_evidence_generated_utc?: string | null;
+  replay_evidence_age_days?: number | null;
+  replay_evidence_stale?: boolean | null;
+  replay_evidence_warnings?: string[];
   configuration_count_reconciled?: boolean;
   configurations_considered_count?: number;
   theoretical_configuration_count?: number;

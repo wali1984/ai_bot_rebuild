@@ -60,6 +60,13 @@ P0_POLICY_VERSION = "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1"
 LIVE_GATE = "blocked_human_only"
 PAPER_INTENT_SNAPSHOT_RETRY_COUNT = 10
 PAPER_INTENT_SNAPSHOT_RETRY_SECONDS = 0.5
+CLOSED_CANDLE_REPLAY_EVIDENCE_STALE_AFTER_HOURS = 72.0
+RUNTIME_NEAR_A_GRADE_SOURCE_KINDS = frozenset({
+    "paper_signal",
+    "paper_intent",
+    "paper_ledger",
+    "paper_ledger_accepted",
+})
 
 STATUS_FILENAMES = (
     "capital_productivity_runtime_status.json",
@@ -898,6 +905,48 @@ def _native_trainer_replay_evidence_audit(
     return audit, event_time_valid_rows
 
 
+def _closed_candle_replay_evidence_staleness(rows_path: Path) -> dict[str, Any]:
+    """Read the sibling replay-evidence status JSON and compute dataset age.
+
+    The closed-candle replay generator writes
+    closed_candle_replay_evidence_status.json (with generated_utc) next to the
+    rows JSONL. When that timestamp is older than
+    CLOSED_CANDLE_REPLAY_EVIDENCE_STALE_AFTER_HOURS the replay dataset is
+    flagged stale so a frozen dataset cannot silently pose as fresh evidence.
+    """
+    status_path = rows_path.parent / "closed_candle_replay_evidence_status.json"
+    staleness: dict[str, Any] = {
+        "status_path": str(status_path),
+        "status_file_exists": False,
+        "generated_utc": None,
+        "age_hours": None,
+        "age_days": None,
+        "stale": None,
+        "stale_threshold_hours": CLOSED_CANDLE_REPLAY_EVIDENCE_STALE_AFTER_HOURS,
+    }
+    try:
+        if not status_path.exists():
+            return staleness
+        staleness["status_file_exists"] = True
+        with status_path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except Exception:
+        return staleness
+    if not isinstance(payload, dict):
+        return staleness
+    generated_raw = payload.get("generated_utc")
+    generated = _parse_utc(generated_raw)
+    if generated is None:
+        return staleness
+    staleness["generated_utc"] = generated_raw
+    age_seconds = max(0.0, (datetime.now(timezone.utc) - generated).total_seconds())
+    age_hours = age_seconds / 3600.0
+    staleness["age_hours"] = round(age_hours, 4)
+    staleness["age_days"] = round(age_hours / 24.0, 4)
+    staleness["stale"] = age_hours > CLOSED_CANDLE_REPLAY_EVIDENCE_STALE_AFTER_HOURS
+    return staleness
+
+
 def _closed_candle_replay_evidence_audit(
     *,
     evidence_rows: list[dict[str, Any]] | None = None,
@@ -1057,6 +1106,21 @@ def _closed_candle_replay_evidence_audit(
         if source_row_count else
         "NO_CLOSED_CANDLE_REPLAY_ROWS"
     )
+    if evidence_rows is None:
+        staleness = _closed_candle_replay_evidence_staleness(source_path)
+    else:
+        staleness = {
+            "status_path": None,
+            "status_file_exists": False,
+            "generated_utc": None,
+            "age_hours": None,
+            "age_days": None,
+            "stale": None,
+            "stale_threshold_hours": CLOSED_CANDLE_REPLAY_EVIDENCE_STALE_AFTER_HOURS,
+        }
+    warnings: list[str] = []
+    if staleness.get("stale") is True:
+        warnings.append("CLOSED_CANDLE_REPLAY_EVIDENCE_STALE")
     audit = {
         "schema_version": SCHEMA_VERSION,
         "goal_id": GOAL_ID,
@@ -1064,6 +1128,13 @@ def _closed_candle_replay_evidence_audit(
         "source_path": str(source_path),
         "source_status": source_status,
         "status": status,
+        "warnings": warnings,
+        "replay_evidence_status_path": staleness.get("status_path"),
+        "replay_evidence_generated_utc": staleness.get("generated_utc"),
+        "replay_evidence_age_hours": staleness.get("age_hours"),
+        "replay_evidence_age_days": staleness.get("age_days"),
+        "replay_evidence_stale": staleness.get("stale"),
+        "replay_evidence_stale_threshold_hours": staleness.get("stale_threshold_hours"),
         "source_row_count": source_row_count,
         "complete_after_cost_outcome_count": len(complete_after_cost_values),
         "event_time_valid_label_count": len(event_time_valid_rows),
@@ -11471,10 +11542,48 @@ def build_statuses(
         ),
     }
     near_a_grade_sample = sweep.get("near_a_grade_sample", [])
-    closest_near_a_grade = (
+    closest_near_a_grade_including_replay = (
         near_a_grade_sample[0]
         if near_a_grade_sample and isinstance(near_a_grade_sample[0], dict)
         else None
+    )
+
+    def _near_a_grade_gap_score(row: dict[str, Any]) -> float:
+        gap_score = _coerce_float(row.get("eligibility_gap_score"))
+        return gap_score if gap_score is not None else float("inf")
+
+    # Runtime-first headline selection: replay rows (e.g. a frozen
+    # closed-candle replay dataset) must not masquerade as the live
+    # "closest signal". Prefer the minimum-gap row from a runtime
+    # source kind; fall back to the global minimum only when no
+    # runtime row exists. near_a_grade_sample ordering is unchanged.
+    closest_runtime_near_a_grade = next(
+        (
+            row
+            for row in near_a_grade_sample
+            if isinstance(row, dict)
+            and str(row.get("source_kind") or "") in RUNTIME_NEAR_A_GRADE_SOURCE_KINDS
+        ),
+        None,
+    )
+    if closest_runtime_near_a_grade is None:
+        runtime_rows_by_source_kind = [
+            row
+            for source_kind, row in (
+                sweep_a_grade_readiness.get("closest_near_a_grade_by_source_kind") or {}
+            ).items()
+            if isinstance(row, dict)
+            and str(source_kind) in RUNTIME_NEAR_A_GRADE_SOURCE_KINDS
+        ]
+        if runtime_rows_by_source_kind:
+            closest_runtime_near_a_grade = min(
+                runtime_rows_by_source_kind,
+                key=_near_a_grade_gap_score,
+            )
+    closest_near_a_grade = (
+        closest_runtime_near_a_grade
+        if closest_runtime_near_a_grade is not None
+        else closest_near_a_grade_including_replay
     )
     minimum_a_grade_replay_evidence_count = 1
     counterfactual_replay_progress = {
@@ -11531,6 +11640,16 @@ def build_statuses(
             counterfactual_feature_market_cost_enriched_paper_signals
         ),
         "closest_near_a_grade": closest_near_a_grade,
+        "closest_near_a_grade_including_replay": closest_near_a_grade_including_replay,
+        "closest_near_a_grade_selection_policy": "runtime_source_kinds_first",
+        "replay_evidence_generated_utc": closed_candle_replay_audit.get(
+            "replay_evidence_generated_utc"
+        ),
+        "replay_evidence_age_days": closed_candle_replay_audit.get(
+            "replay_evidence_age_days"
+        ),
+        "replay_evidence_stale": closed_candle_replay_audit.get("replay_evidence_stale"),
+        "replay_evidence_warnings": closed_candle_replay_audit.get("warnings", []),
         "closest_confidence_gap_to_a_grade": (
             closest_near_a_grade.get("confidence_gap_to_a_grade")
             if closest_near_a_grade else None

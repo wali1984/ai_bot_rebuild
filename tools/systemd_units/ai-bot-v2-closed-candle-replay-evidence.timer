@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AI Bot V2 closed-candle replay evidence generator every 6h
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=6h
+Persistent=true
+Unit=ai-bot-v2-closed-candle-replay-evidence.service
+
+[Install]
+WantedBy=timers.target
