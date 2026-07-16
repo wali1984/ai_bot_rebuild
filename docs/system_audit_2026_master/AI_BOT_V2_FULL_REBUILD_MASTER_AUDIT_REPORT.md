@@ -8,6 +8,8 @@
 
 **Decision:** **NO-GO for live trading. NO-GO for treating current paper outcomes as clean promotion evidence.**
 
+> **Post-cut reconciliation (2026-07-16, evening):** verified current deltas and operational hardening applied after this rebuild are recorded in [MASTER_SYSTEM_DOC.md → Post-cut reconciliation](../MASTER_SYSTEM_DOC.md#post-cut-reconciliation-2026-07-16-evening). Headline re-measures: 159 installed units / 84 running / 36 timers / 2 failed; Redis 941,651 keys / 31.50 GiB / `save "900 1"`; OpenAPI 189/193 unchanged. The NO-GO decision is unchanged.
+
 This report replaces the 2026-07-01 master snapshot. The earlier report was useful historical evidence but several of its strongest claims are now false: the deployed process count changed; two trainer authorities are active; real order transport exists; the V2 API is not read-only; risk `DENY` is not the final authority for ordinary paper admission; and newer paper confidence overrides alter the documented gate order.
 
 ## 1. Executive answer

@@ -25,6 +25,8 @@ This is the safe operating manual for the current system. It reflects the deploy
 
 The earlier 2026-07-16 operations snapshot found 157 installed `ai-bot*` user-unit files, 81 running services, 36 active timers and 3 failed services. A direct recheck found 156 installed basenames and 35 active timers. Counts change continuously.
 
+> **Post-cut update (2026-07-16, evening):** re-measured **159** installed units, **84** running services, **36** active timers, **2** failed (`ai-bot-v2-autonomous-no-manual-next-task-policy`, `ai-bot-v2-closed-candle-replay-evidence`). Operational hardening this session: `out-of-sample-evidence-producer` **removed** (OOM-restart loop), `adaptive-capital-productivity` **memory-capped** (`MemoryHigh=6G`/`MemoryMax=8G`, was uncapped/leaking to ~15.5 GiB), `paper-equity-reconciliation-loop` set **`StandardOutput=null`** (had flooded syslog to ~35 GiB). Operator-pending: `tools/OPERATOR_crash_hardening_sudo.sh` (syslog truncate + journald cap, needs sudo), `tools/fix_cursor_state_bloat.sh` (Cursor `state.vscdb` reclaim, run with Cursor closed). See MASTER_SYSTEM_DOC.md → Post-cut reconciliation. LIVE remains BLOCKED.
+
 Functional flow:
 
 ```text
@@ -203,6 +205,14 @@ logs, and deletes `/tmp/holdout_tail_*` older than six hours
 `dry_run=false`, ten temporary holdout files deleted and 89,478 bytes reclaimed;
 no replay directory, JSONL tail or `.out` log was changed in that particular
 cycle. Mutation during the audit is therefore observed, not hypothetical.
+
+> **Post-cut update (2026-07-16, evening):** the rollover/janitor conflict is
+> **unchanged** — `ai-bot-v2-orderbook-replay-rollover.timer` remains enabled/active
+> and the 15-minute janitor still runs without `--dry-run`. Repairing the rollover
+> would let its timer invoke the harsher policy, so it stays an operator decision, not
+> an automatic repair. Separately, `tools/OPERATOR_crash_hardening_sudo.sh` (needs sudo)
+> truncates the 35 GiB `/var/log/syslog` flood and caps journald so a runaway service
+> can no longer fill the disk; it is pending operator execution.
 
 ### 4.6 Live-readiness observation
 

@@ -6,6 +6,8 @@
 
 **Decision:** NO-GO for live trading and NO-GO for using current paper results as clean promotion evidence.
 
+> A dated **[Post-cut reconciliation (2026-07-16, evening)](#post-cut-reconciliation-2026-07-16-evening)** section below records verified current deltas and the operational hardening applied after this cut. The NO-GO decision is unchanged.
+
 This is the repository-level entrypoint. The complete current audit is [AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md](system_audit_2026_master/AI_BOT_V2_FULL_REBUILD_MASTER_AUDIT_REPORT.md); the document map is [REVERSE_ENGINEERING_INDEX.md](system_audit_2026_master/REVERSE_ENGINEERING_INDEX.md).
 
 Older June/July documents remain historical snapshots. They are not current when they claim one trainer, read-only V2 APIs, operational SQL persistence, risk as final paper authority, no order transport, or the earlier service/module/test counts.
@@ -28,6 +30,31 @@ It is not reproducible from a Git clone alone. Effective systemd units/drop-ins,
 - Current OpenAPI snapshot: 189 paths/193 HTTP operations, plus seven mounted WebSocket paths outside OpenAPI.
 - Redis snapshot: about 1.11 million keys and 31 GiB against a 32 GiB `allkeys-lru` limit, RDB-only/AOF disabled.
 - Native model contract: 477 ordered features × values/missing/stale/availability = 1,908 inputs.
+
+## Post-cut reconciliation (2026-07-16, evening)
+
+The cut above is a point-in-time snapshot. The deltas below were directly re-measured later the same day, after operational hardening and web/mobile work in this session. The audit decision is unchanged: **NO-GO for live; LIVE TRADING BLOCKED.** The paper trade loop (`v2_trade_management_paper_loop.py`) is owned by a separate agent and was not modified here.
+
+**Re-measured scale** (`systemctl --user list-units 'ai-bot*'`, `redis-cli DBSIZE`/`INFO memory`/`CONFIG GET save`, `/openapi.json`):
+
+- Installed `ai-bot*` user units: **159** (was 156/157). Running services: **84** (was 81). Active timers: **36**. Failed services: **2** — `ai-bot-v2-autonomous-no-manual-next-task-policy` and `ai-bot-v2-closed-candle-replay-evidence` (was 3).
+- Redis: **941,651 keys / 31.50 GiB** against the 32 GiB `allkeys-lru` cap; `save "900 1"`, `appendonly no` (RDB-only confirmed). Key count fell from ~1.11M as LRU eviction ran under sustained memory pressure.
+- OpenAPI: **189 paths / 193 operations — unchanged.** The derivatives work added `/api/v2/derivatives` and `/api/v2/market/{symbol}/derivatives` as enrichment of the existing surface; net path/operation count did not move.
+
+**Operational hardening applied this session** (effective systemd drop-ins, not tracked in git — verify with `systemctl --user show`):
+
+- `ai-bot-v2-out-of-sample-evidence-producer` — **removed** (stopped + disabled). It was in an OOM-restart loop (~4.2 GiB per restart) and a primary contributor to the workstation OOM event.
+- `ai-bot-v2-adaptive-capital-productivity` — **memory-capped** via drop-in `MemoryHigh=6G / MemoryMax=8G` (previously uncapped; leaked to ~15.5 GiB loading millions of counterfactual configs).
+- `ai-bot-v2-paper-equity-reconciliation-loop` — **`StandardOutput=null`** drop-in (had flooded `/var/log/syslog` at ~600 lines/s to ~35 GiB, starving disk I/O).
+- New operator scripts: `tools/OPERATOR_crash_hardening_sudo.sh` (truncate the 35 GiB syslog + cap journald to `SystemMaxUse=2G`; **needs sudo — pending operator**) and `tools/fix_cursor_state_bloat.sh` (reclaim Cursor's ~18 GiB `state.vscdb` AI-history cache behind the "Codex loading" hang; **run with Cursor closed — pending operator**).
+
+**Still open (unchanged by this session):**
+
+- The retention conflict in §"Deployment/operations truth" persists: `ai-bot-v2-orderbook-replay-rollover.timer` is still enabled/active and the 15-minute `ai-bot-v2-disk-retention-janitor.timer` still runs without `--dry-run`. Repairing the rollover would let its timer invoke the harsher policy — treat as an operator decision, not an automatic repair.
+- Persistent/offline trainers and duplicate portfolio publishers remain concurrently active (`continuous-offline-gpu-trainer`, `native-cuda-trainer-persistent`, `trainer-training-live-loop`, `trainer-checkpoint-evidence`; `portfolio-state-publisher` + `portfolio-cascade-guard`).
+- Redis remains near its cap with no discovered HA/tested restore.
+
+**Web/mobile changes this session** (source edits, deployed via controlled build): derivatives + markets pages rebuilt for full real-time coverage; AI page trainer telemetry expanded; natural-language signal reasoning; a reusable NERVYX chart library (Recharts) across dashboard/portfolio/AI/signals/derivatives; matching Path-based SwiftUI charts on iOS dashboard/positions with backend `equity_curve`/`win_rate` payloads.
 
 ## Architecture
 
