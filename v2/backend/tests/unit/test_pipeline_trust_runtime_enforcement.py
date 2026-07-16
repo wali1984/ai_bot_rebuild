@@ -604,6 +604,9 @@ def tensor() -> SimpleNamespace:
         feature_names=["ret_pct"],
         missing_feature_names=[],
         stale_feature_names=[],
+        # Real FeatureTensorRecord carries a per-feature missing mask
+        # (tensor_builder.py); the publisher's feature-view merge reads it.
+        missing_mask=[0],
         data_coverage_percent=100.0,
         source_availability_vector=[1.0],
         source_labels=["synthetic"],
