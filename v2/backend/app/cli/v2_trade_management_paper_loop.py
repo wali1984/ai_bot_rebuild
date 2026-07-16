@@ -24641,8 +24641,28 @@ _EXIT_OVERSHOOT_MAX_SAMPLE = 20
 PAPER_ADAPTIVE_HEDGE_ENABLED = str(
     os.environ.get("PAPER_ADAPTIVE_HEDGE_ENABLED", "")
 ).strip().lower() in ("1", "true", "yes", "on")
+# Redis operator flag so EVERY run_once caller agrees on hedge semantics.
+# Shadow/soak tools (production-equivalence comparator, war-room scheduler)
+# import this module and call run_once without the service env; if they ran
+# with hedging disabled against the shared paper state they would net-close
+# open hedge pairs through the TIER_3 netting path. env OR redis enables.
+ADAPTIVE_HEDGE_ENABLED_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:adaptive_hedge_enabled"
 HEDGE_DIRECTIVES_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:hedge_directives"
 HEDGE_DIRECTIVES_MAX_AGE_SECONDS = 300.0
+
+
+def _adaptive_hedge_enabled(r) -> bool:
+    if PAPER_ADAPTIVE_HEDGE_ENABLED:
+        return True
+    if r is None:
+        return False
+    try:
+        raw = r.get(ADAPTIVE_HEDGE_ENABLED_REDIS_KEY)
+    except Exception:
+        return False
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", "replace")
+    return str(raw or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _synthesize_adaptive_hedge_fills(
@@ -30631,7 +30651,8 @@ def run_once() -> dict:
     # become tagged hedge fills that ride the normal merge -> lineage ->
     # reconcile pipeline. The lifecycle routes them to "{SYM}::HEDGE" instead
     # of netting the parent closed.
-    if PAPER_ADAPTIVE_HEDGE_ENABLED:
+    adaptive_hedge_enabled = _adaptive_hedge_enabled(r)
+    if adaptive_hedge_enabled:
         hedge_synthesis_status = _synthesize_adaptive_hedge_fills(
             r,
             existing_ledger=existing_ledger,
@@ -30712,14 +30733,14 @@ def run_once() -> dict:
             ),
             disable_trailing_on_negative_runtime_expectancy=True,
             trailing_expectancy_evidence_policy_version=PAPER_EXIT_POLICY_VERSION,
-            allow_explicit_hedge=PAPER_ADAPTIVE_HEDGE_ENABLED,
+            allow_explicit_hedge=adaptive_hedge_enabled,
             portfolio_drawdown_bps=portfolio_context["drawdown_bps"],
         ),
         portfolio_guard=_read_json_key(r, "v2:paper:portfolio_cascade_guard"),
     )
     # Publish this cycle's hedge directives for next-cycle fill synthesis and
     # surface the adaptive hedge status for Monitor Center / GUI.
-    if PAPER_ADAPTIVE_HEDGE_ENABLED:
+    if adaptive_hedge_enabled:
         _lifecycle_hedge_directives = lifecycle_result.get("hedge_directives") or []
         if _lifecycle_hedge_directives:
             _safe_write(
@@ -30744,6 +30765,10 @@ def run_once() -> dict:
                 "generated_utc": _utc_iso(),
                 "writer_pid": os.getpid(),
                 "env_flag_at_import": PAPER_ADAPTIVE_HEDGE_ENABLED,
+                "resolved_enabled": adaptive_hedge_enabled,
+                "enable_source": (
+                    "env" if PAPER_ADAPTIVE_HEDGE_ENABLED else ("redis_operator_flag" if adaptive_hedge_enabled else "disabled")
+                ),
             }
         ),
         ex=PAPER_RUNTIME_TRANSIENT_TTL_SECONDS,
