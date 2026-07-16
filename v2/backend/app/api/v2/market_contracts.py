@@ -13226,6 +13226,15 @@ async def get_paper_runtime_status(
                 blockers.append({
                     **a_grade_blocker,
                 })
+            # A+ goal Phase 12: the truth block was only spread into the debug
+            # fallback path, so the primary payload had no performance /
+            # entry_freeze / a_plus_gate truth and the dashboard "A+ final
+            # rows / Candidate readiness" cards rendered hardwired 0/0.
+            truth_block = _paper_a_plus_runtime_truth_block(client)
+            merged_top_blockers = list(dict.fromkeys([
+                *(truth_block.get("top_blockers") or []),
+                *readiness_context["readiness_blockers"],
+            ]))[:8]
             return {
                 "schema_version": "paper_runtime_status_primary_v1",
                 "generated_at": now,
@@ -13260,7 +13269,14 @@ async def get_paper_runtime_status(
                 "a_grade_blocker_truth": readiness_context["a_grade_blocker_truth"],
                 "exact_no_live_reason": readiness_context["exact_no_live_reason"],
                 "readiness_blockers": readiness_context["readiness_blockers"],
-                "top_blockers": readiness_context["readiness_blockers"][:8],
+                "top_blockers": merged_top_blockers,
+                "performance": truth_block.get("performance") or {},
+                "entry_freeze": truth_block.get("entry_freeze") or {},
+                "a_plus_gate": truth_block.get("a_plus_gate") or {},
+                "reduced_size_bootstrap": truth_block.get("reduced_size_bootstrap") or {},
+                "high_confidence_loss_cluster": truth_block.get("high_confidence_loss_cluster") or {},
+                "post_patch_recovery": truth_block.get("post_patch_recovery") or {},
+                "trainer_learning": truth_block.get("trainer_learning") or {},
                 "continuous_loop_available": heartbeat_fresh,
                 "loop_interval_seconds": 10,
                 "writes_only_local_v2_artifacts": True,

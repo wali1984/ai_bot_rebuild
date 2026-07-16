@@ -29,6 +29,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.a_plus_trade_gate.service import (
+    A_PLUS_GATE_STATUS_REDIS_KEY,
+)
 from v2.backend.app.services.adaptive_regime_gate.classifier import (
     REGIMES,
     REGIME_GATE_REDIS_KEY_TEMPLATE,
@@ -60,6 +63,14 @@ REDIS_TTL_SECONDS = 900
 # missing on every 1m/5m candidate and no regime-aware gating on the most
 # active lanes.
 REGIME_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+
+# Operator-expected A+ supply truth key (strict fail-closed counting).
+A_PLUS_SUPPLY_STATUS_REDIS_KEY = "v2:paper:a_plus_supply_status"
+A_GRADE_GATE_BURNDOWN_STATUS_REDIS_KEY = "v2:paper:a_grade_gate_burndown_status"
+GUARDIAN_A_GRADE_EXECUTION_GATE_REDIS_KEY = (
+    "v2:continuous_edge_guardian:a_grade_execution_gate"
+)
+PERFORMANCE_GOVERNOR_STATUS_REDIS_KEY = "v2:paper:performance_governor_status"
 
 REQUIRED_HTF_FEATURE_FIELDS = (
     "htf_4h_ema50_delta_pct",
@@ -222,6 +233,124 @@ def _snapshot_features(client: Any, symbol: str, timeframe: str) -> dict[str, An
     return {}
 
 
+def publish_a_plus_supply_status(client: Any) -> dict[str, Any]:
+    """Publish v2:paper:a_plus_supply_status from the raw gate evaluations.
+
+    Every value is copied from the source gate/guardian/governor payloads —
+    nothing is synthesized here. Strict counting is fail-closed: an
+    a_plus:true row with non-empty failed_checks or an adaptive-gate
+    override does not count as strict A+ supply.
+    """
+
+    def _payload(key: str) -> dict[str, Any]:
+        payload = _safe_get_json(client, key)
+        return payload if isinstance(payload, dict) else {}
+
+    def _names(value: Any) -> list[str]:
+        # Exact gate/finding names only — for dict rows (e.g. guardian
+        # failure_reasons {"reason": NAME, "observed": ...} or count maps
+        # {"BLOCK_NO_EDGE": 2}) copy the reason name, never the repr.
+        if isinstance(value, dict):
+            reason = value.get("reason") or value.get("id") or value.get("finding_id")
+            if reason:
+                return [str(reason)]
+            return [str(key) for key in value if key not in (None, "")]
+        if isinstance(value, (list, tuple)):
+            names: list[str] = []
+            for item in value:
+                names.extend(_names(item))
+            return names
+        if value in (None, ""):
+            return []
+        return [str(value)]
+
+    def _count(value: Any) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 1
+
+    gate = _payload(A_PLUS_GATE_STATUS_REDIS_KEY)
+    burndown = _payload(A_GRADE_GATE_BURNDOWN_STATUS_REDIS_KEY)
+    guardian = _payload(GUARDIAN_A_GRADE_EXECUTION_GATE_REDIS_KEY)
+    governor = _payload(PERFORMANCE_GOVERNOR_STATUS_REDIS_KEY)
+
+    rows = gate.get("candidate_matrix")
+    rows = rows if isinstance(rows, list) else []
+    a_plus_rows = [
+        row for row in rows if isinstance(row, dict) and row.get("a_plus") is True
+    ]
+    strict_rows = [
+        row
+        for row in a_plus_rows
+        if not row.get("failed_checks")
+        and not row.get("adaptive_gate_override_applied")
+    ]
+    override_rows = [
+        row
+        for row in a_plus_rows
+        if row.get("failed_checks") or row.get("adaptive_gate_override_applied")
+    ]
+    live_ready_rows = sum(
+        1
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("live_ready") or row.get("live_candidate_eligible"))
+    )
+    rejected = gate.get("rejected_reason_matrix")
+    top_failed_checks: list[str] = []
+    if isinstance(rejected, dict):
+        top_failed_checks = [
+            str(reason)
+            for reason, _n in sorted(
+                rejected.items(),
+                key=lambda item: (-_count(item[1]), str(item[0])),
+            )
+            if reason
+        ][:8]
+
+    no_supply_reasons: list[str] = []
+    if not strict_rows:
+        no_supply_reasons.extend(top_failed_checks)
+        no_supply_reasons.extend(_names(burndown.get("closest_gap_reason")))
+        no_supply_reasons.extend(_names(burndown.get("dominant_current_runtime_reasons")))
+        no_supply_reasons.extend(_names(guardian.get("failure_reasons")))
+        no_supply_reasons.extend(_names(governor.get("state_reasons")))
+        no_supply_reasons.extend(_names(governor.get("halt_reasons")))
+    no_supply_reasons = list(dict.fromkeys(no_supply_reasons))[:16]
+
+    try:
+        evaluated = int(gate.get("evaluated_candidates"))
+    except (TypeError, ValueError):
+        evaluated = len(rows)
+
+    supply_status = {
+        "schema_version": "v2_paper_a_plus_supply_status_v1",
+        "generated_utc": _utc_now(),
+        "evaluated_candidates": evaluated,
+        "strict_a_plus_candidates": len(strict_rows),
+        "adaptive_override_candidates": len(override_rows),
+        "live_ready_rows": live_ready_rows,
+        "a_grade_rows": burndown.get("A_grade_rows"),
+        "near_a_grade_rows": burndown.get("near_A_grade_rows"),
+        "top_failed_checks": top_failed_checks,
+        "guardian_status": guardian.get("status"),
+        "governor_state": governor.get("state"),
+        "no_supply_reasons": no_supply_reasons,
+        "source_keys": [
+            A_PLUS_GATE_STATUS_REDIS_KEY,
+            A_GRADE_GATE_BURNDOWN_STATUS_REDIS_KEY,
+            GUARDIAN_A_GRADE_EXECUTION_GATE_REDIS_KEY,
+            PERFORMANCE_GOVERNOR_STATUS_REDIS_KEY,
+        ],
+        "paper_only": True,
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+    }
+    _safe_set_json(client, A_PLUS_SUPPLY_STATUS_REDIS_KEY, supply_status, ttl=900)
+    return supply_status
+
+
 def run_cycle(client: Any, *, max_symbols: int) -> dict[str, Any]:
     generated = _utc_now()
     universe = resolve_symbols()
@@ -337,6 +466,7 @@ def main() -> int:
             # loop publishing nothing for its whole lifetime.
             client = _redis_client()
         status = run_cycle(client, max_symbols=args.max_symbols)
+        supply_status = publish_a_plus_supply_status(client)
         htf_tensor_status = _tensor_field_status(REQUIRED_HTF_TENSOR_FIELDS)
         regime_tensor_status = _tensor_field_status(REQUIRED_REGIME_TENSOR_FIELDS)
         cross_asset_tensor_status = _tensor_field_status(REQUIRED_CROSS_ASSET_TENSOR_FIELDS)
@@ -452,6 +582,12 @@ def main() -> int:
                     "htf_ok": status["htf_context_ok"],
                     "regimes": status["regime_distribution"],
                     "fail_closed": status["regime_fail_closed_count"],
+                    "a_plus_supply_strict": supply_status.get(
+                        "strict_a_plus_candidates"
+                    ),
+                    "a_plus_supply_overrides": supply_status.get(
+                        "adaptive_override_candidates"
+                    ),
                 }
             ),
             flush=True,

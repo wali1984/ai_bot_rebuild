@@ -348,6 +348,26 @@ def _mobile_hedge_cross_margin_truth(r: Any | None) -> dict[str, Any]:
         requested_margin_mode="isolated_paper_simulated",
         expectancy_usd=portfolio.get("session_realized_pnl") or portfolio.get("realized_pnl_usd"),
     )
+    # Real hedge truth from position rows — previously hardcoded to
+    # NO_HEDGE/0 regardless of the actual v2:portfolio:state contents.
+    hedge_rows = sum(
+        1
+        for row in positions
+        if row.get("hedge_state") not in (None, "", "NO_HEDGE")
+    )
+    hedge_engine_raw = _operator_runtime_json(
+        "v2_continuous_edge_guardian/latest/hedge_engine_status.json"
+    ) or {}
+    hedge_engine_status: dict[str, Any] = {}
+    if hedge_engine_raw:
+        hedge_engine_status = {
+            "status": hedge_engine_raw.get("status"),
+            "candidate_count": hedge_engine_raw.get("candidate_count"),
+            "accepted_count": hedge_engine_raw.get(
+                "accepted_bounded_hedge_candidate_count"
+            ),
+            "generated_utc": hedge_engine_raw.get("generated_utc"),
+        }
     return {
         "schema_version": "v2_mobile_hedge_cross_margin_truth_v1",
         "status": "ADAPTIVE_HEDGE_CROSS_MARGIN_SIMULATION_ACTIVE",
@@ -357,8 +377,9 @@ def _mobile_hedge_cross_margin_truth(r: Any | None) -> dict[str, Any]:
         "bps_operator_display_allowed": False,
         "recommended_leverage_distribution": [round(portfolio_summary_leverage, 8)] if open_notional > 0 else [],
         "recommended_margin_mode_distribution": [stress.get("recommended_margin_mode") or "isolated_paper_simulated"] if open_notional > 0 else [],
-        "hedge_state": "NO_HEDGE",
-        "hedge_rows": 0,
+        "hedge_state": "HEDGE_ROWS_PRESENT" if hedge_rows > 0 else "NO_HEDGE",
+        "hedge_rows": hedge_rows,
+        "hedge_engine_status": hedge_engine_status,
         "cross_margin_state": stress.get("why_cross_margin_or_isolated"),
         **exposure,
         **stress,

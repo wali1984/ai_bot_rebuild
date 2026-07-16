@@ -875,6 +875,14 @@ async def get_live_canary_status() -> dict[str, Any]:
 async def get_a_plus_inventory() -> dict[str, Any]:
     client = get_redis()
     payload = _read_json(client, "v2:paper:a_plus_gate:status")
+    source_key_present = bool(payload)
+    supply_status = _read_json(client, "v2:paper:a_plus_supply_status")
+    supply_status_age_seconds = _age_seconds(supply_status) if supply_status else None
+    supply_status_fresh = (
+        bool(supply_status)
+        and supply_status_age_seconds is not None
+        and supply_status_age_seconds <= 900
+    )
     rows = (
         payload.get("candidate_matrix")
         if isinstance(payload.get("candidate_matrix"), list)
@@ -883,13 +891,29 @@ async def get_a_plus_inventory() -> dict[str, Any]:
     a_plus_rows = [
         row for row in rows if isinstance(row, dict) and row.get("a_plus") is True
     ]
+    # Strict fail-closed counting: an a_plus:true row with non-empty
+    # failed_checks or an adaptive-gate override is NOT a strict A+ candidate.
+    strict_a_plus_rows = [
+        row
+        for row in a_plus_rows
+        if not row.get("failed_checks")
+        and not row.get("adaptive_gate_override_applied")
+    ]
+    adaptive_override_rows = [
+        row
+        for row in a_plus_rows
+        if row.get("failed_checks") or row.get("adaptive_gate_override_applied")
+    ]
     live_ready_rows = [
-        row for row in rows if isinstance(row, dict) and row.get("live_ready") is True
+        row
+        for row in rows
+        if isinstance(row, dict)
+        and (row.get("live_ready") or row.get("live_candidate_eligible"))
     ]
     exact_no_a_plus_reason, top_a_plus_blockers = _a_plus_blocker_summary(
         payload,
         rows,
-        a_plus_count=len(a_plus_rows),
+        a_plus_count=len(strict_a_plus_rows),
     )
     legacy_exact_no_a_plus_reason = exact_no_a_plus_reason
     legacy_top_a_plus_blockers = list(top_a_plus_blockers)
@@ -899,7 +923,7 @@ async def get_a_plus_inventory() -> dict[str, Any]:
         truth_finding_ids = []
     current_a_grade_blocker = (
         a_grade_blocker_truth.get("primary_blocker")
-        if len(a_plus_rows) <= 0
+        if len(strict_a_plus_rows) <= 0
         and a_grade_blocker_truth.get("status") == "A_GRADE_ADAPTATION_NOT_PROVEN"
         else None
     )
@@ -908,13 +932,69 @@ async def get_a_plus_inventory() -> dict[str, Any]:
         top_a_plus_blockers = _dedupe_strings(
             [current_a_grade_blocker, *truth_finding_ids, *legacy_top_a_plus_blockers]
         )[:12]
+    staleness_seconds = _age_seconds(payload) if source_key_present else None
+    if not source_key_present:
+        # Source-key honesty: the gate status key is missing/expired, which
+        # means the paper loop publisher is stale — not "zero candidates".
+        heartbeat = _read_json(client, "v2:paper:heartbeat")
+        heartbeat_ts = _parse_utc(
+            _first(
+                heartbeat.get("heartbeat_generated_at"),
+                heartbeat.get("finished_at"),
+                _payload_timestamp(heartbeat),
+            )
+        )
+        if heartbeat_ts is not None:
+            staleness_seconds = max(
+                0.0, (datetime.now(UTC) - heartbeat_ts).total_seconds()
+            )
+        exact_no_a_plus_reason = (
+            "A_PLUS_GATE_STATUS_KEY_MISSING_OR_EXPIRED_PAPER_LOOP_STALE"
+        )
+        top_a_plus_blockers = _dedupe_strings(
+            [exact_no_a_plus_reason, *top_a_plus_blockers]
+        )[:12]
+    if supply_status_fresh:
+        counting_source = "redis:v2:paper:a_plus_supply_status"
+        evaluated_candidates = _first(
+            supply_status.get("evaluated_candidates"),
+            payload.get("evaluated_candidates"),
+            len(rows),
+        )
+        a_plus_candidates = _first(
+            supply_status.get("strict_a_plus_candidates"),
+            len(strict_a_plus_rows),
+        )
+        adaptive_override_candidates = _first(
+            supply_status.get("adaptive_override_candidates"),
+            len(adaptive_override_rows),
+        )
+        live_ready_count = _first(
+            supply_status.get("live_ready_rows"),
+            len(live_ready_rows),
+        )
+    else:
+        counting_source = "redis:v2:paper:a_plus_gate:status"
+        evaluated_candidates = payload.get("evaluated_candidates", len(rows))
+        a_plus_candidates = len(strict_a_plus_rows)
+        adaptive_override_candidates = len(adaptive_override_rows)
+        live_ready_count = len(live_ready_rows)
     data = {
         "schema_version": payload.get("schema_version"),
         "generated_utc": payload.get("generated_utc"),
         "paper_session_id": payload.get("paper_session_id"),
-        "evaluated_candidates": payload.get("evaluated_candidates", len(rows)),
-        "a_plus_candidates": payload.get("a_plus_candidates", len(a_plus_rows)),
-        "live_ready_rows": len(live_ready_rows),
+        "source_key_present": source_key_present,
+        "staleness_seconds": staleness_seconds,
+        "counting_source": counting_source,
+        "evaluated_candidates": evaluated_candidates,
+        "a_plus_candidates": a_plus_candidates,
+        "adaptive_override_candidates": adaptive_override_candidates,
+        "a_plus_counting_policy": "STRICT_FAIL_CLOSED_OVERRIDES_EXCLUDED",
+        "publisher_reported_a_plus_candidates": payload.get("a_plus_candidates"),
+        "live_ready_rows": live_ready_count,
+        "a_plus_supply_status": supply_status or None,
+        "a_plus_supply_status_fresh": supply_status_fresh,
+        "a_plus_supply_status_age_seconds": supply_status_age_seconds,
         "exact_no_a_plus_reason": exact_no_a_plus_reason,
         "top_a_plus_blockers": top_a_plus_blockers,
         "legacy_exact_no_a_plus_reason": legacy_exact_no_a_plus_reason,
@@ -932,6 +1012,6 @@ async def get_a_plus_inventory() -> dict[str, Any]:
     return _contract(
         schema_version="control_center_a_plus_inventory_v1",
         canonical_owner="/api/v2/a-plus/inventory",
-        source="redis:v2:paper:a_plus_gate:status",
+        source=counting_source,
         data=data,
     )
