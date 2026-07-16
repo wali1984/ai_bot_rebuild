@@ -29,6 +29,7 @@ from urllib.parse import urlencode
 from v2.backend.app.services.binance_unified_websocket_transport import (
     REST_FALLBACK_ENV,
     binance_rest_fallback_allowed,
+    report_binance_rest_response,
     require_binance_rest_fallback,
 )
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
@@ -61,8 +62,22 @@ def _http_get_json(url: str, *, fallback_reason: str) -> Any:
             role="native_ingestor_public_market_data_recovery",
         )
     req = urllib.request.Request(url, headers={"User-Agent": "v2-native-ingestor/1.0"})
-    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # Ban protection: 429/418 arms the shared cross-process cooldown so
+        # ALL fallback traffic on this host stops before Binance escalates.
+        if "binance.com" in url:
+            try:
+                retry_after = exc.headers.get("Retry-After") if exc.headers else None
+            except Exception:
+                retry_after = None
+            report_binance_rest_response(
+                status_code=int(exc.code),
+                retry_after_seconds=float(retry_after) if retry_after else None,
+            )
+        raise
 
 
 def _rest_fallback_disabled() -> bool:
@@ -257,7 +272,14 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
             except Exception:
                 resolved = {}
             last_price = _safe_float(resolved.get("price")) if isinstance(resolved, dict) else None
-        if isinstance(ticker, dict) and last_price is not None and cache_fresh:
+        # A price-only payload (the current-price-resolver fallback used
+        # during the 2026-07-16 WSS outage) carries no 24h stats; quoteVolume
+        # is the marker. Echoing it as a "24hr ticker" starves every 24h
+        # feature downstream (last_liq_bps_24h = notional / quoteVolume).
+        has_24h_stats = (
+            isinstance(ticker, dict) and _safe_float(ticker.get("quoteVolume")) is not None
+        )
+        if isinstance(ticker, dict) and last_price is not None and cache_fresh and has_24h_stats:
             return {
                 **ticker,
                 "symbol": symbol,
@@ -265,6 +287,23 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
                 "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
                 "transport": "websocket_cache_primary",
             }
+    # Cache stale, undated, or missing the 24h stats: the public REST 24hr
+    # ticker is the only remaining source of quoteVolume/high/low once the
+    # WSS-backed cache is gone, so prefer it (when explicitly allowed) before
+    # degrading to the price-only resolver payload. The freshness gate above
+    # bounds this to at most one REST call per symbol per cache window.
+    if not _rest_fallback_disabled():
+        try:
+            data = _http_get_json(
+                f"{BINANCE_FAPI}/fapi/v1/ticker/24hr?symbol={symbol}",
+                fallback_reason="ticker_websocket_cache_missing_stale_or_price_only",
+            )
+        except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
+            data = None
+        if isinstance(data, dict):
+            data["source"] = "binance_public_rest_ticker_fallback"
+            data["transport"] = "rest_fallback"
+            return data
     try:
         resolved = resolve_current_price(redis_client, symbol) if redis_client is not None else {}
     except Exception:
@@ -280,20 +319,7 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
             "source": resolved.get("source") or "binance_public_websocket_cache_primary",
             "transport": "websocket_cache_primary",
         }
-    if _rest_fallback_disabled():
-        return None
-    try:
-        data = _http_get_json(
-            f"{BINANCE_FAPI}/fapi/v1/ticker/24hr?symbol={symbol}",
-            fallback_reason="ticker_websocket_cache_and_current_price_resolver_missing",
-        )
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    data["source"] = "binance_public_rest_ticker_fallback"
-    data["transport"] = "rest_fallback"
-    return data
+    return None
 
 
 def _fetch_funding(symbol: str, *, redis_client: Any = None) -> dict | None:
@@ -330,26 +356,69 @@ def _fetch_funding(symbol: str, *, redis_client: Any = None) -> dict | None:
     return data
 
 
+# Same cache-echo bug class as the ticker/orderbook fixes: this fetch reads
+# its OWN output key (v2:market:open_interest:*), so an undated or stale
+# payload would otherwise echo forever between this loop and the public
+# metadata ingestor while REST stays unreachable (2026-07-16 incident: BTC OI
+# frozen with NO timestamp anywhere in the payload for >5h after the 18:03Z
+# WSS transport death).
+OPEN_INTEREST_CACHE_MAX_AGE_SECONDS = 120.0
+# openInterestHist rows are 5m-bucketed upstream, so allow three buckets of
+# lag before declaring the cached history a frozen echo and refetching.
+OPEN_INTEREST_HIST_CACHE_MAX_AGE_SECONDS = 900.0
+
+
+def _open_interest_cache_age_seconds(payload: dict) -> float | None:
+    """Age of an open-interest cache payload, or None when it is undated."""
+    event_ms = _safe_float(
+        payload.get("time") or payload.get("timestamp") or payload.get("binance_time_ms")
+    )
+    if event_ms is not None and event_ms > 0:
+        return max(0.0, time.time() - event_ms / 1000.0)
+    for field in ("fetched_utc", "available_at"):
+        value = payload.get(field)
+        if isinstance(value, str) and value:
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return max(0.0, time.time() - parsed.timestamp())
+    return None
+
+
 def _fetch_open_interest(symbol: str, *, redis_client: Any = None) -> dict | None:
     cached = _read_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest:{symbol}")
     if isinstance(cached, dict) and cached:
-        return {
-            **cached,
-            "symbol": cached.get("symbol") or symbol,
-            "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
-            "transport": "websocket_cache_primary",
-        }
+        cache_age = _open_interest_cache_age_seconds(cached)
+        if cache_age is not None and cache_age <= OPEN_INTEREST_CACHE_MAX_AGE_SECONDS:
+            # Fresh, dated payload: echo it while PRESERVING its original
+            # timestamps (never re-stamp an echo, or staleness is laundered).
+            return {
+                **cached,
+                "symbol": cached.get("symbol") or symbol,
+                "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
+                "transport": "websocket_cache_primary",
+            }
+        # Stale or undated cache payload: fail closed on the echo and fall
+        # through to the public REST open-interest snapshot.
     if _rest_fallback_disabled():
         return None
     try:
         data = _http_get_json(
             f"{BINANCE_FAPI}/fapi/v1/openInterest?symbol={symbol}",
-            fallback_reason="open_interest_websocket_cache_missing",
+            fallback_reason="open_interest_websocket_cache_missing_or_stale",
         )
     except Exception:
         return None
     if not isinstance(data, dict):
         return None
+    # Canonical field alias + wall-clock stamp so the written payload is
+    # always dated and readable by the feature pipeline
+    # (open_interest/openInterest/sumOpenInterest).
+    data["open_interest"] = _safe_float(data.get("openInterest"))
+    data["fetched_utc"] = _utc_iso()
     data["source"] = "binance_public_rest_open_interest_fallback"
     data["transport"] = "rest_fallback"
     return data
@@ -401,6 +470,16 @@ def _fetch_klines(
     return data
 
 
+def _oi_hist_last_row_age_seconds(rows: list) -> float | None:
+    """Age of the newest dated openInterestHist row, or None when undated."""
+    for row in reversed(rows):
+        if isinstance(row, dict):
+            ts_ms = _safe_float(row.get("timestamp"))
+            if ts_ms is not None and ts_ms > 0:
+                return max(0.0, time.time() - ts_ms / 1000.0)
+    return None
+
+
 def _fetch_open_interest_hist(symbol: str, period: str = "5m", limit: int = 13, *, redis_client: Any = None) -> list | None:
     """Fetch recent open-interest history from Binance Futures public data.
 
@@ -411,14 +490,21 @@ def _fetch_open_interest_hist(symbol: str, period: str = "5m", limit: int = 13, 
     """
     cached = _read_json(redis_client, f"{V2_REDIS_PREFIX}market:open_interest_hist:{symbol}:{period}")
     if isinstance(cached, list) and cached:
-        return cached[-max(1, min(int(limit), len(cached))) :]
+        # This key is this loop's OWN output; without a freshness gate a
+        # frozen history echoes forever (2026-07-16 incident: BTC hist rows
+        # stuck >5h old while oi_change_pct silently computed on dead data).
+        # Binance openInterestHist rows always carry a ms ``timestamp``.
+        cache_age = _oi_hist_last_row_age_seconds(cached)
+        if cache_age is not None and cache_age <= OPEN_INTEREST_HIST_CACHE_MAX_AGE_SECONDS:
+            return cached[-max(1, min(int(limit), len(cached))) :]
+        # Stale or undated rows: fail closed on the echo, refetch over REST.
     if _rest_fallback_disabled():
         return None
     try:
         data = _http_get_json(
             f"{BINANCE_FAPI}/futures/data/openInterestHist"
             f"?symbol={symbol}&period={period}&limit={int(limit)}",
-            fallback_reason="open_interest_history_cache_missing",
+            fallback_reason="open_interest_history_cache_missing_or_stale",
         )
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, ValueError):
         return None

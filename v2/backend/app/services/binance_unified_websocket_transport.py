@@ -52,6 +52,138 @@ _SECRET_FIELD_TOKENS = ("key", "secret", "signature")
 REST_FALLBACK_ENV = "BINANCE_REST_FALLBACK_ALLOWED"
 REST_FALLBACK_ALLOWED_VALUES = frozenset({"1", "true", "yes", "on"})
 
+# ── REST fallback ban protection (shared, cross-process) ───────────────────
+# WebSocket is the primary transport; REST is backup only. Binance bans by IP
+# on rate abuse (429 warning, 418 ban), and bans are PER IP — so the budget is
+# shared across every service on this host via Redis. Defaults are deliberately
+# conservative: the fapi limit is 2400 weight/min; the fallback budget stays a
+# small fraction so even a full WSS outage recovering 148 symbols cannot
+# approach the limit (recovery throttles over a few minutes instead).
+REST_FALLBACK_BUDGET_PER_MINUTE_ENV = "BINANCE_REST_FALLBACK_BUDGET_PER_MINUTE"
+REST_FALLBACK_BUDGET_PER_MINUTE_DEFAULT = 120
+REST_FALLBACK_BUDGET_REDIS_KEY_PREFIX = "v2:binance:rest_fallback:budget:"
+REST_FALLBACK_COOLDOWN_REDIS_KEY = "v2:binance:rest_fallback:cooldown"
+REST_FALLBACK_RATE_LIMIT_COOLDOWN_SECONDS = 120      # HTTP 429: back off hard
+REST_FALLBACK_BAN_COOLDOWN_SECONDS = 1800            # HTTP 418: IP auto-ban signal
+_REST_BUDGET_LOCAL_WINDOW: dict[str, Any] = {"minute": None, "count": 0}
+_REST_BUDGET_REDIS_CLIENT: Any = None
+_REST_BUDGET_REDIS_TRIED = False
+
+
+def _rest_fallback_budget_per_minute() -> int:
+    try:
+        return max(1, int(os.environ.get(REST_FALLBACK_BUDGET_PER_MINUTE_ENV, "") or REST_FALLBACK_BUDGET_PER_MINUTE_DEFAULT))
+    except (TypeError, ValueError):
+        return REST_FALLBACK_BUDGET_PER_MINUTE_DEFAULT
+
+
+def _rest_budget_redis() -> Any:
+    global _REST_BUDGET_REDIS_CLIENT, _REST_BUDGET_REDIS_TRIED
+    if _REST_BUDGET_REDIS_CLIENT is not None:
+        return _REST_BUDGET_REDIS_CLIENT
+    if _REST_BUDGET_REDIS_TRIED:
+        return None
+    _REST_BUDGET_REDIS_TRIED = True
+    try:
+        import redis  # noqa: PLC0415
+
+        client = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=True, socket_timeout=0.5)
+        client.ping()
+        _REST_BUDGET_REDIS_CLIENT = client
+    except Exception:
+        _REST_BUDGET_REDIS_CLIENT = None
+    return _REST_BUDGET_REDIS_CLIENT
+
+
+def _rest_fallback_budget_check() -> tuple[bool, str | None, dict[str, Any]]:
+    """Consume one unit of the shared REST budget; block on exhaustion/cooldown.
+
+    Redis-backed sliding minute counter shared by all services on this host
+    (bans are per IP). When Redis is unavailable the check degrades to a
+    process-local minute counter with the same cap so a Redis outage can
+    never open unbounded REST traffic.
+    """
+    budget = _rest_fallback_budget_per_minute()
+    minute = int(time.time() // 60)
+    client = _rest_budget_redis()
+    if client is not None:
+        try:
+            cooldown_ttl = client.ttl(REST_FALLBACK_COOLDOWN_REDIS_KEY)
+            if cooldown_ttl and int(cooldown_ttl) > 0:
+                return (
+                    False,
+                    f"REST_FALLBACK_COOLDOWN_BAN_PROTECTION:{int(cooldown_ttl)}s_remaining",
+                    {"cooldown_seconds_remaining": int(cooldown_ttl), "budget_per_minute": budget},
+                )
+            key = f"{REST_FALLBACK_BUDGET_REDIS_KEY_PREFIX}{minute}"
+            used = int(client.incr(key))
+            if used == 1:
+                client.expire(key, 120)
+            if used > budget:
+                return (
+                    False,
+                    f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute",
+                    {"budget_used_this_minute": used, "budget_per_minute": budget},
+                )
+            return True, None, {"budget_used_this_minute": used, "budget_per_minute": budget}
+        except Exception:
+            pass
+    # Process-local degraded mode (same cap, per process).
+    if _REST_BUDGET_LOCAL_WINDOW["minute"] != minute:
+        _REST_BUDGET_LOCAL_WINDOW["minute"] = minute
+        _REST_BUDGET_LOCAL_WINDOW["count"] = 0
+    _REST_BUDGET_LOCAL_WINDOW["count"] += 1
+    used = int(_REST_BUDGET_LOCAL_WINDOW["count"])
+    if used > budget:
+        return (
+            False,
+            f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute_local",
+            {"budget_used_this_minute": used, "budget_per_minute": budget, "budget_scope": "process_local"},
+        )
+    return True, None, {"budget_used_this_minute": used, "budget_per_minute": budget, "budget_scope": "process_local"}
+
+
+def report_binance_rest_response(
+    *,
+    status_code: int | None = None,
+    retry_after_seconds: float | None = None,
+) -> None:
+    """Report a Binance REST response so ban signals stop ALL fallback traffic.
+
+    Call on HTTP errors from any Binance REST request: 429 arms a hard
+    cooldown; 418 (IP auto-ban) arms a long one (or Retry-After when larger).
+    The cooldown key is shared across every service on this host.
+    """
+    if status_code not in (418, 429):
+        return
+    cooldown = (
+        REST_FALLBACK_BAN_COOLDOWN_SECONDS
+        if status_code == 418
+        else REST_FALLBACK_RATE_LIMIT_COOLDOWN_SECONDS
+    )
+    try:
+        if retry_after_seconds is not None and float(retry_after_seconds) > cooldown:
+            cooldown = int(float(retry_after_seconds))
+    except (TypeError, ValueError):
+        pass
+    client = _rest_budget_redis()
+    if client is None:
+        return
+    try:
+        client.set(
+            REST_FALLBACK_COOLDOWN_REDIS_KEY,
+            json.dumps(
+                {
+                    "status_code": status_code,
+                    "armed_at_epoch": int(time.time()),
+                    "cooldown_seconds": int(cooldown),
+                }
+            ),
+            ex=int(cooldown),
+        )
+    except Exception:
+        pass
+
 
 @dataclass(frozen=True)
 class BinanceCredentialBinding:
@@ -127,10 +259,17 @@ def binance_rest_fallback_decision(
     reason = str(fallback_reason or "").strip()
     allowed = binance_rest_fallback_allowed() and bool(reason)
     blocked_reason = None
+    budget_diag: dict[str, Any] = {}
     if not reason:
         blocked_reason = "REST_FALLBACK_REASON_REQUIRED_WEBSOCKET_PRIMARY"
     elif not binance_rest_fallback_allowed():
         blocked_reason = f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
+    else:
+        # Ban protection: shared per-IP budget + 429/418 cooldown circuit.
+        budget_allowed, budget_blocked_reason, budget_diag = _rest_fallback_budget_check()
+        if not budget_allowed:
+            allowed = False
+            blocked_reason = budget_blocked_reason
     return {
         "endpoint": endpoint,
         "transport": "rest_fallback" if allowed else "rest_fallback_blocked_websocket_primary",
@@ -144,6 +283,7 @@ def binance_rest_fallback_decision(
         "required_env": f"{REST_FALLBACK_ENV}=true",
         "request_allowed": allowed,
         "rest_used_as_primary": False,
+        **budget_diag,
     }
 
 
