@@ -1183,6 +1183,15 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
     input_dim = runtime_status.get("input_dim") or arch.get("input_dim")
     feature_count = runtime_status.get("feature_dim")
 
+    # Online-learning + model-edge + throughput truths from the runtime status key
+    # so the iOS trainer/AI screens can surface the same telemetry the web AI page
+    # shows (read-only; never approves live).
+    backtest = cpu_util.get("policy_backtest") or {}
+    learning_metrics = runtime_status.get("learning_metrics") or {}
+    online_learning_status = runtime_status.get("online_learning_status") or ""
+    effective_trainer_mode = runtime_status.get("effective_trainer_mode") or effective_mode or ""
+    weights_updating = str(online_learning_status).upper() == "WEIGHTS_UPDATING"
+
     return {
         "state": state,
         "checkpoint": checkpoint_id,
@@ -1199,6 +1208,17 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
         "feature_count": _safe_int(feature_count) if feature_count is not None else None,
         "temporal_encoder": (arch.get("temporal_encoder") or "") if isinstance(arch, dict) else "",
         "temporal_encoder_enabled": bool(arch.get("temporal_encoder_enabled")) if isinstance(arch, dict) else False,
+        "effective_trainer_mode": effective_trainer_mode,
+        "online_learning_status": online_learning_status,
+        "weights_updating": weights_updating,
+        "trainer_process_status": runtime_status.get("trainer_process_status") or "",
+        "backtest_win_rate": _safe_float(backtest.get("win_rate")) if backtest.get("win_rate") is not None else None,
+        "backtest_expectancy_bps": _safe_float(backtest.get("expectancy_after_cost_bps")) if backtest.get("expectancy_after_cost_bps") is not None else None,
+        "backtest_profit_factor": _safe_float(backtest.get("profit_factor_proxy")) if backtest.get("profit_factor_proxy") is not None else None,
+        "throughput_predictions_per_second": _safe_float(cpu_util.get("throughput_predictions_per_second")) if cpu_util.get("throughput_predictions_per_second") is not None else None,
+        "vram_used_mb": _safe_float(cpu_util.get("current_vram_used_mb")) if cpu_util.get("current_vram_used_mb") is not None else None,
+        "generalization_gap": _safe_float(learning_metrics.get("train_val_generalization_gap")) if learning_metrics.get("train_val_generalization_gap") is not None else None,
+        "validation_loss_delta": _safe_float(learning_metrics.get("validation_loss_delta")) if learning_metrics.get("validation_loss_delta") is not None else None,
     }
 
 
@@ -1908,6 +1928,17 @@ async def get_mobile_dashboard(
             "feature_count": trainer.get("feature_count"),
             "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
             "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
+            "effective_trainer_mode": str(trainer.get("effective_trainer_mode") or ""),
+            "online_learning_status": str(trainer.get("online_learning_status") or ""),
+            "weights_updating": bool(trainer.get("weights_updating")),
+            "trainer_process_status": str(trainer.get("trainer_process_status") or ""),
+            "backtest_win_rate": _safe_float(trainer.get("backtest_win_rate")) if trainer.get("backtest_win_rate") is not None else None,
+            "backtest_expectancy_bps": _safe_float(trainer.get("backtest_expectancy_bps")) if trainer.get("backtest_expectancy_bps") is not None else None,
+            "backtest_profit_factor": _safe_float(trainer.get("backtest_profit_factor")) if trainer.get("backtest_profit_factor") is not None else None,
+            "throughput_predictions_per_second": _safe_float(trainer.get("throughput_predictions_per_second")) if trainer.get("throughput_predictions_per_second") is not None else None,
+            "vram_used_mb": _safe_float(trainer.get("vram_used_mb")) if trainer.get("vram_used_mb") is not None else None,
+            "generalization_gap": _safe_float(trainer.get("generalization_gap")) if trainer.get("generalization_gap") is not None else None,
+            "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
@@ -2105,6 +2136,17 @@ async def get_mobile_health(
             "feature_count": trainer.get("feature_count"),
             "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
             "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
+            "effective_trainer_mode": str(trainer.get("effective_trainer_mode") or ""),
+            "online_learning_status": str(trainer.get("online_learning_status") or ""),
+            "weights_updating": bool(trainer.get("weights_updating")),
+            "trainer_process_status": str(trainer.get("trainer_process_status") or ""),
+            "backtest_win_rate": _safe_float(trainer.get("backtest_win_rate")) if trainer.get("backtest_win_rate") is not None else None,
+            "backtest_expectancy_bps": _safe_float(trainer.get("backtest_expectancy_bps")) if trainer.get("backtest_expectancy_bps") is not None else None,
+            "backtest_profit_factor": _safe_float(trainer.get("backtest_profit_factor")) if trainer.get("backtest_profit_factor") is not None else None,
+            "throughput_predictions_per_second": _safe_float(trainer.get("throughput_predictions_per_second")) if trainer.get("throughput_predictions_per_second") is not None else None,
+            "vram_used_mb": _safe_float(trainer.get("vram_used_mb")) if trainer.get("vram_used_mb") is not None else None,
+            "generalization_gap": _safe_float(trainer.get("generalization_gap")) if trainer.get("generalization_gap") is not None else None,
+            "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),
@@ -2598,6 +2640,17 @@ async def get_mobile_admin_summary(
             "feature_count": trainer.get("feature_count"),
             "temporal_encoder": str(trainer.get("temporal_encoder") or ""),
             "temporal_encoder_enabled": bool(trainer.get("temporal_encoder_enabled")),
+            "effective_trainer_mode": str(trainer.get("effective_trainer_mode") or ""),
+            "online_learning_status": str(trainer.get("online_learning_status") or ""),
+            "weights_updating": bool(trainer.get("weights_updating")),
+            "trainer_process_status": str(trainer.get("trainer_process_status") or ""),
+            "backtest_win_rate": _safe_float(trainer.get("backtest_win_rate")) if trainer.get("backtest_win_rate") is not None else None,
+            "backtest_expectancy_bps": _safe_float(trainer.get("backtest_expectancy_bps")) if trainer.get("backtest_expectancy_bps") is not None else None,
+            "backtest_profit_factor": _safe_float(trainer.get("backtest_profit_factor")) if trainer.get("backtest_profit_factor") is not None else None,
+            "throughput_predictions_per_second": _safe_float(trainer.get("throughput_predictions_per_second")) if trainer.get("throughput_predictions_per_second") is not None else None,
+            "vram_used_mb": _safe_float(trainer.get("vram_used_mb")) if trainer.get("vram_used_mb") is not None else None,
+            "generalization_gap": _safe_float(trainer.get("generalization_gap")) if trainer.get("generalization_gap") is not None else None,
+            "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
             "name": str(gpu.get("name") or ""),

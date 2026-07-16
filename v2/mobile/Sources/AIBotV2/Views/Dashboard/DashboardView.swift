@@ -368,6 +368,43 @@ struct DashboardView: View {
                 value: trainer.temporalLabel.uppercased(),
                 valueColor: (trainer.temporal_encoder_enabled == true) ? NerVyx.validation : NerVyx.textMuted
             )
+            if let mode = trainer.effective_trainer_mode, !mode.isEmpty {
+                DataRow(
+                    label: "Mode",
+                    value: mode.replacingOccurrences(of: "_", with: " "),
+                    valueColor: NerVyx.primary
+                )
+            }
+            if trainer.online_learning_status != nil || trainer.weights_updating != nil {
+                DataRow(
+                    label: "Online learning",
+                    value: trainer.learningLabel,
+                    valueColor: (trainer.weights_updating == true || trainer.online_learning_status?.uppercased() == "WEIGHTS_UPDATING") ? NerVyx.validation : NerVyx.warning
+                )
+            }
+            if let win = trainer.backtest_win_rate {
+                DataRow(
+                    label: "Model win rate",
+                    value: String(format: "%.1f%%", win * 100) + (trainer.backtest_expectancy_bps.map { String(format: " · %+.1f bps", $0) } ?? ""),
+                    valueColor: win >= 0.55 ? NerVyx.validation : (win >= 0.5 ? NerVyx.warning : NerVyx.sell),
+                    mono: true
+                )
+            }
+            if let tput = trainer.throughput_predictions_per_second {
+                DataRow(
+                    label: "Throughput",
+                    value: String(format: "%.1f pred/s", tput) + (trainer.vram_used_mb.map { String(format: " · %.1f GB VRAM", $0 / 1024) } ?? ""),
+                    mono: true
+                )
+            }
+            if let gap = trainer.generalization_gap {
+                DataRow(
+                    label: "Overfit gap",
+                    value: String(format: "%.2f", gap) + (trainer.validation_loss_delta.map { String(format: " · Δval %+.3f", $0) } ?? ""),
+                    valueColor: gap > 5 ? NerVyx.warning : NerVyx.validation,
+                    mono: true
+                )
+            }
             DataRow(
                 label: "Challenger",
                 value: trainer.champion_challenger_status?.challengerLabel ?? "AWAITING EVIDENCE",

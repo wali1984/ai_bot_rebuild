@@ -313,8 +313,30 @@ public struct TrainerState: Decodable, Equatable {
     public let feature_count: Int?
     public let temporal_encoder: String?
     public let temporal_encoder_enabled: Bool?
+    // Online-learning + model-edge + GPU throughput truths (optional so older
+    // backend payloads still decode).
+    public let effective_trainer_mode: String?
+    public let online_learning_status: String?
+    public let weights_updating: Bool?
+    public let trainer_process_status: String?
+    public let backtest_win_rate: Double?
+    public let backtest_expectancy_bps: Double?
+    public let backtest_profit_factor: Double?
+    public let throughput_predictions_per_second: Double?
+    public let vram_used_mb: Double?
+    public let generalization_gap: Double?
+    public let validation_loss_delta: Double?
 
-    public var isActive: Bool { state.uppercased().contains("ACTIVE") }
+    public var isActive: Bool {
+        state.uppercased().contains("ACTIVE")
+            || (online_learning_status?.uppercased() == "WEIGHTS_UPDATING")
+            || (trainer_process_status?.uppercased() == "ACTIVE")
+    }
+    public var learningLabel: String {
+        if weights_updating == true || online_learning_status?.uppercased() == "WEIGHTS_UPDATING" { return "WEIGHTS UPDATING" }
+        guard let s = online_learning_status, !s.isEmpty else { return "—" }
+        return s.replacingOccurrences(of: "_", with: " ")
+    }
     public var temporalLabel: String {
         guard temporal_encoder_enabled == true else { return "single-frame" }
         let name = (temporal_encoder ?? "").isEmpty ? "ON" : temporal_encoder!.uppercased()
