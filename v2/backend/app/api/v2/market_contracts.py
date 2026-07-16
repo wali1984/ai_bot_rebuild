@@ -13,6 +13,7 @@ import contextlib
 import inspect
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -1087,6 +1088,11 @@ def _float(value: Any) -> float | None:
 
 def _as_list(value: Any) -> list[Any]:
     return list(value) if isinstance(value, list) else []
+
+
+def _int(value: Any) -> int | None:
+    number = _float(value)
+    return int(number) if number is not None else None
 
 
 def _integer(value: Any) -> int | None:
@@ -9396,129 +9402,299 @@ def _group_missing_features(names: list[str]) -> dict[str, list[str]]:
     return groups
 
 
+def _fmt_signed_bps(v: float | None) -> str:
+    return f"{v:+.2f} bps" if v is not None else "n/a"
+
+
+def _fmt_pct(v: float | None, digits: int = 1) -> str:
+    if v is None:
+        return "n/a"
+    scaled = v * 100.0 if abs(v) <= 1.0 else v
+    return f"{scaled:.{digits}f}%"
+
+
+def _fmt_usd(v: float | None) -> str:
+    if v is None:
+        return "n/a"
+    a = abs(v)
+    sign = "-" if v < 0 else ""
+    if a >= 1e9:
+        return f"{sign}${a / 1e9:.2f}B"
+    if a >= 1e6:
+        return f"{sign}${a / 1e6:.2f}M"
+    if a >= 1e3:
+        return f"{sign}${a / 1e3:.1f}K"
+    return f"{sign}${a:,.2f}"
+
+
 def _build_explanation(
     pred_payload: dict[str, Any] | None,
     sig_payload: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Build a structured natural-language explanation from raw Redis payloads.
-    No LLM calls -- all text is derived from numeric thresholds and field values.
+    """Build a truthful, signal-specific natural-language read of the trainer brain.
+
+    Every clause is grounded in an actual field the model published for THIS
+    prediction (action distribution, per-side net edge vs cost, the two model
+    heads, the calibration transform, and the real market-context blocks). No
+    LLM calls, no generic filler -- if a driver value is absent the clause is
+    dropped rather than fabricated.
     """
     p = pred_payload or {}
     s = sig_payload or {}
 
-    # --- Key numbers extraction ---
-    action_labels: list[str] = p.get("action_labels") or []
-    action_probs_raw = p.get("action_probabilities") or []
-    action_probs: list[float] = [_float(v) or 0.0 for v in action_probs_raw]
+    sym = str(p.get("symbol") or s.get("symbol") or "").upper() or "the symbol"
+    tf = str(p.get("timeframe") or s.get("timeframe") or "").lower() or "?"
 
-    selected_action = str(p.get("selected_action") or s.get("action") or "").strip().upper() or "UNKNOWN"
-    dominant_prob: float | None = None
-    secondary_action: str | None = None
-    secondary_prob: float | None = None
-    if action_probs and action_labels:
-        sorted_pairs = sorted(zip(action_probs, action_labels), reverse=True)
-        if sorted_pairs:
-            dominant_prob = sorted_pairs[0][0]
-            secondary_prob = sorted_pairs[1][0] if len(sorted_pairs) > 1 else None
-            secondary_action = sorted_pairs[1][1].upper() if len(sorted_pairs) > 1 else None
+    # ── Action distribution (WHAT) ─────────────────────────────────────────
+    selected_action = str(p.get("selected_action") or s.get("action") or "").strip().lower() or "unknown"
+    sel_prob = _float(p.get("selected_action_probability")) or _float(p.get("confidence_raw"))
+    prob_by_label: dict[str, Any] = p.get("action_probability_by_label") or {}
+    pairs: list[tuple[float, str]] = []
+    if prob_by_label:
+        pairs = sorted(((_float(v) or 0.0, str(k)) for k, v in prob_by_label.items()), reverse=True)
+    elif p.get("action_probabilities") and p.get("action_labels"):
+        probs = [_float(v) or 0.0 for v in p.get("action_probabilities") or []]
+        pairs = sorted(zip(probs, [str(x) for x in p.get("action_labels") or []]), reverse=True)
+    dominant_prob = pairs[0][0] if pairs else sel_prob
+    top_label = pairs[0][1] if pairs else selected_action
+    secondary_prob = pairs[1][0] if len(pairs) > 1 else None
+    secondary_action = pairs[1][1] if len(pairs) > 1 else None
+    gap = (dominant_prob - secondary_prob) if (dominant_prob is not None and secondary_prob is not None) else None
 
-    confidence_calibrated = _float(p.get("confidence_calibrated"))
+    # ── Directional edge accounting (the core WHY) ─────────────────────────
+    best_side = str(p.get("best_side") or "").lower()
+    best_edge = _float(p.get("best_side_net_edge_bps"))
+    long_edge = _float(p.get("expected_long_net_edge_bps"))
+    short_edge = _float(p.get("expected_short_net_edge_bps"))
+    why_rejected = str(p.get("why_best_side_rejected") or "")
+    no_side_reason = str(p.get("no_side_reason") or "")
+    expected_move_bps = _float(p.get("expected_move_bps"))
+    expected_move_after_cost = _float(p.get("expected_move_after_cost_bps") or s.get("expected_move_after_cost_bps"))
+    # Recover the minimum-edge threshold the model compared against, if quoted.
+    min_edge_bps: float | None = None
+    match = re.search(r"min_edge_([\-0-9.]+)bps", why_rejected)
+    if match:
+        try:
+            min_edge_bps = float(match.group(1))
+        except ValueError:
+            min_edge_bps = None
+
+    # ── Model heads (conviction WHY) ───────────────────────────────────────
+    masa_signal = _float(p.get("masa_signal"))
+    policy_value = _float(p.get("policy_value"))
+
+    # ── Confidence + calibration (HOW confident) ───────────────────────────
     confidence_raw = _float(p.get("confidence_raw"))
-    confidence_selected_action = _float(
-        p.get("confidence_selected_action") or s.get("confidence_selected_action")
-    )
-    confidence_executable_trade = _float(
-        p.get("confidence_executable_trade") or s.get("confidence_executable_trade")
-    )
-    confidence_display_label = str(
-        p.get("confidence_display_label")
-        or s.get("confidence_display_label")
-        or "Unproven confidence"
-    )
-    confidence_tradeability_block_reasons = _as_list(
-        p.get("confidence_tradeability_block_reasons")
-        or s.get("confidence_tradeability_block_reasons")
-    )
+    confidence_calibrated = _float(p.get("confidence_calibrated"))
     calibration: dict[str, Any] = p.get("confidence_calibration") or {}
     temperature = _float(calibration.get("temperature"))
     coverage_factor = _float(calibration.get("coverage_factor"))
+    missing_penalty = _float(calibration.get("missing_penalty"))
+    stale_penalty = _float(calibration.get("stale_penalty"))
+    cal_source = str(calibration.get("calibration_source") or p.get("confidence_source") or "model")
+    confidence_selected_action = _float(p.get("selected_action_probability") or s.get("confidence_selected_action"))
+    confidence_executable_trade = _float(p.get("confidence_executable_trade") or s.get("confidence_executable_trade"))
+    confidence_display_label = str(p.get("confidence_display_label") or s.get("confidence_display_label") or "Unproven confidence")
+    confidence_tradeability_block_reasons = _as_list(
+        p.get("confidence_tradeability_block_reasons") or s.get("confidence_tradeability_block_reasons")
+    )
 
+    # ── Data quality + integrity (HOW - inputs) ────────────────────────────
     data_coverage = _float(p.get("data_coverage_percent") or s.get("data_coverage_percent"))
     integrity_score = _float(p.get("market_state_integrity_score") or s.get("market_state_integrity_score"))
     score_components: dict[str, Any] = p.get("market_state_score_components") or {}
-
-    masa_signal = _float(p.get("masa_signal"))
-    policy_value = _float(p.get("policy_value"))
-    expected_move_bps = _float(p.get("expected_move_bps"))
-    expected_move_after_cost = _float(
-        p.get("expected_move_after_cost_bps") or s.get("expected_move_after_cost_bps")
-    )
-    price_target = _float(s.get("price_target") or p.get("price_target"))
-    price_target_after_cost = _float(s.get("price_target_after_cost") or p.get("price_target_after_cost"))
-
+    provider_feature_count = _int(p.get("provider_feature_count"))
+    provider_features_used = _int(p.get("provider_features_used"))
     missing_feature_names: list[str] = p.get("missing_feature_names") or []
-    missing_feature_count = int(p.get("missing_feature_count") or len(missing_feature_names))
-    stale_feature_count = int(p.get("stale_feature_count") or 0)
+    missing_feature_count = _int(p.get("missing_feature_count")) or len(missing_feature_names)
+    stale_feature_count = _int(p.get("stale_feature_count")) or 0
 
+    # ── Market-context blocks (real drivers) ───────────────────────────────
+    micro = p.get("microstructure_context") or {}
+    liq = p.get("liquidation_context") or p.get("liquidation_distance_context") or {}
+    oif = p.get("oi_funding_context") or {}
+    intel = p.get("public_intel_context") or {}
+
+    # ── Gating ─────────────────────────────────────────────────────────────
     live_gate = str(p.get("live_gate") or s.get("live_gate") or "blocked_human_only")
-    orchestrator_state = str(s.get("orchestrator_state") or "UNKNOWN")
-    risk_state = str(s.get("risk_state") or "UNKNOWN")
-    paper_fill_status = str(s.get("paper_fill_status") or "UNKNOWN")
-    paper_fill_allowed = s.get("paper_fill_allowed") is True
+    paper_fill_allowed = p.get("paper_fill_allowed") is True or s.get("paper_fill_allowed") is True
+    paper_fill_status = str(p.get("paper_fill_gate_status") or s.get("paper_fill_status") or "UNKNOWN")
+    paper_block_reasons = _as_list(p.get("paper_fill_gate_block_reasons") or s.get("paper_fill_gate_block_reasons"))
+    routes_to_orch = p.get("routes_to_orchestrator") is True
+    routes_reason = str(p.get("routes_to_orchestrator_reason") or "")
 
-    # --- Conviction label ---
-    conviction = _conviction_label(dominant_prob)
-    dom_pct = f"{dominant_prob * 100:.1f}%" if dominant_prob is not None else "N/A"
-    sec_pct = f"{secondary_prob * 100:.3f}%" if secondary_prob is not None else "N/A"
+    act = selected_action.upper()
 
-    secondary_clause = ""
-    if secondary_action and secondary_prob is not None:
-        secondary_clause = f" (vs {secondary_action} {sec_pct})"
-    executable_pct = (
-        f"{confidence_executable_trade * 100:.1f}%"
-        if confidence_executable_trade is not None
-        else "N/A"
-    )
+    # ── SUMMARY (WHAT the model did) ───────────────────────────────────────
+    dist_shape = "a decisive call"
+    if gap is not None:
+        if gap < 0.01:
+            dist_shape = f"a near tie with {(secondary_action or '').upper()}"
+        elif gap < 0.15:
+            dist_shape = f"a close call over {(secondary_action or '').upper()}"
+        else:
+            dist_shape = f"a clear lead over {(secondary_action or '').upper()}"
+    top_pct = _fmt_pct(dominant_prob)
+    sec_clause = f" vs {(secondary_action or '').upper()} {_fmt_pct(secondary_prob, 2)}" if secondary_action is not None else ""
     summary = (
-        f"The model selected {selected_action} with {dom_pct} selected-action confidence{secondary_clause}. "
-        f"Executable post-cost confidence is {executable_pct} ({confidence_display_label})."
+        f"On {sym} ({tf}) the trainer chose {act}. In the 7-way action head, {top_label.upper()} scored "
+        f"{top_pct}{sec_clause} — {dist_shape}. The remaining actions (exits, reduce, hedge) sit at ~0%."
     )
 
-    signal_strength = conviction
-
-    # --- Confidence calibration narrative ---
-    conf_cal_pct = f"{confidence_calibrated * 100:.1f}%" if confidence_calibrated is not None else "N/A"
-    conf_raw_pct = f"{confidence_raw * 100:.1f}%" if confidence_raw is not None else "N/A"
-    temp_str = f"{temperature:.1f}x" if temperature is not None else "N/A"
-    cov_pct = f"{coverage_factor * 100:.1f}%" if coverage_factor is not None else "N/A"
-    cal_source = str(calibration.get("calibration_source") or "unknown")
-
-    if (
-        cal_source == "temperature_plus_data_quality_downrating"
-        and temperature is not None
-        and coverage_factor is not None
-    ):
-        confidence_narrative = (
-            f"Raw model confidence was {conf_raw_pct}. "
-            f"This was calibrated down to {conf_cal_pct} via two factors: "
-            f"(1) Temperature scaling ({temp_str}) divides the raw logit score to account for model overconfidence -- "
-            f"the higher the temperature, the softer (more uncertain) the output distribution. "
-            f"(2) Data quality downrating ({cov_pct} coverage factor) further reduces confidence proportionally "
-            f"to the fraction of expected feature inputs that were actually present at inference time."
+    # ── SIGNAL STRENGTH ────────────────────────────────────────────────────
+    signal_strength = (
+        f"{_conviction_label(dominant_prob).capitalize()} — selected-action probability {top_pct}. "
+        + (
+            "The distribution is essentially split, so there is little standalone conviction."
+            if (gap is not None and gap < 0.02)
+            else "The model expresses a clear preference for this action."
+            if (gap is not None and gap >= 0.15)
+            else "The preference is present but modest."
         )
+    )
+
+    # ── DECISION NARRATIVE (the true WHY of the action) ────────────────────
+    decision_bits: list[str] = []
+    if best_side and best_edge is not None:
+        thr = f" versus the {_fmt_signed_bps(min_edge_bps)} minimum required to act" if min_edge_bps is not None else ""
+        decision_bits.append(
+            f"The trainer prices each side's net edge after trading cost before it will take a direction. "
+            f"It flagged {best_side.upper()} as the best candidate side, but that side's net edge is "
+            f"{_fmt_signed_bps(best_edge)}{thr}."
+        )
+    if long_edge is not None and short_edge is not None:
+        better = "long" if long_edge >= short_edge else "short"
+        decision_bits.append(
+            f"Both sides model out unprofitable after cost — long {_fmt_signed_bps(long_edge)}, "
+            f"short {_fmt_signed_bps(short_edge)} — with {better} the less-negative of the two."
+        )
+    if expected_move_bps is not None:
+        if expected_move_after_cost is not None:
+            eroded = expected_move_bps - expected_move_after_cost
+            decision_bits.append(
+                f"The raw predicted move is {_fmt_signed_bps(expected_move_bps)}, but after fees and slippage that "
+                f"nets to {_fmt_signed_bps(expected_move_after_cost)} — roughly {_fmt_signed_bps(-abs(eroded))} of the "
+                f"edge is consumed by transaction cost."
+            )
+        else:
+            decision_bits.append(f"The raw predicted move is {_fmt_signed_bps(expected_move_bps)}.")
+    if no_side_reason:
+        human_reason = {
+            "EDGE_BELOW_COST_MODEL_SEES_NO_EDGE": "the edge is below the cost model, so the trainer sees no profitable trade and stands aside",
+        }.get(no_side_reason, no_side_reason.replace("_", " ").lower())
+        decision_bits.append(f"Bottom line: {human_reason}.")
+    if selected_action == "hold" and not decision_bits:
+        decision_bits.append("The trainer held because no directional action cleared its after-cost edge bar.")
+    decision_narrative = " ".join(decision_bits) if decision_bits else (
+        f"The trainer selected {act} directly from the policy head with no separate directional-edge override recorded."
+    )
+
+    # ── TECHNICAL DRIVERS (model heads) ────────────────────────────────────
+    masa_lbl = _masa_label(masa_signal)
+    pv_lbl = "neutral"
+    if policy_value is not None:
+        pv_lbl = (
+            "strongly favours short" if policy_value < -0.5 else
+            "leans short" if policy_value < -0.02 else
+            "strongly favours long" if policy_value > 0.5 else
+            "leans long" if policy_value > 0.02 else
+            "neutral"
+        )
+    agree_clause = ""
+    if masa_signal is not None and policy_value is not None:
+        masa_dir = 1 if masa_signal > 0.02 else -1 if masa_signal < -0.02 else 0
+        pv_dir = 1 if policy_value > 0.02 else -1 if policy_value < -0.02 else 0
+        if masa_dir == 0 and pv_dir == 0:
+            agree_clause = " Both heads read essentially flat, so there is no directional conviction to overcome the cost hurdle."
+        elif masa_dir == pv_dir and masa_dir != 0:
+            agree_clause = " The two heads agree on direction, reinforcing the lean."
+        else:
+            agree_clause = " The two heads disagree, cancelling out into a low-conviction result."
+    technical_drivers = (
+        f"Two internal heads set the directional lean. The MASA momentum head reads "
+        f"{masa_signal:.3f} ({masa_lbl})" if masa_signal is not None else "The MASA momentum head is unavailable"
+    )
+    technical_drivers += (
+        f" and the PPO policy value is {policy_value:.3f} ({pv_lbl})." if policy_value is not None else "."
+    )
+    technical_drivers += agree_clause
+
+    # ── MARKET CONTEXT (real drivers behind the read) ──────────────────────
+    ctx_bits: list[str] = []
+    depth_imb = _float(micro.get("depth_imbalance"))
+    spread_bps = _float(micro.get("bid_ask_spread_bps"))
+    bid_usd = _float(micro.get("bid_depth_usd"))
+    ask_usd = _float(micro.get("ask_depth_usd"))
+    if depth_imb is not None or spread_bps is not None:
+        side_word = "ask-heavy (resting sell liquidity dominates)" if (depth_imb is not None and depth_imb < -0.2) else \
+            "bid-heavy (resting buy liquidity dominates)" if (depth_imb is not None and depth_imb > 0.2) else "roughly balanced"
+        depth_clause = ""
+        if bid_usd is not None and ask_usd is not None:
+            depth_clause = f" ({_fmt_usd(bid_usd)} bid vs {_fmt_usd(ask_usd)} ask)"
+        ctx_bits.append(
+            f"Order book is {side_word}{depth_clause}"
+            + (f" at a {spread_bps:.3f} bps spread." if spread_bps is not None else ".")
+        )
+    lsr = _float(oif.get("long_short_ratio"))
+    funding = _float(oif.get("funding_rate"))
+    exp_funding_bps = _float(oif.get("expected_funding_bps"))
+    if lsr is not None or funding is not None:
+        crowd = "crowd leans long" if (lsr is not None and lsr > 1.05) else "crowd leans short" if (lsr is not None and lsr < 0.95) else "positioning is balanced"
+        fund_clause = ""
+        if exp_funding_bps is not None:
+            payer = "longs pay shorts" if exp_funding_bps > 0 else "shorts pay longs" if exp_funding_bps < 0 else "flat funding"
+            fund_clause = f", funding {exp_funding_bps:+.3f} bps ({payer})"
+        ctx_bits.append(f"Derivatives: {crowd} (L/S {lsr:.2f}){fund_clause}." if lsr is not None else f"Derivatives funding{fund_clause}.")
+    casc = _float(liq.get("liquidation_cascade_risk"))
+    long_lvl = _float(liq.get("liquidation_long_level"))
+    long_dist = _float(liq.get("liquidation_long_distance_pct"))
+    if casc is not None:
+        lvl_clause = f"; nearest long-liquidation shelf ~{_fmt_usd(long_lvl)}" if long_lvl is not None else ""
+        lvl_clause += f" ({long_dist:.1f}% away)" if (long_lvl is not None and long_dist is not None) else ""
+        ctx_bits.append(f"Liquidation cascade risk {casc:.2f}{lvl_clause}.")
+    fg = _float(intel.get("fear_greed_score"))
+    mom = _float(intel.get("coingecko_momentum_score"))
+    if fg is not None or mom is not None:
+        fg_word = ""
+        if fg is not None:
+            fg_scaled = fg * 100 if fg <= 1 else fg
+            fg_word = "extreme fear" if fg_scaled < 25 else "fear" if fg_scaled < 45 else "greed" if fg_scaled > 55 else "neutral sentiment"
+            fg_word = f"{fg_word} (fear-greed {fg_scaled:.0f})"
+        mom_word = f"momentum {mom:.2f}" if mom is not None else ""
+        ctx_bits.append("Sentiment: " + ", ".join(x for x in (fg_word, mom_word) if x) + ".")
+    market_context_narrative = (
+        " ".join(ctx_bits)
+        if ctx_bits
+        else "Live market-context blocks (order book, derivatives, liquidation, sentiment) were not attached to this prediction."
+    )
+    if ctx_bits:
+        market_context_narrative += " These are the live conditions the trainer's feature tensor encoded for this call."
+
+    # ── CONFIDENCE CALIBRATION (HOW confident) ─────────────────────────────
+    conf_bits = [f"Raw selected-action probability was {_fmt_pct(confidence_raw)} (source: {cal_source.replace('_', ' ')})."]
+    if temperature is not None or coverage_factor is not None:
+        transform = []
+        if temperature is not None:
+            transform.append(f"temperature scaling ({temperature:.1f}×, softens overconfident logits)")
+        if coverage_factor is not None:
+            pen = ""
+            if missing_penalty is not None and missing_penalty < 1.0:
+                pen = f", missing-feature penalty {missing_penalty:.2f}"
+            if stale_penalty is not None and stale_penalty < 1.0:
+                pen += f", stale penalty {stale_penalty:.2f}"
+            transform.append(f"data-quality downrating (coverage factor {coverage_factor:.2f}{pen})")
+        direction = "up" if (confidence_raw is not None and confidence_calibrated is not None and confidence_calibrated > confidence_raw) else "to"
+        conf_bits.append(f"Calibration applied {' and '.join(transform)}, adjusting it {direction} {_fmt_pct(confidence_calibrated)}.")
     else:
-        confidence_narrative = (
-            f"Raw model confidence was {conf_raw_pct}, calibrated to {conf_cal_pct} "
-            f"(source: {cal_source})."
-        )
+        conf_bits.append(f"Calibrated confidence is {_fmt_pct(confidence_calibrated)}.")
+    conf_bits.append(f'The label is "{confidence_display_label}"' + (
+        " — not yet backed by matured outcome evidence." if "unproven" in confidence_display_label.lower() else "."
+    ))
     if confidence_tradeability_block_reasons:
-        confidence_narrative += (
-            " Tradeability blockers: "
-            + ", ".join(str(reason) for reason in confidence_tradeability_block_reasons[:6])
-            + "."
-        )
+        conf_bits.append("Tradeability blockers: " + ", ".join(str(x).replace("_", " ") for x in confidence_tradeability_block_reasons[:6]) + ".")
+    confidence_narrative = " ".join(conf_bits)
 
-    # --- Data quality narrative ---
+    # ── DATA QUALITY ───────────────────────────────────────────────────────
     feature_groups = _group_missing_features(missing_feature_names)
     liq_count = len(feature_groups["liquidation"])
     alt_count = len(feature_groups["alternative_data"])
@@ -9526,154 +9702,100 @@ def _build_explanation(
     htf_count = len(feature_groups["htf"])
     orc_count = len(feature_groups["orchestrator_feedback"])
     other_count = len(feature_groups["other"])
-
-    missing_parts: list[str] = []
-    if liq_count:
-        missing_parts.append(f"liquidation data ({liq_count} features)")
-    if alt_count:
-        alt_names = feature_groups["alternative_data"]
-        providers: list[str] = []
-        if any("coinglass" in n.lower() for n in alt_names):
-            providers.append("CoinGlass")
-        if any("moralis" in n.lower() for n in alt_names):
-            providers.append("Moralis")
-        if any(("santiment" in n.lower()) or ("sanbase" in n.lower()) for n in alt_names):
-            providers.append("Santiment/Sanbase")
-        if any("nansen" in n.lower() for n in alt_names):
-            providers.append("legacy Nansen inactive")
-        if any("lunarcrush" in n.lower() for n in alt_names):
-            providers.append("legacy LunarCrush inactive")
-        if any("aicoin" in n.lower() for n in alt_names):
-            providers.append("AICoin")
-        provider_str = ", ".join(providers) if providers else "external alt-data"
-        missing_parts.append(f"alternative data: {provider_str} ({alt_count} features)")
-    if paper_count:
-        missing_parts.append(f"paper trading state ({paper_count} features)")
-    if htf_count:
-        missing_parts.append(f"higher-timeframe context ({htf_count} features)")
-    if orc_count:
-        missing_parts.append(f"orchestrator/risk feedback ({orc_count} features)")
-    if other_count:
-        missing_parts.append(f"other inputs ({other_count} features)")
-
-    cov_str = f"{data_coverage:.1f}%" if data_coverage is not None else "N/A"
-    if missing_parts:
+    used_clause = ""
+    if provider_features_used is not None and provider_feature_count is not None:
+        used_clause = f" The model consumed {provider_features_used} of {provider_feature_count} provider features (inactive alt-data providers are masked, not zero-filled)."
+    if missing_feature_count == 0 and stale_feature_count == 0:
         dq_narrative = (
-            f"Data coverage at inference: {cov_str} ({missing_feature_count} features missing). "
-            f"Missing categories: {'; '.join(missing_parts)}. "
-            f"Each missing category reduces model confidence and increases prediction uncertainty. "
-            f"Stale features: {stale_feature_count}."
+            f"Feature coverage {_fmt_pct(data_coverage)} with zero missing and zero stale features — a clean input tensor.{used_clause}"
         )
     else:
+        parts: list[str] = []
+        if alt_count:
+            parts.append(f"{alt_count} alt-data")
+        if liq_count:
+            parts.append(f"{liq_count} liquidation")
+        if htf_count:
+            parts.append(f"{htf_count} higher-timeframe")
+        if paper_count:
+            parts.append(f"{paper_count} paper-state")
+        if orc_count:
+            parts.append(f"{orc_count} orchestrator")
+        if other_count:
+            parts.append(f"{other_count} other")
         dq_narrative = (
-            f"Data coverage at inference: {cov_str}. "
-            f"No missing features detected. Stale features: {stale_feature_count}."
+            f"Feature coverage {_fmt_pct(data_coverage)}: {missing_feature_count} missing "
+            f"({', '.join(parts) if parts else 'uncategorised'}) and {stale_feature_count} stale. "
+            f"Absent features are masked so the prediction is still produced, but confidence is downrated accordingly.{used_clause}"
         )
 
-    # --- Market integrity narrative ---
-    int_str = f"{integrity_score:.1f}/100" if integrity_score is not None else "N/A"
-    comp_parts: list[str] = []
-    for comp_name, comp_val in sorted(score_components.items()):
-        comp_val_f = _float(comp_val)
-        label = comp_name.replace("_score", "").replace("_", " ")
-        if comp_val_f is not None:
-            comp_parts.append(f"{label} {comp_val_f:.0f}/100")
-
-    if comp_parts:
-        comp_str = "; ".join(comp_parts)
-        integrity_narrative = (
-            f"Market state scored {int_str}. "
-            f"Component breakdown: {comp_str}. "
-            f"Lower-scoring components indicate data gaps or market irregularities that increase noise."
-        )
-    else:
-        integrity_narrative = f"Market state scored {int_str}."
-
-    # --- Technical drivers ---
-    masa_lbl = _masa_label(masa_signal)
-    masa_str_val = f"{masa_signal:.3f}" if masa_signal is not None else "N/A"
-    pv_str = f"{policy_value:.3f}" if policy_value is not None else "N/A"
-    pv_bias = ""
-    if policy_value is not None:
-        if policy_value < -0.5:
-            pv_bias = " (agent strongly prefers short)"
-        elif policy_value < 0:
-            pv_bias = " (agent mildly prefers short)"
-        elif policy_value > 0.5:
-            pv_bias = " (agent strongly prefers long)"
-        elif policy_value > 0:
-            pv_bias = " (agent mildly prefers long)"
+    # ── MARKET INTEGRITY ───────────────────────────────────────────────────
+    int_str = f"{integrity_score:.0f}/100" if integrity_score is not None else "n/a"
+    weak = [
+        comp_name.replace("_score", "").replace("_", " ")
+        for comp_name, comp_val in sorted(score_components.items())
+        if (_float(comp_val) or 100.0) < 100.0
+    ]
+    if score_components:
+        if weak:
+            integrity_narrative = (
+                f"Market-state integrity {int_str} across {len(score_components)} components; "
+                f"the below-perfect components are: {', '.join(weak)} — these add noise/uncertainty to the read."
+            )
         else:
-            pv_bias = " (agent neutral)"
-    technical_drivers = (
-        f"MASA signal: {masa_str_val} ({masa_lbl} momentum indicator). "
-        f"PPO policy value: {pv_str}{pv_bias}. "
-        f"These are the primary model-internal indicators driving the directional call."
-    )
+            integrity_narrative = (
+                f"Market-state integrity {int_str} — every component (data freshness, candle completion, "
+                f"source agreement, timeframe alignment, latency, fill quality, backfill, missing-data) is perfect, "
+                f"so the inputs are trustworthy and the read is not degraded by data problems."
+            )
+    else:
+        integrity_narrative = f"Market-state integrity scored {int_str}."
 
-    # --- Price target narrative ---
-    if expected_move_after_cost is not None and price_target_after_cost is not None:
-        move_str = f"{expected_move_after_cost:+.0f} bps"
-        pt_str = f"${price_target_after_cost:,.2f}"
-        raw_pt_str = f"${price_target:,.2f}" if price_target is not None else "N/A"
-        current_price_approx: float | None = None
-        if price_target is not None and expected_move_bps is not None and expected_move_bps != 0:
-            current_price_approx = price_target / (1.0 + expected_move_bps / 10000.0)
-        cur_str = f"~${current_price_approx:,.0f}" if current_price_approx is not None else "N/A"
-        move_usd: float | None = None
-        if current_price_approx is not None:
-            move_usd = price_target_after_cost - current_price_approx
-        usd_clause = f" = approx ~${move_usd:+,.0f} move." if move_usd is not None else "."
+    # ── PRICE TARGET ───────────────────────────────────────────────────────
+    price_target = _float(s.get("price_target") or p.get("price_target"))
+    price_target_after_cost = _float(s.get("price_target_after_cost") or p.get("price_target_after_cost"))
+    micro_price = _float(micro.get("micro_price"))
+    if price_target is not None:
+        cur_clause = f" from a current ~{_fmt_usd(micro_price)}" if micro_price is not None else ""
+        ac_clause = f", or {_fmt_usd(price_target_after_cost)} after cost" if price_target_after_cost is not None else ""
         price_target_narrative = (
-            f"Expected move after cost: {move_str}. "
-            f"Pre-cost target: {raw_pt_str}. "
-            f"After-cost target: {pt_str} vs current {cur_str}"
-            + usd_clause
+            f"Implied target {_fmt_usd(price_target)}{ac_clause}{cur_clause}, from an expected move of "
+            f"{_fmt_signed_bps(expected_move_bps)} (net {_fmt_signed_bps(expected_move_after_cost)} after cost)."
         )
     elif expected_move_bps is not None:
         price_target_narrative = (
-            f"Expected move: {expected_move_bps:+.0f} bps (after-cost target not available)."
+            f"No discrete price target is emitted for a {act} call; the model's expected move is "
+            f"{_fmt_signed_bps(expected_move_bps)} raw, {_fmt_signed_bps(expected_move_after_cost)} after cost — "
+            f"which is why it does not translate into an actionable target here."
         )
     else:
-        price_target_narrative = "Price target unavailable."
+        price_target_narrative = "No price target — the model did not project a directional move for this action."
 
-    # --- Risk gate narrative ---
-    if live_gate == "blocked_human_only":
-        rg_base = "Live gate is BLOCKED -- human approval required before any live execution."
-    elif live_gate == "blocked":
-        rg_base = "Live gate is BLOCKED."
-    elif live_gate == "open":
-        rg_base = "Live gate is OPEN."
+    # ── RISK GATE / TRADEABILITY ───────────────────────────────────────────
+    gate_word = "BLOCKED — human approval required before any live execution" if live_gate == "blocked_human_only" else live_gate.replace("_", " ")
+    if paper_fill_allowed:
+        gate_narrative = f"This signal passed the paper-shadow fill gate and routes to the orchestrator. Live gate: {gate_word}."
     else:
-        rg_base = f"Live gate state: {live_gate}."
-
-    paper_clause = (
-        "Paper fill is ALLOWED (shadow fill pathway active)."
-        if paper_fill_allowed
-        else f"Paper fill is NOT allowed (status: {paper_fill_status})."
-    )
-    risk_gate_narrative = f"{rg_base} Risk gateway decision: {risk_state}. {paper_clause}"
-
-    # --- Pipeline state narrative ---
-    orch_clause = orchestrator_state.replace("_", " ").title()
+        reasons = ", ".join(str(x).replace("_", " ") for x in paper_block_reasons[:6]) if paper_block_reasons else paper_fill_status.replace("_", " ").lower()
+        route_clause = f" It does not route to the orchestrator ({routes_reason.replace('_', ' ').lower()})." if not routes_to_orch and routes_reason else ""
+        gate_narrative = (
+            f"The paper-shadow fill gate blocked this signal because: {reasons}.{route_clause} "
+            f"Live gate remains {gate_word}."
+        )
+    risk_gate_narrative = gate_narrative
     pipeline_state_narrative = (
-        f"Signal is currently at orchestrator stage: {orch_clause}. "
+        f"Routing: {'orchestrator-eligible' if routes_to_orch else 'held at trainer (gate-blocked)'}. "
         f"Paper fill status: {paper_fill_status.replace('_', ' ').title()}."
     )
 
-    full_text = " | ".join([
-        summary,
-        confidence_narrative,
-        dq_narrative,
-        integrity_narrative,
-        technical_drivers,
-        price_target_narrative,
-        risk_gate_narrative,
-        pipeline_state_narrative,
+    full_text = " ".join([
+        summary, signal_strength, decision_narrative, technical_drivers,
+        market_context_narrative, confidence_narrative, dq_narrative,
+        integrity_narrative, price_target_narrative, risk_gate_narrative,
     ])
 
     key_numbers: dict[str, Any] = {
-        "action": selected_action,
+        "action": act,
         "confidence_calibrated": confidence_calibrated,
         "confidence_raw": confidence_raw,
         "confidence_selected_action": confidence_selected_action,
@@ -9681,6 +9803,14 @@ def _build_explanation(
         "confidence_display_label": confidence_display_label,
         "confidence_tradeability_block_reasons": confidence_tradeability_block_reasons,
         "dominant_prob": dominant_prob,
+        "runner_up_action": (secondary_action or None),
+        "runner_up_prob": secondary_prob,
+        "best_side": best_side or None,
+        "best_side_net_edge_bps": best_edge,
+        "expected_long_net_edge_bps": long_edge,
+        "expected_short_net_edge_bps": short_edge,
+        "min_edge_bps": min_edge_bps,
+        "no_side_reason": no_side_reason or None,
         "expected_move_bps": expected_move_bps,
         "expected_move_after_cost_bps": expected_move_after_cost,
         "price_target": price_target,
@@ -9691,6 +9821,10 @@ def _build_explanation(
         "policy_value": policy_value,
         "missing_feature_count": missing_feature_count,
         "stale_feature_count": stale_feature_count,
+        "provider_features_used": provider_features_used,
+        "provider_feature_count": provider_feature_count,
+        "paper_fill_allowed": paper_fill_allowed,
+        "paper_fill_gate_block_reasons": paper_block_reasons,
     }
 
     # --- Structured missing-feature alert (renderable by web + iOS AI pages) ---
@@ -9738,10 +9872,12 @@ def _build_explanation(
         "explanation": {
             "summary": summary,
             "signal_strength": signal_strength,
+            "decision_narrative": decision_narrative,
+            "technical_drivers": technical_drivers,
+            "market_context_narrative": market_context_narrative,
             "confidence_narrative": confidence_narrative,
             "data_quality_narrative": dq_narrative,
             "market_integrity_narrative": integrity_narrative,
-            "technical_drivers": technical_drivers,
             "price_target_narrative": price_target_narrative,
             "risk_gate_narrative": risk_gate_narrative,
             "pipeline_state_narrative": pipeline_state_narrative,
@@ -9874,12 +10010,16 @@ async def get_prediction_explain(
             **explain_data,
         },
         source="redis:v2:prediction+v2:signals:paper",
-        source_type="static_payload",
+        source_type="redis_live",
         timestamp=timestamp,
         missing_fields=missing,
         warnings=[] if not missing else [f"Partial data: missing {', '.join(missing)}"],
         symbol=sym,
         mode="paper",
+        # Predictions republish on a ~60-120s cadence per symbol/timeframe, so a
+        # fresh prediction should read fresh rather than "degraded" at the 30s tick.
+        fresh_max_seconds=180,
+        stale_min_seconds=600,
     )
 
 

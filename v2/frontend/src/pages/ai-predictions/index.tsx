@@ -7,6 +7,7 @@ import { CanonicalMetricCard } from '../../components/data/CanonicalMetric';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
+import type { CanonicalMetric } from '../../selectors/accountSelectors';
 import {
   publicRuntimeId,
   runtimeAgeSeconds,
@@ -77,6 +78,8 @@ interface ExplainData {
   explanation: {
     summary: string;
     signal_strength: string;
+    decision_narrative?: string;
+    market_context_narrative?: string;
     confidence_narrative: string;
     data_quality_narrative: string;
     market_integrity_narrative: string;
@@ -567,13 +570,16 @@ function ReasoningPanel({ symbol, timeframe }: { symbol: string; timeframe: stri
       )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
         {[
-          { icon: '📊', title: 'What the model sees', text: exp.summary },
-          { icon: '💪', title: 'Why this signal strength', text: exp.signal_strength },
+          { icon: '📊', title: 'What the model decided', text: exp.summary },
+          { icon: '💪', title: 'Conviction', text: exp.signal_strength },
+          { icon: '🧮', title: 'Why this action — edge vs cost', text: exp.decision_narrative },
+          { icon: '⚡', title: 'Model heads (MASA + PPO policy)', text: exp.technical_drivers },
+          { icon: '🌊', title: 'Live market drivers', text: exp.market_context_narrative },
           { icon: '🎯', title: 'How confidence was calibrated', text: exp.confidence_narrative },
           { icon: '📉', title: 'Data quality impact', text: exp.data_quality_narrative },
           { icon: '🏗️', title: 'Market state integrity', text: exp.market_integrity_narrative },
-          { icon: '⚡', title: 'What drove the prediction', text: exp.technical_drivers },
-          { icon: '💰', title: 'Why this price target', text: exp.price_target_narrative },
+          { icon: '💰', title: 'Price target & expected move', text: exp.price_target_narrative },
+          { icon: '🚦', title: 'Tradeability & gating', text: exp.risk_gate_narrative },
         ].filter(s => s.text).map(section => (
           <div key={section.title} style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.025)', borderRadius: 6, border: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>{section.icon} {section.title}</div>
@@ -1083,7 +1089,35 @@ export default function AIPredictionsPage(): JSX.Element {
     ?? accuracyStatus?.required_symbol_timeframe_cell_count;
   const missingAccuracyCells = missingAccuracyCellCount(accuracyStatus);
   const canonicalSignal = selectActiveSignal(traderSnapshot);
-  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
+  // Public fallback: the trader signal snapshot is 401-gated, so for logged-out
+  // viewers surface the strongest CURRENT model prediction (highest-confidence
+  // directional row, else highest overall) from the public matrix stream.
+  const publicTopSignal = useMemo(() => {
+    if (rows.length === 0) return null;
+    const directional = rows.filter((r) => (r.action ?? '').includes('long') || (r.action ?? '').includes('short'));
+    const pool = directional.length ? directional : rows;
+    return [...pool].sort((a, b) => (b.confidence_calibrated ?? 0) - (a.confidence_calibrated ?? 0))[0] ?? null;
+  }, [rows]);
+  const signalMetric = (fieldId: string): CanonicalMetric => {
+    const authed = selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
+    if (authed.value != null) return authed;
+    if (!publicTopSignal) return authed;
+    const publicValue = fieldId === 'signal.id'
+      ? `${publicTopSignal.symbol}:${publicTopSignal.timeframe} · ${(publicTopSignal.action ?? '—').toUpperCase()}`
+      : fieldId === 'signal.confidence'
+        ? publicTopSignal.confidence_calibrated
+        : null;
+    if (publicValue == null) return authed;
+    return {
+      ...authed,
+      value: publicValue,
+      source: '/api/v2/predictions/matrix',
+      sourceType: envelope.source_type ?? 'websocket',
+      timestamp: envelope.timestamp != null ? new Date(envelope.timestamp).toISOString() : null,
+      ageMs: envelope.lag_ms ?? null,
+      quality: 'valid',
+    };
+  };
 
   return (
     <div data-testid="page-ai-predictions" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
