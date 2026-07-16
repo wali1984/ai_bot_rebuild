@@ -101,6 +101,42 @@ def _extract_ohlcv_rows(payload: Any) -> list[Any] | None:
     return None
 
 
+def _ohlcv_row_ts(row: Any) -> Any:
+    if isinstance(row, dict):
+        return (
+            row.get("candle_close_time")
+            or row.get("close_time")
+            or row.get("candle_open_time")
+            or row.get("open_time")
+        )
+    if isinstance(row, (list, tuple)) and row:
+        return row[0]
+    return None
+
+
+def _merge_ohlcv_history(history_rows: list[Any] | None, current_rows: list[Any] | None) -> list[Any]:
+    """Merge closed-candle HISTORY under the live key's latest rows.
+
+    The live v2:market:ohlcv key often carries only the newest candle while
+    the full backfilled/WSS history lives in v2:market:ohlcv_closed —
+    computing TA on 1 row blocked the entire ta_full family
+    (BLOCKED_INSUFFICIENT_OHLCV_HISTORY, 155 spec features missing).
+    Dedupe by candle timestamp; live rows win on collision.
+    """
+    merged: dict[Any, Any] = {}
+    for row in history_rows or []:
+        ts = _ohlcv_row_ts(row)
+        if ts is not None:
+            merged[ts] = row
+    for row in current_rows or []:
+        ts = _ohlcv_row_ts(row)
+        if ts is not None:
+            merged[ts] = row
+    if not merged:
+        return list(current_rows or history_rows or [])
+    return [merged[ts] for ts in sorted(merged)]
+
+
 def _copy_compact_ta_payload(
     *,
     symbol: str,
@@ -279,6 +315,15 @@ def run_once(
             source_key = f"v2:market:ohlcv:binance:{symbol}:{timeframe}"
             source_payload = _read_json(redis_client, source_key)
             rows = _extract_ohlcv_rows(source_payload)
+            if rows is None or len(rows) < 50:
+                closed_history = _extract_ohlcv_rows(
+                    _read_json(
+                        redis_client,
+                        f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}",
+                    )
+                )
+                if closed_history:
+                    rows = _merge_ohlcv_history(closed_history, rows)
             if rows is None:
                 missing_ohlcv_keys.append(source_key)
                 payload = _fallback_ta_payload(redis_client, symbol, timeframe)

@@ -103,8 +103,11 @@ def test_run_once_writes_v2_ta_keys_and_status(
         "V2_FULL_TALIB_TA_LIVE_OK",
         "V2_FULL_TALIB_TA_LIVE_PARTIAL",
     }
-    assert status["keys_written_count"] == 3
+    # 4 keys: ta, ta_full, technical_analysis, plus the repaint-free
+    # ta_closed variant (closed-candle-confirmed rows).
+    assert status["keys_written_count"] == 4
     assert "v2:features:ta:BTCUSDT:1m" in fake.store
+    assert "v2:features:ta_closed:BTCUSDT:1m" in fake.store
     assert "v2:features:ta_full:BTCUSDT:1m" in fake.store
     assert "v2:technical_analysis:BTCUSDT:1m" in fake.store
     assert "v2:features:ta:heartbeat" in fake.store
