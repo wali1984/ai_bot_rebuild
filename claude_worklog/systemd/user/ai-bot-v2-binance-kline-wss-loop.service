@@ -9,7 +9,7 @@ Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
 Environment="LIVE_GATE=blocked_human_only"
-ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_binance_kline_wss_loop --symbols auto --timeframes 1m,5m,15m,1h,4h --max-streams-per-connection 120 --max-candles 100 --ttl-seconds 900 --loop --total-seconds 86400 --max-seconds-per-session 600 --heartbeat-interval-seconds 30'
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_binance_kline_wss_loop --symbols auto --timeframes 1m,5m,15m,1h,4h --max-streams-per-connection 120 --max-candles 100 --ttl-seconds 86400 --loop --total-seconds 86400 --max-seconds-per-session 600 --heartbeat-interval-seconds 30'
 Restart=always
 RestartSec=30
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/v2_binance_kline_wss_loop.log

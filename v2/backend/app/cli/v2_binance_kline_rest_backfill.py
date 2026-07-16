@@ -12,6 +12,7 @@ Safe: read-only market data only. No orders. No credentials.
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -32,16 +33,22 @@ from v2.backend.app.services.binance_unified_websocket_transport import (  # noq
     require_binance_rest_fallback,
 )
 from v2.backend.app.services.market_state_integrity.canonical_candles import (  # noqa: E402
+    TIMEFRAME_SECONDS,
     append_closed_candle,
     canonical_from_binance_rest,
     closed_candle_key,
     current_candle_key,
+)
+from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
+    is_valid_runtime_symbol,
+    resolve_symbols,
 )
 
 BINANCE_FAPI = "https://fapi.binance.com"
 BACKFILL_LIMIT = 200
 BACKFILL_TIMEFRAMES = ("1h", "4h")
 MIN_CANDLES_THRESHOLD = 50
+CACHE_FRESHNESS_GRACE_SECONDS = 300
 
 
 def _redis_client() -> redis.Redis:
@@ -86,21 +93,62 @@ def _read_json(r: redis.Redis, key: str):
         return None
 
 
+def _row_close_ms(row) -> int | None:
+    close_ms = None
+    if isinstance(row, dict):
+        close_ms = row.get("candle_close_time") or row.get("close_time")
+    elif isinstance(row, (list, tuple)) and len(row) >= 7:
+        close_ms = row[6]
+    try:
+        return int(float(close_ms)) if close_ms is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _cache_fresh_and_sufficient(rows: list, interval: str, *, min_rows: int) -> bool:
+    """Websocket cache counts only if it is deep enough AND its newest close
+    is recent (age < timeframe period + grace). A stale-but-present cache
+    previously short-circuited REST and made the backfill a no-op, leaving
+    keys like BTCUSDT:4h hundreds of minutes behind."""
+    if not isinstance(rows, list) or len(rows) < max(1, int(min_rows)):
+        return False
+    newest = max((ms for ms in (_row_close_ms(row) for row in rows) if ms is not None), default=None)
+    if newest is None:
+        return False
+    interval_seconds = TIMEFRAME_SECONDS.get(str(interval), 3600)
+    age_seconds = time.time() - newest / 1000.0
+    return age_seconds < interval_seconds + CACHE_FRESHNESS_GRACE_SECONDS
+
+
 def _fetch_klines(r: redis.Redis, symbol: str, interval: str, limit: int = BACKFILL_LIMIT) -> tuple[list, str]:
+    min_rows = min(int(limit), MIN_CANDLES_THRESHOLD)
+    stale_cache: list | None = None
     for key in (
         closed_candle_key("binance", symbol, interval),
         f"v2:market:ohlcv:binance:{symbol}:{interval}",
     ):
         cached = _read_json(r, key)
         if isinstance(cached, list) and cached:
-            return cached[-max(1, min(int(limit), len(cached))) :], "websocket_cache_primary"
+            trimmed = cached[-max(1, min(int(limit), len(cached))) :]
+            if _cache_fresh_and_sufficient(trimmed, interval, min_rows=min_rows):
+                return trimmed, "websocket_cache_primary"
+            if stale_cache is None:
+                stale_cache = trimmed
     current = _read_json(r, current_candle_key("binance", symbol, interval))
-    if isinstance(current, dict) and (
+    current_closed = isinstance(current, dict) and (
         current.get("is_closed") is True
         or current.get("closed_candle") is True
         or current.get("candle_closed_confirmed") is True
-    ):
-        return [current], "websocket_cache_primary"
+    )
+    if not binance_rest_fallback_allowed():
+        # Websocket-primary posture preserved: without REST permission the
+        # old lenient cache behavior still applies (better one stale/shallow
+        # candle than nothing), and _http_get below raises the explicit
+        # REST-disabled error when there is no cache at all.
+        if stale_cache:
+            return stale_cache, "websocket_cache_primary"
+        if current_closed:
+            return [current], "websocket_cache_primary"
     qs = urllib.parse.urlencode({"symbol": symbol, "interval": interval, "limit": limit})
     url = f"{BINANCE_FAPI}/fapi/v1/klines?{qs}"
     rows = _http_get(url)
@@ -185,27 +233,82 @@ def _backfill_symbol_tf(r: redis.Redis, symbol: str, tf: str) -> dict:
     }
 
 
-def main() -> None:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--symbols",
+        default=None,
+        help=(
+            "Comma-separated symbols to backfill (e.g. BTCUSDT,ETHUSDT), or "
+            "'auto' for the resolved runtime symbol universe. Default: scan "
+            "v2:market:kline_current:binance:* and backfill only symbols "
+            "below the closed-candle threshold (legacy behavior)."
+        ),
+    )
+    parser.add_argument(
+        "--timeframes",
+        default=",".join(BACKFILL_TIMEFRAMES),
+        help="Comma-separated timeframes to backfill (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--sleep-seconds",
+        type=float,
+        default=0.15,
+        help="Sleep between symbol/timeframe requests (rate-limit friendly).",
+    )
+    return parser.parse_args(argv)
+
+
+def _resolve_backfill_targets(r: redis.Redis, args: argparse.Namespace) -> dict[str, list[str]]:
+    timeframes = tuple(tf.strip() for tf in str(args.timeframes or "").split(",") if tf.strip()) or BACKFILL_TIMEFRAMES
+    unknown = [tf for tf in timeframes if tf not in TIMEFRAME_SECONDS]
+    if unknown:
+        raise SystemExit(f"[backfill] unknown timeframes {unknown}; allowed: {sorted(TIMEFRAME_SECONDS)}")
+    raw = (args.symbols or "").strip()
+    if not raw:
+        return _missing_symbols(r, timeframes)
+    if raw.lower() in {"auto", "all", "universe"}:
+        symbols = list(resolve_symbols())
+    else:
+        # One-shot operator-directed target list, parsed locally so an
+        # explicit majors-only repair run does not trip the runtime
+        # smoke-test drift guard inside resolve_symbols().
+        symbols = []
+        seen: set[str] = set()
+        for part in raw.split(","):
+            text = part.strip().upper()
+            if not text or text in seen:
+                continue
+            if not is_valid_runtime_symbol(text):
+                print(f"[backfill] skipping invalid symbol {text!r}")
+                continue
+            seen.add(text)
+            symbols.append(text)
+    return {sym: list(timeframes) for sym in symbols}
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
     r = _redis_client()
-    print(f"[backfill] Connected to Redis. Scanning for symbols missing {BACKFILL_TIMEFRAMES} ohlcv_closed data...")
-    print(f"[backfill] transport=websocket_cache_primary rest_fallback_allowed={binance_rest_fallback_allowed()}")
-    missing = _missing_symbols(r, BACKFILL_TIMEFRAMES)
-    print(f"[backfill] {len(missing)} symbols need backfill:")
+    print(f"[backfill] Connected to Redis. transport=websocket_cache_primary rest_fallback_allowed={binance_rest_fallback_allowed()}")
+    missing = _resolve_backfill_targets(r, args)
+    print(f"[backfill] {len(missing)} symbols to backfill:")
     for sym, tfs in sorted(missing.items()):
         print(f"  {sym}: {tfs}")
 
     results = []
+    sleep_seconds = max(0.0, float(args.sleep_seconds))
     total_syms = len(missing)
     for idx, (sym, tfs) in enumerate(sorted(missing.items()), 1):
         for tf in tfs:
             try:
                 result = _backfill_symbol_tf(r, sym, tf)
                 results.append({**result, "status": "ok"})
-                print(f"[{idx}/{total_syms}] {sym}/{tf}: +{result['closed_ingested']} → {result['total_in_key']} total")
+                print(f"[{idx}/{total_syms}] {sym}/{tf}: +{result['closed_ingested']} → {result['total_in_key']} total ({result['transport']})")
             except Exception as exc:
                 results.append({"symbol": sym, "tf": tf, "status": "error", "error": str(exc)})
                 print(f"[{idx}/{total_syms}] {sym}/{tf}: ERROR — {exc}")
-            time.sleep(0.15)
+            time.sleep(sleep_seconds)
 
     ok_list = [res for res in results if res["status"] == "ok"]
     err_list = [res for res in results if res["status"] == "error"]

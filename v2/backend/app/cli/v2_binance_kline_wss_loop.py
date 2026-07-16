@@ -38,6 +38,15 @@ except Exception:  # pragma: no cover
 
 WORKER_ID = "v2_binance_kline_wss_loop"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+# Operator directive: preferred majors must ride the FIRST websocket
+# connection so they stay covered even if later chunks degrade. This only
+# reorders the resolved universe; it never adds or removes symbols.
+PREFERRED_MAJOR_SYMBOLS = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+# Volatile keys (current candle, source marker, heartbeat) keep a short TTL
+# regardless of --ttl-seconds so stale-freshness detection still works when
+# closed-candle history TTL is raised (closed candles are immutable facts).
+VOLATILE_TTL_CAP_SECONDS = 900
+REDIS_RECONNECT_INTERVAL_SECONDS = 15.0
 DEFAULT_WS_BASE = "wss://fstream.binance.com/market/stream?streams="
 DEFAULT_STATUS_PATH = Path("v2/frontend/public/operator_runtime/v2_binance_kline_wss/latest/v2_binance_kline_wss_status.json")
 DEFAULT_PUBLIC_PATH = Path("v2/frontend/public/v2_binance_kline_wss/latest/operator_dashboard_payload.json")
@@ -58,6 +67,48 @@ def _connect_redis() -> Any | None:
         return client
     except Exception:
         return None
+
+
+class _RedisHolder:
+    """Redis handle that lazily reconnects.
+
+    The loop previously connected exactly once at process start. When Redis
+    (or name resolution at boot) was briefly unavailable, the process ran for
+    the full --total-seconds window receiving millions of klines while
+    persisting none of them (redis_ok=false, ohlcv_keys_written=0). This
+    holder retries the connection at a bounded interval and drops broken
+    clients so writes recover without a service restart.
+    """
+
+    def __init__(self) -> None:
+        self._last_attempt = time.time()
+        self.client: Any | None = _connect_redis()
+        self.reconnects = 0
+
+    @property
+    def connected(self) -> bool:
+        return self.client is not None
+
+    def ensure(self) -> Any | None:
+        if self.client is not None:
+            return self.client
+        now = time.time()
+        if now - self._last_attempt < REDIS_RECONNECT_INTERVAL_SECONDS:
+            return None
+        self._last_attempt = now
+        self.client = _connect_redis()
+        if self.client is not None:
+            self.reconnects += 1
+        return self.client
+
+    def mark_broken(self) -> None:
+        client, self.client = self.client, None
+        self._last_attempt = time.time()
+        try:
+            if client is not None:
+                client.close()
+        except Exception:
+            pass
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -82,6 +133,8 @@ def _resolve_symbols(raw: str | None, *, max_symbols: int) -> tuple[str, ...]:
     if raw and raw.strip().lower() not in {"auto", "all", "universe"}:
         explicit = raw
     symbols = tuple(resolve_symbols(explicit=explicit))
+    majors = tuple(symbol for symbol in PREFERRED_MAJOR_SYMBOLS if symbol in symbols)
+    symbols = majors + tuple(symbol for symbol in symbols if symbol not in majors)
     if max_symbols > 0:
         symbols = symbols[:max_symbols]
     return symbols
@@ -104,20 +157,29 @@ def _source_key(symbol: str, timeframe: str) -> str:
 
 
 def _safe_set_json(redis_client: Any, key: str, payload: Any, *, ex: int) -> bool:
-    if redis_client is None:
+    client = redis_client.ensure() if isinstance(redis_client, _RedisHolder) else redis_client
+    if client is None:
         return False
     if not key.startswith("v2:"):
         raise ValueError(f"refused non-V2 Redis key: {key!r}")
-    redis_client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=int(ex))
+    try:
+        client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=int(ex))
+    except Exception:
+        if isinstance(redis_client, _RedisHolder):
+            redis_client.mark_broken()
+        return False
     return True
 
 
 def _safe_get_json(redis_client: Any, key: str) -> Any:
-    if redis_client is None:
+    client = redis_client.ensure() if isinstance(redis_client, _RedisHolder) else redis_client
+    if client is None:
         return None
     try:
-        raw = redis_client.get(key)
+        raw = client.get(key)
     except Exception:
+        if isinstance(redis_client, _RedisHolder):
+            redis_client.mark_broken()
         return None
     if raw is None:
         return None
@@ -247,6 +309,7 @@ async def _consume_chunk(
     stop_at: float,
 ) -> None:
     url = ws_base + "/".join(streams)
+    volatile_ttl = min(int(ttl_seconds), VOLATILE_TTL_CAP_SECONDS)
     while time.time() < stop_at:
         session_deadline = min(stop_at, time.time() + max(10.0, float(max_seconds_per_session)))
         try:
@@ -303,9 +366,9 @@ async def _consume_chunk(
                             stats["ohlcv_keys_written"] = int(stats.get("ohlcv_keys_written") or 0) + 1
                     else:
                         key = _current_key(symbol, timeframe)
-                        if _safe_set_json(redis_client, key, canonical.to_dict(), ex=ttl_seconds):
+                        if _safe_set_json(redis_client, key, canonical.to_dict(), ex=volatile_ttl):
                             stats["kline_current_keys_written"] = int(stats.get("kline_current_keys_written") or 0) + 1
-                    if _safe_set_json(redis_client, _source_key(symbol, timeframe), source_payload, ex=ttl_seconds):
+                    if _safe_set_json(redis_client, _source_key(symbol, timeframe), source_payload, ex=volatile_ttl):
                         stats["source_keys_written"] = int(stats.get("source_keys_written") or 0) + 1
                     stats["last_symbol"] = symbol
                     stats["last_timeframe"] = timeframe
@@ -336,8 +399,7 @@ async def run_loop(args: argparse.Namespace) -> int:
         print(json.dumps(payload, sort_keys=True), flush=True)
         return 2
 
-    redis_client = _connect_redis()
-    redis_ok = redis_client is not None
+    redis_holder = _RedisHolder()
     symbols = _resolve_symbols(args.symbols, max_symbols=int(args.max_symbols))
     timeframes = _parse_csv(args.timeframes, DEFAULT_TIMEFRAMES)
     chunks = _stream_chunks(symbols, timeframes, max_streams=int(args.max_streams_per_connection))
@@ -356,19 +418,21 @@ async def run_loop(args: argparse.Namespace) -> int:
 
     async def status_writer(stop_at: float) -> None:
         while time.time() < stop_at:
+            redis_ok = redis_holder.ensure() is not None
+            snapshot = dict(stats)
+            snapshot["redis_reconnects"] = redis_holder.reconnects
             payload = _base_status(
                 symbols=symbols,
                 timeframes=timeframes,
                 chunks=chunks,
                 stream_connected_count=int(stats.get("connected_chunks") or 0),
                 redis_ok=redis_ok,
-                stats=dict(stats),
+                stats=snapshot,
                 blocker=None if redis_ok else "Redis unavailable; websocket data not persisted.",
                 ws_base=str(args.ws_base),
             )
             _write_status(payload, status_paths)
-            if redis_client is not None:
-                _safe_set_json(redis_client, _heartbeat_key(), payload, ex=int(args.ttl_seconds))
+            _safe_set_json(redis_holder, _heartbeat_key(), payload, ex=min(int(args.ttl_seconds), VOLATILE_TTL_CAP_SECONDS))
             print(json.dumps({
                 "status": payload["status"],
                 "generated_est": payload["generated_est"],
@@ -387,7 +451,7 @@ async def run_loop(args: argparse.Namespace) -> int:
                 _consume_chunk(
                     chunk_id=index,
                     streams=chunk,
-                    redis_client=redis_client,
+                    redis_client=redis_holder,
                     stats=stats,
                     ws_base=str(args.ws_base),
                     ttl_seconds=int(args.ttl_seconds),
