@@ -24662,6 +24662,12 @@ ADAPTIVE_HEDGE_ENABLED_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:adaptive_hedge_enabl
 HEDGE_DIRECTIVES_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:hedge_directives"
 HEDGE_DIRECTIVES_MAX_AGE_SECONDS = 300.0
 
+# Operator directive (2026-07-16): majors are processed first each cycle so
+# admission budget/exposure caps prefer them; NOT an exclusion list — the
+# full adaptive symbol universe still trades, and any gate may still block a
+# major (that is the system deciding not to).
+PAPER_PREFERRED_MAJOR_SYMBOLS = frozenset({"BTCUSDT", "ETHUSDT", "SOLUSDT"})
+
 
 def _adaptive_hedge_enabled(r) -> bool:
     if PAPER_ADAPTIVE_HEDGE_ENABLED:
@@ -27703,11 +27709,29 @@ def _build_allocation_input(
             microstructure_trust_payload_present
             or intent.get("final_a_plus_requires_composite_trust") is True
         ):
-            liquidity = 0.0
-            intent["allocator_microstructure_block_reason"] = "MICROSTRUCTURE_TRUST_SCORE_MISSING"
-            intent["allocator_microstructure_trust_gate_status"] = (
-                "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
+            # 2026-07-16 adaptive gating: MISSING trust data fail-reduces for
+            # confident paper-learning intents instead of zeroing liquidity.
+            # Zeroed liquidity blocked EVERY allocation
+            # (liquidity_score_too_low / risk_budget_after_adjustments_is_zero)
+            # which silently pinned all paper fills to 1x leverage. Explicit
+            # protective NO_TRADE verdicts below remain fully binding.
+            _ms_conf = _coerce_float(
+                intent.get("confidence_calibrated") or intent.get("confidence")
             )
+            if _ms_conf is not None and _ms_conf >= 0.70:
+                liquidity = min(liquidity, 0.25)
+                intent["allocator_microstructure_block_reason"] = (
+                    "MICROSTRUCTURE_TRUST_SCORE_MISSING_REDUCED_FOR_CONFIDENT_PAPER_LEARNING"
+                )
+                intent["allocator_microstructure_trust_gate_status"] = (
+                    "REDUCED_MISSING_MICROSTRUCTURE_TRUST_SCORE_CONFIDENT_PAPER"
+                )
+            else:
+                liquidity = 0.0
+                intent["allocator_microstructure_block_reason"] = "MICROSTRUCTURE_TRUST_SCORE_MISSING"
+                intent["allocator_microstructure_trust_gate_status"] = (
+                    "BLOCKED_MISSING_MICROSTRUCTURE_TRUST_SCORE"
+                )
         else:
             intent["allocator_microstructure_trust_gate_status"] = (
                 "NOT_APPLIED_NO_MICROSTRUCTURE_TRUST_PAYLOAD"
@@ -27921,6 +27945,12 @@ def _build_allocation_input(
             "orchestrator_decision_id": intent.get("orchestrator_decision_id"),
             "market_state_id": intent.get("market_state_id"),
         },
+        # Adaptive leverage exploration ladder: the trainer/counterfactual
+        # sweep explores up to 20x; the dynamic risk envelope's
+        # max_effective_leverage (performance/confidence/drawdown-scaled)
+        # caps what is actually selectable per cycle. Without this the
+        # allocator only ever considered the (1,2,3) default.
+        "permitted_leverage_values": (1.0, 2.0, 3.0, 5.0, 10.0, 20.0),
         # Sizing/exit stop unification inputs: the allocator recomputes the
         # exit engine's effective ATR stop from these so notional sizing can
         # never assume a tighter stop than the exit engine enforces.
@@ -28114,6 +28144,19 @@ def run_once() -> dict:
         exploration_signals = []
 
     signals = [*orchestrator_signals, *exploration_signals]
+    # Operator directive (2026-07-16): BTC/ETH/SOL are ALWAYS PREFERRED for
+    # trading unless the system itself decides not to trade them. Stable sort
+    # puts major-symbol signals first (highest confidence first within each
+    # group) so exposure caps, budget, and per-cycle admission consume majors
+    # before tail symbols; every gate/verdict still applies unchanged — a
+    # major blocked by any adaptive gate IS the system deciding not to.
+    _major_symbols = PAPER_PREFERRED_MAJOR_SYMBOLS
+    signals.sort(
+        key=lambda s: (
+            0 if str(s.get("symbol") or "").upper() in _major_symbols else 1,
+            -(_coerce_float(s.get("confidence_calibrated") or s.get("confidence")) or 0.0),
+        )
+    )
     with open("/tmp/paper_loop_debug.log", "a") as f:
         f.write(f"[{datetime.now(timezone.utc).isoformat()}] Total signals: {len(signals)}\n")
         f.flush()
@@ -29727,6 +29770,89 @@ def run_once() -> dict:
                 accepted_intent["decision"] = "ACCEPTED_PAPER_FILL"
                 accepted_intent["paper_fill_allowed"] = True
                 accepted_intent["paper_fast_path"] = True
+                # Adaptive leverage on the fast path (2026-07-16): a BLOCKED
+                # allocator verdict pinned every fast-path fill to 1x. Paper
+                # learning fills now carry the trainer-facing adaptive
+                # recommendation (confidence/volatility/edge driven), capped
+                # by the dynamic risk envelope, so the trainer keeps
+                # exploring leverage and learns from realized outcomes.
+                if str(accepted_intent.get("allocator_decision") or "").startswith("BLOCK"):
+                    try:
+                        from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
+                            recommend_leverage_for_signal,
+                        )
+
+                        _fp_rec = recommend_leverage_for_signal(
+                            symbol=symbol,
+                            timeframe=str(
+                                _first_present(
+                                    accepted_intent.get("timeframe"),
+                                    accepted_intent.get("thesis_timeframe"),
+                                )
+                                or "1m"
+                            ),
+                            signal_id=str(
+                                _first_present(
+                                    accepted_intent.get("signal_id"),
+                                    accepted_intent.get("prediction_id"),
+                                    symbol,
+                                )
+                            ),
+                            direction=str(accepted_intent.get("side") or "long"),
+                            confidence_calibrated=float(conf),
+                            expected_move_after_cost_bps=_coerce_float(
+                                accepted_intent.get("expected_move_after_cost_bps")
+                            ),
+                            atr_bps=_coerce_float(accepted_intent.get("entry_atr_bps")),
+                            equity_usd=portfolio_context["equity"],
+                        )
+                        _fp_lev = max(
+                            1.0,
+                            min(
+                                float(_fp_rec.get("recommended_leverage") or 1.0),
+                                float(dynamic_paper_envelope.max_effective_leverage),
+                            ),
+                        )
+                        _fp_notional = _coerce_float(
+                            _first_present(
+                                accepted_intent.get("notional"),
+                                accepted_intent.get("notional_usd"),
+                                accepted_intent.get("gross_notional_usd"),
+                            )
+                        )
+                        accepted_intent["recommended_leverage"] = _fp_lev
+                        accepted_intent["effective_leverage"] = _fp_lev
+                        if _fp_notional is not None and _fp_notional > 0:
+                            accepted_intent["allocated_margin_usd"] = round(
+                                _fp_notional / _fp_lev, 8
+                            )
+                        accepted_intent["fast_path_leverage_source"] = (
+                            "ADAPTIVE_RECOMMENDATION_ENVELOPE_CAPPED"
+                        )
+                        accepted_intent["fast_path_leverage_recommendation"] = {
+                            k: _fp_rec.get(k)
+                            for k in (
+                                "recommended_leverage",
+                                "reason_tier",
+                                "liquidation_distance_bps",
+                                "volatility_budget_bps",
+                                "max_loss_budget_usd",
+                            )
+                            if k in _fp_rec
+                        }
+                        _fp_alloc = accepted_intent.get("adaptive_allocation")
+                        if isinstance(_fp_alloc, dict):
+                            _fp_alloc["recommended_leverage"] = _fp_lev
+                            _fp_alloc["effective_leverage"] = _fp_lev
+                            if _fp_notional is not None and _fp_notional > 0:
+                                _fp_alloc["allocated_margin_usd"] = round(
+                                    _fp_notional / _fp_lev, 8
+                                )
+                            _fp_alloc["fast_path_leverage_source"] = (
+                                "ADAPTIVE_RECOMMENDATION_ENVELOPE_CAPPED"
+                            )
+                    except Exception:
+                        pass
                 accepted.append(accepted_intent)
 
                 # Log execution

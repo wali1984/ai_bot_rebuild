@@ -435,10 +435,14 @@ def test_paper_leverage_uses_phase8_target_for_high_confidence_low_volatility_ed
     )
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    # conf 0.88 + strong edge + low vol earns the 5x exploration tier raw
+    # target; the risk envelope (max_effective_leverage=3.0 default here)
+    # caps the SELECTED leverage — higher leverage is earned through the
+    # performance-scaled envelope, never granted statically.
     assert result.recommended_leverage == 3.0
     assert result.effective_leverage == 3.0
     assert result.allocated_margin_usd < result.gross_notional_usd
-    assert result.model_inputs["raw_leverage_target"] == 3.0
+    assert result.model_inputs["raw_leverage_target"] == 5.0
     assert result.model_inputs["leverage_target"] == 3.0
     assert result.model_inputs["selected_leverage"] == 3.0
     assert result.model_inputs["leverage_live_mutation_allowed"] is False

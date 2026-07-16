@@ -114,12 +114,24 @@ def test_high_volatility_gives_1x() -> None:
 
 
 def test_high_confidence_low_volatility_gives_3x() -> None:
-    cfg = LeverageRecommendationConfig(
-        high_confidence_threshold=0.75,
-        low_volatility_threshold_bps=30.0,
-        max_leverage=3,
-    )
-    rec = _rec(confidence_calibrated=0.85, atr_bps=15.0)
+    # conf 0.80 sits in the high (not very-high) band: 3x tier.
+    rec = _rec(confidence_calibrated=0.80, atr_bps=15.0)
+    assert rec["recommended_leverage"] == 3
+    assert rec["reason_tier"] == "HIGH_CONFIDENCE_LOW_VOLATILITY_3X"
+
+
+def test_very_high_confidence_strong_edge_gives_5x_exploration_tier() -> None:
+    # 2026-07-16 operator directive: very high calibrated confidence + low
+    # volatility + strong after-cost edge earns the 5x exploration tier. The
+    # dynamic risk envelope (realized-performance scaled) still caps the
+    # final selected leverage at runtime.
+    rec = _rec(confidence_calibrated=0.87, atr_bps=15.0, expected_move_after_cost_bps=25.0)
+    assert rec["recommended_leverage"] == 5
+    assert rec["reason_tier"] == "VERY_HIGH_CONFIDENCE_STRONG_EDGE_5X"
+
+
+def test_very_high_confidence_without_strong_edge_stays_3x() -> None:
+    rec = _rec(confidence_calibrated=0.87, atr_bps=15.0, expected_move_after_cost_bps=10.0)
     assert rec["recommended_leverage"] == 3
 
 
@@ -223,6 +235,6 @@ def test_validate_catches_all_symbols_aggregate_true() -> None:
 
 def test_validate_catches_leverage_over_cap() -> None:
     rec = _rec()
-    rec["recommended_leverage"] = 10
+    rec["recommended_leverage"] = 11  # above PAPER_MAX_LEVERAGE=10
     violations = validate_leverage_recommendation(rec)
     assert any("recommended_leverage" in v for v in violations)

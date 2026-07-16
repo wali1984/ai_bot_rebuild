@@ -6687,13 +6687,72 @@ def test_read_orderbook_microstructure_marks_missing_trust_score() -> None:
     assert "microstructure_trust_score" not in microstructure
 
 
-def test_build_allocation_input_exposes_missing_microstructure_trust_block() -> None:
+def _missing_trust_allocation_input(intent: dict) -> object:
+    return paper_loop._build_allocation_input(  # noqa: SLF001
+        intent=intent,
+        signal={
+            "timeframe": "1m",
+            "price_target": 100.0,
+            "expected_funding_bps": 0.5,
+        },
+        prediction={"features": {}},
+        portfolio_context={
+            "equity": 10000.0,
+            "available_margin": 9000.0,
+            "wallet_balance": 10000.0,
+            "drawdown_bps": 0.0,
+        },
+        symbol_exposures={},
+        total_exposure=0.0,
+        market_microstructure={
+            "bid_ask_spread_bps": 1.2,
+            "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK",
+            "orderbook_depth_usd": 100000.0,
+            "orderbook_depth_source": "orderbook_top5",
+            "microstructure_trust_status": "MISSING_MICROSTRUCTURE_TRUST_SCORE",
+            "microstructure_trust_missing_reason": (
+                "NO_V2_MICROSTRUCTURE_TRUST_SCORE_REDIS_PAYLOAD"
+            ),
+            "microstructure_trust_lookup_keys": [
+                "v2:microstructure:trust_score:BTCUSDT:1m",
+                "v2:microstructure:trust_score:BTCUSDT:5m",
+                "v2:microstructure:trust_score:BTCUSDT:15m",
+            ],
+        },
+    )
+
+
+def test_missing_microstructure_trust_reduces_for_confident_paper_learning() -> None:
+    # 2026-07-16 adaptive gating: MISSING trust data fail-reduces (0.25 cap)
+    # for confident paper-learning intents instead of zeroing liquidity —
+    # zeroed liquidity blocked every allocation and pinned all fills to 1x.
     intent = {
         "symbol": "BTCUSDT",
         "timeframe": "1m",
         "side": "long",
         "entry_price": 100.0,
         "confidence_calibrated": 0.8,
+        "expected_move_after_cost_bps": 40.0,
+        "market_state_integrity_score": 92.0,
+    }
+    allocation_input = _missing_trust_allocation_input(intent)
+    assert allocation_input.liquidity_score == 0.25
+    assert intent["allocator_microstructure_block_reason"] == (
+        "MICROSTRUCTURE_TRUST_SCORE_MISSING_REDUCED_FOR_CONFIDENT_PAPER_LEARNING"
+    )
+    assert intent["allocator_microstructure_trust_gate_status"] == (
+        "REDUCED_MISSING_MICROSTRUCTURE_TRUST_SCORE_CONFIDENT_PAPER"
+    )
+
+
+def test_build_allocation_input_exposes_missing_microstructure_trust_block() -> None:
+    # Low-confidence intents keep the fail-closed zeroing.
+    intent = {
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "entry_price": 100.0,
+        "confidence_calibrated": 0.6,
         "expected_move_after_cost_bps": 40.0,
         "market_state_integrity_score": 92.0,
     }

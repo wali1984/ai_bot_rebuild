@@ -26,7 +26,12 @@ MUTATES_EXCHANGE = False
 SCHEMA_VERSION = "v2_leverage_recommendation_v1"
 
 # Hard caps for paper mode — never recommend above these.
-PAPER_MAX_LEVERAGE = 3
+# 2026-07-16 operator directive: the trainer must keep exploring higher
+# leverage; the recommendation ladder extends to 10x, matching the dynamic
+# risk envelope's paper ceiling. The envelope (scaled by REALIZED win rate /
+# profit factor / confidence / drawdown) remains the binding per-cycle cap,
+# so higher tiers are earned through evidence, never granted statically.
+PAPER_MAX_LEVERAGE = 10
 PAPER_MAX_CONFIDENCE_BUDGET_PCT = 0.05  # 5% of equity max per trade
 PAPER_MAX_LOSS_BUDGET_USD = 50.0
 
@@ -37,11 +42,14 @@ class LeverageRecommendationConfig:
     max_confidence_budget_pct: float = PAPER_MAX_CONFIDENCE_BUDGET_PCT
     max_loss_budget_usd: float = PAPER_MAX_LOSS_BUDGET_USD
     # Confidence thresholds for leverage tiers
+    very_high_confidence_threshold: float = 0.85
     high_confidence_threshold: float = 0.75
     low_confidence_threshold: float = 0.55
     # Volatility thresholds (ATR in bps) for leverage tiers
     low_volatility_threshold_bps: float = 30.0
     high_volatility_threshold_bps: float = 80.0
+    # After-cost edge (bps) required for the 5x exploration tier
+    strong_edge_bps_for_5x: float = 20.0
     # Fee + slippage buffer for liquidation distance estimate
     liquidation_fee_buffer_bps: float = 25.0
 
@@ -133,6 +141,19 @@ def recommend_leverage_for_signal(
     ):
         recommended_leverage = 1
         reason_tier = "HIGH_VOLATILITY_1X"
+    elif (
+        confidence_calibrated >= cfg.very_high_confidence_threshold
+        and atr_bps is not None
+        and atr_bps <= cfg.low_volatility_threshold_bps
+        and expected_move_after_cost_bps is not None
+        and expected_move_after_cost_bps >= cfg.strong_edge_bps_for_5x
+    ):
+        # Exploration tier (2026-07-16): very high calibrated confidence +
+        # low volatility + strong after-cost edge earns 5x. The dynamic risk
+        # envelope (realized win-rate/PF scaled) still caps the final value,
+        # so this tier only takes effect once performance evidence supports it.
+        recommended_leverage = min(cfg.max_leverage, 5)
+        reason_tier = "VERY_HIGH_CONFIDENCE_STRONG_EDGE_5X"
     elif (
         confidence_calibrated >= cfg.high_confidence_threshold
         and (atr_bps is None or atr_bps <= cfg.low_volatility_threshold_bps)
