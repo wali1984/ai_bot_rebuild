@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
 } from 'recharts';
+import { EquityAreaChart, PnLBars, Donut, DonutLegend, RadialGauge, ChartFrame } from '../../components/charts/NervyxCharts';
+import { fmtUsd as chartUsd } from '../../components/charts/nervyxChartTheme';
 import { usePaperActivityStream } from '../../hooks/usePaperActivityStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useAuth } from '../../hooks/useAuth';
@@ -1295,6 +1297,96 @@ function QuickNav(): JSX.Element {
 
 // ─── Main dashboard ───────────────────────────────────────────────────────────
 
+function StatChip({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
+  return (
+    <div style={{ padding: '6px 10px', borderRadius: 8, background: 'var(--bg-base)', border: '1px solid var(--border)', minWidth: 0 }}>
+      <div style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)' }}>{value}</div>
+    </div>
+  );
+}
+
+function PerformancePanel({ equitySeries, perTradePnl, winLossData, directionData, accuracy, equity, realized, unrealized, totalPnl }: {
+  equitySeries: Array<{ label: string; value: number }>;
+  perTradePnl: Array<{ label: string; value: number }>;
+  winLossData: Array<{ name: string; value: number; color?: string }>;
+  directionData: Array<{ name: string; value: number; color?: string }>;
+  accuracy: number | null | undefined;
+  equity: number | null; realized: number | null; unrealized: number | null; totalPnl: number | null;
+}): JSX.Element {
+  const trades = perTradePnl.length;
+  const wins = perTradePnl.filter((p) => p.value > 0).length;
+  const winRate = trades ? (wins / trades) * 100 : null;
+  const posColor = '#22c55e', negColor = '#ef4444';
+  const pnlColor = (totalPnl ?? 0) >= 0 ? posColor : negColor;
+  return (
+    <section
+      data-testid="dashboard-performance"
+      style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 16 }}>📈</span>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Performance &amp; Capital</h2>
+          <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 9.5, fontWeight: 700, fontFamily: 'var(--font-mono)', background: 'rgba(124,92,255,0.12)', color: '#a78bfa', border: '1px solid rgba(124,92,255,0.3)' }}>PAPER · LIVE BLOCKED</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <StatChip label="Equity" value={chartUsd(equity)} />
+          <StatChip label="Total PnL" value={chartUsd(totalPnl)} color={pnlColor} />
+          <StatChip label="Realized" value={chartUsd(realized)} color={(realized ?? 0) >= 0 ? posColor : negColor} />
+          <StatChip label="Unrealized" value={chartUsd(unrealized)} color={(unrealized ?? 0) >= 0 ? posColor : negColor} />
+          <StatChip label="Win Rate" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} color={winRate != null ? (winRate >= 50 ? posColor : negColor) : undefined} />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 14, alignItems: 'stretch' }}>
+        <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <ChartFrame title="Equity curve" subtitle={`${trades} closed paper trades · cumulative`} height={196}>
+            {equitySeries.length >= 2
+              ? <EquityAreaChart data={equitySeries} height={196} color="#7c5cff" />
+              : <EmptyChart label="Awaiting closed trades" />}
+          </ChartFrame>
+        </div>
+        <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <ChartFrame title="Prediction accuracy" subtitle="evaluated outcomes" height={150}>
+            <RadialGauge value={accuracy} height={150} label="accuracy" />
+          </ChartFrame>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 14 }}>
+        <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <ChartFrame title="Per-trade PnL" subtitle="realized, each closed trade" height={160}>
+            {perTradePnl.length ? <PnLBars data={perTradePnl} height={160} /> : <EmptyChart label="No closed trades yet" />}
+          </ChartFrame>
+        </div>
+        <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <ChartFrame title="Win / loss split" height={150}>
+            {winLossData.length
+              ? <><Donut data={winLossData} height={150} centerValue={winRate != null ? `${winRate.toFixed(0)}%` : '—'} centerLabel="win rate" /><DonutLegend data={winLossData} /></>
+              : <EmptyChart label="No outcomes yet" />}
+          </ChartFrame>
+        </div>
+        <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <ChartFrame title="Signal direction" subtitle="paper fills bias" height={150}>
+            {directionData.length
+              ? <><Donut data={directionData} height={150} centerValue={String(directionData.reduce((s, d) => s + d.value, 0))} centerLabel="fills" /><DonutLegend data={directionData} /></>
+              : <EmptyChart label="No fills yet" />}
+          </ChartFrame>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EmptyChart({ label }: { label: string }): JSX.Element {
+  return (
+    <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>
+      {label}
+    </div>
+  );
+}
+
 export default function DashboardPage(): JSX.Element {
   const { user } = useAuth();
   const traderSnapshot = useTraderSnapshot();
@@ -1512,6 +1604,19 @@ export default function DashboardPage(): JSX.Element {
         />
       </div>
 
+      {/* Performance & capital — real closed-trade charts (equity / PnL / win-loss / accuracy) */}
+      <PerformancePanel
+        equitySeries={equitySeries}
+        perTradePnl={perTradePnl}
+        winLossData={winLossData}
+        directionData={directionData}
+        accuracy={accuracyStatus?.overall_accuracy}
+        equity={equity}
+        realized={realized}
+        unrealized={unrealized}
+        totalPnl={totalPnl}
+      />
+
       <AdaptiveCapitalTelemetryPanel
         payload={adaptiveCapital.data}
         title="Capital Productivity + PnL + Accuracy"
@@ -1547,8 +1652,6 @@ export default function DashboardPage(): JSX.Element {
         <PaperFillsPanel fills={fills} summary={paperSummary} />
         <div className="nervyx-dashboard__side-stack">
           <CapitalProductivityPanel capital={capitalStatus} />
-          <AccuracySummaryPanel accuracy={accuracyStatus} />
-          <EquityPanel equity={equity} realized={realized} unrealized={unrealized} startingCapital={startingCapital} pnlHistory={pnlHistory} />
           <MarketPulsePanel tickers={tickers} />
         </div>
       </div>
