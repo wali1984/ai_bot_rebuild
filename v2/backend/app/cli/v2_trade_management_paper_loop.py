@@ -29761,27 +29761,76 @@ def run_once() -> dict:
                 or ""
             ).upper().split(",")
         }
-        # The preemptive edge-control verdict (which carries the directional-
-        # collapse guard outcome) is binding on the fast path too — a
-        # protective NO_TRADE verdict must not be bypassable by confidence.
+        # The preemptive edge-control verdict is binding on the fast path when
+        # it carries ADVERSE EVIDENCE about this candidate (directional
+        # collapse, quarantined bucket, loss probability, high-confidence loss
+        # cluster). A NO_TRADE composed purely of A-grade/fail-closed reasons
+        # (guardian A-grade halt, missing indicator context, insufficient
+        # bucket evidence) must not strangle the paper LEARNING lane — the
+        # A-grade gate requires rolling 100/300-trade windows at 90%+ LCB win
+        # rate, evidence the learning lane exists to produce. The lane keeps
+        # its own protections (entry gate, outcome memory, strategy no_trade
+        # binding, performance circuit, adaptive stops, hedging).
+        _fast_path_pec = (
+            intent.get("preemptive_edge_control")
+            if isinstance(intent.get("preemptive_edge_control"), dict)
+            else {}
+        )
         _fast_path_preemptive_verdict = str(
             _first_present(
                 intent.get("preemptive_decision"),
-                (intent.get("preemptive_edge_control") or {}).get("preemptive_decision")
-                if isinstance(intent.get("preemptive_edge_control"), dict)
-                else None,
+                _fast_path_pec.get("preemptive_decision"),
             )
             or ""
         ).upper()
+        _fast_path_preemptive_reasons = [
+            str(x).upper()
+            for x in (
+                _first_present(
+                    intent.get("preemptive_block_reasons"),
+                    _fast_path_pec.get("preemptive_block_reasons"),
+                    intent.get("preemptive_decision_reasons"),
+                    _fast_path_pec.get("preemptive_decision_reasons"),
+                )
+                or []
+            )
+        ]
+        _ADVERSE_EVIDENCE_MARKERS = (
+            "DIRECTIONAL",
+            "COLLAPSE",
+            "QUARANTIN",
+            "LOSS_PROBABILITY",
+            "HIGH_CONFIDENCE_LOSS",
+            "LOSS_CLUSTER",
+        )
+        _fast_path_preemptive_adverse = any(
+            marker in reason
+            for reason in _fast_path_preemptive_reasons
+            for marker in _ADVERSE_EVIDENCE_MARKERS
+        )
+        _fast_path_preemptive_binding = (
+            _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+            and (_fast_path_preemptive_adverse or not _fast_path_preemptive_reasons)
+        )
         _fast_path_no_trade_verdict = (
             _fast_path_mode == "no_trade_mode"
             or "NO_TRADE" in _fast_path_regime_tokens
-            or _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+            or _fast_path_preemptive_binding
         )
+        if (
+            _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+            and not _fast_path_preemptive_binding
+        ):
+            intent["paper_fast_path_preemptive_advisory_reasons"] = (
+                _fast_path_preemptive_reasons
+            )
+            intent["paper_fast_path_preemptive_advisory"] = (
+                "NO_TRADE_WITHOUT_ADVERSE_EVIDENCE_ADVISORY_ON_LEARNING_LANE"
+            )
         if _fast_path_no_trade_verdict:
             intent["paper_fast_path_blocked_reason"] = (
-                "PREEMPTIVE_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
-                if _fast_path_preemptive_verdict in {"NO_TRADE", "SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"}
+                "PREEMPTIVE_ADVERSE_EVIDENCE_BINDING_ON_FAST_PATH"
+                if _fast_path_preemptive_binding
                 else "STRATEGY_ROUTER_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
             )
         if (
