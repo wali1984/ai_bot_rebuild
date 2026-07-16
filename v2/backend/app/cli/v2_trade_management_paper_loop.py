@@ -22409,14 +22409,26 @@ def _paper_block_new_entry_by_performance_circuit(
 
     # ADAPTIVE FIX: Allow high-confidence paper learning intents despite performance circuit
     # Paper needs to learn from all valid signals; performance circuit is too strict when model untrained
+    # Exploration-tier intents are excluded: they take the richer
+    # exploration-clean path below, which allows the entry but applies the
+    # mandatory size haircut and advisory bucket annotations (the bare bypass
+    # would silently drop that protection).
     confidence = _coerce_float(intent.get("confidence_calibrated") or intent.get("confidence"))
     allow_despite_circuit = (
-        confidence is not None
+        not is_paper_risk_exploration
+        and confidence is not None
         and confidence >= 0.75
         and len(reasons) == 1
         and reasons[0] == PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON
     )
     if allow_despite_circuit:
+        # Signal Explainability Rule: an adaptive bypass must be
+        # self-describing on the intent/allocation, not silent.
+        for target in (intent, allocation):
+            target["paper_performance_circuit_breaker_blocked"] = False
+            target["paper_performance_circuit_breaker_observed_reasons"] = sorted(set(reasons))
+            target["paper_performance_circuit_high_confidence_bypass"] = True
+            target["paper_performance_circuit_high_confidence_bypass_confidence"] = confidence
         return False
 
     bucket_specific_block = bool(

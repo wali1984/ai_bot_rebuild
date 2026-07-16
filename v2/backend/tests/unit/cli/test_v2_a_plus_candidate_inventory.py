@@ -1481,8 +1481,11 @@ def test_strategy_supply_positive_usd_stage_reject_still_reaches_inventory(tmp_p
     assert row["market_state_integrity_minimum_score"] == 70.0
     assert row["A_plus_candidate"] is False
     assert row["counts_as_A_plus"] is False
-    assert row["allocator_decision"] == "REJECT"
-    assert "ALLOCATOR_MARKET_STATE_INTEGRITY_SCORE_BELOW_MINIMUM" in row["allocator_block_reasons"]
+    # 2026-07-16 adaptive gating: low microstructure trust reduces size
+    # instead of hard-rejecting (paper learning mode), so the allocator
+    # decision is PASS while the stage-reject reason stays visible above and
+    # the row can never count as A+.
+    assert row["allocator_decision"] == "PASS"
     assert row["provider_feature_hashes"]["coinglass"] == "hash-coinglass-low-trust"
 
 
@@ -1570,7 +1573,25 @@ def test_paper_exploration_short_unfavorable_signed_move_not_queued(tmp_path: Pa
     ] == 0
 
 
-def test_paper_exploration_operator_excluded_symbol_not_queued(tmp_path: Path) -> None:
+def test_paper_exploration_operator_excluded_symbol_not_queued(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """2026-07-16 policy: no hardcoded symbol lists — the DEFAULT operator
+    exclusion set is empty (symbol universe is fully adaptive). The operator
+    override MECHANISM must keep working: when an operator explicitly
+    excludes a symbol, exploration candidates on it must not queue.
+    """
+    import v2.backend.app.cli.v2_a_plus_candidate_inventory as inventory_module
+
+    # Policy: shipped default exclusion list is empty.
+    assert inventory_module.PAPER_EXPLORATION_MATERIALIZATION_SYMBOL_EXCLUSION_LIST == frozenset()
+
+    # Mechanism: an explicit operator exclusion still blocks queuing.
+    monkeypatch.setattr(
+        inventory_module,
+        "PAPER_EXPLORATION_MATERIALIZATION_SYMBOL_EXCLUSION_LIST",
+        frozenset({"TIAUSDT"}),
+    )
     result = build_inventory(
         client=PaperExplorationOperatorExcludedRedis(),
         output_dir=tmp_path,

@@ -4704,7 +4704,11 @@ def test_missing_preemptive_decision_fails_paper_admission_closed() -> None:
     )
 
     assert "PREEMPTIVE_DECISION_MISSING_FAIL_CLOSED" in reasons
-    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED" in reasons
+    # 2026-07-16 adaptive gating: missing loss-probability no longer hard
+    # fail-closes on its own; it becomes confidence-scoped (high-confidence
+    # intents may proceed). The missing preemptive decision above still
+    # blocks admission for this low/no-confidence intent.
+    assert "PRE_TRADE_LOSS_PROBABILITY_MISSING_ALLOW_HIGH_CONFIDENCE_ONLY" in reasons
 
 
 def test_high_pretrade_loss_probability_blocks_paper_admission() -> None:
@@ -15059,20 +15063,21 @@ def test_cg_f038_long_trend_mode_still_allowed() -> None:
 
 
 def test_cg_f038_short_trend_mode_blocked_side_mode_in_default_frozenset() -> None:
-    """Verify CG-F009 hard block remains; CG-F038 upgraded to R29-D2 regime gate."""
+    """2026-07-16 operator direction: NO static side/mode hard blocks.
+
+    The CG-F009/CG-F038 static frozenset entries are replaced by adaptive
+    mechanisms: the R29-D2 cascade-risk regime gate (still enabled) and the
+    per-bucket outcome-memory degradation blocks rebuilt on every close.
+    """
     from v2.backend.app.services.paper_trade_management.entry_gate import PaperEntryGateConfig
 
     cfg = PaperEntryGateConfig()
-    assert "long:mean_reversion_mode" in cfg.blocked_side_mode_combinations, (
-        "CG-F009 rule must remain: long:mean_reversion_mode blocked"
-    )
-    # R29-D2 upgrade: short:trend_mode removed from hard block frozenset, now controlled
-    # by short_trend_mode_regime_gate_enabled + short_trend_cascade_risk_min
-    assert "short:trend_mode" not in cfg.blocked_side_mode_combinations, (
-        "CG-F038 hard block was upgraded to R29-D2 regime gate; should not be in frozenset"
+    assert cfg.blocked_side_mode_combinations == frozenset(), (
+        "Static side:mode hard blocks are retired; blocking is adaptive "
+        "(regime gate + outcome-memory buckets)"
     )
     assert cfg.short_trend_mode_regime_gate_enabled is True, (
-        "R29-D2 regime gate must be enabled by default"
+        "R29-D2 regime gate must remain enabled as the adaptive replacement"
     )
     assert cfg.short_trend_cascade_risk_min == 0.30, (
         "R29-D2 cascade risk floor must default to 0.30"
