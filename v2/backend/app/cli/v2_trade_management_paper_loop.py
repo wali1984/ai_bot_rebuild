@@ -22409,7 +22409,7 @@ def _paper_block_new_entry_by_performance_circuit(
     confidence = _coerce_float(intent.get("confidence_calibrated") or intent.get("confidence"))
     allow_despite_circuit = (
         confidence is not None
-        and confidence >= 0.80
+        and confidence >= 0.75
         and len(reasons) == 1
         and reasons[0] == PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON
     )
