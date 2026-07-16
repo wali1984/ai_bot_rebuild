@@ -1,4 +1,5 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useOptionalAuth } from '../../hooks/useAuth';
 import meta from './meta';
 
 interface PublicStatusData {
@@ -100,6 +101,7 @@ function statusTone(label: string | null | undefined): StatusTone {
 }
 
 export default function PublicStatusPage(): JSX.Element {
+  const { user } = useOptionalAuth();
   const statusResource = useRealtimeResource<PublicStatusData>({
     url: '/api/v2/public/status',
     source: '/api/v2/public/status',
@@ -128,10 +130,14 @@ export default function PublicStatusPage(): JSX.Element {
   const symbolCount = marketHealth?.count ?? marketHealth?.symbols?.length ?? null;
   const apiUp = statusConnected || marketFresh;
   const dimensions = statusData?.status_dimensions ?? {};
-  const marketDataStatus = dimensions.market_data ?? (marketFresh ? 'LIVE' : apiUp ? 'DELAYED' : 'OFFLINE');
+  // The public status endpoint can report market_data STALE with a stricter/older
+  // threshold than the actual feed; trust the live market resource when it is fresh.
+  const marketDataStatus = marketFresh ? 'LIVE' : (dimensions.market_data ?? (apiUp ? 'DELAYED' : 'OFFLINE'));
   const automationStatus = dimensions.automation ?? (statusConnected ? 'ACTIVE' : 'UNKNOWN');
   const executionStatus = dimensions.execution ?? 'RESTRICTED';
-  const accountStatus = dimensions.account ?? 'UNAUTHORIZED';
+  // The public endpoint never reads the session (so it always says UNAUTHORIZED);
+  // reflect the real signed-in state when a trader session exists.
+  const accountStatus = user ? 'AUTHORIZED' : (dimensions.account ?? 'UNAUTHORIZED');
   const overallHealthy = apiUp && marketDataStatus !== 'OFFLINE';
 
   return (

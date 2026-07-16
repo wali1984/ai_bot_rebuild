@@ -222,6 +222,26 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
   );
   const streams = ingestors?.stream_present ?? {};
   const streamKeys = Object.keys(STREAM_LABELS);
+  // stale_provider_count only counts hard-STALE; derive an honest "not healthy" set
+  // from provider_health so DEGRADED / unknown / null providers (e.g. moralis,
+  // santiment) are not hidden behind "Stale providers: none".
+  const providerHealth = ingestors?.provider_health ?? {};
+  const providerEntries = Object.entries(providerHealth);
+  const isHealthy = (v: { status?: string | null; freshness?: string | null }): boolean => {
+    const st = (v.status ?? '').toUpperCase();
+    const fr = (v.freshness ?? '').toLowerCase();
+    if (!st) return false;
+    if (['STALE', 'DEGRADED', 'OFFLINE', 'ERROR', 'DOWN', 'MISSING'].some((t) => st.includes(t))) return false;
+    if (['stale', 'unknown', 'offline', 'degraded'].includes(fr)) return false;
+    return ['ACTIVE', 'READY', 'GREEN', 'OK', 'HEALTHY'].some((t) => st.includes(t));
+  };
+  const unhealthy = providerEntries.filter(([, v]) => !isHealthy(v)).map(([name]) => name);
+  const providerTone = (v: { status?: string | null; freshness?: string | null }): 'ok' | 'warn' | 'error' | 'neutral' => {
+    if (isHealthy(v)) return 'ok';
+    const st = (v.status ?? '').toUpperCase();
+    if (!st || st.includes('OFFLINE') || st.includes('DOWN') || st.includes('ERROR') || st.includes('STALE')) return 'error';
+    return 'warn';
+  };
   return (
     <section style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
@@ -240,11 +260,30 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
         <TruthCell label="Active providers" value={String(ingestors?.active_provider_count ?? '—')} tone={(ingestors?.active_provider_count ?? 0) > 0 ? 'ok' : 'warn'} />
         <TruthCell label="Providers tracked" value={String(ingestors?.provider_count ?? '—')} tone="neutral" />
         <TruthCell
-          label="Stale providers"
-          value={ingestors?.stale_provider_count ? `${ingestors.stale_provider_count}: ${(ingestors.stale_providers ?? []).slice(0, 4).join(', ')}` : 'none'}
-          tone={ingestors?.stale_provider_count ? 'warn' : 'ok'}
+          label="Unhealthy providers"
+          value={unhealthy.length ? `${unhealthy.length}: ${unhealthy.slice(0, 4).join(', ')}` : 'none'}
+          tone={unhealthy.length ? 'warn' : 'ok'}
         />
       </div>
+      {providerEntries.length > 0 && (
+        <div style={{ padding: '0 12px 8px' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '4px 0 6px' }}>Per-provider health</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8 }}>
+            {providerEntries.map(([name, v]) => {
+              const age = v.age_seconds;
+              const ageStr = age == null ? '' : age < 60 ? ` · ${Math.round(age)}s` : ` · ${Math.round(age / 60)}m`;
+              return (
+                <TruthCell
+                  key={name}
+                  label={name.replace(/_/g, ' ')}
+                  value={`${(v.status ?? 'unknown').toString().toLowerCase()}${ageStr}`}
+                  tone={providerTone(v)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, padding: '0 12px 12px' }}>
         {streamKeys.map((key) => {
           const present = streams[key] === true;

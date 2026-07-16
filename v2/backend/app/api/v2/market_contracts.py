@@ -5510,6 +5510,27 @@ def _redis_indicator_response(symbol: str, timeframe: str, endpoint: str) -> dic
     )
 
 
+def _ai_target_series(symbol: str, timeframe: str, candles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Horizontal AI price-target line from the current model prediction.
+
+    The chart's ``ai_target`` overlay was always empty. The trainer publishes a
+    price target on ``v2:prediction:{symbol}:{tf}``; draw it as a flat line across
+    the visible candle window so the target is visible on the chart.
+    """
+    if not candles:
+        return []
+    pred = _read_v2_redis_json(f"v2:prediction:{symbol}:{timeframe}")
+    if not isinstance(pred, dict):
+        return []
+    target = _float(pred.get("price_target_after_cost")) or _float(pred.get("price_target"))
+    if target is None or target <= 0:
+        return []
+    return [
+        {"time": candles[0]["time"], "value": target},
+        {"time": candles[-1]["time"], "value": target},
+    ]
+
+
 @router.get("/market/{symbol}/indicators")
 async def get_market_indicators(
     symbol: str,
@@ -5523,13 +5544,32 @@ async def get_market_indicators(
     if safe_timeframe is None:
         return _invalid_market_timeframe_response(endpoint, safe_symbol)
     redis_response = _redis_indicator_response(safe_symbol, safe_timeframe, endpoint)
-    if redis_response is not None:
-        return redis_response
+    # The Redis TA publisher stores only the LATEST indicator value, so its overlay
+    # series are single-point (undrawable). Compute full-history EMA/BB from Binance
+    # closed klines for the line overlays and a horizontal AI-target line, keeping
+    # the Redis RSI/MACD/ATR snapshot when it is present.
     klines, api_source, api_warning = await _binance_public_json_async(
         "/fapi/v1/klines",
         {"symbol": safe_symbol, "interval": safe_timeframe, "limit": 500},
     )
     candles = _closed_candles_from_binance_klines(klines)
+    ai_target = _ai_target_series(safe_symbol, safe_timeframe, candles)
+    if redis_response is not None:
+        rd = redis_response.get("data") if isinstance(redis_response, dict) else None
+        if isinstance(rd, dict):
+            if len(rd.get("ema20") or []) < 2 and candles:
+                rd["ema20"] = _ema_series(candles, 20)
+                rd["ema50"] = _ema_series(candles, 50)
+                rd["bb_upper"], rd["bb_lower"], rd["bb_middle"] = _bollinger_series(candles)
+            if not rd.get("ai_target") and ai_target:
+                rd["ai_target"] = ai_target
+            rd["indicator_count"] = sum(
+                len(rd.get(k) or []) for k in ("ema20", "ema50", "bb_upper", "bb_lower", "bb_middle")
+            )
+            rd["controls_enabled"] = rd["indicator_count"] > 0
+            if ai_target and isinstance(redis_response.get("missing_fields"), list):
+                redis_response["missing_fields"] = [m for m in redis_response["missing_fields"] if m != "ai_target"]
+        return redis_response
     if candles:
         ema20 = _ema_series(candles, 20)
         ema50 = _ema_series(candles, 50)
@@ -5553,14 +5593,14 @@ async def get_market_indicators(
                 "bb_upper": bb_upper,
                 "bb_lower": bb_lower,
                 "bb_middle": bb_middle,
-                "ai_target": [],
+                "ai_target": ai_target,
                 "indicator_count": indicator_count,
                 "controls_enabled": indicator_count > 0,
             },
             source=api_source,
             source_type="api",
             timestamp=_iso_from_ms(candles[-1]["close_time_ms"]) if candles else _utc_now(),
-            missing_fields=missing_fields,
+            missing_fields=[m for m in missing_fields if not (m == "ai_target" and ai_target)],
             warnings=[
                 "EMA and Bollinger indicators are derived from Binance public USD-M closed klines",
                 "Only closed candles are used for indicator calculations",
