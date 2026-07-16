@@ -14,6 +14,7 @@ Default behavior:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import sys
 import time
@@ -212,10 +213,35 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def _ticker_cache_age_seconds(ticker: dict) -> float | None:
+    close_time = ticker.get("closeTime")
+    close_time_ms = _safe_float(close_time)
+    if close_time_ms is not None and close_time_ms > 0:
+        return max(0.0, time.time() - close_time_ms / 1000.0)
+    # Resolver-written payloads carry ISO-8601 closeTime strings.
+    if isinstance(close_time, str) and close_time:
+        try:
+            parsed = datetime.datetime.fromisoformat(close_time.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return max(0.0, time.time() - parsed.timestamp())
+    return None
+
+
+# A cached ticker older than this must NOT be re-emitted: the cache read below
+# targets this ingestor's OWN output key, so without a freshness gate a stale
+# ticker echoes forever and the resolver/REST fallbacks are unreachable
+# (2026-07-16 incident: v2:market:prices:* frozen for 2h, all paper marks and
+# unrealized PnL frozen with it).
+TICKER_CACHE_MAX_AGE_SECONDS = 120.0
+
+
 def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
     cached = _read_json(redis_client, f"{V2_REDIS_PREFIX}market:prices:{symbol}")
     if isinstance(cached, dict):
         ticker = cached.get("ticker_24hr") if isinstance(cached.get("ticker_24hr"), dict) else cached
+        cache_age = _ticker_cache_age_seconds(ticker) if isinstance(ticker, dict) else None
+        cache_fresh = cache_age is not None and cache_age <= TICKER_CACHE_MAX_AGE_SECONDS
         last_price = _safe_float(
             ticker.get("lastPrice")
             if isinstance(ticker, dict)
@@ -227,7 +253,7 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
             except Exception:
                 resolved = {}
             last_price = _safe_float(resolved.get("price")) if isinstance(resolved, dict) else None
-        if isinstance(ticker, dict) and last_price is not None:
+        if isinstance(ticker, dict) and last_price is not None and cache_fresh:
             return {
                 **ticker,
                 "symbol": symbol,
