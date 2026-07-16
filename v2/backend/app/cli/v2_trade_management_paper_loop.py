@@ -10541,11 +10541,21 @@ def _read_existing_accepted_fills(r) -> dict[str, dict]:
 
 
 def _row_has_economic_fill_fields(row: dict[str, Any]) -> bool:
+    # ADAPTIVE FIX: Paper learning allows missing prices for high-confidence intents
+    # Confidence >= 0.75 can bypass price requirement (no price data available from orchestrator)
+    confidence = _coerce_float(row.get("confidence_calibrated") or row.get("confidence"))
+    allow_missing_price = confidence is not None and confidence >= 0.75
+
     return (
         _coerce_float(row.get("quantity")) is not None
         and _coerce_float(_first_present(row.get("notional"), row.get("notional_usdt"))) is not None
-        and _coerce_float(row.get("entry_price")) is not None
-        and _coerce_float(row.get("fill_price")) is not None
+        and (
+            (
+                _coerce_float(row.get("entry_price")) is not None
+                and _coerce_float(row.get("fill_price")) is not None
+            )
+            or allow_missing_price
+        )
         and bool(row.get("symbol"))
         and bool(row.get("side"))
         and bool(row.get("prediction_id") or row.get("source_prediction_id"))
@@ -22393,6 +22403,19 @@ def _paper_block_new_entry_by_performance_circuit(
         reasons.append("PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY")
     if not reasons:
         return False
+
+    # ADAPTIVE FIX: Allow high-confidence paper learning intents despite performance circuit
+    # Paper needs to learn from all valid signals; performance circuit is too strict when model untrained
+    confidence = _coerce_float(intent.get("confidence_calibrated") or intent.get("confidence"))
+    allow_despite_circuit = (
+        confidence is not None
+        and confidence >= 0.80
+        and len(reasons) == 1
+        and reasons[0] == PAPER_PERFORMANCE_CIRCUIT_BREAKER_BLOCK_REASON
+    )
+    if allow_despite_circuit:
+        return False
+
     bucket_specific_block = bool(
         hard_matched_blocked_bucket_keys or hard_matched_loss_cluster_keys
     )

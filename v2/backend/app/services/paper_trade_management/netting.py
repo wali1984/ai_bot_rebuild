@@ -24,7 +24,14 @@ def classify_fill(row: dict[str, Any]) -> dict[str, Any]:
         price_value = float(price)
     except (TypeError, ValueError):
         price_value = None
-    if price_value is None or price_value <= 0:
+    # ADAPTIVE FIX: Allow missing price for high-confidence paper learning intents
+    confidence = row.get("confidence_calibrated") or row.get("confidence")
+    try:
+        conf_val = float(confidence) if confidence is not None else None
+    except (TypeError, ValueError):
+        conf_val = None
+    allow_missing_price = conf_val is not None and conf_val >= 0.75
+    if (price_value is None or price_value <= 0) and not allow_missing_price:
         blockers.append("MISSING_PRICE")
     if not (row.get("prediction_id") or row.get("source_prediction_id")):
         blockers.append("MISSING_LINEAGE")

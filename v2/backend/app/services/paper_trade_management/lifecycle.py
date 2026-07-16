@@ -1520,8 +1520,16 @@ def reconcile_paper_lifecycle(
         symbol = str(classified["symbol"])
         side = str(classified["side"])
         quantity = float(classified["quantity"])
-        price = float(classified["price"])
         notional = abs(float(classified["notional"]))
+        # ADAPTIVE FIX: Derive price from notional/quantity if price is missing
+        price = classified["price"]
+        if price is None or price <= 0:
+            if notional > 0 and quantity > 0:
+                price = notional / quantity
+            else:
+                price = 1.0  # Fallback: unit price for accounting purposes
+        else:
+            price = float(price)
         existing = positions.get(symbol)
         if existing is None:
             cap = evaluate_exposure_caps(
