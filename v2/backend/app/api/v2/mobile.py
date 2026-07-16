@@ -1321,6 +1321,38 @@ def _paper_closed_trades_from_redis(r: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _mobile_paper_charts(r: Any, max_points: int = 60) -> dict[str, Any]:
+    """Compact cumulative-equity curve + win/loss for the mobile dashboard charts.
+
+    Reads the same v2:paper:closed_trades ledger the web uses so the iOS app can
+    draw a real equity trend + win/loss donut instead of scalar tiles only.
+    """
+    rows = _paper_closed_trades_from_redis(r)
+    if not rows:
+        return {"equity_curve": [], "win_rate": None, "win_count": 0, "loss_count": 0}
+    ordered = sorted(rows, key=lambda x: str(x.get("exit_price_utc") or x.get("closed_at") or ""))
+    cumulative = 0.0
+    curve: list[dict[str, Any]] = []
+    wins = losses = 0
+    for row in ordered:
+        pnl = _safe_float(row.get("realized_pnl_usd"))
+        if pnl is None:
+            pnl = _safe_float(row.get("realized_pnl")) or 0.0
+        cumulative += pnl
+        if pnl > 0:
+            wins += 1
+        elif pnl < 0:
+            losses += 1
+        curve.append({"t": row.get("exit_price_utc"), "cumulative_pnl": round(cumulative, 4), "pnl": round(pnl, 4)})
+    total = wins + losses
+    return {
+        "equity_curve": curve[-max_points:],
+        "win_rate": round(wins / total, 4) if total else None,
+        "win_count": wins,
+        "loss_count": losses,
+    }
+
+
 def _recent_closed_trade_rows(rows: list[dict[str, Any]], limit: int = 200) -> list[dict[str, Any]]:
     projected = [row for row in rows if isinstance(row, dict)]
     projected.sort(
@@ -1902,6 +1934,7 @@ async def get_mobile_dashboard(
         "paper": {
             **account_fields,
             **_mobile_a_plus_runtime_summary(r),
+            **_mobile_paper_charts(r),
             "open_positions": open_count,
             "closed_trades": closed_count,
             "realized_pnl_usd": realized_pnl,
