@@ -17,7 +17,9 @@ import hashlib
 import json
 import math
 import os
+import signal
 import sys
+import threading
 import time
 from collections import Counter
 from datetime import datetime, timezone
@@ -33243,6 +33245,88 @@ def run_once() -> dict:
             "places_real_order": False,
         }
     )
+    # Fill-persistence stage trace (Signal Explainability): positions were
+    # observed materializing for one cycle and vanishing without a close —
+    # the open-positions write and the accepted-fills write disagreed within
+    # a single cycle. This trace records, per cycle, every stage a fill can
+    # be dropped at plus the dropped identities, so the exact stage is
+    # provable from Redis instead of racing 60s cycles with remote reads.
+    if r is not None:
+        try:
+            _fpt_valid_ids = {
+                _accepted_fill_identity(row) for row in valid_accepted_for_ledger
+            }
+            _fpt_open_syms = [
+                {
+                    "symbol": row.get("symbol"),
+                    "side": row.get("side"),
+                    "identity": _accepted_fill_identity(
+                        _accepted_fill_from_open_position(row)
+                    ),
+                    "persisted": _accepted_fill_identity(
+                        _accepted_fill_from_open_position(row)
+                    )
+                    in _fpt_valid_ids,
+                }
+                for row in open_positions
+                if isinstance(row, dict)
+            ]
+            _safe_write(
+                r,
+                f"{V2_REDIS_PREFIX}paper:fill_persistence_trace",
+                json.dumps(
+                    {
+                        "generated_utc": _utc_iso(),
+                        "accepted_post_loop": len(accepted),
+                        "lifecycle_accepted_open_fills": len(
+                            lifecycle_result.get("accepted_open_fills") or []
+                        ),
+                        "lifecycle_blocked_entries": len(
+                            lifecycle_result.get("blocked_entries") or []
+                        ),
+                        "lifecycle_blocked_symbols": [
+                            {
+                                "symbol": row.get("symbol"),
+                                "reasons": (
+                                    row.get("paper_lifecycle_block_reasons") or []
+                                )[:4],
+                            }
+                            for row in (
+                                lifecycle_result.get("blocked_entries") or []
+                            )[:8]
+                            if isinstance(row, dict)
+                        ],
+                        "post_churn_accepted_for_ledger": len(accepted_for_ledger),
+                        "valid_accepted_for_ledger": len(valid_accepted_for_ledger),
+                        "invalid_admission_quarantined": len(
+                            invalid_admission_accepted_rows
+                        ),
+                        "invalid_admission_symbols": [
+                            {
+                                "symbol": row.get("symbol"),
+                                "reasons": (
+                                    row.get(
+                                        "invalid_admission_entry_gate_block_reasons"
+                                    )
+                                    or []
+                                )[:4],
+                            }
+                            for row in invalid_admission_accepted_rows[:8]
+                            if isinstance(row, dict)
+                        ],
+                        "open_positions_written": _fpt_open_syms,
+                        "open_positions_not_persisted": [
+                            row for row in _fpt_open_syms if not row["persisted"]
+                        ],
+                        "closes_total": len(closes),
+                        "paper_only": True,
+                    },
+                    default=str,
+                ),
+                ex=3600,
+            )
+        except Exception:
+            pass
     accepted_state_rows = _compact_rows_for_state(valid_accepted_for_ledger)
     current_accepted_state_rows = _compact_rows_for_state(valid_current_accepted)
     accepted_state_rows = _repair_paper_exploration_public_lineage_rows(
@@ -34972,10 +35056,42 @@ def main(argv: list[str] | None = None) -> int:
                 "writes_legacy_redis": False,
             }, sort_keys=True))
             return 0
+        # Drain-on-SIGTERM: run_once persists paper state across MANY
+        # sequential redis writes (closed_trades, accepted_fills, positions,
+        # ledger, ...). A restart signal landing mid-sequence splits them —
+        # observed 2026-07-17T04:36-05:00Z: three rapid service restarts
+        # left positions written without their accepted fills, so freshly
+        # opened positions "vanished" on the next rebuild with no close row.
+        # SIGTERM/SIGINT now request a stop; the current cycle finishes its
+        # full write sequence, then the loop exits cleanly (systemd's
+        # stop-timeout SIGKILL remains the backstop for a hung cycle).
+        _drain_stop = threading.Event()
+
+        def _request_drain_stop(signum: int, frame: Any) -> None:
+            _drain_stop.set()
+
+        signal.signal(signal.SIGTERM, _request_drain_stop)
+        signal.signal(signal.SIGINT, _request_drain_stop)
         while True:
             hb = run_once()
             write_payload(hb, args.out)
-            time.sleep(max(5, int(args.interval_seconds)))
+            if _drain_stop.is_set():
+                print(json.dumps({
+                    "classification": "V2_TRADE_MANAGEMENT_PAPER_LOOP_DRAINED_CLEAN_EXIT",
+                    "generated_utc": _utc_iso(),
+                    "pid": os.getpid(),
+                    "paper_only": True,
+                }, sort_keys=True))
+                return 0
+            _drain_stop.wait(timeout=max(5, int(args.interval_seconds)))
+            if _drain_stop.is_set():
+                print(json.dumps({
+                    "classification": "V2_TRADE_MANAGEMENT_PAPER_LOOP_DRAINED_CLEAN_EXIT",
+                    "generated_utc": _utc_iso(),
+                    "pid": os.getpid(),
+                    "paper_only": True,
+                }, sort_keys=True))
+                return 0
     hb = run_once()
     cutover_marker_status = None
     if args.mark_forward_canary_cutover:
