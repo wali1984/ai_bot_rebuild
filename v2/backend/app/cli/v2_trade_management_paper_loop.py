@@ -31298,14 +31298,25 @@ def run_once() -> dict:
     # hash) explores ONE ladder tier above the recommendation — still
     # envelope-capped, margin recomputed — so the trainer accumulates real
     # higher-leverage outcome evidence instead of never observing any.
+    _lev_attach_stats: dict[str, Any] = {
+        "env_cap": None,
+        "stamped": 0,
+        "skipped_existing_source": 0,
+        "skipped_no_conf": 0,
+        "skipped_side": 0,
+        "errors": 0,
+        "import_error": None,
+    }
     try:
         from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
             recommend_leverage_for_signal as _post_loop_recommend_leverage,
         )
 
         _lev_env_cap = float(dynamic_paper_envelope.max_effective_leverage)
-    except Exception:
+    except Exception as _lev_exc:
         _lev_env_cap = None
+        _lev_attach_stats["import_error"] = str(_lev_exc)[:120]
+    _lev_attach_stats["env_cap"] = _lev_env_cap
     if _lev_env_cap is not None and _lev_env_cap >= 1.0:
         _lev_next_tier = {1.0: 2.0, 2.0: 3.0, 3.0: 5.0, 5.0: 10.0}
         for _acc in accepted:
@@ -31317,11 +31328,13 @@ def run_once() -> dict:
             ):
                 continue
             if _acc.get("fast_path_leverage_source") or _acc.get("leverage_source"):
+                _lev_attach_stats["skipped_existing_source"] += 1
                 continue
             _acc_side = str(
                 _first_present(_acc.get("side"), _acc.get("action")) or ""
             ).lower()
             if _acc_side not in ("long", "short"):
+                _lev_attach_stats["skipped_side"] += 1
                 continue
             _acc_conf = _coerce_float(
                 _first_present(
@@ -31329,6 +31342,7 @@ def run_once() -> dict:
                 )
             )
             if _acc_conf is None:
+                _lev_attach_stats["skipped_no_conf"] += 1
                 continue
             try:
                 _lev_rec = _post_loop_recommend_leverage(
@@ -31355,6 +31369,7 @@ def run_once() -> dict:
                     equity_usd=portfolio_context["equity"],
                 )
             except Exception:
+                _lev_attach_stats["errors"] += 1
                 continue
             _rec_lev = max(1.0, float(_lev_rec.get("recommended_leverage") or 1.0))
             _sig_token = str(
@@ -31393,6 +31408,7 @@ def run_once() -> dict:
             )
             if _lev_notional is not None and _lev_notional > 0 and _final_lev > 0:
                 _acc["allocated_margin_usd"] = round(_lev_notional / _final_lev, 8)
+            _lev_attach_stats["stamped"] += 1
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
     # non-fill intent that carries the strict gate's block reasons. These
     # do NOT pass pre-trade, fee-ratio, or churn gates and never become
@@ -33443,6 +33459,7 @@ def run_once() -> dict:
                             row for row in _fpt_open_syms if not row["persisted"]
                         ],
                         "closes_total": len(closes),
+                        "leverage_attach": _lev_attach_stats,
                         "paper_only": True,
                     },
                     default=str,
