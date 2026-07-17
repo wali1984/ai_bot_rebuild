@@ -378,7 +378,6 @@ def _altdata_lineage(client: Any, candidate: Mapping[str, Any]) -> dict[str, Any
     confluence = _as_dict(_redis_json(client, f"v2:altdata:confluence:{symbol}:{timeframe}"))
     coinglass = _as_dict(_redis_json(client, f"v2:features:coinglass:{symbol}:{timeframe}"))
     moralis = _as_dict(_redis_json(client, f"v2:features:moralis:{symbol}:{timeframe}"))
-    santiment = _as_dict(_redis_json(client, f"v2:features:santiment:{symbol}:1h"))
     features = confluence.get("features") if isinstance(confluence.get("features"), Mapping) else {}
     used = sorted(name for name, value in features.items() if value is not None)
     missing = sorted(name for name, value in features.items() if value is None)
@@ -386,7 +385,6 @@ def _altdata_lineage(client: Any, candidate: Mapping[str, Any]) -> dict[str, Any
         "provider_features_used": used,
         "provider_features_missing": missing,
         "coinglass_feature_hash": _feature_hash(coinglass),
-        "santiment_feature_hash": _feature_hash(santiment),
         "moralis_feature_hash": _feature_hash(moralis),
         "altdata_confluence_hash": _feature_hash(confluence),
         "altdata_trade_block_score": features.get("altdata_trade_block_score"),

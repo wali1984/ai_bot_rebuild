@@ -375,25 +375,21 @@ def test_coinglass_consumed_by_risk_and_trainer() -> None:
     assert coinglass["actual_payload_present"] is True
 
 
-def test_sanbase_consumed_by_trainer_and_strategy_supply() -> None:
+def test_moralis_bridge_consumed_by_trainer() -> None:
     status = build_provider_consumption_status(
         _FakeRedis(
             {
-                "v2:provider:santiment:feature_bridge_status": {
+                "v2:provider:moralis:feature_bridge_status": {
                     "feature_count": 8,
                     "status": "READY",
                     "actual_payload_present": True,
                 },
-                "v2:altdata:santiment:status": {
-                    "auto_updates_trainer_via_feature_pipeline": True,
-                    "auto_updates_symbol_selection_via_symbol_score": True,
-                },
             }
         )
     )
-    santiment = status["providers"]["santiment"]
-    assert santiment["trainer_consumption"] is True
-    assert santiment["auto_updates_symbol_selection_via_symbol_score"] is True
+    moralis = status["providers"]["moralis"]
+    assert moralis["trainer_consumption"] is True
+    assert moralis["feature_bridge_payload_present"] is True
 
 
 # --------------------------------------------------------------------------- #

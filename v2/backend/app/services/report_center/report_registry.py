@@ -398,18 +398,6 @@ LANES: tuple[LaneSpec, ...] = (
         public_payload=_p("v2_alt_data_provider_registry_rate_limit_and_dashboard_scaffold/latest/operator_dashboard_payload.json"),
     ),
     LaneSpec(
-        "nansen_client",
-        "Nansen Alt-Data Client (paper/shadow)",
-        "CLAUDE",
-        public_payload=_p("operator_runtime/v2_nansen_altdata_client/latest/v2_nansen_altdata_status.json"),
-    ),
-    LaneSpec(
-        "lunarcrush_client",
-        "LunarCrush Alt-Data Client (paper/shadow)",
-        "CLAUDE",
-        public_payload=_p("operator_runtime/v2_lunarcrush_altdata_client/latest/v2_lunarcrush_altdata_status.json"),
-    ),
-    LaneSpec(
         "alt_data_symbol_scoring",
         "Alt-Data Symbol-Universe Scoring",
         "CLAUDE",

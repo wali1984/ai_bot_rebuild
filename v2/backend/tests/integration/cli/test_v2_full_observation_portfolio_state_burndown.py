@@ -131,10 +131,9 @@ def test_portfolio_state_burndown_fields_use_allowed_v2_sources() -> None:
             "public_intel_score": 0.7,
             "coingecko_discovery_score": 0.8,
             "news_attention_score": 0.3,
-            "aicoin_order_flow_score": 0.25,
             "whale_wall_score": 0.82,
             "whale_bid_pressure_score": 0.9,
-            "missing_provider_flags": ["nansen_payload_missing"],
+            "missing_provider_flags": ["moralis_payload_missing"],
             "stale_provider_flags": [],
         },
         altdata_candidates={
@@ -152,7 +151,7 @@ def test_portfolio_state_burndown_fields_use_allowed_v2_sources() -> None:
                     "live_symbol_candidate": False,
                     "paper_symbol_candidate": False,
                     "training_symbol_candidate": False,
-                    "missing_provider_flags": ["nansen_payload_missing"],
+                    "missing_provider_flags": ["moralis_payload_missing"],
                     "stale_provider_flags": [],
                 }
             ],
@@ -177,10 +176,6 @@ def test_portfolio_state_burndown_fields_use_allowed_v2_sources() -> None:
     )
     assert fields["portfolio_state.portfolio_symbol_news_attention_score"] == (
         0.3,
-        "V2_ALTDATA_SYMBOL_SCORE_CONTEXT",
-    )
-    assert fields["portfolio_state.portfolio_symbol_aicoin_order_flow_score"] == (
-        0.25,
         "V2_ALTDATA_SYMBOL_SCORE_CONTEXT",
     )
     assert fields["portfolio_state.portfolio_symbol_whale_wall_score"] == (

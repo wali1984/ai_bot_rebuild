@@ -1,19 +1,17 @@
-"""V2 AICoin free-tier and whale-wall intelligence worker.
+"""V2 whale-wall intelligence worker.
 
-This worker adds two read-only intelligence lanes:
+Derives single-price and ladder wall features from the V2 Binance orderbook
+snapshots already produced by the native ingestors. This lane is fully
+native/derived — no external provider API is involved.
 
-* ``whale_walls`` derives single-price and ladder wall features from the
-  V2 Binance orderbook snapshots already produced by the native ingestors.
-* ``aicoin_free_tier`` exposes the AICoin OpenData/CoinOS free-tier surface
-  as a guarded provider lane. It does not fake AICoin API data when no
-  deterministic runtime REST endpoint/credential path is configured.
+(History: this derivation previously lived inside the combined AICoin
+free-tier worker; the AICoin provider was removed system-wide by operator
+directive on 2026-07-16 and the whale-wall lane was extracted unchanged.)
 
 Allowed Redis writes:
 
 * ``v2:altdata:whale_walls:status``
 * ``v2:altdata:whale_walls:symbol:{symbol}``
-* ``v2:altdata:aicoin:status``
-* ``v2:altdata:aicoin:symbol:{symbol}``
 
 No old Redis keys, exchange mutation, trader control, or live/canary
 authorization is possible from this module.
@@ -23,12 +21,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import os
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
@@ -36,54 +32,11 @@ from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 DEFAULT_INTERVAL_SECONDS = 3_600
 V2_REDIS_PREFIX = "v2:"
 
-WORKLOG_DIR = Path(
-    "claude_worklog/final_readiness/v2_aicoin_whale_intel_free_tier_20260604/latest"
-)
-WORKLOG_STATUS = WORKLOG_DIR / "v2_aicoin_whale_intel_free_tier_status.json"
-WORKLOG_REPORT = WORKLOG_DIR / "V2_AICOIN_WHALE_INTEL_FREE_TIER_REPORT.md"
-WORKLOG_GO_NO_GO = WORKLOG_DIR / "GO_NO_GO.md"
-PUBLIC_OPERATOR_RUNTIME = Path(
-    "v2/frontend/public/operator_runtime/v2_aicoin_whale_intel_free_tier/latest/v2_aicoin_whale_intel_free_tier_status.json"
-)
-PUBLIC_DASHBOARD = Path(
-    "v2/frontend/public/v2_aicoin_whale_intel_free_tier/latest/operator_dashboard_payload.json"
-)
-
 KEY_WHALE_STATUS = "v2:altdata:whale_walls:status"
 KEY_WHALE_SYMBOL_PREFIX = "v2:altdata:whale_walls:symbol:"
-KEY_AICOIN_STATUS = "v2:altdata:aicoin:status"
-KEY_AICOIN_SYMBOL_PREFIX = "v2:altdata:aicoin:symbol:"
 
-ALLOWED_REDIS_EXACT_KEYS = (KEY_WHALE_STATUS, KEY_AICOIN_STATUS)
-ALLOWED_REDIS_PREFIXES = (KEY_WHALE_SYMBOL_PREFIX, KEY_AICOIN_SYMBOL_PREFIX)
-
-AICOIN_FREE_PLAN = {
-    "price": "$0 Forever",
-    "intended_for": "Personal Use",
-    "included_data": ["Partial Market Data", "Partial Coin Data", "Airdrop/Drop Radar"],
-    "api_access_approx_endpoint_count": 15,
-    "data_range_days": 30,
-    "rate_limit_per_minute": 15,
-    "monthly_request_quota": 20_000,
-}
-
-AICOIN_REVIEWED_CAPABILITIES = (
-    "coin_info",
-    "market_info",
-    "kline",
-    "depth",
-    "order_flow",
-    "signal_data",
-    "news",
-    "flash",
-    "coin_liquidation",
-    "coin_open_interest",
-    "coin_futures_data",
-    "airdrop",
-    "drop_radar",
-    "hl_whale",
-    "hl_liquidation",
-)
+ALLOWED_REDIS_EXACT_KEYS = (KEY_WHALE_STATUS,)
+ALLOWED_REDIS_PREFIXES = (KEY_WHALE_SYMBOL_PREFIX,)
 
 
 @dataclass(frozen=True)
@@ -497,148 +450,11 @@ def _build_whale_payload(
     }
 
 
-def _env_assignment_names(path: Path) -> dict[str, bool]:
-    names: dict[str, bool] = {}
-    if not path.exists() or not path.is_file():
-        return names
-    try:
-        text = path.read_text(encoding="utf-8", errors="ignore")
-    except OSError:
-        return names
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        name, value = line.split("=", 1)
-        name = name.removeprefix("export ").strip()
-        names[name] = bool(value.strip().strip("'\""))
-    return names
-
-
-def _aicoin_key_presence(env: Mapping[str, str] | None = None) -> dict[str, bool]:
-    process_env = dict(env or os.environ)
-    local_paths = (
-        Path("v2/.env.local"),
-        Path(".env"),
-        Path(".local_secrets/alternative_data.env"),
-    )
-    file_presence: dict[str, bool] = {}
-    for path in local_paths:
-        file_presence.update(_env_assignment_names(path))
-    names = (
-        "AICOIN_ACCESS_KEY_ID",
-        "AICOIN_ACCESS_SECRET",
-        "AICOIN_API_KEY",
-        "AICOIN_API_SECRET",
-        "AICOIN_API_BASE_URL",
-    )
-    return {
-        name: bool(process_env.get(name)) or bool(file_presence.get(name))
-        for name in names
-    }
-
-
-def _build_aicoin_symbol_payload(
-    symbol: str,
-    *,
-    generated_utc: str,
-    key_presence: Mapping[str, bool],
-) -> dict[str, Any]:
-    has_access_pair = bool(key_presence.get("AICOIN_ACCESS_KEY_ID")) and bool(
-        key_presence.get("AICOIN_ACCESS_SECRET")
-    )
-    has_legacy_pair = bool(key_presence.get("AICOIN_API_KEY")) and bool(
-        key_presence.get("AICOIN_API_SECRET")
-    )
-    base_configured = bool(key_presence.get("AICOIN_API_BASE_URL"))
-    if has_access_pair or has_legacy_pair:
-        source_status = (
-            "REST_ENDPOINT_MAPPING_MISSING_NO_NETWORK"
-            if not base_configured
-            else "REST_CLIENT_NOT_IMPLEMENTED_NO_NETWORK"
-        )
-    else:
-        source_status = "KEY_MISSING_NO_NETWORK"
-    return {
-        "schema_version": "v2_altdata_aicoin_free_tier_symbol_signal_v1",
-        "generated_utc": generated_utc,
-        "symbol": symbol,
-        "provider": "aicoin_free_tier",
-        "source_status": source_status,
-        "aicoin_market_activity_score": None,
-        "aicoin_coin_profile_score": None,
-        "aicoin_order_flow_score": None,
-        "aicoin_whale_order_score": None,
-        "aicoin_signal_score": None,
-        "aicoin_drop_radar_score": None,
-        "aicoin_airdrop_score": None,
-        "aicoin_liquidation_score": None,
-        "aicoin_open_interest_score": None,
-        "aicoin_news_attention_score": None,
-        "free_plan": AICOIN_FREE_PLAN,
-        "reviewed_capabilities": list(AICOIN_REVIEWED_CAPABILITIES),
-        "credential_present": has_access_pair or has_legacy_pair,
-        "credential_raw_value_exposed": False,
-        "network_call_attempted": False,
-        "provider_freshness_seconds": None,
-        "missing_feature_flags": [source_status.lower()],
-        "stale_feature_flags": [],
-        "paper_shadow_only": True,
-        "live_gate": "blocked_human_only",
-        "live_symbols": [],
-        "writes_legacy_redis": False,
-        "writes_exchange_orders": False,
-    }
-
-
-def _write_status_files(payload: Mapping[str, Any], public_paths: tuple[Path, ...]) -> None:
-    body = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    WORKLOG_STATUS.parent.mkdir(parents=True, exist_ok=True)
-    WORKLOG_STATUS.write_text(body, encoding="utf-8")
-    WORKLOG_GO_NO_GO.write_text(str(payload["go_no_go"]) + "\n", encoding="utf-8")
-    for path in public_paths:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(body, encoding="utf-8")
-
-
-def _write_report(payload: Mapping[str, Any]) -> None:
-    lines = [
-        "# V2 AICoin Whale Intel Free-Tier Report",
-        "",
-        f"Generated: `{payload['generated_utc']}`",
-        "",
-        f"GO/NO-GO: `{payload['go_no_go']}`",
-        "",
-        "## Result",
-        "",
-        f"- symbols: `{payload['symbol_count']}`",
-        f"- whale wall successful symbols: `{payload['whale_walls_status']['successful_symbol_count']}`",
-        f"- AICoin source status: `{payload['aicoin_status']['source_status']}`",
-        f"- AICoin network calls attempted: `{payload['aicoin_status']['network_call_attempted']}`",
-        f"- live gate: `{payload['live_gate']}`",
-        f"- live symbols: `{payload['live_symbols']}`",
-        f"- writes legacy Redis: `{payload['writes_legacy_redis']}`",
-        f"- writes exchange orders: `{payload['writes_exchange_orders']}`",
-        "",
-        "## Sources Reviewed",
-        "",
-        "- https://github.com/pmaji/crypto-whale-watching-app",
-        "- https://github.com/aicoincom/aicoin-mcp",
-        "- https://github.com/aicoincom/coinos-skills",
-        "- https://www.aicoin.com/en/opendata",
-        "- https://www.aicoin.com/en/coinos/docs/api/overview",
-        "",
-    ]
-    WORKLOG_REPORT.parent.mkdir(parents=True, exist_ok=True)
-    WORKLOG_REPORT.write_text("\n".join(lines), encoding="utf-8")
-
-
 def run_once(
     *,
     symbols: Iterable[str] | None = None,
     redis_client_override: Any | None = None,
     write_redis: bool = True,
-    public_paths: tuple[Path, ...] = (PUBLIC_OPERATOR_RUNTIME, PUBLIC_DASHBOARD),
     min_notional_usd: float = 100_000.0,
     min_base_quantity: float = 1.0,
     min_market_share: float = 0.01,
@@ -646,7 +462,6 @@ def run_once(
     ladder_quantity_tolerance_pct: float = 0.02,
     ladder_max_span_bps: float = 50.0,
     smoke_test: bool = False,
-    env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     redis_client = (
         redis_client_override if redis_client_override is not None else _connect_redis()
@@ -654,10 +469,8 @@ def run_once(
     generated_utc = utc_iso()
     resolved = tuple(symbols) if symbols is not None else tuple(resolve_symbols(smoke_test=smoke_test))
     normalized_symbols = tuple(sorted({str(s).strip().upper() for s in resolved if str(s).strip()}))
-    key_presence = _aicoin_key_presence(env=env)
 
     whale_payloads: dict[str, dict[str, Any]] = {}
-    aicoin_payloads: dict[str, dict[str, Any]] = {}
     for symbol in normalized_symbols:
         book = _redis_get_json(redis_client, f"v2:market:orderbook:{symbol}")
         if book is None:
@@ -673,20 +486,11 @@ def run_once(
             ladder_quantity_tolerance_pct=ladder_quantity_tolerance_pct,
             ladder_max_span_bps=ladder_max_span_bps,
         )
-        aicoin_payloads[symbol] = _build_aicoin_symbol_payload(
-            symbol,
-            generated_utc=generated_utc,
-            key_presence=key_presence,
-        )
 
     whale_status_counts: dict[str, int] = {}
     for payload in whale_payloads.values():
         status = str(payload.get("source_status") or "UNKNOWN")
         whale_status_counts[status] = whale_status_counts.get(status, 0) + 1
-    aicoin_status_counts: dict[str, int] = {}
-    for payload in aicoin_payloads.values():
-        status = str(payload.get("source_status") or "UNKNOWN")
-        aicoin_status_counts[status] = aicoin_status_counts.get(status, 0) + 1
 
     whale_status = {
         "schema_version": "v2_altdata_whale_walls_status_v1",
@@ -703,96 +507,24 @@ def run_once(
         "network_call_attempted": False,
         "reference_repository": "https://github.com/pmaji/crypto-whale-watching-app",
     }
-    source_status = (
-        "KEY_MISSING_NO_NETWORK"
-        if not any(
-            key_presence.get(name)
-            for name in (
-                "AICOIN_ACCESS_KEY_ID",
-                "AICOIN_ACCESS_SECRET",
-                "AICOIN_API_KEY",
-                "AICOIN_API_SECRET",
-            )
-        )
-        else "CREDENTIAL_PRESENT_ENDPOINT_MAPPING_PENDING_NO_NETWORK"
-    )
-    aicoin_status = {
-        "schema_version": "v2_altdata_aicoin_free_tier_status_v1",
-        "generated_utc": generated_utc,
-        "provider": "aicoin_free_tier",
-        "source_status": source_status,
-        "source_status_counts": aicoin_status_counts,
-        "symbol_count": len(normalized_symbols),
-        "successful_symbol_count": 0,
-        "free_plan": AICOIN_FREE_PLAN,
-        "reviewed_capabilities": list(AICOIN_REVIEWED_CAPABILITIES),
-        "credential_env_vars": [
-            "AICOIN_ACCESS_KEY_ID",
-            "AICOIN_ACCESS_SECRET",
-            "AICOIN_API_KEY",
-            "AICOIN_API_SECRET",
-            "AICOIN_API_BASE_URL",
-        ],
-        "credential_presence": dict(key_presence),
-        "credential_raw_value_exposed": False,
-        "network_call_attempted": False,
-        "built_in_key_documented": True,
-        "runtime_rest_probe_enabled": False,
-        "missing_reason": (
-            "AICoin OpenData/CoinOS free-tier reviewed; deterministic V2 runtime REST endpoint mapping is not configured, so no AICoin symbol signal was fabricated."
-        ),
-    }
 
     redis_write_results: dict[str, bool] = {}
     if write_redis and redis_client is not None:
         redis_write_results[KEY_WHALE_STATUS] = _safe_redis_set(
             redis_client, KEY_WHALE_STATUS, whale_status
         )
-        redis_write_results[KEY_AICOIN_STATUS] = _safe_redis_set(
-            redis_client, KEY_AICOIN_STATUS, aicoin_status
-        )
         for symbol, payload in whale_payloads.items():
             redis_write_results[f"{KEY_WHALE_SYMBOL_PREFIX}{symbol}"] = _safe_redis_set(
                 redis_client, f"{KEY_WHALE_SYMBOL_PREFIX}{symbol}", payload
             )
-        for symbol, payload in aicoin_payloads.items():
-            redis_write_results[f"{KEY_AICOIN_SYMBOL_PREFIX}{symbol}"] = _safe_redis_set(
-                redis_client, f"{KEY_AICOIN_SYMBOL_PREFIX}{symbol}", payload
-            )
 
-    top_whale_symbols = sorted(
-        (
-            {
-                "symbol": symbol,
-                "whale_wall_score": payload.get("whale_wall_score"),
-                "whale_wall_event_count": payload.get("whale_wall_event_count"),
-                "whale_total_wall_notional_usd": payload.get("whale_total_wall_notional_usd"),
-                "whale_bid_pressure_score": payload.get("whale_bid_pressure_score"),
-                "whale_ask_pressure_score": payload.get("whale_ask_pressure_score"),
-                "nearest_bid_wall_distance_bps": payload.get("nearest_bid_wall_distance_bps"),
-                "nearest_ask_wall_distance_bps": payload.get("nearest_ask_wall_distance_bps"),
-            }
-            for symbol, payload in whale_payloads.items()
-            if payload.get("whale_wall_score") is not None
-        ),
-        key=lambda row: (
-            -(float(row.get("whale_wall_event_count") or 0.0)),
-            -(float(row.get("whale_total_wall_notional_usd") or 0.0)),
-            -(float(row.get("whale_wall_score") or 0.0)),
-        ),
-    )[:20]
-
-    payload = {
-        "schema_version": "v2_aicoin_whale_intel_free_tier_status_v1",
+    return {
+        "schema_version": "v2_whale_walls_intel_status_v1",
         "generated_utc": generated_utc,
-        "go_no_go": "V2_AICOIN_WHALE_INTEL_FREE_TIER_LIVE_OK",
         "symbol_count": len(normalized_symbols),
         "symbols": list(normalized_symbols),
         "whale_walls_status": whale_status,
-        "aicoin_status": aicoin_status,
-        "top_whale_wall_symbols": top_whale_symbols,
         "whale_payloads": whale_payloads,
-        "aicoin_payloads": aicoin_payloads,
         "redis_write_results": redis_write_results,
         "auto_updates_symbol_scoring": True,
         "auto_updates_trainer_via_symbol_score": True,
@@ -810,13 +542,10 @@ def run_once(
         "exchange_mutation": False,
         "raw_credential_value_exposed": False,
     }
-    _write_status_files(payload, public_paths)
-    _write_report(payload)
-    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="v2_aicoin_whale_intel_free_tier")
+    parser = argparse.ArgumentParser(prog="v2_whale_walls_intel")
     parser.add_argument("--once", action="store_true", default=True)
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--interval-seconds", type=int, default=DEFAULT_INTERVAL_SECONDS)
@@ -844,12 +573,13 @@ def main(argv: list[str] | None = None) -> int:
         print(
             json.dumps(
                 {
-                    "go_no_go": payload["go_no_go"],
                     "symbol_count": payload["symbol_count"],
                     "whale_successful_symbol_count": payload["whale_walls_status"][
                         "successful_symbol_count"
                     ],
-                    "aicoin_source_status": payload["aicoin_status"]["source_status"],
+                    "wall_detected_symbol_count": payload["whale_walls_status"][
+                        "wall_detected_symbol_count"
+                    ],
                     "live_symbols": payload["live_symbols"],
                     "writes_legacy_redis": payload["writes_legacy_redis"],
                     "writes_exchange_orders": payload["writes_exchange_orders"],

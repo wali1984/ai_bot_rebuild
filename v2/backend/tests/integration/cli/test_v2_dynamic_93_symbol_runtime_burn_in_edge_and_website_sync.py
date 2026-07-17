@@ -155,28 +155,6 @@ def _seed_repo(repo: Path, symbols: list[str]) -> None:
         public / "v2_website_data_alignment_and_control_plane/latest/operator_dashboard_payload.json",
         {"generated_utc": now, "go_no_go": "V2_WEBSITE_DATA_ALIGNMENT_AND_CONTROL_PLANE_READY"},
     )
-    for provider, counts in {
-        "v2_nansen_altdata_client/latest/v2_nansen_altdata_status.json": {"API_OK": 1},
-        "v2_lunarcrush_altdata_client/latest/v2_lunarcrush_altdata_status.json": {
-            "API_PAYMENT_REQUIRED_402": len(symbols)
-        },
-    }.items():
-        _write_json(
-            public / "operator_runtime" / provider,
-            {
-                "generated_utc": now,
-                "provider": provider,
-                "source_status_counts": counts,
-                "successful_symbol_count": 0,
-                "symbol_count": len(symbols),
-                "key_present": True,
-                "network_call_attempted": True,
-                "live_gate": "blocked_human_only",
-                "live_symbols": [],
-                "writes_legacy_redis": False,
-                "writes_exchange_orders": False,
-            },
-        )
     _write_json(
         public / "operator_runtime/v2_coinapi_rest_ingestor/latest/v2_coinapi_rest_ingestor_status.json",
         {
@@ -331,7 +309,6 @@ def test_dynamic_93_gate_emits_required_status_files_and_blocks_unproven_edge(tm
     assert (paths.public_dir / "GO_NO_GO.md").read_text().strip() == gate.GO_NO_GO_BLOCKED
     provider_status = json.loads((paths.public_dir / "v2_dynamic_provider_contribution_status.json").read_text())
     assert provider_status["paid_or_plan_blockers_visible"]["coinglass"] == "API_PLAN_BLOCKED_401_UPGRADE_PLAN"
-    assert provider_status["paid_or_plan_blockers_visible"]["lunarcrush"] == "API_PAYMENT_REQUIRED_402"
     provider_rows = {row["provider"]: row for row in provider_status["provider_rows"]}
     assert provider_rows["kucoin"]["symbol_count"] == len(symbols)
     assert provider_rows["kucoin"]["successful_symbol_count"] == len(symbols)

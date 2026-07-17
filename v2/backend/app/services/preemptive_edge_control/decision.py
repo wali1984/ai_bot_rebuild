@@ -336,7 +336,7 @@ def evaluate_candidate(
     if guardian_halted:
         reasons.append("GUARDIAN_HALTED_OR_MISSING")
 
-    # Alt-data confluence (CoinGlass+Santiment+Moralis fusion) is fail-safe
+    # Alt-data confluence (CoinGlass+Moralis fusion) is fail-safe
     # only: it can block, demote to reduce-size, or require a hedge. It can
     # never promote a decision toward ALLOW, and its absence never blocks.
     altdata_features = (

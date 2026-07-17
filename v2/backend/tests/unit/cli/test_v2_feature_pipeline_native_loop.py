@@ -326,30 +326,11 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
             "btc_mempool_pressure_score": "0.33",
         }
     )
-    fake.store["v2:altdata:aicoin:symbol:BTCUSDT"] = json.dumps(
-        {
-            "aicoin_market_activity_score": "0.4",
-            "aicoin_order_flow_score": "0.8",
-        }
-    )
     fake.store["v2:altdata:whale_walls:symbol:BTCUSDT"] = json.dumps(
         {
             "whale_wall_score": "0.7",
             "whale_bid_pressure_score": "0.65",
             "whale_ask_pressure_score": "0.35",
-        }
-    )
-    fake.store["v2:altdata:santiment:symbol:BTCUSDT"] = json.dumps(
-        {
-            "santiment_social_volume_score": "0.74",
-            "santiment_whale_activity_score": "0.62",
-            "santiment_sentiment_score": "0.4",
-            "santiment_onchain_activity_score": "0.81",
-            "santiment_exchange_inflow_risk_score": "0.64",
-            "santiment_supply_on_exchanges_score": "0.87",
-            "santiment_social_volume_total": "1200",
-            "santiment_exchange_inflow": "2500000",
-            "santiment_percent_of_total_supply_on_exchanges": "13",
         }
     )
     fake.store["v2:altdata:symbol_score:BTCUSDT"] = json.dumps(
@@ -358,7 +339,6 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
             "coinglass_derivatives_score": "0.66",
             "coingecko_discovery_score": "0.44",
             "provider_availability_score": "0.9",
-            "santiment_social_volume_score": "0.74",
         }
     )
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
@@ -386,11 +366,6 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
     assert features["order_flow_imbalance"] == 0.12
     assert features["public_intel_score"] == 0.61
     assert features["whale_wall_score"] == 0.7
-    assert features["santiment_social_volume_score"] == 0.74
-    assert features["santiment_sentiment_score"] == 0.4
-    assert features["santiment_exchange_inflow_risk_score"] == 0.64
-    assert features["santiment_supply_on_exchanges_score"] == 0.87
-    assert abs(features["aicoin_score"] - 0.6) < 1e-9
     assert features["surf_score"] == 0.55
     assert features["coinglass_derivatives_score"] == 0.66
     assert {
@@ -398,50 +373,12 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
         "v2:microstructure:trust_score",
         "v2:microstructure:trade_tape_confirmation",
         "v2:altdata:public_intel",
-        "v2:altdata:aicoin",
         "v2:altdata:whale_walls",
-        "v2:altdata:santiment",
         "v2:altdata:symbol_score",
     }.issubset(set(payload["external_v2_sources_present"]))
     assert "open_interest" not in payload["missing_feature_flags"]
     assert "public_intel_score" not in payload["missing_feature_flags"]
     assert "microstructure_trust_score" not in payload["missing_feature_flags"]
-    assert "aicoin_score" not in payload["missing_feature_flags"]
-    assert "santiment_social_volume_score" not in payload["missing_feature_flags"]
-
-
-def test_feature_snapshot_skips_stale_santiment_for_decision_features(monkeypatch) -> None:
-    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
-    fake = FakeRedis()
-    close_ms = int(mod.time.time() * 1000) - 10_000
-    open_ms = close_ms - 60_000
-    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
-    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
-        {
-            "open_time": open_ms,
-            "close_time": close_ms,
-            "open": "99.0",
-            "high": "101.0",
-            "low": "98.0",
-            "close": "100.0",
-            "volume": "1000",
-            "is_closed": True,
-        }
-    ])
-    fake.store["v2:altdata:santiment:symbol:BTCUSDT"] = json.dumps(
-        {
-            "santiment_social_volume_score": "0.74",
-            "provider_freshness_seconds": 31 * 24 * 60 * 60,
-            "stale_feature_flags": ["sanbase_pro_delayed_data_window"],
-        }
-    )
-    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
-
-    mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
-
-    payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
-    assert "v2:altdata:santiment_stale_skipped" in payload["external_v2_sources_present"]
-    assert "santiment_social_volume_score" not in payload["features"]
 
 
 def test_feature_snapshot_does_not_use_future_raw_ohlcv(monkeypatch) -> None:

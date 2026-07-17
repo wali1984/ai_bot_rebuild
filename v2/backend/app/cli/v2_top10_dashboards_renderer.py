@@ -54,7 +54,6 @@ ALL_PANEL_STATES = (
 DEFAULT_FRESHNESS_SECONDS = 600
 DEFAULT_FUNDING_FRESHNESS_SECONDS = 900
 DEFAULT_LIQUIDATION_FRESHNESS_SECONDS = 600
-DEFAULT_ALTDATA_FRESHNESS_SECONDS = 1800
 
 WORKLOG_PAYLOAD_PATH = Path(
     "claude_worklog/final_readiness/v2_top10_market_and_altdata_dashboard_rendering/latest/dashboard_payload.json"
@@ -418,112 +417,6 @@ def _funding_oi_epoch_age_seconds(payload: Any) -> float | None:
 
 
 # ---------------------------------------------------------------------------
-# Nansen smart-money top symbols
-# ---------------------------------------------------------------------------
-
-
-def _build_nansen_panel(redis_client: Any) -> dict[str, Any]:
-    return _build_altdata_panel(
-        redis_client,
-        panel_id="nansen_smart_money_top_symbols",
-        title="Nansen Smart Money Top Symbols",
-        metric="smart_money_score",
-        status_key="v2:altdata:nansen:status",
-        rows_key="v2:altdata:nansen:top_symbols",
-    )
-
-
-# ---------------------------------------------------------------------------
-# LunarCrush social momentum top symbols
-# ---------------------------------------------------------------------------
-
-
-def _build_lunarcrush_panel(redis_client: Any) -> dict[str, Any]:
-    return _build_altdata_panel(
-        redis_client,
-        panel_id="lunarcrush_social_momentum_top_symbols",
-        title="LunarCrush Social Momentum Top Symbols",
-        metric="social_momentum_score",
-        status_key="v2:altdata:lunarcrush:status",
-        rows_key="v2:altdata:lunarcrush:top_symbols",
-    )
-
-
-def _build_altdata_panel(
-    redis_client: Any,
-    *,
-    panel_id: str,
-    title: str,
-    metric: str,
-    status_key: str,
-    rows_key: str,
-) -> dict[str, Any]:
-    status = _safe_get_json(redis_client, status_key)
-    rows_payload = _safe_get_json(redis_client, rows_key)
-    rows: list[dict[str, Any]] = []
-    if isinstance(rows_payload, dict):
-        candidate_rows = rows_payload.get("rows") or rows_payload.get("top") or []
-        if isinstance(candidate_rows, list):
-            for idx, row in enumerate(candidate_rows[:10]):
-                if not isinstance(row, dict):
-                    continue
-                rows.append(
-                    {
-                        "rank": int(row.get("rank") or (idx + 1)),
-                        "symbol": str(row.get("symbol") or "—"),
-                        "score": row.get("score") or row.get(metric),
-                    }
-                )
-    status_age = _payload_age_seconds(status) if isinstance(status, dict) else None
-    key_present = isinstance(status, dict) and bool(status.get("key_present"))
-    paid_endpoints_enabled = isinstance(status, dict) and bool(
-        status.get("paid_endpoints_enabled")
-    )
-    source_status_counts = (
-        status.get("source_status_counts") if isinstance(status, dict) else None
-    ) or {}
-    if rows:
-        state = STATE_OK_ROWS_PRESENT
-    elif status is None:
-        state = STATE_KEY_MISSING
-    elif status_age is not None and status_age > DEFAULT_ALTDATA_FRESHNESS_SECONDS:
-        state = STATE_STALE
-    elif isinstance(source_status_counts, dict) and any(
-        label.startswith("BUDGET") or label.endswith("BUDGET_EXHAUSTED")
-        for label in source_status_counts.keys()
-    ):
-        state = STATE_BUDGET_LIMITED
-    elif (
-        isinstance(source_status_counts, dict)
-        and source_status_counts.get("KEY_MISSING_NO_NETWORK", 0) > 0
-        and not key_present
-    ):
-        # Provider client is wired but the API key is intentionally
-        # absent → present-but-no-client-yet from a UI perspective.
-        state = STATE_KEY_PRESENT_NO_CLIENT_YET
-    else:
-        state = STATE_KEY_PRESENT_NO_CLIENT_YET
-    return {
-        "panel_id": panel_id,
-        "title": title,
-        "metric": metric,
-        "redis_key_status": status_key,
-        "redis_key_rows": rows_key,
-        "state": state,
-        "age_seconds": status_age,
-        "rank_count": len(rows),
-        "rows": rows,
-        "key_present": key_present,
-        "paid_endpoints_enabled": paid_endpoints_enabled,
-        "source_status_counts": source_status_counts,
-        "tier": (
-            status.get("tier") if isinstance(status, dict) else None
-        ) or "free",
-        "credential_in_payload": "NEVER",
-    }
-
-
-# ---------------------------------------------------------------------------
 # Top-level assembly + write
 # ---------------------------------------------------------------------------
 
@@ -534,8 +427,6 @@ def build_dashboard_payload(redis_client: Any = None) -> dict[str, Any]:
         panels.append(_build_binance_panel(redis_client, panel_def))
     panels.append(_build_liquidation_panel(redis_client))
     panels.append(_build_funding_oi_panel(redis_client))
-    panels.append(_build_nansen_panel(redis_client))
-    panels.append(_build_lunarcrush_panel(redis_client))
     panels_with_rows = sum(1 for p in panels if p["rank_count"] > 0)
     panels_ok = sum(1 for p in panels if p["state"] == STATE_OK_ROWS_PRESENT)
     panels_key_missing = sum(1 for p in panels if p["state"] == STATE_KEY_MISSING)

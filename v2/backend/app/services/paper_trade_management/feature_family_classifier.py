@@ -50,8 +50,10 @@ FAMILY_FEATURE_PREFIXES: dict[str, tuple[str, ...]] = {
         "paper_position_present", "paper_unrealized_bps",
         "risk_recent_allow_rate", "orchestrator_recent_allow_rate",
     ),
+    # Removed-provider score features retired from the trainer spec
+    # (operator directive 2026-07-16); surf_score is the surviving member.
     "public_intel": (
-        "nansen_score", "lunarcrush_score", "aicoin_score", "surf_score",
+        "surf_score",
     ),
 }
 

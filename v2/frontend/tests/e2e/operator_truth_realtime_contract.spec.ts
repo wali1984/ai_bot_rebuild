@@ -96,8 +96,8 @@ test.describe('operator truth realtime contract', () => {
 
     expect(source).toContain('RetiredAltDataProviderStatus');
     expect(source).toContain('retired_from_active_panels');
-    expect(source).not.toMatch(/AltDataNansenStatus|AltDataLunarCrushStatus/);
-    expect(source).not.toMatch(/nansen_payload_present|lunarcrush_payload_present/);
-    expect(source).not.toMatch(/\\bnansen\\b|\\blunarcrush\\b|Alpha\\s*Vantage|AlphaVantage/i);
+    expect(source).not.toMatch(/AltDataNansenStatus|AltDataLunarCrushStatus|AltDataSantimentStatus/);
+    expect(source).not.toMatch(/nansen_payload_present|lunarcrush_payload_present|santiment_payload_present/);
+    expect(source).not.toMatch(/\\bnansen\\b|\\blunarcrush\\b|\\bsantiment\\b|\\bsanbase\\b|\\baicoin\\b|Alpha\\s*Vantage|AlphaVantage/i);
   });
 });

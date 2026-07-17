@@ -41,8 +41,7 @@ LIVE_CREDENTIALS_PATH = _REPO_ROOT / ".local_secrets" / "live_credentials.env"
 
 # Layered credential source order. ``v2/.env.local`` is the canonical operator
 # file (user-maintained); the .local_secrets files supplement it for keys that
-# only live there (e.g. LunarCrush / Nansen alt-data). First file that supplies
-# a non-empty value for a name wins.
+# only live there. First file that supplies a non-empty value for a name wins.
 LAYERED_CREDENTIAL_PATHS = (ENV_LOCAL_PATH, ALT_DATA_PATH, LIVE_CREDENTIALS_PATH)
 
 # Data-provider API keys that paper/shadow ingestors legitimately need. This is
@@ -65,11 +64,6 @@ DATA_PROVIDER_CREDENTIAL_NAMES = (
     "COINGECKO_API_KEY",
     "ASKSURF_API_KEY",
     "SURF_API_KEY",
-    "LUNARCRUSH_API_KEY",
-    "NANSEN_API_KEY",
-    "SANTIMENT_API_KEY",
-    "SANBASE_API_KEY",
-    "SANTIMENT_PRO_API_KEY",
     "ALPHAVANTAGE_API_KEY",
     "MORALIS_API_KEY",
 )
@@ -93,9 +87,6 @@ OPTIONAL_V2_CREDENTIAL_ALIASES = (
     "COINGECKO_API_KEY",
     "ASKSURF_API_KEY",
     "SURF_API_KEY",
-    "SANTIMENT_API_KEY",
-    "SANBASE_API_KEY",
-    "SANTIMENT_PRO_API_KEY",
 )
 
 

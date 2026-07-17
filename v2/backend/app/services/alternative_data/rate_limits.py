@@ -47,19 +47,6 @@ def build_rate_limit_contract(
     tier = "paid" if paid_enabled else "free"
     rows: list[ProviderRateLimit] = []
     for provider in provider_definitions():
-        if provider.id == "santiment" and provider.default_state.startswith("ENABLED_PRO_PLAN"):
-            rows.append(
-                ProviderRateLimit(
-                    provider_id=provider.id,
-                    tier="santiment_pro_background_producer",
-                    rate_limit_per_minute=provider.paid_rate_limit_per_minute,
-                    daily_request_budget=provider.paid_daily_budget,
-                    cache_ttl_seconds=provider.paid_cache_ttl_seconds,
-                    per_symbol_cooldown_seconds=provider.paid_per_symbol_cooldown_seconds,
-                    paid_endpoint_enabled=True,
-                )
-            )
-            continue
         if tier == "paid":
             rows.append(
                 ProviderRateLimit(
@@ -102,7 +89,9 @@ def build_dry_run_schedule(symbols: tuple[str, ...]) -> list[dict[str, Any]]:
     schedule: list[dict[str, Any]] = []
     contract = build_rate_limit_contract()
     limits = {row["provider_id"]: row for row in contract["provider_limits"]}
-    for provider_id in ("nansen", "lunarcrush", "santiment"):
+    # Removed providers (nansen/lunarcrush/santiment/aicoin) dropped by
+    # operator directive 2026-07-16; schedule the surviving keyed providers.
+    for provider_id in ("coingecko", "coinglass", "surf"):
         limit = limits[provider_id]
         for rank, symbol in enumerate(symbols, start=1):
             schedule.append(

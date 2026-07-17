@@ -250,25 +250,6 @@ def _seed_smoke_fixture(client: _MemoryClient, *, symbols: list[str], timeframes
                     }
                 ),
             )
-            client.set(f"v2:altdata:lunarcrush:symbol:{symbol}", json.dumps({"score": 0.5}))
-            client.set(f"v2:altdata:nansen:symbol:{symbol}", json.dumps({"presence": 1.0, "score": 0.5}))
-            client.set(
-                f"v2:altdata:aicoin:symbol:{symbol}",
-                json.dumps(
-                    {
-                        "aicoin_market_activity_score": 0.5,
-                        "aicoin_coin_profile_score": 0.5,
-                        "aicoin_order_flow_score": 0.5,
-                        "aicoin_whale_order_score": 0.5,
-                        "aicoin_signal_score": 0.5,
-                        "aicoin_drop_radar_score": 0.5,
-                        "aicoin_airdrop_score": 0.5,
-                        "aicoin_liquidation_score": 0.5,
-                        "aicoin_open_interest_score": 0.5,
-                        "aicoin_news_attention_score": 0.5,
-                    }
-                ),
-            )
             client.set(
                 f"v2:altdata:whale_walls:symbol:{symbol}",
                 json.dumps(
@@ -306,17 +287,6 @@ def _seed_smoke_fixture(client: _MemoryClient, *, symbols: list[str], timeframes
                         "news_sentiment_score": 0.5,
                         "fear_greed_score": 50.0,
                         "btc_mempool_pressure_score": 0.2,
-                        "aicoin_score": 0.5,
-                        "aicoin_market_activity_score": 0.5,
-                        "aicoin_coin_profile_score": 0.5,
-                        "aicoin_order_flow_score": 0.5,
-                        "aicoin_whale_order_score": 0.5,
-                        "aicoin_signal_score": 0.5,
-                        "aicoin_drop_radar_score": 0.5,
-                        "aicoin_airdrop_score": 0.5,
-                        "aicoin_liquidation_score": 0.5,
-                        "aicoin_open_interest_score": 0.5,
-                        "aicoin_news_attention_score": 0.5,
                         "whale_wall_score": 0.4,
                         "whale_bid_pressure_score": 0.45,
                         "whale_ask_pressure_score": 0.35,

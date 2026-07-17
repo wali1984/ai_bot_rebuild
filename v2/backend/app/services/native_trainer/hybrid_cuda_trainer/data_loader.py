@@ -58,7 +58,7 @@ TRUSTED_REPLAY_SCAN_MULTIPLIER = 4
 # slack) so every consumed snapshot is labelable (F-0013).
 TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS = int(4.5 * 3600)
 # Replay-lane mask policy: archived snapshots predate later schema additions
-# (cost fields, santiment/cross-asset/regime families, orderbook features).
+# (cost fields, cross-asset/regime families, orderbook features).
 # For TRAINING the tensor carries an explicit missing_mask the model
 # conditions on — absence is information, not corruption — and the label is
 # PIT-protected by the replay builder independently of missing inputs.
@@ -874,48 +874,24 @@ class V2HybridTrainerDataLoader:
         for name, key in coinank_keys.items():
             payloads[name] = self._get_current_coinank(key)
             keys[name] = key
-        nansen, nansen_key = self._get_first(
-            f"v2:altdata:nansen:symbol:{symbol}",
-            f"v2:altdata:nansen:{symbol}",
-        )
-        lunarcrush, lunarcrush_key = self._get_first(
-            f"v2:altdata:lunarcrush:symbol:{symbol}",
-            f"v2:altdata:lunarcrush:{symbol}",
-        )
         public_intel, public_intel_key = self._get_first(
             f"v2:altdata:public_intel:symbol:{symbol}",
             f"v2:altdata:public_intel:{symbol}",
-        )
-        aicoin, aicoin_key = self._get_first(
-            f"v2:altdata:aicoin:symbol:{symbol}",
-            f"v2:altdata:aicoin:{symbol}",
         )
         whale_walls, whale_walls_key = self._get_first(
             f"v2:altdata:whale_walls:symbol:{symbol}",
             f"v2:altdata:whale_walls:{symbol}",
         )
-        santiment, santiment_key = self._get_first(
-            f"v2:altdata:santiment:symbol:{symbol}",
-            f"v2:altdata:santiment:{symbol}",
-        )
         payloads.update(
             {
-                "nansen": nansen,
-                "lunarcrush": lunarcrush,
                 "public_intel": public_intel,
-                "aicoin": aicoin,
                 "whale_walls": whale_walls,
-                "santiment": santiment,
             }
         )
         keys.update(
             {
-                "nansen": nansen_key,
-                "lunarcrush": lunarcrush_key,
                 "public_intel": public_intel_key,
-                "aicoin": aicoin_key,
                 "whale_walls": whale_walls_key,
-                "santiment": santiment_key,
             }
         )
         payloads["_keys"] = keys
@@ -954,11 +930,7 @@ class V2HybridTrainerDataLoader:
             f"v2:market:trade_tape_features:{symbol}",
             f"v2:altdata:symbol_score:{symbol}",
             f"v2:altdata:public_intel:symbol:{symbol}",
-            f"v2:altdata:aicoin:symbol:{symbol}",
             f"v2:altdata:whale_walls:symbol:{symbol}",
-            f"v2:altdata:santiment:symbol:{symbol}",
-            f"v2:altdata:lunarcrush:symbol:{symbol}",
-            f"v2:altdata:nansen:symbol:{symbol}",
             "v2:paper:positions",
             "v2:risk:decisions",
             "v2:orchestrator:decisions",
@@ -1055,11 +1027,7 @@ class V2HybridTrainerDataLoader:
             "advanced_trade_tape": f"v2:market:trade_tape_features:{symbol}",
             "symbol_score": f"v2:altdata:symbol_score:{symbol}",
             "public_intel": f"v2:altdata:public_intel:symbol:{symbol}",
-            "aicoin": f"v2:altdata:aicoin:symbol:{symbol}",
             "whale_walls": f"v2:altdata:whale_walls:symbol:{symbol}",
-            "santiment": f"v2:altdata:santiment:symbol:{symbol}",
-            "lunarcrush": f"v2:altdata:lunarcrush:symbol:{symbol}",
-            "nansen": f"v2:altdata:nansen:symbol:{symbol}",
             "paper_positions": "v2:paper:positions",
             "risk_decisions": "v2:risk:decisions",
             "orchestrator_decisions": "v2:orchestrator:decisions",
@@ -2065,11 +2033,7 @@ class V2HybridTrainerDataLoader:
             "liquidations_agg": dict(features),
             "symbol_score": dict(features),
             "public_intel": dict(features),
-            "aicoin": dict(features),
             "whale_walls": dict(features),
-            "santiment": dict(features),
-            "lunarcrush": dict(features),
-            "nansen": dict(features),
             "moralis_features": {"features": dict(features)},
             "smart_money_signals": {"features": dict(features)},
             "altdata_confluence": {"features": dict(features)},

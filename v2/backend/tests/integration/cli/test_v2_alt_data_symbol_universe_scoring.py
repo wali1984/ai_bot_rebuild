@@ -2,6 +2,10 @@
 
 Paper/shadow only. No provider calls. No old Redis writes. No exchange
 mutation. No live/shutdown approval.
+
+Provider roster (operator directive 2026-07-16): coingecko, surf,
+coinglass, public_intel, whale_walls. Four retired providers were
+removed from the scoring contract and CLI system-wide.
 """
 from __future__ import annotations
 
@@ -38,39 +42,6 @@ def _cli():
     return importlib.import_module(
         "v2.backend.app.cli.v2_alt_data_symbol_universe_scoring"
     )
-
-
-def _nansen(symbol: str = "BTCUSDT", score: float = 0.6) -> dict:
-    return {
-        "schema_version": "v2_altdata_nansen_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "nansen",
-        "smart_money_score": score,
-        "smart_money_flow_direction": "long",
-        "entity_flow_score": 0.4,
-        "provider_freshness_seconds": 120,
-        "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "source_status": "API_OK",
-        "generated_utc": "2026-05-18T05:00:00Z",
-    }
-
-
-def _lunar(symbol: str = "BTCUSDT") -> dict:
-    return {
-        "schema_version": "v2_altdata_lunarcrush_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "lunarcrush",
-        "social_momentum_score": 0.8,
-        "social_volume_velocity": 25.0,
-        "sentiment_score": 0.2,
-        "galaxy_or_equivalent_score": 70.0,
-        "provider_freshness_seconds": 180,
-        "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "source_status": "API_OK",
-        "generated_utc": "2026-05-18T05:00:00Z",
-    }
 
 
 def _moralis_bridge(symbol: str = "BTCUSDT") -> dict:
@@ -133,6 +104,24 @@ def _surf(symbol: str = "BONKUSDT") -> dict:
     }
 
 
+def _coinglass(
+    symbol: str = "BTCUSDT",
+    score: float | None = 0.58,
+    source_status: str = "API_OK",
+) -> dict:
+    return {
+        "schema_version": "v2_altdata_coinglass_symbol_signal_v1",
+        "symbol": symbol,
+        "provider": "coinglass",
+        "source_status": source_status,
+        "coinglass_derivatives_score": score,
+        "provider_freshness_seconds": 60,
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+        "generated_utc": "2026-06-04T05:00:00Z",
+    }
+
+
 def _public_intel(symbol: str = "AAVEUSDT") -> dict:
     return {
         "schema_version": "v2_altdata_public_intel_symbol_signal_v1",
@@ -148,25 +137,6 @@ def _public_intel(symbol: str = "AAVEUSDT") -> dict:
         "btc_mempool_pressure_score": None,
         "provider_freshness_seconds": 60,
         "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "generated_utc": "2026-06-04T05:00:00Z",
-    }
-
-
-def _aicoin_missing(symbol: str = "BTCUSDT") -> dict:
-    return {
-        "schema_version": "v2_altdata_aicoin_free_tier_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "aicoin_free_tier",
-        "source_status": "KEY_MISSING_NO_NETWORK",
-        "aicoin_market_activity_score": None,
-        "aicoin_coin_profile_score": None,
-        "aicoin_order_flow_score": None,
-        "aicoin_whale_order_score": None,
-        "aicoin_signal_score": None,
-        "aicoin_drop_radar_score": None,
-        "provider_freshness_seconds": None,
-        "missing_feature_flags": ["key_missing_no_network"],
         "stale_feature_flags": [],
         "generated_utc": "2026-06-04T05:00:00Z",
     }
@@ -196,52 +166,21 @@ def _whale_walls(symbol: str = "BTCUSDT", score: float = 0.84) -> dict:
     }
 
 
-def _santiment(symbol: str = "BTCUSDT", score: float = 0.76) -> dict:
-    return {
-        "schema_version": "v2_altdata_santiment_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "santiment",
-        "source_status": "API_OK",
-        "santiment_social_volume_score": score,
-        "santiment_whale_activity_score": 0.61,
-        "santiment_sentiment_score": 0.4,
-        "santiment_onchain_activity_score": 0.7,
-        "santiment_dev_activity_score": 0.3,
-        "santiment_exchange_inflow_risk_score": 0.64,
-        "santiment_supply_on_exchanges_score": 0.87,
-        "santiment_social_volume_total": 1200,
-        "santiment_sentiment_positive_total": 7,
-        "santiment_sentiment_negative_total": 3,
-        "santiment_whale_transaction_count_1m": 12,
-        "santiment_whale_transaction_count_100k_usd_to_inf": 12,
-        "santiment_exchange_inflow": 2_500_000,
-        "santiment_percent_of_total_supply_on_exchanges": 13,
-        "santiment_active_addresses_24h": 900_000,
-        "santiment_transaction_volume": 42_000_000,
-        "santiment_dev_activity": 14,
-        "provider_freshness_seconds": 45,
-        "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "generated_utc": "2026-07-06T12:00:00Z",
-    }
-
-
-def test_symbol_score_combines_nansen_and_lunar_without_gate_override() -> None:
+def test_symbol_score_combines_providers_without_gate_override() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen(),
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-18T05:05:00Z",
+        coingecko_payload=_coingecko("BTCUSDT"),
+        whale_walls_payload=_whale_walls("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
     )
     assert payload["schema_version"] == "v2_alternative_data_symbol_score_v2"
     assert payload["symbol"] == "BTCUSDT"
     assert payload["altdata_symbol_score"] is not None
-    assert payload["smart_money_score"] == 0.6
-    assert payload["social_momentum_score"] == 0.8
-    assert payload["social_volume_velocity"] == 25.0
+    assert payload["coingecko_discovery_score"] == 0.82
+    assert payload["whale_wall_score"] == 0.84
     assert payload["provider_availability_score"] == 1.0
-    assert payload["providers_consulted"] == ["nansen", "lunarcrush"]
+    assert payload["providers_consulted"] == ["coingecko", "whale_walls"]
     assert payload["live_gate"] == "blocked_human_only"
     assert payload["live_symbols"] == []
     assert payload["may_not_override_strict_paper_fill_gate"] is True
@@ -254,16 +193,16 @@ def test_symbol_score_embeds_moralis_bridge_without_changing_score() -> None:
     svc = _svc()
     baseline = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen(),
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-18T05:05:00Z",
+        coingecko_payload=_coingecko("BTCUSDT"),
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
     )
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen(),
-        lunarcrush_payload=_lunar(),
+        coingecko_payload=_coingecko("BTCUSDT"),
+        surf_payload=_surf("BTCUSDT"),
         feature_payloads={"moralis": _moralis_bridge()},
-        generated_utc="2026-05-18T05:05:00Z",
+        generated_utc="2026-06-04T05:05:00Z",
     )
 
     assert payload["altdata_symbol_score"] == baseline["altdata_symbol_score"]
@@ -286,13 +225,12 @@ def test_missing_provider_payloads_remain_explicit_and_do_not_fabricate_score() 
     )
     assert payload["altdata_symbol_score"] is None
     assert payload["provider_availability_score"] == 0.0
-    assert payload["missing_signal"] is True
-    assert "nansen_payload_missing" in payload["missing_reasons"]
-    assert "lunarcrush_payload_missing" in payload["missing_reasons"]
+    assert payload["providers_consulted"] == []
+    assert payload["provider_available"] == {}
     assert payload["network_call_attempted"] is False
 
 
-def test_coingecko_and_surf_payloads_can_rank_without_nansen_or_lunar() -> None:
+def test_coingecko_and_surf_payloads_can_rank_alone() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "1000BONKUSDT",
@@ -311,7 +249,7 @@ def test_coingecko_and_surf_payloads_can_rank_without_nansen_or_lunar() -> None:
     assert payload["live_symbols"] == []
 
 
-def test_public_intel_payload_can_rank_without_nansen_or_lunar() -> None:
+def test_public_intel_payload_can_rank_alone() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "AAVEUSDT",
@@ -330,7 +268,7 @@ def test_public_intel_payload_can_rank_without_nansen_or_lunar() -> None:
     assert payload["live_symbols"] == []
 
 
-def test_whale_wall_payload_can_rank_without_nansen_or_lunar() -> None:
+def test_whale_wall_payload_can_rank_alone() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
@@ -347,112 +285,96 @@ def test_whale_wall_payload_can_rank_without_nansen_or_lunar() -> None:
     assert payload["live_symbols"] == []
 
 
-def test_santiment_payload_can_rank_without_nansen_or_lunar() -> None:
+def test_provider_stale_feature_flags_propagate_without_blocking_ranking() -> None:
+    """A fresh provider payload that self-reports delayed sub-features
+    (stale_feature_flags) must still count for symbol selection while
+    the staleness is surfaced honestly in stale_provider_flags."""
     svc = _svc()
-    payload = svc.build_symbol_score_payload(
-        "BTCUSDT",
-        santiment_payload=_santiment("BTCUSDT"),
-        generated_utc="2026-07-06T12:05:00Z",
-    )
-    assert payload["altdata_symbol_score"] is not None
-    assert payload["provider_available"]["santiment"] is True
-    assert "santiment" in payload["providers_consulted"]
-    assert payload["santiment_social_volume_score"] == 0.76
-    assert payload["santiment_sentiment_score"] == 0.4
-    assert payload["santiment_exchange_inflow_risk_score"] == 0.64
-    assert payload["santiment_supply_on_exchanges_score"] == 0.87
-    assert payload["input_presence"]["santiment"] is True
-    assert payload["live_gate"] == "blocked_human_only"
-    assert payload["live_symbols"] == []
-
-
-def test_santiment_delayed_payload_still_counts_for_symbol_selection() -> None:
-    svc = _svc()
-    santiment = _santiment("BTCUSDT")
-    santiment.update(
-        {
-            "generated_utc": "2026-07-07T05:47:58Z",
-            "feature_cutoff": "2026-06-06T00:00:00Z",
-            "provider_freshness_seconds": 2_699_278,
-            "data_latency_class": "SANBASE_PRO_DELAYED_NOT_LIVE_DECISION_FRESH",
-            "decision_fresh": False,
-            "stale_feature_flags": ["sanbase_pro_delayed_data_window"],
-        }
-    )
+    whale = _whale_walls("BTCUSDT")
+    whale["stale_feature_flags"] = ["orderbook_snapshot_delayed"]
 
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        santiment_payload=santiment,
-        generated_utc="2026-07-07T05:49:30Z",
+        whale_walls_payload=whale,
+        generated_utc="2026-06-04T05:05:00Z",
     )
 
-    assert payload["provider_available"]["santiment"] is True
-    assert "santiment" in payload["providers_consulted"]
-    assert payload["provider_age_seconds"]["santiment"] == 2_699_278
-    assert "santiment_payload_stale" in payload["stale_provider_flags"]
-    assert "santiment_sanbase_pro_delayed_data_window" in payload["stale_provider_flags"]
-    assert payload["santiment_social_volume_score"] == 0.76
+    assert payload["provider_available"]["whale_walls"] is True
+    assert "whale_walls" in payload["providers_consulted"]
+    assert (
+        "whale_walls_orderbook_snapshot_delayed" in payload["stale_provider_flags"]
+    )
+    assert payload["stale_signal"] is True
     assert payload["altdata_symbol_score"] is not None
     assert payload["may_not_place_orders"] is True
     assert payload["writes_old_redis"] is False
 
 
-def test_aicoin_missing_status_is_visible_but_does_not_fabricate_signal() -> None:
+def test_key_missing_status_is_visible_but_does_not_fabricate_signal() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        aicoin_payload=_aicoin_missing("BTCUSDT"),
+        coinglass_payload=_coinglass(
+            "BTCUSDT", score=None, source_status="KEY_MISSING_NO_NETWORK"
+        ),
         generated_utc="2026-06-04T05:05:00Z",
     )
-    assert payload["input_presence"]["aicoin"] is True
-    assert payload["provider_available"]["aicoin"] is False
+    assert payload["input_presence"]["coinglass"] is True
+    assert payload["provider_available"]["coinglass"] is False
     assert payload["providers_consulted"] == []
     assert payload["altdata_symbol_score"] is None
-    assert "aicoin_source_status_KEY_MISSING_NO_NETWORK" in payload["missing_provider_flags"]
+    assert (
+        "coinglass_source_status_KEY_MISSING_NO_NETWORK"
+        in payload["missing_provider_flags"]
+    )
 
 
 def test_provider_ok_payload_without_symbol_signal_is_not_available() -> None:
     svc = _svc()
-    nansen = _nansen()
-    nansen["smart_money_score"] = None
-    nansen["smart_money_flow_direction"] = None
-    nansen["entity_flow_score"] = None
+    coingecko = _coingecko("DOGEUSDT")
+    coingecko["coingecko_discovery_score"] = None
+    coingecko["coingecko_liquidity_score"] = None
+    coingecko["coingecko_momentum_score"] = None
+    coingecko["coingecko_trend_score"] = None
     payload = svc.build_symbol_score_payload(
         "DOGEUSDT",
-        nansen_payload=nansen,
-        generated_utc="2026-05-18T05:05:00Z",
+        coingecko_payload=coingecko,
+        generated_utc="2026-06-04T05:05:00Z",
     )
-    assert payload["input_presence"]["nansen"] is True
-    assert payload["provider_source_status"]["nansen"] == "API_OK"
-    assert payload["provider_available"]["nansen"] is False
+    assert payload["input_presence"]["coingecko"] is True
+    assert payload["provider_source_status"]["coingecko"] == "API_OK"
+    assert payload["provider_available"]["coingecko"] is False
     assert payload["providers_consulted"] == []
     assert payload["altdata_symbol_score"] is None
-    assert "nansen_smart_money_score_missing" in payload["missing_provider_flags"]
+    assert (
+        "coingecko_coingecko_discovery_score_missing"
+        in payload["missing_provider_flags"]
+    )
 
 
 def test_stale_provider_payloads_are_flagged_and_not_consulted() -> None:
     svc = _svc()
-    nansen = _nansen(score=0.9)
-    nansen["provider_freshness_seconds"] = 9_999
+    coingecko = _coingecko("BTCUSDT")
+    coingecko["provider_freshness_seconds"] = 9_999
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=nansen,
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-18T05:05:00Z",
+        coingecko_payload=coingecko,
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
         max_provider_age_seconds=1_800,
     )
-    assert payload["provider_available"]["nansen"] is False
-    assert payload["provider_available"]["lunarcrush"] is True
-    assert "nansen_payload_stale" in payload["stale_reasons"]
+    assert payload["provider_available"]["coingecko"] is False
+    assert payload["provider_available"]["surf"] is True
+    assert "coingecko_payload_stale" in payload["stale_reasons"]
 
 
 def test_symbol_universe_candidates_rank_scores_without_expanding_paper_or_live() -> None:
     svc = _svc()
-    generated = "2026-05-18T05:05:00Z"
+    generated = "2026-06-04T05:05:00Z"
     btc = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen("BTCUSDT", score=0.8),
-        lunarcrush_payload=_lunar("BTCUSDT"),
+        coingecko_payload=_coingecko("BTCUSDT"),
+        surf_payload=_surf("BTCUSDT"),
         generated_utc=generated,
     )
     eth = svc.build_symbol_score_payload("ETHUSDT", generated_utc=generated)
@@ -472,16 +394,18 @@ def test_symbol_universe_candidates_rank_scores_without_expanding_paper_or_live(
 def test_cli_run_once_reads_v2_inputs_and_writes_only_allowed_outputs(tmp_path: Path) -> None:
     cli = _cli()
     fake = FakeRedis()
-    fake.store["v2:altdata:nansen:symbol:BTCUSDT"] = json.dumps(_nansen())
-    fake.store["v2:altdata:lunarcrush:symbol:BTCUSDT"] = json.dumps(_lunar())
+    fake.store["v2:altdata:coingecko:symbol:BTCUSDT"] = json.dumps(
+        _coingecko("BTCUSDT")
+    )
+    fake.store["v2:altdata:surf:symbol:BTCUSDT"] = json.dumps(_surf("BTCUSDT"))
     fake.store["v2:altdata:coingecko:symbol:ETHUSDT"] = json.dumps(
         _coingecko("ETHUSDT")
     )
     fake.store["v2:altdata:public_intel:symbol:ETHUSDT"] = json.dumps(
         _public_intel("ETHUSDT")
     )
-    fake.store["v2:altdata:santiment:symbol:ETHUSDT"] = json.dumps(
-        _santiment("ETHUSDT")
+    fake.store["v2:altdata:whale_walls:symbol:ETHUSDT"] = json.dumps(
+        _whale_walls("ETHUSDT")
     )
     public_a = tmp_path / "public_a/status.json"
     public_b = tmp_path / "public_b/status.json"
@@ -511,16 +435,20 @@ def test_cli_run_once_reads_v2_inputs_and_writes_only_allowed_outputs(tmp_path: 
     assert payload["symbol_scores"]["ETHUSDT"]["altdata_symbol_score"] is not None
     assert "coingecko" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
     assert "public_intel" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
-    assert "santiment" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
-    assert payload["symbol_scores"]["ETHUSDT"]["input_presence"]["santiment"] is True
+    assert "whale_walls" in payload["symbol_scores"]["ETHUSDT"]["providers_consulted"]
+    assert payload["symbol_scores"]["ETHUSDT"]["input_presence"]["whale_walls"] is True
 
 
 def test_status_payload_contains_no_raw_secret_shaped_value(tmp_path: Path) -> None:
     cli = _cli()
     fake = FakeRedis()
     sentinel = "TEST_ONLY_NOT_REAL_SECRET_VALUE_FOR_ALT_SCORE"
-    fake.store["v2:altdata:nansen:symbol:BTCUSDT"] = json.dumps(
-        {"symbol": "BTCUSDT", "source_status": "API_OK", "smart_money_score": 0.5}
+    fake.store["v2:altdata:coingecko:symbol:BTCUSDT"] = json.dumps(
+        {
+            "symbol": "BTCUSDT",
+            "source_status": "API_OK",
+            "coingecko_discovery_score": 0.5,
+        }
     )
     payload = cli.run_once(
         symbols=("BTCUSDT",),
@@ -530,9 +458,8 @@ def test_status_payload_contains_no_raw_secret_shaped_value(tmp_path: Path) -> N
     )
     serialized = json.dumps(payload) + json.dumps(fake.write_log)
     assert sentinel not in serialized
-    assert "NANSEN_API_KEY" not in serialized
-    assert "LUNARCRUSH_API_KEY" not in serialized
-    assert "SANTIMENT_API_KEY" not in serialized
+    assert "COINGLASS_API_KEY" not in serialized
+    assert "MORALIS_API_KEY" not in serialized
 
 
 def test_no_network_or_exchange_mutation_imported() -> None:
@@ -566,48 +493,13 @@ def test_no_network_or_exchange_mutation_imported() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _budget_exhausted_nansen(symbol: str = "BTCUSDT") -> dict:
-    return {
-        "schema_version": "v2_altdata_nansen_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "nansen",
-        "smart_money_score": None,
-        "smart_money_flow_direction": None,
-        "entity_flow_score": None,
-        "provider_freshness_seconds": None,
-        "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "source_status": "DAILY_BUDGET_EXHAUSTED",
-        "generated_utc": "2026-05-21T05:00:00Z",
-        "key_present": True,
-    }
-
-
-def _key_missing_lunar(symbol: str = "BTCUSDT") -> dict:
-    return {
-        "schema_version": "v2_altdata_lunarcrush_symbol_signal_v1",
-        "symbol": symbol,
-        "provider": "lunarcrush",
-        "social_momentum_score": None,
-        "social_volume_velocity": None,
-        "sentiment_score": None,
-        "galaxy_or_equivalent_score": None,
-        "provider_freshness_seconds": None,
-        "missing_feature_flags": [],
-        "stale_feature_flags": [],
-        "source_status": "KEY_MISSING_NO_NETWORK",
-        "generated_utc": "2026-05-21T05:00:00Z",
-        "key_present": False,
-    }
-
-
 def test_per_symbol_payload_exposes_user_named_provider_flag_aliases() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen(),
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-21T05:05:00Z",
+        coingecko_payload=_coingecko("BTCUSDT"),
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
     )
     # User-specified field names must exist alongside the legacy aliases.
     assert "missing_provider_flags" in payload
@@ -617,52 +509,35 @@ def test_per_symbol_payload_exposes_user_named_provider_flag_aliases() -> None:
     assert payload["stale_provider_flags"] == payload["stale_reasons"]
 
 
-def test_nansen_budget_exhausted_is_marked_budget_limited_not_key_missing() -> None:
+def test_budget_exhausted_provider_degrades_availability_without_fabrication() -> None:
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_budget_exhausted_nansen(),
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-21T05:05:00Z",
+        coinglass_payload=_coinglass(
+            "BTCUSDT", score=None, source_status="DAILY_BUDGET_EXHAUSTED"
+        ),
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
     )
-    assert payload["nansen_budget_limited"] is True
-    assert payload["nansen_key_missing_no_network"] is False
-    assert payload["nansen_key_present"] is True
+    assert payload["provider_available"]["coinglass"] is False
     # Provider availability degrades but does not crash.
     assert payload["provider_availability_score"] < 1.0
-    # Aggregate score still produced from the available LunarCrush
-    # signals only; no fabrication.
+    # Aggregate score still produced from the available Surf signal
+    # only; no fabrication.
     assert payload["altdata_symbol_score"] is not None
-    assert "nansen_source_status_DAILY_BUDGET_EXHAUSTED" in payload["missing_provider_flags"]
-
-
-def test_lunarcrush_key_missing_is_marked_key_missing_no_network() -> None:
-    svc = _svc()
-    payload = svc.build_symbol_score_payload(
-        "BTCUSDT",
-        nansen_payload=_nansen(),
-        lunarcrush_payload=_key_missing_lunar(),
-        generated_utc="2026-05-21T05:05:00Z",
-    )
-    assert payload["lunarcrush_key_missing_no_network"] is True
-    assert payload["lunarcrush_budget_limited"] is False
-    assert payload["lunarcrush_key_present"] is False
-    assert payload["provider_availability_score"] < 1.0
     assert (
-        "lunarcrush_source_status_KEY_MISSING_NO_NETWORK"
+        "coinglass_source_status_DAILY_BUDGET_EXHAUSTED"
         in payload["missing_provider_flags"]
     )
 
 
-def test_both_providers_missing_does_not_authorize_live_or_canary() -> None:
+def test_all_providers_missing_does_not_authorize_live_or_canary() -> None:
     """Even when every provider input is missing or stale, the payload
     safety invariants must remain pinned and no live/canary authorization
     can leak out."""
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=None,
-        lunarcrush_payload=None,
         generated_utc="2026-05-21T05:05:00Z",
     )
     assert payload["altdata_symbol_score"] is None
@@ -678,23 +553,24 @@ def test_both_providers_missing_does_not_authorize_live_or_canary() -> None:
 
 def test_altdata_symbol_rank_stamped_on_candidates_and_back_filled_on_scores() -> None:
     svc = _svc()
+    generated = "2026-06-04T05:05:00Z"
+    weak_coingecko = _coingecko("ETHUSDT")
+    weak_coingecko["coingecko_discovery_score"] = 0.1
+    weak_coingecko["coingecko_momentum_score"] = 0.05
     btc = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=_nansen(symbol="BTCUSDT", score=0.8),
-        lunarcrush_payload=_lunar(symbol="BTCUSDT"),
-        generated_utc="2026-05-21T05:05:00Z",
+        coingecko_payload=_coingecko("BTCUSDT"),
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc=generated,
     )
     eth = svc.build_symbol_score_payload(
         "ETHUSDT",
-        nansen_payload=_nansen(symbol="ETHUSDT", score=0.1),
-        lunarcrush_payload=_lunar(symbol="ETHUSDT"),
-        generated_utc="2026-05-21T05:05:00Z",
+        coingecko_payload=weak_coingecko,
+        generated_utc=generated,
     )
     sol = svc.build_symbol_score_payload(
         "SOLUSDT",
-        nansen_payload=None,
-        lunarcrush_payload=None,
-        generated_utc="2026-05-21T05:05:00Z",
+        generated_utc=generated,
     )
     # Before the candidates pass, rank is None.
     assert btc["altdata_symbol_rank"] is None
@@ -703,10 +579,10 @@ def test_altdata_symbol_rank_stamped_on_candidates_and_back_filled_on_scores() -
         ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
         symbol_scores={"BTCUSDT": btc, "ETHUSDT": eth, "SOLUSDT": sol},
         existing_paper_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
-        generated_utc="2026-05-21T05:05:00Z",
+        generated_utc=generated,
     )
     rank_map = candidates["altdata_symbol_rank_per_candidate"]
-    # BTC has the higher smart-money score, so it must rank above ETH;
+    # BTC has the stronger provider signals, so it must rank above ETH;
     # SOL has no provider data and must rank last.
     assert rank_map["BTCUSDT"] < rank_map["ETHUSDT"]
     assert rank_map["SOLUSDT"] == 3
@@ -742,19 +618,19 @@ def test_candidates_payload_keeps_live_blocked_and_does_not_expand_paper_symbols
 
 def test_stale_payload_does_not_inflate_provider_availability() -> None:
     svc = _svc()
-    stale_nansen = _nansen()
-    stale_nansen["provider_freshness_seconds"] = 99_999
+    stale_coingecko = _coingecko("BTCUSDT")
+    stale_coingecko["provider_freshness_seconds"] = 99_999
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=stale_nansen,
-        lunarcrush_payload=_lunar(),
-        generated_utc="2026-05-21T05:05:00Z",
+        coingecko_payload=stale_coingecko,
+        surf_payload=_surf("BTCUSDT"),
+        generated_utc="2026-06-04T05:05:00Z",
         max_provider_age_seconds=1_800,
     )
-    # Stale Nansen → provider_available[nansen]=False → degraded score.
-    assert payload["provider_available"]["nansen"] is False
+    # Stale CoinGecko → provider_available[coingecko]=False → degraded score.
+    assert payload["provider_available"]["coingecko"] is False
     assert payload["provider_availability_score"] < 1.0
-    assert "nansen_payload_stale" in payload["stale_provider_flags"]
+    assert "coingecko_payload_stale" in payload["stale_provider_flags"]
 
 
 # --------------------------------------------------------------------------- #
@@ -809,7 +685,8 @@ def test_run_once_status_payload_does_not_advertise_v2_paper_or_v2_risk_inputs()
     forbidden = payload.get("forbidden_input_namespaces_for_alt_data_scoring", [])
     assert "v2:paper:*" in forbidden
     assert "v2:risk:*" in forbidden
-    assert "v2:altdata:aicoin:symbol:{symbol}" in advertised
+    assert "v2:altdata:coingecko:symbol:{symbol}" in advertised
+    assert "v2:altdata:coinglass:symbol:{symbol}" in advertised
     assert "v2:altdata:whale_walls:symbol:{symbol}" in advertised
     assert "v2:features:moralis:{symbol}:{timeframe}" in advertised
     assert payload["scoring_input_boundary_remediated"] is True
@@ -836,14 +713,12 @@ def test_build_symbol_score_payload_input_presence_excludes_paper_and_risk() -> 
     svc = _svc()
     payload = svc.build_symbol_score_payload(
         "BTCUSDT",
-        nansen_payload=None,
-        lunarcrush_payload=None,
         market_payloads={"prices": {"price": 1.0}},
         feature_payloads={"latest": {"f": 1.0}},
         generated_utc="2026-05-21T20:00:00Z",
     )
-    assert payload["input_presence"]["nansen"] is False
-    assert payload["input_presence"]["lunarcrush"] is False
+    assert payload["input_presence"]["coingecko"] is False
+    assert payload["input_presence"]["whale_walls"] is False
     assert payload["input_presence"]["market"] is True
     assert payload["input_presence"]["features"] is True
     assert "paper" not in payload["input_presence"]
@@ -859,15 +734,11 @@ def test_build_symbol_score_payload_rejects_paper_or_risk_kwargs() -> None:
     with pytest.raises(TypeError):
         svc.build_symbol_score_payload(
             "BTCUSDT",
-            nansen_payload=None,
-            lunarcrush_payload=None,
             paper_payloads={"positions": []},  # type: ignore[call-arg]
         )
     with pytest.raises(TypeError):
         svc.build_symbol_score_payload(
             "BTCUSDT",
-            nansen_payload=None,
-            lunarcrush_payload=None,
             risk_payloads={"decisions": []},  # type: ignore[call-arg]
         )
 

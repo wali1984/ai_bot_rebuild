@@ -220,8 +220,6 @@ def _mobile_provider_readiness(r: Any | None) -> dict[str, Any]:
         symbol=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_SYMBOL", "BTCUSDT")).upper(),
         timeframe=str(os.environ.get("ALPHAFORGE_PROVIDER_PANEL_TIMEFRAME", "1m")),
     )
-    santiment_status = (_redis_get_json(r, "v2:altdata:santiment:status") if r else None) or {}
-    santiment_rate = _as_object(santiment_status.get("rate_limit_state"))
     confluence_sample = (
         _redis_get_json(
             r,
@@ -239,12 +237,6 @@ def _mobile_provider_readiness(r: Any | None) -> dict[str, Any]:
     return {
         "schema_version": "v2_mobile_provider_readiness_v1",
         "status": "PROVIDER_READINESS_ACTIVE",
-        "santiment_status": santiment_status.get("go_no_go"),
-        "santiment_symbol_count": santiment_status.get("symbol_count"),
-        "santiment_rate_limit_remaining_month": santiment_rate.get("remaining_month"),
-        "santiment_rate_limit_month_limit": santiment_rate.get("month_limit"),
-        "santiment_regime_only": True,
-        "santiment_data_lag_note": "sanbase_pro_31d_lag_regime_layer_only",
         "altdata_confluence_active": bool(confluence_sample.get("actual_payload_present")),
         "altdata_confluence_providers_present": confluence_sample.get("providers_present"),
         "altdata_confluence_feature_cutoff": confluence_sample.get("feature_cutoff"),

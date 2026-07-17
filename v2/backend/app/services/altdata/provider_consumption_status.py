@@ -20,18 +20,13 @@ STATUS_TTL_SECONDS = 900
 
 PROVIDER_BRIDGE_KEYS = {
     "coinglass": "v2:provider:coinglass:feature_bridge_status",
-    "santiment": "v2:provider:santiment:feature_bridge_status",
     "moralis": "v2:provider:moralis:feature_bridge_status",
 }
 
 ALT_PROVIDER_TOKENS = {
     "coinglass": ("coinglass",),
-    "santiment": ("santiment", "sanbase"),
     "moralis": ("moralis",),
     "whale_walls": ("whale_wall",),
-    "nansen": ("nansen",),
-    "lunarcrush": ("lunarcrush",),
-    "aicoin": ("aicoin",),
     "public_intel": ("public_intel", "defillama", "news_", "fear_greed", "mempool"),
     "symbol_score": ("altdata_symbol_score", "coingecko", "surf_"),
     "confluence": ("altdata_",),
@@ -46,7 +41,6 @@ ALT_DECISION_METADATA_FIELDS = {
     "altdata_providers_present",
     "coinglass_feature_hash",
     "moralis_feature_hash",
-    "santiment_feature_hash",
 }
 
 
@@ -370,18 +364,14 @@ def _consumer_flags(*, feature_count: int, confluence_count: int, matrix_rows_wi
 
 def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
     coinglass_features = _scan_count(redis_client, "v2:features:coinglass:*")
-    santiment_features = _scan_count(redis_client, "v2:features:santiment:*")
-    santiment_symbols = _scan_count(redis_client, "v2:altdata:santiment:symbol:*")
     moralis_features = _scan_count(redis_client, "v2:features:moralis:*")
     confluence_keys = _scan_count(redis_client, "v2:altdata:confluence:*")
 
-    santiment_status = _json_get(redis_client, "v2:altdata:santiment:status")
     bridges = {
         provider: _json_get(redis_client, key)
         for provider, key in PROVIDER_BRIDGE_KEYS.items()
     }
     moralis_bridge = bridges["moralis"]
-    santiment_bridge = bridges["santiment"]
     coinglass_bridge = bridges["coinglass"]
     coinglass_health = _json_get(redis_client, "v2:provider:coinglass:health")
     matrix = _json_get(redis_client, "v2:paper:preemptive_candidate_decision_matrix")
@@ -396,7 +386,6 @@ def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
     ppo_provider_feature_count = (
         len(confluence_features)
         + int(coinglass_bridge.get("feature_count") or 0)
-        + int(santiment_bridge.get("feature_count") or 0)
         + int(moralis_bridge.get("feature_count") or 0)
     )
     consumer_flags = _consumer_flags(
@@ -417,22 +406,6 @@ def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
                 "bridge_freshness": _bridge_freshness_summary(coinglass_bridge),
                 "trainer_feed": "tensor_builder/dataset_builder/full_observation_builder reference coinglass fields",
                 "consumer_count": 5,
-                **consumer_flags,
-            },
-            "santiment": {
-                "feature_key_count": santiment_features,
-                "symbol_payload_count": santiment_symbols,
-                "feature_count": int(santiment_bridge.get("feature_count") or 0),
-                "actual_payload_present": bool(santiment_bridge.get("actual_payload_present")),
-                "feature_bridge_status": santiment_bridge.get("status"),
-                "bridge_freshness": _bridge_freshness_summary(santiment_bridge),
-                "auto_updates_trainer_via_feature_pipeline": bool(
-                    santiment_status.get("auto_updates_trainer_via_feature_pipeline")
-                ),
-                "auto_updates_symbol_selection_via_symbol_score": bool(
-                    santiment_status.get("auto_updates_symbol_selection_via_symbol_score")
-                ),
-                "consumer_count": 3,
                 **consumer_flags,
             },
             "moralis": {

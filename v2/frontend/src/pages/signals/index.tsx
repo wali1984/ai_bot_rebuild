@@ -547,7 +547,6 @@ function SignalRuntimeTruthPanel({
   const providerSummary = [
     providerMap.get('coinglass'),
     providerMap.get('moralis'),
-    providerMap.get('santiment') ?? providerMap.get('sanbase'),
   ].map((provider) => {
     const name = provider?.display_name ?? provider?.provider ?? 'provider';
     const color = provider?.dashboard_color ?? provider?.status ?? 'gray';

@@ -130,7 +130,6 @@ def test_gap2_confluence_uses_coinank_when_it_is_the_only_provider() -> None:
         symbol="RAVEUSDT",
         timeframe="4h",
         coinglass=ProviderInput(provider="coinglass", present=False),
-        santiment=ProviderInput(provider="santiment", present=False),
         moralis=ProviderInput(provider="moralis", present=False),
         coinank=coinank,
         generated_utc="2026-07-14T21:15:00Z",
@@ -150,15 +149,11 @@ def test_gap2_confluence_uses_coinank_when_it_is_the_only_provider() -> None:
 def _score(symbol: str, feature_payloads: dict[str, Any]) -> dict[str, Any]:
     return build_symbol_score_payload(
         symbol,
-        nansen_payload=None,
-        lunarcrush_payload=None,
         coingecko_payload=None,
         surf_payload=None,
         coinglass_payload=None,
         public_intel_payload=None,
-        aicoin_payload=None,
         whale_walls_payload=None,
-        santiment_payload=None,
         market_payloads={},
         feature_payloads=feature_payloads,
         generated_utc="2026-07-14T21:15:00Z",

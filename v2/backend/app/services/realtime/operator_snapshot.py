@@ -29,7 +29,6 @@ PROVIDER_NAMES = (
     "kucoin",
     "coinank",
     "coinglass",
-    "santiment",
     "moralis",
     "ta",
     "feature_snapshot_builder",
@@ -249,7 +248,7 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
 
     return {
         "provider": provider,
-        "display_name": "Santiment/Sanbase" if provider == "santiment" else provider.replace("_", " ").title(),
+        "display_name": provider.replace("_", " ").title(),
         "subscription_tier": _first(
             health.get("subscription_tier"),
             health.get("subscription_status"),
@@ -303,12 +302,6 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
         ) if provider == "moralis" else None,
         "verified_smart_wallet_count": watchlist.get("verified_smart_wallet_count") if provider == "moralis" else None,
         "token_map_count": token_map.get("token_map_count") if provider == "moralis" else None,
-        "metric_count": metric_status.get("metric_count") if provider == "santiment" else None,
-        "missing_high_value_metrics": (
-            metric_status.get("missing_high_value_metrics")
-            if provider == "santiment"
-            else None
-        ),
         "disabled_heatmap_endpoint": (
             "liquidation_heatmap_or_levels" in disabled_endpoints
             if provider == "coinglass"

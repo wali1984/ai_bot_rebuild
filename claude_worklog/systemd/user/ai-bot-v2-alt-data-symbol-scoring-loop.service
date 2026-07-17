@@ -2,7 +2,7 @@
 StartLimitBurst=5
 StartLimitIntervalSec=600
 Description=AI Bot V2 alt-data symbol scoring loop (paper-shadow, V2 namespace only)
-After=network-online.target ai-bot-v2-symbol-universe-publisher.service ai-bot-v2-dynamic-symbol-discovery-loop.service ai-bot-v2-public-intel-free-tier-loop.service ai-bot-v2-nansen-altdata-loop.service ai-bot-v2-lunarcrush-altdata-loop.service
+After=network-online.target ai-bot-v2-symbol-universe-publisher.service ai-bot-v2-dynamic-symbol-discovery-loop.service ai-bot-v2-public-intel-free-tier-loop.service
 
 [Service]
 Type=simple

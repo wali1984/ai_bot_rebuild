@@ -186,8 +186,10 @@ function routeRequirements(route) {
     required_providers: [],
   };
   const providerPanel = {
-    required_providers: ['coinank', 'coinglass', 'moralis', 'santiment'],
-    forbidden_text_patterns: [/alpha vantage/i, /lunarcrush/i, /nansen/i],
+    required_providers: ['coinank', 'coinglass', 'moralis'],
+    // santiment/aicoin removed system-wide by operator directive 2026-07-16;
+    // any remaining mention on a page is a defect, same as the older retirees.
+    forbidden_text_patterns: [/alpha vantage/i, /lunarcrush/i, /nansen/i, /santiment|sanbase/i, /aicoin/i],
   };
   if (route === '/dashboard') {
     return {
@@ -196,7 +198,7 @@ function routeRequirements(route) {
         /live|operator|blocked|dry run/i,
         /a\+|candidate/i,
         /pnl|equity/i,
-        /provider|coinglass|moralis|santiment/i,
+        /provider|coinglass|moralis/i,
       ],
       forbidden_text_patterns: [/headline.*100%.*a\+/i, /goal_state/i, /raw json/i],
     };
@@ -215,7 +217,6 @@ function routeRequirements(route) {
       required_text_patterns: [
         /coinglass/i,
         /moralis/i,
-        /santiment|sanbase/i,
         /coinank/i,
       ],
     };
@@ -293,9 +294,7 @@ function evaluateRouteRequirements(route, textBefore, providerTextPresent, pnlAm
   const requirements = routeRequirements(route);
   const failures = [];
   for (const provider of requirements.required_providers) {
-    if (provider === 'santiment') {
-      if (!providerTextPresent.santiment) failures.push('missing_provider_santiment_or_sanbase');
-    } else if (!providerTextPresent[provider]) {
+    if (!providerTextPresent[provider]) {
       failures.push(`missing_provider_${provider}`);
     }
   }
@@ -308,6 +307,8 @@ function evaluateRouteRequirements(route, textBefore, providerTextPresent, pnlAm
   if (providerTextPresent.old_alpha_vantage) failures.push('old_active_provider_alpha_vantage_visible');
   if (providerTextPresent.old_lunarcrush) failures.push('old_active_provider_lunarcrush_visible');
   if (providerTextPresent.old_nansen) failures.push('old_active_provider_nansen_visible');
+  if (providerTextPresent.old_santiment) failures.push('old_active_provider_santiment_visible');
+  if (providerTextPresent.old_aicoin) failures.push('old_active_provider_aicoin_visible');
   if (pnlAmounts.length > 4 && ['/dashboard', '/portfolio'].includes(route)) {
     failures.push('possible_duplicate_or_conflicting_pnl_values');
   }
@@ -578,10 +579,11 @@ async function auditRoute(context, route) {
     coinank: /coinank/i.test(textBefore),
     coinglass: /coinglass/i.test(textBefore),
     moralis: /moralis/i.test(textBefore),
-    santiment: /santiment|sanbase/i.test(textBefore),
     old_alpha_vantage: /alpha vantage/i.test(textBefore),
     old_lunarcrush: /lunarcrush/i.test(textBefore),
     old_nansen: /nansen/i.test(textBefore),
+    old_santiment: /santiment|sanbase/i.test(textBefore),
+    old_aicoin: /aicoin/i.test(textBefore),
   };
   const pnlLines = textBefore.split(/\n+/).filter((line) => /pnl|profit|loss/i.test(line)).slice(0, 20);
   const pnlAmounts = Array.from(new Set(pnlLines.join(' ').match(/[-+]?\$?\d[\d,]*(?:\.\d{1,4})?/g) ?? [])).slice(0, 20);

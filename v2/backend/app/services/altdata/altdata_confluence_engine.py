@@ -1,7 +1,9 @@
 """Alt-data confluence engine.
 
-Combines CoinGlass (derivatives), Santiment (social/on-chain regime, ~31d
-plan lag), and Moralis (wallet/token flow) into bounded confluence scores.
+Combines CoinGlass (derivatives) and Moralis (wallet/token flow) into bounded
+confluence scores. Santiment was removed from the system by operator directive
+(2026-07-16); social/regime outputs are emitted as missing-masked (None) so the
+output schema stays stable and downstream consumers see honest absence.
 
 Invariants (enforced here, tested in unit tests):
 - No single provider can push a positive confluence score alone; long/short
@@ -24,9 +26,6 @@ SCHEMA_VERSION = "altdata_confluence_v1"
 FRESHNESS_SECONDS_BY_PROVIDER = {
     "coinglass": 300,
     "moralis": 3_600,
-    # Sanbase Pro serves a plan-enforced ~31 day lag; the payload itself is
-    # refreshed every 6h, and its regime metrics stay valid for a full day.
-    "santiment": 86_400,
     # CoinAnk derivatives/liquidation intel (bridged from the legacy runtime)
     # refreshes on a minute cadence; allow a 10-minute staleness window.
     "coinank": 600,
@@ -74,12 +73,11 @@ def build_confluence(
     symbol: str,
     timeframe: str,
     coinglass: ProviderInput,
-    santiment: ProviderInput,
     moralis: ProviderInput,
     coinank: "ProviderInput | None" = None,
     generated_utc: str,
 ) -> dict[str, Any]:
-    providers = {"coinglass": coinglass, "santiment": santiment, "moralis": moralis}
+    providers = {"coinglass": coinglass, "moralis": moralis}
     # CoinAnk is an optional fourth provider (bridged legacy derivatives /
     # liquidation intel). It only participates when passed, so existing
     # callers and tests are unaffected.
@@ -98,7 +96,6 @@ def build_confluence(
             missing_flags.append(name)
 
     cg = coinglass.features if coinglass.present and not coinglass.stale else {}
-    sa = santiment.features if santiment.present and not santiment.stale else {}
     mo = moralis.features if moralis.present and not moralis.stale else {}
     ca = coinank.features if coinank is not None and coinank.present and not coinank.stale else {}
 
@@ -142,52 +139,19 @@ def build_confluence(
             sweep_parts.append(_squash(ca_liq_imbalance, 1_000_000.0))
     emit("altdata_liquidation_sweep_risk_score", max(sweep_parts) if sweep_parts else None)
 
-    # --- Santiment: social + regime (slow layer) -----------------------
-    social_volume = _get(sa, "santiment_social_volume") or _get(sa, "social_volume_total")
-    social_dominance = _get(sa, "santiment_social_dominance") or _get(sa, "social_dominance_total")
-    weighted_sentiment = _get(sa, "santiment_weighted_sentiment") or _get(sa, "sentiment_weighted_total")
-    if social_volume is None and social_dominance is None:
-        emit("altdata_social_attention_score", None)
-    else:
-        att_parts = []
-        if social_volume is not None:
-            att_parts.append(_squash(social_volume, 500.0))
-        if social_dominance is not None:
-            att_parts.append(_squash(social_dominance, 5.0))
-        emit("altdata_social_attention_score", sum(att_parts) / len(att_parts))
+    # --- Social + regime (source removed) --------------------------------
+    # Santiment (the sole social/on-chain regime source) was removed from the
+    # system by operator directive. These outputs stay in the schema but are
+    # honestly missing-masked (None) — never zero-filled, never guessed.
+    emit("altdata_social_attention_score", None)
+    emit("altdata_social_euphoria_risk_score", None)
+    emit("altdata_market_regime_score", None)
 
-    attention = features.get("altdata_social_attention_score")
-    if attention is None or weighted_sentiment is None:
-        emit("altdata_social_euphoria_risk_score", None)
-    else:
-        # Euphoria = crowd attention with strongly positive sentiment.
-        emit(
-            "altdata_social_euphoria_risk_score",
-            _clip01(attention * _squash(max(weighted_sentiment, 0.0), 2.0)),
-        )
-
-    mvrv = _get(sa, "santiment_mvrv_usd") or _get(sa, "mvrv_usd")
-    npl = _get(sa, "santiment_network_profit_loss") or _get(sa, "network_profit_loss")
-    age_consumed = _get(sa, "santiment_age_consumed") or _get(sa, "age_consumed")
-    regime_parts = []
-    if mvrv is not None:
-        # mvrv > 1 = holders in profit (distribution temptation rises >2).
-        regime_parts.append(_clip01(1.0 - _squash(mvrv - 1.0, 1.5)))
-    if npl is not None:
-        regime_parts.append(_clip01(0.5 + math.tanh(npl / 1e8) / 2.0))
-    if age_consumed is not None:
-        regime_parts.append(_clip01(1.0 - _squash(age_consumed, 1e9)))
-    emit("altdata_market_regime_score", sum(regime_parts) / len(regime_parts) if regime_parts else None)
-
-    # --- Exchange flow pressure (Santiment aggregate + Moralis wallet) --
-    sa_netflow = None
-    inflow = _get(sa, "santiment_exchange_inflow_usd") or _get(sa, "exchange_inflow")
-    outflow = _get(sa, "santiment_exchange_outflow_usd") or _get(sa, "exchange_outflow")
-    if inflow is not None and outflow is not None:
-        sa_netflow = inflow - outflow
+    # --- Exchange flow pressure (Moralis wallet flow only) ---------------
+    # Weight renormalization is honest by construction: pressure is the sum
+    # of present flow parts, and the only remaining flow source is Moralis.
     mo_netflow = _get(mo, "moralis_net_exchange_flow_usd")
-    flow_parts = [p for p in (sa_netflow, mo_netflow) if p is not None]
-    emit("altdata_exchange_flow_pressure_usd", sum(flow_parts) if flow_parts else None)
+    emit("altdata_exchange_flow_pressure_usd", mo_netflow)
 
     # --- Moralis wallet intelligence ------------------------------------
     emit("altdata_wallet_accumulation_score", _get(mo, "moralis_smart_wallet_accumulation_score"))
@@ -225,13 +189,6 @@ def build_confluence(
         if mo_netflow is not None:
             # On-chain inflow to exchanges = sell-side supply.
             (short_votes if mo_netflow > 0 else long_votes).append(_squash(mo_netflow, 1e7))
-    if sa:
-        voters += 1
-        if sa_netflow is not None:
-            (short_votes if sa_netflow > 0 else long_votes).append(_squash(sa_netflow, 1e7))
-        regime = features.get("altdata_market_regime_score")
-        if regime is not None:
-            (long_votes if regime >= 0.5 else short_votes).append(abs(regime - 0.5) * 2.0)
 
     euphoria = features.get("altdata_social_euphoria_risk_score")
     if voters >= 2:
@@ -297,4 +254,8 @@ def build_confluence(
         "single_provider_can_approve": False,
         "raw_key_exposed": False,
         "core_system_blocked": False,
+        # Operator directive 2026-07-16: Santiment removed from the system.
+        # Social/regime outputs above are missing-masked, and the >=2-provider
+        # confluence invariant now runs over CoinGlass+Moralis only.
+        "santiment_removed": True,
     }

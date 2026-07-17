@@ -51,7 +51,6 @@ test.describe('enterprise realtime contract', () => {
       'kucoin',
       'coinank',
       'coinglass',
-      'santiment',
       'moralis',
       'ta',
       'microstructure',
@@ -72,7 +71,7 @@ test.describe('enterprise realtime contract', () => {
     expect(ai.payload.ai_page_contract.routes_to_live).toBe(false);
     expect(ai.payload.ai_page_contract.places_real_order).toBe(false);
     expect(ai.payload.ai_page_contract.provider_feature_count_by_provider).toHaveProperty('coinglass');
-    expect(ai.payload.ai_page_contract.provider_feature_count_by_provider).toHaveProperty('santiment');
     expect(ai.payload.ai_page_contract.provider_feature_count_by_provider).toHaveProperty('moralis');
+    expect(ai.payload.ai_page_contract.provider_feature_count_by_provider).not.toHaveProperty('santiment');
   });
 });

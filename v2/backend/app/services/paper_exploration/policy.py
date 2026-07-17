@@ -959,7 +959,9 @@ def _provider_confluence_score(row: Mapping[str, Any]) -> float:
     confluence_flags = [
         row.get("Glassnode_features_present"),
         row.get("CryptoQuant_features_present"),
-        row.get("Santiment_features_present"),
+        # removed provider flag dropped (operator directive 2026-07-16); its
+        # keys are deleted so the flag was permanently falsy — divisor below
+        # is unchanged, preserving surviving-provider scoring exactly.
         row.get("CoinAnk_features_present"),
         row.get("microstructure_features_present"),
         bool(provider_hashes),

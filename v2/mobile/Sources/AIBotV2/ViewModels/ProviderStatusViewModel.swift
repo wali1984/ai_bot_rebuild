@@ -29,11 +29,11 @@ public final class ProviderStatusViewModel {
 
     public var requiredAltDataProvidersVisible: Bool {
         let ids = Set(providers.map { $0.provider.lowercased() })
-        return ids.contains("coinglass") && ids.contains("moralis") && ids.contains("santiment")
+        return ids.contains("coinglass") && ids.contains("moralis")
     }
 
     public var retiredActiveProviders: [String] {
-        let retired = Set(["alpha_vantage", "alphavantage", "lunarcrush", "nansen"])
+        let retired = Set(["alpha_vantage", "alphavantage"])
         return providers.map(\.provider).filter { retired.contains($0.lowercased()) }
     }
 

@@ -59,7 +59,7 @@ def _base_current_row(**overrides: Any) -> dict[str, Any]:
         "data_coverage_percent": 96.0,
         "missing_feature_count": 2,
         "stale_feature_count": 0,
-        "missing_feature_names": ["nansen_score", "lunarcrush_score"],
+        "missing_feature_names": ["surf_score", "moralis_whale_net_flow_usd"],
         "stale_feature_names": [],
         "valid_for_prediction": True,
         "valid_for_paper": True,
@@ -522,7 +522,7 @@ class TestSummarizeFeatureCoverage:
     def test_optional_missing_does_not_flag_critical(self) -> None:
         row = _base_current_row(
             market_state_reject_reasons=[],
-            missing_feature_names=["nansen_score", "lunarcrush_score"],
+            missing_feature_names=["surf_score", "moralis_whale_net_flow_usd"],
         )
         result = summarize_feature_coverage(row)
         assert result["missing_critical_feature_family"] is False

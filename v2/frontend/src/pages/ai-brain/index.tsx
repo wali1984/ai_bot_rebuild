@@ -723,7 +723,7 @@ export default function AiBrainPage(): JSX.Element {
   const aiProviderCounts = aiPageContract?.provider_feature_count_by_provider
     ?? enterpriseAiPayload?.provider_feature_counts
     ?? {};
-  const aiProviderRows = ['coinglass', 'santiment', 'moralis'].map((provider) => ({
+  const aiProviderRows = ['coinglass', 'moralis'].map((provider) => ({
     provider,
     count: aiProviderCounts[provider] ?? 0,
   }));

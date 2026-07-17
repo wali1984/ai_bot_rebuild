@@ -549,7 +549,9 @@ def post_reboot_data_maturity_reverify_status(
         source_blockers.append(
             {
                 "source_name": "liquidation_sweep_context",
-                "service_name": "v2_aicoin_whale_intel_loop",
+                # Former whale-intel publisher removed (operator directive
+                # 2026-07-16); the surviving liquidation pipeline owns this.
+                "service_name": "v2_liquidation_levels_engine",
                 "redis_key": "v2:context:liquidation:{symbol}",
                 "route/payload": "liquidation sweep risk context",
                 "expected_update_cadence": "fresh liquidation context before decision_time",

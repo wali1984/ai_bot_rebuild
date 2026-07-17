@@ -97,7 +97,6 @@ _CLEAN_TRUST_FEATURES = {
     "liquidation_is_stale": 0.0,
     "tape_imbalance": 0.1,
     "order_flow_imbalance": 0.08,
-    "aicoin_score": 0.55,
     "surf_score": 0.52,
     "defillama_score": 0.48,
     "fear_greed_context": 0.5,
@@ -111,15 +110,6 @@ _CLEAN_TRUST_FEATURES = {
     "news_sentiment_score": 0.29,
     "fear_greed_score": 0.51,
     "btc_mempool_pressure_score": 0.21,
-    "aicoin_market_activity_score": 0.44,
-    "aicoin_coin_profile_score": 0.41,
-    "aicoin_whale_order_score": 0.39,
-    "aicoin_signal_score": 0.46,
-    "aicoin_drop_radar_score": 0.2,
-    "aicoin_airdrop_score": 0.1,
-    "aicoin_liquidation_score": 0.31,
-    "aicoin_open_interest_score": 0.42,
-    "aicoin_news_attention_score": 0.27,
     "whale_ask_pressure_score": 0.22,
     "whale_wall_imbalance_score": 0.63,
     "whale_wall_count_score": 0.58,
@@ -375,24 +365,6 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                 ),
             )
             client.set(
-                f"v2:altdata:aicoin:symbol:{symbol}",
-                json.dumps(
-                    {
-                        "score": 0.55,
-                        "aicoin_market_activity_score": 0.44,
-                        "aicoin_coin_profile_score": 0.41,
-                        "aicoin_order_flow_score": 0.2,
-                        "aicoin_whale_order_score": 0.39,
-                        "aicoin_signal_score": 0.46,
-                        "aicoin_drop_radar_score": 0.2,
-                        "aicoin_airdrop_score": 0.1,
-                        "aicoin_liquidation_score": 0.31,
-                        "aicoin_open_interest_score": 0.42,
-                        "aicoin_news_attention_score": 0.27,
-                    }
-                ),
-            )
-            client.set(
                 f"v2:altdata:whale_walls:symbol:{symbol}",
                 json.dumps(
                     {
@@ -410,8 +382,6 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                     }
                 ),
             )
-            client.set(f"v2:altdata:lunarcrush:symbol:{symbol}", json.dumps({"score": 0.5}))
-            client.set(f"v2:altdata:nansen:symbol:{symbol}", json.dumps({"presence": 1.0}))
             client.set(
                 f"v2:altdata:symbol_score:{symbol}",
                 json.dumps(
@@ -422,7 +392,6 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                         "public_intel_score": 0.5,
                         "coingecko_discovery_score": 0.6,
                         "defillama_liquidity_score": 0.4,
-                        "aicoin_order_flow_score": 0.2,
                         "whale_wall_score": 0.8,
                         "whale_bid_pressure_score": 0.85,
                         "surf_score": 0.52,
@@ -435,15 +404,6 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                         "news_sentiment_score": 0.29,
                         "fear_greed_score": 0.51,
                         "btc_mempool_pressure_score": 0.21,
-                        "aicoin_market_activity_score": 0.44,
-                        "aicoin_coin_profile_score": 0.41,
-                        "aicoin_whale_order_score": 0.39,
-                        "aicoin_signal_score": 0.46,
-                        "aicoin_drop_radar_score": 0.2,
-                        "aicoin_airdrop_score": 0.1,
-                        "aicoin_liquidation_score": 0.31,
-                        "aicoin_open_interest_score": 0.42,
-                        "aicoin_news_attention_score": 0.27,
                         "whale_ask_pressure_score": 0.22,
                         "whale_wall_imbalance_score": 0.63,
                         "whale_wall_count_score": 0.58,
@@ -575,7 +535,6 @@ def _trainer_feedback_row(
             "liquidation_long_strength": 0.3,
             "liquidation_sweep_target_short_distance_bps": 80.0,
             "liquidation_sweep_target_long_distance_bps": 120.0,
-            "aicoin_liquidation_score": 0.31,
         },
         "liquidation_context": {
             "source": "V2_ENTRY_FEATURE_SNAPSHOT_PREMIUM_INGESTORS:pytest",
@@ -585,7 +544,6 @@ def _trainer_feedback_row(
             "liquidation_long_strength": 0.3,
             "liquidation_sweep_target_short_distance_bps": 80.0,
             "liquidation_sweep_target_long_distance_bps": 120.0,
-            "aicoin_liquidation_score": 0.31,
         },
         "microstructure_context": {
             "source": "V2_MARKET_ORDERBOOK_TOP_OF_BOOK:pytest",
@@ -749,11 +707,9 @@ def test_tensor_loader_reads_symbol_scoped_altdata_keys() -> None:
     assert by_name["public_intel_score"] == 0.5
     assert by_name["coingecko_discovery_score"] == 0.6
     assert by_name["defillama_liquidity_score"] == 0.4
-    assert by_name["aicoin_order_flow_score"] == 0.2
     assert by_name["whale_wall_score"] == 0.8
     assert by_name["whale_bid_pressure_score"] == 0.85
     assert "v2:altdata:public_intel:symbol:BTCUSDT" in example.payload_keys
-    assert "v2:altdata:aicoin:symbol:BTCUSDT" in example.payload_keys
     assert "v2:altdata:whale_walls:symbol:BTCUSDT" in example.payload_keys
 
 
@@ -869,7 +825,7 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
         assert payload["liquidation_context"]["source"] == "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
         assert payload["liquidation_context"]["liquidation_strength"] == 0.4
         assert payload["microstructure_context"]["depth_imbalance"] == 0.15
-        assert payload["oi_funding_context"]["aicoin_open_interest_score"] == 0.42
+        assert payload["oi_funding_context"]["long_short_ratio"] == 1.5
         assert payload["public_intel_context"]["news_attention_score"] == 0.33
         assert payload["liquidation_engine_context_status"] == "LIQUIDATION_ENGINE_CONTEXT_READY"
         assert payload["premium_ingestor_context_status"] == "PREMIUM_CONTEXT_READY"

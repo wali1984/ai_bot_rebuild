@@ -211,7 +211,6 @@ def test_row_exposes_altdata_symbol_score_components_as_features():
             "public_intel_score": 0.62,
             "coingecko_discovery_score": 0.8,
             "defillama_liquidity_score": 0.44,
-            "aicoin_order_flow_score": 0.31,
             "whale_wall_score": 0.86,
             "whale_bid_pressure_score": 0.9,
             "provider_available": {
@@ -222,7 +221,6 @@ def test_row_exposes_altdata_symbol_score_components_as_features():
             "input_presence": {
                 "public_intel": True,
                 "coingecko": True,
-                "aicoin": True,
                 "whale_walls": True,
                 "market": True,
             },
@@ -234,12 +232,11 @@ def test_row_exposes_altdata_symbol_score_components_as_features():
     assert row.feature_vector["public_intel_score"] == 0.62
     assert row.feature_vector["coingecko_discovery_score"] == 0.8
     assert row.feature_vector["defillama_liquidity_score"] == 0.44
-    assert row.feature_vector["aicoin_order_flow_score"] == 0.31
     assert row.feature_vector["whale_wall_score"] == 0.86
     assert row.feature_vector["whale_bid_pressure_score"] == 0.9
     assert row.feature_vector["provider_available_public_intel"] == 1.0
     assert row.feature_vector["provider_available_whale_walls"] == 1.0
-    assert row.feature_vector["input_present_aicoin"] == 1.0
+    assert row.feature_vector["input_present_whale_walls"] == 1.0
     assert row.feature_vector["input_present_market"] == 1.0
     assert "altdata_symbol_score" in row.altdata_context
 

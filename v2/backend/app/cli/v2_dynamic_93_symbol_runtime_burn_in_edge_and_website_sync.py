@@ -286,10 +286,6 @@ def _load_public_payloads(repo_root: Path) -> dict[str, Any]:
         "native_edge_dashboard": public / "v2_native_edge_proof/latest/operator_dashboard_payload.json",
         "website_alignment": public
         / "v2_website_data_alignment_and_control_plane/latest/operator_dashboard_payload.json",
-        "nansen": public
-        / "operator_runtime/v2_nansen_altdata_client/latest/v2_nansen_altdata_status.json",
-        "lunarcrush": public
-        / "operator_runtime/v2_lunarcrush_altdata_client/latest/v2_lunarcrush_altdata_status.json",
         "coinapi_rest": public
         / "operator_runtime/v2_coinapi_rest_ingestor/latest/v2_coinapi_rest_ingestor_status.json",
         "coinapi_wsds": public
@@ -926,8 +922,6 @@ def build_provider_contribution_status(
         or (dynamic_discovery or {}).get("surf_status"),
         "coinglass": _redis_get_json(redis_client, "v2:altdata:coinglass:status")
         or (dynamic_discovery or {}).get("coinglass_status"),
-        "nansen": public_payloads["nansen"]["payload"],
-        "lunarcrush": public_payloads["lunarcrush"]["payload"],
         "coinapi_rest": public_payloads["coinapi_rest"]["payload"],
         "coinapi_wsds": public_payloads["coinapi_wsds"]["payload"],
         "kucoin": public_payloads["kucoin"]["payload"],
@@ -975,7 +969,6 @@ def build_provider_contribution_status(
         "missing_provider_flag_counts": dict(missing_provider_flags),
         "paid_or_plan_blockers_visible": {
             "coinglass": "API_PLAN_BLOCKED_401_UPGRADE_PLAN",
-            "lunarcrush": "API_PAYMENT_REQUIRED_402",
         },
         "fallback_behavior_when_provider_absent": (
             "Candidate publisher and scoring continue with provider-specific missing flags; "
@@ -1195,7 +1188,7 @@ def build_operator_dashboard_payload(
             "Live trading is blocked.",
             "Canary is blocked.",
             "Paper/backtest edge is not proven until metrics prove it.",
-            "CoinGlass/LunarCrush paid or plan blockers remain visible.",
+            "CoinGlass paid or plan blockers remain visible.",
         ],
     }
 

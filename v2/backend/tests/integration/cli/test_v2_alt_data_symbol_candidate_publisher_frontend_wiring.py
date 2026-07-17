@@ -322,8 +322,8 @@ def test_panel_does_not_embed_raw_api_keys() -> None:
     # API key field names must not be rendered as variables
     assert "BINANCE_API_KEY" not in src
     assert "BINANCE_SECRET" not in src
-    assert "NANSEN_API_KEY" not in src
-    assert "LUNARCRUSH_API_KEY" not in src
+    assert "COINGLASS_API_KEY" not in src
+    assert "MORALIS_API_KEY" not in src
     # No accidental hex/base64-ish 32+ char literals adjacent to "key"/"secret"
     # in the candidate publisher block.
     suspicious = re.compile(

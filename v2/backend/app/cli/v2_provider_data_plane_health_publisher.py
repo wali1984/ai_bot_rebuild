@@ -7,7 +7,7 @@ data-plane keys proved actual payloads. This publisher derives truthful
 health from capped key censuses + freshness samples and writes the same
 health contract the snapshot builder already consumes.
 
-Self-publishing providers (moralis, coinglass, santiment) are never
+Self-publishing providers (moralis, coinglass) are never
 overwritten. Read-only against market data; writes only
 ``v2:provider:*:health`` keys. Never touches orders/leverage/margin.
 """
@@ -231,7 +231,7 @@ def run_once(client: Any = None) -> dict[str, Any]:
         "generated_utc": _utc_iso(),
         "written": written,
         "statuses": statuses,
-        "self_publishing_providers_untouched": ["moralis", "coinglass", "santiment"],
+        "self_publishing_providers_untouched": ["moralis", "coinglass"],
     }
 
 

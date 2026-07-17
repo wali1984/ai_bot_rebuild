@@ -4,9 +4,6 @@ Read-only display + Redis publish surface. Reads ONLY:
 
 - ``v2:altdata:symbol_score:{symbol}`` — per-symbol scores produced
   by the scoring CLI (already Codex-passed).
-- ``v2:altdata:nansen:status`` — Nansen client provider status.
-- ``v2:altdata:lunarcrush:status`` — LunarCrush client provider
-  status.
 - ``v2:market:prices:{symbol}`` — Binance tradability hint.
 - ``v2:features:latest:{symbol}:{timeframe}`` — feature presence.
 
@@ -122,37 +119,6 @@ def _is_tradable_on_binance(market_prices_payload: Mapping[str, Any] | None) -> 
     return bool(last)
 
 
-def _provider_budget_limited(status_payload: Mapping[str, Any] | None) -> bool:
-    """Inspect a provider status payload's ``source_status_counts``
-    for any budget / rate-limit label. The exact label set is
-    provider-specific; we match a small allowlist of patterns."""
-    if not isinstance(status_payload, Mapping):
-        return False
-    counts = status_payload.get("source_status_counts")
-    if not isinstance(counts, Mapping):
-        return False
-    for label, count in counts.items():
-        if not isinstance(label, str):
-            continue
-        try:
-            value = int(count)
-        except (TypeError, ValueError):
-            continue
-        if value <= 0:
-            continue
-        upper = label.upper()
-        if any(token in upper for token in (
-            "DAILY_BUDGET_EXHAUSTED",
-            "BUDGET_EXHAUSTED",
-            "BUDGET_LIMITED",
-            "RATE_LIMITED",
-            "HTTP_429",
-            "TOO_MANY_REQUESTS",
-        )):
-            return True
-    return False
-
-
 def _has_missing_provider_data(symbol_score: Mapping[str, Any]) -> bool:
     if not isinstance(symbol_score, Mapping):
         return True
@@ -189,31 +155,28 @@ def classify_candidate_state(
     *,
     symbol_score: Mapping[str, Any] | None,
     market_prices_payload: Mapping[str, Any] | None,
-    nansen_status_payload: Mapping[str, Any] | None,
-    lunarcrush_status_payload: Mapping[str, Any] | None,
     watchlist_threshold: float = DEFAULT_WATCHLIST_THRESHOLD,
     paper_threshold: float = DEFAULT_PAPER_THRESHOLD,
 ) -> str:
-    """Return exactly one of the 7 candidate states.
+    """Return exactly one candidate state.
 
     Priority order (highest first):
     1. SYMBOL_NOT_TRADABLE_ON_BINANCE
-    2. BUDGET_LIMITED  (provider-level budget exhausted)
-    3. MISSING_PROVIDER_DATA  (per-symbol score absent / null)
-    4. STALE_PROVIDER_DATA
-    5. BELOW_THRESHOLD  (score < watchlist threshold)
-    6. SYMBOL_UNIVERSE_GATE_REQUIRED  (score >= paper threshold;
+    2. MISSING_PROVIDER_DATA  (per-symbol score absent / null)
+    3. STALE_PROVIDER_DATA
+    4. BELOW_THRESHOLD  (score < watchlist threshold)
+    5. SYMBOL_UNIVERSE_GATE_REQUIRED  (score >= paper threshold;
        adoption to paper/training requires the existing governance
        gate)
-    7. CANDIDATE_READY  (score >= watchlist threshold but below
+    6. CANDIDATE_READY  (score >= watchlist threshold but below
        paper threshold; watchlist-only proposal needs no gate)
+
+    ``BUDGET_LIMITED`` remains a valid schema state but is no longer
+    produced here: the only providers with budget-limited status
+    payloads were removed (operator directive 2026-07-16).
     """
     if not _is_tradable_on_binance(market_prices_payload):
         return CANDIDATE_STATE_SYMBOL_NOT_TRADABLE
-    if _provider_budget_limited(nansen_status_payload) or _provider_budget_limited(
-        lunarcrush_status_payload
-    ):
-        return CANDIDATE_STATE_BUDGET_LIMITED
     if not isinstance(symbol_score, Mapping) or _has_missing_provider_data(symbol_score):
         return CANDIDATE_STATE_MISSING_PROVIDER_DATA
     if _has_stale_provider_data(symbol_score):
@@ -255,19 +218,12 @@ def build_candidate_reason(
     *,
     candidate_state: str,
     symbol_score: Mapping[str, Any] | None,
-    nansen_status_payload: Mapping[str, Any] | None,
-    lunarcrush_status_payload: Mapping[str, Any] | None,
 ) -> str:
     """Operator-readable, deterministic reason string."""
     if candidate_state == CANDIDATE_STATE_SYMBOL_NOT_TRADABLE:
         return "Binance market prices payload absent or has no ticker_24hr.lastPrice."
     if candidate_state == CANDIDATE_STATE_BUDGET_LIMITED:
-        provider_hits: list[str] = []
-        if _provider_budget_limited(nansen_status_payload):
-            provider_hits.append("nansen")
-        if _provider_budget_limited(lunarcrush_status_payload):
-            provider_hits.append("lunarcrush")
-        return f"Provider budget limited: {','.join(provider_hits) or 'unknown'}."
+        return "Provider budget limited."
     if candidate_state == CANDIDATE_STATE_MISSING_PROVIDER_DATA:
         if not isinstance(symbol_score, Mapping):
             return "v2:altdata:symbol_score:{symbol} absent."
@@ -311,8 +267,6 @@ class CandidateInputs:
     symbol_score: Mapping[str, Any] | None
     market_prices_payload: Mapping[str, Any] | None
     feature_payload: Mapping[str, Any] | None
-    nansen_status_payload: Mapping[str, Any] | None
-    lunarcrush_status_payload: Mapping[str, Any] | None
 
 
 def build_candidate(
@@ -330,8 +284,6 @@ def build_candidate(
     state = classify_candidate_state(
         symbol_score=score,
         market_prices_payload=inputs.market_prices_payload,
-        nansen_status_payload=inputs.nansen_status_payload,
-        lunarcrush_status_payload=inputs.lunarcrush_status_payload,
         watchlist_threshold=watchlist_threshold,
         paper_threshold=paper_threshold,
     )
@@ -350,8 +302,6 @@ def build_candidate(
     reason = build_candidate_reason(
         candidate_state=state,
         symbol_score=score,
-        nansen_status_payload=inputs.nansen_status_payload,
-        lunarcrush_status_payload=inputs.lunarcrush_status_payload,
     )
     return {
         "schema_version": "v2_alt_data_symbol_candidate_v1",
@@ -361,14 +311,6 @@ def build_candidate(
         "candidate_reason": reason,
         "altdata_symbol_score": score_val,
         "altdata_symbol_rank": (score or {}).get("altdata_symbol_rank") if score else None,
-        "smart_money_score": (score or {}).get("smart_money_score") if score else None,
-        "social_momentum_score": (
-            (score or {}).get("social_momentum_score") if score else None
-        ),
-        "social_volume_velocity": (
-            (score or {}).get("social_volume_velocity") if score else None
-        ),
-        "entity_flow_score": (score or {}).get("entity_flow_score") if score else None,
         "provider_availability_score": (
             (score or {}).get("provider_availability_score") if score else None
         ),
@@ -386,12 +328,6 @@ def build_candidate(
         ),
         "symbol_tradable_on_binance": _is_tradable_on_binance(
             inputs.market_prices_payload
-        ),
-        "nansen_budget_limited": _provider_budget_limited(
-            inputs.nansen_status_payload
-        ),
-        "lunarcrush_budget_limited": _provider_budget_limited(
-            inputs.lunarcrush_status_payload
         ),
         "feature_payload_present": isinstance(inputs.feature_payload, Mapping),
         "proposed_use": proposed_uses,
@@ -442,8 +378,6 @@ def build_candidate_list(
             symbol_score=None,
             market_prices_payload=None,
             feature_payload=None,
-            nansen_status_payload=None,
-            lunarcrush_status_payload=None,
         )
         candidates.append(
             build_candidate(
@@ -480,7 +414,7 @@ def build_candidate_list(
             CANDIDATE_STATE_READY: "score within watchlist band; watchlist-only proposal.",
             CANDIDATE_STATE_MISSING_PROVIDER_DATA: "altdata_symbol_score null or required providers absent.",
             CANDIDATE_STATE_STALE_PROVIDER_DATA: "provider payload older than freshness window.",
-            CANDIDATE_STATE_BUDGET_LIMITED: "Nansen or LunarCrush daily budget / rate limit hit.",
+            CANDIDATE_STATE_BUDGET_LIMITED: "Provider daily budget / rate limit hit (retained schema state; no current provider produces it).",
             CANDIDATE_STATE_BELOW_THRESHOLD: "score < watchlist threshold.",
             CANDIDATE_STATE_SYMBOL_NOT_TRADABLE: "no v2:market:prices:{symbol} ticker_24hr.lastPrice.",
             CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED: "score above paper/training threshold; adoption requires existing Symbol Universe governance gate.",
@@ -488,8 +422,6 @@ def build_candidate_list(
         "candidate_state_counts": by_state,
         "allowed_inputs": [
             "v2:altdata:symbol_score:{symbol}",
-            "v2:altdata:nansen:status",
-            "v2:altdata:lunarcrush:status",
             "v2:market:prices:{symbol}",
             "v2:features:latest:{symbol}:{timeframe}",
         ],

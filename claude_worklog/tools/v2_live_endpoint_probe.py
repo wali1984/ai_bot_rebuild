@@ -21,7 +21,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone, timedelta
 
-# Bootstrap data-provider keys (coinapi/lunarcrush/nansen/...) from env.local.
+# Bootstrap data-provider keys (coinapi/coingecko/coinglass/...) from env.local.
 import v2.backend.app.cli  # noqa: F401  (import side effect: bind_to_environ)
 from v2.backend.app.services.safe_env_loader import bind_to_environ, ENV_LOCAL_PATH
 
@@ -187,39 +187,6 @@ def probe_coinapi():
         _rec("CoinAPI", "exchangerate/BTC/USD", "REST", auth, False, None, repr(e)[:80])
 
 
-def probe_lunarcrush():
-    key = os.environ.get("LUNARCRUSH_API_KEY", "")
-    auth = "Bearer" if key else "none"
-    try:
-        st, _ = _get("https://lunarcrush.com/api4/public/coins/list/v1",
-                     headers={"Authorization": f"Bearer {key}", "User-Agent": "v2-probe/1.0"})
-        _rec("LunarCrush", "api4/public/coins/list/v1", "REST", auth, 200 <= st < 300, st,
-             "key valid; current API path")
-    except urllib.error.HTTPError as e:
-        note = ("402=key valid but endpoint now PAID-gated (free tier dropped it); "
-                "v2 client path /api/v4/public/coins is also stale (404)") if e.code == 402 \
-            else "HTTPError"
-        # 402 means the credential authenticated (not 401/403) — treat as auth-OK,
-        # data-unavailable (operator plan decision), not a connectivity failure.
-        _rec("LunarCrush", "api4/public/coins/list/v1", "REST", auth, False, e.code, note)
-    except Exception as e:
-        _rec("LunarCrush", "public/coins/list/v1", "REST", auth, False, None, repr(e)[:80])
-
-
-def probe_nansen():
-    key = os.environ.get("NANSEN_API_KEY", "")
-    auth = "apikey" if key else "none"
-    try:
-        st, _ = _get("https://api.nansen.ai/api/v1/smart-money/holdings",
-                     headers={"apikey": key, "User-Agent": "v2-probe/1.0"})
-        _rec("Nansen", "smart-money/holdings", "REST", auth, 200 <= st < 300, st)
-    except urllib.error.HTTPError as e:
-        _rec("Nansen", "smart-money/holdings", "REST", auth, False, e.code,
-             "405=client uses GET but live API rejects method; client endpoint/method stale")
-    except Exception as e:
-        _rec("Nansen", "smart-money/holdings", "REST", auth, False, None, repr(e)[:80])
-
-
 def probe_coingecko():
     key = os.environ.get("COINGECKO_API_KEY", "")
     auth = "x-cg-key" if key else "none"
@@ -256,8 +223,6 @@ def main():
     probe_binance_ws()
     probe_kucoin()
     probe_coinapi()
-    probe_lunarcrush()
-    probe_nansen()
     probe_coingecko()
     probe_coinglass()
     # CoinAnk intentionally skipped per operator instruction.

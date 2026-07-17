@@ -68,7 +68,7 @@ def test_decision_altdata_reports_non_null_rates_and_time_safety() -> None:
                             "preemptive_decision_time": "2026-07-12T00:02:00Z",
                             "altdata_feature_cutoff": "2026-07-12T00:03:00Z",
                             "altdata_trade_block_score": None,
-                            "provider_features_missing": ["santiment"],
+                            "provider_features_missing": ["moralis"],
                         },
                     ]
                 }
@@ -88,7 +88,7 @@ def test_decision_altdata_reports_non_null_rates_and_time_safety() -> None:
     assert decision["provider_features_used_counts"]["coinglass"] == 1
     assert "altdata_trade_block_score" not in decision["provider_features_used_counts"]
     assert decision["provider_feature_names_used_counts"]["altdata_trade_block_score"] == 1
-    assert decision["provider_features_missing_counts"]["santiment"] == 1
+    assert decision["provider_features_missing_counts"]["moralis"] == 1
     assert decision["attribution_status"]["status"] == "FEATURE_ATTRIBUTION_NOT_YET_AVAILABLE"
 
 
@@ -111,22 +111,22 @@ def test_provider_payload_freshness_reports_missing_and_stale_masks() -> None:
                         "moralis_exchange_inflow_usd": False,
                     },
                 },
-                "v2:provider:santiment:feature_bridge_status": {
+                "v2:provider:coinglass:feature_bridge_status": {
                     "status": "READY",
                     "actual_payload_present": True,
                     "feature_bridge_ready": True,
                     "feature_count": 12,
-                    "stale_mask": {"sanbase_pro_delayed_data_window": True},
+                    "stale_mask": {"coinglass_oi_delayed_data_window": True},
                 },
             }
         )
     )
 
     moralis = status["provider_payload_freshness"]["moralis"]
-    santiment = status["provider_payload_freshness"]["santiment"]
+    coinglass = status["provider_payload_freshness"]["coinglass"]
 
     assert moralis["missing_feature_count"] == 1
     assert moralis["missing_mask_true"] is True
     assert moralis["feature_bridge_ready"] is False
-    assert santiment["stale_feature_count"] == 1
-    assert santiment["stale_mask_true"] is True
+    assert coinglass["stale_feature_count"] == 1
+    assert coinglass["stale_mask_true"] is True

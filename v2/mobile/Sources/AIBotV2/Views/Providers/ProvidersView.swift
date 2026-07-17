@@ -168,7 +168,7 @@ struct ProvidersView: View {
     private var missingAltDataWarning: some View {
         HStack(spacing: 8) {
             Image(systemName: "eye.slash.fill").foregroundStyle(NerVyx.warning)
-            Text("CoinGlass, Moralis, and Santiment/Sanbase must all be visible before operator review.")
+            Text("CoinGlass and Moralis must both be visible before operator review.")
                 .font(.system(size: 12))
                 .foregroundStyle(NerVyx.textSecondary)
             Spacer()
@@ -234,10 +234,6 @@ struct ProvidersView: View {
             DataRow(label: "Watchlist", value: providerIntText(provider.watchlist_count), mono: true)
             DataRow(label: "Smart wallet candidates", value: providerIntText(provider.smart_wallet_candidate_count), mono: true)
             DataRow(label: "Verified smart wallets", value: providerIntText(provider.verified_smart_wallet_count), mono: true)
-        } else if id.contains("santiment") {
-            NerVyxDivider()
-            DataRow(label: "Metrics active", value: providerIntText(provider.metric_count), mono: true)
-            DataRow(label: "Missing high-value metrics", value: providerListText(provider.missing_high_value_metrics), mono: true)
         }
     }
 
@@ -276,7 +272,6 @@ struct ProvidersView: View {
         let id = provider.lowercased()
         if id.contains("coinglass") { return "chart.xyaxis.line" }
         if id.contains("moralis") { return "wallet.pass" }
-        if id.contains("santiment") { return "bubble.left.and.bubble.right" }
         if id.contains("binance") || id.contains("kucoin") { return "building.columns" }
         return "antenna.radiowaves.left.and.right"
     }

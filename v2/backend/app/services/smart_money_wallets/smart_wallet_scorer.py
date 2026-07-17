@@ -1,8 +1,8 @@
 """Behavioral smart-wallet candidate scoring.
 
-Moralis does not supply Nansen-style labels. Scores produced here are candidate
-labels only unless enough history is present. They must not approve trades by
-themselves.
+Moralis does not supply pre-labeled smart-money wallet tags. Scores produced
+here are candidate labels only unless enough history is present. They must not
+approve trades by themselves.
 """
 
 from __future__ import annotations

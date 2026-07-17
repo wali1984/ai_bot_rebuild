@@ -39,11 +39,6 @@ PATCHED_FILES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
         (r"resolve_symbols", r"--smoke-test"),
     ),
     (
-        "v2/backend/app/cli/v2_nansen_altdata_ingestor.py",
-        (r'default\s*=\s*"BTCUSDT,ETHUSDT,SOLUSDT"',),
-        (r"resolve_symbols", r"--smoke-test"),
-    ),
-    (
         "v2/backend/app/cli/v2_alt_data_symbol_candidate_publisher.py",
         (r'^DEFAULT_SYMBOLS\s*=\s*\(\s*"BTCUSDT"',),
         (r"_resolve_default_symbols", r"resolve_symbols"),
@@ -70,11 +65,6 @@ PATCHED_FILES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
         "v2/backend/app/cli/v2_website_redis_bridge_status.py",
         (r'symbols:\s*tuple\[str,\s*\.\.\.\]\s*=\s*\(\s*"BTCUSDT"',),
         (r"resolve_symbols",),
-    ),
-    (
-        "v2/backend/app/cli/v2_lunarcrush_altdata_ingestor.py",
-        (r'default\s*=\s*"BTCUSDT,ETHUSDT,SOLUSDT"',),
-        (r"resolve_symbols", r"--smoke-test"),
     ),
     (
         "v2/backend/app/cli/readonly_market_exchange_data_plane.py",

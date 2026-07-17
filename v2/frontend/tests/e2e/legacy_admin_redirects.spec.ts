@@ -113,8 +113,7 @@ test.describe('Legacy Admin Redirects', () => {
     await expect(page.getByTestId('provider-card-coinank')).toContainText('CoinAnk');
     await expect(page.getByTestId('provider-card-coinglass')).toContainText('CoinGlass');
     await expect(page.getByTestId('provider-card-moralis')).toContainText('Moralis');
-    await expect(page.getByTestId('provider-card-santiment')).toContainText(/Santiment|Sanbase/);
-    await expect(page.getByTestId('provider-truth-panel')).not.toContainText(/Alpha Vantage|LunarCrush|Nansen/i);
+    await expect(page.getByTestId('provider-truth-panel')).not.toContainText(/Alpha Vantage|LunarCrush|Nansen|Santiment|Sanbase|AiCoin|AICoin/i);
   });
 
   test('/markets exposes required provider coverage for route truth crawl', async ({ page }) => {
@@ -124,8 +123,7 @@ test.describe('Legacy Admin Redirects', () => {
     await expect(page.getByTestId('market-provider-coinank')).toContainText('CoinAnk');
     await expect(page.getByTestId('market-provider-coinglass')).toContainText('CoinGlass');
     await expect(page.getByTestId('market-provider-moralis')).toContainText('Moralis');
-    await expect(page.getByTestId('market-provider-santiment')).toContainText(/Santiment|Sanbase/);
-    await expect(page.getByTestId('market-provider-coverage')).not.toContainText(/Alpha Vantage|LunarCrush|Nansen/i);
+    await expect(page.getByTestId('market-provider-coverage')).not.toContainText(/Alpha Vantage|LunarCrush|Nansen|Santiment|Sanbase|AiCoin|AICoin/i);
   });
 
   test('All canonical admin paths serve content, not more redirects', async ({ page }) => {

@@ -38,7 +38,7 @@ def _make_prediction(**overrides) -> dict:
         "confidence_raw": 1.0,
         "confidence_calibrated": 0.689,
         "data_coverage_percent": 77.03,
-        "missing_feature_names": ["nansen_score", "lunarcrush_score"],
+        "missing_feature_names": ["surf_score", "moralis_whale_net_flow_usd"],
         "market_state_integrity_score": 96.25,
         "feature_freshness_state": "FRESH",
         "prediction_source_classification": "REAL_MODEL",

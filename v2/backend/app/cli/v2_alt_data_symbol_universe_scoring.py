@@ -88,15 +88,11 @@ def _load_inputs_for_symbol(redis_client: Any, symbol: str) -> dict[str, Any]:
 
     The packet's input boundary is explicit and minimal:
 
-    - ``v2:altdata:nansen:symbol:{symbol}``
-    - ``v2:altdata:lunarcrush:symbol:{symbol}``
     - ``v2:altdata:coingecko:symbol:{symbol}``
     - ``v2:altdata:surf:symbol:{symbol}``
     - ``v2:altdata:coinglass:symbol:{symbol}``
     - ``v2:altdata:public_intel:symbol:{symbol}``
-    - ``v2:altdata:aicoin:symbol:{symbol}``
     - ``v2:altdata:whale_walls:symbol:{symbol}``
-    - ``v2:altdata:santiment:symbol:{symbol}``
     - ``v2:market:*`` (prices, funding, open_interest)
     - ``v2:features:latest:{symbol}:{timeframe}``
     - ``v2:features:moralis:{symbol}:{timeframe}``
@@ -109,12 +105,6 @@ def _load_inputs_for_symbol(redis_client: Any, symbol: str) -> dict[str, Any]:
     """
     timeframe = "1m"
     return {
-        "nansen_payload": _redis_get_json(
-            redis_client, f"v2:altdata:nansen:symbol:{symbol}"
-        ),
-        "lunarcrush_payload": _redis_get_json(
-            redis_client, f"v2:altdata:lunarcrush:symbol:{symbol}"
-        ),
         "coingecko_payload": _redis_get_json(
             redis_client, f"v2:altdata:coingecko:symbol:{symbol}"
         ),
@@ -127,14 +117,8 @@ def _load_inputs_for_symbol(redis_client: Any, symbol: str) -> dict[str, Any]:
         "public_intel_payload": _redis_get_json(
             redis_client, f"v2:altdata:public_intel:symbol:{symbol}"
         ),
-        "aicoin_payload": _redis_get_json(
-            redis_client, f"v2:altdata:aicoin:symbol:{symbol}"
-        ),
         "whale_walls_payload": _redis_get_json(
             redis_client, f"v2:altdata:whale_walls:symbol:{symbol}"
-        ),
-        "santiment_payload": _redis_get_json(
-            redis_client, f"v2:altdata:santiment:symbol:{symbol}"
         ),
         "market_payloads": {
             "prices": _redis_get_json(redis_client, f"v2:market:prices:{symbol}"),
@@ -182,7 +166,7 @@ def _write_report(payload: dict[str, Any]) -> None:
         "",
         "## Scope",
         "",
-        "The scorer reads ONLY ``v2:altdata:nansen:*``, ``v2:altdata:lunarcrush:*``, ``v2:altdata:coingecko:*``, ``v2:altdata:surf:*``, ``v2:altdata:coinglass:*``, ``v2:altdata:public_intel:*``, ``v2:altdata:aicoin:*``, ``v2:altdata:whale_walls:*``, ``v2:altdata:santiment:*``, ``v2:market:*``, ``v2:features:latest:{symbol}:{timeframe}``, ``v2:features:moralis:{symbol}:{timeframe}``, and ``v2:features:coinank:{symbol}:{timeframe}`` (fallback ``v2:coinank:symbol:{symbol}``). It does NOT read ``v2:paper:*`` or ``v2:risk:*``; any paper/risk overlay belongs to a separately reviewed lane.",
+        "The scorer reads ONLY ``v2:altdata:coingecko:*``, ``v2:altdata:surf:*``, ``v2:altdata:coinglass:*``, ``v2:altdata:public_intel:*``, ``v2:altdata:whale_walls:*``, ``v2:market:*``, ``v2:features:latest:{symbol}:{timeframe}``, ``v2:features:moralis:{symbol}:{timeframe}``, and ``v2:features:coinank:{symbol}:{timeframe}`` (fallback ``v2:coinank:symbol:{symbol}``). It does NOT read ``v2:paper:*`` or ``v2:risk:*``; any paper/risk overlay belongs to a separately reviewed lane.",
         "",
         "## Candidate Ranking",
         "",
@@ -248,15 +232,11 @@ def run_once(
         inputs = _load_inputs_for_symbol(redis_client, symbol)
         score = build_symbol_score_payload(
             symbol,
-            nansen_payload=inputs["nansen_payload"],
-            lunarcrush_payload=inputs["lunarcrush_payload"],
             coingecko_payload=inputs["coingecko_payload"],
             surf_payload=inputs["surf_payload"],
             coinglass_payload=inputs["coinglass_payload"],
             public_intel_payload=inputs["public_intel_payload"],
-            aicoin_payload=inputs["aicoin_payload"],
             whale_walls_payload=inputs["whale_walls_payload"],
-            santiment_payload=inputs["santiment_payload"],
             market_payloads=inputs["market_payloads"],
             feature_payloads=inputs["feature_payloads"],
             generated_utc=generated_utc,
@@ -289,10 +269,6 @@ def run_once(
         "symbol_universe_candidates": candidates,
         "input_presence": input_presence,
         "allowed_inputs": [
-            "v2:altdata:nansen:status",
-            "v2:altdata:nansen:symbol:{symbol}",
-            "v2:altdata:lunarcrush:status",
-            "v2:altdata:lunarcrush:symbol:{symbol}",
             "v2:altdata:coingecko:status",
             "v2:altdata:coingecko:symbol:{symbol}",
             "v2:altdata:surf:status",
@@ -301,12 +277,8 @@ def run_once(
             "v2:altdata:coinglass:symbol:{symbol}",
             "v2:altdata:public_intel:status",
             "v2:altdata:public_intel:symbol:{symbol}",
-            "v2:altdata:aicoin:status",
-            "v2:altdata:aicoin:symbol:{symbol}",
             "v2:altdata:whale_walls:status",
             "v2:altdata:whale_walls:symbol:{symbol}",
-            "v2:altdata:santiment:status",
-            "v2:altdata:santiment:symbol:{symbol}",
             "v2:market:prices:{symbol}",
             "v2:market:funding:{symbol}",
             "v2:market:open_interest:{symbol}",

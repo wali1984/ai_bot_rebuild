@@ -393,8 +393,6 @@ def source_scan() -> dict[str, Any]:
         ROOT / "v2/backend/app/cli/v2_alternative_data_status.py",
         ROOT / "v2/backend/app/cli/v2_full_observation_builder_status.py",
         ROOT / "v2/backend/app/cli/v2_liquidation_wss_loop.py",
-        ROOT / "v2/backend/app/cli/v2_lunarcrush_altdata_ingestor.py",
-        ROOT / "v2/backend/app/cli/v2_nansen_altdata_ingestor.py",
         ROOT / "v2/backend/app/cli/v2_position_price_tracking_recorder.py",
         ROOT / "v2/backend/app/cli/v2_top10_binance_dashboard_feed.py",
         ROOT / "v2/backend/app/cli/frontend_truth_payload_builder.py",

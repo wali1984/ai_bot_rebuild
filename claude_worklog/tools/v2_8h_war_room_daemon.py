@@ -363,8 +363,6 @@ def tier_15m_gap_matrix(redis_client: Any, symbols: tuple[str, ...]) -> dict[str
         price_track = _jget(redis_client, f"v2:paper:position_price_track:{sym}") or {}
         paper_intents = _jget(redis_client, "v2:paper:intents") or []
         paper_held = _jget(redis_client, "v2:paper:intents_held_by_paper_fill_gate") or []
-        nansen = _jget(redis_client, f"v2:altdata:nansen:symbol:{sym}") or {}
-        lc = _jget(redis_client, f"v2:altdata:lunarcrush:symbol:{sym}") or {}
         legacy_observer = _jget(redis_client, "v2:legacy_log_observer:status") or {}
 
         held = next(
@@ -377,14 +375,6 @@ def tier_15m_gap_matrix(redis_client: Any, symbols: tuple[str, ...]) -> dict[str
         if feat.get("feature_freshness_state") not in (None, "CURRENT"):
             classifications.append(
                 f"FEATURE_FRESHNESS_NOT_CURRENT:{feat.get('feature_freshness_state')}"
-            )
-        if not nansen:
-            classifications.append(
-                "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:nansen_payload_missing"
-            )
-        if not lc:
-            classifications.append(
-                "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING:lunarcrush_payload_missing"
             )
         if held:
             block_reasons = held.get("paper_fill_gate_block_reasons") or []
@@ -426,8 +416,6 @@ def tier_15m_gap_matrix(redis_client: Any, symbols: tuple[str, ...]) -> dict[str
                 "v2_prediction_present": bool(v2_pred),
                 "feature_freshness_state": feat.get("feature_freshness_state"),
                 "price_track_missing_flags": price_track.get("missing_flags") or [],
-                "nansen_payload_present": bool(nansen),
-                "lunarcrush_payload_present": bool(lc),
                 "held_by_paper_fill_gate": bool(held),
             }
         )
@@ -515,19 +503,12 @@ def tier_30m_refresh_payloads(redis_client: Any) -> dict[str, Any]:
                 "returncode": 0,
             }
         )
-    # Provider one-shots (Nansen / LunarCrush) are NOT triggered by the
-    # daemon. Repeated 403s would burn budget. The operator decides
-    # provisioning; the war-room only reads existing payloads.
+    # External alt-data provider one-shots are NOT triggered by the daemon.
+    # (Removed providers dropped entirely by operator directive 2026-07-16.)
     return {
         "tier": "30m",
         "generated_utc": utc_iso(),
         "refresh_results": refreshers,
-        "nansen_oneshot_triggered": False,
-        "lunarcrush_oneshot_triggered": False,
-        "reason_for_no_provider_call": (
-            "API_FORBIDDEN_403_observed_previously_or_no_key_present;"
-            " daemon must not burn budget retrying under 403"
-        ),
     }
 
 
@@ -572,14 +553,6 @@ def tier_60m_fix_evaluation(gap_matrix: dict[str, Any]) -> dict[str, Any]:
             "rationale": (
                 "Upstream needs entry_price on intents/positions before "
                 "recorder can compute MFE/MAE/ROE"
-            ),
-        },
-        {
-            "blocker_id": "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING",
-            "owner": "operator",
-            "rationale": (
-                "Operator decides NANSEN_API_KEY/LUNARCRUSH_API_KEY "
-                "provisioning; no repeat call under 403"
             ),
         },
         {

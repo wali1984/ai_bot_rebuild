@@ -745,7 +745,7 @@ def test_ppo_trainer_accepts_optional_masked_feature_gaps() -> None:
         [
                 example(
                     row_classification="MISSING_MASKED",
-                    missing_feature_names=["funding_rate", "liquidation_distance_pct", "aicoin_score"],
+                    missing_feature_names=["funding_rate", "liquidation_distance_pct", "surf_score"],
                     missing_feature_count=3,
                     features={"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "ret_pct": 0.1},
                     old_log_prob=-0.1,

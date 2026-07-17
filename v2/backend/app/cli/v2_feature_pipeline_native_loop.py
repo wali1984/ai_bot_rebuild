@@ -126,33 +126,6 @@ ALTDATA_SYMBOL_SCORE_FIELDS = (
     "whale_total_wall_notional_usd",
     "nearest_bid_wall_distance_bps",
     "nearest_ask_wall_distance_bps",
-    "aicoin_market_activity_score",
-    "aicoin_coin_profile_score",
-    "aicoin_order_flow_score",
-    "aicoin_whale_order_score",
-    "aicoin_signal_score",
-    "aicoin_drop_radar_score",
-    "aicoin_airdrop_score",
-    "aicoin_liquidation_score",
-    "aicoin_open_interest_score",
-    "aicoin_news_attention_score",
-    "santiment_social_volume_score",
-    "santiment_whale_activity_score",
-    "santiment_sentiment_score",
-    "santiment_onchain_activity_score",
-    "santiment_dev_activity_score",
-    "santiment_exchange_inflow_risk_score",
-    "santiment_supply_on_exchanges_score",
-    "santiment_social_volume_total",
-    "santiment_sentiment_positive_total",
-    "santiment_sentiment_negative_total",
-    "santiment_whale_transaction_count_1m",
-    "santiment_whale_transaction_count_100k_usd_to_inf",
-    "santiment_exchange_inflow",
-    "santiment_percent_of_total_supply_on_exchanges",
-    "santiment_active_addresses_24h",
-    "santiment_transaction_volume",
-    "santiment_dev_activity",
 )
 PUBLIC_INTEL_FEATURE_FIELDS = (
     "public_intel_score",
@@ -162,18 +135,6 @@ PUBLIC_INTEL_FEATURE_FIELDS = (
     "btc_mempool_pressure_score",
     "news_attention_score",
     "news_sentiment_score",
-)
-AICOIN_SCORE_COMPONENT_FIELDS = (
-    "aicoin_market_activity_score",
-    "aicoin_coin_profile_score",
-    "aicoin_order_flow_score",
-    "aicoin_whale_order_score",
-    "aicoin_signal_score",
-    "aicoin_drop_radar_score",
-    "aicoin_airdrop_score",
-    "aicoin_liquidation_score",
-    "aicoin_open_interest_score",
-    "aicoin_news_attention_score",
 )
 WHALE_WALL_FEATURE_FIELDS = (
     "whale_wall_score",
@@ -187,25 +148,6 @@ WHALE_WALL_FEATURE_FIELDS = (
     "whale_total_wall_notional_usd",
     "nearest_bid_wall_distance_bps",
     "nearest_ask_wall_distance_bps",
-)
-SANTIMENT_FEATURE_FIELDS = (
-    "santiment_social_volume_score",
-    "santiment_whale_activity_score",
-    "santiment_sentiment_score",
-    "santiment_onchain_activity_score",
-    "santiment_dev_activity_score",
-    "santiment_exchange_inflow_risk_score",
-    "santiment_supply_on_exchanges_score",
-    "santiment_social_volume_total",
-    "santiment_sentiment_positive_total",
-    "santiment_sentiment_negative_total",
-    "santiment_whale_transaction_count_1m",
-    "santiment_whale_transaction_count_100k_usd_to_inf",
-    "santiment_exchange_inflow",
-    "santiment_percent_of_total_supply_on_exchanges",
-    "santiment_active_addresses_24h",
-    "santiment_transaction_volume",
-    "santiment_dev_activity",
 )
 DERIVED_ALTDATA_ALIASES = (
     ("coingecko_score", ("coingecko_score", "coingecko_discovery_score")),
@@ -596,38 +538,12 @@ def _merge_numeric_aliases(target: dict, source: dict | None, aliases: tuple[tup
     return merged
 
 
-def _derive_mean_feature(target: dict, out_name: str, component_fields: tuple[str, ...]) -> int:
-    if target.get(out_name) is not None:
-        return 0
-    values = [
-        float(value)
-        for value in (_coerce_numeric(target.get(name)) for name in component_fields)
-        if value is not None
-    ]
-    if not values:
-        return 0
-    target[out_name] = sum(values) / len(values)
-    return 1
-
-
 def _read_first_json_key(r, *keys: str) -> tuple[dict | None, str | None]:
     for key in keys:
         value = _read_json_key(r, key)
         if isinstance(value, dict):
             return value, key
     return None, None
-
-
-def _provider_payload_decision_fresh(payload: dict, *, max_age_seconds: int = 1_800) -> bool:
-    if not isinstance(payload, dict):
-        return False
-    stale_flags = payload.get("stale_feature_flags")
-    if isinstance(stale_flags, list) and stale_flags:
-        return False
-    age = _coerce_numeric(payload.get("provider_freshness_seconds"))
-    if age is None:
-        return True
-    return float(age) <= float(max_age_seconds)
 
 
 _DIRECTION_CODES = {"UP": 1.0, "DOWN": -1.0, "FLAT": 0.0, "UNKNOWN": 0.0}
@@ -881,44 +797,12 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
         fields_merged += _merge_numeric_aliases(features, public_intel, DERIVED_ALTDATA_ALIASES)
         sources_present.append("v2:altdata:public_intel")
 
-    aicoin = _read_json_key(r, f"v2:altdata:aicoin:symbol:{symbol}")
-    if isinstance(aicoin, dict):
-        fields_merged += _merge_selected_numeric_features(features, aicoin, AICOIN_SCORE_COMPONENT_FIELDS)
-        fields_merged += _merge_numeric_aliases(features, aicoin, (("aicoin_score", ("score", "aicoin_score")),))
-        sources_present.append("v2:altdata:aicoin")
-
     whale_walls = _read_json_key(r, f"v2:altdata:whale_walls:symbol:{symbol}")
     if isinstance(whale_walls, dict):
         fields_merged += _merge_selected_numeric_features(features, whale_walls, WHALE_WALL_FEATURE_FIELDS)
         sources_present.append("v2:altdata:whale_walls")
 
-    santiment = _read_json_key(r, f"v2:altdata:santiment:symbol:{symbol}")
-    if isinstance(santiment, dict):
-        if _provider_payload_decision_fresh(santiment):
-            fields_merged += _merge_selected_numeric_features(features, santiment, SANTIMENT_FEATURE_FIELDS)
-            sources_present.append("v2:altdata:santiment")
-        else:
-            sources_present.append("v2:altdata:santiment_stale_skipped")
-
-    lunarcrush = _read_json_key(r, f"v2:altdata:lunarcrush:symbol:{symbol}")
-    if isinstance(lunarcrush, dict):
-        fields_merged += _merge_numeric_aliases(features, lunarcrush, (("lunarcrush_score", ("score", "lunarcrush_score")),))
-        sources_present.append("v2:altdata:lunarcrush")
-
-    nansen = _read_json_key(r, f"v2:altdata:nansen:symbol:{symbol}")
-    if isinstance(nansen, dict):
-        fields_merged += _merge_numeric_aliases(
-            features,
-            nansen,
-            (
-                ("nansen_score", ("score", "nansen_score", "presence", "nansen_presence")),
-                ("nansen_presence", ("presence", "nansen_presence")),
-            ),
-        )
-        sources_present.append("v2:altdata:nansen")
-
     fields_merged += _merge_numeric_aliases(features, features, DERIVED_ALTDATA_ALIASES)
-    fields_merged += _derive_mean_feature(features, "aicoin_score", AICOIN_SCORE_COMPONENT_FIELDS)
 
     # Market structure: liquidity zones (tensor-spec fields), FVG, and
     # BOS/CHOCH structure. Computed from V2-owned closed candles + book +

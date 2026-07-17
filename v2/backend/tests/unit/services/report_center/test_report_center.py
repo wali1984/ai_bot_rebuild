@@ -35,8 +35,6 @@ REQUIRED_LANE_IDS = {
     "liquidation_wss_daemon",
     "position_history_tracker",
     "alt_data_provider_registry",
-    "nansen_client",
-    "lunarcrush_client",
     "alt_data_symbol_scoring",
     "alt_data_candidate_publisher",
     "top10_dashboards",

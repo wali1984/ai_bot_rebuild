@@ -14,17 +14,17 @@ def _ex(values, missing, stale, source, names):
 
 
 def test_category_classifies_external_altdata_and_derivatives() -> None:
-    assert _category("santiment_sentiment_score") == "external_altdata"
-    # nansen/lunarcrush are free-tier/disabled -> classified separately, not "dead".
-    assert _category("nansen_score") == "disabled_altdata"
-    assert _category("lunarcrush_score") == "disabled_altdata"
+    assert _category("moralis_whale_flow_score") == "external_altdata"
+    assert _category("news_sentiment_score") == "external_altdata"
+    # coingecko is free-tier/disabled -> classified separately, not "dead".
+    assert _category("coingecko_discovery_score") == "disabled_altdata"
     assert _category("funding_rate") == "derivatives_microstructure"
     assert _category("liquidation_strength") == "derivatives_microstructure"
     assert _category("last_price") == "core"
 
 
 def test_dead_feature_detected_when_always_missing() -> None:
-    names = ["santiment_sentiment_score", "last_price"]
+    names = ["moralis_whale_flow_score", "last_price"]
     # feature 0 always missing; feature 1 always present + fresh.
     rows = [_ex([0.0, 1.5], [1, 0], [0, 0], [0, 1], names) for _ in range(10)]
     r = analyze_freshness(rows)
@@ -36,7 +36,7 @@ def test_dead_feature_detected_when_always_missing() -> None:
 
 
 def test_healthy_feature_when_present_and_fresh() -> None:
-    names = ["santiment_sentiment_score"]
+    names = ["moralis_whale_flow_score"]
     rows = [_ex([0.4], [0], [0], [1], names) for _ in range(10)]
     r = analyze_freshness(rows)
     ext = r["summary_by_category"]["external_altdata"]

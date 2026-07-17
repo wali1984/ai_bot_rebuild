@@ -274,7 +274,6 @@ public struct MobileProviderReadiness: Decodable, Equatable {
     public let status: String?
     public let coinglass_status: String?
     public let moralis_status: String?
-    public let santiment_status: String?
     public let coinglass_dashboard_color: String?
     public let moralis_dashboard_color: String?
     public let coinglass_actual_payload_present: Bool?
@@ -290,11 +289,6 @@ public struct MobileProviderReadiness: Decodable, Equatable {
     public let moralis_stale_mask_true: Bool?
     public let moralis_token_map_count: Int?
     public let moralis_wallet_watchlist_count: Int?
-    public let santiment_symbol_count: Int?
-    public let santiment_regime_only: Bool?
-    public let santiment_data_lag_note: String?
-    public let santiment_rate_limit_month_limit: Int?
-    public let santiment_rate_limit_remaining_month: Int?
     public let provider_tensor_consumption: Bool?
     public let provider_risk_consumption: Bool?
     public let provider_orchestrator_consumption: Bool?
@@ -671,8 +665,6 @@ public struct EnterpriseProviderCard: Decodable, Equatable {
     public let smart_wallet_candidate_count: Int?
     public let verified_smart_wallet_count: Int?
     public let token_map_count: Int?
-    public let metric_count: Int?
-    public let missing_high_value_metrics: [String]?
     public let disabled_heatmap_endpoint: Bool?
 
     public var providerDashboardTone: String {

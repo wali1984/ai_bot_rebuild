@@ -256,7 +256,6 @@ test.describe('trader nav cleanliness', () => {
           provider_readiness: {
             coinglass_dashboard_color: 'GREEN',
             moralis_dashboard_color: 'GRAY',
-            santiment_status: 'V2_SANTIMENT_PRO_INGESTOR_READY',
             confluence_hedge_required_score: 0.42,
           },
           market_data_freshness: {
@@ -1161,15 +1160,6 @@ test.describe('trader nav cleanliness', () => {
                 consumer_count: 8,
                 heartbeat_only: false,
               },
-              {
-                provider: 'santiment',
-                display_name: 'Santiment / Sanbase',
-                dashboard_color: 'green',
-                actual_payload_count: 115,
-                feature_count: 22,
-                consumer_count: 8,
-                heartbeat_only: false,
-              },
             ],
             places_real_order: false,
             routes_to_live: false,
@@ -1201,7 +1191,6 @@ test.describe('trader nav cleanliness', () => {
     await expect(panel).toContainText(/provider_context=/i);
     await expect(panel).toContainText(/CoinGlass:GREEN\/7 actual/i);
     await expect(panel).toContainText(/Moralis:GRAY\/1 actual/i);
-    await expect(panel).toContainText(/Santiment \/ Sanbase:GREEN\/115 actual/i);
     await expect(panel).toContainText(/NO ORDER \/ TEST \/ LEVERAGE \/ MARGIN MUTATION/i);
     await expect(panel).not.toContainText(/ready to submit live|live order enabled|goal_state|operator_dashboard/i);
   });
@@ -1246,7 +1235,7 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.getByTestId('ai-trainer-brain-summary')).toContainText(/Tensor input dim/i);
     await expect(page.getByTestId('ai-provider-feature-coinglass')).toContainText('CoinGlass');
     await expect(page.getByTestId('ai-provider-feature-moralis')).toContainText('Moralis');
-    await expect(page.getByTestId('ai-provider-feature-santiment')).toContainText(/Santiment|Sanbase/);
+    await expect(page.getByTestId('ai-provider-feature-santiment')).toHaveCount(0);
     await expect(page.getByTestId('runtime-alpha-dynamic-readiness-panel')).toHaveCount(0);
     expect(text).not.toMatch(/operator_dashboard|payload|runtime alpha/i);
   });

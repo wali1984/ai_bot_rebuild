@@ -248,7 +248,6 @@ def collect_runtime_inputs(*, stale_services: list[dict[str, Any]], repo_head: s
     microstructure_status = _read_status_file(
         "v2/frontend/public/operator_runtime/v2_microstructure_trust/latest/ios_trust_semantics_truth_status.json"
     )
-    santiment_symbol_count = _redis_scan_count(client, "v2:altdata:santiment:symbol:*")
     prediction_key_count = _redis_scan_count(client, "v2:prediction:*", limit=20000) + _redis_scan_count(
         client, "v2:predictions:*", limit=20000
     )
@@ -316,7 +315,6 @@ def collect_runtime_inputs(*, stale_services: list[dict[str, Any]], repo_head: s
         "exchange_mutation_detected": exchange_mutation,
         "website_truth_pass": phase_i.get("overall_pass") is True,
         "ios_truth_pass": phase_j.get("overall_pass") is True,
-        "santiment_symbol_count": santiment_symbol_count,
     }
 
 
@@ -458,13 +456,6 @@ def evaluate_required_alerts(runtime: dict[str, Any]) -> list[dict[str, Any]]:
             "warning",
             {"ios_truth_pass": runtime.get("ios_truth_pass")},
             "Run Phase J mobile API/source truth validation.",
-        ),
-        _alert(
-            "paid ingestor unused",
-            (_safe_int(runtime.get("santiment_symbol_count")) or 0) <= 0,
-            "warning",
-            {"santiment_symbol_count": runtime.get("santiment_symbol_count")},
-            "Repair Santiment/paid alternative-data ingestor or disable paid-provider expectation.",
         ),
     ]
 

@@ -131,20 +131,9 @@ final class AIBotV2CoreTests: XCTestCase {
                 "raw_key_exposed": false,
                 "routes_to_live": false,
                 "places_real_order": false
-              },
-              {
-                "provider": "santiment",
-                "display_name": "Santiment/Sanbase",
-                "dashboard_color": "yellow",
-                "actual_payload_count": 4,
-                "metric_count": 22,
-                "missing_high_value_metrics": [],
-                "raw_key_exposed": false,
-                "routes_to_live": false,
-                "places_real_order": false
               }
             ],
-            "provider_count": 3,
+            "provider_count": 2,
             "heartbeat_only_green_count": 0,
             "live_gate": "blocked_human_only",
             "paper_only": true,
@@ -155,8 +144,8 @@ final class AIBotV2CoreTests: XCTestCase {
         """.data(using: .utf8)!
         let providers = try JSONDecoder().decode(ControlCenterProviderStatus.self, from: providerJSON)
         XCTAssertTrue(providers.isReadOnlyBlockedLive)
-        XCTAssertEqual(providers.data.provider_count, 3)
-        XCTAssertEqual(providers.data.providers.map(\.provider), ["coinglass", "moralis", "santiment"])
+        XCTAssertEqual(providers.data.provider_count, 2)
+        XCTAssertEqual(providers.data.providers.map(\.provider), ["coinglass", "moralis"])
         XCTAssertEqual(providers.data.providers.first?.raw_key_exposed, false)
 
         let liveCanaryJSON = """
@@ -539,12 +528,6 @@ final class AIBotV2CoreTests: XCTestCase {
             "moralis_stale_mask_true": false,
             "moralis_token_map_count": 9,
             "moralis_wallet_watchlist_count": 0,
-            "santiment_status": "V2_SANTIMENT_PRO_INGESTOR_READY",
-            "santiment_symbol_count": 115,
-            "santiment_regime_only": true,
-            "santiment_data_lag_note": "sanbase_pro_31d_lag_regime_layer_only",
-            "santiment_rate_limit_month_limit": 5000,
-            "santiment_rate_limit_remaining_month": 4873,
             "heartbeat_only_green_allowed": false
           },
           "trainer_feedback": {
@@ -577,21 +560,12 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(summary.provider_readiness?.moralis_missing_feature_flags?.first, "moralis_whale_buy_usd")
         XCTAssertEqual(summary.provider_readiness?.moralis_missing_mask_true, true)
         XCTAssertEqual(summary.provider_readiness?.moralis_wallet_watchlist_count, 0)
-        XCTAssertEqual(summary.provider_readiness?.santiment_status, "V2_SANTIMENT_PRO_INGESTOR_READY")
-        XCTAssertEqual(summary.provider_readiness?.santiment_symbol_count, 115)
-        XCTAssertEqual(summary.provider_readiness?.santiment_regime_only, true)
-        XCTAssertEqual(summary.provider_readiness?.santiment_rate_limit_month_limit, 5000)
-        XCTAssertEqual(summary.provider_readiness?.santiment_rate_limit_remaining_month, 4873)
     }
 
-    func testRuntimeTruthCardDisplaysSantimentProviderTruth() throws {
+    func testRuntimeTruthCardDisplaysProviderTruth() throws {
         let packageRoot = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         let source = try String(contentsOf: packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Components/RuntimeTruthCard.swift"))
 
-        XCTAssertTrue(source.contains("santimentRuntimeText"))
-        XCTAssertTrue(source.contains("Santiment/Sanbase"))
-        XCTAssertTrue(source.contains("santiment_symbol_count"))
-        XCTAssertTrue(source.contains("santiment_rate_limit_remaining_month"))
         XCTAssertTrue(source.contains("heartbeatOnly: summary.provider_readiness?.coinglass_heartbeat_only"))
         XCTAssertTrue(source.contains("marker = status ?? color ?? \"actual payload\""))
     }
@@ -627,13 +601,11 @@ final class AIBotV2CoreTests: XCTestCase {
         for snippet in [
             "CoinGlass",
             "Moralis",
-            "Santiment/Sanbase",
             "Provider and Ingestor Truth",
             "Heartbeat only",
             "Raw key exposed",
             "Disabled heatmap",
             "Smart wallet candidates",
-            "Missing high-value metrics",
             "providerDashboardTone",
             "providerDashboardBadgeText",
         ] {
@@ -643,7 +615,7 @@ final class AIBotV2CoreTests: XCTestCase {
             )
         }
 
-        for retiredName in ["Alpha Vantage", "LunarCrush", "Nansen"] {
+        for retiredName in ["Alpha Vantage"] {
             XCTAssertFalse(
                 providersView.contains(retiredName),
                 "ProvidersView.swift must not show retired providers as active panels: \(retiredName)"
@@ -985,8 +957,8 @@ final class AIBotV2CoreTests: XCTestCase {
               "places_real_order": false
             },
             {
-              "provider": "santiment",
-              "display_name": "Santiment/Sanbase",
+              "provider": "coinank",
+              "display_name": "CoinAnk",
               "status": "READY",
               "dashboard_color": "gray",
               "dashboard_color_reason": "provider_runtime_summary",
@@ -1060,7 +1032,7 @@ final class AIBotV2CoreTests: XCTestCase {
         XCTAssertEqual(providers.providers.first?.providerDashboardBadgeText, "YELLOW")
         XCTAssertFalse(providers.providers.first?.raw_key_exposed ?? true)
         let tones = Dictionary(uniqueKeysWithValues: providers.providers.map { ($0.provider, $0.providerDashboardTone) })
-        XCTAssertEqual(tones["santiment"], "green")
+        XCTAssertEqual(tones["coinank"], "green")
         XCTAssertEqual(tones["moralis"], "yellow")
         XCTAssertEqual(tones["binance"], "gray")
         XCTAssertEqual(tones["heartbeat_only"], "yellow")

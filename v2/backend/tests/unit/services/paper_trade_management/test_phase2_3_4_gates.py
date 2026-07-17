@@ -51,7 +51,7 @@ def _all_critical_features() -> list[str]:
         "nearest_liquidation_level_above", "liquidation_cascade_risk",
         "depth_vs_tape_divergence",
         "paper_position_present",
-        "nansen_score",
+        "surf_score",
     ]
 
 
@@ -94,7 +94,7 @@ def test_classify_missing_liquidation_family() -> None:
 
 
 def test_classify_missing_public_intel_family() -> None:
-    names = [f for f in _all_critical_features() if f not in ("nansen_score",)]
+    names = [f for f in _all_critical_features() if f not in ("surf_score",)]
     present, missing = classify_feature_families(feature_names=names)
     assert "public_intel" in missing
 
@@ -123,7 +123,7 @@ def test_classify_families_from_prediction_btcusdt() -> None:
             "liquidation_pressure_direction", "liquidity_zone_above",
             "liquidity_zone_below", "distance_to_liquidity_zone_bps",
             "coinapi_wsds_tape_imbalance", "tape_imbalance", "order_flow_imbalance",
-            "nansen_score", "lunarcrush_score", "aicoin_score", "surf_score",
+            "surf_score",
             "liquidation_count_5m", "paper_position_present", "paper_unrealized_bps",
             "risk_recent_allow_rate", "orchestrator_recent_allow_rate",
         ],
@@ -164,7 +164,7 @@ def test_gate_blocks_when_missing_liquidation_clusters() -> None:
 
 def test_gate_blocks_when_missing_public_intel() -> None:
     kwargs = _all_critical_gate_kwargs()
-    present = kwargs["present_feature_families"] - {"nansen_score"}
+    present = kwargs["present_feature_families"] - {"surf_score"}
     present.discard("public_intel")
     kwargs["present_feature_families"] = present
     result = evaluate_high_precision_gate(**kwargs)
@@ -605,7 +605,7 @@ def _production_missing_features() -> list[str]:
         "liquidity_zone_above", "liquidity_zone_below", "distance_to_liquidity_zone_bps",
         "liquidation_count_5m",
         "coinapi_wsds_tape_imbalance", "tape_imbalance", "order_flow_imbalance",
-        "nansen_score", "lunarcrush_score", "aicoin_score", "surf_score",
+        "surf_score",
         "paper_position_present", "paper_unrealized_bps",
         "risk_recent_allow_rate", "orchestrator_recent_allow_rate",
     ]

@@ -3,6 +3,11 @@
 Pure-input tests for the classifier + a fake-redis pipeline test
 for the CLI. No provider network call. No real Redis. No legacy
 keys read or written.
+
+Candidate inputs are the per-symbol alt-data score, the market
+prices payload, and the feature payload. Provider status payloads
+were removed along with the retired providers (operator directive
+2026-07-16); BUDGET_LIMITED remains a generic retained schema state.
 """
 from __future__ import annotations
 
@@ -54,10 +59,6 @@ def _score_payload(
     *,
     symbol: str = "BTCUSDT",
     altdata_symbol_score: float | None = 0.55,
-    smart_money_score: float = 0.7,
-    social_momentum_score: float = 0.6,
-    social_volume_velocity: float = 0.5,
-    entity_flow_score: float = 0.6,
     provider_availability_score: float = 1.0,
     altdata_freshness_score: float = 1.0,
     providers_consulted: list[str] | None = None,
@@ -69,13 +70,11 @@ def _score_payload(
         "generated_utc": _iso(seconds_old=10),
         "symbol": symbol,
         "altdata_symbol_score": altdata_symbol_score,
-        "smart_money_score": smart_money_score,
-        "social_momentum_score": social_momentum_score,
-        "social_volume_velocity": social_volume_velocity,
-        "entity_flow_score": entity_flow_score,
+        "coingecko_discovery_score": 0.7,
+        "surf_market_price_signal_score": 0.6,
         "provider_availability_score": provider_availability_score,
         "altdata_freshness_score": altdata_freshness_score,
-        "providers_consulted": providers_consulted or ["nansen", "lunarcrush"],
+        "providers_consulted": providers_consulted or ["coingecko", "surf"],
         "missing_provider_flags": missing_provider_flags or [],
         "stale_provider_flags": stale_provider_flags or [],
         "missing_signal": bool(missing_provider_flags),
@@ -95,14 +94,6 @@ def _market_payload() -> dict:
     }
 
 
-def _provider_status(**source_status_counts: int) -> dict:
-    return {
-        "generated_utc": _iso(seconds_old=10),
-        "key_present": True,
-        "source_status_counts": source_status_counts,
-    }
-
-
 # --------------------------------------------------------------------------- #
 # Classifier tests                                                            #
 # --------------------------------------------------------------------------- #
@@ -113,32 +104,23 @@ def test_classify_symbol_not_tradable_when_market_prices_absent() -> None:
     state = svc.classify_candidate_state(
         symbol_score=_score_payload(),
         market_prices_payload=None,
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_SYMBOL_NOT_TRADABLE
 
 
-def test_classify_budget_limited_when_lunarcrush_status_marks_budget() -> None:
+def test_budget_limited_state_retained_as_generic_schema_state() -> None:
+    """Provider-specific budget-status inputs were removed with the
+    retired providers, but BUDGET_LIMITED must stay a valid schema
+    state so stored payloads and dashboards keep rendering it."""
     svc = _svc()
-    state = svc.classify_candidate_state(
-        symbol_score=_score_payload(),
-        market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(DAILY_BUDGET_EXHAUSTED=5),
+    assert svc.CANDIDATE_STATE_BUDGET_LIMITED == "BUDGET_LIMITED"
+    assert svc.CANDIDATE_STATE_BUDGET_LIMITED in svc.ALL_CANDIDATE_STATES
+    reason = svc.build_candidate_reason(
+        candidate_state=svc.CANDIDATE_STATE_BUDGET_LIMITED,
+        symbol_score=None,
     )
-    assert state == svc.CANDIDATE_STATE_BUDGET_LIMITED
-
-
-def test_classify_budget_limited_when_nansen_status_marks_rate_limit() -> None:
-    svc = _svc()
-    state = svc.classify_candidate_state(
-        symbol_score=_score_payload(),
-        market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(RATE_LIMITED=3),
-        lunarcrush_status_payload=_provider_status(),
-    )
-    assert state == svc.CANDIDATE_STATE_BUDGET_LIMITED
+    assert isinstance(reason, str)
+    assert reason
 
 
 def test_classify_missing_provider_data_when_symbol_score_absent() -> None:
@@ -146,8 +128,6 @@ def test_classify_missing_provider_data_when_symbol_score_absent() -> None:
     state = svc.classify_candidate_state(
         symbol_score=None,
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_MISSING_PROVIDER_DATA
 
@@ -157,8 +137,6 @@ def test_classify_missing_provider_data_when_altdata_score_is_null() -> None:
     state = svc.classify_candidate_state(
         symbol_score=_score_payload(altdata_symbol_score=None),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_MISSING_PROVIDER_DATA
 
@@ -171,13 +149,11 @@ def test_classify_scored_partial_provider_payload_does_not_block_on_missing_flag
             providers_consulted=["coingecko"],
             provider_availability_score=0.5,
             missing_provider_flags=[
-                "nansen_payload_missing",
-                "lunarcrush_payload_missing",
+                "public_intel_public_intel_score_missing",
+                "whale_walls_whale_wall_score_missing",
             ],
         ),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED
 
@@ -185,10 +161,8 @@ def test_classify_scored_partial_provider_payload_does_not_block_on_missing_flag
 def test_classify_stale_provider_data_when_stale_flags_present() -> None:
     svc = _svc()
     state = svc.classify_candidate_state(
-        symbol_score=_score_payload(stale_provider_flags=["nansen_payload_stale"]),
+        symbol_score=_score_payload(stale_provider_flags=["coingecko_payload_stale"]),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_STALE_PROVIDER_DATA
 
@@ -198,8 +172,6 @@ def test_classify_below_threshold_when_score_too_low() -> None:
     state = svc.classify_candidate_state(
         symbol_score=_score_payload(altdata_symbol_score=0.05),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_BELOW_THRESHOLD
 
@@ -209,8 +181,6 @@ def test_classify_candidate_ready_for_watchlist_band() -> None:
     state = svc.classify_candidate_state(
         symbol_score=_score_payload(altdata_symbol_score=0.20),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_READY
 
@@ -220,8 +190,6 @@ def test_classify_symbol_universe_gate_required_when_score_above_paper_threshold
     state = svc.classify_candidate_state(
         symbol_score=_score_payload(altdata_symbol_score=0.65),
         market_prices_payload=_market_payload(),
-        nansen_status_payload=_provider_status(),
-        lunarcrush_status_payload=_provider_status(),
     )
     assert state == svc.CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED
 
@@ -239,8 +207,6 @@ def test_build_candidate_pins_safety_invariants_and_never_proposes_live_use() ->
             symbol_score=_score_payload(altdata_symbol_score=0.65),
             market_prices_payload=_market_payload(),
             feature_payload={"latest": 1.0},
-            nansen_status_payload=_provider_status(),
-            lunarcrush_status_payload=_provider_status(),
         ),
     )
     assert candidate["candidate_state"] == svc.CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED
@@ -271,8 +237,6 @@ def test_build_candidate_below_threshold_has_no_proposed_uses() -> None:
             symbol_score=_score_payload(altdata_symbol_score=0.05),
             market_prices_payload=_market_payload(),
             feature_payload=None,
-            nansen_status_payload=_provider_status(),
-            lunarcrush_status_payload=_provider_status(),
         ),
     )
     assert candidate["proposed_use"] == []
@@ -284,30 +248,34 @@ def test_build_candidate_below_threshold_has_no_proposed_uses() -> None:
 
 def test_build_candidate_reason_strings_are_state_specific() -> None:
     svc = _svc()
-    # Each of the 7 states should produce a non-empty reason.
-    for score_val, market, nansen, lunar, expected_state in (
-        (None, _market_payload(), _provider_status(), _provider_status(), svc.CANDIDATE_STATE_MISSING_PROVIDER_DATA),
-        (0.5, None, _provider_status(), _provider_status(), svc.CANDIDATE_STATE_SYMBOL_NOT_TRADABLE),
-        (0.5, _market_payload(), _provider_status(DAILY_BUDGET_EXHAUSTED=1), _provider_status(), svc.CANDIDATE_STATE_BUDGET_LIMITED),
-        (0.04, _market_payload(), _provider_status(), _provider_status(), svc.CANDIDATE_STATE_BELOW_THRESHOLD),
-        (0.20, _market_payload(), _provider_status(), _provider_status(), svc.CANDIDATE_STATE_READY),
-        (0.65, _market_payload(), _provider_status(), _provider_status(), svc.CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED),
+    # Each classifiable state should produce a non-empty reason.
+    for score_val, market, expected_state in (
+        (None, _market_payload(), svc.CANDIDATE_STATE_MISSING_PROVIDER_DATA),
+        (0.5, None, svc.CANDIDATE_STATE_SYMBOL_NOT_TRADABLE),
+        (0.04, _market_payload(), svc.CANDIDATE_STATE_BELOW_THRESHOLD),
+        (0.20, _market_payload(), svc.CANDIDATE_STATE_READY),
+        (0.65, _market_payload(), svc.CANDIDATE_STATE_SYMBOL_UNIVERSE_GATE_REQUIRED),
     ):
         candidate = svc.build_candidate(
             "BTCUSDT",
             svc.CandidateInputs(
-                symbol_score=_score_payload(altdata_symbol_score=score_val)
-                if score_val is not None or expected_state == svc.CANDIDATE_STATE_MISSING_PROVIDER_DATA
-                else None,
+                symbol_score=_score_payload(altdata_symbol_score=score_val),
                 market_prices_payload=market,
                 feature_payload=None,
-                nansen_status_payload=nansen,
-                lunarcrush_status_payload=lunar,
             ),
         )
         assert candidate["candidate_state"] == expected_state, expected_state
         assert isinstance(candidate["candidate_reason"], str)
         assert candidate["candidate_reason"]
+    # Retained schema states no longer produced by the classifier must
+    # still carry non-empty operator-readable reasons.
+    for state in (
+        svc.CANDIDATE_STATE_BUDGET_LIMITED,
+        svc.CANDIDATE_STATE_STALE_PROVIDER_DATA,
+    ):
+        reason = svc.build_candidate_reason(candidate_state=state, symbol_score=None)
+        assert isinstance(reason, str)
+        assert reason
 
 
 # --------------------------------------------------------------------------- #
@@ -318,8 +286,8 @@ def test_build_candidate_reason_strings_are_state_specific() -> None:
 def test_cli_pipeline_reads_only_allowlisted_keys_no_paper_no_risk() -> None:
     cli = _cli()
     redis = FakeRedis()
-    # Stock the fake redis with valid scoring + market + provider
-    # payloads so the pipeline returns CANDIDATE_READY / etc.
+    # Stock the fake redis with valid scoring + market payloads so the
+    # pipeline returns CANDIDATE_READY / etc.
     redis.store["v2:altdata:symbol_score:BTCUSDT"] = json.dumps(
         _score_payload(symbol="BTCUSDT", altdata_symbol_score=0.65)
     )
@@ -327,14 +295,15 @@ def test_cli_pipeline_reads_only_allowlisted_keys_no_paper_no_risk() -> None:
         _score_payload(symbol="ETHUSDT", altdata_symbol_score=0.20)
     )
     redis.store["v2:altdata:symbol_score:SOLUSDT"] = json.dumps(
-        _score_payload(symbol="SOLUSDT", altdata_symbol_score=None,
-                       missing_provider_flags=["nansen_payload_missing"])
+        _score_payload(
+            symbol="SOLUSDT",
+            altdata_symbol_score=None,
+            missing_provider_flags=["coingecko_coingecko_discovery_score_missing"],
+        )
     )
     redis.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     redis.store["v2:market:prices:ETHUSDT"] = json.dumps(_market_payload())
     redis.store["v2:market:prices:SOLUSDT"] = json.dumps(_market_payload())
-    redis.store["v2:altdata:nansen:status"] = json.dumps(_provider_status())
-    redis.store["v2:altdata:lunarcrush:status"] = json.dumps(_provider_status())
 
     payload = cli.run_once(
         symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
@@ -396,7 +365,7 @@ def test_safe_redis_set_refuses_keys_outside_publisher_allowlist() -> None:
     for forbidden in (
         "v2:paper:positions",
         "v2:risk:decisions",
-        "v2:altdata:nansen:status",
+        "v2:altdata:coingecko:status",
         "order_intent:BTCUSDT",
         "trader:positions",
         "v2:symbol_universe:paper_symbols",
@@ -410,18 +379,14 @@ def test_payload_does_not_serialize_synthetic_credential() -> None:
     cli = _cli()
     secret = "sk-LEAK-CANDIDATE-PUBLISHER-NEVER-1234567890abcdef"
     redis = FakeRedis()
-    redis.store["v2:altdata:nansen:status"] = json.dumps(
-        {
-            "generated_utc": _iso(),
-            "key_present": True,
-            "source_status_counts": {"OK": 1},
-            "credential_in_payload": "NEVER",
-            # Even if a provider erroneously embeds a secret in a
-            # non-credential field, the publisher must not propagate
-            # it. We verify by string-searching the final payload.
-            "non_credential_note": "this field is plain text only",
-        }
-    )
+    score = _score_payload(symbol="BTCUSDT", altdata_symbol_score=0.65)
+    # Even if an upstream payload erroneously embeds a secret in a
+    # non-credential field, the publisher must not propagate it — it
+    # copies only allow-listed fields into candidates. We verify by
+    # string-searching the final payload.
+    score["non_credential_note"] = secret
+    redis.store["v2:altdata:symbol_score:BTCUSDT"] = json.dumps(score)
+    redis.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     payload = cli.run_once(
         symbols=("BTCUSDT",),
         redis_client_override=redis,
@@ -455,8 +420,6 @@ def test_cli_pipeline_does_not_mutate_symbol_universe_sets() -> None:
         _score_payload(altdata_symbol_score=0.95)
     )
     redis.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
-    redis.store["v2:altdata:nansen:status"] = json.dumps(_provider_status())
-    redis.store["v2:altdata:lunarcrush:status"] = json.dumps(_provider_status())
     payload = cli.run_once(
         symbols=("BTCUSDT",),
         redis_client_override=redis,
@@ -492,8 +455,6 @@ def test_cli_legend_and_state_counts_match_candidates() -> None:
     )
     for sym in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
         redis.store[f"v2:market:prices:{sym}"] = json.dumps(_market_payload())
-    redis.store["v2:altdata:nansen:status"] = json.dumps(_provider_status())
-    redis.store["v2:altdata:lunarcrush:status"] = json.dumps(_provider_status())
     payload = cli.run_once(
         symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
         redis_client_override=redis,

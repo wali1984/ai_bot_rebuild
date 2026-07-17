@@ -55,8 +55,9 @@ ALLOWED_RECOMMENDATIONS = {
 }
 
 SOURCE_ENV_NAMES = {
-    "onchain_btc": ("GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"),
-    "onchain_eth": ("GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY", "SANTIMENT_API_KEY"),
+    # santiment removed by operator directive 2026-07-16.
+    "onchain_btc": ("GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY"),
+    "onchain_eth": ("GLASSNODE_API_KEY", "CRYPTOQUANT_API_KEY"),
     "unified_feature_family.token_metrics": ("TOKENMETRICS_API_KEY", "TM_API_KEY"),
 }
 FREE_TIER_CONFIRM_ENV_NAMES = (

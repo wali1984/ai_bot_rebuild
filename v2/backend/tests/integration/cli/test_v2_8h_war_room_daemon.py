@@ -61,7 +61,7 @@ def test_safe_redis_set_refuses_anything_except_war_room_heartbeat() -> None:
     # Refuse other v2 namespaces (so a cycle bug cannot leak writes).
     assert daemon.safe_redis_set(r, "v2:market:liquidations:heartbeat", "x", ex=60) is False
     assert daemon.safe_redis_set(r, "v2:paper:positions", "x", ex=60) is False
-    assert daemon.safe_redis_set(r, "v2:altdata:nansen:status", "x", ex=60) is False
+    assert daemon.safe_redis_set(r, "v2:altdata:provider_status", "x", ex=60) is False
     # Refuse legacy namespaces and unscoped keys.
     assert daemon.safe_redis_set(r, "prediction:BTCUSDT", "x", ex=60) is False
     assert daemon.safe_redis_set(r, "signals:trading:primary", "x", ex=60) is False
@@ -112,7 +112,6 @@ def test_tier_60m_fix_evaluation_emits_no_action_required_with_evidence() -> Non
     daemon = _load_daemon()
     gap = {
         "aggregated_classification_counts": {
-            "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING": 6,
             "FULL_OBSERVATION_PARTIAL": 3,
             "V2_POSITION_HISTORY_MISSING": 2,
             "MISSING_LEGACY_LOG_ACTION_EVIDENCE": 3,
@@ -242,7 +241,6 @@ def test_run_one_cycle_writes_status_and_heartbeat(tmp_path, monkeypatch) -> Non
         "symbols": list(s),
         "per_symbol": [],
         "aggregated_classification_counts": {
-            "ALT_DATA_PROVIDER_FORBIDDEN_OR_MISSING": 6,
             "FULL_OBSERVATION_PARTIAL": 3,
         },
         "legacy_evidence_consumed_as_current_truth": False,
@@ -260,9 +258,6 @@ def test_run_one_cycle_writes_status_and_heartbeat(tmp_path, monkeypatch) -> Non
     monkeypatch.setattr(daemon, "tier_30m_refresh_payloads", lambda r: {
         "tier": "30m",
         "refresh_results": [],
-        "nansen_oneshot_triggered": False,
-        "lunarcrush_oneshot_triggered": False,
-        "reason_for_no_provider_call": "test",
     })
 
     fake = FakeRedis()
@@ -347,5 +342,7 @@ def test_run_one_cycle_does_not_call_provider_oneshots(tmp_path, monkeypatch) ->
         force_tier_60m=False,
     )
     flat = " ".join(" ".join(a) for a in invoked)
-    assert "v2_nansen_altdata_ingestor" not in flat
-    assert "v2_lunarcrush_altdata_ingestor" not in flat
+    # The daemon must never shell out to an external alt-data provider
+    # one-shot; only its own status/dashboard refreshers are allowed.
+    assert "altdata_ingestor" not in flat
+    assert "_altdata_" not in flat

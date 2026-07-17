@@ -99,8 +99,8 @@ def test_compact_report_summarizes_rows_for_log_output() -> None:
         "schema_version": "altdata_confluence_loop_status_v1",
         "pair_count": 3,
         "rows": [
-            {"symbol": "BTCUSDT", "actual_payload_present": True, "providers_present": ["coinank", "santiment"]},
-            {"symbol": "ETHUSDT", "actual_payload_present": True, "providers_present": ["santiment"]},
+            {"symbol": "BTCUSDT", "actual_payload_present": True, "providers_present": ["coinank", "moralis"]},
+            {"symbol": "ETHUSDT", "actual_payload_present": True, "providers_present": ["moralis"]},
             {"symbol": "SUNUSDT", "actual_payload_present": False, "providers_present": []},
         ],
     }
@@ -108,7 +108,7 @@ def test_compact_report_summarizes_rows_for_log_output() -> None:
     assert "rows" not in compact
     assert compact["row_count"] == 3
     assert compact["actual_payload_present_count"] == 2
-    assert compact["providers_present_counts"] == {"coinank": 1, "santiment": 2}
+    assert compact["providers_present_counts"] == {"coinank": 1, "moralis": 2}
     assert compact["pair_count"] == 3
 
 

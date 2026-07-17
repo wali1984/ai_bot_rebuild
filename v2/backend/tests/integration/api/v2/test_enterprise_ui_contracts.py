@@ -629,11 +629,6 @@ def test_ui_ai_brain_exposes_page_contract_without_live_routes(client: TestClien
         "actual_payload_count": 3,
         "heartbeat_only": False,
     })
-    fake_redis.kv["v2:provider:santiment:feature_bridge_status"] = json.dumps({
-        "feature_count": 18,
-        "actual_payload_count": 4,
-        "heartbeat_only": False,
-    })
     fake_redis.kv["v2:provider:moralis:feature_bridge_status"] = json.dumps({
         "feature_count": 10,
         "actual_payload_count": 2,
@@ -651,7 +646,6 @@ def test_ui_ai_brain_exposes_page_contract_without_live_routes(client: TestClien
     assert contract["ppo_tensor_provider_features"] is True
     assert contract["masa_tensor_provider_features"] is True
     assert contract["provider_feature_count_by_provider"]["coinglass"] == 12
-    assert contract["provider_feature_count_by_provider"]["santiment"] == 18
     assert contract["provider_feature_count_by_provider"]["moralis"] == 10
     assert contract["routes_to_live"] is False
     assert contract["places_real_order"] is False

@@ -33,9 +33,6 @@ PUBLIC_STATUS_PATHS = {
     / "operator_runtime/v2_liquidation_levels_engine/latest/v2_liquidation_levels_engine_status.json",
     "liquidation_runtime": PUBLIC_ROOT
     / "operator_runtime/v2_liquidation_runtime_status/latest/v2_liquidation_runtime_status.json",
-    "nansen": PUBLIC_ROOT / "operator_runtime/v2_nansen_altdata_client/latest/v2_nansen_altdata_status.json",
-    "lunarcrush": PUBLIC_ROOT
-    / "operator_runtime/v2_lunarcrush_altdata_client/latest/v2_lunarcrush_altdata_status.json",
 }
 
 
@@ -395,35 +392,9 @@ def run_once() -> dict:
             evidence_payloads=[public_status["liquidation_runtime"]],
         ),
         _ingestor_entry(
-            "Nansen Altdata",
-            "ai-bot-v2-nansen-altdata-loop.service",
-            f"{V2_REDIS_PREFIX}altdata:nansen:status",
-            None,
-            r,
-            control_group="altdata_ingestor",
-            evidence_payloads=[public_status["nansen"]],
-        ),
-        _ingestor_entry(
-            "LunarCrush Altdata",
-            "ai-bot-v2-lunarcrush-altdata-loop.service",
-            f"{V2_REDIS_PREFIX}altdata:lunarcrush:status",
-            None,
-            r,
-            control_group="altdata_ingestor",
-            evidence_payloads=[public_status["lunarcrush"]],
-        ),
-        _ingestor_entry(
             "Public Intel Free-Tier",
             "ai-bot-v2-public-intel-free-tier-loop.service",
             f"{V2_REDIS_PREFIX}altdata:public_intel:status",
-            None,
-            r,
-            control_group="altdata_ingestor",
-        ),
-        _ingestor_entry(
-            "AICoin + Whale-Wall Free-Tier Intel",
-            "ai-bot-v2-aicoin-whale-intel-loop.service",
-            f"{V2_REDIS_PREFIX}altdata:aicoin:status",
             None,
             r,
             control_group="altdata_ingestor",
@@ -481,10 +452,7 @@ def run_once() -> dict:
             (f"{V2_REDIS_PREFIX}latest:coinapi:ohlcv:*", "coinapi_ohlcv_latest"),
             (f"{V2_REDIS_PREFIX}liquidations:levels:*", "liquidation_levels"),
             (f"{V2_REDIS_PREFIX}market:liquidations:*", "liquidation_market"),
-            (f"{V2_REDIS_PREFIX}altdata:nansen:*", "nansen_altdata"),
-            (f"{V2_REDIS_PREFIX}altdata:lunarcrush:*", "lunarcrush_altdata"),
             (f"{V2_REDIS_PREFIX}altdata:public_intel:*", "public_intel_altdata"),
-            (f"{V2_REDIS_PREFIX}altdata:aicoin:*", "aicoin_altdata"),
             (f"{V2_REDIS_PREFIX}altdata:whale_walls:*", "whale_wall_altdata"),
             (f"{V2_REDIS_PREFIX}altdata:symbol_score:*", "altdata_symbol_scores"),
             (f"{V2_REDIS_PREFIX}symbol_universe:altdata_candidates", "altdata_candidates"),

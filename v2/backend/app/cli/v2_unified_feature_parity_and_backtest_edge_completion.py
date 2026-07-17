@@ -53,10 +53,6 @@ EVENT_FIELDS = {
 }
 
 PLAN_BLOCKED_FIELDS = {
-    "nansen_score": "Nansen",
-    "nansen_presence": "Nansen",
-    "lunarcrush_score": "LunarCrush",
-    "aicoin_score": "AICoin",
     "coingecko_score": "CoinGecko",
     "surf_score": "Surf",
     "defillama_score": "DeFiLlama",

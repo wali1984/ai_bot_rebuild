@@ -253,7 +253,6 @@ export default function AdminIntelligencePage(): JSX.Element {
           <Field label="Live gate" value={runtimeSourceText(aiPageContract?.live_gate ?? 'blocked_human_only', 'blocked_human_only')} mono />
           <Field label="Routes to live" value={flagText(aiPageContract?.routes_to_live)} mono />
           <Field label="CoinGlass features" value={numText(aiProviderCounts.coinglass)} mono />
-          <Field label="Santiment features" value={numText(aiProviderCounts.santiment)} mono />
           <Field label="Moralis features" value={numText(aiProviderCounts.moralis)} mono />
           <Field label="Tensor channel" value={aiPageContract?.provider_features_in_tensor ? 'present' : 'pending'} mono />
         </div>

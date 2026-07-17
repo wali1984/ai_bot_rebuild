@@ -28,14 +28,12 @@ EXPECTED_IDS = [
     "binance_futures_12h_volatility_leaders",
     "liquidation_tape_top_symbols",
     "funding_oi_movers",
-    "nansen_smart_money_top_symbols",
-    "lunarcrush_social_momentum_top_symbols",
 ]
 
 
 def test_exact_top10_dashboard_ids_and_order() -> None:
     payload = _contracts().build_top10_dashboard_contracts(env={})
-    assert payload["dashboard_count"] == 10
+    assert payload["dashboard_count"] == len(EXPECTED_IDS)
     assert [row["id"] for row in payload["dashboards"]] == EXPECTED_IDS
 
 
@@ -53,43 +51,17 @@ def test_binance_contracts_use_12h_v2_market_rules() -> None:
     assert rows["binance_futures_12h_volume_leaders"]["market_type"] == "futures"
 
 
-def test_altdata_dashboards_disabled_with_present_keys_until_clients_pass(
-    monkeypatch,
-) -> None:
+def test_contracts_never_serialize_env_credential_values() -> None:
     payload = _contracts().build_top10_dashboard_contracts(
         env={
-            "NANSEN_API_KEY": "raw_nansen_value",
-            "LUNARCRUSH_API_KEY": "raw_lunar_value",
+            "COINGECKO_API_KEY": "raw_coingecko_value",
+            "COINGLASS_API_KEY": "raw_coinglass_value",
         }
     )
     body = json.dumps(payload)
-    assert "raw_nansen_value" not in body
-    assert "raw_lunar_value" not in body
-    rows = {row["id"]: row for row in payload["dashboards"]}
-    for panel_id in (
-        "nansen_smart_money_top_symbols",
-        "lunarcrush_social_momentum_top_symbols",
-    ):
-        row = rows[panel_id]
-        assert row["enabled"] is False
-        assert row["empty_until_provider_client_codex_pass"] is True
-        assert row["provider_client_codex_pass_required"] is True
-        assert row["provider_key_present"] is True
-        assert row["disabled_reason"] == "KEY_PRESENT_NO_CLIENT_YET"
-        assert row["credential_value"] == "NEVER"
-        assert row["may_not_override_strict_paper_fill_gate"] is True
-        assert row["may_not_authorize_live_or_canary"] is True
-        assert row["may_not_place_orders"] is True
-
-
-def test_altdata_dashboards_report_missing_source_when_keys_absent(
-    tmp_path: Path, monkeypatch
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    payload = _contracts().build_top10_dashboard_contracts(env={})
-    rows = {row["id"]: row for row in payload["dashboards"]}
-    assert rows["nansen_smart_money_top_symbols"]["disabled_reason"] == "MISSING_SOURCE"
-    assert rows["lunarcrush_social_momentum_top_symbols"]["disabled_reason"] == "MISSING_SOURCE"
+    assert "raw_coingecko_value" not in body
+    assert "raw_coinglass_value" not in body
+    assert payload["raw_values_exposed"] is False
 
 
 def test_payload_safety_invariants() -> None:
@@ -122,7 +94,7 @@ def test_run_once_writes_required_artifacts(tmp_path: Path, monkeypatch) -> None
     assert payload["go_no_go"] == "V2_TOP10_MARKET_AND_ALTDATA_DASHBOARD_CONTRACTS_READY"
     contracts = json.loads((tmp_path / "work/top10_dashboard_contracts.json").read_text())
     public = json.loads((tmp_path / "public/operator_dashboard_payload.json").read_text())
-    assert contracts["dashboard_count"] == 10
+    assert contracts["dashboard_count"] == len(EXPECTED_IDS)
     assert public["dashboard_ids"] == EXPECTED_IDS
     assert (tmp_path / "work/GO_NO_GO.md").read_text().strip() == payload["go_no_go"]
     assert "GO/NO-GO" in (tmp_path / "work/TOP10_MARKET_AND_ALTDATA_DASHBOARD_CONTRACTS.md").read_text()

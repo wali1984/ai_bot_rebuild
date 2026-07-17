@@ -29,7 +29,6 @@ UNIT_DENYLIST_SUBSTRINGS: tuple[str, ...] = (
     "coinapi",
     "coinglass",
     "moralis",
-    "santiment",
     "orderbook",
     "microstructure",
     "kline",
@@ -320,11 +319,13 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("alternative_data_status", "alternative-data-status-loop", "altdata", criticality="normal",
          heartbeat_redis_key="v2:altdata:provider_status", heartbeat_field="generated_utc",
          max_staleness_seconds=900, treat_missing_heartbeat_as_stale=True),
-    _svc("aicoin_whale_intel", "aicoin-whale-intel-loop", "altdata", criticality="normal"),
     _svc("arkham_presence", "arkham-presence-loop", "altdata", criticality="normal"),
-    _svc("lunarcrush_altdata", "lunarcrush-altdata-loop", "altdata", criticality="normal"),
-    _svc("nansen_altdata", "nansen-altdata-loop", "altdata", criticality="normal"),
     _svc("public_intel_free_tier", "public-intel-free-tier-loop", "altdata", criticality="normal"),
+    # Native orderbook-derived whale-wall lane (extracted from the removed
+    # combined free-tier worker, operator directive 2026-07-16).
+    _svc("whale_walls_intel", "whale-walls-intel-loop", "altdata", criticality="normal",
+         heartbeat_redis_key="v2:altdata:whale_walls:status", heartbeat_field="generated_utc",
+         max_staleness_seconds=3600, treat_missing_heartbeat_as_stale=True),
     # Real per-exchange orderbook diff + real enhanced liquidation (per-symbol
     # output, no single heartbeat -> process-liveness self-heal).
     _svc("crossexchange_analyzer", "crossexchange-analyzer", "altdata", criticality="normal"),

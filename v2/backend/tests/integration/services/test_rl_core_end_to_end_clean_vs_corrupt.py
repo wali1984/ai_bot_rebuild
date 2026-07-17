@@ -210,10 +210,7 @@ def _seed(
     client.set("v2:market:microstructure:BTCUSDT", json.dumps({"micro_price": 101.0, "toxicity_proxy": 0.1}))
     client.set("v2:market:liquidation_levels:BTCUSDT", json.dumps({"nearest_distance_bps": 150.0}))
     client.set("v2:altdata:public_intel:symbol:BTCUSDT", json.dumps({"public_intel_score": 0.5}))
-    client.set("v2:altdata:aicoin:symbol:BTCUSDT", json.dumps({"aicoin_order_flow_score": 0.2}))
     client.set("v2:altdata:whale_walls:symbol:BTCUSDT", json.dumps({"whale_wall_score": 0.8, "whale_bid_pressure_score": 0.85}))
-    client.set("v2:altdata:lunarcrush:symbol:BTCUSDT", json.dumps({"score": 0.5}))
-    client.set("v2:altdata:nansen:symbol:BTCUSDT", json.dumps({"presence": 1.0}))
     client.set(
         "v2:altdata:symbol_score:BTCUSDT",
         json.dumps(
@@ -224,7 +221,6 @@ def _seed(
                 "public_intel_score": 0.5,
                 "coingecko_discovery_score": 0.6,
                 "defillama_liquidity_score": 0.4,
-                "aicoin_order_flow_score": 0.2,
                 "whale_wall_score": 0.8,
                 "whale_bid_pressure_score": 0.85,
             }

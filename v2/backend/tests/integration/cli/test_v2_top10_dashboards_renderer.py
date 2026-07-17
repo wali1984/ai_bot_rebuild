@@ -47,11 +47,11 @@ def _iso(seconds_old: int = 0) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def test_renderer_emits_ten_panels_with_legend_and_safety_pins() -> None:
+def test_renderer_emits_eight_panels_with_legend_and_safety_pins() -> None:
     payload = build_dashboard_payload(_FakeRedis())
     assert payload["go_no_go"] == "V2_TOP10_MARKET_AND_ALTDATA_DASHBOARD_RENDERING_READY"
-    assert payload["panels_total"] == 10
-    assert isinstance(payload["panels"], list) and len(payload["panels"]) == 10
+    assert payload["panels_total"] == 8
+    assert isinstance(payload["panels"], list) and len(payload["panels"]) == 8
     # Legend covers every possible state.
     legend = payload["panel_state_legend"]
     for state in (
@@ -244,82 +244,6 @@ def test_funding_oi_panel_with_old_epoch_times_is_stale() -> None:
     assert funding["state"] == STATE_STALE
 
 
-def test_nansen_panel_with_no_status_is_key_missing() -> None:
-    payload = build_dashboard_payload(_FakeRedis())
-    nansen = next(p for p in payload["panels"] if p["panel_id"] == "nansen_smart_money_top_symbols")
-    assert nansen["state"] == STATE_KEY_MISSING
-
-
-def test_lunarcrush_panel_with_status_but_no_rows_and_no_key_is_no_client_yet() -> None:
-    store = {
-        "v2:altdata:lunarcrush:status": json.dumps(
-            {
-                "generated_utc": _iso(seconds_old=10),
-                "key_present": False,
-                "paid_endpoints_enabled": False,
-                "tier": "free",
-                "source_status_counts": {"KEY_MISSING_NO_NETWORK": 3},
-                "credential_in_payload": "NEVER",
-            }
-        ),
-    }
-    payload = build_dashboard_payload(_FakeRedis(store))
-    lunar = next(
-        p for p in payload["panels"] if p["panel_id"] == "lunarcrush_social_momentum_top_symbols"
-    )
-    assert lunar["state"] == STATE_KEY_PRESENT_NO_CLIENT_YET
-    assert lunar["key_present"] is False
-    assert lunar["paid_endpoints_enabled"] is False
-    assert lunar["tier"] == "free"
-    assert lunar["credential_in_payload"] == "NEVER"
-
-
-def test_lunarcrush_panel_with_budget_status_label_classifies_budget_limited() -> None:
-    store = {
-        "v2:altdata:lunarcrush:status": json.dumps(
-            {
-                "generated_utc": _iso(seconds_old=10),
-                "key_present": True,
-                "source_status_counts": {"BUDGET_EXHAUSTED": 5, "RATE_LIMITED": 1},
-                "tier": "free",
-                "credential_in_payload": "NEVER",
-            }
-        ),
-    }
-    payload = build_dashboard_payload(_FakeRedis(store))
-    lunar = next(
-        p for p in payload["panels"] if p["panel_id"] == "lunarcrush_social_momentum_top_symbols"
-    )
-    assert lunar["state"] == STATE_BUDGET_LIMITED
-
-
-def test_nansen_panel_with_fresh_rows_classifies_ok() -> None:
-    store = {
-        "v2:altdata:nansen:status": json.dumps(
-            {
-                "generated_utc": _iso(seconds_old=5),
-                "key_present": True,
-                "tier": "free",
-                "credential_in_payload": "NEVER",
-                "source_status_counts": {"OK": 3},
-            }
-        ),
-        "v2:altdata:nansen:top_symbols": json.dumps(
-            {
-                "generated_utc": _iso(seconds_old=5),
-                "rows": [
-                    {"rank": 1, "symbol": "BTCUSDT", "score": 0.91},
-                    {"rank": 2, "symbol": "ETHUSDT", "score": 0.84},
-                ],
-            }
-        ),
-    }
-    payload = build_dashboard_payload(_FakeRedis(store))
-    nansen = next(p for p in payload["panels"] if p["panel_id"] == "nansen_smart_money_top_symbols")
-    assert nansen["state"] == STATE_OK_ROWS_PRESENT
-    assert nansen["rank_count"] == 2
-
-
 def test_panel_rows_are_capped_at_ten() -> None:
     rows = [
         {"rank": i, "symbol": f"SYM{i:02d}", "quote_volume": float(100 - i)}
@@ -339,18 +263,23 @@ def test_panel_rows_are_capped_at_ten() -> None:
 def test_payload_does_not_contain_raw_credential_like_values() -> None:
     secret = "sk-LEAK-1234567890abcdef-TOP10-RENDERER-TEST"
     store = {
-        "v2:altdata:lunarcrush:status": json.dumps(
+        "v2:dashboards:binance_top10:spot_volume_12h": json.dumps(
             {
                 "generated_utc": _iso(seconds_old=10),
-                "key_present": True,
-                "credential_in_payload": "NEVER",
-                # Synthetic adversarial: even if a provider erroneously
-                # leaked a secret into its source_status_counts label
-                # name, the renderer never serializes it. We test this
-                # by verifying the secret string is not in the final
-                # flat dump.
-                "source_status_counts": {"OK": 1},
-                "tier": "free",
+                "source_status": "API_OK",
+                # Synthetic adversarial: even if an upstream exporter
+                # erroneously leaked a secret into extra payload/row
+                # fields, the renderer copies only its whitelisted
+                # fields and never serializes the secret.
+                "api_key": secret,
+                "rows": [
+                    {
+                        "rank": 1,
+                        "symbol": "BTCUSDT",
+                        "quote_volume": 12345.6,
+                        "leaked_field": secret,
+                    }
+                ],
             }
         ),
     }

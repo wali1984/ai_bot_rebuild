@@ -40,14 +40,12 @@ def test_required_alerts_fire_for_bad_paper_performance_without_false_entry_aler
             "exchange_mutation_detected": False,
             "website_truth_pass": True,
             "ios_truth_pass": True,
-            "santiment_symbol_count": 15,
         }
     )
 
     assert _by_name(alerts, "PF < 1 after 5 trades")["fires"] is True
     assert _by_name(alerts, "expectancy <= 0 after 5 trades")["fires"] is True
     assert _by_name(alerts, "new entries allowed while halted")["fires"] is False
-    assert _by_name(alerts, "paid ingestor unused")["fires"] is False
     assert _by_name(alerts, "website stale-current mismatch")["fires"] is False
     assert _by_name(alerts, "iOS stale-current mismatch")["fires"] is False
 
@@ -77,7 +75,6 @@ def test_runtime_drift_alert_exposes_f0008_restart_evidence() -> None:
             "exchange_mutation_detected": False,
             "website_truth_pass": True,
             "ios_truth_pass": True,
-            "santiment_symbol_count": 1,
         }
     )
 

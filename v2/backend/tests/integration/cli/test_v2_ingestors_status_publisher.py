@@ -65,18 +65,6 @@ def test_ingestors_status_merges_public_provider_payload_counts(monkeypatch) -> 
             "v2_redis_global_keys_written_count": 11,
             "global_aggregate_result": {"n_symbols_observed": 2, "total_oi": 1000.0},
         },
-        "nansen": {
-            "generated_utc": publisher._utc_iso(),
-            "source_status_counts": {"API_OK": 1, "CACHE_HIT": 1},
-            "successful_symbol_count": 2,
-            "symbol_count": 2,
-        },
-        "lunarcrush": {
-            "generated_utc": publisher._utc_iso(),
-            "source_status_counts": {"API_PAYMENT_REQUIRED_402": 2},
-            "successful_symbol_count": 0,
-            "symbol_count": 2,
-        },
     }
     monkeypatch.setattr(publisher, "_connect_redis", lambda: redis)
     monkeypatch.setattr(publisher, "_read_public_status", lambda name: statuses.get(name))
@@ -93,12 +81,5 @@ def test_ingestors_status_merges_public_provider_payload_counts(monkeypatch) -> 
     assert entries["CoinAnk Direct Global Aggregator"]["symbols_count"] == 2
     assert entries["CoinAnk Direct Global Aggregator"]["keys_written_count"] == 11
     assert entries["CoinAnk Direct Global Aggregator"]["status"] == "V2_COINANK_GLOBAL_AGGREGATE_OK"
-    assert entries["Nansen Altdata"]["active"] is True
-    assert entries["Nansen Altdata"]["symbols_count"] == 2
-    assert entries["Nansen Altdata"]["keys_written_count"] == 2
-    assert entries["Nansen Altdata"]["status"] == "PROVIDER_CURRENT_API_OK"
-    assert entries["LunarCrush Altdata"]["active"] is True
-    assert entries["LunarCrush Altdata"]["symbols_count"] == 2
-    assert entries["LunarCrush Altdata"]["status"] == "PROVIDER_PLAN_REQUIRED_API_PAYMENT_REQUIRED_402"
     assert payload["live_gate"] == "enabled_operator_approved"
     assert payload["live_symbols"] == []

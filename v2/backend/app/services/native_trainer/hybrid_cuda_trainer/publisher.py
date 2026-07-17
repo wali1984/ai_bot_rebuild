@@ -157,7 +157,6 @@ _LIQUIDATION_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
     "liquidation_strength",
     "liquidation_volume",
     "last_liq_bps_24h",
-    "aicoin_liquidation_score",
 )
 _MICROSTRUCTURE_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
     "bid_ask_spread_bps",
@@ -183,7 +182,6 @@ _OI_FUNDING_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
     "long_short_ratio",
     "long_account_ratio",
     "short_account_ratio",
-    "aicoin_open_interest_score",
 )
 _PUBLIC_INTEL_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
     "public_intel_score",
@@ -202,9 +200,6 @@ _PUBLIC_INTEL_CONTEXT_VALUE_FIELDS: tuple[str, ...] = (
     "coingecko_momentum_score",
     "surf_score",
     "surf_market_price_signal_score",
-    "aicoin_news_attention_score",
-    "aicoin_market_activity_score",
-    "aicoin_signal_score",
 )
 _PREMIUM_CONTEXT_REQUIREMENTS: tuple[tuple[str, tuple[str, ...], str, bool], ...] = (
     ("liquidity_context", _LIQUIDITY_CONTEXT_VALUE_FIELDS, "LIQUIDITY", True),
@@ -686,11 +681,9 @@ def _provider_mask_context(example: TrainingExample, trust_row: dict[str, Any]) 
             "altdata" in source_text
             or "moralis" in source_text
             or "coinglass" in source_text
-            or "santiment" in source_text
             or "altdata" in name_text
             or "moralis" in name_text
             or "coinglass" in name_text
-            or "santiment" in name_text
         )
         if not is_provider:
             continue
@@ -806,7 +799,7 @@ def _prediction_premium_contexts(example: TrainingExample, trust_row: dict[str, 
             feature_values=feature_values,
             fields=_LIQUIDATION_CONTEXT_VALUE_FIELDS,
             context_type="LIQUIDATION",
-            missing_tokens=("liquidation", "liq", "aicoin_liquidation"),
+            missing_tokens=("liquidation", "liq"),
         ),
         "liquidation_context": _premium_context_from_features(
             example=example,
@@ -814,7 +807,7 @@ def _prediction_premium_contexts(example: TrainingExample, trust_row: dict[str, 
             feature_values=feature_values,
             fields=_LIQUIDATION_CONTEXT_VALUE_FIELDS,
             context_type="LIQUIDATION",
-            missing_tokens=("liquidation", "liq", "aicoin_liquidation"),
+            missing_tokens=("liquidation", "liq"),
         ),
         "microstructure_context": _premium_context_from_features(
             example=example,
@@ -838,7 +831,7 @@ def _prediction_premium_contexts(example: TrainingExample, trust_row: dict[str, 
             feature_values=feature_values,
             fields=_PUBLIC_INTEL_CONTEXT_VALUE_FIELDS,
             context_type="PUBLIC_INTEL",
-            missing_tokens=("public", "news", "sentiment", "breadth", "social", "fear_greed", "aicoin"),
+            missing_tokens=("public", "news", "sentiment", "breadth", "social", "fear_greed"),
         ),
     }
     sources: dict[str, str] = {}

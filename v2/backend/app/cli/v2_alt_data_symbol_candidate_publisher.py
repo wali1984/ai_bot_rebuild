@@ -102,9 +102,6 @@ def _redis_get_json(redis_client: Any, key: str) -> Any | None:
 def _load_inputs_for_symbol(
     redis_client: Any,
     symbol: str,
-    *,
-    nansen_status: Any | None = None,
-    lunarcrush_status: Any | None = None,
 ) -> CandidateInputs:
     """Read ONLY the alt-data, market, and feature keys the
     publisher is allowed to consume. ``v2:paper:*`` / ``v2:risk:*``
@@ -120,8 +117,6 @@ def _load_inputs_for_symbol(
         feature_payload=_redis_get_json(
             redis_client, f"v2:features:latest:{symbol}:{timeframe}"
         ),
-        nansen_status_payload=nansen_status,
-        lunarcrush_status_payload=lunarcrush_status,
     )
 
 
@@ -150,20 +145,11 @@ def run_once(
         redis_client_override if redis_client_override is not None else _connect_redis()
     )
     generated_utc = utc_iso()
-    # Provider-level status payloads are read once and reused per
-    # symbol so the publisher does not double-poll the same keys.
-    nansen_status = _redis_get_json(redis_client, "v2:altdata:nansen:status")
-    lunarcrush_status = _redis_get_json(redis_client, "v2:altdata:lunarcrush:status")
     normalized_symbols = sorted(
         {symbol.strip().upper() for symbol in symbols if symbol and symbol.strip()}
     )
     inputs_by_symbol = {
-        symbol: _load_inputs_for_symbol(
-            redis_client,
-            symbol,
-            nansen_status=nansen_status,
-            lunarcrush_status=lunarcrush_status,
-        )
+        symbol: _load_inputs_for_symbol(redis_client, symbol)
         for symbol in normalized_symbols
     }
     payload = build_candidate_list(

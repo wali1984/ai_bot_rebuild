@@ -16,7 +16,6 @@ from .contracts import IntegrityThresholds, MarketStateScore
 from .validators import validate_candle_completion, validate_event_time_alignment
 
 OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
-    "aicoin",
     "altdata",
     "ask_wall",
     "basis",
@@ -46,19 +45,16 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "liquidity_zone",
     "long_account",
     "long_short",
-    "lunarcrush",
     "mark_price",
     "mempool",
     "micro_",
     "micro_price",
     "microprice",
     "microstructure",
-    # moralis/santiment are provider alt-data families exactly like
-    # aicoin/nansen/lunarcrush/surf below: per-symbol coverage is inherently
-    # partial (token maps / asset slugs), so their absence is structural,
-    # never a critical-feature failure.
+    # moralis is a provider alt-data family exactly like surf below:
+    # per-symbol coverage is inherently partial (token maps / asset slugs),
+    # so its absence is structural, never a critical-feature failure.
     "moralis",
-    "nansen",
     "news_",
     "num_trades",
     "oi_",
@@ -76,7 +72,6 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "realized_slippage_error",
     "risk_recent_",
     "orchestrator_recent_",
-    "santiment",
     "source_latency",
     "spread",
     "spread_instability",

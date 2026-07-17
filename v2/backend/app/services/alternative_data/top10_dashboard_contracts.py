@@ -1,17 +1,14 @@
 """Top-10 market and alternative-data dashboard contracts.
 
-Contract-only. Does not call Binance, Nansen, LunarCrush, Arkham, or
-any exchange/provider API. Does not write Redis. The contracts describe
-V2 source keys and the expected missing/stale states that the website
-can render.
+Contract-only. Does not call Binance, Arkham, or any exchange/provider
+API. Does not write Redis. The contracts describe V2 source keys and
+the expected missing/stale states that the website can render.
 """
 from __future__ import annotations
 
 from typing import Any
 
 from v2.backend.app.services.alternative_data.provider_registry import (
-    DEFAULT_VAULT_PATH,
-    redacted_key_presence,
     utc_iso,
 )
 
@@ -63,58 +60,14 @@ def _market_panel(
     }
 
 
-def _altdata_panel(
-    *,
-    rank: int,
-    panel_id: str,
-    title: str,
-    provider_id: str,
-    credential_env_var: str,
-    key_present: bool,
-) -> dict[str, Any]:
-    return {
-        "rank": rank,
-        "id": panel_id,
-        "title": title,
-        "category": "alternative_data",
-        "provider_id": provider_id,
-        "enabled": False,
-        "empty_until_provider_client_codex_pass": True,
-        "provider_client_codex_pass_required": True,
-        "provider_key_present": bool(key_present),
-        "disabled_reason": (
-            "KEY_PRESENT_NO_CLIENT_YET" if key_present else "MISSING_SOURCE"
-        ),
-        "credential_env_var_name_documented_only": credential_env_var,
-        "credential_value": "NEVER",
-        "raw_credentials_allowed": False,
-        "primary_v2_sources": [
-            f"v2:altdata:{provider_id}:status",
-            f"v2:altdata:{provider_id}:symbol:{{symbol}}",
-        ],
-        "required_fields": [
-            "symbol",
-            "rank",
-            "generated_utc",
-            "missing_source",
-            "stale_flag",
-            "provider_key_present",
-            "provider_client_status",
-            "daily_request_budget_remaining",
-            "tier",
-        ],
-        "paper_shadow_only": True,
-        "may_not_override_strict_paper_fill_gate": True,
-        "may_not_authorize_live_or_canary": True,
-        "may_not_place_orders": True,
-    }
-
-
 def build_top10_dashboard_contracts(
     *,
     env: dict[str, str] | None = None,
 ) -> dict[str, Any]:
-    key_presence = redacted_key_presence(vault_path=DEFAULT_VAULT_PATH, env=env)
+    # ``env`` is retained for API stability; the credential-presence
+    # probe it fed was removed with the retired alt-data provider
+    # panels (operator directive 2026-07-16).
+    del env
     dashboards = [
         _market_panel(
             rank=1,
@@ -220,22 +173,6 @@ def build_top10_dashboard_contracts(
             "credential_required": False,
             "raw_credentials_allowed": False,
         },
-        _altdata_panel(
-            rank=9,
-            panel_id="nansen_smart_money_top_symbols",
-            title="Nansen Smart Money Top Symbols",
-            provider_id="nansen",
-            credential_env_var="NANSEN_API_KEY",
-            key_present=key_presence.get("NANSEN_API_KEY", False),
-        ),
-        _altdata_panel(
-            rank=10,
-            panel_id="lunarcrush_social_momentum_top_symbols",
-            title="LunarCrush Social Momentum Top Symbols",
-            provider_id="lunarcrush",
-            credential_env_var="LUNARCRUSH_API_KEY",
-            key_present=key_presence.get("LUNARCRUSH_API_KEY", False),
-        ),
     ]
     return {
         "schema_version": SCHEMA_VERSION,

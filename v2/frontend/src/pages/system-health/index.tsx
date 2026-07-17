@@ -223,8 +223,8 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
   const streams = ingestors?.stream_present ?? {};
   const streamKeys = Object.keys(STREAM_LABELS);
   // stale_provider_count only counts hard-STALE; derive an honest "not healthy" set
-  // from provider_health so DEGRADED / unknown / null providers (e.g. moralis,
-  // santiment) are not hidden behind "Stale providers: none".
+  // from provider_health so DEGRADED / unknown / null providers (e.g. moralis)
+  // are not hidden behind "Stale providers: none".
   const providerHealth = ingestors?.provider_health ?? {};
   const providerEntries = Object.entries(providerHealth);
   const isHealthy = (v: { status?: string | null; freshness?: string | null }): boolean => {

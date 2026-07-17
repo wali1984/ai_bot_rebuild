@@ -89,17 +89,6 @@ PROVIDER_ALIASES = {
             "LEGACY_CRYPTOQUANT_API_KEY",
         ),
     },
-    "santiment": {
-        "canonical_env_var_name": "SANTIMENT_API_KEY",
-        "alias_env_var_names": (
-            "SANTIMENT_API_KEY",
-            "SANTIMENT_KEY",
-            "SANTIMENT_TOKEN",
-            "SANBASE_API_KEY",
-            "V2_SANTIMENT_API_KEY",
-            "LEGACY_SANTIMENT_API_KEY",
-        ),
-    },
     "tokenmetrics": {
         "canonical_env_var_name": "TOKEN_METRICS_API_KEY",
         "alias_env_var_names": (
@@ -115,8 +104,9 @@ PROVIDER_ALIASES = {
 }
 
 SOURCE_FAMILY_PROVIDERS = {
-    "onchain_btc": ("glassnode", "cryptoquant", "santiment"),
-    "onchain_eth": ("glassnode", "cryptoquant", "santiment"),
+    # santiment removed by operator directive 2026-07-16.
+    "onchain_btc": ("glassnode", "cryptoquant"),
+    "onchain_eth": ("glassnode", "cryptoquant"),
     "unified_feature_family.token_metrics": ("tokenmetrics",),
 }
 
@@ -128,10 +118,6 @@ PROVIDER_CLIENT_CANDIDATES = {
     "cryptoquant": (
         "v2/backend/app/adapters/external_sources/cryptoquant.py",
         "v2/backend/app/services/external_sources/cryptoquant.py",
-    ),
-    "santiment": (
-        "v2/backend/app/adapters/external_sources/santiment.py",
-        "v2/backend/app/services/external_sources/santiment.py",
     ),
     "tokenmetrics": (
         "v2/backend/app/adapters/external_sources/tokenmetrics.py",

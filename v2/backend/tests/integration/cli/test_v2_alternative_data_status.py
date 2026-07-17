@@ -44,8 +44,6 @@ def test_provider_registry_contains_exact_allowed_providers(tmp_path: Path) -> N
     registry = _registry()
     vault = tmp_path / "alternative_data.env"
     vault.write_text(
-        "NANSEN_API_KEY=raw_nansen_value\n"
-        "LUNARCRUSH_API_KEY=raw_lunar_value\n"
         "COINGECKO_API_KEY=raw_coingecko_value\n"
         "COINGLASS_API_KEY=raw_coinglass_value\n"
         "ASKSURF_API_KEY=raw_surf_value\n"
@@ -54,19 +52,18 @@ def test_provider_registry_contains_exact_allowed_providers(tmp_path: Path) -> N
     )
     payload = registry.provider_registry_payload(vault_path=vault, env={})
     assert payload["provider_ids"] == list(registry.ALLOWED_PROVIDER_IDS)
-    assert "nansen" in payload["provider_ids"]
-    assert "lunarcrush" in payload["provider_ids"]
     assert "coingecko" in payload["provider_ids"]
     assert "coinglass" in payload["provider_ids"]
     assert "surf" in payload["provider_ids"]
     assert "public_intel_free_tier" in payload["provider_ids"]
+    assert "whale_walls_existing" in payload["provider_ids"]
+    assert "alphavantage" in payload["provider_ids"]
+    assert "tokenmetrics" in payload["provider_ids"]
     assert "arkham_future" in payload["provider_ids"]
     assert "binance_existing" in payload["provider_ids"]
     assert "coinank_existing" in payload["provider_ids"]
     assert "liquidation_wss_existing" in payload["provider_ids"]
     serialized = json.dumps(payload)
-    assert "raw_nansen_value" not in serialized
-    assert "raw_lunar_value" not in serialized
     assert "raw_coingecko_value" not in serialized
     assert "raw_coinglass_value" not in serialized
     assert "raw_surf_value" not in serialized
@@ -100,6 +97,7 @@ def test_rate_limits_default_free_and_paid_disabled() -> None:
     rate_limits = importlib.import_module(
         "v2.backend.app.services.alternative_data.rate_limits"
     )
+    registry = _registry()
     payload = rate_limits.build_rate_limit_contract(
         alt_data_tier="paid",
         alt_data_enable_paid=True,
@@ -107,19 +105,20 @@ def test_rate_limits_default_free_and_paid_disabled() -> None:
     )
     assert payload["effective_tier"] == "free"
     assert payload["paid_tier_enabled"] is False
-    nansen = next(row for row in payload["provider_limits"] if row["provider_id"] == "nansen")
-    assert nansen["rate_limit_per_minute"] == 10
-    assert nansen["daily_request_budget"] == 1000
-    assert nansen["cache_ttl_seconds"] == 600
-    assert nansen["per_symbol_cooldown_seconds"] == 300
-    santiment = next(
-        row for row in payload["provider_limits"] if row["provider_id"] == "santiment"
+    assert [row["provider_id"] for row in payload["provider_limits"]] == list(
+        registry.ALLOWED_PROVIDER_IDS
     )
-    assert santiment["tier"] == "santiment_pro_background_producer"
-    assert santiment["paid_endpoint_enabled"] is True
-    assert santiment["daily_request_budget"] == 166
-    assert santiment["cache_ttl_seconds"] == 28_800
-    assert santiment["per_symbol_cooldown_seconds"] == 21_600
+    assert all(row["tier"] == "free" for row in payload["provider_limits"])
+    assert all(
+        row["paid_endpoint_enabled"] is False for row in payload["provider_limits"]
+    )
+    coingecko = next(
+        row for row in payload["provider_limits"] if row["provider_id"] == "coingecko"
+    )
+    assert coingecko["rate_limit_per_minute"] == 5
+    assert coingecko["daily_request_budget"] == 500
+    assert coingecko["cache_ttl_seconds"] == 21_600
+    assert coingecko["per_symbol_cooldown_seconds"] == 21_600
 
 
 def test_safe_redis_set_allows_only_three_altdata_contracts() -> None:
@@ -129,7 +128,7 @@ def test_safe_redis_set_allows_only_three_altdata_contracts() -> None:
     assert cache.safe_redis_set(fake, "v2:altdata:symbol_score:BTCUSDT", {"ok": True}) is True
     assert cache.safe_redis_set(fake, "v2:symbol_universe:altdata_candidates", {"ok": True}) is True
     assert cache.safe_redis_set(fake, "prediction:BTCUSDT", {"bad": True}) is False
-    assert cache.safe_redis_set(fake, "v2:altdata:nansen:status", {"bad": True}) is False
+    assert cache.safe_redis_set(fake, "v2:altdata:coinglass:status", {"bad": True}) is False
     assert sorted(fake.store) == [
         "v2:altdata:provider_status",
         "v2:altdata:symbol_score:BTCUSDT",
@@ -141,8 +140,8 @@ def test_status_payload_is_dry_run_and_safety_bounded(tmp_path: Path) -> None:
     cli = _cli()
     vault = tmp_path / "alternative_data.env"
     vault.write_text(
-        "NANSEN_API_KEY=raw_nansen_value\n"
-        "LUNARCRUSH_API_KEY=raw_lunar_value\n"
+        "COINGECKO_API_KEY=raw_coingecko_value\n"
+        "COINGLASS_API_KEY=raw_coinglass_value\n"
         "ARKHAM_API_KEY=\n",
         encoding="utf-8",
     )
@@ -152,8 +151,8 @@ def test_status_payload_is_dry_run_and_safety_bounded(tmp_path: Path) -> None:
         env={},
     )
     body = json.dumps(payload)
-    assert "raw_nansen_value" not in body
-    assert "raw_lunar_value" not in body
+    assert "raw_coingecko_value" not in body
+    assert "raw_coinglass_value" not in body
     assert payload["go_no_go"] == "V2_ALT_DATA_PROVIDER_REGISTRY_RATE_LIMIT_AND_DASHBOARD_SCAFFOLD_READY"
     assert payload["placeholder_score_redis_writes_disabled"] is True
     assert payload["score_key_owner"] == "v2_alt_data_symbol_universe_scoring"
@@ -178,8 +177,8 @@ def test_run_once_writes_worklog_public_and_allowed_redis_only(tmp_path: Path) -
     cli = _cli()
     vault = tmp_path / "alternative_data.env"
     vault.write_text(
-        "NANSEN_API_KEY=raw_nansen_value\n"
-        "LUNARCRUSH_API_KEY=raw_lunar_value\n",
+        "COINGECKO_API_KEY=raw_coingecko_value\n"
+        "COINGLASS_API_KEY=raw_coinglass_value\n",
         encoding="utf-8",
     )
     fake = FakeRedis()
@@ -212,20 +211,21 @@ def test_run_once_writes_worklog_public_and_allowed_redis_only(tmp_path: Path) -
     assert payload["redis_write_results"]["v2:altdata:symbol_score:{symbol}"] == "SKIPPED_PLACEHOLDER_WRITE_REAL_SCORER_OWNER"
     assert payload["redis_write_results"]["v2:symbol_universe:altdata_candidates"] == "SKIPPED_PLACEHOLDER_WRITE_REAL_CANDIDATE_PUBLISHER_OWNER"
     for raw in fake.store.values():
-        assert "raw_nansen_value" not in raw
-        assert "raw_lunar_value" not in raw
+        assert "raw_coingecko_value" not in raw
+        assert "raw_coinglass_value" not in raw
 
 
-def test_dashboard_contract_has_santiment_with_binance_panels() -> None:
+def test_dashboard_contract_has_binance_panels_and_overlay() -> None:
     registry = _registry()
     panels = list(registry.dashboard_contracts())
-    assert len(panels) == 11
+    assert len(panels) == 8
+    assert [panel["rank"] for panel in panels] == list(range(1, len(panels) + 1))
     ids = {panel["id"] for panel in panels}
     assert {
         "binance_12h_volume_leaders",
         "binance_12h_most_traded",
         "binance_12h_volatility_leaders",
-        "santiment_onchain_social_state",
+        "v2_symbol_universe_altdata_ranking",
     }.issubset(ids)
     overlay = next(panel for panel in panels if panel["id"] == "v2_trainer_risk_decision_overlay")
     assert overlay["altdata_may_not_override_strict_paper_fill_gate"] is True

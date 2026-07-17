@@ -133,27 +133,10 @@ def _seed_loader(
     client.set("v2:market:microstructure:BTCUSDT", json.dumps({"micro_price": 101.0, "toxicity_proxy": 0.1}))
     client.set("v2:market:liquidation_levels:BTCUSDT", json.dumps({"nearest_distance_bps": 150.0}))
     client.set("v2:altdata:public_intel:symbol:BTCUSDT", json.dumps({"public_intel_score": 0.5}))
-    client.set("v2:altdata:aicoin:symbol:BTCUSDT", json.dumps({"aicoin_order_flow_score": 0.2}))
     client.set(
         "v2:altdata:whale_walls:symbol:BTCUSDT",
         json.dumps({"whale_wall_score": 0.8, "whale_bid_pressure_score": 0.85}),
     )
-    client.set(
-        "v2:altdata:santiment:symbol:BTCUSDT",
-        json.dumps(
-            {
-                "santiment_social_volume_score": 0.74,
-                "santiment_sentiment_score": 0.4,
-                "santiment_whale_activity_score": 0.62,
-                "santiment_exchange_inflow_risk_score": 0.64,
-                "santiment_supply_on_exchanges_score": 0.87,
-                "santiment_exchange_inflow": 2_500_000,
-                "santiment_percent_of_total_supply_on_exchanges": 13,
-            }
-        ),
-    )
-    client.set("v2:altdata:lunarcrush:symbol:BTCUSDT", json.dumps({"score": 0.5}))
-    client.set("v2:altdata:nansen:symbol:BTCUSDT", json.dumps({"presence": 1.0}))
     client.set(
         "v2:altdata:symbol_score:BTCUSDT",
         json.dumps(
@@ -164,16 +147,10 @@ def _seed_loader(
                 "public_intel_score": 0.5,
                 "coingecko_discovery_score": 0.6,
                 "defillama_liquidity_score": 0.4,
-                "aicoin_order_flow_score": 0.2,
                 "whale_wall_score": 0.8,
                 "whale_bid_pressure_score": 0.85,
-                "santiment_social_volume_score": 0.74,
-                "santiment_sentiment_score": 0.4,
-                "santiment_whale_activity_score": 0.62,
-                "santiment_exchange_inflow_risk_score": 0.64,
-                "santiment_supply_on_exchanges_score": 0.87,
-                "provider_available": {"santiment": True},
-                "input_presence": {"santiment": True},
+                "provider_available": {"whale_walls": True},
+                "input_presence": {"whale_walls": True},
             }
         ),
     )
@@ -398,7 +375,7 @@ def test_data_loader_trusted_only_filters_future_masa_cutoff() -> None:
     assert trusted == []
 
 
-def test_data_loader_tensor_consumes_santiment_altdata() -> None:
+def test_data_loader_tensor_consumes_whale_walls_altdata() -> None:
     client = _MemoryClient()
     _seed_loader(client)
     loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client))
@@ -406,11 +383,10 @@ def test_data_loader_tensor_consumes_santiment_altdata() -> None:
     example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
     values = dict(zip(example.tensor.feature_names, example.tensor.values))
 
-    assert values["santiment_social_volume_score"] == 0.74
-    assert values["santiment_sentiment_score"] == 0.4
-    assert values["santiment_exchange_inflow_risk_score"] == 0.64
-    assert values["santiment_supply_on_exchanges_score"] == 0.87
-    assert "v2:altdata:santiment:symbol:BTCUSDT" in example.payload_keys
+    assert values["whale_wall_score"] == 0.8
+    assert values["whale_bid_pressure_score"] == 0.85
+    assert values["public_intel_score"] == 0.5
+    assert "v2:altdata:whale_walls:symbol:BTCUSDT" in example.payload_keys
 
 
 def test_data_loader_trusted_only_filters_backfilled_live_example() -> None:

@@ -61,7 +61,6 @@ The top-10 website dashboard contracts are defined using V2 data only. This is c
 - Binance 12h dashboards use Binance rolling-window stats when present, or locally computed 12h windows from V2 market data.
 - Liquidation tape uses V2 liquidation WSS aggregate keys only and never synthesizes liquidation events.
 - Funding/OI movers use existing V2 CoinAnk/funding/open-interest payloads.
-- Nansen and LunarCrush dashboards remain disabled/empty until provider clients pass Codex.
 - Missing provider keys produce `MISSING_SOURCE`; present keys without Codex-passed clients produce `KEY_PRESENT_NO_CLIENT_YET`.
 
 ## Alternative-Data Panels

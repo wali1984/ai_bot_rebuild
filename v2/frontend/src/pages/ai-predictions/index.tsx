@@ -724,7 +724,6 @@ function TrainerCard(): JSX.Element {
 const AI_PROVIDER_LANES = [
   ['coinglass', 'CoinGlass'],
   ['moralis', 'Moralis'],
-  ['santiment', 'Santiment / Sanbase'],
 ] as const;
 
 function providerStatusById(providers: ProviderStatusCard[] | undefined): Map<string, ProviderStatusCard> {

@@ -1,7 +1,7 @@
 """Alt-data confluence publisher loop.
 
-Reads CoinGlass/Santiment/Moralis payloads from Redis (read-only against
-providers), computes confluence scores, and publishes:
+Reads CoinGlass/Moralis (and bridged CoinAnk) payloads from Redis (read-only
+against providers), computes confluence scores, and publishes:
 
   v2:altdata:confluence:{symbol}:{timeframe}
   v2:altdata:provider_consumption_status
@@ -26,13 +26,6 @@ from app.services.altdata.provider_feature_bridge import (
     load_coinank_input,
     load_coinglass_input,
     load_moralis_input,
-    load_santiment_input,
-)
-from app.services.alternative_data.santiment_client import (
-    KEY_FEATURE_BRIDGE_STATUS as SANTIMENT_FEATURE_BRIDGE_STATUS_KEY,
-    KEY_FEATURE_TEMPLATE as SANTIMENT_FEATURE_TEMPLATE,
-    build_santiment_feature_payload,
-    _santiment_feature_bridge_status,
 )
 
 CONFLUENCE_KEY = "v2:altdata:confluence:{symbol}:{timeframe}"
@@ -137,7 +130,6 @@ def run_once(
             symbol=symbol,
             timeframe=pair_timeframe,
             coinglass=load_coinglass_input(redis_client, symbol, pair_timeframe),
-            santiment=load_santiment_input(redis_client, symbol),
             moralis=load_moralis_input(redis_client, symbol, pair_timeframe),
             coinank=load_coinank_input(redis_client, symbol, pair_timeframe),
             generated_utc=generated,
@@ -279,21 +271,6 @@ def _publish_provider_bridge_aliases(
             MORALIS_FEATURE_BRIDGE_STATUS_KEY,
             _bridge_status("moralis", moralis, generated_utc=generated_utc),
             ex=3600,
-        )
-    santiment = _load_json(redis_client, f"v2:altdata:santiment:symbol:{symbol}")
-    if santiment:
-        santiment_feature = build_santiment_feature_payload(santiment, timeframe="1h")
-        _set_json(
-            redis_client,
-            SANTIMENT_FEATURE_TEMPLATE.format(symbol=symbol, timeframe="1h"),
-            santiment_feature,
-            ex=28800,
-        )
-        _set_json(
-            redis_client,
-            SANTIMENT_FEATURE_BRIDGE_STATUS_KEY,
-            _santiment_feature_bridge_status(santiment_feature),
-            ex=28800,
         )
 
 

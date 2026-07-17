@@ -626,7 +626,7 @@ def _family_status(
         ),
         (
             "alternative_data",
-            ("public_intel_score", "aicoin_score", "whale_wall_score", "coingecko_score", "lunarcrush_score", "news_sentiment_score"),
+            ("public_intel_score", "whale_wall_score", "coingecko_score", "news_sentiment_score"),
             "Alternative data is treated as context, not a standalone trigger; it can raise or lower confidence when attention or whale/order-flow evidence agrees with market data.",
         ),
     ]

@@ -50,7 +50,7 @@ def _provider_feature_names() -> list[str]:
     names: list[str] = []
     for name, source in FEATURE_SPEC:
         text = f"{name}:{source}".lower()
-        if any(token in text for token in ("altdata", "moralis", "coinglass", "santiment")):
+        if any(token in text for token in ("altdata", "moralis", "coinglass")):
             names.append(name)
     return names
 

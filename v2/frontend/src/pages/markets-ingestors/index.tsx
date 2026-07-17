@@ -97,8 +97,6 @@ interface ProviderCard {
   smart_wallet_candidate_count?: number | null;
   verified_smart_wallet_count?: number | null;
   token_map_count?: number | null;
-  metric_count?: number | null;
-  missing_high_value_metrics?: string[] | null;
   disabled_heatmap_endpoint?: boolean | null;
 }
 
@@ -117,7 +115,6 @@ const REQUIRED_PROVIDER_ORDER = [
   ['coinank', 'CoinAnk'],
   ['coinglass', 'CoinGlass Standard'],
   ['moralis', 'Moralis Starter'],
-  ['santiment', 'Santiment / Sanbase Pro'],
   ['ta', 'TA pipeline'],
   ['microstructure', 'Microstructure trust'],
   ['liquidations', 'Liquidations'],
@@ -240,7 +237,6 @@ function ProviderTruthPanel({ providers }: { providers: ProviderStatusData | nul
                 <span>consumer roles <b>{joinPreview(provider?.consumer_roles)}</b></span>
                 {id === 'coinglass' ? <span>heatmap disabled <b>{provider?.disabled_heatmap_endpoint === true ? 'yes' : 'no'}</b> · rate remaining <b>{fmtCount(provider?.rate_limit_remaining)}</b></span> : null}
                 {id === 'moralis' ? <span>watchlist <b>{fmtCount(provider?.watchlist_count)}</b> · candidates <b>{fmtCount(provider?.smart_wallet_candidate_count)}</b> · token map <b>{fmtCount(provider?.token_map_count)}</b></span> : null}
-                {id === 'santiment' ? <span>metrics <b>{fmtCount(provider?.metric_count)}</b> · missing high value <b>{joinPreview(provider?.missing_high_value_metrics, 'none')}</b></span> : null}
                 <span>last success <b>{provider?.last_success_utc ?? '—'}</b> · age <b>{fmtAge(provider?.source_lag_seconds)}</b></span>
                 {ingestorName ? (
                   <span style={{ color: 'var(--accent, #22D3C5)', fontSize: 10, fontWeight: 700, marginTop: 2 }}>

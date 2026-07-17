@@ -9436,16 +9436,12 @@ def _masa_label(masa: float | None) -> str:
 def _group_missing_features(names: list[str]) -> dict[str, list[str]]:
     """Group missing feature names into broad categories."""
     liquidation_kw = {"liquidation", "liquidity_zone", "distance_to_liquidity_zone"}
-    nansen_kw = {"nansen"}
-    lunar_kw = {"lunarcrush"}
-    aicoin_kw = {"aicoin"}
     paper_kw = {"paper_position", "paper_unrealized"}
     htf_kw = {"htf_"}
     orchestrator_kw = {"orchestrator_recent", "risk_recent"}
 
     groups: dict[str, list[str]] = {
         "liquidation": [],
-        "alternative_data": [],
         "paper_state": [],
         "htf": [],
         "orchestrator_feedback": [],
@@ -9455,8 +9451,6 @@ def _group_missing_features(names: list[str]) -> dict[str, list[str]]:
         nl = name.lower()
         if any(kw in nl for kw in liquidation_kw):
             groups["liquidation"].append(name)
-        elif any(kw in nl for kw in nansen_kw | lunar_kw | aicoin_kw):
-            groups["alternative_data"].append(name)
         elif any(kw in nl for kw in paper_kw):
             groups["paper_state"].append(name)
         elif any(nl.find(kw) != -1 for kw in htf_kw):
@@ -9763,7 +9757,6 @@ def _build_explanation(
     # ── DATA QUALITY ───────────────────────────────────────────────────────
     feature_groups = _group_missing_features(missing_feature_names)
     liq_count = len(feature_groups["liquidation"])
-    alt_count = len(feature_groups["alternative_data"])
     paper_count = len(feature_groups["paper_state"])
     htf_count = len(feature_groups["htf"])
     orc_count = len(feature_groups["orchestrator_feedback"])
@@ -9777,8 +9770,6 @@ def _build_explanation(
         )
     else:
         parts: list[str] = []
-        if alt_count:
-            parts.append(f"{alt_count} alt-data")
         if liq_count:
             parts.append(f"{liq_count} liquidation")
         if htf_count:
@@ -9899,7 +9890,6 @@ def _build_explanation(
     # the UI exactly what is degraded and how severe, without blocking anything.
     missing_by_category = {
         "liquidation": liq_count,
-        "alternative_data": alt_count,
         "paper_state": paper_count,
         "htf": htf_count,
         "orchestrator_feedback": orc_count,
@@ -9924,13 +9914,10 @@ def _build_explanation(
         "missing_feature_count": missing_feature_count,
         "stale_feature_count": stale_feature_count,
         "missing_by_category": {k: v for k, v in missing_by_category.items() if v},
-        "missing_provider_names": sorted(
-            {
-                name
-                for names in (feature_groups.get("alternative_data") or [],)
-                for name in names
-            }
-        ),
+        # Alt-data provider feature families were retired from the trainer
+        # spec (operator directive 2026-07-16); no provider-name grouping
+        # remains, so this stays honestly empty rather than zero-filled.
+        "missing_provider_names": [],
         "message": dq_narrative,
     }
 

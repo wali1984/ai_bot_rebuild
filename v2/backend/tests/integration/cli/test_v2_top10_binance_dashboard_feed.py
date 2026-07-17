@@ -117,7 +117,7 @@ def test_safe_redis_set_refuses_non_dashboard_keys() -> None:
     assert mod._safe_redis_set(r, mod.KEY_HEARTBEAT, "y", ex=120) is True
     assert mod._safe_redis_set(r, "v2:market:prices:BTCUSDT", "z", ex=600) is False
     assert mod._safe_redis_set(r, "prediction:BTCUSDT", "z", ex=600) is False
-    assert mod._safe_redis_set(r, "v2:altdata:nansen:status", "z", ex=600) is False
+    assert mod._safe_redis_set(r, "v2:altdata:provider_status", "z", ex=600) is False
     for k in r.store.keys():
         assert k in mod.ALLOWED_KEYS
 

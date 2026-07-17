@@ -60,7 +60,6 @@ const MARKET_PROVIDER_ORDER = [
   ['coinank', 'CoinAnk'],
   ['coinglass', 'CoinGlass'],
   ['moralis', 'Moralis'],
-  ['santiment', 'Santiment / Sanbase'],
   ['ta', 'TA Engine'],
   ['feature_snapshot_builder', 'Feature Snapshots'],
   ['microstructure', 'Microstructure'],

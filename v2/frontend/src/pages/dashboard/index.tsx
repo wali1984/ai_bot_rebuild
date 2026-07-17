@@ -678,7 +678,6 @@ function DashboardControlCenterTruthPanel({
   const providerSummary = [
     ['CoinGlass', providerReadiness.coinglass_dashboard_color ?? providerReadiness.coinglass_status],
     ['Moralis', providerReadiness.moralis_dashboard_color ?? providerReadiness.moralis_status],
-    ['Santiment', providerReadiness.santiment_status],
   ]
     .map(([name, value]) => `${name}:${publicDashboardText(firstDashboardText(value) ?? '—')}`)
     .join(' · ');
