@@ -23,6 +23,7 @@ from .sizing_model import (
 )
 from v2.backend.app.services.hedge_engine import evaluate_hedge_intent, simulate_cross_margin_stress
 from v2.backend.app.services.paper_trade_management.exits import PaperExitConfig, effective_atr_stop_bps
+from v2.backend.app.services.paper_trade_management.hedging import hedge_arm_fraction
 
 
 MAX_DYNAMIC_HEDGE_BUDGET_PCT_OF_RISK = 0.35
@@ -791,7 +792,37 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             envelope=envelope,
             extra_diagnostics=zero_diag,
         )
-    target_notional = min(risk_budget_usd / (stop_distance_bps / 10000.0), ceiling)
+    # Hedge-aware sizing (2026-07-17, operator growth mandate): with the
+    # adaptive hedge engine active, the position's true worst-case adverse
+    # excursion is bounded near the hedge ARM fraction of its stop (the
+    # hedge leg caps further downside; TIER_0 remains the absolute
+    # backstop), not the full stop distance. Sizing may therefore divide
+    # the risk budget by the smaller hedge-bounded distance — up to 2x
+    # notional at equal worst-case dollar risk (floored at half the full
+    # stop for hedge-fill slippage humility; identical arm formula as the
+    # runtime trigger so sizing and protection never disagree).
+    sizing_stop_bps = stop_distance_bps
+    hedge_sizing_diag: dict[str, float] | None = None
+    if row.adaptive_hedge_sizing_enabled and stop_distance_bps > 0:
+        _hedge_arm = hedge_arm_fraction(
+            row.confidence_calibrated,
+            portfolio_drawdown_bps=row.drawdown_bps,
+        )
+        _hedge_leg_drag_bps = 2.0 * (
+            max(0.0, row.fee_bps) + max(0.0, row.slippage_bps)
+        )
+        sizing_stop_bps = max(
+            stop_distance_bps * _hedge_arm + _hedge_leg_drag_bps,
+            0.5 * stop_distance_bps,
+        )
+        hedge_sizing_diag = {
+            "hedge_arm_fraction": round(_hedge_arm, 6),
+            "hedge_leg_drag_bps": round(_hedge_leg_drag_bps, 4),
+            "full_stop_bps": round(stop_distance_bps, 4),
+            "hedge_sizing_stop_bps": round(sizing_stop_bps, 4),
+            "size_amplification": round(stop_distance_bps / sizing_stop_bps, 4),
+        }
+    target_notional = min(risk_budget_usd / (sizing_stop_bps / 10000.0), ceiling)
     min_notional = min_order_notional(min_qty=row.min_qty, min_notional=row.min_notional, price=row.price)
     if min_notional > 0 and target_notional < min_notional:
         if ceiling >= min_notional:
@@ -799,6 +830,11 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
         else:
             return _block(row, mode=mode, decision="BLOCK_EXCHANGE_MIN_ORDER", reason="adaptive_size_below_exchange_min_order", envelope=envelope)
     target_leverage, leverage_selection = _adaptive_leverage_target_selection(sizing_row, envelope, mode=mode)
+    if hedge_sizing_diag is not None:
+        leverage_selection = {
+            **leverage_selection,
+            "hedge_aware_sizing": hedge_sizing_diag,
+        }
     margin_config = _select_margin_configuration(
         sizing_row,
         gross_notional=target_notional,

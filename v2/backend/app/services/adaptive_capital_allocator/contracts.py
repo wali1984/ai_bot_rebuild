@@ -81,6 +81,13 @@ class AllocationInput:
     # Rolling median exit overshoot (|realized gross pnl_bps| - atr_stop_bps)
     # over recent TIER_1 stop closes, published by the paper loop.
     exit_overshoot_premium_bps: float | None = None
+    # Hedge-aware sizing (2026-07-17): when the adaptive hedge engine is
+    # active for this fill's lifecycle, the position's true worst-case
+    # adverse excursion is bounded near the hedge arm fraction of its stop
+    # (plus hedge execution drag), not the full stop — the allocator may
+    # size risk_budget against the smaller distance (floored at half the
+    # full stop for hedge-slippage humility).
+    adaptive_hedge_sizing_enabled: bool = False
 
 
 @dataclass(frozen=True)

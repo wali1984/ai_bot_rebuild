@@ -98,6 +98,32 @@ def _clamp(value: float, low: float, high: float) -> float:
     return max(low, min(high, value))
 
 
+def hedge_arm_fraction(
+    confidence_calibrated: float | None,
+    portfolio_drawdown_bps: float = 0.0,
+    drawdown_emergency_bps: float = 350.0,
+) -> float:
+    """Fraction of the ATR stop at which the adaptive hedge arms.
+
+    Shared by the runtime trigger below and by hedge-AWARE SIZING in the
+    capital allocator (2026-07-17): with the hedge engine active, a
+    position's true worst-case adverse excursion is bounded near this
+    fraction of its stop (plus hedge execution drag), not the full stop —
+    so the allocator may size risk_budget against the smaller distance.
+    Identical formula to the trigger so sizing and protection can never
+    disagree about where the hedge arms.
+    """
+    confidence = _float(confidence_calibrated, 0.5)
+    confidence_pressure = _clamp((confidence - 0.5) / 0.5, 0.0, 1.0)
+    dd_pressure = _clamp(
+        abs(_float(portfolio_drawdown_bps))
+        / max(1.0, abs(_float(drawdown_emergency_bps, 350.0))),
+        0.0,
+        1.0,
+    )
+    return _clamp(1.0 - 0.45 * confidence_pressure - 0.15 * dd_pressure, 0.35, 0.95)
+
+
 def evaluate_adaptive_hedge_trigger(
     *,
     position_payload: dict[str, Any],
@@ -143,7 +169,9 @@ def evaluate_adaptive_hedge_trigger(
         0.0,
         1.0,
     )
-    arm_fraction = _clamp(1.0 - 0.45 * confidence_pressure - 0.15 * dd_pressure, 0.35, 0.95)
+    arm_fraction = hedge_arm_fraction(
+        confidence, portfolio_drawdown_bps, drawdown_emergency_bps
+    )
     if adverse_ratio < arm_fraction:
         return {
             "trigger": False,

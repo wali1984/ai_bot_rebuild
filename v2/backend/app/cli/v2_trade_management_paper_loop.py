@@ -28338,6 +28338,13 @@ def _build_allocation_input(
         "exit_overshoot_premium_bps": _coerce_float(
             portfolio_context.get("exit_overshoot_premium_bps")
         ),
+        # Hedge-aware sizing (2026-07-17): with the adaptive hedge engine
+        # active for this lifecycle, the allocator may size against the
+        # hedge-bounded worst case (arm fraction of the stop) instead of
+        # the full stop — up to 2x notional at equal worst-case risk.
+        "adaptive_hedge_sizing_enabled": bool(
+            portfolio_context.get("adaptive_hedge_enabled")
+        ),
     }
     if fee_bps is not None:
         allocation_kwargs["fee_bps"] = float(fee_bps)
@@ -28793,6 +28800,12 @@ def run_once() -> dict:
     portfolio_context["envelope_max_correlation_exposure_pct"] = float(
         dynamic_paper_envelope.max_correlation_exposure_pct
     )
+    # Resolved BEFORE the signal loop so hedge-aware sizing sees it at
+    # allocation time (the lifecycle resolves its own copy later).
+    try:
+        portfolio_context["adaptive_hedge_enabled"] = bool(_adaptive_hedge_enabled(r))
+    except Exception:
+        portfolio_context["adaptive_hedge_enabled"] = False
     # Halted-book probe context (one probe admission per cycle, cooling-gated):
     # keeps the evidence flow alive during a full entry halt — the recovery
     # windows roll ONLY on new closed outcomes, so a book that is not

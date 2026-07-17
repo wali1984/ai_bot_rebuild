@@ -670,3 +670,37 @@ def test_risk_envelope_can_veto_allocator_output() -> None:
 
     assert result.decision == "BLOCK_EXPOSURE_BUDGET"
     assert result.risk_veto_reason_if_blocked == "operator_drawdown_budget_locked"
+
+
+def test_hedge_aware_sizing_amplifies_notional_at_equal_risk() -> None:
+    """2026-07-17 operator growth mandate: with the adaptive hedge engine
+
+    active, worst-case adverse excursion is bounded near the hedge arm
+    fraction of the stop, so the same risk budget carries more notional
+    (floored at half the full stop for hedge-slippage humility).
+    """
+    base_kwargs = dict(
+        confidence_calibrated=0.9,
+        expected_move_after_cost_bps=60.0,
+        entry_atr_bps=400.0,
+    )
+    unhedged = allocate_paper_candidate(_row(**base_kwargs))
+    hedged = allocate_paper_candidate(
+        _row(**base_kwargs, adaptive_hedge_sizing_enabled=True)
+    )
+    assert unhedged.decision == "ALLOW_WITH_SIZE"
+    assert hedged.decision == "ALLOW_WITH_SIZE"
+    assert hedged.gross_notional_usd > unhedged.gross_notional_usd
+    # Amplification is bounded by the 0.5x-stop humility floor -> at most 2x
+    # (exposure ceilings may cap it lower).
+    assert hedged.gross_notional_usd <= unhedged.gross_notional_usd * 2.0 + 1e-6
+    diag = hedged.model_inputs.get("hedge_aware_sizing")
+    assert diag is not None
+    assert 0.35 <= diag["hedge_arm_fraction"] <= 0.95
+    assert diag["size_amplification"] >= 1.0
+
+
+def test_hedge_aware_sizing_disabled_leaves_sizing_unchanged() -> None:
+    row = _row(confidence_calibrated=0.9, entry_atr_bps=120.0)
+    result = allocate_paper_candidate(row)
+    assert result.model_inputs.get("hedge_aware_sizing") is None
