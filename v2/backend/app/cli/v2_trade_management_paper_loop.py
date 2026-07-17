@@ -22558,24 +22558,51 @@ def _paper_block_new_entry_by_performance_circuit(
         return False
     # ── Halted-empty-book probe (evidence-driven recovery) ────────────────
     # Every recovery window (loss cluster, rolling PF, bucket loss rates)
-    # rolls ONLY on new closed outcomes. A full entry halt with a FLAT book
-    # therefore freezes forever — no evidence can ever clear it (observed
-    # 2026-07-16T22:56Z: 3 fast stop-outs emptied the book and latched a
-    # 3-reason halt). After an adaptive cooling period, ONE tiny probe per
-    # cycle (highest-confidence first — the loop iterates majors/confidence
-    # sorted) is admitted at a mandatory size haircut to generate the next
-    # outcome. A probe WIN rolls the windows open; a probe LOSS keeps the
-    # halt (windows stay saturated) and the next probe waits a full cooldown.
+    # rolls ONLY on new closed outcomes. A full entry halt with a book that
+    # produces no closes therefore freezes forever — no evidence can ever
+    # clear it (observed 2026-07-16T22:56Z: 3 fast stop-outs emptied the
+    # book and latched a 3-reason halt; observed 2026-07-17T04:0xZ: one slow
+    # 4h exploration position blocked every probe for 1.5h+ via the strict
+    # empty-book requirement). After an adaptive cooling period, ONE tiny
+    # probe per cycle (highest-confidence first — the loop iterates
+    # majors/confidence sorted) is admitted at a mandatory size haircut to
+    # generate the next outcome. Capacity is evidence-starvation-adaptive:
+    # 1 concurrent probe slot, widening by one quarter-size slot per 30
+    # minutes without a closed outcome (cap 3 — worst case 0.75x one normal
+    # position's risk). A probe WIN rolls the windows open; a probe LOSS
+    # keeps the halt and the next probe waits a full cooldown. A position
+    # opened in the last 15 minutes means the book is still resolving —
+    # hold off instead of stacking. Never two probes on the same symbol.
     _probe = halted_empty_book_probe_context
-    if (
-        isinstance(_probe, dict)
-        and int(_probe.get("remaining") or 0) > 0
-        and int(_probe.get("open_position_count") or 0) == 0
-        and float(_probe.get("seconds_since_last_close") or 0.0) >= 300.0
-        and (confidence or 0.0) >= 0.75
-        and not hard_matched_blocked_bucket_keys
-        and not hard_matched_loss_cluster_keys
-    ):
+    _probe_admit = False
+    if isinstance(_probe, dict):
+        _probe_open = int(_probe.get("open_position_count") or 0)
+        _probe_close_age = float(_probe.get("seconds_since_last_close") or 0.0)
+        _probe_slots = 1 + min(2, int(_probe_close_age // 1800.0))
+        _probe_floor = _coerce_float(_probe.get("adaptive_confidence_floor"))
+        if _probe_floor is None:
+            _probe_floor = 0.75
+        _probe_newest_age = _coerce_float(_probe.get("newest_position_age_seconds"))
+        _probe_book_resolving = (
+            _probe_open > 0
+            and _probe_newest_age is not None
+            and _probe_newest_age < 900.0
+        )
+        _probe_open_symbols = {
+            str(_sym).upper() for _sym in (_probe.get("open_symbols") or [])
+        }
+        _probe_symbol = str(intent.get("symbol") or "").upper()
+        _probe_admit = (
+            int(_probe.get("remaining") or 0) > 0
+            and _probe_open < _probe_slots
+            and not _probe_book_resolving
+            and (not _probe_symbol or _probe_symbol not in _probe_open_symbols)
+            and _probe_close_age >= 300.0
+            and (confidence or 0.0) >= _probe_floor
+            and not hard_matched_blocked_bucket_keys
+            and not hard_matched_loss_cluster_keys
+        )
+    if _probe_admit:
         _probe["remaining"] = int(_probe.get("remaining") or 0) - 1
         for target in (intent, allocation):
             target["paper_performance_circuit_breaker_blocked"] = False
@@ -22583,6 +22610,11 @@ def _paper_block_new_entry_by_performance_circuit(
             target["paper_halted_empty_book_probe"] = True
             target["paper_halted_empty_book_probe_cooling_seconds"] = float(
                 _probe.get("seconds_since_last_close") or 0.0
+            )
+            target["paper_halted_book_probe_slots"] = _probe_slots
+            target["paper_halted_book_probe_open_positions"] = _probe_open
+            target["paper_halted_book_probe_confidence_floor"] = round(
+                float(_probe_floor), 6
             )
             target["mandatory_size_haircut"] = True
             target["places_real_order"] = False
@@ -28633,11 +28665,40 @@ def run_once() -> dict:
     portfolio_context["envelope_max_correlation_exposure_pct"] = float(
         dynamic_paper_envelope.max_correlation_exposure_pct
     )
-    # Halted-empty-book probe context (one probe per cycle, cooling-gated):
-    # keeps the evidence flow alive when a full entry halt coincides with a
-    # flat book — otherwise the recovery windows can never roll.
-    _hebp_open_count = len(
-        existing_ledger.get("open_positions") or existing_ledger.get("positions") or []
+    # Halted-book probe context (one probe admission per cycle, cooling-gated):
+    # keeps the evidence flow alive during a full entry halt — the recovery
+    # windows roll ONLY on new closed outcomes, so a book that is not
+    # producing closes (flat, OR occupied by slow unresolving positions)
+    # would otherwise freeze the halt forever.
+    _hebp_open_rows = [
+        _row
+        for _row in (
+            existing_ledger.get("open_positions")
+            or existing_ledger.get("positions")
+            or []
+        )
+        if isinstance(_row, dict)
+    ]
+    _hebp_open_count = len(_hebp_open_rows)
+    _hebp_open_symbols = sorted(
+        {
+            str(_row.get("symbol") or "").upper()
+            for _row in _hebp_open_rows
+            if _row.get("symbol")
+        }
+    )
+    _hebp_newest_entry = None
+    for _row in _hebp_open_rows:
+        _ts = str(
+            _row.get("source_timestamp")
+            or _row.get("decision_time")
+            or _row.get("entry_feature_generated_at")
+            or ""
+        )
+        if _ts and (_hebp_newest_entry is None or _ts > _hebp_newest_entry):
+            _hebp_newest_entry = _ts
+    _hebp_newest_age = (
+        _seconds_since_iso(_hebp_newest_entry) if _hebp_newest_entry else None
     )
     _hebp_last_close = None
     for _row in existing_closed_rows:
@@ -28645,10 +28706,29 @@ def run_once() -> dict:
         if _ts and (_hebp_last_close is None or _ts > _hebp_last_close):
             _hebp_last_close = _ts
     _hebp_age = _seconds_since_iso(_hebp_last_close) if _hebp_last_close else None
+    # Adaptive probe confidence floor: 0.75 whenever the cycle offers a
+    # candidate that strong, otherwise the cycle's best candidate (never
+    # below 0.65). A fresh-checkpoint model era legitimately tops out below
+    # 0.75 for a while; a static floor there admits zero probes and the
+    # halt can never gather the evidence that clears it.
+    _hebp_cycle_max_conf = 0.0
+    for _s in signals:
+        if not isinstance(_s, dict):
+            continue
+        _c = _coerce_float(
+            _first_present(_s.get("confidence_calibrated"), _s.get("confidence"))
+        )
+        if _c is not None and _c > _hebp_cycle_max_conf:
+            _hebp_cycle_max_conf = _c
     halted_empty_book_probe_context = {
         "remaining": 1,
         "open_position_count": _hebp_open_count,
+        "open_symbols": _hebp_open_symbols,
+        "newest_position_age_seconds": (
+            float(_hebp_newest_age) if _hebp_newest_age is not None else None
+        ),
         "seconds_since_last_close": float(_hebp_age) if _hebp_age is not None else 0.0,
+        "adaptive_confidence_floor": max(0.65, min(0.75, _hebp_cycle_max_conf)),
     }
     dlog("after_envelope_calc")
     dlog("starting_signal_evaluation_loop")
