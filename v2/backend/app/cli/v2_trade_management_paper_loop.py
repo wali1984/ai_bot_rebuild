@@ -31395,6 +31395,35 @@ def run_once() -> dict:
             ]
     except Exception:
         _sc_median_notional = None
+    # Promised-EV calibration ceiling (2026-07-17): over the last 60 closes
+    # the model PROMISED +348bps mean after-cost EV and REALIZED -35.5bps,
+    # with Spearman(promise, realized) = -0.10 and the top-third promises
+    # realizing WORSE than the bottom third — promised edge currently
+    # carries no positive selective information and inflated promises were
+    # buying leverage tiers (the strong-edge 5x tier keys off promised
+    # edge). Promise-driven LEVERAGE inputs are clamped to an adaptive
+    # ceiling: the p75 of |realized bps| over recent closes (the market's
+    # actual demonstrated move scale). Admission gates are untouched (the
+    # cost floor is real evidence); the trainer recalibrates the head from
+    # the same feedback. Ceiling recovers automatically as realized moves
+    # grow.
+    _ev_calibration_ceiling_bps: float | None = None
+    try:
+        _ev_realized_abs = sorted(
+            abs(v)
+            for v in (
+                _coerce_float(row.get("realized_net_pnl_bps"))
+                for row in existing_closed_rows[-60:]
+                if isinstance(row, dict)
+            )
+            if v is not None
+        )
+        if len(_ev_realized_abs) >= 10:
+            _ev_calibration_ceiling_bps = _ev_realized_abs[
+                int(len(_ev_realized_abs) * 0.75)
+            ]
+    except Exception:
+        _ev_calibration_ceiling_bps = None
     try:
         from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
             recommend_leverage_for_signal as _post_loop_recommend_leverage,
@@ -31450,8 +31479,23 @@ def run_once() -> dict:
                     ),
                     direction=_acc_side,
                     confidence_calibrated=float(_acc_conf),
-                    expected_move_after_cost_bps=_coerce_float(
-                        _acc.get("expected_move_after_cost_bps")
+                    expected_move_after_cost_bps=(
+                        min(
+                            _coerce_float(
+                                _acc.get("expected_move_after_cost_bps")
+                            ),
+                            _ev_calibration_ceiling_bps,
+                        )
+                        if (
+                            _coerce_float(
+                                _acc.get("expected_move_after_cost_bps")
+                            )
+                            is not None
+                            and _ev_calibration_ceiling_bps is not None
+                        )
+                        else _coerce_float(
+                            _acc.get("expected_move_after_cost_bps")
+                        )
                     ),
                     atr_bps=_coerce_float(_acc.get("entry_atr_bps")),
                     equity_usd=portfolio_context["equity"],
@@ -33636,6 +33680,76 @@ def run_once() -> dict:
                 ),
                 ex=3600,
             )
+        except Exception:
+            pass
+        # Promised-vs-realized EV calibration evidence (Signal
+        # Explainability): rolling stats over the last 60 closes so the
+        # trainer, guardian, and operator can see whether the model's
+        # after-cost promises carry selective information (2026-07-17
+        # baseline: promised +348bps mean vs realized -35.5bps, Spearman
+        # -0.10 — anti-selective; leverage inputs are ceiling-clamped until
+        # this recovers).
+        try:
+            _cal_pairs = [
+                (
+                    _coerce_float(row.get("expected_move_after_cost_bps")),
+                    _coerce_float(row.get("realized_net_pnl_bps")),
+                )
+                for row in closes[-60:]
+                if isinstance(row, dict)
+            ]
+            _cal_pairs = [
+                (p, z) for p, z in _cal_pairs if p is not None and z is not None
+            ]
+            if len(_cal_pairs) >= 10:
+                _cal_p = [p for p, _ in _cal_pairs]
+                _cal_z = [z for _, z in _cal_pairs]
+                _cal_mean_p = sum(_cal_p) / len(_cal_p)
+                _cal_mean_z = sum(_cal_z) / len(_cal_z)
+
+                def _cal_rank(values: list[float]) -> list[int]:
+                    order = sorted(range(len(values)), key=lambda i: values[i])
+                    ranks = [0] * len(values)
+                    for pos, idx in enumerate(order):
+                        ranks[idx] = pos
+                    return ranks
+
+                _ra = _cal_rank(_cal_p)
+                _rb = _cal_rank(_cal_z)
+                _ma = sum(_ra) / len(_ra)
+                _mb = sum(_rb) / len(_rb)
+                _cov = sum((a - _ma) * (b - _mb) for a, b in zip(_ra, _rb))
+                _sa = sum((a - _ma) ** 2 for a in _ra) ** 0.5
+                _sb = sum((b - _mb) ** 2 for b in _rb) ** 0.5
+                _spearman = (_cov / (_sa * _sb)) if _sa and _sb else None
+                _safe_write(
+                    r,
+                    f"{V2_REDIS_PREFIX}paper:ev_calibration_status",
+                    json.dumps(
+                        {
+                            "schema_version": "v2_ev_calibration_status_v1",
+                            "generated_utc": _utc_iso(),
+                            "sample_size": len(_cal_pairs),
+                            "promised_mean_bps": round(_cal_mean_p, 2),
+                            "realized_mean_bps": round(_cal_mean_z, 2),
+                            "calibration_gap_bps": round(
+                                _cal_mean_z - _cal_mean_p, 2
+                            ),
+                            "spearman_promise_vs_realized": (
+                                round(_spearman, 4)
+                                if _spearman is not None
+                                else None
+                            ),
+                            "leverage_input_ceiling_bps": (
+                                round(_ev_calibration_ceiling_bps, 2)
+                                if _ev_calibration_ceiling_bps is not None
+                                else None
+                            ),
+                            "paper_only": True,
+                        }
+                    ),
+                    ex=3600,
+                )
         except Exception:
             pass
     accepted_state_rows = _compact_rows_for_state(valid_accepted_for_ledger)
