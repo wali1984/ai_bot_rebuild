@@ -22736,6 +22736,45 @@ def _paper_block_new_entry_by_performance_circuit(
             target["paper_performance_circuit_breaker_blocked"] = False
             target["paper_performance_circuit_breaker_observed_reasons"] = sorted(set(reasons))
             target["paper_halted_empty_book_probe"] = True
+            # Probe self-consistency (2026-07-17): admitted probes were dying
+            # downstream on STALE blocking stamps carried on the intent
+            # (P0_ENTRY_GATE_BLOCKED with null reasons, broad-quarantine
+            # shadow tiers, prior-cycle circuit reasons) — observed 3/3
+            # admitted attempts per cycle reaching acceptance=0. An admitted
+            # probe's conditions already enforced the specific-evidence
+            # rule, so it clears the blocking fields it overrides —
+            # preserved verbatim under paper_probe_overridden_* for audit —
+            # and presents downstream as the clean quarter-size learning
+            # fill it is.
+            _probe_overridden = {
+                "block_reason": target.get("paper_fill_block_reason"),
+                "entry_gate_block_reasons": target.get("entry_gate_block_reasons"),
+                "local_block_reasons": target.get("local_block_reasons"),
+                "tier": target.get("paper_opportunity_tier"),
+                "tier_reason": target.get("paper_opportunity_tier_reason"),
+            }
+            if any(v for v in _probe_overridden.values()):
+                target["paper_probe_overridden_block_state"] = _probe_overridden
+            target["paper_fill_block_reason"] = None
+            target["entry_gate_block_reasons"] = []
+            target["local_block_reasons"] = []
+            target["paper_fill_allowed"] = True
+            _probe_tier_reason = str(
+                target.get("paper_opportunity_tier_reason") or ""
+            )
+            if _probe_tier_reason in (
+                "PAPER_BUCKET_QUARANTINE_BLOCKED_REENTRY",
+                "PAPER_HIGH_CONFIDENCE_LOSS_CLUSTER_BLOCKED_REENTRY",
+            ) or str(target.get("paper_opportunity_tier") or "").upper() in (
+                "PAPER_TIER_SHADOW_ONLY",
+                "SHADOW_ONLY_PAPER",
+            ):
+                target["paper_opportunity_tier"] = (
+                    "PAPER_RISK_CONTROLLER_EXPLORATION"
+                )
+                target["paper_opportunity_tier_reason"] = (
+                    "HALTED_BOOK_PROBE_OVERRIDES_BROAD_REENTRY_SHADOW"
+                )
             target["paper_halted_empty_book_probe_cooling_seconds"] = float(
                 _probe.get("seconds_since_last_close") or 0.0
             )
