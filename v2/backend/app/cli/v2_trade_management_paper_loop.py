@@ -33859,17 +33859,24 @@ def run_once() -> dict:
         # -0.10 — anti-selective; leverage inputs are ceiling-clamped until
         # this recovers).
         try:
-            _cal_pairs = [
-                (
-                    _coerce_float(row.get("expected_move_after_cost_bps")),
-                    _coerce_float(row.get("realized_net_pnl_bps")),
-                )
-                for row in closes[-60:]
-                if isinstance(row, dict)
-            ]
-            _cal_pairs = [
-                (p, z) for p, z in _cal_pairs if p is not None and z is not None
-            ]
+            # DIRECTIONAL convention (2026-07-17, Codex short-edge finding
+            # independently confirmed): expected_move_after_cost_bps is
+            # PRICE-MOVE-signed (a favorable short carries a NEGATIVE
+            # number) while realized_net_pnl_bps is PnL-signed
+            # (favorable-positive for both sides). Comparing them raw mixed
+            # conventions for shorts and distorted the calibration stats.
+            # Promise is flipped to favorable-positive per side here.
+            _cal_pairs = []
+            for row in closes[-60:]:
+                if not isinstance(row, dict):
+                    continue
+                _cal_p = _coerce_float(row.get("expected_move_after_cost_bps"))
+                _cal_z = _coerce_float(row.get("realized_net_pnl_bps"))
+                if _cal_p is None or _cal_z is None:
+                    continue
+                if str(row.get("side") or "").lower() == "short":
+                    _cal_p = -_cal_p
+                _cal_pairs.append((_cal_p, _cal_z))
             if len(_cal_pairs) >= 10:
                 _cal_p = [p for p, _ in _cal_pairs]
                 _cal_z = [z for _, z in _cal_pairs]
