@@ -31409,6 +31409,54 @@ def run_once() -> dict:
             if _lev_notional is not None and _lev_notional > 0 and _final_lev > 0:
                 _acc["allocated_margin_usd"] = round(_lev_notional / _final_lev, 8)
             _lev_attach_stats["stamped"] += 1
+            # Outcome-memory size feedback (2026-07-17): the per-bucket
+            # outcome memory was WRITTEN at every close but nothing on the
+            # entry path ever READ it — observed: AGLDUSDT re-entered at
+            # full $238 notional immediately after a -$4.48 loss in the
+            # same symbol/timeframe bucket, then lost -$3.81 again (symbol
+            # net -$6 on the session). Negative rolling expectancy in the
+            # fill's own bucket now shrinks entry notional (floor 0.25x,
+            # linear in EV down to -200bps); positive-EV buckets are
+            # untouched and the factor recovers automatically as the
+            # bucket's evidence improves. Adaptive, evidence-driven, no
+            # symbol lists.
+            try:
+                _om_tf = str(
+                    _first_present(
+                        _acc.get("timeframe"), _acc.get("thesis_timeframe")
+                    )
+                    or ""
+                ).lower()
+                _om_sym = str(_acc.get("symbol") or "").upper()
+                _om = (
+                    _read_json_key(
+                        r, f"{V2_REDIS_PREFIX}paper:outcome_memory:{_om_sym}:{_om_tf}"
+                    )
+                    if (r is not None and _om_sym and _om_tf)
+                    else {}
+                )
+                _om_ev = _coerce_float(_om.get("rolling_ev_bps"))
+                _om_trades = int(_om.get("trade_count") or 0)
+                if _om_ev is not None and _om_ev < 0.0 and _om_trades >= 1:
+                    _om_factor = max(0.25, 1.0 + (_om_ev / 200.0))
+                    if _lev_notional is not None and _lev_notional > 0:
+                        _scaled = round(_lev_notional * _om_factor, 8)
+                        for _nf in ("quantity",):
+                            _qv = _coerce_float(_acc.get(_nf))
+                            if _qv is not None and _qv > 0:
+                                _acc[_nf] = round(_qv * _om_factor, 12)
+                        for _nf in ("notional", "notional_usd", "gross_notional_usd"):
+                            if _coerce_float(_acc.get(_nf)):
+                                _acc[_nf] = _scaled
+                        if _final_lev > 0:
+                            _acc["allocated_margin_usd"] = round(
+                                _scaled / _final_lev, 8
+                            )
+                        _acc["outcome_memory_size_factor"] = round(_om_factor, 4)
+                        _acc["outcome_memory_rolling_ev_bps"] = _om_ev
+                        _acc["outcome_memory_bucket_trades"] = _om_trades
+            except Exception:
+                pass
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
     # non-fill intent that carries the strict gate's block reasons. These
     # do NOT pass pre-trade, fee-ratio, or churn gates and never become
