@@ -101,6 +101,41 @@ interface APlusInventoryData {
   rejected_reason_matrix?: Record<string, unknown> | null;
 }
 
+interface GoalTrajectoryBindingConstraint {
+  constraint?: string | null;
+  detail?: string | null;
+  evidence?: Record<string, unknown> | null;
+}
+
+interface GoalTrajectory1000xData {
+  objective?: string | null;
+  paper_session_id?: string | null;
+  session_started_utc?: string | null;
+  days_elapsed?: number | null;
+  starting_equity_usd?: number | null;
+  equity_usd?: number | null;
+  realized_pnl_usd?: number | null;
+  unrealized_pnl_usd?: number | null;
+  multiple_now?: number | null;
+  target_multiple?: number | null;
+  target_days?: number | null;
+  required_daily_rate_pct?: number | null;
+  actual_daily_rate_pct?: number | null;
+  on_track?: boolean | null;
+  required_equity_today_usd?: number | null;
+  equity_gap_vs_required_usd?: number | null;
+  days_to_target_at_required_rate_from_here?: number | null;
+  binding_constraint?: GoalTrajectoryBindingConstraint | null;
+  open_position_count?: number | null;
+  closed_trade_count?: number | null;
+  generated_utc?: string | null;
+  age_seconds?: number | null;
+  stale_after_seconds?: number | null;
+  is_stale?: boolean | null;
+  source_key_present?: boolean | null;
+  missing_reason?: string | null;
+}
+
 interface MobileRiskStatusData {
   live_gate?: unknown;
   risk_state?: string | null;
@@ -947,6 +982,157 @@ function RiskPanel({ profile, latestResult, heartbeat }: {
   );
 }
 
+// ─── 1000x Trajectory Panel ───────────────────────────────────────────────────
+
+function fUsdFull(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const sign = n < 0 ? '-' : '';
+  return sign + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Rates from the tracker are ALREADY in percent units (e.g. 7.978 = 7.978%/day,
+// 0.0401 = 0.0401%/day) — never re-scale them the way fPct does.
+function fRatePct(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  const digits = Math.abs(n) < 1 ? 3 : 2;
+  return n.toFixed(digits) + '%';
+}
+
+function fMultiple(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '—';
+  return n.toFixed(Math.abs(n) < 10 ? 4 : 1) + 'x';
+}
+
+const GOAL_STALE_AFTER_SECONDS = 900;
+
+function GoalTrajectoryPanel({ contract }: {
+  contract: ReadonlyContract<GoalTrajectory1000xData> | null;
+}): JSX.Element {
+  const goal = contract?.data ?? null;
+  const hasPayload = goal != null && goal.source_key_present !== false;
+
+  // Honest freshness: recompute age from generated_utc at render time,
+  // fall back to the server-computed age_seconds.
+  const parsedGenerated = goal?.generated_utc ? Date.parse(goal.generated_utc) : NaN;
+  const ageSec = Number.isFinite(parsedGenerated)
+    ? Math.max(0, (Date.now() - parsedGenerated) / 1000)
+    : (goal?.age_seconds ?? null);
+  const staleAfter = goal?.stale_after_seconds ?? GOAL_STALE_AFTER_SECONDS;
+  const isStale = !hasPayload || ageSec == null || ageSec > staleAfter;
+  const amber = '#f59e0b';
+
+  const onTrack = goal?.on_track === true;
+  const badge = !hasPayload ? 'NO DATA' : (isStale ? 'STALE' : (onTrack ? 'ON TRACK' : 'OFF TRACK'));
+  const badgeTone: 'ok' | 'warn' | 'block' = !hasPayload || isStale ? 'warn' : (onTrack ? 'ok' : 'block');
+
+  const gap = goal?.equity_gap_vs_required_usd ?? null;
+  const gapColor = gap == null ? 'var(--text-muted)' : (gap >= 0 ? 'var(--buy,#10b981)' : 'var(--sell,#ef4444)');
+  const actualRate = goal?.actual_daily_rate_pct ?? null;
+  const requiredRate = goal?.required_daily_rate_pct ?? null;
+  const rateBehind = actualRate != null && requiredRate != null && actualRate < requiredRate;
+  const constraint = goal?.binding_constraint ?? null;
+  const constraintTone = onTrack && !isStale ? amber : 'var(--sell,#ef4444)';
+
+  const tiles: Array<{ label: string; value: string; valueColor?: string; sub?: string; subColor?: string }> = [
+    {
+      label: 'Equity Now',
+      value: fUsdFull(goal?.equity_usd),
+      sub: `start ${fUsdFull(goal?.starting_equity_usd)}`,
+    },
+    {
+      label: 'Required Today',
+      value: fUsdFull(goal?.required_equity_today_usd),
+      sub: `gap ${fUsdFull(gap)}`,
+      subColor: gapColor,
+    },
+    {
+      label: 'Multiple',
+      value: fMultiple(goal?.multiple_now),
+      sub: `target ${goal?.target_multiple != null ? goal.target_multiple.toFixed(0) : '1000'}x`,
+    },
+    {
+      label: 'Daily Rate',
+      value: fRatePct(actualRate),
+      valueColor: rateBehind ? 'var(--sell,#ef4444)' : 'var(--buy,#10b981)',
+      sub: `req ${fRatePct(requiredRate)}/day`,
+    },
+    {
+      label: 'Days',
+      value: `${goal?.days_elapsed != null ? goal.days_elapsed.toFixed(1) : '—'} / ${goal?.target_days != null ? goal.target_days.toFixed(0) : '90'}`,
+      sub: goal?.days_to_target_at_required_rate_from_here != null
+        ? `${goal.days_to_target_at_required_rate_from_here.toFixed(0)}d left at req rate`
+        : undefined,
+    },
+    {
+      label: 'Trades',
+      value: `${goal?.closed_trade_count ?? '—'}`,
+      sub: `${goal?.open_position_count ?? '—'} open`,
+    },
+  ];
+
+  return (
+    <div data-testid="dashboard-goal-trajectory-panel">
+    <Panel>
+      <PanelHead
+        title="1000x Trajectory"
+        sub="Research objective, not a promise · paper-only"
+        badge={badge}
+        badgeTone={badgeTone}
+      />
+      {!hasPayload ? (
+        <div style={{ padding: '12px 16px 14px', fontSize: 12, color: 'var(--text-muted)' }}>
+          Trajectory telemetry unavailable — {publicDashboardText(goal?.missing_reason ?? 'tracker key missing or expired')}.
+        </div>
+      ) : (
+        <>
+          {/* BINDING CONSTRAINT — the single thing currently blocking the trajectory */}
+          <div style={{
+            margin: '10px 16px 0',
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: `1px solid color-mix(in oklch, ${constraintTone} 45%, transparent)`,
+            background: `color-mix(in oklch, ${constraintTone} 8%, transparent)`,
+          }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
+              Binding Constraint
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)', color: constraintTone }}>
+              {constraint?.constraint ? publicDashboardText(constraint.constraint) : 'No binding constraint reported'}
+            </div>
+            {constraint?.detail && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3 }}>
+                {publicDashboardText(constraint.detail)}
+              </div>
+            )}
+          </div>
+
+          {/* KPI row */}
+          <div style={{ display: 'flex', gap: 18, padding: '10px 16px 4px', fontSize: 11, fontFamily: 'var(--font-mono)', flexWrap: 'wrap' }}>
+            {tiles.map(t => (
+              <div key={t.label} style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 88 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t.label}</span>
+                <span style={{ color: t.valueColor ?? 'var(--text-primary)', fontWeight: 700, fontSize: 13 }}>{t.value}</span>
+                {t.sub && <span style={{ color: t.subColor ?? 'var(--text-muted)', fontSize: 10 }}>{t.sub}</span>}
+              </div>
+            ))}
+          </div>
+
+          {/* Freshness footer */}
+          <div style={{ padding: '8px 16px 12px', marginTop: 4, borderTop: '1px solid var(--border)', fontSize: 10, fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ color: isStale ? amber : 'var(--text-muted)', fontWeight: isStale ? 700 : 400 }}>
+              {isStale ? 'STALE · ' : ''}Generated {fTime(goal?.generated_utc)} · {fAge(ageSec)}
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              Session {goal?.paper_session_id ?? '—'}
+            </span>
+          </div>
+        </>
+      )}
+    </Panel>
+    </div>
+  );
+}
+
 // ─── Execution Fills Table ────────────────────────────────────────────────────
 
 function PaperFillsPanel({ fills, summary }: { fills: PaperFill[]; summary: PaperSummary | null }): JSX.Element {
@@ -1395,6 +1581,7 @@ export default function DashboardPage(): JSX.Element {
   const portfolioStream = useDashboardStream<PortfolioData>('/api/v2/portfolio', 15_000);
   const liveCanaryStream = useDashboardStream<ReadonlyContract<LiveCanaryStatusData>>('/api/v2/live-canary/status', 10_000, false);
   const aPlusStream = useDashboardStream<ReadonlyContract<APlusInventoryData>>('/api/v2/a-plus/inventory', 10_000, false);
+  const goalTrajectoryStream = useDashboardStream<ReadonlyContract<GoalTrajectory1000xData>>('/api/v2/goal/trajectory-1000x', 30_000, false);
   const mobileRiskStream = useDashboardStream<MobileRiskStatusData>('/api/v2/mobile/risk-status', 15_000);
   const signalStream = useDashboardStream<{ active_signal?: ActiveSignal }>('/api/v2/signals', 10_000);
   const orchStream = useDashboardStream<{ heartbeat?: OrchestratorHeartbeat; last_proposals?: OrchestratorProposal[] }>('/api/v2/orchestrator/status', 10_000);
@@ -1513,6 +1700,7 @@ export default function DashboardPage(): JSX.Element {
     { label: 'Portfolio', envelope: portfolioStream.envelope as ValidatedDataEnvelope<unknown>, loading: portfolioStream.loading, error: portfolioStream.error },
     { label: 'Live Canary', envelope: liveCanaryStream.envelope as ValidatedDataEnvelope<unknown>, loading: liveCanaryStream.loading, error: liveCanaryStream.error },
     { label: 'A+', envelope: aPlusStream.envelope as ValidatedDataEnvelope<unknown>, loading: aPlusStream.loading, error: aPlusStream.error },
+    { label: '1000x', envelope: goalTrajectoryStream.envelope as ValidatedDataEnvelope<unknown>, loading: goalTrajectoryStream.loading, error: goalTrajectoryStream.error },
     { label: 'Risk Truth', envelope: mobileRiskStream.envelope as ValidatedDataEnvelope<unknown>, loading: mobileRiskStream.loading, error: mobileRiskStream.error },
     { label: 'Signals', envelope: signalStream.envelope as ValidatedDataEnvelope<unknown>, loading: signalStream.loading, error: signalStream.error },
     { label: 'Risk', envelope: riskStream.envelope as ValidatedDataEnvelope<unknown>, loading: riskStream.loading, error: riskStream.error },
@@ -1521,6 +1709,9 @@ export default function DashboardPage(): JSX.Element {
     aPlusStream.envelope,
     aPlusStream.error,
     aPlusStream.loading,
+    goalTrajectoryStream.envelope,
+    goalTrajectoryStream.error,
+    goalTrajectoryStream.loading,
     liveCanaryStream.envelope,
     liveCanaryStream.error,
     liveCanaryStream.loading,
@@ -1602,6 +1793,9 @@ export default function DashboardPage(): JSX.Element {
           to="/portfolio"
         />
       </div>
+
+      {/* 1000x goal trajectory — equity vs required, binding constraint, honest freshness */}
+      <GoalTrajectoryPanel contract={goalTrajectoryStream.data} />
 
       {/* Performance & capital — real closed-trade charts (equity / PnL / win-loss / accuracy) */}
       <PerformancePanel
