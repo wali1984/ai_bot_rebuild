@@ -28815,9 +28815,20 @@ def run_once() -> dict:
     # below 0.65). A fresh-checkpoint model era legitimately tops out below
     # 0.75 for a while; a static floor there admits zero probes and the
     # halt can never gather the evidence that clears it.
+    # ACTIONABLE signals only: a HOLD carrying high confidence ("confident
+    # there is nothing to do") must not raise the probe floor above every
+    # candidate that can actually trade — observed 2026-07-17T15:43Z: a
+    # 0.76-confidence hold set the floor to 0.75 while the best actionable
+    # candidate was 0.663, silently starving the probe lane.
     _hebp_cycle_max_conf = 0.0
     for _s in signals:
         if not isinstance(_s, dict):
+            continue
+        _action = str(
+            _first_present(_s.get("action"), _s.get("side"), _s.get("selected_action"))
+            or ""
+        ).lower()
+        if _action not in ("long", "short"):
             continue
         _c = _coerce_float(
             _first_present(_s.get("confidence_calibrated"), _s.get("confidence"))
