@@ -334,8 +334,20 @@ def build_supervision_plan(
     provider_filter_status: dict[str, Any] | None = None,
     smoke_test: bool = False,
     kucoin_symbols: list[str] | None = None,
+    binance_shard_count: int = 0,
+    direct_shard_max_messages: int = 25000,
+    direct_shard_replay_capture: bool = False,
+    direct_shard_partial_depth_levels: str = "20",
 ) -> dict[str, Any]:
-    batches = _chunks(_normalize_symbols(symbols), batch_size)
+    # Full-universe shard mode (fixes the frozen 16-symbol static-batch gap):
+    # instead of pinning per-child --symbols lists snapshotted at supervisor
+    # start, spawn N recorder children with --shard-index/--shard-count and no
+    # --symbols. Each child re-resolves the adaptive symbol universe on every
+    # loop run, so universe drift (and majors like BTC/ETH/SOL) is always
+    # covered without supervisor restarts. Replay file capture is disabled for
+    # this broad fleet by default (redis-only) for disk safety.
+    shard_count = max(0, int(binance_shard_count))
+    batches = [] if shard_count > 0 else _chunks(_normalize_symbols(symbols), batch_size)
     # Cross-venue confirmation (F-0010) needs a second direct venue: spawn
     # KuCoin recorder children for the KuCoin-supported symbol subset in
     # addition to the Binance children. Symbols without KuCoin coverage stay
@@ -345,6 +357,52 @@ def build_supervision_plan(
         ("binance", batch) for batch in batches
     ] + [("kucoin", batch) for batch in kucoin_batches]
     direct_commands: list[list[str]] = []
+    for shard_index in range(shard_count):
+        command = [
+            python_executable,
+            "-m",
+            "v2.backend.app.cli.v2_direct_orderbook_recorder",
+            "--shard-index",
+            str(shard_index),
+            "--shard-count",
+            str(shard_count),
+            "--exchange",
+            "binance",
+            "--speed",
+            str(binance_speed),
+            # depth20 supersedes depth5/10 for the local book; a single partial
+            # stream per symbol keeps per-child message rate below processing
+            # capacity so backlog never inflates local latency past the
+            # adaptive feed-quality bound.
+            "--binance-partial-depth-levels",
+            str(direct_shard_partial_depth_levels),
+            "--max-messages",
+            str(max(1, int(direct_shard_max_messages))),
+            "--write-redis",
+            "--verify-redis-freshness",
+            "--freshness-stale-bound-ms",
+            str(float(freshness_stale_bound_ms)),
+            "--loop",
+            "--loop-max-runs",
+            str(max(0, int(direct_loop_max_runs))),
+            "--interval-seconds",
+            str(max(0.0, float(direct_interval_seconds))),
+            "--venue-timeout-seconds",
+            str(max(1.0, float(direct_venue_timeout_seconds))),
+            "--ws-close-timeout-seconds",
+            str(max(0.1, float(direct_ws_close_timeout_seconds))),
+            "--replay-root",
+            str(replay_root),
+        ]
+        if not direct_shard_replay_capture:
+            command.append("--no-replay-capture")
+        if binance_include_book_ticker:
+            command.append("--binance-include-book-ticker")
+        if binance_include_diff_depth:
+            command.append("--binance-include-diff-depth")
+        if smoke_test:
+            command.append("--smoke-test")
+        direct_commands.append(command)
     for exchange, batch in exchange_batches:
         command = [
             python_executable,
@@ -409,11 +467,29 @@ def build_supervision_plan(
     ]
     if smoke_test:
         monitor_command.append("--smoke-test")
-    stream_count = len(_normalize_symbols(symbols)) * (3 + int(bool(binance_include_book_ticker)) + int(bool(binance_include_diff_depth)))
+    if shard_count > 0:
+        shard_level_count = len([part for part in str(direct_shard_partial_depth_levels).split(",") if part.strip()]) or 1
+        streams_per_symbol = shard_level_count + int(bool(binance_include_book_ticker)) + int(bool(binance_include_diff_depth))
+        try:
+            universe_symbol_count = len(resolve_symbols(explicit=None, smoke_test=smoke_test, include_baseline=True))
+        except Exception:
+            universe_symbol_count = len(_normalize_symbols(symbols))
+        stream_count = universe_symbol_count * streams_per_symbol
+    else:
+        streams_per_symbol = 3 + int(bool(binance_include_book_ticker)) + int(bool(binance_include_diff_depth))
+        stream_count = len(_normalize_symbols(symbols)) * streams_per_symbol
     return {
         "direct_batches": batches,
         "direct_batch_count": len(batches),
         "direct_batch_size": max(1, int(batch_size)),
+        "direct_binance_shard_count": shard_count,
+        "direct_binance_shard_mode": shard_count > 0,
+        "direct_binance_symbol_source": (
+            "recorder_resolver_per_run_sharded" if shard_count > 0 else "supervisor_symbol_batches"
+        ),
+        "direct_shard_max_messages": max(1, int(direct_shard_max_messages)),
+        "direct_shard_replay_capture": bool(direct_shard_replay_capture),
+        "direct_shard_partial_depth_levels": str(direct_shard_partial_depth_levels),
         "direct_kucoin_batches": kucoin_batches,
         "direct_kucoin_batch_count": len(kucoin_batches),
         "direct_kucoin_symbol_count": len(_normalize_symbols(kucoin_symbols or [])),
@@ -447,11 +523,24 @@ def _parse_last_json(lines: list[str]) -> dict[str, Any] | None:
     return None
 
 
-def _tail_file(path: Path, limit: int = 5) -> list[str]:
+def _tail_file(path: Path, limit: int = 5, max_bytes: int = 262144) -> list[str]:
+    # Bounded tail read: managed child .out files grow for the life of the
+    # service and are re-read on every health tick, so reading the whole file
+    # (previous behavior) turned the supervisor into an I/O + memory grinder
+    # once children were long-lived. Only the last max_bytes can contain the
+    # last `limit` lines we report.
     try:
-        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        with path.open("rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - max(1024, int(max_bytes))))
+            text = fh.read().decode("utf-8", errors="replace")
     except OSError:
         return []
+    lines = text.splitlines()
+    if len(text) >= max_bytes and lines:
+        # Drop a possibly partial first line when we started mid-file.
+        lines = lines[1:]
     return [line for line in lines if line.strip()][-max(1, int(limit)) :]
 
 
@@ -896,6 +985,43 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--binance-include-book-ticker", action="store_true")
     parser.add_argument("--binance-include-diff-depth", action="store_true")
     parser.add_argument("--direct-max-messages", type=int, default=600)
+    parser.add_argument(
+        "--direct-binance-shard-count",
+        type=int,
+        default=0,
+        help=(
+            "When > 0, replace explicit-symbol Binance recorder batches with this many "
+            "self-resolving sharded recorder children (--shard-index/--shard-count, no "
+            "--symbols) that re-resolve the full adaptive universe every loop run. "
+            "KuCoin cross-venue children and the feed monitor are unaffected."
+        ),
+    )
+    parser.add_argument(
+        "--direct-shard-max-messages",
+        type=int,
+        default=25000,
+        help="Per-run message budget for sharded Binance children (sets WSS reconnect/universe re-resolution cadence).",
+    )
+    parser.add_argument(
+        "--direct-shard-replay-capture",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Persist replay JSONL files for sharded Binance children. Default off: the "
+            "full-universe fleet is redis-only for disk safety (orderbook_replay caused "
+            "300G/day ENOSPC incidents); KuCoin cross-venue children keep capture."
+        ),
+    )
+    parser.add_argument(
+        "--direct-shard-partial-depth-levels",
+        default="20",
+        help=(
+            "Binance partial-depth levels for sharded children (comma list from 5,10,20). "
+            "Default 20-only: one stream per symbol keeps per-child message rate below "
+            "processing capacity (backlog otherwise inflates local latency past the "
+            "adaptive feed-quality bound)."
+        ),
+    )
     parser.add_argument("--direct-loop-max-runs", type=int, default=1)
     parser.add_argument("--direct-interval-seconds", type=float, default=0.0)
     parser.add_argument("--direct-venue-timeout-seconds", type=float, default=30.0)
@@ -977,6 +1103,10 @@ def main(argv: list[str] | None = None) -> int:
         provider_filter_status=provider_filter_status,
         smoke_test=bool(args.smoke_test),
         kucoin_symbols=kucoin_symbols,
+        binance_shard_count=int(args.direct_binance_shard_count),
+        direct_shard_max_messages=int(args.direct_shard_max_messages),
+        direct_shard_replay_capture=bool(args.direct_shard_replay_capture),
+        direct_shard_partial_depth_levels=str(args.direct_shard_partial_depth_levels),
     )
     plan["kucoin_provider_filter_status"] = kucoin_provider_filter_status
     run_result = None

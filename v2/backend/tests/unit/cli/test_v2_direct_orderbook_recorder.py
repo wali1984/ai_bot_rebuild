@@ -826,3 +826,93 @@ def test_fetch_kucoin_snapshot_rejects_error_payload(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="kucoin_snapshot_error"):
         recorder.fetch_kucoin_snapshot("BICOUSDT")
+
+
+def test_shard_symbols_partitions_full_universe_deterministically() -> None:
+    universe = [f"SYM{i:03d}USDT" for i in range(148)] + ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    shards = [
+        recorder.shard_symbols(universe, shard_index=index, shard_count=4)
+        for index in range(4)
+    ]
+
+    combined = sorted(symbol for shard in shards for symbol in shard)
+    assert combined == sorted(set(universe))
+    for shard in shards:
+        assert len(shard) in {37, 38}
+    # Majors always land in exactly one covered shard.
+    for major in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        assert sum(major in shard for shard in shards) == 1
+    # Deterministic across calls (stable assignment between processes).
+    assert shards[1] == recorder.shard_symbols(list(reversed(universe)), shard_index=1, shard_count=4)
+
+
+def test_shard_symbols_disabled_returns_input() -> None:
+    symbols = ["ETHUSDT", "BTCUSDT"]
+    assert recorder.shard_symbols(symbols, shard_index=0, shard_count=0) == symbols
+    assert recorder.shard_symbols(symbols, shard_index=0, shard_count=1) == symbols
+
+
+def test_parse_args_rejects_out_of_range_shard_index() -> None:
+    with pytest.raises(SystemExit):
+        recorder.parse_args(["--shard-index", "4", "--shard-count", "4"])
+    args = recorder.parse_args(["--shard-index", "3", "--shard-count", "4"])
+    assert args.shard_index == 3
+    assert args.shard_count == 4
+    assert args.replay_capture is True
+
+
+def test_resolved_symbols_shards_resolver_universe(monkeypatch) -> None:
+    universe = [f"AA{i:02d}USDT" for i in range(10)]
+    monkeypatch.setattr(recorder, "resolve_symbols", lambda **_kwargs: list(universe))
+    args = recorder.parse_args(["--shard-index", "1", "--shard-count", "3"])
+
+    resolved = recorder._resolved_symbols(args)
+
+    assert resolved == sorted(universe)[1::3]
+
+
+def test_no_replay_capture_writes_redis_only(tmp_path) -> None:
+    store = LocalReplayStore(tmp_path / "orderbook_replay")
+    books: dict[tuple[str, str], LocalOrderBook] = {}
+    fake_redis = FakeRedis({})
+    raw = {
+        "stream": "btcusdt@depth20@250ms",
+        "data": {
+            "e": "depthUpdate",
+            "E": 1780000000000,
+            "T": 1780000000001,
+            "s": "BTCUSDT",
+            "U": 10,
+            "u": 11,
+            "pu": 9,
+            "b": [["100", "2"]],
+            "a": [["101", "3"]],
+        },
+    }
+
+    result = recorder.process_raw_message(
+        json.dumps(raw),
+        parser_name="binance",
+        books=books,
+        replay_store=store,
+        redis_client=fake_redis,
+        persist_replay=False,
+    )
+
+    assert result is not None
+    assert result["replay_writes"] == []
+    assert not list((tmp_path / "orderbook_replay").rglob("*.jsonl"))
+    written_keys = {key for key, _ttl in fake_redis.write_calls}
+    assert f"{recorder.NEW_REDIS_PREFIX}features:binance:BTCUSDT" in written_keys
+    assert f"{recorder.NEW_REDIS_PREFIX}depth:binance:BTCUSDT" in written_keys
+
+
+def test_parse_args_partial_depth_levels_validation() -> None:
+    args = recorder.parse_args(["--binance-partial-depth-levels", "20"])
+    assert args.binance_partial_depth_levels == (20,)
+    args = recorder.parse_args([])
+    assert args.binance_partial_depth_levels == (5, 10, 20)
+    with pytest.raises(SystemExit):
+        recorder.parse_args(["--binance-partial-depth-levels", "7"])
+    with pytest.raises(SystemExit):
+        recorder.parse_args(["--binance-partial-depth-levels", ""])

@@ -368,6 +368,7 @@ def process_event(
     redis_client: Any = None,
     persist_raw_delta: bool = True,
     persist_features: bool = True,
+    persist_snapshots: bool = True,
 ) -> dict[str, Any]:
     exchange = str(event["exchange"])
     symbol = str(event["symbol"]).upper()
@@ -445,7 +446,7 @@ def process_event(
                 event_time=payloads["features"].get("event_time"),
             )
         )
-    if event.get("is_snapshot"):
+    if persist_snapshots and event.get("is_snapshot"):
         writes.append(
             replay_store.append(
                 exchange=exchange,
@@ -486,12 +487,21 @@ def process_raw_message(
     books: dict[tuple[str, str], LocalOrderBook],
     replay_store: LocalReplayStore,
     redis_client: Any = None,
+    persist_replay: bool = True,
 ) -> dict[str, Any] | None:
     parser = parse_binance_message if parser_name == "binance" else parse_kucoin_message
     event = parser(raw)
     if event is None:
         return None
-    return process_event(event, books=books, replay_store=replay_store, redis_client=redis_client)
+    return process_event(
+        event,
+        books=books,
+        replay_store=replay_store,
+        redis_client=redis_client,
+        persist_raw_delta=persist_replay,
+        persist_features=persist_replay,
+        persist_snapshots=persist_replay,
+    )
 
 
 def _binance_snapshot_from_cache(
@@ -638,6 +648,7 @@ async def _run_binance_ws(
     partial_levels: list[int] | tuple[int, ...] = (5, 10, 20),
     message_timeout_seconds: float = 30.0,
     websocket_close_timeout_seconds: float = 1.0,
+    persist_replay: bool = True,
 ) -> list[dict[str, Any]]:
     try:
         import websockets  # type: ignore
@@ -670,7 +681,8 @@ async def _run_binance_ws(
             replay_store=replay_store,
             redis_client=redis_client,
             persist_raw_delta=False,
-            persist_features=True,
+            persist_features=persist_replay,
+            persist_snapshots=persist_replay,
         )
         seeded["update_type"] = "websocket_cache_snapshot_seed"
         seeded["rest_fallback_used"] = False
@@ -690,6 +702,7 @@ async def _run_binance_ws(
                 books=books,
                 replay_store=replay_store,
                 redis_client=redis_client,
+                persist_replay=persist_replay,
             )
             if result is not None:
                 processed.append(result)
@@ -708,7 +721,8 @@ async def _run_binance_ws(
                         replay_store=replay_store,
                         redis_client=redis_client,
                         persist_raw_delta=False,
-                        persist_features=True,
+                        persist_features=persist_replay,
+                        persist_snapshots=persist_replay,
                     )
                     repair["update_type"] = "rest_snapshot_gap_repair"
                     processed.append(repair)
@@ -749,6 +763,7 @@ async def _run_kucoin_ws(
     trade_type: str = "FUTURES",
     message_timeout_seconds: float = 30.0,
     websocket_close_timeout_seconds: float = 1.0,
+    persist_replay: bool = True,
 ) -> list[dict[str, Any]]:
     try:
         import websockets  # type: ignore
@@ -769,7 +784,8 @@ async def _run_kucoin_ws(
                 replay_store=replay_store,
                 redis_client=redis_client,
                 persist_raw_delta=False,
-                persist_features=True,
+                persist_features=persist_replay,
+                persist_snapshots=persist_replay,
             )
             seeded["update_type"] = "rest_snapshot_seed"
             processed.append(seeded)
@@ -790,6 +806,7 @@ async def _run_kucoin_ws(
                 books=books,
                 replay_store=replay_store,
                 redis_client=redis_client,
+                persist_replay=persist_replay,
             )
             if result is not None:
                 processed.append(result)
@@ -807,7 +824,8 @@ async def _run_kucoin_ws(
                         replay_store=replay_store,
                         redis_client=redis_client,
                         persist_raw_delta=False,
-                        persist_features=True,
+                        persist_features=persist_replay,
+                        persist_snapshots=persist_replay,
                     )
                     repair["update_type"] = "rest_snapshot_gap_repair"
                     processed.append(repair)
@@ -843,6 +861,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "coverage; writes top-of-book cache and does not seed REST snapshots."
         ),
     )
+    parser.add_argument(
+        "--binance-partial-depth-levels",
+        default="5,10,20",
+        help=(
+            "Comma list drawn from 5,10,20. The local book only needs one partial "
+            "stream per symbol (depth20 supersedes 5/10), so broad full-universe "
+            "fleets should pass '20' to cut per-connection message rate 3x and stay "
+            "ahead of the feed (processing backlog inflates local latency)."
+        ),
+    )
     parser.add_argument("--kucoin-depth", choices=("5", "50", "increment@10ms", "all"), default="all")
     parser.add_argument("--kucoin-trade-type", choices=("SPOT", "FUTURES"), default="FUTURES")
     parser.add_argument("--max-messages", type=int, default=25)
@@ -869,11 +897,85 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--replay-root", default=str(DEFAULT_REPLAY_ROOT))
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--shard-count",
+        type=int,
+        default=0,
+        help=(
+            "Deterministic symbol sharding for full-universe coverage: this process "
+            "covers every shard-count-th symbol of the sorted resolved universe. "
+            "Symbols are re-resolved on every loop run, so universe drift is picked "
+            "up without static --symbols lists. 0 disables sharding."
+        ),
+    )
+    parser.add_argument(
+        "--shard-index",
+        type=int,
+        default=0,
+        help="Zero-based shard slot in [0, --shard-count). Ignored when --shard-count is 0.",
+    )
+    parser.add_argument(
+        "--replay-capture",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Persist replay JSONL files (raw deltas/snapshots/features) under --replay-root. "
+            "--no-replay-capture switches to redis-only mode (disk safety for broad "
+            "full-universe fleets); v2:orderbook:* Redis keys are always written when "
+            "--write-redis is set."
+        ),
+    )
+    args = parser.parse_args(argv)
+    if int(args.shard_count or 0) > 0 and not (0 <= int(args.shard_index) < int(args.shard_count)):
+        parser.error("--shard-index must be in [0, --shard-count)")
+    try:
+        levels = _parse_partial_depth_levels(args.binance_partial_depth_levels)
+    except ValueError as exc:
+        parser.error(str(exc))
+    args.binance_partial_depth_levels = levels
+    return args
+
+
+def _parse_partial_depth_levels(raw: Any) -> tuple[int, ...]:
+    if isinstance(raw, (tuple, list)):
+        parts = [str(part) for part in raw]
+    else:
+        parts = [part.strip() for part in str(raw or "").split(",") if part.strip()]
+    levels: list[int] = []
+    for part in parts:
+        if part not in {"5", "10", "20"}:
+            raise ValueError("--binance-partial-depth-levels values must be drawn from 5,10,20")
+        level = int(part)
+        if level not in levels:
+            levels.append(level)
+    if not levels:
+        raise ValueError("--binance-partial-depth-levels requires at least one of 5,10,20")
+    return tuple(levels)
 
 
 def _resolved_symbols(args: argparse.Namespace) -> list[str]:
-    return resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test, include_baseline=True)
+    symbols = resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test, include_baseline=True)
+    return shard_symbols(
+        symbols,
+        shard_index=int(getattr(args, "shard_index", 0) or 0),
+        shard_count=int(getattr(args, "shard_count", 0) or 0),
+    )
+
+
+def shard_symbols(symbols: list[str], *, shard_index: int, shard_count: int) -> list[str]:
+    """Deterministic round-robin shard over the sorted symbol universe.
+
+    The union of shards 0..shard_count-1 always equals the full input set, so
+    every resolved universe symbol (including majors) lands in exactly one
+    covered shard. Sorting first keeps assignment stable across processes that
+    resolved the same universe.
+    """
+    count = max(0, int(shard_count))
+    if count <= 1:
+        return list(symbols)
+    index = max(0, int(shard_index)) % count
+    ordered = sorted(dict.fromkeys(str(symbol).upper() for symbol in symbols if symbol))
+    return ordered[index::count]
 
 
 def summarize_processed_feed_coverage(processed: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1206,9 +1308,12 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
     run_errors: list[dict[str, str]] = []
     started_at = utc_now_iso()
     max_messages = max(1, int(args.max_messages))
+    persist_replay = bool(getattr(args, "replay_capture", True))
     binance_book_ticker_only = bool(args.binance_book_ticker_only)
     binance_include_book_ticker = bool(args.binance_include_book_ticker or binance_book_ticker_only)
-    binance_partial_levels: tuple[int, ...] = () if binance_book_ticker_only else (5, 10, 20)
+    binance_partial_levels: tuple[int, ...] = (
+        () if binance_book_ticker_only else _parse_partial_depth_levels(getattr(args, "binance_partial_depth_levels", "5,10,20"))
+    )
     if args.fixture_jsonl:
         for raw in _iter_fixture_messages(Path(args.fixture_jsonl)):
             result = process_raw_message(
@@ -1217,6 +1322,7 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
                 books=books,
                 replay_store=replay_store,
                 redis_client=redis_client,
+                persist_replay=persist_replay,
             )
             if result is not None:
                 processed.append(result)
@@ -1239,6 +1345,7 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
                             partial_levels=binance_partial_levels,
                             message_timeout_seconds=float(args.venue_timeout_seconds),
                             websocket_close_timeout_seconds=float(args.ws_close_timeout_seconds),
+                            persist_replay=persist_replay,
                         )
                     )
                 )
@@ -1260,6 +1367,7 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
                             trade_type=args.kucoin_trade_type,
                             message_timeout_seconds=float(args.venue_timeout_seconds),
                             websocket_close_timeout_seconds=float(args.ws_close_timeout_seconds),
+                            persist_replay=persist_replay,
                         )
                     )
                 )
@@ -1285,6 +1393,9 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
         "requested_symbol_count": len(requested_symbols),
         "symbols": symbols,
         "symbol_count": len(symbols),
+        "shard_index": int(getattr(args, "shard_index", 0) or 0),
+        "shard_count": int(getattr(args, "shard_count", 0) or 0),
+        "replay_capture": persist_replay,
         "provider_filtered_symbols": sorted(set(requested_symbols) - set(symbols)),
         "exchange_symbols": exchange_symbols,
         "exchange": args.exchange,

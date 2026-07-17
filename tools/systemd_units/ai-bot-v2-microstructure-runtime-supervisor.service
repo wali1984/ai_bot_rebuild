@@ -1,14 +1,29 @@
 [Unit]
-Description=AI Bot V2 microstructure runtime supervisor (direct orderbook recorder batches + feed monitor; V2 namespace only; paper-shadow)
+Description=AI Bot V2 microstructure runtime supervisor (full-universe sharded Binance depth WSS + KuCoin cross-venue batches + feed monitor; V2 namespace only; paper-shadow)
 After=network-online.target
 
 [Service]
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-microstructure-runtime-supervisor'
-ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_microstructure_runtime_supervisor --paper-candidates --filter-provider-supported-symbols --run-managed --managed-until-stopped --restart-exited-children --direct-loop-max-runs 0 --direct-interval-seconds 0.5 --direct-max-messages 600 --binance-speed 250ms >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-microstructure-runtime-supervisor.log 2>&1'
+# 2026-07-17 orderbook depth coverage fix: --direct-binance-shard-count 4 replaces
+# the frozen paper-candidate --symbols batches (16 symbols, no BTC/ETH/SOL) with 4
+# self-resolving sharded recorder children that re-resolve the full adaptive
+# universe (~148 symbols) every loop run and cover it persistently over combined
+# depth20@250ms streams (depth20 supersedes 5/10; one stream per symbol keeps
+# per-child message rate under processing capacity so backlog never inflates
+# local latency past the adaptive feed-quality bound). Shard children run
+# redis-only (--no-replay-capture injected by the supervisor) for disk safety;
+# KuCoin cross-venue children keep paper-candidate batches + replay capture.
+# --direct-shard-max-messages 25000 sets per-connection run length (~3 min)
+# = universe re-resolution cadence.
+ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_microstructure_runtime_supervisor --paper-candidates --filter-provider-supported-symbols --run-managed --managed-until-stopped --restart-exited-children --direct-loop-max-runs 0 --direct-interval-seconds 0.5 --direct-max-messages 600 --direct-binance-shard-count 4 --direct-shard-max-messages 25000 --direct-shard-partial-depth-levels 20 --binance-speed 250ms >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-microstructure-runtime-supervisor.log 2>&1'
 Restart=always
 RestartSec=15
+# Periodic full refresh so the KuCoin cross-venue paper-candidate subset and the
+# monitor symbol list (resolved once at supervisor start) also track universe
+# drift. Binance shard children do NOT need this (they re-resolve per run).
+RuntimeMaxSec=21600
 NoNewPrivileges=true
 
 [Install]

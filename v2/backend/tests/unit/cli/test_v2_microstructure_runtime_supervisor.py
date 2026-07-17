@@ -650,3 +650,95 @@ def test_main_writes_until_stopped_managed_status(monkeypatch, tmp_path, capsys)
     assert restored == [True]
     assert payload["status"] == "MANAGED_RUN_STOPPED"
     assert output["status"] == "MANAGED_RUN_STOPPED"
+
+
+def test_supervision_plan_shard_mode_replaces_binance_batches(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        supervisor,
+        "resolve_symbols",
+        lambda **_kwargs: [f"AA{i:03d}USDT" for i in range(148)],
+    )
+    plan = supervisor.build_supervision_plan(
+        symbols=["ETHUSDT", "SOLUSDT", "AAVEUSDT"],
+        python_executable="/venv/python",
+        replay_root=tmp_path / "replay",
+        batch_size=8,
+        direct_max_messages=600,
+        direct_loop_max_runs=0,
+        direct_interval_seconds=0.5,
+        direct_venue_timeout_seconds=30.0,
+        direct_ws_close_timeout_seconds=1.0,
+        freshness_stale_bound_ms=1500.0,
+        binance_speed="250ms",
+        binance_include_book_ticker=False,
+        binance_include_diff_depth=False,
+        monitor_loop_max_runs=0,
+        monitor_interval_seconds=1.0,
+        monitor_ttl_seconds=300,
+        monitor_timeframe="1m",
+        monitor_exchanges="binance,kucoin",
+        kucoin_symbols=["ETHUSDT", "SOLUSDT"],
+        binance_shard_count=4,
+        direct_shard_max_messages=25000,
+        direct_shard_replay_capture=False,
+    )
+
+    assert plan["direct_binance_shard_mode"] is True
+    assert plan["direct_binance_shard_count"] == 4
+    # Binance explicit-symbol batches are replaced by shard children.
+    assert plan["direct_batches"] == []
+    shard_commands = [
+        command for command in plan["direct_commands"] if "--shard-count" in command
+    ]
+    assert len(shard_commands) == 4
+    for index, command in enumerate(shard_commands):
+        assert command[command.index("--shard-index") + 1] == str(index)
+        assert command[command.index("--shard-count") + 1] == "4"
+        assert "--symbols" not in command
+        assert "--no-replay-capture" in command
+        assert command[command.index("--binance-partial-depth-levels") + 1] == "20"
+        assert command[command.index("--max-messages") + 1] == "25000"
+        assert "--write-redis" in command
+        assert "--verify-redis-freshness" in command
+        assert command[command.index("--loop-max-runs") + 1] == "0"
+    # KuCoin cross-venue children keep explicit batches and replay capture.
+    kucoin_commands = [
+        command
+        for command in plan["direct_commands"]
+        if "--exchange" in command and command[command.index("--exchange") + 1] == "kucoin"
+    ]
+    assert len(kucoin_commands) == 1
+    assert "--no-replay-capture" not in kucoin_commands[0]
+    assert kucoin_commands[0][kucoin_commands[0].index("--symbols") + 1] == "ETHUSDT,SOLUSDT"
+    # Stream estimate covers the full resolver universe (one depth20 stream per
+    # symbol in shard mode), not the supervisor symbol list.
+    assert plan["estimated_binance_stream_count"] == 148
+
+
+def test_supervision_plan_shard_mode_disabled_by_default(tmp_path) -> None:
+    plan = supervisor.build_supervision_plan(
+        symbols=["ETHUSDT", "SOLUSDT", "AAVEUSDT"],
+        python_executable="/venv/python",
+        replay_root=tmp_path / "replay",
+        batch_size=2,
+        direct_max_messages=120,
+        direct_loop_max_runs=0,
+        direct_interval_seconds=0.0,
+        direct_venue_timeout_seconds=30.0,
+        direct_ws_close_timeout_seconds=1.0,
+        freshness_stale_bound_ms=1500.0,
+        binance_speed="250ms",
+        binance_include_book_ticker=False,
+        binance_include_diff_depth=False,
+        monitor_loop_max_runs=0,
+        monitor_interval_seconds=1.0,
+        monitor_ttl_seconds=300,
+        monitor_timeframe="1m",
+        monitor_exchanges="binance",
+    )
+
+    assert plan["direct_binance_shard_mode"] is False
+    assert plan["direct_batches"] == [["ETHUSDT", "SOLUSDT"], ["AAVEUSDT"]]
+    for command in plan["direct_commands"]:
+        assert "--shard-count" not in command
+        assert "--no-replay-capture" not in command
