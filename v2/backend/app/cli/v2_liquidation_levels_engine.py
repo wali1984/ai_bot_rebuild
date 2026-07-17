@@ -512,13 +512,24 @@ class LevelEngine:
         _hist = self.intensity_history.setdefault(symbol, {}).setdefault(
             tf, deque(maxlen=720)
         )
-        if len(_hist) >= 20:
+        # Warmup honesty: after a restart the event deque REFILLS from the
+        # stream tail, so intensity grows monotonically until the retention
+        # window saturates — every current sample would rank above all
+        # history and the percentile would peg at 1.0 (observed on BTCUSDT
+        # 25min post-restart). Rank (and record) samples only once the
+        # oldest retained event spans >=75% of the window; publish None
+        # (honest missing) until then.
+        _window_fill = (
+            (now_ms - int(dq[0]["ts"])) / window_ms if dq and window_ms > 0 else 0.0
+        )
+        if _window_fill >= 0.75 and len(_hist) >= 20:
             cascade_risk = round(
                 sum(1 for sample in _hist if sample < intensity_now) / len(_hist), 6
             )
         else:
             cascade_risk = None
-        _hist.append(intensity_now)
+        if _window_fill >= 0.75:
+            _hist.append(intensity_now)
 
         # Pressure direction: signed balance of long vs short strength, in [-1, +1].
         # +1 = massive long liquidation pressure (bears dominate); -1 = short liquidation pressure.
