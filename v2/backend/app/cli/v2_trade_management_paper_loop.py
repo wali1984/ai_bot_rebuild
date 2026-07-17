@@ -31188,6 +31188,85 @@ def run_once() -> dict:
                 else "OUTCOME_SUPERVISED_PAPER"
             )
         accepted.append(accepted_intent)
+    # Same-cycle opposite-side intent collapse: the fast-path reversal
+    # hysteresis reads OPEN positions from the ledger, but two opposite
+    # intents admitted in the SAME cycle (the model emitting both sides of
+    # one symbol across timeframes) fill together next cycle and net
+    # instantly — observed 2026-07-17T04:29:00Z→04:29:01Z: LDOUSDT entry
+    # and TIER_3_MODEL_REVERSAL_NETTING exit one second apart, a pure
+    # round-trip cost with zero information gained. Keep only the
+    # higher-evidence side per symbol (confidence, then after-cost edge);
+    # losers move to the blocked list with full telemetry. Hedge-tagged
+    # intents are pair legs by design and never collapse.
+    def _same_cycle_evidence(row: dict[str, Any]) -> tuple[float, float]:
+        return (
+            _coerce_float(row.get("confidence_calibrated")) or 0.0,
+            _coerce_float(row.get("expected_move_after_cost_bps")) or 0.0,
+        )
+
+    _sc_sided: dict[str, list[dict[str, Any]]] = {}
+    for _acc in accepted:
+        if any(
+            _acc.get(_hk)
+            for _hk in (
+                "paper_adaptive_hedge_fill",
+                "hedge_directive_id",
+                "paper_hedge_role",
+            )
+        ):
+            continue
+        _acc_sym = str(_acc.get("symbol") or "").upper()
+        _acc_side = str(
+            _first_present(_acc.get("side"), _acc.get("action")) or ""
+        ).lower()
+        if _acc_sym and "::" not in _acc_sym and _acc_side in ("long", "short"):
+            _sc_sided.setdefault(_acc_sym, []).append(_acc)
+    _sc_blocked_ids: set[int] = set()
+    for _acc_sym, _sc_rows in _sc_sided.items():
+        _sc_sides = {
+            str(_first_present(row.get("side"), row.get("action")) or "").lower()
+            for row in _sc_rows
+        }
+        if not ({"long", "short"} <= _sc_sides):
+            continue
+        _sc_winner = max(_sc_rows, key=_same_cycle_evidence)
+        _sc_winner_side = str(
+            _first_present(_sc_winner.get("side"), _sc_winner.get("action")) or ""
+        ).lower()
+        for _sc_row in _sc_rows:
+            _sc_row_side = str(
+                _first_present(_sc_row.get("side"), _sc_row.get("action")) or ""
+            ).lower()
+            if _sc_row_side == _sc_winner_side:
+                continue
+            _sc_blocked_ids.add(id(_sc_row))
+            _sc_row["decision"] = "BLOCKED_SAME_CYCLE_OPPOSITE_INTENT"
+            _sc_row["paper_fill_allowed"] = False
+            _sc_row["paper_fast_path"] = False
+            _sc_row["paper_fill_block_reason"] = (
+                "SAME_CYCLE_OPPOSITE_INTENT_COLLAPSED"
+            )
+            _sc_row["paper_fill_gate_block_reasons"] = sorted(
+                set(
+                    list(_sc_row.get("paper_fill_gate_block_reasons") or [])
+                    + ["SAME_CYCLE_OPPOSITE_INTENT_COLLAPSED"]
+                )
+            )
+            _sc_row["same_cycle_opposite_winner"] = {
+                "side": _sc_winner_side,
+                "confidence_calibrated": _coerce_float(
+                    _sc_winner.get("confidence_calibrated")
+                ),
+                "expected_move_after_cost_bps": _coerce_float(
+                    _sc_winner.get("expected_move_after_cost_bps")
+                ),
+                "signal_id": _sc_winner.get("signal_id"),
+            }
+            _sc_row["places_real_order"] = False
+            _sc_row["paper_only"] = True
+            blocked.append(_sc_row)
+    if _sc_blocked_ids:
+        accepted = [row for row in accepted if id(row) not in _sc_blocked_ids]
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
     # non-fill intent that carries the strict gate's block reasons. These
     # do NOT pass pre-trade, fee-ratio, or churn gates and never become
