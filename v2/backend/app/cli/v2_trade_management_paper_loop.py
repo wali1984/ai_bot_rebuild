@@ -31307,6 +31307,31 @@ def run_once() -> dict:
         "errors": 0,
         "import_error": None,
     }
+    # Adaptive notional concentration cap (G13 repair, 2026-07-17): guardian
+    # evidence shows simple-mean expectancy POSITIVE (+6.4bps) while the
+    # notional-weighted mean is negative (-4.0bps) at notional CV ~0.99 —
+    # a few oversized fills ($235-240 vs ~$30 median) dominate the weighted
+    # outcome and happened to be the big losers. Any new fill's notional is
+    # capped at 2x the rolling median notional of the last 25 closed trades
+    # (self-scaling: the cap grows as the book earns bigger sizes; no static
+    # dollar figures). Down-scale only — never inflates small fills.
+    _sc_median_notional: float | None = None
+    try:
+        _sc_recent_notionals = sorted(
+            n
+            for n in (
+                _coerce_float(row.get("gross_notional_usd") or row.get("notional"))
+                for row in existing_closed_rows[-25:]
+                if isinstance(row, dict)
+            )
+            if n is not None and n > 0
+        )
+        if len(_sc_recent_notionals) >= 5:
+            _sc_median_notional = _sc_recent_notionals[
+                len(_sc_recent_notionals) // 2
+            ]
+    except Exception:
+        _sc_median_notional = None
     try:
         from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
             recommend_leverage_for_signal as _post_loop_recommend_leverage,
@@ -31455,6 +31480,40 @@ def run_once() -> dict:
                         _acc["outcome_memory_size_factor"] = round(_om_factor, 4)
                         _acc["outcome_memory_rolling_ev_bps"] = _om_ev
                         _acc["outcome_memory_bucket_trades"] = _om_trades
+            except Exception:
+                pass
+            try:
+                if _sc_median_notional is not None and _sc_median_notional > 0:
+                    _cap_notional = 2.0 * _sc_median_notional
+                    _cur_notional = _coerce_float(
+                        _first_present(
+                            _acc.get("notional"),
+                            _acc.get("notional_usd"),
+                            _acc.get("gross_notional_usd"),
+                        )
+                    )
+                    if _cur_notional is not None and _cur_notional > _cap_notional:
+                        _cap_factor = _cap_notional / _cur_notional
+                        for _nf in ("quantity",):
+                            _qv = _coerce_float(_acc.get(_nf))
+                            if _qv is not None and _qv > 0:
+                                _acc[_nf] = round(_qv * _cap_factor, 12)
+                        for _nf in ("notional", "notional_usd", "gross_notional_usd"):
+                            if _coerce_float(_acc.get(_nf)):
+                                _acc[_nf] = round(_cap_notional, 8)
+                        _acc_lev_final = _coerce_float(
+                            _acc.get("effective_leverage")
+                        ) or 1.0
+                        if _acc_lev_final > 0:
+                            _acc["allocated_margin_usd"] = round(
+                                _cap_notional / _acc_lev_final, 8
+                            )
+                        _acc["notional_concentration_cap_factor"] = round(
+                            _cap_factor, 4
+                        )
+                        _acc["notional_concentration_cap_basis_usd"] = round(
+                            _sc_median_notional, 4
+                        )
             except Exception:
                 pass
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
