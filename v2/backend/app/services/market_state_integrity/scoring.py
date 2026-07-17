@@ -53,6 +53,11 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "micro_price",
     "microprice",
     "microstructure",
+    # moralis/santiment are provider alt-data families exactly like
+    # aicoin/nansen/lunarcrush/surf below: per-symbol coverage is inherently
+    # partial (token maps / asset slugs), so their absence is structural,
+    # never a critical-feature failure.
+    "moralis",
     "nansen",
     "news_",
     "num_trades",
@@ -71,6 +76,7 @@ OPTIONAL_OR_EVENT_FEATURE_TOKENS = (
     "realized_slippage_error",
     "risk_recent_",
     "orchestrator_recent_",
+    "santiment",
     "source_latency",
     "spread",
     "spread_instability",

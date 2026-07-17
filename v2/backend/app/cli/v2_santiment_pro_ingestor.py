@@ -215,10 +215,53 @@ CORE_METRICS = (
 )
 
 
+_QUOTE_SUFFIXES = ("USDT", "USDC", "BUSD", "USD")
+
+
+def _base_asset(symbol: str) -> str:
+    """Normalize a runtime pair symbol (BTCUSDT, 1000PEPEUSDT) to its base
+    asset so tier matching works against the runtime universe, which carries
+    full pair symbols rather than bare assets."""
+    base = str(symbol or "").upper()
+    for quote in _QUOTE_SUFFIXES:
+        if base.endswith(quote) and len(base) > len(quote):
+            base = base[: -len(quote)]
+            break
+    if base.startswith("1000") and len(base) > 4:
+        base = base[4:]
+    return base
+
+
 def split_symbols_by_tier(symbols: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    tier_a = tuple(s for s in symbols if s.upper() in TIER_A_SYMBOLS)
-    tier_b = tuple(s for s in symbols if s.upper() not in TIER_A_SYMBOLS)
+    tier_a = tuple(s for s in symbols if _base_asset(s) in TIER_A_SYMBOLS)
+    tier_b = tuple(s for s in symbols if _base_asset(s) not in TIER_A_SYMBOLS)
     return tier_a, tier_b
+
+
+# A cycle where every symbol failed at the network layer (e.g. host offline
+# at boot) retries on this shorter interval instead of waiting the full
+# 6h cadence. Rate-limit/authorization failures keep the normal cadence so
+# the retry can never burn API budget (network-failed calls cost nothing).
+NETWORK_ERROR_RETRY_SECONDS = 900
+
+
+def _all_network_error(results: list[dict[str, Any]]) -> bool:
+    """True when at least one run attempted symbols and every attempted
+    symbol across all runs failed with API_NETWORK_ERROR."""
+    saw_symbols = False
+    for result in results:
+        status = result.get("status_payload") or {}
+        counts = status.get("source_status_counts") or {}
+        symbol_count = int(status.get("symbol_count") or 0)
+        if symbol_count <= 0:
+            continue
+        saw_symbols = True
+        if int(status.get("successful_symbol_count") or 0) > 0:
+            return False
+        network_errors = int(counts.get("API_NETWORK_ERROR") or 0)
+        if network_errors < symbol_count:
+            return False
+    return saw_symbols
 
 
 async def run_loop_async(
@@ -234,26 +277,44 @@ async def run_loop_async(
     tier_a, tier_b = split_symbols_by_tier(symbols)
     while True:
         started = asyncio.get_running_loop().time()
+        # Reconnect guard: a client that was unavailable at process start
+        # (Redis restarting / MISCONF at boot) must not condemn every later
+        # cycle to file-only writes for the life of the process.
+        if redis_client is not None:
+            try:
+                redis_client.ping()
+            except Exception:
+                redis_client = None
+        if redis_client is None:
+            redis_client = _connect_redis()
+        cycle_results: list[dict[str, Any]] = []
         if tier_a:
-            await run_once_async(
-                symbols=tier_a,
-                metrics=metrics,
-                redis_client=redis_client,
-                interval=interval,
-                from_expr=from_expr,
-                to_expr=to_expr,
+            cycle_results.append(
+                await run_once_async(
+                    symbols=tier_a,
+                    metrics=metrics,
+                    redis_client=redis_client,
+                    interval=interval,
+                    from_expr=from_expr,
+                    to_expr=to_expr,
+                )
             )
         if tier_b:
-            await run_once_async(
-                symbols=tier_b,
-                metrics=CORE_METRICS,
-                redis_client=redis_client,
-                interval=interval,
-                from_expr=from_expr,
-                to_expr=to_expr,
+            cycle_results.append(
+                await run_once_async(
+                    symbols=tier_b,
+                    metrics=CORE_METRICS,
+                    redis_client=redis_client,
+                    interval=interval,
+                    from_expr=from_expr,
+                    to_expr=to_expr,
+                )
             )
         elapsed = asyncio.get_running_loop().time() - started
-        await asyncio.sleep(max(0.0, float(execution_interval_seconds) - elapsed))
+        sleep_budget = float(execution_interval_seconds)
+        if _all_network_error(cycle_results):
+            sleep_budget = min(sleep_budget, float(NETWORK_ERROR_RETRY_SECONDS))
+        await asyncio.sleep(max(0.0, sleep_budget - elapsed))
 
 
 def main(argv: list[str] | None = None) -> int:

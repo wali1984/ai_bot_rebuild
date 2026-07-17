@@ -301,6 +301,41 @@ def _symbols(raw: str) -> list[str]:
     return [item.strip().upper() for item in raw.split(",") if item.strip()]
 
 
+# Sentinel accepted in --symbols / ALTDATA_CONFLUENCE_SYMBOLS meaning
+# "resolve the full runtime symbol universe each cycle" (symbol-universe
+# policy: no static symbol lists).
+UNIVERSE_SENTINEL = "UNIVERSE"
+
+
+def _universe_symbols() -> list[str]:
+    """Resolve the current runtime symbol universe (re-read every cycle so
+    discovery changes propagate without a restart)."""
+    try:
+        from app.services.v2_symbol_runtime_universe import resolve_symbols
+
+        return [str(s).upper() for s in resolve_symbols()]
+    except Exception:
+        return []
+
+
+def _compact_report(report: dict[str, Any]) -> dict[str, Any]:
+    """Per-minute stdout goes to an append-only unit log; summarize the
+    per-pair rows so a full-universe run does not grow the log ~150 bytes
+    per symbol per cycle."""
+    rows = report.get("rows") or []
+    compact = {k: v for k, v in report.items() if k != "rows"}
+    compact["row_count"] = len(rows)
+    compact["actual_payload_present_count"] = sum(
+        1 for row in rows if row.get("actual_payload_present")
+    )
+    providers_hist: dict[str, int] = {}
+    for row in rows:
+        for provider in row.get("providers_present") or ():
+            providers_hist[str(provider)] = providers_hist.get(str(provider), 0) + 1
+    compact["providers_present_counts"] = providers_hist
+    return compact
+
+
 def _redis_client(redis_url: str) -> Any:
     import redis
 
@@ -312,7 +347,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
     parser.add_argument(
         "--symbols",
-        default=os.environ.get("ALTDATA_CONFLUENCE_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT"),
+        default=os.environ.get("ALTDATA_CONFLUENCE_SYMBOLS", UNIVERSE_SENTINEL),
+        help=(
+            "CSV symbol list, or 'UNIVERSE' (default) to resolve the full "
+            "runtime symbol universe every cycle"
+        ),
     )
     parser.add_argument("--timeframe", default=os.environ.get("ALTDATA_CONFLUENCE_TIMEFRAME", "1m"))
     parser.add_argument(
@@ -334,8 +373,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     redis_client = _redis_client(args.redis_url)
-    symbols = _symbols(args.symbols)
+    explicit_symbols = _symbols(args.symbols)
+    universe_mode = explicit_symbols == [UNIVERSE_SENTINEL] or not explicit_symbols
     while True:
+        if universe_mode:
+            symbols = _universe_symbols()
+            if not symbols:
+                # Universe payload unreadable this cycle: publish nothing new
+                # rather than silently shrinking to a static list.
+                symbols = []
+        else:
+            symbols = explicit_symbols
         report = run_once(
             redis_client,
             symbols=symbols,
@@ -343,7 +391,11 @@ def main(argv: list[str] | None = None) -> int:
             include_current_candidates=bool(args.include_current_candidates),
             max_candidate_pairs=max(0, int(args.max_candidate_pairs)),
         )
-        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        report["universe_mode"] = universe_mode
+        print(
+            json.dumps(_compact_report(report), indent=2, sort_keys=True, default=str),
+            flush=True,
+        )
         if args.once:
             return 0
         time.sleep(max(5.0, args.sleep_seconds))

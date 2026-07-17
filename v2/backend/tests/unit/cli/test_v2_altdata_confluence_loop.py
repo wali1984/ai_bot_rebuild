@@ -92,3 +92,55 @@ def test_run_once_keeps_legacy_symbol_list_when_current_candidates_disabled() ->
     assert report["pair_count"] == 1
     assert "v2:altdata:confluence:BTCUSDT:1m" in written_keys
     assert "v2:altdata:confluence:DOGEUSDT:5m" not in written_keys
+
+
+def test_compact_report_summarizes_rows_for_log_output() -> None:
+    report = {
+        "schema_version": "altdata_confluence_loop_status_v1",
+        "pair_count": 3,
+        "rows": [
+            {"symbol": "BTCUSDT", "actual_payload_present": True, "providers_present": ["coinank", "santiment"]},
+            {"symbol": "ETHUSDT", "actual_payload_present": True, "providers_present": ["santiment"]},
+            {"symbol": "SUNUSDT", "actual_payload_present": False, "providers_present": []},
+        ],
+    }
+    compact = loop._compact_report(report)
+    assert "rows" not in compact
+    assert compact["row_count"] == 3
+    assert compact["actual_payload_present_count"] == 2
+    assert compact["providers_present_counts"] == {"coinank": 1, "santiment": 2}
+    assert compact["pair_count"] == 3
+
+
+def test_main_universe_sentinel_resolves_runtime_universe(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(loop, "_redis_client", lambda url: _FakeRedis())
+    monkeypatch.setattr(loop, "_universe_symbols", lambda: ["BTCUSDT", "SUNUSDT"])
+
+    def fake_run_once(client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs):
+        captured["symbols"] = list(symbols)
+        return {"rows": [], "pair_count": len(symbols)}
+
+    monkeypatch.setattr(loop, "run_once", fake_run_once)
+    rc = loop.main(["--once", "--symbols", "UNIVERSE"])
+    assert rc == 0
+    assert captured["symbols"] == ["BTCUSDT", "SUNUSDT"]
+
+
+def test_main_explicit_symbols_stay_pinned(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(loop, "_redis_client", lambda url: _FakeRedis())
+    monkeypatch.setattr(
+        loop, "_universe_symbols", lambda: (_ for _ in ()).throw(AssertionError("must not resolve universe"))
+    )
+
+    def fake_run_once(client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs):
+        captured["symbols"] = list(symbols)
+        return {"rows": [], "pair_count": len(symbols)}
+
+    monkeypatch.setattr(loop, "run_once", fake_run_once)
+    rc = loop.main(["--once", "--symbols", "BTCUSDT,ETHUSDT"])
+    assert rc == 0
+    assert captured["symbols"] == ["BTCUSDT", "ETHUSDT"]

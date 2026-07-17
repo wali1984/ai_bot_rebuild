@@ -1005,12 +1005,23 @@ async def fetch_normalize_publish_once(
     )
     body = result.body if isinstance(result.body, Mapping) else {}
     source_status = SOURCE_STATUS_OK
+    graphql_error_count = 0
     if result.status_code == 429:
         source_status = SOURCE_STATUS_RATE_LIMITED
     elif result.error or result.status_code is None:
         source_status = SOURCE_STATUS_NETWORK_ERROR
     elif isinstance(body, Mapping) and body.get("errors"):
-        source_status = SOURCE_STATUS_GRAPHQL_ERROR
+        # GraphQL responses are routinely PARTIAL: a single per-metric error
+        # (e.g. dev_activity not batch-fetchable per-slug) arrives alongside
+        # valid data for every other metric. Only treat the batch as failed
+        # when no metric alias returned data at all; otherwise normalize what
+        # came back (per-metric nulls already become missing_feature_flags).
+        errors = body.get("errors")
+        graphql_error_count = len(errors) if isinstance(errors, list) else 1
+        data = body.get("data")
+        has_data = isinstance(data, Mapping) and any(bool(v) for v in data.values())
+        if not has_data:
+            source_status = SOURCE_STATUS_GRAPHQL_ERROR
     symbol_payloads = (
         normalize_batch_payload(
             body,
@@ -1065,6 +1076,7 @@ async def fetch_normalize_publish_once(
         rate_limit_state=client.rate_limit,
         redis_write_results=redis_write_results,
     )
+    status["graphql_partial_error_count"] = graphql_error_count
     redis_write_results[KEY_STATUS] = safe_redis_set(
         redis_client,
         KEY_STATUS,

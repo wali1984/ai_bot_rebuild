@@ -266,3 +266,80 @@ def test_extract_per_slug_points_pivots_time_major_rows() -> None:
     assert value == 2883.0
     assert dt == "2026-06-04T00:00:00Z"
     assert forward_filled is False
+
+
+def test_partial_graphql_errors_do_not_zero_the_batch() -> None:
+    """A single per-metric GraphQL error (e.g. dev_activity not batch-fetchable)
+    must not discard the valid data every other metric returned."""
+    svc = _svc()
+    fake_redis = FakeRedis()
+
+    def fake_http(_url, headers, body, _timeout):
+        return svc.SantimentHttpResult(
+            status_code=200,
+            body={
+                "data": {
+                    "m_social_volume_total": {
+                        "timeseriesDataPerSlugJson": json.dumps(
+                            {"bitcoin": [{"datetime": "2026-07-06T12:05:00Z", "value": 42}]}
+                        )
+                    },
+                },
+                "errors": [
+                    {
+                        "message": "timeseries_data_per_slug is not implemented for dev_activity",
+                        "path": ["m_dev_activity", "timeseriesDataPerSlugJson"],
+                    }
+                ],
+            },
+            headers={},
+        )
+
+    client = svc.SantimentProClient(
+        api_key="redacted-test-key", http_post=fake_http, sleep_func=_noop_sleep
+    )
+    result = asyncio.run(
+        svc.fetch_normalize_publish_once(
+            client=client,
+            redis_client=fake_redis,
+            symbols=("BTCUSDT",),
+            metrics=("social_volume_total", "dev_activity"),
+            generated_utc="2026-07-06T12:06:00Z",
+        )
+    )
+    status = result["status_payload"]
+    assert status["successful_symbol_count"] == 1
+    assert status["source_status_counts"] == {"API_OK": 1}
+    assert status["graphql_partial_error_count"] == 1
+    payload = result["symbol_payloads"]["BTCUSDT"]
+    assert payload["santiment_social_volume_total"] == 42.0
+    # The errored metric stays honestly missing.
+    assert "dev_activity_missing" in payload["missing_feature_flags"]
+
+
+def test_graphql_errors_with_no_data_still_fail_the_batch() -> None:
+    svc = _svc()
+    fake_redis = FakeRedis()
+
+    def fake_http(_url, headers, body, _timeout):
+        return svc.SantimentHttpResult(
+            status_code=200,
+            body={"data": {}, "errors": [{"message": "boom"}]},
+            headers={},
+        )
+
+    client = svc.SantimentProClient(
+        api_key="redacted-test-key", http_post=fake_http, sleep_func=_noop_sleep
+    )
+    result = asyncio.run(
+        svc.fetch_normalize_publish_once(
+            client=client,
+            redis_client=fake_redis,
+            symbols=("BTCUSDT",),
+            metrics=("social_volume_total",),
+            generated_utc="2026-07-06T12:06:00Z",
+        )
+    )
+    status = result["status_payload"]
+    assert status["successful_symbol_count"] == 0
+    assert status["source_status_counts"] == {"API_GRAPHQL_ERROR": 1}
