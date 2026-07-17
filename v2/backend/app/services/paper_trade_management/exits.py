@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -8,6 +9,20 @@ from .position_state import PaperNetPosition, seconds_between
 
 
 PAPER_EXIT_POLICY_VERSION = "PAPER_EXIT_AFTER_COST_TRAILING_FLOOR_V1"
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from the environment, falling back to ``default``.
+
+    Used so an operator can activate an otherwise-disabled risk parameter via a
+    systemd drop-in without a code change; malformed/empty values fall back to
+    the safe default rather than raising.
+    """
+    try:
+        raw = os.getenv(name)
+        return float(raw) if raw is not None and raw != "" else float(default)
+    except (TypeError, ValueError):
+        return float(default)
 
 
 def _first_present(*values: Any) -> Any:
@@ -260,6 +275,21 @@ class PaperExitConfig:
     # equity, not single positions. This floor fires regardless of ATR
     # availability or static-exit switches; 0 disables (tests only).
     catastrophic_floor_stop_bps: float = 150.0
+    # 2026-07-17 (CG-F052): optional upper bound on the effective loss-cut
+    # distance. effective_atr_stop_bps() has a floor but NO ceiling, so the
+    # confidence/regime scaling produced 1000-2300bps stops on high-ATR symbols
+    # that never fired, letting losers run all the way to the -150bps
+    # catastrophic floor -- 16/16 catastrophic closes and the dominant driver of
+    # the -12.3bps G13 / 0.745 PF G14. When >0, evaluate_exit cuts a loser at
+    # this distance (TIER_1_ATR_CEILING_STOP) BEFORE the catastrophic floor.
+    # It deliberately does NOT alter effective_atr_stop_bps (which the allocator
+    # also consumes for sizing), so position sizing is unchanged and only the
+    # realized loss magnitude shrinks. Default 0 = disabled (behavior unchanged);
+    # activated via env PAPER_ATR_STOP_CEILING_BPS so enabling it is an explicit
+    # operator opt-in (risk change, per the mandatory change protocol).
+    atr_stop_ceiling_bps: float = field(
+        default_factory=lambda: _env_float("PAPER_ATR_STOP_CEILING_BPS", 0.0)
+    )
     # Phase 7: liquidity-aware TP — skip TP when ob_spread_bps exceeds this limit.
     # Wide spreads indicate poor fill quality; better to hold than take a spread-eaten TP.
     max_ob_spread_bps_for_tp: float = 20.0
@@ -620,6 +650,22 @@ def evaluate_exit(
             "close_reason": "TIER_1_STOP_LOSS",
             "tier": 1,
             "pnl_bps": pnl_bps_value,
+        }
+    # 2026-07-17 (CG-F052): adaptive ATR-stop CEILING. Cuts a loser at a sane
+    # maximum distance before it runs to the -150bps catastrophic floor, closing
+    # the gap left by effective_atr_stop_bps having a floor but no ceiling (high-
+    # ATR symbols computed 1000-2300bps stops that never fired). Fires only for
+    # losers whose tighter TIER_1 ATR stop above did not already trigger, so
+    # low-ATR positions still exit at their own (tighter) stop. Disabled (0) by
+    # default; operator-activated via PAPER_ATR_STOP_CEILING_BPS.
+    if config.atr_stop_ceiling_bps > 0 and pnl_bps_value <= -abs(config.atr_stop_ceiling_bps):
+        return {
+            "should_close": True,
+            "close_reason": "TIER_1_ATR_CEILING_STOP",
+            "tier": 1,
+            "pnl_bps": pnl_bps_value,
+            "atr_stop_ceiling_bps": config.atr_stop_ceiling_bps,
+            "atr_bps": atr_bps,
         }
     # A+ goal Phase 8: unconditional catastrophic floor — the backstop when no
     # tighter stop fired above (LITUSDT regression: entry_atr_bps=None with

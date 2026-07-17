@@ -296,6 +296,99 @@ def test_atr_stop_not_applied_when_atr_none() -> None:
     assert result["should_close"] is False
 
 
+# ── CG-F052: adaptive ATR-stop ceiling ───────────────────────────────────────
+def _wide_atr_config(*, ceiling_bps: float) -> "PaperExitConfig":
+    """Runtime-representative config: static stops OFF (as the paper loop sets
+    them), a wide ATR multiplier so high-ATR symbols compute a stop far past the
+    catastrophic floor, and the optional ceiling under test."""
+    return PaperExitConfig(
+        static_stop_loss_enabled=False,
+        atr_stop_multiplier=2.0,
+        atr_stop_floor_bps=35.0,
+        catastrophic_floor_stop_bps=150.0,
+        atr_stop_ceiling_bps=ceiling_bps,
+        min_hold_seconds=0,
+        mfe_breakeven_protection_enabled=False,
+    )
+
+
+def test_atr_ceiling_disabled_by_default_runs_to_catastrophic_floor() -> None:
+    # atr_bps=500 -> effective ATR stop ~1000bps (never fires); with the ceiling
+    # DISABLED (default 0) a -160bps loser runs all the way to the -150 floor.
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    config = _wide_atr_config(ceiling_bps=0.0)
+    mark = 100_000.0 * (1 - 160 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=500.0,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_0_CATASTROPHIC_FLOOR_STOP"
+
+
+def test_atr_ceiling_cuts_high_atr_loser_before_catastrophic_floor() -> None:
+    # Same wide ATR stop, but ceiling=80 cuts the -90bps loser at the ceiling,
+    # well before the -150 catastrophic floor -- the CG-F052 fix.
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    config = _wide_atr_config(ceiling_bps=80.0)
+    mark = 100_000.0 * (1 - 90 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=500.0,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ATR_CEILING_STOP"
+    assert result["atr_stop_ceiling_bps"] == 80.0
+
+
+def test_atr_ceiling_does_not_preempt_tighter_atr_stop() -> None:
+    # Low-ATR symbol: atr_bps=25 -> stop ~50bps. A -60bps loser must exit via the
+    # tighter TIER_1 ATR stop, NOT the 80bps ceiling (ceiling only backstops wide
+    # stops; it must not override a symbol's own tighter stop).
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    config = _wide_atr_config(ceiling_bps=80.0)
+    mark = 100_000.0 * (1 - 60 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=25.0,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
+
+
+def test_atr_ceiling_holds_position_inside_the_band() -> None:
+    # Wide ATR stop, ceiling=80, loss only -70bps: neither the ATR stop, the
+    # ceiling, nor the catastrophic floor is breached -> position is held.
+    pos = _long_position()
+    pos.avg_entry_price = 100_000.0
+    pos.best_favorable_price = None
+    config = _wide_atr_config(ceiling_bps=80.0)
+    mark = 100_000.0 * (1 - 70 / 10000.0)
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=500.0,
+    )
+    assert result["should_close"] is False
+
+
 def test_atr_scaled_trailing_stop_holds_inside_dynamic_distance() -> None:
     from app.services.paper_trade_management.position_state import PaperNetPosition
 
