@@ -49,6 +49,10 @@ ADX_RANGE_MAX = 18.0
 ATR_PERCENTILE_EXPANSION = 0.85
 BB_WIDTH_EXPANSION_PCT = 0.055
 SWEEP_DISTANCE_BPS_MAX = 35.0
+# Minimum intensity percentile (symbol's own rolling history) for a
+# LIQUIDITY_SWEEP claim — the top ~15% of the symbol's recent liquidation
+# activity, so the bar adapts per symbol instead of a static notional.
+SWEEP_INTENSITY_PERCENTILE_MIN = 0.85
 FUNDING_EXTREME_ABS = 0.0008  # 8 bps per interval — crowded positioning
 
 
@@ -196,15 +200,25 @@ def classify_regime(
 
     reasons: list[str] = []
 
-    # Liquidity sweep: liquidation cluster within reach plus elevated cascade risk.
+    # Liquidity sweep: liquidation cluster within reach plus EXTREME
+    # liquidation intensity. cascade_risk carries intensity-percentile
+    # semantics (v2): the symbol's current decay-weighted liquidation
+    # activity ranked against its own rolling history — self-adaptive per
+    # symbol, no static notional threshold. None = missing/warming input;
+    # a sweep is never guessed from a missing intensity. (The v1 metric was
+    # the long-side share of strength — neutral at 0.5 and ≥0.5 on nearly
+    # every symbol during directional markets — which classified ~half of
+    # all cycles system-wide as LIQUIDITY_SWEEP and universally failed the
+    # A+ regime_aligned check; 2026-07-17 regime uniformity investigation.)
     sweep_risk = (
         sweep_proximity is not None
         and sweep_proximity <= SWEEP_DISTANCE_BPS_MAX
-        and (cascade_risk or 0.0) >= 0.5
+        and cascade_risk is not None
+        and cascade_risk >= SWEEP_INTENSITY_PERCENTILE_MIN
     )
     if sweep_risk:
         reasons.append(
-            f"LIQUIDATION_CLUSTER_WITHIN_{SWEEP_DISTANCE_BPS_MAX:.0f}BPS_AND_CASCADE_RISK_{(cascade_risk or 0.0):.2f}"
+            f"LIQUIDATION_CLUSTER_WITHIN_{SWEEP_DISTANCE_BPS_MAX:.0f}BPS_AND_INTENSITY_PCTL_{(cascade_risk or 0.0):.2f}"
         )
         return _result("LIQUIDITY_SWEEP", 0.6 + 0.4 * min(1.0, (cascade_risk or 0.0)), reasons)
 
@@ -335,7 +349,9 @@ def regime_classifier_behavioral_proofs() -> dict[str, Any]:
             "expected_regime": "LIQUIDITY_SWEEP",
             "features": {
                 **base,
-                "liquidation_cascade_risk": 0.8,
+                # intensity percentile ≥ SWEEP_INTENSITY_PERCENTILE_MIN (0.85):
+                # this symbol's liquidation activity is extreme vs its own history
+                "liquidation_cascade_risk": 0.93,
                 "liquidation_sweep_target_long_distance_bps": 18.0,
                 "liquidation_sweep_target_short_distance_bps": 80.0,
             },

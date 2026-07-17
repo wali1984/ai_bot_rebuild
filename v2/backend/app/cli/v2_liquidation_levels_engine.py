@@ -132,6 +132,15 @@ class LevelEngine:
         self.symbols: tuple[str, ...] = ()
         self.state: dict[str, dict[str, Deque[dict[str, Any]]]] = {}
         self.ewma_price: dict[str, float | None] = {}
+        # Rolling per-symbol×tf intensity samples (decay-weighted total
+        # liquidation strength). cascade_risk v2 ranks the current sample
+        # against this history so the value means "how extreme is this
+        # symbol's liquidation activity vs its own recent past" — near 0 in
+        # normal activity, high only in genuine cascades. (The v1 metric was
+        # the long-side SHARE of strength: neutral at 0.5, ≥0.5 on nearly
+        # every symbol during any directional market, which made the regime
+        # gate classify ~half of all cycles as LIQUIDITY_SWEEP.)
+        self.intensity_history: dict[str, dict[str, Deque[float]]] = {}
         self.last_publish: dict[tuple[str, str], int] = {}
         self.last_log = 0.0
         self.last_symbol_refresh = 0.0
@@ -165,13 +174,18 @@ class LevelEngine:
         )
         for symbol in new_symbols:
             self.state.setdefault(symbol, {tf: deque() for tf in self.config.timeframes})
+            self.intensity_history.setdefault(
+                symbol, {tf: deque(maxlen=720) for tf in self.config.timeframes}
+            )
             for tf in self.config.timeframes:
                 self.state[symbol].setdefault(tf, deque())
+                self.intensity_history[symbol].setdefault(tf, deque(maxlen=720))
             self.ewma_price.setdefault(symbol, None)
         stale_symbols = set(self.state) - set(new_symbols)
         for symbol in stale_symbols:
             self.state.pop(symbol, None)
             self.ewma_price.pop(symbol, None)
+            self.intensity_history.pop(symbol, None)
         self.symbols = new_symbols
         self.last_symbol_refresh = now
 
@@ -383,7 +397,13 @@ class LevelEngine:
                 "liquidation_short_strength": 0.0,
                 "liquidation_long_distance_pct": 100.0,
                 "liquidation_short_distance_pct": 100.0,
-                "liquidation_cascade_risk": 0.5,
+                # No events in window = no cascade evidence. Mask missing
+                # (None) rather than synthesizing a value; the v1 default of
+                # 0.5 sat exactly on the regime gate's >=0.5 sweep condition.
+                "liquidation_cascade_risk": None,
+                "liquidation_cascade_risk_semantics": "intensity_percentile_v2",
+                "distance_to_long_liq_bps": None,
+                "distance_to_short_liq_bps": None,
                 "liquidation_pressure_direction": 0.0,
                 "liquidation_count_5m": 0,
                 "last_liq_bps_proxy": 0.0,
@@ -441,9 +461,27 @@ class LevelEngine:
         zones_long = self._compute_zones(levels_long, step)
         zones_short = self._compute_zones(levels_short, step)
 
-        # Sweep targets: strongest zone center per side
-        sweep_target_long = zones_long[0]["zone_center"] if zones_long else None
-        sweep_target_short = zones_short[0]["zone_center"] if zones_short else None
+        # Sweep targets: strongest zone MEANINGFULLY AWAY from the reference
+        # price. Liquidations fire AT market price, so the strongest zone of
+        # past events is almost always a few bps from ref_price — publishing
+        # that as a "target" is a tautological echo (it kept every symbol
+        # inside the regime gate's 35bps sweep-proximity condition). A real
+        # target must sit beyond the zone's own half-width plus one bucket.
+        def _sweep_target(zones: list[dict[str, Any]]) -> float | None:
+            for zone in zones:
+                center = float(zone.get("zone_center") or 0.0)
+                if center <= 0 or ref_price <= 0:
+                    continue
+                half_width = (
+                    float(zone.get("zone_high") or center)
+                    - float(zone.get("zone_low") or center)
+                ) / 2.0
+                if abs(center - ref_price) > half_width + step:
+                    return center
+            return None
+
+        sweep_target_long = _sweep_target(zones_long)
+        sweep_target_short = _sweep_target(zones_short)
 
         last_event_ts = int(dq[-1]["ts"])
         long_distance_pct = abs(ref_price - long_level) / ref_price * 100 if long_level > 0 and ref_price else 100.0
@@ -459,10 +497,28 @@ class LevelEngine:
         nearest_above = next((p for p in all_prices if p > ref_price), 0.0)
         nearest_below = next((p for p in reversed(all_prices) if p < ref_price), 0.0)
 
-        # Cascade risk: fraction of total strength held on the long side.
-        # 1.0 = all pressure from long liquidations (bearish momentum); 0.0 = all short.
+        # Cascade risk v2: INTENSITY, not balance. The current decay-weighted
+        # total liquidation strength ranked as a percentile of this
+        # symbol×timeframe's own rolling history (self-adaptive: no static
+        # notional thresholds, tail symbols rank against themselves). ~0 in
+        # normal activity, ~1 only when this symbol's liquidation activity is
+        # extreme by its own standards. None while the history is warming
+        # (<20 samples) — honest missing, never guessed. The v1 value was
+        # long_strength/total (a balance ratio, ≥0.5 on nearly every symbol
+        # in any directional market) which made LIQUIDITY_SWEEP fire on ~half
+        # of all regime classifications system-wide.
         total_strength = long_strength + short_strength
-        cascade_risk = round(long_strength / (total_strength + 1e-9), 6) if total_strength > 0 else 0.5
+        intensity_now = float(sum(heat_long.values()) + sum(heat_short.values()))
+        _hist = self.intensity_history.setdefault(symbol, {}).setdefault(
+            tf, deque(maxlen=720)
+        )
+        if len(_hist) >= 20:
+            cascade_risk = round(
+                sum(1 for sample in _hist if sample < intensity_now) / len(_hist), 6
+            )
+        else:
+            cascade_risk = None
+        _hist.append(intensity_now)
 
         # Pressure direction: signed balance of long vs short strength, in [-1, +1].
         # +1 = massive long liquidation pressure (bears dominate); -1 = short liquidation pressure.
@@ -516,8 +572,15 @@ class LevelEngine:
             # Distance from current price
             "liquidation_long_distance_pct": round(long_distance_pct, 4),
             "liquidation_short_distance_pct": round(short_distance_pct, 4),
-            # Derived balance / risk scalars
+            # Bps aliases under the field names the microstructure sweep
+            # detector actually reads (its proximity inputs were silently
+            # dead against the *_pct names).
+            "distance_to_long_liq_bps": round(long_distance_pct * 100.0, 2),
+            "distance_to_short_liq_bps": round(short_distance_pct * 100.0, 2),
+            # Derived risk scalars (cascade = intensity percentile, see above)
             "liquidation_cascade_risk": cascade_risk,
+            "liquidation_cascade_risk_semantics": "intensity_percentile_v2",
+            "liquidation_intensity_decayed": round(intensity_now, 4),
             "liquidation_pressure_direction": pressure_direction,
             # 5m event count (computable from in-memory deque)
             "liquidation_count_5m": count_5m,

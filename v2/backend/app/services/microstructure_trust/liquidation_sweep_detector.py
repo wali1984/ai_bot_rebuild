@@ -37,9 +37,29 @@ def detect_liquidation_sweep(
     cross_venue_basis_bps: float | None = None,
 ) -> dict[str, Any]:
     liq = liquidation_context or {}
-    cascade = _float(liq.get("liquidation_cascade_risk") or liq.get("cascade_risk")) or 0.0
-    long_dist = _float(liq.get("distance_to_long_liq_bps") or liq.get("long_distance_bps"))
-    short_dist = _float(liq.get("distance_to_short_liq_bps") or liq.get("short_distance_bps"))
+
+    def _first_float(*keys: str) -> float | None:
+        # Explicit None-checked chain: `a or b` skips honest 0.0 values.
+        for key in keys:
+            value = _float(liq.get(key))
+            if value is not None:
+                return value
+        return None
+
+    # cascade carries intensity-percentile semantics (v2): how extreme the
+    # symbol's current liquidation activity is vs its own rolling history.
+    # It is DIRECTIONLESS — direction comes from liquidation_pressure_direction.
+    cascade = _first_float("liquidation_cascade_risk", "cascade_risk") or 0.0
+    pressure_direction = _first_float("liquidation_pressure_direction") or 0.0
+    # Split the directionless intensity across sides by the observed
+    # long/short liquidation pressure balance. The v1 code added the full
+    # value symmetrically to BOTH sides, which inflated long_sweep and
+    # short_sweep together and latched direction_uncertain (→ composite
+    # trust hard-capped at 0.24 system-wide).
+    long_side_share = _clamp((1.0 + pressure_direction) / 2.0)
+    short_side_share = _clamp((1.0 - pressure_direction) / 2.0)
+    long_dist = _first_float("distance_to_long_liq_bps", "long_distance_bps")
+    short_dist = _first_float("distance_to_short_liq_bps", "short_distance_bps")
     depth_risk = _clamp((depth_collapse_bps or 0.0) / 3500.0)
     tape_risk = _clamp((trade_tape_acceleration or 0.0) / 30.0)
     oi_risk = _clamp(abs(open_interest_change_pct or 0.0) / 0.05)
@@ -50,8 +70,8 @@ def detect_liquidation_sweep(
     long_proximity = 0.0 if long_dist is None else _clamp((250.0 - long_dist) / 250.0)
     short_proximity = 0.0 if short_dist is None else _clamp((250.0 - short_dist) / 250.0)
 
-    long_sweep = _clamp(0.25 * cascade + 0.25 * long_crowding + 0.2 * long_proximity + 0.15 * depth_risk + 0.15 * tape_risk)
-    short_sweep = _clamp(0.25 * cascade + 0.25 * short_crowding + 0.2 * short_proximity + 0.15 * depth_risk + 0.15 * tape_risk)
+    long_sweep = _clamp(0.25 * cascade * long_side_share + 0.25 * long_crowding + 0.2 * long_proximity + 0.15 * depth_risk + 0.15 * tape_risk)
+    short_sweep = _clamp(0.25 * cascade * short_side_share + 0.25 * short_crowding + 0.2 * short_proximity + 0.15 * depth_risk + 0.15 * tape_risk)
     stop_hunt = _clamp(max(long_sweep, short_sweep) * 0.6 + basis_risk * 0.2 + funding_skew * 0.2)
     fake_breakout = _clamp(short_sweep * 0.45 + depth_risk * 0.25 + (0.2 if (trade_imbalance or 0.0) < -0.2 else 0.0) + oi_risk * 0.1)
     fake_breakdown = _clamp(long_sweep * 0.45 + depth_risk * 0.25 + (0.2 if (trade_imbalance or 0.0) > 0.2 else 0.0) + oi_risk * 0.1)
