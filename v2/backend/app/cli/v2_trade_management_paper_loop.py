@@ -21439,6 +21439,67 @@ def _paper_performance_circuit_breaker_status(
     ev25 = _coerce_float(rolling_25.get("notional_weighted_expectancy_bps"))
     pf50 = _paper_quality_profit_factor_numeric(rolling_50.get("profit_factor"))
     ev50 = _coerce_float(rolling_50.get("notional_weighted_expectancy_bps"))
+    # Asymmetric cluster release (2026-07-17): the strict cluster window
+    # rolls ONLY on strict-tier outcomes, but a global halt routes every
+    # entry through the exploration tier, whose closes are tier-EXCLUDED
+    # from that window (the contamination fix). A latched cluster therefore
+    # could never observe recovery evidence: halt -> exploration-only ->
+    # excluded closes -> window frozen -> halt forever (observed: 4 losses
+    # from 2026-07-16T22:52-00:32 latched 13h while 30+ newer closes were
+    # invisible to the window). Excluded-tier HIGH-CONFIDENCE outcomes may
+    # now RELEASE a latched cluster — never create or extend one — and only
+    # when the post-cluster high-confidence record is genuinely non-losing
+    # (>= 2x cluster min rows AND win-rate >= 0.5). Contamination
+    # protection is preserved: exploration losses still cannot halt the
+    # circuit; exploration recovery can now unlatch it.
+    _cluster_release = {"released": False}
+    if high_confidence_cluster.get("cluster_detected") is True:
+        try:
+            _cl_min_score = _coerce_float(
+                high_confidence_cluster.get("high_confidence_min_score")
+            ) or 0.7
+            _cl_min_rows = 2 * max(
+                1, int(high_confidence_cluster.get("cluster_min_loss_count") or 2)
+            )
+            _cl_losses = (
+                high_confidence_cluster.get("sample_high_confidence_losses") or []
+            )
+            _cl_newest_exit = max(
+                (
+                    str(row.get("exit_price_utc") or "")
+                    for row in _cl_losses
+                    if isinstance(row, dict)
+                ),
+                default="",
+            )
+            _post_rows = [
+                row
+                for row in closed_rows
+                if isinstance(row, dict)
+                and _paper_performance_realized_bps(row) is not None
+                and (_coerce_float(row.get("confidence_calibrated")) or 0.0)
+                >= _cl_min_score
+                and str(row.get("exit_price_utc") or "") > _cl_newest_exit
+            ]
+            if len(_post_rows) >= _cl_min_rows:
+                _post_wins = sum(
+                    1
+                    for row in _post_rows
+                    if (_paper_performance_realized_bps(row) or 0.0) > 0.0
+                )
+                if _post_wins / len(_post_rows) >= 0.5:
+                    _cluster_release = {
+                        "released": True,
+                        "post_cluster_high_confidence_rows": len(_post_rows),
+                        "post_cluster_wins": _post_wins,
+                        "newest_cluster_exit_utc": _cl_newest_exit,
+                        "release_reason": (
+                            "EXCLUDED_TIER_HIGH_CONFIDENCE_RECOVERY_EVIDENCE"
+                        ),
+                    }
+        except Exception:
+            _cluster_release = {"released": False}
+    high_confidence_cluster["asymmetric_release"] = _cluster_release
     block_reasons: list[str] = []
     # Rolling window checks require minimum trade count before they can block.
     # With < 5 trades, any single bad trade produces PF=0 on a 25-trade window,
@@ -21462,7 +21523,9 @@ def _paper_performance_circuit_breaker_status(
         block_reasons.append("BUCKET_QUARANTINE_ACTIVE")
     if bootstrap_block["first_bootstrap_close_negative"]:
         block_reasons.append("FIRST_BOOTSTRAP_CLOSE_NEGATIVE")
-    if high_confidence_cluster["cluster_detected"]:
+    if high_confidence_cluster["cluster_detected"] and not _cluster_release.get(
+        "released"
+    ):
         block_reasons.append("HIGH_CONFIDENCE_LOSS_CLUSTER")
 
     new_entries_allowed = not block_reasons
