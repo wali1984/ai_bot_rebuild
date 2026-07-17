@@ -67,6 +67,11 @@ class OutcomeMemoryBucket:
     outcome_memory_can_block_entries: bool = True
     trusted_trade_count: int = 0
     untrusted_trade_count: int = 0
+    # Evidence-cannot-refresh valve: set by the loader when a degraded
+    # timeframe aggregate's last outcome is older than the staleness bound —
+    # the evaluator must treat the bucket as advisory (its own blocking is
+    # what prevents the window from rolling).
+    stale_evidence_advisory: bool = False
     baseline_advisory_reasons: list[str] = field(default_factory=list)
     baseline_evidence_date: str | None = None
     baseline_trade_count: int = 0
@@ -214,6 +219,25 @@ def evaluate_outcome_memory_bucket(
                 "untrusted_trade_count": bucket.untrusted_trade_count,
             }
         # fall through to the degraded+block_reason check below
+
+    # Evidence-cannot-refresh valve: a stale degraded aggregate decays to
+    # advisory — its own blocking prevents the outcomes that would roll its
+    # window (see loader). Re-arms the moment any fresh outcome updates it.
+    if bucket.stale_evidence_advisory:
+        return {
+            "allowed": True,
+            "blocked": False,
+            "reasons": [],
+            "source": f"{bucket.data_source}_STALE_EVIDENCE_ADVISORY",
+            "trade_count": bucket.trade_count,
+            "rolling_win_rate": bucket.rolling_win_rate,
+            "rolling_ev_bps": bucket.rolling_ev_bps,
+            "drawdown_contribution_usd": bucket.drawdown_contribution_usd,
+            "baseline_advisory_reasons": list(bucket.baseline_advisory_reasons),
+            "trust_evidence_status": bucket.trust_evidence_status,
+            "trusted_trade_count": bucket.trusted_trade_count,
+            "untrusted_trade_count": bucket.untrusted_trade_count,
+        }
 
     # Honour pre-set degraded flag from current Redis evidence or previous evaluation.
     if bucket.degraded and bucket.block_reason:
@@ -369,13 +393,24 @@ def load_outcome_memory_bucket(
                 _agg_age_seconds = None
             if _agg_age_seconds is None or _agg_age_seconds <= 5400.0:
                 return aggregate_bucket
-            # Stale degraded aggregate: annotate and fall through.
+            # Stale degraded aggregate: neutralize its block IN PLACE (it may
+            # still be returned by the fallthrough below when no per-symbol
+            # bucket exists) and annotate the advisory trail on whichever
+            # bucket the caller ends up with.
+            _stale_note = (
+                f"STALE_DEGRADED_TIMEFRAME_AGGREGATE_ADVISORY:{tf}"
+                f":age_s={int(_agg_age_seconds)}"
+            )
+            aggregate_bucket.degraded = False
+            aggregate_bucket.block_reason = None
+            aggregate_bucket.stale_evidence_advisory = True
+            aggregate_bucket.baseline_advisory_reasons = list(
+                getattr(aggregate_bucket, "baseline_advisory_reasons", [])
+            ) + [_stale_note]
             if per_symbol_bucket is not None:
                 per_symbol_bucket.baseline_advisory_reasons = list(
                     getattr(per_symbol_bucket, "baseline_advisory_reasons", [])
-                ) + [
-                    f"STALE_DEGRADED_TIMEFRAME_AGGREGATE_ADVISORY:{tf}:age_s={int(_agg_age_seconds)}"
-                ]
+                ) + [_stale_note]
 
         # Per-symbol has some data but insufficient for dynamic block, and
         # aggregate is not degraded (or missing) — return per-symbol bucket.

@@ -746,3 +746,88 @@ def test_gate_inference_records_classification_mode_in_coverage() -> None:
         ),
     )
     assert result["feature_coverage"].get("classification_mode") == "inference_missing_names_only"
+
+
+def test_entry_gate_fresh_degraded_aggregate_still_blocks() -> None:
+    import datetime as _dt
+
+    _now = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    class RedisStub:
+        def get(self, key: str) -> str | None:
+            if key == "v2:paper:outcome_memory:__ALL__:5m":
+                return json.dumps({
+                    "symbol": "__ALL__",
+                    "timeframe": "5m",
+                    "trade_count": 30,
+                    "rolling_win_rate": 0.20,
+                    "rolling_ev_bps": -12.0,
+                    "drawdown_contribution_usd": -18.0,
+                    "degraded": True,
+                    "block_reason": "WIN_RATE_DEGRADED:20.00%<35.00%",
+                    "data_source": "REDIS",
+                    "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+                    "outcome_memory_can_block_entries": True,
+                    "trusted_trade_count": 30,
+                    "untrusted_trade_count": 0,
+                    "last_updated": _now,
+                })
+            return None
+
+    result = evaluate_entry_gate(
+        symbol="NEWCOINUSDT",
+        timeframe="5m",
+        strategy_mode=None,
+        confidence_calibrated=0.90,
+        expected_move_after_cost_bps=20.0,
+        redis_client=RedisStub(),
+    )
+    assert result["allowed"] is False
+    assert any("OUTCOME_MEMORY_BLOCK" in r for r in result["reasons"])
+
+
+def test_entry_gate_stale_degraded_aggregate_decays_to_advisory() -> None:
+    """Evidence-cannot-refresh valve (2026-07-17): a degraded timeframe
+
+    aggregate whose last outcome is older than 90 minutes must stop
+    hard-blocking — its own blocking prevents the outcomes that would roll
+    its window. The stale block decays to an annotated advisory and re-arms
+    on any fresh outcome.
+    """
+    import datetime as _dt
+
+    _stale = (
+        _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=2)
+    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    class RedisStub:
+        def get(self, key: str) -> str | None:
+            if key == "v2:paper:outcome_memory:__ALL__:5m":
+                return json.dumps({
+                    "symbol": "__ALL__",
+                    "timeframe": "5m",
+                    "trade_count": 30,
+                    "rolling_win_rate": 0.20,
+                    "rolling_ev_bps": -12.0,
+                    "drawdown_contribution_usd": -18.0,
+                    "degraded": True,
+                    "block_reason": "WIN_RATE_DEGRADED:20.00%<35.00%",
+                    "data_source": "REDIS",
+                    "trust_evidence_status": "TRUSTED_OUTCOME_MEMORY",
+                    "outcome_memory_can_block_entries": True,
+                    "trusted_trade_count": 30,
+                    "untrusted_trade_count": 0,
+                    "last_updated": _stale,
+                })
+            return None
+
+    result = evaluate_entry_gate(
+        symbol="NEWCOINUSDT",
+        timeframe="5m",
+        strategy_mode=None,
+        confidence_calibrated=0.90,
+        expected_move_after_cost_bps=20.0,
+        redis_client=RedisStub(),
+    )
+    assert result["allowed"] is True
+    assert not any("OUTCOME_MEMORY_BLOCK" in r for r in result["reasons"])
