@@ -196,3 +196,194 @@ def test_publish_v2_keys_appends_guardian_pit_observation_without_live_mutation(
     assert payload["places_real_order"] is False
     assert payload["routes_to_live"] is False
     assert payload["test_order_submitted"] is False
+
+
+def _runtime_lane_payloads(lane_row: dict[str, Any], extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    payloads: dict[str, Any] = {
+        "v2:signals:paper": [lane_row],
+        "v2:risk:gateway:decisions": [],
+        "v2:paper:intents": [],
+        "v2:paper:ledger": {
+            "generated_at": "2026-06-22T13:00:00Z",
+            "accepted": [],
+            "shadow_observations": [],
+        },
+        "v2:orchestrator:decisions": {"generated_at": "2026-06-22T13:00:00Z"},
+        "v2:market:prices:AXSUSDT": {"last_price": 1.0},
+    }
+    payloads.update(extra or {})
+    return payloads
+
+
+def test_runtime_paper_row_adopts_prediction_coverage_on_prediction_id_match() -> None:
+    # Zero-coverage-symbols incident (2026-07-16): the paper lane never carries
+    # data_coverage_percent, so runtime rows clobbered per-symbol signal keys
+    # with null coverage while the trainer tensor was healthy.
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            _runtime_lane_payloads(
+                {
+                    "symbol": "AXSUSDT",
+                    "timeframe": "1h",
+                    "side": "long",
+                    "prediction_id": "pred_cov_match",
+                    "confidence_calibrated": 0.8,
+                },
+                {
+                    "v2:prediction:AXSUSDT:1h": {
+                        "prediction_id": "pred_cov_match",
+                        "feature_snapshot_id": "snap_a",
+                        "data_coverage_percent": 73.5,
+                        "missing_feature_count": 2,
+                        "stale_feature_count": 1,
+                        "generated_utc": "1970-01-01T00:00:00Z",
+                    },
+                },
+            )
+        )
+    )
+
+    rows = publisher.build_runtime_paper_signal_rows(store)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["data_coverage_percent"] == 73.5
+    assert row["data_coverage_source"].startswith("V2_PREDICTION_ROW_PREDICTION_ID_MATCH")
+    assert row["data_coverage_prediction_id"] == "pred_cov_match"
+    assert row["missing_feature_count"] == 2
+    assert row["stale_feature_count"] == 1
+
+
+def test_runtime_paper_row_adopts_prediction_coverage_on_snapshot_id_match() -> None:
+    # Prediction ids rotate every trainer cycle; the feature snapshot id ties
+    # the lane row to the identical tensor inputs even after id rotation.
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            _runtime_lane_payloads(
+                {
+                    "symbol": "AXSUSDT",
+                    "timeframe": "1h",
+                    "side": "long",
+                    "prediction_id": "pred_old_rotated",
+                    "feature_snapshot_id": "snap_shared",
+                    "confidence_calibrated": 0.8,
+                },
+                {
+                    "v2:prediction:AXSUSDT:1h": {
+                        "prediction_id": "pred_new_current",
+                        "feature_snapshot_id": "snap_shared",
+                        "data_coverage_percent": 74.25,
+                        "generated_utc": "1970-01-01T00:00:00Z",
+                    },
+                },
+            )
+        )
+    )
+
+    rows = publisher.build_runtime_paper_signal_rows(store)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["data_coverage_percent"] == 74.25
+    assert row["data_coverage_source"].startswith("V2_PREDICTION_ROW_FEATURE_SNAPSHOT_ID_MATCH")
+
+
+def test_runtime_paper_row_leaves_coverage_null_when_no_lineage_match_and_stale() -> None:
+    # No id match + stale prediction row: adopting coverage would echo stale
+    # evidence, so the field stays honest-null with a provenance reason.
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            _runtime_lane_payloads(
+                {
+                    "symbol": "AXSUSDT",
+                    "timeframe": "1h",
+                    "side": "long",
+                    "prediction_id": "pred_old_rotated",
+                    "feature_snapshot_id": "snap_old",
+                    "confidence_calibrated": 0.8,
+                },
+                {
+                    "v2:prediction:AXSUSDT:1h": {
+                        "prediction_id": "pred_new_current",
+                        "feature_snapshot_id": "snap_new",
+                        "data_coverage_percent": 74.25,
+                        "generated_utc": "1970-01-01T00:00:00Z",
+                    },
+                },
+            )
+        )
+    )
+
+    rows = publisher.build_runtime_paper_signal_rows(store)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["data_coverage_percent"] is None
+    assert row["data_coverage_source"] == "COVERAGE_UNAVAILABLE_STALE_PREDICTION_ROW_NO_LINEAGE_MATCH"
+
+
+def test_runtime_paper_row_keeps_own_numeric_coverage() -> None:
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            _runtime_lane_payloads(
+                {
+                    "symbol": "AXSUSDT",
+                    "timeframe": "1h",
+                    "side": "long",
+                    "prediction_id": "pred_self",
+                    "data_coverage_percent": 55.5,
+                    "confidence_calibrated": 0.8,
+                },
+                {
+                    "v2:prediction:AXSUSDT:1h": {
+                        "prediction_id": "pred_self",
+                        "data_coverage_percent": 99.9,
+                        "generated_utc": "1970-01-01T00:00:00Z",
+                    },
+                },
+            )
+        )
+    )
+
+    rows = publisher.build_runtime_paper_signal_rows(store)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["data_coverage_percent"] == 55.5
+    assert row["data_coverage_source"] == "RUNTIME_PAPER_SIGNAL_FIELD"
+
+
+def test_runtime_paper_row_fresh_symbol_tf_fallback_is_labelled() -> None:
+    import datetime as _dt
+
+    fresh_ts = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    store = publisher.V2KeyValueStore(
+        FakeRedis(
+            _runtime_lane_payloads(
+                {
+                    "symbol": "AXSUSDT",
+                    "timeframe": "1h",
+                    "side": "long",
+                    "prediction_id": "pred_old_rotated",
+                    "feature_snapshot_id": "snap_old",
+                    "confidence_calibrated": 0.8,
+                },
+                {
+                    "v2:prediction:AXSUSDT:1h": {
+                        "prediction_id": "pred_new_current",
+                        "feature_snapshot_id": "snap_new",
+                        "data_coverage_percent": 71.0,
+                        "generated_utc": fresh_ts,
+                    },
+                },
+            )
+        )
+    )
+
+    rows = publisher.build_runtime_paper_signal_rows(store)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["data_coverage_percent"] == 71.0
+    assert row["data_coverage_source"].startswith("V2_PREDICTION_ROW_CURRENT_SYMBOL_TF_FALLBACK")
+    assert row["data_coverage_prediction_id"] == "pred_new_current"

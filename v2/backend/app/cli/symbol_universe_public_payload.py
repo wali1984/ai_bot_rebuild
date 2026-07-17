@@ -99,6 +99,76 @@ def _union(payloads: list[tuple[Path, dict[str, Any]]], *keys: str) -> tuple[lis
     return sorted(symbols), sorted(sources)
 
 
+# Exchange-wide Binance USD-M TRADING list published by the dynamic symbol
+# discovery loop (derived from /fapi/v1/exchangeInfo status == TRADING).
+EXCHANGE_TRADABLE_AUTHORITY_KEY = "binance_usdm_tradable_symbols"
+# Tradability is a point-in-time exchange fact; an authority snapshot older
+# than this cannot prune (fail open to the sticky union rather than eject
+# symbols on stale evidence).
+EXCHANGE_TRADABLE_AUTHORITY_MAX_AGE_SECONDS = 24 * 3600
+# Sanity floor: a full USD-M exchangeInfo TRADING list has hundreds of
+# perpetuals. A dated payload carrying only a handful of symbols under this
+# key is a scoped/broken list, not the exchange-wide truth — using it as the
+# prune authority would collapse the whole universe.
+EXCHANGE_TRADABLE_AUTHORITY_MIN_COUNT = 100
+
+
+def _parse_generated_ts(payload: Mapping[str, Any]) -> dt.datetime | None:
+    for field in ("generated_utc", "generated_at", "generated_est"):
+        value = payload.get(field)
+        if not isinstance(value, str) or not value:
+            continue
+        try:
+            parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=dt.timezone.utc)
+        return parsed
+    return None
+
+
+def _freshest_exchange_tradable(
+    payloads: list[tuple[Path, dict[str, Any]]],
+) -> dict[str, Any] | None:
+    """Newest exchange-wide Binance USD-M TRADING set among worker payloads.
+
+    Exchange tradability is a point-in-time fact: unioning confirmed lists
+    across historical worker payloads makes tradability sticky forever, so a
+    delisted/settled contract never leaves the adaptive universe (2026-07-16
+    incident: IPUSDT kept re-entering via a stale signal-lineage confirmed
+    list plus the trainer echoing its own resolved universe, while Binance
+    REST klines showed 199 hours of zero-volume flat candles). Only a dated,
+    exchange-wide ``binance_usdm_tradable_symbols`` list qualifies as prune
+    authority; the newest fresh one wins.
+    """
+    best: dict[str, Any] | None = None
+    best_ts: dt.datetime | None = None
+    now = dt.datetime.now(dt.timezone.utc)
+    for path, payload in payloads:
+        symbols = _as_symbols(payload.get(EXCHANGE_TRADABLE_AUTHORITY_KEY))
+        if len(symbols) < EXCHANGE_TRADABLE_AUTHORITY_MIN_COUNT:
+            continue
+        generated = _parse_generated_ts(payload)
+        if generated is None:
+            # Undated payloads cannot assert *current* tradability.
+            continue
+        age_seconds = (now - generated).total_seconds()
+        if age_seconds > EXCHANGE_TRADABLE_AUTHORITY_MAX_AGE_SECONDS:
+            continue
+        if best_ts is None or generated > best_ts:
+            best_ts = generated
+            best = {
+                "symbols": symbols,
+                "symbol_count": len(symbols),
+                "generated_at": generated.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "age_seconds": int(age_seconds),
+                "source_path": _rel(path, REPO_ROOT),
+                "authority_key": EXCHANGE_TRADABLE_AUTHORITY_KEY,
+            }
+    return best
+
+
 def _selected_subset(
     requested: list[str],
     *,
@@ -169,6 +239,17 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         "binance_usdm_tradable_symbols",
         "tradable_symbols",
     )
+    # Adaptive universe hygiene: prune the sticky confirmed union down to the
+    # freshest exchange-wide TRADING list so delisted/settled contracts leave
+    # the universe instead of being re-confirmed forever by stale worker
+    # payloads (and by workers echoing their own resolved universe back).
+    tradable_authority = _freshest_exchange_tradable(worker_payloads)
+    binance_delisted_pruned: list[str] = []
+    if tradable_authority is not None:
+        tradable_set = set(tradable_authority["symbols"])
+        binance_delisted_pruned = sorted(set(binance_confirmed) - tradable_set)
+        if binance_delisted_pruned:
+            binance_confirmed = sorted(set(binance_confirmed) & tradable_set)
     active_paper_symbols, active_paper_sources = _active_paper_position_symbols(root)
     if active_paper_symbols:
         requested_training = sorted(set(requested_training) | set(active_paper_symbols))
@@ -205,6 +286,8 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
     evidence_gaps = sorted(set(training_blockers + paper_blockers + live_data_blockers))
     if not binance_confirmed:
         evidence_gaps.append("missing_binance_usdm_confirmed_symbols")
+    if tradable_authority is None:
+        evidence_gaps.append("binance_usdm_tradability_authority_missing_or_stale_confirmed_union_unpruned")
 
     return {
         "generated_at": generated_at,
@@ -238,6 +321,12 @@ def build_payload(root: Path = REPO_ROOT, *, generated_at: str | None = None) ->
         },
         "symbol_universe_payload_evidence_gaps": sorted(set(evidence_gaps)),
         "binance_usdm_confirmed_symbols": binance_confirmed,
+        "binance_usdm_tradability_authority": (
+            {key: value for key, value in tradable_authority.items() if key != "symbols"}
+            if tradable_authority is not None
+            else None
+        ),
+        "binance_usdm_delisted_pruned_symbols": binance_delisted_pruned,
         "coinank_symbols_directly_tradable": False,
         "coinank_symbols_tradability": "market_intelligence_only_until_binance_usdm_confirmed",
         "live_symbols": [],

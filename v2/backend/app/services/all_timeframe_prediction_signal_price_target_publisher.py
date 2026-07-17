@@ -3177,6 +3177,90 @@ def build_integrity_enrichment(
     }
 
 
+def runtime_paper_tensor_coverage(
+    store: "V2KeyValueStore",
+    *,
+    symbol: str,
+    timeframe: str,
+    source_prediction_id: Any,
+    signal_feature_snapshot_id: Any,
+    signal_coverage: Any,
+) -> dict[str, Any]:
+    """Resolve ``data_coverage_percent`` for a runtime paper-lane signal row.
+
+    The paper loop's aggregate ``v2:signals:paper`` entries never carry the
+    tensor ``data_coverage_percent`` (it lives on the trainer prediction row),
+    so per-symbol ``v2:signals:paper:{sym}:{tf}`` keys written from this lane
+    censused as null/zero coverage while the trainer tensors were healthy
+    (2026-07-16 zero-coverage-symbols incident: 12 symbols at cov=null with
+    fresh 73-79% prediction rows). Join the trainer prediction row back in,
+    most-exact lineage first:
+
+    1. lane row already has numeric coverage -> keep it;
+    2. prediction row with the same ``prediction_id`` -> same tensor, exact;
+    3. prediction row with the same ``feature_snapshot_id`` -> same feature
+       snapshot -> same tensor inputs, exact;
+    4. fresh (<= ``DEFAULT_STALE_SECONDS``) current prediction row for the
+       same symbol/timeframe -> symbol-level coverage, explicitly labelled.
+
+    Never fabricates: without a numeric prediction-row coverage the field
+    stays ``None`` and ``data_coverage_source`` records why.
+    """
+    coverage = to_float(signal_coverage)
+    if coverage is not None:
+        return {
+            "data_coverage_percent": coverage,
+            "data_coverage_source": "RUNTIME_PAPER_SIGNAL_FIELD",
+        }
+    if timeframe not in REQUIRED_TIMEFRAMES:
+        return {
+            "data_coverage_percent": None,
+            "data_coverage_source": "COVERAGE_UNAVAILABLE_UNKNOWN_THESIS_TIMEFRAME",
+        }
+    prediction = store.get_json(prediction_key(symbol, timeframe)) or {}
+    prediction_coverage = to_float(prediction.get("data_coverage_percent"))
+    if prediction_coverage is None:
+        return {
+            "data_coverage_percent": None,
+            "data_coverage_source": "COVERAGE_UNAVAILABLE_NO_PREDICTION_ROW_COVERAGE",
+        }
+    prediction_id = str(prediction.get("prediction_id") or "")
+    prediction_snapshot_id = str(prediction.get("feature_snapshot_id") or "")
+    timestamp, timestamp_field_name = prediction_timestamp_field(prediction)
+    if source_prediction_id and prediction_id and prediction_id == str(source_prediction_id):
+        source = "V2_PREDICTION_ROW_PREDICTION_ID_MATCH"
+    elif (
+        signal_feature_snapshot_id
+        and prediction_snapshot_id
+        and prediction_snapshot_id == str(signal_feature_snapshot_id)
+    ):
+        source = "V2_PREDICTION_ROW_FEATURE_SNAPSHOT_ID_MATCH"
+    else:
+        age = freshness_seconds(timestamp)
+        if age is None or age > DEFAULT_STALE_SECONDS:
+            # Different tensor AND stale/undated prediction row: adopting its
+            # coverage would echo stale evidence (cache-echo bug class).
+            return {
+                "data_coverage_percent": None,
+                "data_coverage_source": "COVERAGE_UNAVAILABLE_STALE_PREDICTION_ROW_NO_LINEAGE_MATCH",
+            }
+        source = "V2_PREDICTION_ROW_CURRENT_SYMBOL_TF_FALLBACK"
+    adopted: dict[str, Any] = {
+        "data_coverage_percent": prediction_coverage,
+        "data_coverage_source": f"{source}:{prediction_key(symbol, timeframe)}",
+        "data_coverage_prediction_id": prediction_id or None,
+        "data_coverage_as_of": iso_utc(timestamp) or timestamp,
+        "data_coverage_as_of_field": timestamp_field_name,
+    }
+    missing_count = to_float(prediction.get("missing_feature_count"))
+    if missing_count is not None:
+        adopted["missing_feature_count"] = int(missing_count)
+    stale_count = to_float(prediction.get("stale_feature_count"))
+    if stale_count is not None:
+        adopted["stale_feature_count"] = int(stale_count)
+    return adopted
+
+
 def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
     """Current paper-trading lane from trainer -> orchestrator -> paper loop.
 
@@ -3266,6 +3350,14 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         runtime_pit_context = _runtime_paper_pit_context_fields(evidence_sources)
         runtime_market_cost_evidence = _runtime_paper_market_cost_evidence_fields(evidence_sources)
         feature_snapshot_id = runtime_pit_context.get("feature_snapshot_id")
+        coverage_fields = runtime_paper_tensor_coverage(
+            store,
+            symbol=symbol,
+            timeframe=timeframe,
+            source_prediction_id=source_id,
+            signal_feature_snapshot_id=feature_snapshot_id or signal.get("feature_snapshot_id"),
+            signal_coverage=signal.get("data_coverage_percent"),
+        )
         risk_decision_id = risk.get("risk_decision_id") if risk else None
         paper_ledger_id = accepted.get("paper_ledger_id") or shadow.get("paper_ledger_id") or None
         # Orchestrator decision ID: prefer the explicit field written by paper_online_runtime.
@@ -3390,7 +3482,7 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 **runtime_pit_context,
                 **runtime_market_cost_evidence,
                 "blocked_reason": blocked_reason,
-                "data_coverage_percent": signal.get("data_coverage_percent"),
+                **coverage_fields,
                 "generated_est": to_est(generated) or est_now(),
                 "source_prediction_status": "CURRENT_RUNTIME_PAPER_SIGNAL",
                 "source_runtime_lane": "v2:signals:paper",

@@ -129,3 +129,105 @@ def test_active_paper_position_enters_runtime_scopes_when_binance_tradable(
     assert "BASUSDT" in payload["paper_symbols"]
     assert payload["live_data_symbols"] == ["BASUSDT"]
     assert "BASUSDT" not in payload["rejected_paper_symbols"]
+
+
+def _wide_tradable(*extra: str) -> list[str]:
+    # Exchange-wide TRADING list stand-in (authority requires >=100 symbols).
+    return sorted({f"W{i}USDT" for i in range(120)} | set(extra))
+
+
+def test_fresh_exchange_tradable_authority_prunes_delisted_confirmed_symbols(tmp_path: Path) -> None:
+    # 2026-07-16 incident shape: a stale worker payload keeps confirming a
+    # delisted contract (IPUSDT) that the fresh exchange-wide TRADING list no
+    # longer contains; the sticky union must be pruned by the dated authority.
+    import datetime as dt
+
+    fresh = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_status(
+        tmp_path,
+        "v2_stale_lineage_worker",
+        {
+            "discovered_symbols": ["BTCUSDT", "IPUSDT"],
+            "training_symbols": ["BTCUSDT", "IPUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "IPUSDT"],
+        },
+    )
+    _write_status(
+        tmp_path,
+        "v2_dynamic_symbol_discovery",
+        {
+            "generated_utc": fresh,
+            "discovered_symbols": ["BTCUSDT", "ETHUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT"],
+            "binance_usdm_tradable_symbols": _wide_tradable("BTCUSDT", "ETHUSDT"),
+        },
+    )
+
+    payload = build_payload(tmp_path)
+
+    assert "IPUSDT" not in payload["binance_usdm_confirmed_symbols"]
+    assert "BTCUSDT" in payload["binance_usdm_confirmed_symbols"]
+    assert payload["binance_usdm_delisted_pruned_symbols"] == ["IPUSDT"]
+    assert "IPUSDT" not in payload["training_symbols"]
+    assert "IPUSDT" in payload["rejected_training_symbols"]
+    authority = payload["binance_usdm_tradability_authority"]
+    assert authority is not None
+    assert authority["authority_key"] == "binance_usdm_tradable_symbols"
+    assert "v2_dynamic_symbol_discovery" in authority["source_path"]
+    assert "symbols" not in authority  # provenance only, not another sticky list
+
+
+def test_undated_or_stale_tradable_list_cannot_prune(tmp_path: Path) -> None:
+    # An undated exchange list cannot assert *current* tradability: the union
+    # is kept (fail open) and the payload records the missing authority.
+    _write_status(
+        tmp_path,
+        "v2_stale_lineage_worker",
+        {
+            "discovered_symbols": ["BTCUSDT", "IPUSDT"],
+            "training_symbols": ["BTCUSDT"],
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "IPUSDT"],
+        },
+    )
+    _write_status(
+        tmp_path,
+        "v2_dynamic_symbol_discovery",
+        {
+            # no generated_* timestamp
+            "binance_usdm_tradable_symbols": _wide_tradable("BTCUSDT"),
+        },
+    )
+
+    payload = build_payload(tmp_path)
+
+    assert "IPUSDT" in payload["binance_usdm_confirmed_symbols"]
+    assert payload["binance_usdm_delisted_pruned_symbols"] == []
+    assert payload["binance_usdm_tradability_authority"] is None
+    assert (
+        "binance_usdm_tradability_authority_missing_or_stale_confirmed_union_unpruned"
+        in payload["symbol_universe_payload_evidence_gaps"]
+    )
+
+
+def test_small_scoped_tradable_list_is_not_an_exchange_authority(tmp_path: Path) -> None:
+    # A dated but tiny (scoped/broken) tradable list must not collapse the
+    # universe: authority requires an exchange-wide symbol count.
+    import datetime as dt
+
+    fresh = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    _write_status(
+        tmp_path,
+        "v2_scoped_worker",
+        {
+            "generated_utc": fresh,
+            "binance_usdm_confirmed_symbols": ["BTCUSDT", "ETHUSDT", "IPUSDT"],
+            "binance_usdm_tradable_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"],
+        },
+    )
+
+    payload = build_payload(tmp_path)
+
+    assert "IPUSDT" in payload["binance_usdm_confirmed_symbols"]
+    assert payload["binance_usdm_delisted_pruned_symbols"] == []
+    assert payload["binance_usdm_tradability_authority"] is None
