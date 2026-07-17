@@ -22592,6 +22592,24 @@ def _paper_block_new_entry_by_performance_circuit(
             str(_sym).upper() for _sym in (_probe.get("open_symbols") or [])
         }
         _probe_symbol = str(intent.get("symbol") or "").upper()
+        # Only bucket/cluster evidence SPECIFIC enough to prove THIS
+        # candidate's exact failure mode blocks a probe. Broad
+        # single-dimension keys (side:/timeframe:/regime:) can jointly
+        # blanket the whole candidate space — observed 2026-07-17T04:4xZ:
+        # loss_cluster_side:long + loss_cluster_side:short covered every
+        # candidate, so no probe could ever fire and the halt had no
+        # evidence path out. Same broad-vs-specific split the exploration
+        # bucket policy already applies.
+        _probe_specific_bucket_hits = [
+            key
+            for key in hard_matched_blocked_bucket_keys
+            if _paper_exploration_specific_quarantine_key(key)
+        ]
+        _probe_specific_cluster_hits = [
+            key
+            for key in hard_matched_loss_cluster_keys
+            if _paper_exploration_specific_loss_cluster_key(key)
+        ]
         _probe_admit = (
             int(_probe.get("remaining") or 0) > 0
             and _probe_open < _probe_slots
@@ -22599,8 +22617,8 @@ def _paper_block_new_entry_by_performance_circuit(
             and (not _probe_symbol or _probe_symbol not in _probe_open_symbols)
             and _probe_close_age >= 300.0
             and (confidence or 0.0) >= _probe_floor
-            and not hard_matched_blocked_bucket_keys
-            and not hard_matched_loss_cluster_keys
+            and not _probe_specific_bucket_hits
+            and not _probe_specific_cluster_hits
         )
     if _probe_admit:
         _probe["remaining"] = int(_probe.get("remaining") or 0) - 1
