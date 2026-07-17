@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 # ── Static soak-test baseline (advisory only, not gate logic) ─────────────────
@@ -344,8 +345,37 @@ def load_outcome_memory_bucket(
 
         # If aggregate is degraded, return it to block the entry even when the
         # per-symbol bucket has insufficient data for its own dynamic block.
+        #
+        # Staleness valve (2026-07-17): a degraded TIMEFRAME aggregate blocks
+        # every low-sample symbol on that timeframe — which also blocks the
+        # very outcomes that could roll its window. Once the open book drains,
+        # the aggregate's evidence can never refresh and the block becomes
+        # permanent (the same evidence-cannot-refresh deadlock class as the
+        # halted-book probe and the strict-tier cluster window). A degraded
+        # aggregate whose last outcome is older than 90 minutes therefore
+        # decays to ADVISORY (falls through to per-symbol/baseline handling);
+        # it re-arms the moment any fresh outcome on the timeframe updates it.
         if aggregate_bucket is not None and aggregate_bucket.degraded:
-            return aggregate_bucket
+            _agg_age_seconds: float | None = None
+            try:
+                if aggregate_bucket.last_updated:
+                    _agg_updated = datetime.fromisoformat(
+                        str(aggregate_bucket.last_updated).replace("Z", "+00:00")
+                    )
+                    _agg_age_seconds = (
+                        datetime.now(timezone.utc) - _agg_updated
+                    ).total_seconds()
+            except Exception:  # noqa: BLE001
+                _agg_age_seconds = None
+            if _agg_age_seconds is None or _agg_age_seconds <= 5400.0:
+                return aggregate_bucket
+            # Stale degraded aggregate: annotate and fall through.
+            if per_symbol_bucket is not None:
+                per_symbol_bucket.baseline_advisory_reasons = list(
+                    getattr(per_symbol_bucket, "baseline_advisory_reasons", [])
+                ) + [
+                    f"STALE_DEGRADED_TIMEFRAME_AGGREGATE_ADVISORY:{tf}:age_s={int(_agg_age_seconds)}"
+                ]
 
         # Per-symbol has some data but insufficient for dynamic block, and
         # aggregate is not degraded (or missing) — return per-symbol bucket.
