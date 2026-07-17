@@ -131,6 +131,78 @@ def _binding_constraint(r: Any) -> dict[str, Any]:
     }
 
 
+def _growth_stage(r: Any, closed: list[Any]) -> dict[str, Any]:
+    """Which stage of the staged 1000x path the system currently occupies.
+
+    The daily rate decomposes as
+        daily% ~= trades/day x net_bps/trade x (avg_notional/equity) / 100
+    so the stages are strictly ordered — scaling size or leverage before
+    edge is positive only scales losses (proven 2026-07-17: the largest
+    fills were the largest losers).
+
+    1. EDGE_REPAIR      exit: rolling-25 PF >= 1.2 AND notional-weighted
+                        expectancy > 0 (challenger promotion + calibration
+                        recovery drive this; nothing else matters first).
+    2. THROUGHPUT       exit: >= 15 closed outcomes/day sustained with
+                        stage-1 criteria still holding.
+    3. SCALE            exit: dynamic envelope combined factor > 2 (WR/PF
+                        exponential scaling engaged) with hedge-aware
+                        sizing amplification active on >= half of fills.
+    4. COMPOUND         steady state: the formula above at ~8%/day; the
+                        envelope, ladder, and hedge amplification carry
+                        sizing to multiples of equity as evidence allows.
+    """
+    recent = [row for row in closed[-25:] if isinstance(row, dict)]
+    gains = sum(
+        _coerce_float(row.get("realized_net_pnl_usd")) or 0.0
+        for row in recent
+        if (_coerce_float(row.get("realized_net_pnl_usd")) or 0.0) > 0
+    )
+    losses = abs(
+        sum(
+            _coerce_float(row.get("realized_net_pnl_usd")) or 0.0
+            for row in recent
+            if (_coerce_float(row.get("realized_net_pnl_usd")) or 0.0) < 0
+        )
+    )
+    pf25 = (gains / losses) if losses > 0 else (99.0 if gains > 0 else 0.0)
+    weighted_num = 0.0
+    weighted_den = 0.0
+    for row in recent:
+        notional = _coerce_float(row.get("gross_notional_usd")) or 0.0
+        bps = _coerce_float(row.get("realized_net_pnl_bps")) or 0.0
+        weighted_num += notional * bps
+        weighted_den += notional
+    weighted_bps = (weighted_num / weighted_den) if weighted_den > 0 else 0.0
+    now = _utc_now()
+    closes_24h = sum(
+        1
+        for row in closed
+        if isinstance(row, dict)
+        and str(row.get("exit_price_utc") or "")
+        > (now - dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+    stage = "EDGE_REPAIR"
+    if pf25 >= 1.2 and weighted_bps > 0:
+        stage = "THROUGHPUT"
+        if closes_24h >= 15:
+            stage = "SCALE"
+    return {
+        "stage": stage,
+        "stage_order": ["EDGE_REPAIR", "THROUGHPUT", "SCALE", "COMPOUND"],
+        "rolling_25_pf": round(pf25, 3),
+        "rolling_25_weighted_bps": round(weighted_bps, 3),
+        "closes_24h": closes_24h,
+        "edge_repair_exit": "PF25 >= 1.2 AND weighted expectancy > 0",
+        "throughput_exit": ">= 15 closes/day with edge criteria holding",
+        "scale_exit": "envelope factor > 2 with hedge-aware sizing active",
+        "rate_formula": (
+            "daily% ~= trades/day x net_bps x (avg_notional/equity) / 100; "
+            "8%/day ~= 20 trades x 20bps x 2.0x deployed"
+        ),
+    }
+
+
 def run_once() -> dict[str, Any]:
     r = redis.Redis.from_url(REDIS_URL, decode_responses=True)
     now = _utc_now()
@@ -215,6 +287,7 @@ def run_once() -> dict[str, Any]:
             else None
         ),
         "binding_constraint": _binding_constraint(r),
+        "growth_stage": _growth_stage(r, closed),
         "open_position_count": len(positions),
         "closed_trade_count": len(closed),
         "paper_only": True,
