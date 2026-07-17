@@ -248,6 +248,9 @@ class PaperNetPosition:
     allocated_margin_usd: float | None = None
     effective_leverage: float | None = None
     recommended_leverage: float | None = None
+    leverage_source: str | None = None
+    leverage_recommendation_tier: str | None = None
+    leverage_exploration: bool | None = None
     recommended_margin_mode: str | None = None
     margin_mode_simulated: str | None = None
     maintenance_margin_estimate: float | None = None
@@ -565,6 +568,9 @@ class PaperNetPosition:
             "allocated_margin_usd_at_entry": self.allocated_margin_usd,
             "effective_leverage": self.effective_leverage,
             "recommended_leverage": self.recommended_leverage,
+            "leverage_source": self.leverage_source,
+            "leverage_recommendation_tier": self.leverage_recommendation_tier,
+            "leverage_exploration": self.leverage_exploration,
             "recommended_margin_mode": self.recommended_margin_mode,
             "margin_mode_simulated": self.margin_mode_simulated,
             "maintenance_margin_estimate": self.maintenance_margin_estimate,
@@ -1458,6 +1464,25 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocated_margin_usd=allocated_margin,
         effective_leverage=effective_leverage,
         recommended_leverage=recommended_leverage,
+        leverage_source=(
+            str(fill.get("leverage_source"))
+            if fill.get("leverage_source")
+            else (
+                str(fill.get("fast_path_leverage_source"))
+                if fill.get("fast_path_leverage_source")
+                else None
+            )
+        ),
+        leverage_recommendation_tier=(
+            str(fill.get("leverage_recommendation_tier"))
+            if fill.get("leverage_recommendation_tier")
+            else None
+        ),
+        leverage_exploration=(
+            bool(fill.get("leverage_exploration"))
+            if fill.get("leverage_exploration") is not None
+            else None
+        ),
         recommended_margin_mode=recommended_margin_mode,
         margin_mode_simulated=str(
             first_present(
