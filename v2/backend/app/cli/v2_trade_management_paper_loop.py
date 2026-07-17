@@ -30165,9 +30165,12 @@ def run_once() -> dict:
         if _rev_pos is not None and not any(
             intent.get(_hk)
             for _hk in (
-                "paper_adaptive_hedge_fill",
-                "hedge_directive_id",
-                "paper_hedge_role",
+                # Actual tags stamped by _synthesize_adaptive_hedge_fills —
+                # a hedge fill must NEVER be treated as a reversal (it pairs,
+                # never nets the parent).
+                "hedge_intent",
+                "paper_hedge_fill",
+                "hedge_parent_id",
             )
         ):
             _rev_pos_side = str(_rev_pos.get("side") or "").lower()
@@ -31211,9 +31214,12 @@ def run_once() -> dict:
         if any(
             _acc.get(_hk)
             for _hk in (
-                "paper_adaptive_hedge_fill",
-                "hedge_directive_id",
-                "paper_hedge_role",
+                # Actual tags stamped by _synthesize_adaptive_hedge_fills —
+                # hedge fills pair with the parent by design and must never
+                # be collapsed against it or against same-cycle intents.
+                "hedge_intent",
+                "paper_hedge_fill",
+                "hedge_parent_id",
             )
         ):
             continue
