@@ -389,6 +389,37 @@ def test_atr_ceiling_holds_position_inside_the_band() -> None:
     assert result["should_close"] is False
 
 
+def test_atr_ceiling_cuts_losing_short_symmetrically() -> None:
+    # The book runs 2.6:1 long but losing shorts must also be capped. A losing
+    # short is price UP; unrealized_pnl_bps is side-aware so pnl_bps is negative
+    # and the ceiling check fires symmetrically.
+    from app.services.paper_trade_management.position_state import PaperNetPosition
+
+    pos = PaperNetPosition(
+        position_id="paper_pos_BTCUSDT",
+        symbol="BTCUSDT",
+        side="short",
+        net_quantity=-0.01,
+        avg_entry_price=100_000.0,
+        opened_est="2026-06-17T00:00:00Z",
+        best_favorable_price=None,
+    )
+    pos.size = 0.01
+    pos.liquidation_distance_bps = None
+    config = _wide_atr_config(ceiling_bps=80.0)
+    mark = 100_000.0 * (1 + 90 / 10000.0)  # short down 90 bps
+    result = evaluate_exit(
+        position=pos,
+        mark_price=mark,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=config,
+        atr_bps=500.0,
+    )
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_1_ATR_CEILING_STOP"
+    assert result["atr_stop_ceiling_bps"] == 80.0
+
+
 def test_atr_scaled_trailing_stop_holds_inside_dynamic_distance() -> None:
     from app.services.paper_trade_management.position_state import PaperNetPosition
 
