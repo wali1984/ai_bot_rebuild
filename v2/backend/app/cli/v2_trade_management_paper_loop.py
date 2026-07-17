@@ -22653,7 +22653,16 @@ def _paper_block_new_entry_by_performance_circuit(
     _probe = halted_empty_book_probe_context
     _probe_admit = False
     if isinstance(_probe, dict):
-        _probe_open = int(_probe.get("open_position_count") or 0)
+        # Slot accounting: incremental admissions this starvation window
+        # (positions opened since the last close), not legacy holds — see
+        # the context builder for the observed 2h probe freeze this fixes.
+        _probe_open = int(
+            _probe.get(
+                "open_positions_since_last_close",
+                _probe.get("open_position_count") or 0,
+            )
+            or 0
+        )
         _probe_close_age = float(_probe.get("seconds_since_last_close") or 0.0)
         _probe_slots = 1 + min(2, int(_probe_close_age // 1800.0))
         _probe_floor = _coerce_float(_probe.get("adaptive_confidence_floor"))
@@ -28815,9 +28824,29 @@ def run_once() -> dict:
         )
         if _c is not None and _c > _hebp_cycle_max_conf:
             _hebp_cycle_max_conf = _c
+    # Probe slots bound INCREMENTAL admissions during the current starvation
+    # window: only positions opened SINCE the last close count against the
+    # slot cap. Legacy holds predating the last close carry their own
+    # bounded risk and will produce closes on their own schedule — counting
+    # them froze probes for 2h+ (observed 2026-07-17T15:31Z: 3 rally-era 4h
+    # holds vs slots=3 → zero probes, zero new evidence, windows frozen).
+    _hebp_opened_since_last_close = 0
+    if _hebp_last_close:
+        for _row in _hebp_open_rows:
+            _ts = str(
+                _row.get("source_timestamp")
+                or _row.get("decision_time")
+                or _row.get("entry_feature_generated_at")
+                or ""
+            )
+            if _ts and _ts > _hebp_last_close:
+                _hebp_opened_since_last_close += 1
+    else:
+        _hebp_opened_since_last_close = _hebp_open_count
     halted_empty_book_probe_context = {
         "remaining": 1,
         "open_position_count": _hebp_open_count,
+        "open_positions_since_last_close": _hebp_opened_since_last_close,
         "open_symbols": _hebp_open_symbols,
         "newest_position_age_seconds": (
             float(_hebp_newest_age) if _hebp_newest_age is not None else None
