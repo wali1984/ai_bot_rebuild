@@ -37,6 +37,12 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
 from v2.backend.app.services.feature_lineage_masks import canonical_feature_lineage
 from v2.backend.app.services.market_state_integrity.contracts import IntegrityThresholds
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
+from v2.backend.app.services.paper_trade_management.adaptive_cost_model import (
+    CostEstimate,
+    after_cost_for_action,
+    estimate_round_trip_cost_bps,
+    publish_cost_estimate,
+)
 
 
 SERVICE_ID = "v2_all_timeframe_prediction_signal_price_target_publisher"
@@ -1639,6 +1645,114 @@ def blocker_redis_payload(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+# Trainer-side flat-cost block reasons that the adaptive cost model may cure
+# (see hybrid_cuda_trainer/publisher.py::build_prediction_payload).
+ADAPTIVE_COST_TRAINER_FLAT_REASONS = frozenset(
+    {
+        "expected_move_after_cost_below_threshold",
+        "expected_move_after_cost_direction_mismatch",
+    }
+)
+# Mirrors hybrid_cuda_trainer DEFAULT_MIN_EDGE_AFTER_COST_BPS so the signal
+# layer re-gate is exactly as strict as the trainer's own gate.
+ADAPTIVE_COST_MIN_EDGE_AFTER_COST_BPS = float(
+    os.environ.get("V2_COST_REGATE_MIN_EDGE_AFTER_COST_BPS") or 4.0
+)
+ADAPTIVE_COST_NARROW_BLOCK_REASON = "expected_move_after_cost_below_threshold_adaptive"
+
+
+def adaptive_after_cost_recompute(
+    *,
+    action: Any,
+    expected_move_bps: Any,
+    trainer_after_cost_bps: Any,
+    trainer_paper_fill_allowed: Any,
+    trainer_block_reasons: Iterable[Any],
+    cost_estimate: CostEstimate | None,
+    min_edge_after_cost_bps: float = ADAPTIVE_COST_MIN_EDGE_AFTER_COST_BPS,
+) -> dict[str, Any]:
+    """Recompute after-cost edge under the symbol-adaptive cost model.
+
+    Widening (clearing trainer flat-cost blocks) requires FRESH orderbook
+    evidence, direction alignment, and the trainer's own min-edge threshold.
+    Narrowing (adaptive cost kills an edge the flat model allowed) applies on
+    any estimate, because the fallback path is conservative by construction.
+    """
+    move = to_float(expected_move_bps)
+    trainer_after = to_float(trainer_after_cost_bps)
+    normalized_action = str(action or "").strip().lower()
+    trainer_reasons = sorted(
+        {str(reason) for reason in (trainer_block_reasons or []) if reason}
+    )
+    trainer_flat_cost: float | None = None
+    if move is not None and trainer_after is not None:
+        if normalized_action == "long":
+            trainer_flat_cost = round(move - trainer_after, 8)
+        elif normalized_action == "short":
+            trainer_flat_cost = round(trainer_after - move, 8)
+
+    out: dict[str, Any] = {
+        "applied": False,
+        "expected_move_after_cost_bps_effective": trainer_after,
+        "expected_move_after_cost_bps_adaptive": None,
+        "expected_move_after_cost_bps_trainer": trainer_after,
+        "round_trip_cost_bps_used": trainer_flat_cost,
+        "round_trip_cost_source": "trainer_flat_fallback",
+        "trainer_flat_round_trip_cost_bps": trainer_flat_cost,
+        "cost_regate_pass": False,
+        "cost_regate_reasons_cleared": [],
+        "adaptive_edge_narrow_blocked": False,
+        "min_edge_after_cost_bps": float(min_edge_after_cost_bps),
+        "adaptive_cost_model": None,
+    }
+    if cost_estimate is None:
+        return out
+    out["adaptive_cost_model"] = cost_estimate.to_payload()
+    adaptive_after = after_cost_for_action(
+        move, normalized_action, cost_estimate.round_trip_cost_bps
+    )
+    if adaptive_after is None:
+        return out
+
+    out["applied"] = True
+    out["expected_move_after_cost_bps_adaptive"] = round(adaptive_after, 8)
+    out["expected_move_after_cost_bps_effective"] = round(adaptive_after, 8)
+    out["round_trip_cost_bps_used"] = round(cost_estimate.round_trip_cost_bps, 8)
+    out["round_trip_cost_source"] = (
+        "adaptive_cost_model_live_orderbook"
+        if cost_estimate.is_fresh
+        else "adaptive_cost_model_conservative_fallback"
+    )
+
+    aligned = (normalized_action == "long" and adaptive_after > 0.0) or (
+        normalized_action == "short" and adaptive_after < 0.0
+    )
+    meets_min_edge = abs(adaptive_after) >= float(min_edge_after_cost_bps)
+
+    if trainer_paper_fill_allowed is True:
+        # Narrowing: trainer allowed under flat cost, adaptive evidence says no.
+        if not aligned or not meets_min_edge:
+            out["adaptive_edge_narrow_blocked"] = True
+        return out
+
+    # Widening: only when every trainer block reason is flat-cost-derived and
+    # the live-evidence recompute passes the same gate the trainer applies.
+    if (
+        cost_estimate.is_fresh
+        and trainer_reasons
+        and set(trainer_reasons) <= set(ADAPTIVE_COST_TRAINER_FLAT_REASONS)
+        and aligned
+        and meets_min_edge
+    ):
+        out["cost_regate_pass"] = True
+        out["cost_regate_reasons_cleared"] = [
+            reason
+            for reason in trainer_reasons
+            if reason in ADAPTIVE_COST_TRAINER_FLAT_REASONS
+        ]
+    return out
+
+
 def build_prediction_row(
     *,
     symbol: str,
@@ -1650,6 +1764,7 @@ def build_prediction_row(
     source_prediction_key: str | None = None,
     feature_source_key: str | None = None,
     feature_lookup_status: str | None = None,
+    cost_estimate: CostEstimate | None = None,
 ) -> dict[str, Any]:
     selected_prediction_key = source_prediction_key or prediction_key(symbol, timeframe)
     selected_feature_key = feature_source_key or feature_latest_key(symbol, timeframe)
@@ -1659,6 +1774,19 @@ def build_prediction_row(
     expected_after_cost = to_float(prediction.get("expected_move_after_cost_bps"))
     last_price, price_field = extract_last_price(price_payload or {})
     action = str(prediction.get("selected_action") or as_dict(prediction.get("raw_output")).get("side") or "hold")
+    adaptive_cost = adaptive_after_cost_recompute(
+        action=action,
+        expected_move_bps=expected_move,
+        trainer_after_cost_bps=expected_after_cost,
+        trainer_paper_fill_allowed=prediction.get("paper_fill_allowed"),
+        trainer_block_reasons=as_list(
+            prediction.get("paper_fill_gate_block_reasons")
+            or prediction.get("paper_fill_block_reasons")
+            or prediction.get("block_reasons")
+        ),
+        cost_estimate=cost_estimate,
+    )
+    expected_after_cost = adaptive_cost["expected_move_after_cost_bps_effective"]
     target = price_targets(last_price, expected_move, expected_after_cost, action)
     trainer_source = str(prediction.get("trainer_source") or "missing source")
     model_source = str(prediction.get("model_source") or prediction.get("model_id") or prediction.get("checkpoint_id") or "missing source")
@@ -1742,7 +1870,17 @@ def build_prediction_row(
         "feature_missing_mask_source": "actual_feature_snapshot" if feature_lineage["lineage_fields_present"] else "prediction_fallback",
         "expected_move_source": source_for_expected_move(prediction),
         "expected_move_bps_source_field": "v2_prediction.expected_move_bps",
-        "expected_move_after_cost_bps_source_field": "v2_prediction.expected_move_after_cost_bps",
+        "expected_move_after_cost_bps_source_field": (
+            "adaptive_cost_model.recomputed_from_v2_prediction.expected_move_bps"
+            if adaptive_cost["applied"]
+            else "v2_prediction.expected_move_after_cost_bps"
+        ),
+        "round_trip_cost_source": adaptive_cost["round_trip_cost_source"],
+        "round_trip_cost_redis_key": (
+            (adaptive_cost["adaptive_cost_model"] or {}).get("orderbook_key")
+            if adaptive_cost["applied"]
+            else None
+        ),
         "calibration_source": as_dict(prediction.get("confidence_calibration")).get("calibration_source"),
         "required_trainer_source": TRAINER_SOURCE_REQUIRED,
         "required_model_source": MODEL_SOURCE_REQUIRED,
@@ -1791,6 +1929,15 @@ def build_prediction_row(
         or prediction.get("paper_fill_block_reasons")
         or prediction.get("block_reasons")
     )
+    if adaptive_cost["cost_regate_pass"]:
+        # Fresh symbol-level cost evidence cured the trainer's flat-cost blocks.
+        paper_gate_block_reasons = [
+            reason
+            for reason in paper_gate_block_reasons
+            if reason not in ADAPTIVE_COST_TRAINER_FLAT_REASONS
+        ]
+    if adaptive_cost["adaptive_edge_narrow_blocked"]:
+        paper_gate_block_reasons.append(ADAPTIVE_COST_NARROW_BLOCK_REASON)
     normalized_action = action.lower()
     signed_edge_positive = (
         expected_after_cost is not None
@@ -1815,8 +1962,16 @@ def build_prediction_row(
     paper_gate_block_reasons.extend(temporal_block_reasons)
     paper_gate_block_reasons.extend(str(reason) for reason in integrity["market_state_reject_reasons"])
     paper_gate_block_reasons = sorted(set(reason for reason in paper_gate_block_reasons if reason))
-    paper_fill_allowed = (
+    trainer_paper_fill_allowed_effective = (
         prediction.get("paper_fill_allowed") is True
+        or adaptive_cost["cost_regate_pass"]
+    ) and not adaptive_cost["adaptive_edge_narrow_blocked"]
+    trainer_routes_to_orchestrator_effective = (
+        prediction.get("routes_to_orchestrator") is True
+        or adaptive_cost["cost_regate_pass"]
+    ) and not adaptive_cost["adaptive_edge_narrow_blocked"]
+    paper_fill_allowed = (
+        trainer_paper_fill_allowed_effective
         and status in CURRENT_PREDICTION_STATUSES
         and integrity["valid_for_prediction"] is True
         and integrity["valid_for_paper"] is True
@@ -1824,7 +1979,7 @@ def build_prediction_row(
         and not temporal_block_reasons
     )
     routes_to_orchestrator = (
-        prediction.get("routes_to_orchestrator") is True
+        trainer_routes_to_orchestrator_effective
         and status in CURRENT_PREDICTION_STATUSES
         and integrity["valid_for_risk"] is True
         and integrity["valid_for_orchestrator"] is True
@@ -1904,6 +2059,27 @@ def build_prediction_row(
         **confidence_truth,
         "expected_move_bps": expected_move,
         "expected_move_after_cost_bps": expected_after_cost,
+        "expected_move_after_cost_bps_adaptive": adaptive_cost[
+            "expected_move_after_cost_bps_adaptive"
+        ],
+        "expected_move_after_cost_bps_trainer": adaptive_cost[
+            "expected_move_after_cost_bps_trainer"
+        ],
+        "round_trip_cost_bps_used": adaptive_cost["round_trip_cost_bps_used"],
+        "round_trip_cost_source": adaptive_cost["round_trip_cost_source"],
+        "trainer_flat_round_trip_cost_bps": adaptive_cost[
+            "trainer_flat_round_trip_cost_bps"
+        ],
+        "adaptive_cost_model": adaptive_cost["adaptive_cost_model"],
+        "paper_fill_gate_cost_regate": {
+            "applied": adaptive_cost["applied"],
+            "cost_regate_pass": adaptive_cost["cost_regate_pass"],
+            "reasons_cleared": adaptive_cost["cost_regate_reasons_cleared"],
+            "adaptive_edge_narrow_blocked": adaptive_cost[
+                "adaptive_edge_narrow_blocked"
+            ],
+            "min_edge_after_cost_bps": adaptive_cost["min_edge_after_cost_bps"],
+        },
         "policy_value": to_float(prediction.get("policy_value")),
         "masa_signal": to_float(prediction.get("masa_signal")),
         "last_price": last_price,
@@ -2300,6 +2476,28 @@ def feature_payload_for_prediction(
     )
 
 
+def symbol_cost_estimate_and_publish(
+    store: V2KeyValueStore, symbol: str
+) -> CostEstimate | None:
+    """Estimate the symbol's adaptive round-trip cost and publish it.
+
+    Publishes to ``v2:costs:round_trip_bps:{SYMBOL}`` with provenance so
+    Signal Explainability can show why a cost was what it was. Never raises;
+    on any failure the caller falls back to the trainer's flat value.
+    """
+    try:
+        estimate = estimate_round_trip_cost_bps(symbol, get_json=store.get_json)
+        publish_cost_estimate(
+            estimate, client=store.client, set_json=store.set_json
+        )
+        return estimate
+    except Exception as exc:  # noqa: BLE001 - cost model must never break publishing
+        store.audit.errors.append(
+            f"adaptive_cost_estimate_failed:{symbol}:{type(exc).__name__}"
+        )
+        return None
+
+
 def build_prediction_rows(
     *,
     store: V2KeyValueStore,
@@ -2310,6 +2508,7 @@ def build_prediction_rows(
     rows: list[dict[str, Any]] = []
     for symbol in symbols:
         price_payload = market_price_payload(store, symbol)
+        cost_estimate = symbol_cost_estimate_and_publish(store, symbol)
         for timeframe in timeframes:
             pred, pred_key = select_prediction_payload(
                 store=store,
@@ -2337,6 +2536,7 @@ def build_prediction_rows(
                     source_prediction_key=pred_key,
                     feature_source_key=feature_key,
                     feature_lookup_status=feature_lookup_status,
+                    cost_estimate=cost_estimate,
                 )
             )
     return rows
@@ -2797,6 +2997,17 @@ def build_signal_from_row(
         "expected_move_bps": row.get("expected_move_bps"),
         "expected_move_after_cost_bps": row.get("expected_move_after_cost_bps"),
         "expected_net_edge_bps": row.get("expected_move_after_cost_bps"),
+        "expected_move_after_cost_bps_adaptive": row.get(
+            "expected_move_after_cost_bps_adaptive"
+        ),
+        "expected_move_after_cost_bps_trainer": row.get(
+            "expected_move_after_cost_bps_trainer"
+        ),
+        "round_trip_cost_bps_used": row.get("round_trip_cost_bps_used"),
+        "round_trip_cost_source": row.get("round_trip_cost_source"),
+        "trainer_flat_round_trip_cost_bps": row.get("trainer_flat_round_trip_cost_bps"),
+        "adaptive_cost_model": row.get("adaptive_cost_model"),
+        "paper_fill_gate_cost_regate": row.get("paper_fill_gate_cost_regate"),
         "selected_action_expected_move_bps_sign": row.get("selected_action_expected_move_bps_sign"),
         "hold_action_with_directional_expected_move_bps": row.get(
             "hold_action_with_directional_expected_move_bps"

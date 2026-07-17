@@ -149,6 +149,61 @@ def _finite_float(value: Any) -> float | None:
     return f if math.isfinite(f) else None
 
 
+# Symbol-adaptive round-trip cost keys published by
+# services/paper_trade_management/adaptive_cost_model.py (via the
+# all-timeframe signal publisher). The trainer consumes them read-only with a
+# flat-config fallback so a cost-model outage can never block prediction
+# publishing.
+_ADAPTIVE_COST_KEY_TEMPLATE = "v2:costs:round_trip_bps:{symbol}"
+_ADAPTIVE_COST_MAX_AGE_SECONDS = 600.0
+
+
+def _adaptive_round_trip_cost_bps(
+    symbol: str,
+    *,
+    safe_io: V2OnlyJsonIO,
+    flat_round_trip_bps: float,
+    fee_floor_bps: float,
+    cache: dict[str, float],
+) -> float:
+    """Per-symbol adaptive round-trip cost with conservative flat fallback.
+
+    Uses the published live-orderbook estimate when fresh; otherwise returns
+    the flat config value (2 * (fee + slippage) per side). Never returns less
+    than the round-trip fee floor, and never raises.
+    """
+    symbol_norm = str(symbol or "").strip().upper()
+    if symbol_norm in cache:
+        return cache[symbol_norm]
+    resolved = float(flat_round_trip_bps)
+    try:
+        payload = safe_io.get_json(
+            _ADAPTIVE_COST_KEY_TEMPLATE.format(symbol=symbol_norm)
+        )
+        if isinstance(payload, dict):
+            value = _finite_float(payload.get("round_trip_cost_bps"))
+            computed = str(payload.get("computed_utc") or "")
+            age_ok = False
+            if computed:
+                from datetime import datetime, timezone
+
+                try:
+                    parsed = datetime.fromisoformat(computed.replace("Z", "+00:00"))
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=timezone.utc)
+                    age_ok = (
+                        datetime.now(timezone.utc) - parsed
+                    ).total_seconds() <= _ADAPTIVE_COST_MAX_AGE_SECONDS
+                except ValueError:
+                    age_ok = False
+            if value is not None and value > 0.0 and age_ok:
+                resolved = max(value, float(fee_floor_bps))
+    except Exception:  # noqa: BLE001 - cost lookup must never break the trainer
+        resolved = float(flat_round_trip_bps)
+    cache[symbol_norm] = resolved
+    return resolved
+
+
 # Process-local consecutive checkpoint-promotion rejection counter. The persistent
 # trainer loop is one long-running process, so this survives across cycles and does
 # not depend on Redis. It backs the rejection-streak escape that guarantees durable
@@ -677,6 +732,8 @@ def run_hybrid_trainer_cycle(
     lineages: list[dict[str, Any]] = []
     prediction_failure_rows: list[dict[str, Any]] = []
     prediction_started = time.perf_counter()
+    flat_round_trip_cost_bps = 2.0 * (config.fee_bps_per_side + config.slippage_bps_per_side)
+    adaptive_cost_cache: dict[str, float] = {}
     for example in prediction_examples:
         try:
             forward = model.forward(example.tensor)
@@ -684,7 +741,13 @@ def run_hybrid_trainer_cycle(
                 example=example,
                 model_output=forward,
                 checkpoint=checkpoint,
-                round_trip_cost_bps=2.0 * (config.fee_bps_per_side + config.slippage_bps_per_side),
+                round_trip_cost_bps=_adaptive_round_trip_cost_bps(
+                    example.symbol,
+                    safe_io=safe_io,
+                    flat_round_trip_bps=flat_round_trip_cost_bps,
+                    fee_floor_bps=2.0 * config.fee_bps_per_side,
+                    cache=adaptive_cost_cache,
+                ),
                 min_data_coverage_percent=config.min_data_coverage_percent,
                 min_confidence_calibrated=config.min_confidence_calibrated,
                 min_edge_after_cost_bps=config.min_edge_after_cost_bps,

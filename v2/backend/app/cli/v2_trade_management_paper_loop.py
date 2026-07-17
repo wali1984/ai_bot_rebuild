@@ -11001,7 +11001,19 @@ def _first_present(*values):
 
 
 def _paper_expected_move_after_cost_value(*sources: Mapping[str, Any]) -> Any:
-    """Return after-cost move, accepting the preemptive net-edge alias."""
+    """Return after-cost move, accepting the preemptive net-edge alias.
+
+    The symbol-adaptive recompute (live spread/depth costs from
+    services/paper_trade_management/adaptive_cost_model.py, published on
+    v2:signals:paper rows) is preferred over flat trainer values regardless
+    of source order; flat 12bps trainer values remain the fallback.
+    """
+    for source in sources:
+        if not isinstance(source, Mapping):
+            continue
+        value = source.get("expected_move_after_cost_bps_adaptive")
+        if value is not None and value != "":
+            return value
     for source in sources:
         if not isinstance(source, Mapping):
             continue
