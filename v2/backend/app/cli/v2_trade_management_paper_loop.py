@@ -30008,12 +30008,35 @@ def run_once() -> dict:
             side_gate_config=_adaptive_side_gate_cfg,
         )
         intent["side_gate_result"] = _eg.get("side_gate_result") or {}
-        if not _eg["allowed"]:
+        # Probe vs broad-aggregate P0 blocks (2026-07-17): a probe-admitted
+        # intent exists to generate the outcomes that roll the degraded
+        # TIMEFRAME AGGREGATE's own window — letting the aggregate's broad
+        # TF-level block kill the probe re-freezes the window it measures
+        # (observed: 3/3 admitted probes per cycle dying on
+        # OUTCOME_MEMORY_BLOCK source=REDIS_TIMEFRAME_AGGREGATE after close
+        # #86 refreshed the aggregates and correctly re-closed the 90-min
+        # staleness valve). Aggregate-SOURCE outcome blocks are advisory for
+        # admitted probes; every other P0 reason — per-symbol outcome
+        # evidence, side gates, confidence floors — still kills probes
+        # (SKYAI's loss_cluster_symbol hit correctly blocked this cycle).
+        _p0_reasons = list(_eg["reasons"]) if not _eg["allowed"] else []
+        if (
+            _p0_reasons
+            and intent.get("paper_halted_empty_book_probe") is True
+            and all(
+                "OUTCOME_MEMORY_BLOCK" in str(reason)
+                and "REDIS_TIMEFRAME_AGGREGATE" in str(reason)
+                for reason in _p0_reasons
+            )
+        ):
+            intent["paper_probe_overrode_p0_aggregate_reasons"] = _p0_reasons
+            _p0_reasons = []
+        if _p0_reasons:
             intent["paper_fill_block_reason"] = "P0_ENTRY_GATE_BLOCKED"
-            intent["entry_gate_block_reasons"] = _eg["reasons"]
+            intent["entry_gate_block_reasons"] = _p0_reasons
             intent["local_block_reasons"] = sorted(set(
                 list(intent.get("local_block_reasons") or [])
-                + [f"entry_gate:{r}" for r in _eg["reasons"]]
+                + [f"entry_gate:{r}" for r in _p0_reasons]
             ))
             # DEBUG: Log first few blocked intents to file
             try:
