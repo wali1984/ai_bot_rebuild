@@ -1,0 +1,28 @@
+[Unit]
+Description=AI Bot V2 adaptive-universe coverage sync (paper-only; census of ohlcv_closed/prices/orderbook/open_interest/ta_full/feature_snapshot for every resolved universe symbol; heals closed-candle gaps via budget-gated backfill; publishes v2:universe:coverage_census; NEVER enables live)
+After=default.target redis.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment=PYTHONUNBUFFERED=1
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/v2/backend"
+Environment="LIVE_GATE=blocked_human_only"
+Environment="V2_LIVE=0"
+# New universe entrants have no WSS kline cache yet; read-only public REST
+# backfill is required to seed them. Every request still passes through
+# require_binance_rest_fallback (shared host-wide per-minute budget).
+Environment="BINANCE_REST_FALLBACK_ALLOWED=true"
+Nice=12
+ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_universe_coverage_sync'
+TimeoutStartSec=840
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=default.target
