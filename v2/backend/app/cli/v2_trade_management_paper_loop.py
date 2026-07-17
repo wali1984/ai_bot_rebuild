@@ -28748,6 +28748,17 @@ def run_once() -> dict:
         "seconds_since_last_close": float(_hebp_age) if _hebp_age is not None else 0.0,
         "adaptive_confidence_floor": max(0.65, min(0.75, _hebp_cycle_max_conf)),
     }
+    # Open-position map for the fast-path reversal hysteresis gate: an
+    # opposite-side intent against one of these triggers reversal netting
+    # (a full round-trip cost per flip), so it must carry clearly better
+    # evidence than the standing position or the position must already be
+    # failing. Observed 2026-07-17T04:2xZ: LDOUSDT flipped 3 times in 6
+    # minutes at exactly round-trip cost (-5.4bps each) on fast-path admits.
+    _reversal_positions_by_symbol: dict[str, dict[str, Any]] = {}
+    for _row in _hebp_open_rows:
+        _rev_sym = str(_row.get("symbol") or "").upper()
+        if _rev_sym and "::" not in _rev_sym:
+            _reversal_positions_by_symbol[_rev_sym] = _row
     dlog("after_envelope_calc")
     dlog("starting_signal_evaluation_loop")
     dlog(f"signal_count_{len(signals)}")
@@ -30136,9 +30147,71 @@ def run_once() -> dict:
                 if _fast_path_preemptive_binding
                 else "STRATEGY_ROUTER_NO_TRADE_VERDICT_BINDING_ON_FAST_PATH"
             )
+        # Reversal hysteresis on the fast path: the fast path bypasses churn
+        # rejection, so a model flip-flop against an open position pays a
+        # full round-trip cost per flip with no gate in the way (observed:
+        # LDOUSDT netted 3x in 6min at exactly -5.4bps each). An opposite-
+        # side intent is only fast-path eligible when it carries clearly
+        # better evidence than the standing position (confidence beats the
+        # position's entry confidence by more than a stability epsilon AND
+        # positive after-cost edge) or the position is already failing
+        # (unrealized loss beyond half its own ATR stop — the reversal then
+        # doubles as a protective exit). Hedge-tagged fills never net the
+        # parent (explicit pair routing) so they bypass this gate.
+        _fp_reversal_block = False
+        _rev_pos = _reversal_positions_by_symbol.get(symbol)
+        if _rev_pos is not None and not any(
+            intent.get(_hk)
+            for _hk in (
+                "paper_adaptive_hedge_fill",
+                "hedge_directive_id",
+                "paper_hedge_role",
+            )
+        ):
+            _rev_pos_side = str(_rev_pos.get("side") or "").lower()
+            _rev_intent_side = str(
+                _first_present(intent.get("side"), intent.get("action"), side)
+                or ""
+            ).lower()
+            if (
+                _rev_pos_side
+                and _rev_intent_side in ("long", "short")
+                and _rev_pos_side != _rev_intent_side
+            ):
+                _rev_pos_conf = (
+                    _coerce_float(_rev_pos.get("confidence_calibrated")) or 0.0
+                )
+                _rev_conf_gain = (conf or 0.0) - _rev_pos_conf
+                _rev_edge = (
+                    _coerce_float(intent.get("expected_move_after_cost_bps")) or 0.0
+                )
+                _rev_pos_upnl_bps = (
+                    _coerce_float(_rev_pos.get("unrealized_pnl_bps")) or 0.0
+                )
+                _rev_pos_stop_bps = _coerce_float(_rev_pos.get("entry_atr_bps"))
+                _rev_pos_failing = (
+                    _rev_pos_stop_bps is not None
+                    and _rev_pos_stop_bps > 0
+                    and _rev_pos_upnl_bps <= -0.5 * _rev_pos_stop_bps
+                )
+                if not _rev_pos_failing and (
+                    _rev_conf_gain < 0.03 or _rev_edge <= 0.0
+                ):
+                    _fp_reversal_block = True
+                    intent["paper_fast_path_reversal_hysteresis_blocked"] = True
+                    intent["paper_fast_path_reversal_hysteresis"] = {
+                        "position_side": _rev_pos_side,
+                        "position_confidence": _rev_pos_conf,
+                        "intent_confidence": conf,
+                        "confidence_gain": round(_rev_conf_gain, 6),
+                        "expected_move_after_cost_bps": _rev_edge,
+                        "position_unrealized_pnl_bps": _rev_pos_upnl_bps,
+                        "position_entry_atr_bps": _rev_pos_stop_bps,
+                    }
         if (
             local_trade_gates_pass
             and not _fast_path_no_trade_verdict
+            and not _fp_reversal_block
             and conf is not None
             and conf >= 0.65
         ):
