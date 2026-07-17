@@ -31275,6 +31275,112 @@ def run_once() -> dict:
             blocked.append(_sc_row)
     if _sc_blocked_ids:
         accepted = [row for row in accepted if id(row) not in _sc_blocked_ids]
+    # Universal adaptive leverage attach (2026-07-17): the confidence/
+    # volatility/edge-driven leverage recommendation was only wired to the
+    # FAST path, while the exploration lane — currently producing ~100% of
+    # fills — never called it: every live position showed
+    # recommended_leverage=1.0, leverage_source=NONE. Any accepted entry
+    # fill without a leverage source now gets the adaptive recommendation,
+    # capped by the live dynamic risk envelope (earned-leverage invariant
+    # preserved). A deterministic 1-in-4 slice of these fills (by signal id
+    # hash) explores ONE ladder tier above the recommendation — still
+    # envelope-capped, margin recomputed — so the trainer accumulates real
+    # higher-leverage outcome evidence instead of never observing any.
+    try:
+        from v2.backend.app.services.paper_trade_management.leverage_recommendation import (  # noqa: PLC0415
+            recommend_leverage_for_signal as _post_loop_recommend_leverage,
+        )
+
+        _lev_env_cap = float(dynamic_paper_envelope.max_effective_leverage)
+    except Exception:
+        _lev_env_cap = None
+    if _lev_env_cap is not None and _lev_env_cap >= 1.0:
+        _lev_next_tier = {1.0: 2.0, 2.0: 3.0, 3.0: 5.0, 5.0: 10.0}
+        for _acc in accepted:
+            if not isinstance(_acc, dict):
+                continue
+            if any(
+                _acc.get(_hk)
+                for _hk in ("hedge_intent", "paper_hedge_fill", "hedge_parent_id")
+            ):
+                continue
+            if _acc.get("fast_path_leverage_source") or _acc.get("leverage_source"):
+                continue
+            _acc_side = str(
+                _first_present(_acc.get("side"), _acc.get("action")) or ""
+            ).lower()
+            if _acc_side not in ("long", "short"):
+                continue
+            _acc_conf = _coerce_float(
+                _first_present(
+                    _acc.get("confidence_calibrated"), _acc.get("confidence")
+                )
+            )
+            if _acc_conf is None:
+                continue
+            try:
+                _lev_rec = _post_loop_recommend_leverage(
+                    symbol=str(_acc.get("symbol") or ""),
+                    timeframe=str(
+                        _first_present(
+                            _acc.get("timeframe"), _acc.get("thesis_timeframe")
+                        )
+                        or "1m"
+                    ),
+                    signal_id=str(
+                        _first_present(
+                            _acc.get("signal_id"),
+                            _acc.get("prediction_id"),
+                            _acc.get("symbol"),
+                        )
+                    ),
+                    direction=_acc_side,
+                    confidence_calibrated=float(_acc_conf),
+                    expected_move_after_cost_bps=_coerce_float(
+                        _acc.get("expected_move_after_cost_bps")
+                    ),
+                    atr_bps=_coerce_float(_acc.get("entry_atr_bps")),
+                    equity_usd=portfolio_context["equity"],
+                )
+            except Exception:
+                continue
+            _rec_lev = max(1.0, float(_lev_rec.get("recommended_leverage") or 1.0))
+            _sig_token = str(
+                _first_present(
+                    _acc.get("signal_id"),
+                    _acc.get("prediction_id"),
+                    _acc.get("symbol"),
+                )
+                or ""
+            )
+            _explore_slot = (
+                int(hashlib.sha256(_sig_token.encode("utf-8")).hexdigest()[:8], 16)
+                % 4
+                == 0
+            )
+            _target_lev = (
+                _lev_next_tier.get(_rec_lev, _rec_lev) if _explore_slot else _rec_lev
+            )
+            _cur_lev = _coerce_float(_acc.get("effective_leverage")) or 1.0
+            _final_lev = max(_cur_lev, min(_target_lev, _lev_env_cap))
+            _acc["recommended_leverage"] = _rec_lev
+            _acc["effective_leverage"] = _final_lev
+            _acc["leverage_source"] = (
+                "ADAPTIVE_RECOMMENDATION_ENVELOPE_CAPPED_POST_LOOP"
+            )
+            _acc["leverage_recommendation_tier"] = _lev_rec.get("reason_tier")
+            _acc["leverage_exploration"] = bool(
+                _explore_slot and _final_lev > _rec_lev
+            )
+            _lev_notional = _coerce_float(
+                _first_present(
+                    _acc.get("notional"),
+                    _acc.get("notional_usd"),
+                    _acc.get("gross_notional_usd"),
+                )
+            )
+            if _lev_notional is not None and _lev_notional > 0 and _final_lev > 0:
+                _acc["allocated_margin_usd"] = round(_lev_notional / _final_lev, 8)
     # Held-by-gate passthrough: record each upstream-blocked symbol as a
     # non-fill intent that carries the strict gate's block reasons. These
     # do NOT pass pre-trade, fee-ratio, or churn gates and never become
