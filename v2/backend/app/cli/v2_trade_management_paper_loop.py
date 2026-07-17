@@ -22728,6 +22728,10 @@ def _paper_block_new_entry_by_performance_circuit(
             }
     if _probe_admit:
         _probe["remaining"] = int(_probe.get("remaining") or 0) - 1
+        try:
+            _probe.setdefault("admitted_symbols", []).append(_probe_symbol)
+        except Exception:
+            pass
         for target in (intent, allocation):
             target["paper_performance_circuit_breaker_blocked"] = False
             target["paper_performance_circuit_breaker_observed_reasons"] = sorted(set(reasons))
@@ -28875,7 +28879,16 @@ def run_once() -> dict:
     else:
         _hebp_opened_since_last_close = _hebp_open_count
     halted_empty_book_probe_context = {
-        "remaining": 1,
+        # ATTEMPT budget, not admission count: a probe-admitted intent can
+        # still die at a downstream gate (observed 2026-07-17T16:03Z: the
+        # first candidate consumed the single slot then never reached
+        # acceptance — accepted=0 — while TUSDT at conf 0.831 passed every
+        # probe condition but found remaining=0; the cycle's only probe was
+        # wasted EVERY cycle). Three attempts per cycle keeps admission odds
+        # real; worst case remains bounded quarter-size probes inside the
+        # concurrency slots and per-symbol dedup.
+        "remaining": 3,
+        "admitted_symbols": [],
         "open_position_count": _hebp_open_count,
         "open_positions_since_last_close": _hebp_opened_since_last_close,
         "open_symbols": _hebp_open_symbols,
@@ -33737,6 +33750,9 @@ def run_once() -> dict:
                         "probe_context": {
                             "remaining": halted_empty_book_probe_context.get(
                                 "remaining"
+                            ),
+                            "admitted_symbols": halted_empty_book_probe_context.get(
+                                "admitted_symbols"
                             ),
                             "adaptive_confidence_floor": (
                                 halted_empty_book_probe_context.get(
