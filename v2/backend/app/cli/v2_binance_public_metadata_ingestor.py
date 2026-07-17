@@ -381,8 +381,17 @@ def fetch_orderbook(symbol: str, limit: int = 20, *, redis_client: Any = None) -
             "spread_bps": spread_bps,
             "bid_levels": len(bids),
             "ask_levels": len(asks),
+            # Carry the level arrays through: downstream derived-feature
+            # consumers (v2:orderbook:features publisher, cascade squeeze
+            # inputs, tensor depth features) need the actual book, and the
+            # summary-only payload stranded 42+ universe symbols without any
+            # usable depth evidence (2026-07-16 coverage census).
+            "bids": bids,
+            "asks": asks,
             "update_id": cached.get("lastUpdateId") or cached.get("update_id"),
             "ev_time_ms": cached.get("E") or cached.get("event_time"),
+            "received_at": cached.get("received_at") or cached.get("available_at"),
+            "available_at": cached.get("available_at") or cached.get("received_at"),
             "source": cached.get("source") or "binance_public_websocket_orderbook_cache_primary",
             "transport": _cache_transport(cached),
             "source_key": key,
@@ -399,6 +408,7 @@ def fetch_orderbook(symbol: str, limit: int = 20, *, redis_client: Any = None) -
     if best_bid is not None and best_ask is not None and best_ask > 0:
         mid = (best_bid + best_ask) / 2
         spread_bps = ((best_ask - best_bid) / mid) * 1e4 if mid else None
+    fetched_iso = datetime.now(ZoneInfo("UTC")).isoformat(timespec="milliseconds")
     return {
         "symbol": symbol,
         "best_bid": best_bid,
@@ -407,8 +417,14 @@ def fetch_orderbook(symbol: str, limit: int = 20, *, redis_client: Any = None) -
         "spread_bps": spread_bps,
         "bid_levels": len(bids),
         "ask_levels": len(asks),
+        "bids": bids,
+        "asks": asks,
         "update_id": body.get("lastUpdateId"),
         "ev_time_ms": body.get("E"),
+        "event_time": body.get("E"),
+        "transaction_time": body.get("T"),
+        "received_at": fetched_iso,
+        "available_at": fetched_iso,
         "source": "binance_public_rest_depth_snapshot_fallback",
         "transport": "rest_fallback",
     }
@@ -446,6 +462,44 @@ def _redis_client():
         return None
 
 
+def _orderbook_gap_fill_payload(r, symbol: str, book: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Raw-book gap-fill for symbols the WSS depth transport does not cover.
+
+    ``v2:market:orderbook:{symbol}`` is the canonical raw-book key every
+    downstream consumer (trainer tensor, cascade squeeze inputs, orderbook
+    feature derivation) reads. The WSS transport maintains it for only part
+    of the universe; for the rest this ingestor already fetched a REST depth
+    snapshot each cycle and then threw the arrays away. Persist them —
+    but never fight a live writer: only when the existing key is missing or
+    older than ORDERBOOK_CACHE_MAX_AGE_SECONDS.
+    """
+    bids = book.get("bids") if isinstance(book.get("bids"), list) else []
+    asks = book.get("asks") if isinstance(book.get("asks"), list) else []
+    if not bids or not asks:
+        return None
+    existing = _read_json(r, f"v2:market:orderbook:{symbol}")
+    if isinstance(existing, dict):
+        age = _orderbook_cache_age_seconds(existing)
+        if age is not None and age <= ORDERBOOK_CACHE_MAX_AGE_SECONDS:
+            return None
+    return {
+        "symbol": symbol,
+        "exchange": "binance",
+        "bids": bids,
+        "asks": asks,
+        "lastUpdateId": book.get("update_id"),
+        "E": book.get("ev_time_ms") or book.get("event_time"),
+        "T": book.get("transaction_time"),
+        "event_time": book.get("ev_time_ms") or book.get("event_time"),
+        "received_at": book.get("received_at"),
+        "available_at": book.get("available_at"),
+        "fetched_utc": _est_iso(),
+        "source": book.get("source") or "binance_public_rest_depth_snapshot_fallback",
+        "transport": book.get("transport") or "rest_fallback",
+        "gap_fill_writer": "v2_binance_public_metadata_ingestor",
+    }
+
+
 def write_redis(r, symbol: str, *, premium: Dict[str, Any], oi: Dict[str, Any],
                 book: Dict[str, Any], ttl_s: int) -> Dict[str, int]:
     """Write three V2 keys per symbol with the configured TTL."""
@@ -457,6 +511,21 @@ def write_redis(r, symbol: str, *, premium: Dict[str, Any], oi: Dict[str, Any],
         (f"v2:market:open_interest:{symbol}", oi),
         (f"v2:market:orderbook_top:{symbol}", book),
     ]
+    gap_fill = _orderbook_gap_fill_payload(r, symbol, book if isinstance(book, dict) else {})
+    if gap_fill is not None:
+        # Longer TTL than the summary keys: under the shared REST budget a
+        # WSS-uncovered symbol only wins a depth call every few minutes, so a
+        # short TTL made its book blink out between refreshes. The payload
+        # carries received_at/available_at — readers see the true age.
+        try:
+            r.set(
+                f"v2:market:orderbook:{symbol}",
+                json.dumps(gap_fill, separators=(",", ":")),
+                ex=max(ttl_s, 1200),
+            )
+            written[f"v2:market:orderbook:{symbol}"] = 1
+        except Exception:
+            written[f"v2:market:orderbook:{symbol}"] = 0
     for key, payload in payloads:
         # Fail closed: when every fetch tier failed the entry is an empty
         # dict — never overwrite a real (even expiring) payload with ``{}``
@@ -591,11 +660,20 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not (args.once or args.loop):
         args.once = True
     if args.loop:
+        cycle_index = 0
         while True:
-            report = run_once(symbols, ttl_s=args.ttl_seconds)
+            # Fair-share rotation: the host-wide REST fallback budget
+            # (~120/min) exhausts partway through a fixed-order pass, which
+            # permanently starved the SAME tail symbols every cycle (their
+            # books/OI never gap-filled). Rotating the start offset spreads
+            # the budget across the whole universe over successive cycles.
+            offset = (cycle_index * 29) % max(1, len(symbols))
+            rotated = symbols[offset:] + symbols[:offset]
+            report = run_once(rotated, ttl_s=args.ttl_seconds)
             write_public_payload(report)
             if args.json:
                 print(json.dumps(report))
+            cycle_index += 1
             try:
                 time.sleep(max(5, args.interval_seconds))
             except KeyboardInterrupt:

@@ -50,6 +50,13 @@ V2_REDIS_PREFIX = "v2:"
 MICROSTRUCTURE_REDIS_PREFIX = f"{V2_REDIS_PREFIX}microstructure:"
 STATUS_WORKER_ID = "v2_microstructure_feed_quality_monitor"
 REDIS_TTL_SECONDS = 60
+# Decision timeframes every V2 snapshot/tensor reader keys on. The monitor
+# computes trust from the LIVE book + tape (timeframe-agnostic evidence), but
+# the readers (feature pipeline, trainer data loader, a_plus gate) look up
+# ``trust_score:{symbol}:{decision_timeframe}``. Publishing only the run
+# timeframe (1m) left the 5m/15m/1h/4h lookups permanently missing — 5 trust
+# tensor features absent on every non-1m snapshot (2026-07-16 census).
+DECISION_TIMEFRAME_MIRRORS = ("1m", "5m", "15m", "1h", "4h")
 
 
 def _float(value: Any) -> float | None:
@@ -734,6 +741,25 @@ def _write_redis_outputs(redis_client: Any, rows: list[dict[str, Any]], *, ttl_s
             key = f"{MICROSTRUCTURE_REDIS_PREFIX}{suffix}"
             if _safe_set_json(redis_client, key, payload, ttl_seconds=ttl_seconds):
                 keys.append(key)
+        # Mirror the live-book trust/sweep evidence to every decision
+        # timeframe key readers actually query. Same payload, explicit
+        # provenance — trust is a property of the live book/tape, not of the
+        # candle interval, so a copy is honest as long as it says where it
+        # came from and carries the same freshness timestamps/TTL.
+        for mirror_timeframe in DECISION_TIMEFRAME_MIRRORS:
+            if mirror_timeframe == timeframe:
+                continue
+            for family, payload in (
+                ("sweep_risk", row["sweep_risk"]),
+                ("trust_score", row["trust_score"]),
+            ):
+                mirrored = dict(payload)
+                mirrored["timeframe"] = mirror_timeframe
+                mirrored["mirrored_from_timeframe"] = timeframe
+                mirrored["mirror_reason"] = "live_book_trust_is_timeframe_agnostic"
+                key = f"{MICROSTRUCTURE_REDIS_PREFIX}{family}:{symbol}:{mirror_timeframe}"
+                if _safe_set_json(redis_client, key, mirrored, ttl_seconds=ttl_seconds):
+                    keys.append(key)
     summary = summarize_feed_quality(feed_rows)
     if _safe_set_json(redis_client, f"{MICROSTRUCTURE_REDIS_PREFIX}feed_quality:summary", summary, ttl_seconds=ttl_seconds):
         keys.append(f"{MICROSTRUCTURE_REDIS_PREFIX}feed_quality:summary")

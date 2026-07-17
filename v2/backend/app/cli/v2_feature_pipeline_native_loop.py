@@ -19,9 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from v2.backend.app.services.market_structure import (
+    compute_cvd_features,
     compute_fvg,
     compute_liquidity_zones,
     compute_structure,
+    compute_volume_profile,
+    compute_vwap_features,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
@@ -980,17 +983,31 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
         htf_fvg_payload = None
         if timeframe not in ("4h", "1d"):
             htf_fvg_payload = _read_json_key(r, f"v2:market:fvg:{symbol}:4h")
-        trust_payload = _read_json_key(
-            r, f"v2:microstructure:adversarial_features:binance:{symbol}"
-        )
+        # The adversarial-features payload never carried a composite trust
+        # field, so fvg_orderbook_trust_confluence was None on every symbol.
+        # The real trust producer is v2:microstructure:trust_score:{sym}:{tf}
+        # (feed-quality monitor); keep adversarial as the fallback.
         trust_score = None
-        if isinstance(trust_payload, dict):
-            for tf_field in ("composite_trust_score", "trust_score", "orderbook_trust_score"):
+        for trust_key in (
+            f"v2:microstructure:trust_score:{symbol}:{timeframe}",
+            f"v2:microstructure:adversarial_features:binance:{symbol}",
+        ):
+            trust_payload = _read_json_key(r, trust_key)
+            if not isinstance(trust_payload, dict):
+                continue
+            for tf_field in (
+                "microstructure_trust_score",
+                "composite_trust_score",
+                "trust_score",
+                "orderbook_trust_score",
+            ):
                 try:
                     trust_score = float(trust_payload.get(tf_field))
                     break
                 except (TypeError, ValueError):
                     continue
+            if trust_score is not None:
+                break
         fvg = compute_fvg(
             symbol=symbol,
             timeframe=timeframe,
@@ -1013,6 +1030,47 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
             fvg,
             ("fvg_size_bps", "distance_to_fvg_bps", "fvg_fill_percent"),
         )
+        # VWAP / volume-profile / CVD / sweep-risk families. These keys were
+        # only ever written by the paper loop's advanced-indicator path, which
+        # stopped publishing on 2026-07-15 (frozen no-TTL payloads, null POC
+        # from 4-candle inputs) — 13+ tensor features stale-or-missing on
+        # every symbol. This pipeline already owns the closed-candle series
+        # (~100 rows/TF, whole universe), so compute them here every cycle
+        # exactly like the sibling structure/fvg/zones families.
+        for market_key, market_payload in (
+            (
+                f"v2:market:vwap:{symbol}:{timeframe}",
+                compute_vwap_features(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    candles=structure_candles,
+                    price=reference_price,
+                ),
+            ),
+            (
+                f"v2:market:volume_profile:{symbol}:{timeframe}",
+                compute_volume_profile(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    candles=structure_candles,
+                    price=reference_price,
+                ),
+            ),
+            (
+                f"v2:market:cvd:{symbol}:{timeframe}",
+                compute_cvd_features(
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    candles=structure_candles,
+                    price=reference_price,
+                ),
+            ),
+            # The paper loop published the liquidity-zone payload under
+            # sweep_risk (same shape: sweep_risk_long_side/short_side,
+            # fake_breakout/breakdown_risk, cascade_continuation_probability).
+            (f"v2:market:sweep_risk:{symbol}:{timeframe}", zones),
+        ):
+            r.set(market_key, json.dumps(market_payload, default=str), ex=3600)
         sources_present.append("v2:market:structure_computed")
     except Exception as exc:  # noqa: BLE001 - never poison the feature cycle
         sources_present.append(f"market_structure_error:{type(exc).__name__}")

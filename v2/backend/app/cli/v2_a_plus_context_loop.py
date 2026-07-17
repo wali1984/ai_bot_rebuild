@@ -212,8 +212,7 @@ def _write_artifact(path: Path, payload: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def _klines(client: Any, symbol: str, timeframe: str) -> list[Any]:
-    payload = _safe_get_json(client, f"v2:market:ohlcv:binance:{symbol}:{timeframe}")
+def _kline_rows(payload: Any) -> list[Any]:
     if isinstance(payload, list):
         return payload
     if isinstance(payload, dict):
@@ -222,6 +221,51 @@ def _klines(client: Any, symbol: str, timeframe: str) -> list[Any]:
             if isinstance(rows, list):
                 return rows
     return []
+
+
+def _klines(client: Any, symbol: str, timeframe: str) -> list[Any]:
+    """Closed-candle series first, raw stream key as fallback/merge.
+
+    2026-07-16 root cause of htf_ok collapsing to 0-44/148: this reader only
+    consumed ``v2:market:ohlcv:binance:*`` (the live stream key, which holds
+    ~1 latest row per symbol), never the ``ohlcv_closed`` series the ingestors
+    maintain for the whole universe (~100 closed rows per TF). Every symbol
+    then failed the >=40-candle HTF check, so ``v2:context:htf:{symbol}`` and
+    ``v2:regime:gate:*`` were never published and 31 HTF/cross-asset/regime
+    tensor features stayed missing on every snapshot.
+    """
+    closed_rows = _kline_rows(
+        _safe_get_json(client, f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}")
+    )
+    raw_rows = _kline_rows(
+        _safe_get_json(client, f"v2:market:ohlcv:binance:{symbol}:{timeframe}")
+    )
+    # PIT safety: only rows whose close time is in the past (and, for dict
+    # rows, not explicitly marked open) may enter the HTF series.
+    now_ms = time.time() * 1000.0
+
+    def _closed_close_ms(row: Any) -> int | None:
+        close_ms = None
+        if isinstance(row, dict):
+            if row.get("is_closed") is False or row.get("closed_candle") is False:
+                return None
+            close_ms = row.get("candle_close_time") or row.get("close_time") or row.get("closeTime")
+        elif isinstance(row, (list, tuple)) and len(row) >= 7:
+            close_ms = row[6]
+        try:
+            close_key = int(float(close_ms))
+        except (TypeError, ValueError):
+            return None
+        if close_key > now_ms:
+            return None
+        return close_key
+
+    merged: dict[int, Any] = {}
+    for row in closed_rows + raw_rows:
+        close_key = _closed_close_ms(row)
+        if close_key is not None:
+            merged[close_key] = row
+    return [merged[key] for key in sorted(merged)]
 
 
 def _snapshot_features(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:

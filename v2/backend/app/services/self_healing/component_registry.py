@@ -272,6 +272,11 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     _svc("cascade_context_publisher", "cascade-context-publisher", "orchestrator", criticality="normal",
          heartbeat_redis_key="v2:microstructure:cascade_context:summary", heartbeat_field="generated_at",
          max_staleness_seconds=300),
+    # NOTE: ai-bot-v2-orderbook-features-publisher.service (derives
+    # v2:orderbook:features:binance:* from already-ingested raw books) is
+    # deliberately NOT registered here: the unit name matches the "orderbook"
+    # ingestor-family denylist token above, and the self-healing scope
+    # explicitly excludes that family. systemd Restart=always supervises it.
     _svc("adaptive_gate_tuner", "adaptive-gate-tuner", "orchestrator", criticality="high",
          heartbeat_redis_key="v2:orchestrator:adaptive_gate_tuning_state", heartbeat_field="generated_at",
          max_staleness_seconds=300, treat_missing_heartbeat_as_stale=True),

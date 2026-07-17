@@ -24,6 +24,7 @@ from v2.backend.app.services.microstructure_trust.cascade_context import (
     build_cascade_context,
 )
 from v2.backend.app.services.microstructure_trust.feed_quality import iso_now
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -190,15 +191,26 @@ def _runtime_coverage(
     symbols_arg: str | None,
     timeframes_arg: str | None,
 ) -> dict[str, Any]:
-    paper_signal_pairs = _redis_scan_pairs(redis_client, pattern="v2:signals:paper:*:*", family="paper_signal")
-    prediction_pairs = _redis_scan_pairs(redis_client, pattern="v2:prediction:*:*", family="prediction")
-    liquidation_pairs = _redis_scan_pairs(redis_client, pattern="v2:liquidations:levels:*:*", family="liquidation_level")
-    runtime_pairs = paper_signal_pairs | prediction_pairs | liquidation_pairs
-    runtime_symbols = {symbol for symbol, _ in runtime_pairs}
-    runtime_timeframes = {timeframe for _, timeframe in runtime_pairs}
+    """Resolve the (symbol, timeframe) publish grid for this cycle.
+
+    2026-07-16 repair: the previous implementation discovered symbols with
+    three full-keyspace ``SCAN`` passes (v2:signals:paper/v2:prediction/
+    v2:liquidations:levels) over a ~1.6M-key Redis — 10-30s per pattern —
+    and only ONCE at process start. When Redis was not yet accepting
+    connections at boot the scans returned nothing, the publisher fell back
+    to the BTC/ETH/SOL sample forever, and every other symbol's
+    ``v2:microstructure:cascade_context:{symbol}:{tf}`` stayed absent (7
+    missing tensor features per symbol). The canonical runtime universe
+    resolver is authoritative and needs no scans.
+    """
+    resolver_symbols: set[str] = set()
+    try:
+        resolver_symbols = {str(s).upper() for s in resolve_symbols() if s}
+    except Exception:
+        resolver_symbols = set()
     dynamic_symbols = _dynamic_symbol_universe(redis_client)
-    symbols = set(runtime_symbols) | dynamic_symbols | set(MAJOR_SYMBOLS)
-    timeframes = set(runtime_timeframes) | set(DEFAULT_TIMEFRAMES)
+    symbols = resolver_symbols | dynamic_symbols | set(MAJOR_SYMBOLS)
+    timeframes = set(DEFAULT_TIMEFRAMES)
     if symbols_arg:
         symbols = {s.strip().upper() for s in symbols_arg.split(",") if s.strip()}
     if timeframes_arg:
@@ -206,11 +218,7 @@ def _runtime_coverage(
     pairs = {(symbol, timeframe) for symbol in symbols for timeframe in timeframes}
     return {
         "pairs": sorted(pairs, key=_symbol_timeframe_sort_key),
-        "paper_signal_pair_count": len(paper_signal_pairs),
-        "prediction_pair_count": len(prediction_pairs),
-        "liquidation_level_pair_count": len(liquidation_pairs),
-        "runtime_pair_count": len(runtime_pairs),
-        "runtime_symbol_count": len(runtime_symbols),
+        "resolver_symbol_count": len(resolver_symbols),
         "dynamic_symbol_count": len(dynamic_symbols),
         "major_symbols_required": list(MAJOR_SYMBOLS),
         "major_symbols_covered": [symbol for symbol in MAJOR_SYMBOLS if symbol in symbols],
@@ -631,19 +639,25 @@ def main(argv: list[str] | None = None) -> int:
     diagnostic = _read_json_file(DIAGNOSTIC_PATH)
     redis_client = _redis_client(enabled=not args.no_redis)
     fallback_symbols, fallback_timeframes = _symbols_and_timeframes(diagnostic, args.symbols, args.timeframes)
-    coverage = _runtime_coverage(redis_client, symbols_arg=args.symbols, timeframes_arg=args.timeframes)
-    if not coverage.get("pairs"):
-        pairs = [(symbol, timeframe) for symbol in fallback_symbols for timeframe in fallback_timeframes]
-        coverage = {
-            **coverage,
-            "pairs": pairs,
-            "symbols": fallback_symbols,
-            "timeframes": fallback_timeframes,
-            "coverage_scope": "diagnostic_fallback_symbol_timeframe_sample",
-        }
-    else:
-        pairs = list(coverage["pairs"])
     while True:
+        # F015 pattern: this unit can start before Redis accepts connections;
+        # a one-shot connect left the loop publishing nothing (redis_writes=0)
+        # for its whole lifetime. Reconnect + recompute the pair grid every
+        # cycle so the dynamic universe is honored as it grows.
+        if redis_client is None and not args.no_redis:
+            redis_client = _redis_client(enabled=True)
+        coverage = _runtime_coverage(redis_client, symbols_arg=args.symbols, timeframes_arg=args.timeframes)
+        if not coverage.get("pairs"):
+            pairs = [(symbol, timeframe) for symbol in fallback_symbols for timeframe in fallback_timeframes]
+            coverage = {
+                **coverage,
+                "pairs": pairs,
+                "symbols": fallback_symbols,
+                "timeframes": fallback_timeframes,
+                "coverage_scope": "diagnostic_fallback_symbol_timeframe_sample",
+            }
+        else:
+            pairs = list(coverage["pairs"])
         summary = publish_once(
             redis_client=redis_client,
             pairs=pairs,
