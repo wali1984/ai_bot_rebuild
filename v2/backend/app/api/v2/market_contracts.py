@@ -12589,6 +12589,34 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
     cluster_raw = circuit.get("recovery_high_confidence_loss_cluster_status")
     cluster_raw = cluster_raw if isinstance(cluster_raw, dict) else {}
     rejected = a_plus.get("rejected_reason_matrix")
+    # Strict fail-closed recount: the publisher marks adaptive-override rows
+    # a_plus:true even with non-empty failed_checks, so its top-level
+    # a_plus_candidates overcounts. Recount from the candidate matrix so the
+    # GUI never claims "passed A+ quality" for rows that failed checks.
+    _gate_rows = a_plus.get("candidate_matrix")
+    _gate_rows = [row for row in _gate_rows if isinstance(row, dict)] if isinstance(_gate_rows, list) else []
+    _strict_gate_rows = [
+        row for row in _gate_rows
+        if row.get("a_plus") is True and not row.get("failed_checks")
+    ]
+    _override_gate_rows = [
+        row for row in _gate_rows
+        if row.get("a_plus") is True and row.get("failed_checks")
+    ]
+    _gate_candidate_preview = [
+        {
+            "symbol": row.get("symbol"),
+            "timeframe": row.get("timeframe"),
+            "side": row.get("side"),
+            "strategy_id": row.get("strategy_id"),
+            "a_plus": row.get("a_plus"),
+            "failed_checks": (row.get("failed_checks") or [])[:8],
+            "missing_evidence_checks": (row.get("missing_evidence_checks") or [])[:4],
+            "passed_check_count": row.get("passed_check_count"),
+            "check_count": row.get("check_count"),
+        }
+        for row in _gate_rows[:10]
+    ]
     top_blockers = list(freeze.get("future_gate_blockers") or [])
     for reason in halt.get("halt_reasons") or []:
         if reason not in top_blockers:
@@ -12750,7 +12778,12 @@ def _paper_a_plus_runtime_truth_block(client: Any) -> dict[str, Any]:
         "a_plus_gate": {
             "evaluated_candidates": a_plus.get("evaluated_candidates"),
             "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            "strict_a_plus_candidates": len(_strict_gate_rows) if a_plus else None,
+            "adaptive_override_candidates": len(_override_gate_rows) if a_plus else None,
+            "a_plus_counting_policy": "STRICT_FAIL_CLOSED_OVERRIDES_EXCLUDED",
             "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
+            "candidate_matrix_preview": _gate_candidate_preview,
+            "full_candidate_count": len(_gate_rows) if a_plus else None,
             "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
         },
         "reduced_size_bootstrap": reduced_bootstrap,

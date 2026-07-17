@@ -50,8 +50,20 @@ const READONLY_STATIC_JSON_PREFIXES = [
   '/autonomous_governor/',
 ] as const;
 
-function cacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode']): string {
-  return `${mode}:${url}`;
+type UnwrapShape = 'raw' | 'data';
+
+function unwrapShapeOf(policy: boolean | 'contract' | undefined): UnwrapShape {
+  // The cached envelope's data SHAPE depends on the unwrap policy:
+  // policy false stores the whole contract envelope as data, while
+  // true/'contract' store the unwrapped inner payload. Sharing one cache
+  // entry across both policies poisons consumers with the wrong shape
+  // (fields read undefined => permanently empty panels), so the shape is
+  // part of the cache identity.
+  return policy === false ? 'raw' : 'data';
+}
+
+function cacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode'], shape: UnwrapShape): string {
+  return `${mode}:${shape}:${url}`;
 }
 
 function sessionStorageOrNull(): Storage | null {
@@ -75,8 +87,8 @@ function hashCacheKey(value: string): string {
   return Math.abs(hash).toString(36);
 }
 
-function sessionCacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode']): string {
-  return `${RESOURCE_SESSION_CACHE_PREFIX}${mode}:${hashCacheKey(url)}:${encodeURIComponent(url).slice(0, 96)}`;
+function sessionCacheKey(url: string, mode: ValidatedDataEnvelope<unknown>['mode'], shape: UnwrapShape): string {
+  return `${RESOURCE_SESSION_CACHE_PREFIX}${mode}:${shape}:${hashCacheKey(url)}:${encodeURIComponent(url).slice(0, 96)}`;
 }
 
 function displayableLastKnownEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
@@ -105,11 +117,12 @@ function cachedForSessionRestore<T>(envelope: ValidatedDataEnvelope<T>, storedAt
 function restoreLastKnownResourceEnvelope<T>(
   url: string,
   mode: ValidatedDataEnvelope<T>['mode'],
+  shape: UnwrapShape,
   now = Date.now(),
 ): ValidatedDataEnvelope<T> | null {
   const storage = sessionStorageOrNull();
   if (!storage) return null;
-  const key = sessionCacheKey(url, mode);
+  const key = sessionCacheKey(url, mode, shape);
   try {
     const raw = storage.getItem(key);
     if (!raw) return null;
@@ -136,6 +149,7 @@ function restoreLastKnownResourceEnvelope<T>(
 function persistLastKnownResourceEnvelope<T>(
   url: string,
   mode: ValidatedDataEnvelope<T>['mode'],
+  shape: UnwrapShape,
   envelope: ValidatedDataEnvelope<T>,
   now = Date.now(),
 ): void {
@@ -143,7 +157,7 @@ function persistLastKnownResourceEnvelope<T>(
   const storage = sessionStorageOrNull();
   if (!storage) return;
   try {
-    storage.setItem(sessionCacheKey(url, mode), JSON.stringify({
+    storage.setItem(sessionCacheKey(url, mode, shape), JSON.stringify({
       schema_version: 'realtime_resource_session_cache_v1',
       stored_at_ms: now,
       envelope,
@@ -156,12 +170,13 @@ function persistLastKnownResourceEnvelope<T>(
 function cachedEnvelope<T>(
   url: string,
   mode: ValidatedDataEnvelope<T>['mode'],
+  shape: UnwrapShape,
 ): ValidatedDataEnvelope<T> | null {
-  const memory = realtimeResourceCache.get(cacheKey(url, mode)) as ValidatedDataEnvelope<T> | undefined;
+  const memory = realtimeResourceCache.get(cacheKey(url, mode, shape)) as ValidatedDataEnvelope<T> | undefined;
   if (memory) return memory;
-  const restored = restoreLastKnownResourceEnvelope<T>(url, mode);
+  const restored = restoreLastKnownResourceEnvelope<T>(url, mode, shape);
   if (restored) {
-    realtimeResourceCache.set(cacheKey(url, mode), restored);
+    realtimeResourceCache.set(cacheKey(url, mode, shape), restored);
   }
   return restored;
 }
@@ -337,14 +352,15 @@ export function useRealtimeResource<T>(
   } = opts;
   const sharedRealtime = useOptionalEnterpriseRealtime();
   const subscribeResourcePath = sharedRealtime?.subscribeResourcePath;
+  const unwrapShape = unwrapShapeOf(unwrapEnvelopeData);
 
   const [envelope, setEnvelope] = useState<ValidatedDataEnvelope<T>>(
-    () => cachedEnvelope<T>(url, mode) ?? makeEmptyEnvelope<T>(source, { source_type, mode }),
+    () => cachedEnvelope<T>(url, mode, unwrapShape) ?? makeEmptyEnvelope<T>(source, { source_type, mode }),
   );
-  const [loading, setLoading] = useState(() => !cachedEnvelope<T>(url, mode));
+  const [loading, setLoading] = useState(() => !cachedEnvelope<T>(url, mode, unwrapShape));
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(false);
-  const resourceKeyRef = useRef(cacheKey(url, mode));
+  const resourceKeyRef = useRef(cacheKey(url, mode, unwrapShape));
   const inFlightRef = useRef<Set<AbortController>>(new Set());
 
   useEffect(() => {
@@ -393,16 +409,16 @@ export function useRealtimeResource<T>(
     setEnvelope(prev => {
       const merged = mergeRealtimeResourceEnvelope(prev, nextEnvelope);
       if (merged.shouldCache) {
-        realtimeResourceCache.set(cacheKey(url, backendMode), merged.envelope);
-        persistLastKnownResourceEnvelope(url, backendMode, merged.envelope);
+        realtimeResourceCache.set(cacheKey(url, backendMode, unwrapShape), merged.envelope);
+        persistLastKnownResourceEnvelope(url, backendMode, unwrapShape, merged.envelope);
       }
       return merged.envelope;
     });
-  }, [mode, source, source_type, staleThresholdMs, transform, unwrapEnvelopeData, url]);
+  }, [mode, source, source_type, staleThresholdMs, transform, unwrapEnvelopeData, unwrapShape, url]);
 
   const fetchData = useCallback(async () => {
     if (!enabled) return;
-    const requestKey = cacheKey(url, mode);
+    const requestKey = cacheKey(url, mode, unwrapShape);
     let timeoutId: number | null = null;
     inFlightRef.current.forEach(controller => controller.abort());
     inFlightRef.current.clear();
@@ -472,15 +488,15 @@ export function useRealtimeResource<T>(
         setLoading(false);
       }
     }
-  }, [url, mode, enabled, pollIntervalMs, requestTimeoutMs, applyRawEnvelope]);
+  }, [url, mode, enabled, pollIntervalMs, requestTimeoutMs, unwrapShape, applyRawEnvelope]);
 
   useEffect(() => {
-    resourceKeyRef.current = cacheKey(url, mode);
-    const cached = cachedEnvelope<T>(url, mode);
+    resourceKeyRef.current = cacheKey(url, mode, unwrapShape);
+    const cached = cachedEnvelope<T>(url, mode, unwrapShape);
     setEnvelope(cached ?? makeEmptyEnvelope<T>(source, { source_type, mode }));
     setLoading(enabled && !cached);
     setError(null);
-  }, [enabled, mode, source, source_type, url]);
+  }, [enabled, mode, source, source_type, unwrapShape, url]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -543,7 +559,16 @@ export function useRealtimeResource<T>(
           setLoading(false);
         }
       });
-      if (httpFallback && initialFetch && !initialFetchWhenStreaming && !cachedEnvelope<T>(url, mode)) {
+      const cachedAtSubscribe = cachedEnvelope<T>(url, mode, unwrapShape);
+      // Fetch once even when a cached envelope exists but is stale or a
+      // session-restored snapshot; otherwise a page whose resource path is
+      // not streamed over the shared WebSocket stays on stale data forever.
+      if (
+        httpFallback
+        && initialFetch
+        && !initialFetchWhenStreaming
+        && (!cachedAtSubscribe || !shouldCacheEnvelope(cachedAtSubscribe))
+      ) {
         fallbackTimer = setTimeout(() => {
           if (!cancelled) void fetchData();
         }, sharedStreamFallbackDelayMs(url, pollIntervalMs));
@@ -564,7 +589,7 @@ export function useRealtimeResource<T>(
       inFlightRef.current.forEach(controller => controller.abort());
       inFlightRef.current.clear();
     };
-  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, initialFetchWhenStreaming, pollIntervalMs, subscribeResourcePath, url]);
+  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, initialFetchWhenStreaming, mode, pollIntervalMs, subscribeResourcePath, unwrapShape, url]);
 
   return { envelope, loading, error, refetch: fetchData };
 }

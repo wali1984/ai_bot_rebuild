@@ -27,6 +27,72 @@ interface PipelinePayload {
   symbols?: string[];
 }
 
+interface APlusGateBlock {
+  evaluated_candidates?: number | null;
+  a_plus_candidates?: number | null;
+  strict_a_plus_candidates?: number | null;
+  adaptive_override_candidates?: number | null;
+  rejected_reason_matrix?: Record<string, number> | null;
+  candidate_matrix_preview?: Array<{
+    symbol?: string | null;
+    timeframe?: string | null;
+    side?: string | null;
+    failed_checks?: string[] | null;
+    passed_check_count?: number | null;
+    check_count?: number | null;
+  }> | null;
+  full_candidate_count?: number | null;
+}
+
+interface PaperRuntimeStatusPayload {
+  a_plus_gate?: APlusGateBlock | null;
+}
+
+function APlusGatePanel({ gate }: { gate: APlusGateBlock | null }): JSX.Element {
+  const rejections = Object.entries(gate?.rejected_reason_matrix ?? {}).sort(([, a], [, b]) => b - a).slice(0, 12);
+  const maxRejection = rejections.length ? rejections[0][1] : 1;
+  const preview = gate?.candidate_matrix_preview ?? [];
+  return (
+    <div data-testid="admin-a-plus-gate-panel" style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
+        A+ Entry Gate — rejection funnel
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 10 }}>
+        {gate?.evaluated_candidates ?? 0} evaluated · {gate?.strict_a_plus_candidates ?? 0} strict A+ · {gate?.adaptive_override_candidates ?? 0} adaptive-override (paper exploration, not strict A+)
+      </div>
+      {rejections.length === 0 ? (
+        <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No rejection matrix published — check paper loop freshness.</div>
+      ) : rejections.map(([reason, count]) => (
+        <div key={reason} style={{ marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+            <span style={{ color: 'var(--text-muted)' }}>{reason.replace(/_/g, ' ')}</span>
+            <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count}/{gate?.evaluated_candidates ?? '—'}</span>
+          </div>
+          <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-base)' }}>
+            <div style={{ width: `${Math.min(100, (count / maxRejection) * 100)}%`, height: 4, borderRadius: 2, background: SC.warn }} />
+          </div>
+        </div>
+      ))}
+      {preview.length > 0 && (
+        <div style={{ marginTop: 10, borderTop: '1px solid var(--line-soft)', paddingTop: 8, overflowX: 'auto' }}>
+          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 5 }}>
+            Per-candidate failed checks (first {preview.length} of {gate?.full_candidate_count ?? gate?.evaluated_candidates ?? '—'})
+          </div>
+          {preview.map((row, i) => (
+            <div key={`${row.symbol}-${row.timeframe}-${row.side}-${i}`} style={{ display: 'flex', gap: 8, padding: '3px 0', borderBottom: '1px solid var(--line-soft)', fontSize: 11 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', whiteSpace: 'nowrap', minWidth: 150 }}>{row.symbol ?? '—'} {row.timeframe ?? ''} {row.side ?? ''}</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: (row.failed_checks?.length ?? 0) === 0 ? SC.ok : SC.warn, whiteSpace: 'nowrap' }}>{row.passed_check_count ?? '—'}/{row.check_count ?? '—'}</span>
+              <span style={{ color: (row.failed_checks?.length ?? 0) === 0 ? SC.ok : 'var(--text-muted)' }}>
+                {(row.failed_checks?.length ?? 0) === 0 ? 'none — strict A+' : (row.failed_checks ?? []).join(', ').replace(/_/g, ' ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const TABS = ['Orchestrator', 'Symbols', 'Control'] as const;
 type Tab = typeof TABS[number];
 
@@ -35,6 +101,11 @@ export default function AdminOrchestrationPage(): JSX.Element {
   const [symFilter, setSymFilter] = useState('');
   const { envelope, loading } = useRealtimeResource<PipelinePayload>({ url: PIPELINE_ENDPOINT, source: 'admin-orchestration', pollIntervalMs: 15_000 });
   const p = envelope.data;
+  const { envelope: paperRuntimeEnvelope } = useRealtimeResource<PaperRuntimeStatusPayload>({
+    url: '/api/v2/paper/runtime-status', source: '/api/v2/paper/runtime-status',
+    pollIntervalMs: 15_000, staleThresholdMs: 90_000, mode: 'read_only', unwrapEnvelopeData: false,
+  });
+  const aPlusGate = paperRuntimeEnvelope.data?.a_plus_gate ?? null;
 
   const gate = p?.live_gate || '—';
   const symbols = p?.symbols || [];
@@ -125,6 +196,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
               )) : <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No allowed run types</div>}
             </div>
           </div>
+          <APlusGatePanel gate={aPlusGate} />
         </div>
       )}
 

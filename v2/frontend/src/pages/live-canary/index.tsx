@@ -39,16 +39,31 @@ interface LiveCanaryStatusData {
   status_payload?: Record<string, unknown>;
 }
 
+interface APlusCandidateRow {
+  symbol?: string;
+  side?: string;
+  timeframe?: string;
+  strategy_id?: string;
+  a_plus?: boolean;
+  failed_checks?: string[];
+  missing_evidence_checks?: string[];
+  passed_check_count?: number;
+  check_count?: number;
+}
+
 interface APlusInventoryData {
   evaluated_candidates?: number;
   a_plus_candidates?: number;
+  adaptive_override_candidates?: number;
   live_ready_rows?: number;
+  full_candidate_count?: number;
+  payload_compacted?: boolean;
   exact_no_a_plus_reason?: string | null;
   top_a_plus_blockers?: string[] | null;
   rejected_reason_matrix?: Record<string, number> | null;
   counts_as_final_a_plus?: boolean;
-  candidate_matrix_preview?: Array<{ symbol?: string; side?: string; timeframe?: string; failed_checks?: string[] }>;
-  a_plus_preview?: Array<{ symbol?: string; side?: string; timeframe?: string }>;
+  candidate_matrix_preview?: APlusCandidateRow[];
+  a_plus_preview?: APlusCandidateRow[];
 }
 
 function boolText(value: unknown): string {
@@ -105,6 +120,70 @@ function MetricCard({ label, value, tone = 'info' }: { label: string; value: Rea
     <div style={{ padding: '10px 12px', borderRadius: 7, border: `1px solid ${SC[tone]}44`, background: 'var(--bg-elevated)' }}>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 13, fontWeight: 750, fontFamily: 'var(--font-mono)', color: SC[tone], overflowWrap: 'anywhere' }}>{value}</div>
+    </div>
+  );
+}
+
+function APlusGateFunnel({ aPlus }: { aPlus?: APlusInventoryData | null }): JSX.Element {
+  const matrix = Object.entries(aPlus?.rejected_reason_matrix ?? {}).sort(([, a], [, b]) => b - a);
+  const maxCount = matrix.length ? matrix[0][1] : 1;
+  const rows = aPlus?.candidate_matrix_preview ?? [];
+  const evaluated = aPlus?.evaluated_candidates ?? 0;
+  return (
+    <div data-testid="a-plus-gate-funnel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 8 }}>
+      <div style={{ padding: '10px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)' }}>
+        <strong style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-primary)' }}>
+          A+ gate rejection matrix — {evaluated} evaluated this cycle
+        </strong>
+        {matrix.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
+            {evaluated > 0 ? 'No failed checks reported.' : 'No rejection matrix published yet — check paper loop freshness.'}
+          </p>
+        ) : matrix.map(([check, count]) => (
+          <div key={check} style={{ marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>{check.replace(/_/g, ' ')}</span>
+              <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{count}/{evaluated || '—'}</span>
+            </div>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-elevated)' }}>
+              <div style={{ width: `${Math.min(100, (count / maxCount) * 100)}%`, height: 4, borderRadius: 2, background: SC.warn }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ padding: '10px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)', overflowX: 'auto' }}>
+        <strong style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-primary)' }}>
+          Per-candidate failed checks (first {rows.length} of {aPlus?.full_candidate_count ?? evaluated})
+        </strong>
+        {rows.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>No candidate matrix rows published this cycle.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr>
+                {['Candidate', 'Checks', 'Failed checks'].map((h) => (
+                  <th key={h} style={{ textAlign: 'left', padding: '3px 8px 3px 0', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.slice(0, 12).map((row, i) => (
+                <tr key={`${row.symbol}-${row.timeframe}-${row.side}-${i}`}>
+                  <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                    {row.symbol ?? '—'} {row.timeframe ?? ''} {row.side ?? ''}
+                  </td>
+                  <td style={{ padding: '4px 8px 4px 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', verticalAlign: 'top', color: (row.failed_checks?.length ?? 0) === 0 ? SC.ok : SC.warn }}>
+                    {row.passed_check_count ?? '—'}/{row.check_count ?? '—'}
+                  </td>
+                  <td style={{ padding: '4px 0', color: (row.failed_checks?.length ?? 0) === 0 ? SC.ok : 'var(--text-secondary)', lineHeight: 1.35 }}>
+                    {(row.failed_checks?.length ?? 0) === 0 ? 'none — strict A+' : (row.failed_checks ?? []).join(', ').replace(/_/g, ' ')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
@@ -174,7 +253,8 @@ export default function LiveCanaryPage(): JSX.Element {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
           <MetricCard label="Selected A+ candidate" value={selectedCandidate} tone={selectedCandidate === 'MISSING_EVIDENCE' ? 'warn' : 'info'} />
           <MetricCard label="Why none" value={whyNone} tone="warn" />
-          <MetricCard label="A+ candidates" value={aPlus?.a_plus_candidates ?? 'MISSING_EVIDENCE'} tone={(aPlus?.a_plus_candidates ?? 0) > 0 ? 'info' : 'warn'} />
+          <MetricCard label="A+ candidates (strict)" value={aPlus?.a_plus_candidates ?? 'MISSING_EVIDENCE'} tone={(aPlus?.a_plus_candidates ?? 0) > 0 ? 'info' : 'warn'} />
+          <MetricCard label="Adaptive-override (not strict A+)" value={aPlus?.adaptive_override_candidates ?? 'MISSING_EVIDENCE'} tone="info" />
           <MetricCard label="Live-ready rows" value={aPlus?.live_ready_rows ?? 'MISSING_EVIDENCE'} tone={(aPlus?.live_ready_rows ?? 0) > 0 ? 'info' : 'warn'} />
           <MetricCard label="Evaluated candidates" value={aPlus?.evaluated_candidates ?? 'MISSING_EVIDENCE'} tone="info" />
           <MetricCard label="Dry run" value={boolText(liveCanary?.dry_run)} tone={liveCanary?.dry_run === false ? 'error' : 'ok'} />
@@ -192,8 +272,9 @@ export default function LiveCanaryPage(): JSX.Element {
           <EvidenceCard label="Emergency stop" value={liveCanary?.emergency_stop} />
           <EvidenceCard label="Symbol filters" value={liveCanary?.symbol_filters} />
           <EvidenceCard label="Commission rates" value={liveCanary?.commission_rates} />
-          <EvidenceCard label="Candidate preview" value={aPlus?.a_plus_preview ?? aPlus?.candidate_matrix_preview} />
         </div>
+
+        <APlusGateFunnel aPlus={aPlus} />
 
         {(liveCanaryLoading || aPlusLoading || liveCanaryError || aPlusError) ? (
           <p style={{ margin: 0, fontSize: 12, color: liveCanaryError || aPlusError ? SC.error : 'var(--text-muted)' }} role={liveCanaryError || aPlusError ? 'alert' : undefined}>

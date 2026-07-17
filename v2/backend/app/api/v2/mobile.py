@@ -757,6 +757,25 @@ def _mobile_preemptive_edge_control_summary(r: Any | None) -> dict[str, Any]:
     }
 
 
+def _a_plus_strict_counts(a_plus: dict[str, Any]) -> dict[str, Any]:
+    """Strict fail-closed recount of the A+ gate payload.
+
+    The paper-loop publisher marks adaptive-override rows a_plus:true even
+    when failed_checks is non-empty, so its top-level a_plus_candidates
+    overcounts. Recount from candidate_matrix so mobile never claims strict
+    A+ passes that do not exist.
+    """
+    rows = a_plus.get("candidate_matrix")
+    rows = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    strict = sum(1 for row in rows if row.get("a_plus") is True and not row.get("failed_checks"))
+    override = sum(1 for row in rows if row.get("a_plus") is True and row.get("failed_checks"))
+    return {
+        "strict_a_plus_candidates": strict if a_plus else None,
+        "adaptive_override_candidates": override if a_plus else None,
+        "a_plus_counting_policy": "STRICT_FAIL_CLOSED_OVERRIDES_EXCLUDED",
+    }
+
+
 def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
     governor = (_redis_get_json(r, "v2:paper:performance_governor_status") if r else None) or {}
     halt = (_redis_get_json(r, "v2:paper:new_entry_emergency_halt_status") if r else None) or {}
@@ -812,6 +831,7 @@ def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
         "a_plus_gate": {
             "evaluated_candidates": a_plus.get("evaluated_candidates"),
             "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            **_a_plus_strict_counts(a_plus),
             "rejected_reason_matrix": dict(list((a_plus.get("rejected_reason_matrix") or {}).items())[:8])
             if isinstance(a_plus.get("rejected_reason_matrix"), dict) else None,
             "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
@@ -2527,6 +2547,7 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
         "a_plus_gate": {
             "evaluated_candidates": a_plus.get("evaluated_candidates"),
             "a_plus_candidates": a_plus.get("a_plus_candidates"),
+            **_a_plus_strict_counts(a_plus),
             "rejected_reason_matrix": dict(list(rejected.items())[:8]) if isinstance(rejected, dict) else None,
             "gate_is_hard_entry_condition": a_plus.get("gate_is_hard_entry_condition"),
         },

@@ -23,7 +23,22 @@ interface RuntimeStatus {
   a_plus_gate?: {
     evaluated_candidates?: number;
     a_plus_candidates?: number;
+    strict_a_plus_candidates?: number | null;
+    adaptive_override_candidates?: number | null;
+    a_plus_counting_policy?: string;
     rejected_reason_matrix?: Record<string, number>;
+    candidate_matrix_preview?: Array<{
+      symbol?: string | null;
+      timeframe?: string | null;
+      side?: string | null;
+      strategy_id?: string | null;
+      a_plus?: boolean | null;
+      failed_checks?: string[] | null;
+      missing_evidence_checks?: string[] | null;
+      passed_check_count?: number | null;
+      check_count?: number | null;
+    }>;
+    full_candidate_count?: number | null;
   };
 }
 
@@ -103,7 +118,10 @@ export default function StrategyAdminPage(): JSX.Element {
             A+ Entry Gate — rejection reasons
           </h2>
           <p style={{ margin: '0 0 12px', fontSize: 11, color: 'var(--text-muted)' }}>
-            {gate.evaluated_candidates ?? 0} candidates evaluated · {gate.a_plus_candidates ?? 0} passed A+ quality
+            {gate.evaluated_candidates ?? 0} candidates evaluated ·{' '}
+            {gate.strict_a_plus_candidates != null
+              ? `${gate.strict_a_plus_candidates} passed strict A+ · ${gate.adaptive_override_candidates ?? 0} adaptive-override (paper exploration, NOT strict A+)`
+              : `${gate.a_plus_candidates ?? 0} marked a_plus by publisher (strict recount pending)`}
           </p>
           {rejections.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>No rejection matrix published yet.</p>
@@ -119,6 +137,39 @@ export default function StrategyAdminPage(): JSX.Element {
                 </div>
               </div>
             ))
+          )}
+          {(gate.candidate_matrix_preview?.length ?? 0) > 0 && (
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+                Per-candidate failed checks (first {gate.candidate_matrix_preview!.length} of {gate.full_candidate_count ?? gate.evaluated_candidates ?? '—'})
+              </span>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr>
+                      {['Candidate', 'Checks', 'Failed checks'].map((h) => (
+                        <th key={h} style={{ textAlign: 'left', padding: '3px 8px 3px 0', color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gate.candidate_matrix_preview!.map((row, i) => (
+                      <tr key={`${row.symbol}-${row.timeframe}-${row.side}-${i}`}>
+                        <td style={{ padding: '4px 8px 4px 0', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                          {row.symbol ?? '—'} {row.timeframe ?? ''} {row.side ?? ''}
+                        </td>
+                        <td style={{ padding: '4px 8px 4px 0', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap', verticalAlign: 'top', color: (row.failed_checks?.length ?? 0) === 0 ? 'var(--buy)' : 'var(--warn)' }}>
+                          {row.passed_check_count ?? '—'}/{row.check_count ?? '—'}
+                        </td>
+                        <td style={{ padding: '4px 0', color: (row.failed_checks?.length ?? 0) === 0 ? 'var(--buy)' : 'var(--text-muted)', lineHeight: 1.35 }}>
+                          {(row.failed_checks?.length ?? 0) === 0 ? 'none — strict A+' : row.failed_checks!.join(', ').replace(/_/g, ' ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </div>
 
