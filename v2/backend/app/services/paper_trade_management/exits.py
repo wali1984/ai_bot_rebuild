@@ -447,23 +447,24 @@ def evaluate_exit(
                 config.mfe_breakeven_cost_buffer_bps
             )
         _mfe_breakeven_lower_bound = -abs(config.mfe_breakeven_cost_buffer_bps) * 3.0
+        _entry = position.avg_entry_price
+        _best = position.best_favorable_price
+        _mfe_bps: float | None = None
+        if _best is not None and _best > 0 and _entry and _entry > 0:
+            if position.side == "long" and _best > _entry:
+                _mfe_bps = (_best - _entry) / _entry * 10000.0
+            elif position.side == "short" and _best < _entry:
+                _mfe_bps = (_entry - _best) / _entry * 10000.0
+        _arm_threshold_bps = abs(config.mfe_breakeven_min_mfe_bps)
+        if atr_bps is not None and atr_bps > 0:
+            _arm_threshold_bps = max(_arm_threshold_bps, atr_bps * config.mfe_breakeven_atr_multiple)
+        _mfe_qualified = _mfe_bps is not None and _mfe_bps >= _arm_threshold_bps
         if (
             (not _trailing_already_armed or not _trailing_stop_locks_profit)
             and pnl_bps_value <= config.mfe_breakeven_cost_buffer_bps
             and pnl_bps_value >= _mfe_breakeven_lower_bound
         ):
-            _entry = position.avg_entry_price
-            _best = position.best_favorable_price
-            _mfe_bps: float | None = None
-            if _best is not None and _best > 0 and _entry and _entry > 0:
-                if position.side == "long" and _best > _entry:
-                    _mfe_bps = (_best - _entry) / _entry * 10000.0
-                elif position.side == "short" and _best < _entry:
-                    _mfe_bps = (_entry - _best) / _entry * 10000.0
-            _arm_threshold_bps = abs(config.mfe_breakeven_min_mfe_bps)
-            if atr_bps is not None and atr_bps > 0:
-                _arm_threshold_bps = max(_arm_threshold_bps, atr_bps * config.mfe_breakeven_atr_multiple)
-            if _mfe_bps is not None and _mfe_bps >= _arm_threshold_bps:
+            if _mfe_qualified:
                 return {
                     "should_close": True,
                     "close_reason": "TIER_2_MFE_BREAKEVEN_PROTECTION",
@@ -475,6 +476,53 @@ def evaluate_exit(
                     "trailing_already_armed": _trailing_already_armed,
                     "atr_bps": atr_bps,
                 }
+        # Band-gap giveback stop (2026-07-17): the breakeven band is a
+        # point-in-time check per 60s cycle, so a fast adverse move can jump
+        # STRAIGHT PAST it (observed: AGLDUSDT, MFE 129.7bps with the armed
+        # trail sitting below entry, gapped from inside the band to -90bps in
+        # one cycle — no protection left between the missed band and the far
+        # ATR stop). When the trade HAD paid for itself (MFE >= the same arm
+        # threshold), the trail locks nothing, and price has gapped below the
+        # band but is still shallower than one ATR (the volatility stop's
+        # domain, honestly labelled there), cut the giveback now instead of
+        # riding a former winner into a full stop-out.
+        # Priority note: if the armed trail would fire at THIS mark, its
+        # close fills at the stop PRICE (strictly better than a mark-price
+        # giveback close) — defer to it.
+        _trailing_would_fire_now = bool(
+            _armed_stop
+            and _armed_stop > 0
+            and mark_price is not None
+            and (
+                mark_price <= _armed_stop
+                if position.side == "long"
+                else mark_price >= _armed_stop
+            )
+        )
+        elif_giveback = (
+            _mfe_qualified
+            and (not _trailing_already_armed or not _trailing_stop_locks_profit)
+            and not _trailing_would_fire_now
+            and pnl_bps_value < _mfe_breakeven_lower_bound
+            and (
+                atr_bps is None
+                or atr_bps <= 0
+                or pnl_bps_value > -abs(atr_bps)
+            )
+        )
+        if elif_giveback:
+            return {
+                "should_close": True,
+                "close_reason": "TIER_2_MFE_GIVEBACK_STOP",
+                "tier": 2,
+                "pnl_bps": pnl_bps_value,
+                "mfe_bps": _mfe_bps,
+                "mfe_breakeven_arm_threshold_bps": _arm_threshold_bps,
+                "mfe_breakeven_band_gapped": True,
+                "mfe_breakeven_cost_buffer_bps": config.mfe_breakeven_cost_buffer_bps,
+                "trailing_already_armed": _trailing_already_armed,
+                "atr_bps": atr_bps,
+            }
     # A+ goal Phase 8: when ATR is unavailable the volatility stop can never
     # arm; with static stops disabled in the active runtime that left NO
     # working stop (LITUSDT regression). Fall back to the compressed-vol floor
