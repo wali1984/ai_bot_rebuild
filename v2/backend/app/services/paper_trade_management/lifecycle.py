@@ -97,13 +97,38 @@ def _fill_identity(row: dict[str, Any]) -> str:
     return f"{row.get('symbol')}:{row.get('timeframe')}:{row.get('side')}"
 
 
-def _closed_fill_ids(existing_ledger: dict[str, Any]) -> set[str]:
-    closed: set[str] = set()
+def _closed_fill_ids(existing_ledger: dict[str, Any]) -> dict[str, str]:
+    """Map each closed source fill id to the LATEST exit timestamp that consumed it.
+
+    Fill identities are not generation-unique: `_fill_identity` falls back to
+    recurring lineage ids (signal_id / prediction_id — strategy-supply
+    hypothesis ids are stable across cycles) and finally to
+    ``symbol:timeframe:side``. A bare id-set therefore marks every future
+    re-entry on the same identity as CLOSED_PREVIOUSLY and silently prunes
+    it with no close row (observed 2026-07-17T05:12-05:13Z: EGLDUSDT opened
+    and vanished one cycle later — every vanished symbol had a prior close
+    this session, every survivor did not). The exit timestamp lets the
+    caller distinguish a replayed fill of an already-closed generation
+    (fill time <= exit time) from a genuinely NEW fill re-using the
+    identity (fill time > exit time).
+    """
+    closed: dict[str, str] = {}
     for row in existing_ledger.get("closed_trades") or existing_ledger.get("closes") or []:
         if not isinstance(row, dict):
             continue
+        exit_ts = str(
+            first_present(
+                row.get("exit_price_utc"),
+                row.get("exit_time"),
+                row.get("closed_at"),
+            )
+            or ""
+        )
         for fill_id in row.get("source_fill_ids") or []:
-            closed.add(str(fill_id))
+            key = str(fill_id)
+            prior = closed.get(key)
+            if prior is None or exit_ts > prior:
+                closed[key] = exit_ts
     return closed
 
 
@@ -1535,13 +1560,32 @@ def reconcile_paper_lifecycle(
         if fill_id in seen_fill_ids:
             continue
         seen_fill_ids.add(fill_id)
-        if fill_id in closed_fill_ids:
-            carried = _accepted_fill_with_entry_policy_metadata(
-                fill,
-                status="CLOSED_PREVIOUSLY",
+        _closed_exit_ts = closed_fill_ids.get(fill_id)
+        if _closed_exit_ts is not None:
+            # Temporal generation guard: identities recur across trade
+            # generations (recurring hypothesis/signal ids, or the
+            # symbol:timeframe:side fallback). Only prune the fill as
+            # already-closed when it is NOT newer than the close that
+            # consumed its identity; a fill stamped after that exit is a
+            # NEW trade generation and must open normally. Missing
+            # timestamps stay fail-closed (pruned) — a replayed historical
+            # fill without a stamp must never double-open.
+            _fill_ts = str(
+                first_present(
+                    fill.get("fill_time"),
+                    fill.get("fill_price_utc"),
+                    fill.get("decision_time"),
+                    fill.get("generated_utc"),
+                )
+                or ""
             )
-            closed_previously_fills.append(carried)
-            continue
+            if not (_fill_ts and _closed_exit_ts and _fill_ts > _closed_exit_ts):
+                carried = _accepted_fill_with_entry_policy_metadata(
+                    fill,
+                    status="CLOSED_PREVIOUSLY",
+                )
+                closed_previously_fills.append(carried)
+                continue
         classified = classify_fill(fill)
         if not classified["economic"]:
             rejected = dict(fill)
