@@ -22706,6 +22706,26 @@ def _paper_block_new_entry_by_performance_circuit(
             and not _probe_specific_bucket_hits
             and not _probe_specific_cluster_hits
         )
+        # Self-diagnosing skip record (first candidate per cycle — the loop
+        # is majors/confidence sorted, so this is the cycle's best shot):
+        # surfaces WHICH condition refused the probe in the persistence
+        # trace instead of requiring blind external watches.
+        if not _probe_admit and _probe.get("skip_diagnosis") is None:
+            _probe["skip_diagnosis"] = {
+                "symbol": _probe_symbol,
+                "confidence": confidence,
+                "floor": _probe_floor,
+                "conf_pass": (confidence or 0.0) >= _probe_floor,
+                "open_since_last_close": _probe_open,
+                "slots": _probe_slots,
+                "book_resolving": _probe_book_resolving,
+                "close_age_s": _probe_close_age,
+                "symbol_already_open": bool(
+                    _probe_symbol and _probe_symbol in _probe_open_symbols
+                ),
+                "specific_bucket_hits": list(_probe_specific_bucket_hits),
+                "specific_cluster_hits": list(_probe_specific_cluster_hits),
+            }
     if _probe_admit:
         _probe["remaining"] = int(_probe.get("remaining") or 0) - 1
         for target in (intent, allocation):
@@ -33714,6 +33734,24 @@ def run_once() -> dict:
                         ],
                         "closes_total": len(closes),
                         "leverage_attach": _lev_attach_stats,
+                        "probe_context": {
+                            "remaining": halted_empty_book_probe_context.get(
+                                "remaining"
+                            ),
+                            "adaptive_confidence_floor": (
+                                halted_empty_book_probe_context.get(
+                                    "adaptive_confidence_floor"
+                                )
+                            ),
+                            "open_positions_since_last_close": (
+                                halted_empty_book_probe_context.get(
+                                    "open_positions_since_last_close"
+                                )
+                            ),
+                            "skip_diagnosis": halted_empty_book_probe_context.get(
+                                "skip_diagnosis"
+                            ),
+                        },
                         "paper_only": True,
                     },
                     default=str,
