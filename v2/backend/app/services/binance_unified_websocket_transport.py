@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import time
@@ -65,9 +66,22 @@ REST_FALLBACK_BUDGET_REDIS_KEY_PREFIX = "v2:binance:rest_fallback:budget:"
 REST_FALLBACK_COOLDOWN_REDIS_KEY = "v2:binance:rest_fallback:cooldown"
 REST_FALLBACK_RATE_LIMIT_COOLDOWN_SECONDS = 120      # HTTP 429: back off hard
 REST_FALLBACK_BAN_COOLDOWN_SECONDS = 1800            # HTTP 418: IP auto-ban signal
+REST_FALLBACK_MAX_REDIS_TTL_SECONDS = ((1 << 63) - 1) // 1_000
 _REST_BUDGET_LOCAL_WINDOW: dict[str, Any] = {"minute": None, "count": 0}
 _REST_BUDGET_REDIS_CLIENT: Any = None
 _REST_BUDGET_REDIS_TRIED = False
+_REST_COOLDOWN_EXTEND_LUA = """
+local current_ttl_ms = redis.call('PTTL', KEYS[1])
+local requested_ttl_ms = tonumber(ARGV[1])
+if current_ttl_ms == -1 then
+    return current_ttl_ms
+end
+if current_ttl_ms < requested_ttl_ms then
+    redis.call('PSETEX', KEYS[1], requested_ttl_ms, ARGV[2])
+    return requested_ttl_ms
+end
+return current_ttl_ms
+"""
 
 
 def _rest_fallback_budget_per_minute() -> int:
@@ -95,20 +109,41 @@ def _rest_budget_redis() -> Any:
     return _REST_BUDGET_REDIS_CLIENT
 
 
-def _rest_fallback_budget_check() -> tuple[bool, str | None, dict[str, Any]]:
-    """Consume one unit of the shared REST budget; block on exhaustion/cooldown.
+def _rest_fallback_budget_check(
+    *,
+    request_weight: int = 1,
+    require_shared_budget: bool = False,
+) -> tuple[bool, str | None, dict[str, Any]]:
+    """Consume exact request weight; optionally require cross-process Redis authority.
 
     Redis-backed sliding minute counter shared by all services on this host
     (bans are per IP). When Redis is unavailable the check degrades to a
     process-local minute counter with the same cap so a Redis outage can
     never open unbounded REST traffic.
     """
+    if (
+        isinstance(request_weight, bool)
+        or not isinstance(request_weight, int)
+        or request_weight <= 0
+    ):
+        return False, "REST_FALLBACK_REQUEST_WEIGHT_INVALID", {}
     budget = _rest_fallback_budget_per_minute()
     minute = int(time.time() // 60)
     client = _rest_budget_redis()
     if client is not None:
         try:
             cooldown_ttl = client.ttl(REST_FALLBACK_COOLDOWN_REDIS_KEY)
+            if int(cooldown_ttl) == -1:
+                return (
+                    False,
+                    "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED",
+                    {
+                        "cooldown_seconds_remaining": None,
+                        "budget_per_minute": budget,
+                        "budget_scope": "host_redis",
+                        "request_weight": request_weight,
+                    },
+                )
             if cooldown_ttl and int(cooldown_ttl) > 0:
                 return (
                     False,
@@ -116,38 +151,77 @@ def _rest_fallback_budget_check() -> tuple[bool, str | None, dict[str, Any]]:
                     {"cooldown_seconds_remaining": int(cooldown_ttl), "budget_per_minute": budget},
                 )
             key = f"{REST_FALLBACK_BUDGET_REDIS_KEY_PREFIX}{minute}"
-            used = int(client.incr(key))
-            if used == 1:
+            used = int(client.incrby(key, request_weight))
+            if used == request_weight:
                 client.expire(key, 120)
             if used > budget:
                 return (
                     False,
                     f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute",
-                    {"budget_used_this_minute": used, "budget_per_minute": budget},
+                    {
+                        "budget_used_this_minute": used,
+                        "budget_per_minute": budget,
+                        "budget_scope": "host_redis",
+                        "request_weight": request_weight,
+                    },
                 )
-            return True, None, {"budget_used_this_minute": used, "budget_per_minute": budget}
+            return True, None, {
+                "budget_used_this_minute": used,
+                "budget_per_minute": budget,
+                "budget_scope": "host_redis",
+                "request_weight": request_weight,
+            }
         except Exception:
-            pass
+            if require_shared_budget:
+                return (
+                    False,
+                    "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
+                    {
+                        "budget_per_minute": budget,
+                        "budget_scope": "shared_unavailable",
+                        "request_weight": request_weight,
+                    },
+                )
+    elif require_shared_budget:
+        return (
+            False,
+            "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
+            {
+                "budget_per_minute": budget,
+                "budget_scope": "shared_unavailable",
+                "request_weight": request_weight,
+            },
+        )
     # Process-local degraded mode (same cap, per process).
     if _REST_BUDGET_LOCAL_WINDOW["minute"] != minute:
         _REST_BUDGET_LOCAL_WINDOW["minute"] = minute
         _REST_BUDGET_LOCAL_WINDOW["count"] = 0
-    _REST_BUDGET_LOCAL_WINDOW["count"] += 1
+    _REST_BUDGET_LOCAL_WINDOW["count"] += request_weight
     used = int(_REST_BUDGET_LOCAL_WINDOW["count"])
     if used > budget:
         return (
             False,
             f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute_local",
-            {"budget_used_this_minute": used, "budget_per_minute": budget, "budget_scope": "process_local"},
+            {
+                "budget_used_this_minute": used,
+                "budget_per_minute": budget,
+                "budget_scope": "process_local",
+                "request_weight": request_weight,
+            },
         )
-    return True, None, {"budget_used_this_minute": used, "budget_per_minute": budget, "budget_scope": "process_local"}
+    return True, None, {
+        "budget_used_this_minute": used,
+        "budget_per_minute": budget,
+        "budget_scope": "process_local",
+        "request_weight": request_weight,
+    }
 
 
 def report_binance_rest_response(
     *,
     status_code: int | None = None,
     retry_after_seconds: float | None = None,
-) -> None:
+) -> bool:
     """Report a Binance REST response so ban signals stop ALL fallback traffic.
 
     Call on HTTP errors from any Binance REST request: 429 arms a hard
@@ -155,34 +229,42 @@ def report_binance_rest_response(
     The cooldown key is shared across every service on this host.
     """
     if status_code not in (418, 429):
-        return
+        return True
     cooldown = (
         REST_FALLBACK_BAN_COOLDOWN_SECONDS
         if status_code == 418
         else REST_FALLBACK_RATE_LIMIT_COOLDOWN_SECONDS
     )
     try:
-        if retry_after_seconds is not None and float(retry_after_seconds) > cooldown:
-            cooldown = int(float(retry_after_seconds))
-    except (TypeError, ValueError):
+        parsed_retry_after = float(retry_after_seconds)
+        if math.isfinite(parsed_retry_after) and parsed_retry_after > cooldown:
+            cooldown = min(
+                math.ceil(parsed_retry_after),
+                REST_FALLBACK_MAX_REDIS_TTL_SECONDS,
+            )
+    except (TypeError, ValueError, OverflowError):
         pass
     client = _rest_budget_redis()
     if client is None:
-        return
+        return False
     try:
-        client.set(
-            REST_FALLBACK_COOLDOWN_REDIS_KEY,
-            json.dumps(
-                {
-                    "status_code": status_code,
-                    "armed_at_epoch": int(time.time()),
-                    "cooldown_seconds": int(cooldown),
-                }
-            ),
-            ex=int(cooldown),
+        payload = json.dumps(
+            {
+                "status_code": status_code,
+                "armed_at_epoch": int(time.time()),
+                "cooldown_seconds": int(cooldown),
+            }
         )
+        client.eval(
+            _REST_COOLDOWN_EXTEND_LUA,
+            1,
+            REST_FALLBACK_COOLDOWN_REDIS_KEY,
+            int(cooldown) * 1_000,
+            payload,
+        )
+        return True
     except Exception:
-        pass
+        return False
 
 
 @dataclass(frozen=True)
@@ -255,6 +337,8 @@ def binance_rest_fallback_decision(
     endpoint: str,
     fallback_reason: str | None,
     role: str = "public_market_data_or_signed_read_recovery",
+    request_weight: int = 1,
+    require_shared_budget: bool = False,
 ) -> dict[str, Any]:
     reason = str(fallback_reason or "").strip()
     allowed = binance_rest_fallback_allowed() and bool(reason)
@@ -266,7 +350,10 @@ def binance_rest_fallback_decision(
         blocked_reason = f"REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY:{REST_FALLBACK_ENV}_not_true"
     else:
         # Ban protection: shared per-IP budget + 429/418 cooldown circuit.
-        budget_allowed, budget_blocked_reason, budget_diag = _rest_fallback_budget_check()
+        budget_allowed, budget_blocked_reason, budget_diag = _rest_fallback_budget_check(
+            request_weight=request_weight,
+            require_shared_budget=require_shared_budget,
+        )
         if not budget_allowed:
             allowed = False
             blocked_reason = budget_blocked_reason
@@ -282,6 +369,8 @@ def binance_rest_fallback_decision(
         "rest_fallback_blocked_reason": blocked_reason,
         "required_env": f"{REST_FALLBACK_ENV}=true",
         "request_allowed": allowed,
+        "request_weight": request_weight,
+        "shared_budget_required": require_shared_budget,
         "rest_used_as_primary": False,
         **budget_diag,
     }
@@ -292,11 +381,15 @@ def require_binance_rest_fallback(
     endpoint: str,
     fallback_reason: str | None,
     role: str = "public_market_data_or_signed_read_recovery",
+    request_weight: int = 1,
+    require_shared_budget: bool = False,
 ) -> dict[str, Any]:
     decision = binance_rest_fallback_decision(
         endpoint=endpoint,
         fallback_reason=fallback_reason,
         role=role,
+        request_weight=request_weight,
+        require_shared_budget=require_shared_budget,
     )
     if not decision["request_allowed"]:
         raise RuntimeError(str(decision["rest_fallback_blocked_reason"]))

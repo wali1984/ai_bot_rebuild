@@ -50,7 +50,7 @@ EXACT_TRANSACTION_IDENTITY_ATTESTATION_SCHEMA_VERSION = (
     "durable_canonical_finalized_5m_label_archive_exact_transaction_identity_v1"
 )
 ARCHIVE_WRITER_LEASE_SCHEMA_VERSION = (
-    "durable_canonical_finalized_5m_label_archive_writer_lease_v1"
+    "durable_canonical_finalized_5m_label_archive_writer_lease_v2"
 )
 _ARCHIVE_WRITER_LEASE_CONSTRUCTION_TOKEN = object()
 LABEL_PATH_PROOF_SCHEMA_VERSION = (
@@ -154,16 +154,21 @@ def canonical_5m_archive_writer_lease_path(archive_path: Path) -> Path:
 
 
 class Canonical5mArchiveWriterLease:
-    """One-shot, exact-path, nonblocking exclusive archive writer lease.
+    """One-shot, path-and-inode, nonblocking exclusive writer lease.
 
     A lease instance cannot be reacquired after release.  The private file
-    descriptor remains open for the entire lease lifetime; validation binds
-    both the resolved archive path and the lock-file inode.  All sanctioned
-    archive mutation APIs either acquire this lease themselves or validate a
-    caller-provided instance before and after their critical section.
+    descriptors remain open for the entire lease lifetime.  The sidecar lock
+    serializes creation at the resolved archive path; as soon as the archive
+    exists, a second lock on the archive inode serializes every hardlink alias
+    of that database.  All sanctioned archive mutation APIs either acquire
+    this lease themselves or validate a caller-provided instance before and
+    after their critical section.
     """
 
     __slots__ = (
+        "_archive_device",
+        "_archive_file_descriptor",
+        "_archive_inode",
         "_archive_path",
         "_file_descriptor",
         "_lock_device",
@@ -181,6 +186,9 @@ class Canonical5mArchiveWriterLease:
         file_descriptor: int,
         lock_device: int,
         lock_inode: int,
+        archive_file_descriptor: int = -1,
+        archive_device: int = -1,
+        archive_inode: int = -1,
         _construction_token: object | None = None,
     ) -> None:
         if _construction_token is not _ARCHIVE_WRITER_LEASE_CONSTRUCTION_TOKEN:
@@ -192,6 +200,9 @@ class Canonical5mArchiveWriterLease:
         self._file_descriptor = int(file_descriptor)
         self._lock_device = int(lock_device)
         self._lock_inode = int(lock_inode)
+        self._archive_file_descriptor = int(archive_file_descriptor)
+        self._archive_device = int(archive_device)
+        self._archive_inode = int(archive_inode)
         self._owner_pid = os.getpid()
         self._released = False
 
@@ -203,6 +214,7 @@ class Canonical5mArchiveWriterLease:
         flags = os.O_RDWR | os.O_CREAT
         flags |= getattr(os, "O_CLOEXEC", 0)
         flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
         try:
             file_descriptor = os.open(lock_path, flags, 0o600)
         except OSError as exc:
@@ -243,6 +255,70 @@ class Canonical5mArchiveWriterLease:
                 pass
             raise
         return lease
+
+    def _acquire_archive_inode_lock(self, *, create_if_missing: bool) -> None:
+        if self._archive_file_descriptor >= 0:
+            return
+        flags = os.O_RDWR
+        if create_if_missing:
+            flags |= os.O_CREAT
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        flags |= getattr(os, "O_NONBLOCK", 0)
+        try:
+            archive_file_descriptor = os.open(
+                self._archive_path,
+                flags,
+                0o600,
+            )
+        except FileNotFoundError:
+            if not create_if_missing:
+                return
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_archive_open_failed"
+            ) from None
+        except OSError as exc:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_archive_open_failed"
+            ) from exc
+        try:
+            descriptor_stat = os.fstat(archive_file_descriptor)
+            if not stat.S_ISREG(descriptor_stat.st_mode):
+                raise Canonical5mArchiveWriterLeaseError(
+                    "canonical_5m_archive_writer_lease_archive_not_regular_file"
+                )
+            fcntl.flock(
+                archive_file_descriptor,
+                fcntl.LOCK_EX | fcntl.LOCK_NB,
+            )
+            path_stat = os.stat(self._archive_path, follow_symlinks=False)
+            if (
+                not stat.S_ISREG(path_stat.st_mode)
+                or (path_stat.st_dev, path_stat.st_ino)
+                != (descriptor_stat.st_dev, descriptor_stat.st_ino)
+            ):
+                raise Canonical5mArchiveWriterLeaseError(
+                    "canonical_5m_archive_writer_lease_archive_inode_changed"
+                )
+        except BlockingIOError as exc:
+            os.close(archive_file_descriptor)
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_archive_inode_already_held"
+            ) from exc
+        except Exception:
+            os.close(archive_file_descriptor)
+            raise
+        self._archive_file_descriptor = archive_file_descriptor
+        self._archive_device = int(descriptor_stat.st_dev)
+        self._archive_inode = int(descriptor_stat.st_ino)
+
+    def bind_archive_inode_for_write(self, archive_path: Path) -> None:
+        """Create if necessary and continuously lock the database inode."""
+
+        self.validate_for(archive_path)
+        if self._archive_file_descriptor < 0:
+            self._acquire_archive_inode_lock(create_if_missing=True)
+        self.validate_for(archive_path)
 
     @property
     def archive_path(self) -> Path:
@@ -293,6 +369,36 @@ class Canonical5mArchiveWriterLease:
             raise Canonical5mArchiveWriterLeaseError(
                 "canonical_5m_archive_writer_lease_inode_changed"
             )
+        if self._archive_file_descriptor < 0:
+            self._acquire_archive_inode_lock(create_if_missing=False)
+        if self._archive_file_descriptor >= 0:
+            try:
+                archive_descriptor_stat = os.fstat(
+                    self._archive_file_descriptor
+                )
+                archive_path_stat = os.stat(
+                    self._archive_path,
+                    follow_symlinks=False,
+                )
+            except OSError as exc:
+                raise Canonical5mArchiveWriterLeaseError(
+                    "canonical_5m_archive_writer_lease_archive_validation_failed"
+                ) from exc
+            archive_identity = (self._archive_device, self._archive_inode)
+            if (
+                not stat.S_ISREG(archive_descriptor_stat.st_mode)
+                or not stat.S_ISREG(archive_path_stat.st_mode)
+                or (
+                    archive_descriptor_stat.st_dev,
+                    archive_descriptor_stat.st_ino,
+                )
+                != archive_identity
+                or (archive_path_stat.st_dev, archive_path_stat.st_ino)
+                != archive_identity
+            ):
+                raise Canonical5mArchiveWriterLeaseError(
+                    "canonical_5m_archive_writer_lease_archive_inode_changed"
+                )
 
     def contract(self) -> dict[str, Any]:
         self.validate_for(self._archive_path)
@@ -302,21 +408,33 @@ class Canonical5mArchiveWriterLease:
             "lock_path": str(self._lock_path),
             "exclusive": True,
             "continuously_held": True,
+            "exact_path_sidecar_lock_held": True,
+            "archive_inode_lock_held": self._archive_file_descriptor >= 0,
+            "hardlink_aliases_serialized_when_archive_exists": True,
             "process_probe_role": "SECONDARY_EVIDENCE_ONLY",
         }
 
     def release(self) -> None:
         if self._released:
             return
+        archive_file_descriptor = self._archive_file_descriptor
         file_descriptor = self._file_descriptor
         self._released = True
+        self._archive_file_descriptor = -1
         self._file_descriptor = -1
-        try:
-            os.close(file_descriptor)
-        except OSError as exc:
+        release_error: OSError | None = None
+        for descriptor in (archive_file_descriptor, file_descriptor):
+            if descriptor < 0:
+                continue
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                if release_error is None:
+                    release_error = exc
+        if release_error is not None:
             raise Canonical5mArchiveWriterLeaseError(
                 "canonical_5m_archive_writer_lease_release_failed"
-            ) from exc
+            ) from release_error
 
     def __enter__(self) -> Canonical5mArchiveWriterLease:
         self.validate_for(self._archive_path)
@@ -725,13 +843,14 @@ class DurableCanonical5mLabelArchive:
         writer_lease: Canonical5mArchiveWriterLease,
         initialize: bool = False,
     ) -> sqlite3.Connection:
-        writer_lease.validate_for(self.path)
         if initialize:
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            writer_lease.bind_archive_inode_for_write(self.path)
         elif not self.path.is_file():
             raise Canonical5mArchiveError(
                 "durable_canonical_5m_label_archive_missing"
             )
+        writer_lease.validate_for(self.path)
         connection = sqlite3.connect(str(self.path), timeout=60.0)
         self._configure_connection(connection)
         connection.execute("PRAGMA journal_mode=WAL")

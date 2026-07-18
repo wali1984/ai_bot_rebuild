@@ -414,6 +414,99 @@ def test_archive_writer_lease_cannot_be_fabricated_without_acquire(
             Canonical5mArchiveWriterLease.acquire(archive_path)
 
 
+def test_archive_writer_lease_serializes_existing_hardlink_aliases(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    alias_path = tmp_path / "labels-alias.sqlite3"
+    DurableCanonical5mLabelArchive(archive_path).append_candles([_candle(0)])
+    os.link(archive_path, alias_path)
+
+    with Canonical5mArchiveWriterLease.acquire(archive_path) as held:
+        assert held.contract()["archive_inode_lock_held"] is True
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="archive_inode_already_held",
+        ):
+            Canonical5mArchiveWriterLease.acquire(alias_path)
+
+    with Canonical5mArchiveWriterLease.acquire(alias_path) as replacement:
+        assert replacement.contract()["archive_inode_lock_held"] is True
+
+
+def test_archive_writer_lease_binds_created_inode_for_full_lifetime(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    alias_path = tmp_path / "labels-alias.sqlite3"
+    held = Canonical5mArchiveWriterLease.acquire(archive_path)
+    try:
+        assert held.contract()["archive_inode_lock_held"] is False
+        archive = DurableCanonical5mLabelArchive(
+            archive_path,
+            writer_lease=held,
+        )
+        assert archive.append_candles([_candle(0)]).inserted_rows == 1
+        assert held.contract()["archive_inode_lock_held"] is True
+        os.link(archive_path, alias_path)
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="archive_inode_already_held",
+        ):
+            Canonical5mArchiveWriterLease.acquire(alias_path)
+        held.validate_for(archive_path)
+    finally:
+        held.release()
+
+    with Canonical5mArchiveWriterLease.acquire(alias_path) as replacement:
+        assert replacement.held is True
+
+
+def test_archive_writer_lease_rejects_archive_inode_substitution(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    displaced_path = tmp_path / "labels-displaced.sqlite3"
+    DurableCanonical5mLabelArchive(archive_path).append_candles([_candle(0)])
+    held = Canonical5mArchiveWriterLease.acquire(archive_path)
+    try:
+        os.replace(archive_path, displaced_path)
+        archive_path.write_bytes(b"replacement")
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="archive_inode_changed",
+        ):
+            held.validate_for(archive_path)
+        assert held.held is False
+    finally:
+        held.release()
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="requires POSIX FIFO")
+@pytest.mark.parametrize("fifo_role", ("archive", "sidecar"))
+def test_archive_writer_lease_rejects_fifo_without_blocking(
+    tmp_path: Path,
+    fifo_role: str,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    fifo_path = (
+        archive_path
+        if fifo_role == "archive"
+        else archive_path.with_name(archive_path.name + ".writer.lock")
+    )
+    os.mkfifo(fifo_path)
+
+    with pytest.raises(
+        Canonical5mArchiveWriterLeaseError,
+        match=(
+            "archive_not_regular_file"
+            if fifo_role == "archive"
+            else "lease_not_regular_file"
+        ),
+    ):
+        Canonical5mArchiveWriterLease.acquire(archive_path)
+
+
 def test_archive_writer_lease_acquire_releases_after_validation_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

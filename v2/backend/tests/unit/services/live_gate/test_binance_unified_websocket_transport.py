@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services import binance_unified_websocket_transport as policy
 from v2.backend.app.services.binance_unified_websocket_transport import (
     binance_rest_fallback_decision,
     build_signed_ws_api_request,
@@ -370,6 +371,15 @@ def test_legacy_rest_read_helpers_are_blocked_without_fallback_flag(monkeypatch:
 
 def test_binance_rest_fallback_decision_requires_explicit_reason(monkeypatch: Any) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        policy,
+        "_rest_fallback_budget_check",
+        lambda **_kwargs: (
+            True,
+            None,
+            {"budget_scope": "test", "budget_used_this_minute": 1},
+        ),
+    )
 
     blocked = binance_rest_fallback_decision(
         endpoint="GET /fapi/v1/depth",
@@ -393,6 +403,15 @@ def test_binance_rest_fallback_decision_requires_explicit_reason(monkeypatch: An
 
 def test_legacy_rest_read_helpers_mark_success_as_fallback(monkeypatch: Any) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        policy,
+        "_rest_fallback_budget_check",
+        lambda **_kwargs: (
+            True,
+            None,
+            {"budget_scope": "test", "budget_used_this_minute": 1},
+        ),
+    )
     calls: list[str] = []
 
     class FakeResponse:
@@ -503,3 +522,117 @@ def test_transport_policy_keeps_rest_order_fallback_and_mutations_disabled() -> 
     assert policy["cancel_modify_enabled"] is False
     assert policy["test_order_enabled"] is False
     assert policy["leverage_margin_mutation_enabled"] is False
+
+
+class _BudgetRedis:
+    def __init__(self, *, cooldown_ttl_ms: int = -2) -> None:
+        self.cooldown_ttl_ms = cooldown_ttl_ms
+        self.counts: dict[str, int] = {}
+        self.cooldown_payload: str | None = None
+        self.incrby_calls: list[tuple[str, int]] = []
+
+    def ttl(self, _key: str) -> int:
+        if self.cooldown_ttl_ms in {-1, -2}:
+            return self.cooldown_ttl_ms
+        return self.cooldown_ttl_ms // 1_000
+
+    def incrby(self, key: str, amount: int) -> int:
+        self.incrby_calls.append((key, amount))
+        self.counts[key] = self.counts.get(key, 0) + amount
+        return self.counts[key]
+
+    def expire(self, _key: str, _seconds: int) -> bool:
+        return True
+
+    def eval(
+        self,
+        _script: str,
+        _key_count: int,
+        _key: str,
+        requested_ttl_ms: int,
+        payload: str,
+    ) -> int:
+        if self.cooldown_ttl_ms == -1:
+            return -1
+        if self.cooldown_ttl_ms < requested_ttl_ms:
+            self.cooldown_ttl_ms = requested_ttl_ms
+            self.cooldown_payload = payload
+        return self.cooldown_ttl_ms
+
+
+def test_shared_rest_budget_consumes_exact_request_weight(
+    monkeypatch: Any,
+) -> None:
+    redis = _BudgetRedis()
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(policy, "_rest_budget_redis", lambda: redis)
+
+    decision = policy.binance_rest_fallback_decision(
+        endpoint="GET /fapi/v1/klines",
+        fallback_reason="historical_gap",
+        request_weight=5,
+        require_shared_budget=True,
+    )
+
+    assert decision["request_allowed"] is True
+    assert decision["budget_scope"] == "host_redis"
+    assert decision["budget_used_this_minute"] == 5
+    assert decision["request_weight"] == 5
+    assert redis.incrby_calls[0][1] == 5
+
+
+def test_required_shared_rest_budget_fails_closed_without_redis(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(policy, "_rest_budget_redis", lambda: None)
+
+    decision = policy.binance_rest_fallback_decision(
+        endpoint="GET /fapi/v1/klines",
+        fallback_reason="historical_gap",
+        request_weight=5,
+        require_shared_budget=True,
+    )
+
+    assert decision["request_allowed"] is False
+    assert decision["rest_fallback_blocked_reason"] == (
+        "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE"
+    )
+    assert decision["budget_scope"] == "shared_unavailable"
+
+
+def test_persistent_shared_cooldown_key_blocks_instead_of_bypassing(
+    monkeypatch: Any,
+) -> None:
+    redis = _BudgetRedis(cooldown_ttl_ms=-1)
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(policy, "_rest_budget_redis", lambda: redis)
+
+    decision = policy.binance_rest_fallback_decision(
+        endpoint="GET /fapi/v1/klines",
+        fallback_reason="historical_gap",
+        request_weight=5,
+        require_shared_budget=True,
+    )
+
+    assert decision["request_allowed"] is False
+    assert decision["rest_fallback_blocked_reason"] == (
+        "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED"
+    )
+    assert redis.incrby_calls == []
+
+
+def test_shared_418_cooldown_cannot_be_shortened_by_later_429(
+    monkeypatch: Any,
+) -> None:
+    redis = _BudgetRedis()
+    monkeypatch.setattr(policy, "_rest_budget_redis", lambda: redis)
+
+    assert policy.report_binance_rest_response(status_code=418) is True
+    first_payload = redis.cooldown_payload
+    assert redis.cooldown_ttl_ms == 1_800_000
+    assert policy.report_binance_rest_response(status_code=429) is True
+
+    assert redis.cooldown_ttl_ms == 1_800_000
+    assert redis.cooldown_payload == first_payload
+    assert json.loads(str(redis.cooldown_payload))["status_code"] == 418
