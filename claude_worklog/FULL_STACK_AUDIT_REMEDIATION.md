@@ -48,6 +48,43 @@ for a future dead-code cleanup, not a live fix.
 Net: every defect on the LIVE backend/frontend/iOS surfaces is fixed. The two remaining items are
 dead-code latent bugs, not live risks.
 
+## PASS 2 (services / CLI / data-integrity / config) — workflow wu1w0l5je
+Second pass on the under-covered layers. is_live filter used (0 dead-code false alarms).
+
+### FIXED + committed (0747c64fb2)
+- cross_margin_liquidation.py:137 — SHORT shocked-maintenance wrong side-sign; cascade guard withheld a
+  protective close in an up-squeeze. Sign dropped (maintenance scales with abs(notional)).
+- 3 live status publishers (technical_analysis / ingestors_status / decision_lineage) — blocking KEYS +
+  per-key TTL fan-out on the 634K store to bounded SCAN + one pipelined TTL; decision_lineage loop wrapped
+  in try/except (was crash-restart churn).
+- mobile.py:1371 — iOS equity curve + win/loss donut now use canonical NET pnl (was gross alias).
+- canonical_pnl.py:53 — freshness lags off OLDEST source (fresh secondary key no longer masks stale equity).
+- main.py:302 — Swagger/ReDoc/OpenAPI disabled in production (info-disclosure hardening).
+
+### DEFERRED to TRAINER lane (model-facing; inference-only change would cause train/serve skew)
+- v2_liquidation_enhanced.py:294-295 (long_oi and short_oi both = total OI to a constant ratio) and :298
+  (5-min liq count relabeled 1-min, ~5x velocity inflation). Fix in training+inference together + retrain.
+
+### OPERATOR-CONFIG flags (not repo code fixes; some CRITICAL)
+1. CRITICAL: ALPHAFORGE_ENV is UNSET on the live public backend, so ALL production auth hardening is inert:
+   verify_admin_step_up_code returns True unconditionally (admin MFA step-up bypass), plus cookie-secure /
+   samesite / token-revocation are not enforced. Set ALPHAFORGE_ENV=production in the deploy env AND provision
+   the now-required secrets (admin step-up TOTP secret etc.) in the SAME change. (auth/security.py:90,311)
+2. adaptive_gate_tuner.py:116,233 (live ai-bot-v2-adaptive-gate-tuner.service) reads
+   v2:market:candle:latest:SYM which NO service writes, so volatility/regime adaptation is permanently DEAD
+   (protective high-vol tightening never fires). Repoint to an existing candle key (v2:market:kline_current:
+   binance:SYM:1m) + freshness gate. NOT auto-applied: changes live paper-gate thresholds, Codex-adjacent —
+   operator/Codex should own activation.
+3. public-website-backend base systemd unit hardcodes V2_BACKEND_PORT=5173 (collides with the vite frontend;
+   only a release drop-in masks it) — set the base unit to 8000.
+4. Two legacy old-bot systemd units execute the forbidden legacy tree with Restart=always — operator should
+   mask/disable them (do not edit the legacy tree itself).
+
+### NOTE: 52 PRE-EXISTING domain-purity test failures
+tests/unit/domain/{shadow_mode_readiness,trainer_prediction_output}/* fail on the CURRENT tree even with my
+pass-2 changes stashed, so NOT caused by this audit — most likely from Codex's uncommitted changeset adding a
+forbidden import into a domain module. Flag for Codex's commit validation.
+
 ## Caveats surfaced to operator
 - Auth changes (RBAC/backtest/login) verified against the test suite but NOT runtime-verified here (no live
   login/cookie flow) — operator should confirm login + pipeline control + backtest still work after deploy.
