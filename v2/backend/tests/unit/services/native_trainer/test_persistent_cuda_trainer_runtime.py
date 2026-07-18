@@ -439,8 +439,16 @@ def test_persistent_runtime_status_exposes_utc_and_liveness(tmp_path: Path, monk
     assert status["gpu_name"] == "unit-test-gpu"
 
 
-def test_training_cycle_heartbeat_refreshes_runtime_status_without_training(tmp_path: Path) -> None:
+def test_training_cycle_heartbeat_refreshes_runtime_status_without_training(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     paths = PersistentTrainerPaths(repo_root=tmp_path)
+    monkeypatch.setattr(
+        runtime_module,
+        "systemctl_show",
+        lambda _unit: {"ActiveState": "inactive", "MainPID": "0"},
+    )
     prediction_path = paths.public_root / runtime_module.PREDICTION_REL
     prediction_path.parent.mkdir(parents=True, exist_ok=True)
     prediction_path.write_text(
@@ -483,11 +491,16 @@ def test_training_cycle_heartbeat_refreshes_runtime_status_without_training(tmp_
     assert public_status["blocked_prediction_rows"] == 45
     assert public_status["training_steps_total"] == 9
     assert public_status["schema_version"] == "native_cuda_trainer_persistent_runtime_status_v1"
+    assert public_status["service_active"] is False
+    assert public_status["cycle_process_active"] is True
+    assert public_status["cycle_process_is_service_main"] is False
     assert operator_status["training_cycle_status"] == "TRAINING_CYCLE_IN_PROGRESS"
     assert operator_status["schema_version"] == "native_cuda_trainer_persistent_runtime_status_v1"
     assert merged_runtime["training_cycle_status"] == "TRAINING_CYCLE_IN_PROGRESS"
     assert merged_runtime["schema_version"] == "native_trainer_runtime_status_v1"
-    assert merged_runtime["persistent_trainer_service_active"] is True
+    assert merged_runtime["persistent_trainer_service_active"] is False
+    assert merged_runtime["trainer_cycle_process_active"] is True
+    assert merged_runtime["trainer_cycle_process_is_service_main"] is False
     assert merged_runtime["prediction_grid_current"] is True
 
 

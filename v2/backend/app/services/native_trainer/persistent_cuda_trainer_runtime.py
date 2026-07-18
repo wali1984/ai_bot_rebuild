@@ -2259,7 +2259,8 @@ def build_persistent_runtime_status(
     training = as_dict(metrics.get("training"))
     latest_training_metrics = latest_training_metrics_from_result(trainer_result)
     service = systemctl_show(PERSISTENT_UNIT)
-    pid = int(finite_float(service.get("MainPID")) or os.getpid())
+    service_pid = int(finite_float(service.get("MainPID")) or 0)
+    pid = service_pid if service_pid > 0 else os.getpid()
     started_ts = finite_float(persistent_state.get("started_ts")) or now_ts
     prediction_public = as_dict(read_json(paths.public_root / PREDICTION_REL))
     prediction_rows = int(
@@ -2285,7 +2286,8 @@ def build_persistent_runtime_status(
         if latest_event_ts > 0
         else None
     )
-    service_active = service.get("ActiveState") == "active" or os.getpid() == pid
+    service_active = service.get("ActiveState") == "active" and service_pid > 0
+    current_process_is_service_main = service_active and service_pid == os.getpid()
     worker_health_status = (
         "HEALTHY"
         if service_active and heartbeat_age_seconds is not None and heartbeat_age_seconds <= 300
@@ -2313,6 +2315,10 @@ def build_persistent_runtime_status(
         "service_active": service_active,
         "service_state": service,
         "pid": pid,
+        "service_pid": service_pid or None,
+        "cycle_process_pid": os.getpid(),
+        "cycle_process_active": True,
+        "cycle_process_is_service_main": current_process_is_service_main,
         "uptime_seconds": round(max(0.0, now_ts - started_ts), 3),
         "training_loop_active": True,
         "continuous_training_enabled": True,
@@ -2450,6 +2456,10 @@ def publish_training_cycle_heartbeat(
         and stale_prediction_rows == 0
     )
     state = as_dict(persistent_state)
+    service = systemctl_show(PERSISTENT_UNIT)
+    service_pid = int(finite_float(service.get("MainPID")) or 0)
+    service_active = service.get("ActiveState") == "active" and service_pid > 0
+    current_process_is_service_main = service_active and service_pid == os.getpid()
     current_runtime_path = paths.operator_dir / "native_trainer_runtime_status.json"
     current_runtime = as_dict(read_json(current_runtime_path))
     latest_training_metrics = current_runtime.get("latest_training_metrics")
@@ -2471,8 +2481,13 @@ def publish_training_cycle_heartbeat(
         "training_loop_active": True,
         "continuous_training_enabled": True,
         "service_name": PERSISTENT_UNIT,
-        "service_active": True,
+        "service_active": service_active,
+        "service_state": service,
+        "service_pid": service_pid or None,
         "pid": os.getpid(),
+        "cycle_process_pid": os.getpid(),
+        "cycle_process_active": True,
+        "cycle_process_is_service_main": current_process_is_service_main,
         "training_steps_total": state.get("training_steps_total", existing.get("training_steps_total", 0)),
         **online_learning,
         **symbol_scope,
@@ -2515,8 +2530,11 @@ def publish_training_cycle_heartbeat(
             "training_loop_active": True,
             "continuous_training_enabled": True,
             "training_cycle_status": payload["training_cycle_status"],
-            "persistent_trainer_service_active": True,
-            "persistent_trainer_pid": os.getpid(),
+            "persistent_trainer_service_active": service_active,
+            "persistent_trainer_pid": service_pid or None,
+            "trainer_cycle_process_pid": os.getpid(),
+            "trainer_cycle_process_active": True,
+            "trainer_cycle_process_is_service_main": current_process_is_service_main,
             **online_learning,
             **symbol_scope,
             "prediction_grid_rows": prediction_rows,
