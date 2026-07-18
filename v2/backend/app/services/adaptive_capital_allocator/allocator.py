@@ -119,6 +119,7 @@ def _adaptive_leverage_target_selection(
     envelope: RiskEnvelope,
     *,
     mode: str,
+    signed_expected_market_move_after_cost_bps: float,
 ) -> tuple[float, dict[str, Any]]:
     cost_drag_bps = (
         max(0.0, row.spread_bps)
@@ -145,6 +146,15 @@ def _adaptive_leverage_target_selection(
         "leverage_correlation_pressure": round(correlation_pressure, 8),
         "leverage_drawdown_pressure": round(drawdown_pressure, 8),
         "leverage_live_mutation_allowed": False,
+        "leverage_sizing_economic_edge_after_cost_bps": round(edge_bps, 8),
+        "leverage_signed_expected_market_move_after_cost_bps": (
+            signed_expected_market_move_after_cost_bps
+        ),
+        "leverage_recommender_edge_semantics": (
+            "SIGNED_MARKET_MOVE_LONG_POSITIVE_SHORT_NEGATIVE"
+            if mode == "paper"
+            else "LIVE_DYNAMIC_LEVERAGE_DISABLED"
+        ),
     }
     if mode != "paper":
         diagnostics.update({
@@ -164,7 +174,9 @@ def _adaptive_leverage_target_selection(
         signal_id=str(row.lineage_ids.get("signal_id") or row.lineage_ids.get("prediction_id") or row.symbol),
         direction=row.action,
         confidence_calibrated=row.confidence_calibrated,
-        expected_move_after_cost_bps=row.expected_move_after_cost_bps,
+        expected_move_after_cost_bps=(
+            signed_expected_market_move_after_cost_bps
+        ),
         atr_bps=row.volatility_bps,
         equity_usd=row.equity,
     )
@@ -829,7 +841,14 @@ def _allocate(row: AllocationInput, *, mode: str, envelope: RiskEnvelope) -> All
             target_notional = min_notional
         else:
             return _block(row, mode=mode, decision="BLOCK_EXCHANGE_MIN_ORDER", reason="adaptive_size_below_exchange_min_order", envelope=envelope)
-    target_leverage, leverage_selection = _adaptive_leverage_target_selection(sizing_row, envelope, mode=mode)
+    target_leverage, leverage_selection = _adaptive_leverage_target_selection(
+        sizing_row,
+        envelope,
+        mode=mode,
+        signed_expected_market_move_after_cost_bps=(
+            row.expected_move_after_cost_bps
+        ),
+    )
     if hedge_sizing_diag is not None:
         leverage_selection = {
             **leverage_selection,

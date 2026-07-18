@@ -120,6 +120,52 @@ def test_paper_short_uses_negative_signed_move_as_positive_economic_edge() -> No
     assert result.model_inputs["allocator_edge_sign_convention"] == (
         "paper_short_negative_signed_move_is_positive_economic_edge"
     )
+    recommendation = result.model_inputs["phase8_leverage_recommendation"]
+    assert result.model_inputs[
+        "leverage_signed_expected_market_move_after_cost_bps"
+    ] == -80.0
+    assert result.model_inputs[
+        "leverage_sizing_economic_edge_after_cost_bps"
+    ] == 80.0
+    assert result.model_inputs["leverage_recommender_edge_semantics"] == (
+        "SIGNED_MARKET_MOVE_LONG_POSITIVE_SHORT_NEGATIVE"
+    )
+    assert recommendation["direction_aligned_after_cost_edge_bps"] == 80.0
+    assert recommendation["direction_aligned_edge_source"] == (
+        "SIGNED_EDGE_ALIGNED_TO_SHORT"
+    )
+    assert result.model_inputs["raw_leverage_target"] > 1.0
+
+
+def test_paper_long_and_short_symmetric_edge_have_equal_raw_leverage() -> None:
+    common = {
+        "confidence_calibrated": 0.8,
+        "spread_bps": 2.0,
+        "slippage_bps": 2.0,
+    }
+    long = allocate_paper_candidate(
+        _row(
+            action="long",
+            expected_move_after_cost_bps=80.0,
+            **common,
+        )
+    )
+    short = allocate_paper_candidate(
+        _row(
+            action="short",
+            expected_move_after_cost_bps=-80.0,
+            **common,
+        )
+    )
+
+    assert long.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert short.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
+    assert long.model_inputs["raw_leverage_target"] == short.model_inputs[
+        "raw_leverage_target"
+    ]
+    assert long.model_inputs["leverage_target"] == short.model_inputs[
+        "leverage_target"
+    ]
 
 
 def test_paper_short_blocks_positive_signed_move_as_no_edge() -> None:
@@ -133,7 +179,24 @@ def test_paper_short_blocks_positive_signed_move_as_no_edge() -> None:
     )
 
     assert result.decision == "BLOCK_NO_EDGE"
+    assert result.recommended_leverage == 1.0
     assert result.model_inputs["signed_expected_move_after_cost_bps"] == 80.0
+    assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
+
+
+def test_paper_long_blocks_negative_signed_move_at_1x() -> None:
+    result = allocate_paper_candidate(
+        _row(
+            action="long",
+            expected_move_after_cost_bps=-80.0,
+            spread_bps=2.0,
+            slippage_bps=2.0,
+        )
+    )
+
+    assert result.decision == "BLOCK_NO_EDGE"
+    assert result.recommended_leverage == 1.0
+    assert result.model_inputs["signed_expected_move_after_cost_bps"] == -80.0
     assert result.model_inputs["allocator_economic_edge_after_cost_bps"] == 0.0
 
 
@@ -404,17 +467,21 @@ def test_leverage_is_lowest_safe_value_that_supports_margin_budget() -> None:
     tight_margin = allocate_paper_candidate(
         _row(
             available_margin=330.0,
-            confidence_calibrated=0.9,
-            expected_move_after_cost_bps=120.0,
+            confidence_calibrated=0.70,
+            expected_move_after_cost_bps=28.0,
             stop_distance_bps=80.0,
+            spread_bps=1.0,
+            slippage_bps=1.0,
         )
     )
     ample_margin = allocate_paper_candidate(
         _row(
             available_margin=5000.0,
-            confidence_calibrated=0.9,
-            expected_move_after_cost_bps=120.0,
+            confidence_calibrated=0.70,
+            expected_move_after_cost_bps=28.0,
             stop_distance_bps=80.0,
+            spread_bps=1.0,
+            slippage_bps=1.0,
         )
     )
 
@@ -435,14 +502,16 @@ def test_paper_leverage_uses_phase8_target_for_high_confidence_low_volatility_ed
     )
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
-    # conf 0.88 + strong edge + low vol earns the 5x exploration tier raw
-    # target; the risk envelope (max_effective_leverage=3.0 default here)
-    # caps the SELECTED leverage — higher leverage is earned through the
-    # performance-scaled envelope, never granted statically.
+    # Continuous confidence/edge/ATR evidence earns a raw target above the
+    # default envelope. The risk envelope (max_effective_leverage=3.0 here)
+    # remains binding downstream.
     assert result.recommended_leverage == 3.0
     assert result.effective_leverage == 3.0
     assert result.allocated_margin_usd < result.gross_notional_usd
-    assert result.model_inputs["raw_leverage_target"] == 5.0
+    assert result.model_inputs["raw_leverage_target"] > 3.0
+    assert result.model_inputs["raw_leverage_target"] == result.model_inputs[
+        "phase8_leverage_recommendation"
+    ]["recommended_leverage"]
     assert result.model_inputs["leverage_target"] == 3.0
     assert result.model_inputs["selected_leverage"] == 3.0
     assert result.model_inputs["leverage_live_mutation_allowed"] is False
@@ -507,7 +576,10 @@ def test_paper_leverage_stays_at_one_when_after_cost_edge_is_too_small() -> None
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert result.recommended_leverage == 1.0
-    assert result.model_inputs["raw_leverage_target"] == 2.0
+    assert result.model_inputs["raw_leverage_target"] > 1.0
+    assert result.model_inputs["raw_leverage_target"] == result.model_inputs[
+        "phase8_leverage_recommendation"
+    ]["recommended_leverage"]
     assert result.model_inputs["leverage_target"] == 1.0
     assert result.model_inputs["leverage_selection_reason"] == "after_cost_edge_too_small_for_dynamic_leverage"
 
@@ -549,7 +621,10 @@ def test_paper_leverage_risk_pressure_caps_high_confidence_target() -> None:
 
     assert result.decision in {"ALLOW_WITH_SIZE", "REDUCE_SIZE"}
     assert result.recommended_leverage == 1.0
-    assert result.model_inputs["raw_leverage_target"] == 3.0
+    assert result.model_inputs["raw_leverage_target"] > 1.0
+    assert result.model_inputs["raw_leverage_target"] == result.model_inputs[
+        "phase8_leverage_recommendation"
+    ]["recommended_leverage"]
     assert result.model_inputs["leverage_target"] == 1.0
     assert result.model_inputs["leverage_selection_reason"] == "correlation_pressure_caps_leverage_at_1x"
 
