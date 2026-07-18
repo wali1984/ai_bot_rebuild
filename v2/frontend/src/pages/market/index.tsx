@@ -241,7 +241,10 @@ function fmtTurnover(v: number | null): string {
 
 function fmtFunding(rate: number | null): string {
   if (rate === null) return '—';
-  const pct = Math.abs(rate) < 0.01 ? rate * 100 : rate;
+  // Backend funding_rate is always a Binance fraction (lastFundingRate, e.g. 0.012 = 1.2%),
+  // so always scale to percent — matches /markets and /symbols. The prior |rate|<0.01
+  // guard understated high-funding symbols 100x.
+  const pct = rate * 100;
   return `${pct >= 0 ? '+' : ''}${pct.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 6 })}%`;
 }
 

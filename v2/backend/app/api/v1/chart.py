@@ -78,7 +78,15 @@ def _read_coinank_key(r: Any, key_pattern: str) -> Any:
     if r is None:
         return None
     try:
-        keys = r.keys(key_pattern)
+        # Bounded cursor SCAN, never blocking KEYS: this helper is called up to
+        # 11x per chart page load against a ~726K-key single-threaded Redis.
+        keys: list[str] = []
+        cursor = 0
+        while True:
+            cursor, batch = r.scan(cursor=cursor, match=key_pattern, count=500)
+            keys.extend(batch)
+            if cursor == 0 or len(keys) > 2000:
+                break
         if not keys:
             return None
         raw = r.get(sorted(keys)[-1])

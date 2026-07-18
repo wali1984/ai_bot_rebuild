@@ -34,6 +34,22 @@ def _redis_json(key: str) -> Any:
         return None
 
 
+def _scan_keys(r: Any, pattern: str, cap: int = 2000) -> list[str]:
+    """Bounded cursor SCAN (never blocking KEYS). These are public endpoints, so
+    a KEYS glob on the ~726K-key store is an unauthenticated DoS/latency vector."""
+    keys: list[str] = []
+    try:
+        cursor = 0
+        while True:
+            cursor, batch = r.scan(cursor=cursor, match=pattern, count=1000)
+            keys.extend(k.decode("utf-8") if isinstance(k, bytes) else str(k) for k in batch)
+            if cursor == 0 or len(keys) >= cap:
+                break
+    except Exception:
+        return keys
+    return keys
+
+
 def _utc_now() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
@@ -285,7 +301,7 @@ async def get_ai_model_state() -> dict[str, Any]:
 
     if r is not None:
         try:
-            ta_keys = r.keys("v2:features:ta_full:*")
+            ta_keys = _scan_keys(r, "v2:features:ta_full:*")
             ta_keys_total = len(ta_keys or [])
             symbols_seen: set[str] = set()
             for k in (ta_keys or [])[:200]:
@@ -364,7 +380,7 @@ async def get_signals_all_timeframe_truth() -> dict[str, Any]:
 
     if r is not None:
         try:
-            signal_keys = r.keys("v2:trainer:hybrid_cuda:signals:paper:*")
+            signal_keys = _scan_keys(r, "v2:trainer:hybrid_cuda:signals:paper:*")
             for k in (signal_keys or [])[:100]:
                 key_str = k.decode("utf-8") if isinstance(k, bytes) else str(k)
                 parts = key_str.split(":")

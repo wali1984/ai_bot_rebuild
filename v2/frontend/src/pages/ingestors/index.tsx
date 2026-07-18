@@ -254,8 +254,8 @@ export default function IngestorsPage(): JSX.Element {
                       <td className={ing.heartbeat_ttl_seconds > 0 ? 'metric--ok' : 'metric--block'}>
                         {ing.heartbeat_ttl_seconds}
                       </td>
-                      <td>{ing.symbols_count || '—'}</td>
-                      <td>{ing.keys_written_count || '—'}</td>
+                      <td>{ing.symbols_count ?? '—'}</td>
+                      <td>{ing.keys_written_count ?? '—'}</td>
                       <td className="small">{ing.last_generated_utc ?? '—'}</td>
                       <td>
                         <div className="ingestor-actions" aria-label={`${ing.name} controls`}>

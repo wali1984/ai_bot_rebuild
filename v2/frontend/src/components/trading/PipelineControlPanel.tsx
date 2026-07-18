@@ -73,9 +73,9 @@ export function PipelineControlPanel({ surface }: { surface: string }): JSX.Elem
     try {
       const response = await fetch(PIPELINE_RUN_ENDPOINT, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-Role': 'operator',
         },
         body: JSON.stringify({
           run_type: runType,

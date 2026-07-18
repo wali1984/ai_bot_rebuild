@@ -23,7 +23,9 @@ import os
 import time
 from typing import Any, Iterable
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+
+from app.auth.security import optional_auth
 
 # RBAC role hierarchy. Matches v2/frontend/src/auth/rbac.ts.
 ROLE_RANK: dict[str, int] = {
@@ -32,6 +34,17 @@ ROLE_RANK: dict[str, int] = {
     "operator": 2,
     "admin": 3,
     "trusted": 4,
+}
+
+# Map the authenticated JWT role vocabulary (app.auth.security.Role) onto this
+# module's RBAC hierarchy by equivalent rank. The role is now taken from the
+# validated session (cookie/bearer), NEVER from a client-supplied header.
+_JWT_ROLE_TO_V2: dict[str, str] = {
+    "guest": "public",
+    "viewer": "observer",
+    "trader": "operator",
+    "admin": "admin",
+    "superadmin": "trusted",
 }
 
 
@@ -99,17 +112,23 @@ class TtlCache:
 def require_min_role(min_role: str):
     """FastAPI dependency factory enforcing RBAC by role hierarchy.
 
-    The role is taken from the `X-Role` request header (lowercased). Anything
-    unknown or absent defaults to `public`. The actual session resolution
-    will land with the real auth layer (see middleware/rbac.py); for the
-    landing routes a header-driven check is sufficient and is testable.
+    The role is resolved from the authenticated session (JWT via cookie or
+    bearer, `optional_auth`) and mapped through `_JWT_ROLE_TO_V2`. An
+    unauthenticated caller is `public`. The role is NEVER taken from a
+    client-supplied header (the prior `X-Role` scheme was trivially spoofable).
     """
     if min_role not in ROLE_RANK:
         raise ValueError(f"unknown role: {min_role}")
     threshold = ROLE_RANK[min_role]
 
-    async def _dep(x_role: str | None = Header(default=None)) -> str:
-        role = (x_role or "public").strip().lower()
+    async def _dep(user: Any = Depends(optional_auth)) -> str:
+        jwt_role = ""
+        if user is not None:
+            try:
+                jwt_role = str(user.get("role") or "").strip().lower()
+            except Exception:
+                jwt_role = ""
+        role = _JWT_ROLE_TO_V2.get(jwt_role, "public")
         rank = ROLE_RANK.get(role, 0)
         if rank < threshold:
             raise HTTPException(

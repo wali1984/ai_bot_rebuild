@@ -618,20 +618,26 @@ async def _redis_get_json_object(client: Any, key: str) -> dict[str, Any] | None
 
 
 async def _redis_keys(client: Any, pattern: str) -> list[str]:
+    # Bounded cursor SCAN, never blocking KEYS: on the ~726K-key single-threaded
+    # store KEYS stalls every other consumer (paper loop, ingestors, trainer).
     if client is None:
         return []
-    try:
-        keys = await _maybe_await(client.keys(pattern))
-    except Exception:
-        return []
-    if not isinstance(keys, (list, tuple, set)):
-        return []
     normalized: list[str] = []
-    for key in keys:
-        if isinstance(key, bytes):
-            normalized.append(key.decode("utf-8", errors="replace"))
-        else:
-            normalized.append(str(key))
+    try:
+        cursor = 0
+        while True:
+            cursor, batch = await _maybe_await(
+                client.scan(cursor=cursor, match=pattern, count=1000)
+            )
+            for key in batch or []:
+                if isinstance(key, bytes):
+                    normalized.append(key.decode("utf-8", errors="replace"))
+                else:
+                    normalized.append(str(key))
+            if cursor == 0 or len(normalized) > 5000:
+                break
+    except Exception:
+        return normalized
     return normalized
 
 
@@ -11178,9 +11184,12 @@ async def trigger_backtest(
     symbol: str = Query(default="BTCUSDT"),
     timeframe: str = Query(default="1h"),
     lookback: int = Query(default=100, ge=10, le=500),
-    actor: UserRecord | None = Depends(optional_auth),
+    actor: UserRecord = Depends(require_auth),
 ) -> dict[str, Any]:
     """Triggers a backtest run via subprocess. Returns run_id immediately.
+
+    Requires authentication: the handler spawns a subprocess, so an anonymous
+    caller could otherwise exhaust resources (unauthenticated DoS).
 
     Safe invariants:
     - Never places exchange orders.
@@ -12822,7 +12831,16 @@ async def get_paper_runtime_status(
         if "coinapi" not in str(source or "").lower():
             return None
         try:
-            keys = list(client.keys("v2:market:coinapi:rest:status:*") or [])[:20]
+            keys: list[str] = []
+            cursor = 0
+            while True:
+                cursor, batch = client.scan(
+                    cursor=cursor, match="v2:market:coinapi:rest:status:*", count=100
+                )
+                keys.extend(batch)
+                if cursor == 0 or len(keys) >= 20:
+                    break
+            keys = keys[:20]
         except Exception:
             keys = []
         if not keys:

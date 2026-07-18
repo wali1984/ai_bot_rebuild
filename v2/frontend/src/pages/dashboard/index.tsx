@@ -1655,7 +1655,10 @@ export default function DashboardPage(): JSX.Element {
   );
   const equitySeries = useMemo(() => {
     if (perTradePnl.length === 0) return [] as Array<{ label: string; value: number }>;
-    const base = startingCapital ?? (equity != null && totalPnl != null ? equity - totalPnl : (equity ?? 3000));
+    // Anchor on real capital only — never a fabricated baseline. If neither a
+    // starting capital nor a live equity is known, render no curve rather than lie.
+    const base = startingCapital ?? (equity != null && totalPnl != null ? equity - totalPnl : equity);
+    if (base == null) return [] as Array<{ label: string; value: number }>;
     let run = base;
     const pts = [{ label: 'Start', value: base }];
     perTradePnl.forEach((p, i) => { run += p.value; pts.push({ label: `#${i + 1}`, value: run }); });

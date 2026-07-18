@@ -36,6 +36,49 @@ def _payload() -> dict[str, Any]:
     return build_derivatives_payload()
 
 
+_DERIV_REDIS: Any = None
+
+
+def _get_redis() -> Any:
+    """Return a reused Redis client (pinged for liveness), or None.
+
+    Avoids building a fresh connection pool on every request.
+    """
+    global _DERIV_REDIS
+    try:
+        if _DERIV_REDIS is not None:
+            _DERIV_REDIS.ping()
+            return _DERIV_REDIS
+    except Exception:
+        _DERIV_REDIS = None
+    try:
+        import redis as _redis
+        client = _redis.Redis(
+            host="127.0.0.1", port=6379, db=0, socket_connect_timeout=2, socket_timeout=3
+        )
+        client.ping()
+        _DERIV_REDIS = client
+        return client
+    except Exception:
+        _DERIV_REDIS = None
+        return None
+
+
+def _scan_keys(r: Any, pattern: str, cap: int = 2000) -> list[str]:
+    """Bounded cursor SCAN (never blocking KEYS) over the shared key store."""
+    keys: list[str] = []
+    try:
+        cursor = 0
+        while True:
+            cursor, batch = r.scan(cursor=cursor, match=pattern, count=500)
+            keys.extend(k.decode() if isinstance(k, bytes) else k for k in batch)
+            if cursor == 0 or len(keys) >= cap:
+                break
+    except Exception:
+        return keys
+    return keys
+
+
 def _module(name: str) -> dict[str, Any]:
     payload = _payload()
     module = (payload.get("modules") or {}).get(name)
@@ -112,18 +155,15 @@ async def symbol_snapshot() -> dict[str, Any]:
     Reads v2:market:open_interest:{symbol} and v2:market:long_short:{symbol}
     for all available symbols. Read-only; no exchange mutation or legacy Redis writes.
     """
-    try:
-        import redis as _redis
-        r = _redis.Redis(host="127.0.0.1", port=6379, db=0, socket_connect_timeout=2, socket_timeout=3)
-        r.ping()
-    except Exception:
+    r = _get_redis()
+    if r is None:
         return {"ok": False, "symbols": {}, "error": "redis_unavailable", "source_keys": []}
 
     result: dict[str, dict[str, Any]] = {}
     source_keys: list[str] = []
 
     try:
-        oi_keys = [k.decode() if isinstance(k, bytes) else k for k in r.keys("v2:market:open_interest:*")]
+        oi_keys = _scan_keys(r, "v2:market:open_interest:*")
         for key in oi_keys:
             symbol = key.split(":")[-1]
             raw = r.get(key)
@@ -143,7 +183,7 @@ async def symbol_snapshot() -> dict[str, Any]:
         pass
 
     try:
-        ls_keys = [k.decode() if isinstance(k, bytes) else k for k in r.keys("v2:market:long_short:*")]
+        ls_keys = _scan_keys(r, "v2:market:long_short:*")
         for key in ls_keys:
             symbol = key.split(":")[-1]
             raw = r.get(key)

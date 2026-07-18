@@ -168,9 +168,10 @@ async def test_market_brain_redis_helpers_support_async_bytes_and_key_collection
                 return b'{"classifications_computed": 2, "places_real_order": false}'
             return None
 
-        async def keys(self, pattern: str) -> tuple[bytes, str]:
-            assert pattern == "v2:market_brain:state:*"
-            return (b"v2:market_brain:state:BTCUSDT:1m", "v2:market_brain:state:ETHUSDT:5m")
+        async def scan(self, cursor: int = 0, match: str | None = None, count: int = 1000):
+            # _redis_keys now uses bounded cursor SCAN (never blocking KEYS).
+            assert match == "v2:market_brain:state:*"
+            return (0, [b"v2:market_brain:state:BTCUSDT:1m", "v2:market_brain:state:ETHUSDT:5m"])
 
     assert await market_contracts._redis_get_json_object(_Redis(), "v2:market_brain:overview") == {
         "classifications_computed": 2,

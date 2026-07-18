@@ -9,7 +9,9 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Request, Response, status
+
+from app.api.v2._common import get_redis
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.security import (
@@ -211,11 +213,67 @@ def _clear_session_cookie(response: Response) -> None:
     )
 
 
+# Brute-force protection for /auth/login. Fail-OPEN on any Redis error so a
+# Redis blip can never lock a legitimate operator out.
+_LOGIN_MAX_FAILS = int(os.environ.get("V2_LOGIN_MAX_FAILS", "10"))
+_LOGIN_FAIL_WINDOW_SECONDS = int(os.environ.get("V2_LOGIN_FAIL_WINDOW_SECONDS", "900"))
+
+
+def _login_rl_key(http_request: Request | None, email: str) -> str:
+    ip = http_request.client.host if (http_request and http_request.client) else "unknown"
+    return f"v2:auth:login_fail:{ip}:{(email or '').strip().lower()}"
+
+
+def _login_rl_current_fails(http_request: Request | None, email: str) -> int:
+    try:
+        r = get_redis()
+        if r is None:
+            return 0
+        return int(r.get(_login_rl_key(http_request, email)) or 0)
+    except Exception:
+        return 0
+
+
+def _login_rl_record_failure(http_request: Request | None, email: str) -> None:
+    try:
+        r = get_redis()
+        if r is None:
+            return
+        key = _login_rl_key(http_request, email)
+        pipe = r.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, _LOGIN_FAIL_WINDOW_SECONDS)
+        pipe.execute()
+    except Exception:
+        return
+
+
+def _login_rl_clear(http_request: Request | None, email: str) -> None:
+    try:
+        r = get_redis()
+        if r is not None:
+            r.delete(_login_rl_key(http_request, email))
+    except Exception:
+        return
+
+
 @router.post("/auth/login")
-async def login(request: LoginRequest, response: Response, store: UserStore = Depends(get_user_store)) -> dict[str, Any]:
+async def login(
+    request: LoginRequest,
+    response: Response,
+    http_request: Request,
+    store: UserStore = Depends(get_user_store),
+) -> dict[str, Any]:
+    if _login_rl_current_fails(http_request, request.email) >= _LOGIN_MAX_FAILS:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="too_many_login_attempts",
+        )
     user = await _authenticate_bounded(store, request.email, request.password)
     if not user:
+        _login_rl_record_failure(http_request, request.email)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_credentials")
+    _login_rl_clear(http_request, request.email)
     token = create_access_token(user)
     _set_session_cookie(response, token)
     return {"access_token": token, "token_type": "bearer", "user": safe_user(user)}

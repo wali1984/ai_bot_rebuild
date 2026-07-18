@@ -256,6 +256,30 @@ def client() -> TestClient:
     return TestClient(create_app())
 
 
+@pytest.fixture
+def trader_auth(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Authenticated client (trader role -> 'operator' RBAC rank).
+
+    RBAC now derives the role from the JWT session (never a spoofable X-Role
+    header), so observer/operator-gated routes require a real login.
+    """
+    import os as _os
+
+    monkeypatch.setenv("V2_REPO_ROOT", str(tmp_path))
+    monkeypatch.setenv("ALPHAFORGE_AUTH_STORE", str(tmp_path / "auth_users.json"))
+    monkeypatch.setenv("ALPHAFORGE_TRADER_ACCOUNT_STORE", str(tmp_path / "trader_accounts.json"))
+    monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "landing-trader-password")
+    if "ALPHAFORGE_AUTH_SECRET" not in _os.environ:
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SECRET", "landing-test-secret-minimum-32-chars-long")
+    auth_client = TestClient(create_app())
+    resp = auth_client.post(
+        "/api/auth/login",
+        json={"email": "wajidali1984@hotmail.com", "password": "landing-trader-password"},
+    )
+    assert resp.status_code == 200, resp.text
+    return auth_client, {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
 # --------------------------------------------------------------------- #
 # B1: audit-ledger/summary
 # --------------------------------------------------------------------- #
@@ -346,8 +370,9 @@ def test_b2_tail_no_role_denied(client: TestClient, fake_redis: FakeRedis) -> No
 
 
 def test_b2_tail_observer_role_allowed(
-    client: TestClient, fake_redis: FakeRedis
+    trader_auth, fake_redis: FakeRedis
 ) -> None:
+    client, headers = trader_auth
     ms = int(time.time() * 1000)
     fake_redis.streams["audit:ledger"] = [
         _FakeStreamEntry(
@@ -362,7 +387,7 @@ def test_b2_tail_observer_role_allowed(
         )
     ]
     res = client.get(
-        "/api/v2/audit-ledger/tail?limit=5", headers={"X-Role": "observer"}
+        "/api/v2/audit-ledger/tail?limit=5", headers=headers
     )
     assert res.status_code == 200
     body = res.json()
@@ -374,17 +399,19 @@ def test_b2_tail_observer_role_allowed(
 
 
 def test_b2_tail_missing_redis_returns_empty(
-    client: TestClient, no_redis: None
+    trader_auth, no_redis: None
 ) -> None:
-    res = client.get("/api/v2/audit-ledger/tail", headers={"X-Role": "operator"})
+    client, headers = trader_auth
+    res = client.get("/api/v2/audit-ledger/tail", headers=headers)
     assert res.status_code == 200
     assert res.json() == []
 
 
-def test_b2_tail_limit_bounded(client: TestClient, fake_redis: FakeRedis) -> None:
+def test_b2_tail_limit_bounded(trader_auth, fake_redis: FakeRedis) -> None:
+    client, headers = trader_auth
     # Out-of-range limit should be rejected by FastAPI's validator (422).
     res = client.get(
-        "/api/v2/audit-ledger/tail?limit=500", headers={"X-Role": "observer"}
+        "/api/v2/audit-ledger/tail?limit=500", headers=headers
     )
     assert res.status_code == 422
 
@@ -1145,7 +1172,8 @@ def test_c2_public_status_never_leaks_internal_ids(
     "path,headers,status_code",
     [
         ("/api/v2/audit-ledger/summary", {}, 200),
-        ("/api/v2/audit-ledger/tail", {"X-Role": "observer"}, 200),
+        # audit-ledger/tail is RBAC-gated (observer+); unauthenticated -> 403, not 500.
+        ("/api/v2/audit-ledger/tail", {}, 403),
         ("/api/v2/codex/reviews/latest", {}, 200),
         ("/api/v2/trainer/summary", {}, 200),
         ("/api/v2/ollama/health", {}, 200),

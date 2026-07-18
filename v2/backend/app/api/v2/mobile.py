@@ -2415,7 +2415,16 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
         if "coinapi" not in str(source or "").lower():
             return None
         try:
-            keys = list(r.keys("v2:market:coinapi:rest:status:*") or [])[:20]
+            keys: list[str] = []
+            cursor = 0
+            while True:
+                cursor, batch = r.scan(
+                    cursor=cursor, match="v2:market:coinapi:rest:status:*", count=100
+                )
+                keys.extend(batch)
+                if cursor == 0 or len(keys) >= 20:
+                    break
+            keys = keys[:20]
         except Exception:
             keys = []
         if not keys:

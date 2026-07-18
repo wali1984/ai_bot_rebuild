@@ -3,6 +3,10 @@ import Observation
 
 /// JWT auth state manager. Persists token in Keychain.
 /// Exposed via @Environment(\.authManager) in all views.
+/// @MainActor-isolated like every ViewModel: `state` drives SwiftUI, so it must
+/// only be mutated on the main actor (init()'s Task and the async methods below
+/// otherwise race SwiftUI's main-actor reads).
+@MainActor
 @Observable
 public final class AuthManager {
 

@@ -215,6 +215,7 @@ function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): J
     try {
       const resp = await fetch('/api/v2/backtest/run', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol, timeframe: tf, lookback_candles: lookback, hold_candles: holdCandles, tp_bps: tpBps, sl_bps: slBps }),
       });

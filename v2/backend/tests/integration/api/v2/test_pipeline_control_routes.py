@@ -70,6 +70,30 @@ def client() -> TestClient:
     return TestClient(create_app())
 
 
+@pytest.fixture
+def trader_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Authenticated client (trader role -> 'operator' RBAC rank).
+
+    RBAC derives the role from the JWT session, not a spoofable X-Role header,
+    so operator-gated pipeline control requires a real login.
+    """
+    import os as _os
+
+    monkeypatch.setenv("V2_REPO_ROOT", str(tmp_path))
+    monkeypatch.setenv("ALPHAFORGE_AUTH_STORE", str(tmp_path / "auth_users.json"))
+    monkeypatch.setenv("ALPHAFORGE_TRADER_ACCOUNT_STORE", str(tmp_path / "trader_accounts.json"))
+    monkeypatch.setenv("ALPHAFORGE_INITIAL_TRADER_PASSWORD", "pipeline-trader-password")
+    if "ALPHAFORGE_AUTH_SECRET" not in _os.environ:
+        monkeypatch.setenv("ALPHAFORGE_AUTH_SECRET", "pipeline-test-secret-minimum-32-chars-long")
+    auth_client = TestClient(create_app())
+    resp = auth_client.post(
+        "/api/auth/login",
+        json={"email": "wajidali1984@hotmail.com", "password": "pipeline-trader-password"},
+    )
+    assert resp.status_code == 200, resp.text
+    return auth_client, {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
 def _seed_minimal_symbol(redis: FakeRedis, symbol: str, timeframe: str = "1m") -> None:
     redis.set(f"v2:market:prices:{symbol}", {"price": 100.0})
     redis.set(f"v2:market:ohlcv:binance:{symbol}:{timeframe}", {"close": 100.0})
@@ -115,15 +139,16 @@ def test_pipeline_status_reports_symbol_compatibility(
 
 
 def test_pipeline_dry_run_does_not_write_redis(
-    client: TestClient,
+    trader_auth,
     fake_redis: FakeRedis,
 ) -> None:
+    client, headers = trader_auth
     _seed_minimal_symbol(fake_redis, "BTCUSDT")
     fake_redis.set_calls.clear()
 
     res = client.post(
         "/api/v2/pipeline/run",
-        headers={"X-Role": "operator"},
+        headers=headers,
         json={
             "run_type": "full_pipeline",
             "symbols": ["BTCUSDT"],
@@ -141,15 +166,16 @@ def test_pipeline_dry_run_does_not_write_redis(
 
 
 def test_pipeline_enqueue_writes_only_v2_pipeline_keys(
-    client: TestClient,
+    trader_auth,
     fake_redis: FakeRedis,
 ) -> None:
+    client, headers = trader_auth
     _seed_minimal_symbol(fake_redis, "BTCUSDT")
     fake_redis.set_calls.clear()
 
     res = client.post(
         "/api/v2/pipeline/run",
-        headers={"X-Role": "operator"},
+        headers=headers,
         json={
             "run_type": "trainer_cycle",
             "symbols": ["BTCUSDT"],

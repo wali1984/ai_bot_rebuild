@@ -263,9 +263,11 @@ struct RiskControlView: View {
                         .foregroundStyle(NerVyx.textMuted)
                 }
             }
-            Link("Open Web Admin ↗", destination: URL(string: appState.baseURL + "/admin")!)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(NerVyx.signal)
+            if let adminURL = URL(string: appState.baseURL + "/admin") {
+                Link("Open Web Admin ↗", destination: adminURL)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(NerVyx.signal)
+            }
         }
         .padding(14)
         .background(NerVyx.warning.opacity(0.07))
