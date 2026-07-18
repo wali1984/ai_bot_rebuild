@@ -445,7 +445,19 @@ export default function MarketsPage(): JSX.Element {
   ];
 
   return (
-    <div data-testid="page-markets" style={{ background: 'var(--bg-base)', paddingBottom: 48 }}>
+    <div data-testid="page-markets" style={{ background: 'var(--bg-base)', paddingBottom: 48, position: 'relative', overflow: 'hidden' }}>
+      {/* Ambient depth — gives the frosted header/cards colour to refract. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background:
+            'radial-gradient(44% 28% at 15% 0%, rgba(59,130,246,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(45,212,191,0.08), transparent 72%)',
+        }}
+      />
       {/* Unauthenticated banner */}
       {!user && (
         <div
@@ -484,9 +496,12 @@ export default function MarketsPage(): JSX.Element {
       {/* Page header */}
       <div
         style={{
+          position: 'relative',
+          zIndex: 1,
           padding: '20px 24px 16px',
           borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-panel)',
+          background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)',
+          backdropFilter: 'blur(8px)',
         }}
       >
         <div
