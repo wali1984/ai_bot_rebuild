@@ -89,7 +89,17 @@ def run_once(write_redis: bool = True) -> dict:
     redis_write_errors: list[str] = []
 
     if r:
-        pos_keys = r.keys("v2:paper:position_history:*")
+        # Bounded, cursor-based scan — never a blocking KEYS on the ~1.58M-key
+        # shared store (this loop runs every 300s and KEYS freezes the
+        # single-threaded server for the full O(N) keyspace, stalling the paper
+        # loop / trainer / feature pipeline that share the instance).
+        pos_keys: list[str] = []
+        _cursor = 0
+        while True:
+            _cursor, _batch = r.scan(cursor=_cursor, match="v2:paper:position_history:*", count=1000)
+            pos_keys.extend(_batch)
+            if _cursor == 0 or len(pos_keys) >= 20000:
+                break
         symbols_scanned = len(pos_keys)
 
         for key in pos_keys:

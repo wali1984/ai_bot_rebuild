@@ -87,6 +87,48 @@ REPO-ROOT-RELATIVE source paths (e.g. "v2/backend/app/domain/.../__init__.py"). 
 FileNotFoundError; run from the repo root all 57 PASS. So NOT a regression, NOT Codex's, NOT pre-existing
 breakage — purely an invocation-cwd artifact. No action needed. (Lesson: run these from the repo root.)
 
+## PASS 3 (frontend pages + non-Codex backend) — workflow wbnfyutyd
+8-lane fan-out (5 frontend page-groups + API-security + API-data + non-Codex services), scoped to skip all
+81 Codex-in-flight files. A transient API outage killed 26/46 agents mid-run (verify pass degraded), so every
+surviving finding was INDEPENDENTLY re-verified against raw source before any edit. 8 confirmed, 6 fixed.
+
+### FIXED + committed
+- **market_contracts.py:4155** (HIGH) — `/api/v2/market/overview` change_24h emitted in PERCENT while every
+  other path (1830/2094/4296) + all frontend consumers use the FRACTION convention (|x|<=1 ? *100 heuristic).
+  Sub-1% movers rendered 100x too large across Symbols + Dashboard + Market-Intelligence. One-line `/100`
+  normalizes the source; fixes every consumer at once.
+- **dashboard/index.tsx:955-956** (HIGH/MED) — Max Daily Loss + Max Drawdown are USD (`*_loss_limit_usdt`)
+  but rendered `fPct(value/100)` (a $15 cap showed as "15%"). Now `$value`.
+- **risk-control/index.tsx:311** (MED) — Max Drawdown (same USD source) rendered `%`; now `$` (matches the
+  sibling Max Daily Loss `$` on :310). Also **:305** Max Total Exposure `%`->`$` (a USD cap; currently
+  non-manifesting because /api/v2/risk/status omits the field, but display now correct for when it populates).
+- **v2_opportunity_tracker_publisher.py:92** (MED, dos-resource) — LIVE service (PID 2860, systemd active,
+  300s loop) ran a blocking `KEYS v2:paper:position_history:*` on the ~1.58M-key store, freezing the
+  single-threaded server every 5 min. Now bounded cursor SCAN (count=1000, 20k cap).
+
+### FLAG to operator/Codex (risk-path ACTIVATION — NOT silently applied)
+- **cross_margin_liquidation.py:55 (HIGH, financial-math): the portfolio cross-margin cascade-liquidation
+  guard is BLIND to every V2 paper position.** `_position_rows` only reads exchange-style qty
+  (`positionAmt`/`position_amt`/`qty`); V2 paper positions store size under `net_quantity` (+ explicit
+  `side`). So `amt=None` -> `continue` skips ALL positions -> snapshot open_position_count=0 ->
+  portfolio_liquidation_buffer always positive -> `worst_case_liquidation_breached` never True ->
+  `PORTFOLIO_WORST_CASE_LIQUIDATION_BREACH` CLOSE directive can NEVER fire. This is the exact correlated
+  cross-margin cascade the operator directive (2026-07-14) was meant to defend against, silently defeated.
+  Verified live: the running cascade guard (v2_portfolio_cascade_guard_loop.py:155) passes v2:paper:positions
+  straight in with no mapping; sampled position has net_quantity=1082.64 + side=long, no positionAmt.
+  NOT auto-fixed because: the guard's CLOSE directive is consumed by lifecycle.py:2138 as a TIER_0 force-exit
+  (Codex-lane), so activating it changes trading behavior on a risk path (change-protocol -> operator approval),
+  and a correct fix must also map leverage (`effective_leverage`, not `leverage`) + maintenance rate or the
+  snapshot math under-detects. READY PATCH (in _position_rows): after the existing amt read, add
+  `if amt is None:` -> read `net_quantity`, sign it from `side` (`-abs(nq)` if side in {short,sell} else
+  `abs(nq)`), and map `leverage = _float(pos.get("effective_leverage") or pos.get("leverage")) or 1.0` +
+  maintenance rate from `maintenance_margin_rate`. Operator/Codex to coordinate activation + a paper restart.
+
+### CONSIDERED, DECLINED (not a defect)
+- v2_provider_data_plane_health_publisher.py:159 single-sample green-default is an explicit design choice
+  (in-code rationale: data-plane keys carry TTLs, so key existence implies recent refresh). Overriding it
+  would risk false STALE alarms. Left as-is.
+
 ## Caveats surfaced to operator
 - Auth changes (RBAC/backtest/login) verified against the test suite but NOT runtime-verified here (no live
   login/cookie flow) — operator should confirm login + pipeline control + backtest still work after deploy.

@@ -302,13 +302,13 @@ function ProfileLimits({ fields }: { fields: RiskProfileFields }): JSX.Element {
     { label: 'Max Notional / Trade', value: fields.max_notional_per_trade != null ? `$${fields.max_notional_per_trade.toFixed(2)}` : '—', warn: false },
     { label: 'Max Open Positions', value: fields.max_open_positions != null ? String(fields.max_open_positions) : '—', warn: false },
     { label: 'Max Symbol Exposure', value: fields.max_symbol_exposure != null ? `$${fields.max_symbol_exposure.toFixed(2)}` : '—', warn: false },
-    { label: 'Max Total Exposure', value: fields.max_total_exposure != null ? `${fields.max_total_exposure.toFixed(0)}%` : '—', warn: false },
+    { label: 'Max Total Exposure', value: fields.max_total_exposure != null ? `$${fields.max_total_exposure.toFixed(2)}` : '—', warn: false },
     { label: 'Min Confidence', value: fmtPct(fields.min_confidence_calibrated), warn: false },
     { label: 'Min Exp Move (after cost)', value: fmtBpsAsPct(fields.min_expected_move_after_cost_bps), warn: false },
     { label: 'Max Spread', value: fmtBpsAsPct(fields.max_spread_bps), warn: false },
     { label: 'Max Slippage', value: fmtBpsAsPct(fields.max_slippage_bps), warn: false },
     { label: 'Max Daily Loss', value: fields.max_daily_loss != null ? `$${fields.max_daily_loss.toFixed(2)}` : '—', warn: true },
-    { label: 'Max Drawdown', value: fields.max_drawdown != null ? `${fields.max_drawdown.toFixed(0)}%` : '—', warn: true },
+    { label: 'Max Drawdown', value: fields.max_drawdown != null ? `$${fields.max_drawdown.toFixed(2)}` : '—', warn: true },
     { label: 'Cooldown', value: fields.cooldown_seconds != null ? `${Math.round(fields.cooldown_seconds / 60)}m` : '—', warn: false },
   ];
 

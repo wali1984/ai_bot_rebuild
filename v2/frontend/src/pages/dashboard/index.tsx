@@ -952,8 +952,8 @@ function RiskPanel({ profile, latestResult, heartbeat }: {
               ['Max Open Positions', fields.max_open_positions != null ? String(fields.max_open_positions) : '—'],
               ['Min Confidence', fields.min_confidence_calibrated != null ? fPct(fields.min_confidence_calibrated) : '—'],
               ['Min Move', fields.min_expected_move_after_cost_bps != null ? fBpsAsPct(fields.min_expected_move_after_cost_bps) : '—'],
-              ['Max Daily Loss', fields.max_daily_loss != null ? fPct(fields.max_daily_loss / 100) : '—'],
-              ['Max Drawdown', fields.max_drawdown != null ? fPct(fields.max_drawdown / 100) : '—'],
+              ['Max Daily Loss', fields.max_daily_loss != null ? `$${fields.max_daily_loss.toFixed(2)}` : '—'],
+              ['Max Drawdown', fields.max_drawdown != null ? `$${fields.max_drawdown.toFixed(2)}` : '—'],
               ['Cooldown', fields.cooldown_seconds != null ? Math.round(fields.cooldown_seconds / 60) + 'm' : '—'],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 3 }}>

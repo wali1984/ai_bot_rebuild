@@ -4152,7 +4152,13 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                 ticker = prices.get("ticker_24hr") if isinstance(prices, dict) else None
                 if isinstance(ticker, dict):
                     if row.get("change_24h") is None:
-                        row["change_24h"] = _float(ticker.get("priceChangePercent"))
+                        # priceChangePercent is in PERCENT units (0.8 = +0.8%).
+                        # Every other change_24h path (1830/2094/4296) stores the
+                        # FRACTION, and all frontend consumers apply the
+                        # fraction-expecting (|x|<=1 ? *100) heuristic. Normalize
+                        # to fraction here so sub-1% movers aren't shown 100x large.
+                        _pcp = _float(ticker.get("priceChangePercent"))
+                        row["change_24h"] = (_pcp / 100.0) if _pcp is not None else None
                     if row.get("volume_24h") is None:
                         row["volume_24h"] = _float(ticker.get("quoteVolume") or ticker.get("volume"))
                     if row.get("high_24h") is None:
