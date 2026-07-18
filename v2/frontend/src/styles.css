@@ -2894,6 +2894,27 @@ a { color: inherit; }
   gap: 10px;
 }
 
+/* Trader-first section grouping label — a quiet divider so the dashboard reads
+   as ordered groups (Account → Performance → Actionable → …) rather than a
+   scattered wall of panels. */
+.nervyx-dashboard__section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 2px -2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.nervyx-dashboard__section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--glass-border, rgba(255, 255, 255, 0.14)), transparent);
+}
+
 .nervyx-dashboard__grid {
   display: grid;
   gap: 12px;

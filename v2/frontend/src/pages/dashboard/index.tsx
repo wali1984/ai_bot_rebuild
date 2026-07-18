@@ -1492,6 +1492,10 @@ function StatChip({ label, value, color }: { label: string; value: string; color
   );
 }
 
+function SectionLabel({ children }: { children: ReactNode }): JSX.Element {
+  return <div className="nervyx-dashboard__section-label"><span>{children}</span></div>;
+}
+
 function PerformancePanel({ equitySeries, perTradePnl, winLossData, directionData, accuracy, equity, realized, unrealized, totalPnl }: {
   equitySeries: Array<{ label: string; value: number }>;
   perTradePnl: Array<{ label: string; value: number; winner?: boolean }>;
@@ -1779,21 +1783,13 @@ export default function DashboardPage(): JSX.Element {
         <StatusBar orch={orchData} risk={riskData} />
       </div>
 
-      <DashboardStreamStatus items={dashboardStreamItems} browser={browserStatus} />
+      {/* ═══ TRADER-FIRST LAYOUT ═══════════════════════════════════════════
+          Ordered the way a trader reads a dashboard: money at a glance →
+          performance → what's actionable → fills+market → goal → then the
+          technical runtime internals last. */}
 
-      <DashboardControlCenterTruthPanel
-        portfolio={portfolioData}
-        portfolioEnvelope={portfolioStream.envelope}
-        liveCanaryContract={liveCanaryStream.data}
-        liveCanaryEnvelope={liveCanaryStream.envelope}
-        aPlusContract={aPlusStream.data}
-        aPlusEnvelope={aPlusStream.envelope}
-        riskTruth={mobileRiskStream.data}
-        riskEnvelope={mobileRiskStream.envelope}
-        exchangeAccounts={Array.isArray(user?.exchange_accounts) ? user.exchange_accounts : []}
-      />
-
-      {/* KPI strip */}
+      {/* 1 · At a glance — account + risk status */}
+      <SectionLabel>Account · at a glance</SectionLabel>
       <div className="nervyx-dashboard__kpis">
         <KPITile label="Account Equity" metric={accountMetric('account.equity')} sub="Trader snapshot" to="/portfolio" />
         <KPITile
@@ -1815,10 +1811,8 @@ export default function DashboardPage(): JSX.Element {
         />
       </div>
 
-      {/* 1000x goal trajectory — equity vs required, binding constraint, honest freshness */}
-      <GoalTrajectoryPanel contract={goalTrajectoryStream.data} />
-
-      {/* Performance & capital — real closed-trade charts (equity / PnL / win-loss / accuracy) */}
+      {/* 2 · Performance — how the book is doing */}
+      <SectionLabel>Performance</SectionLabel>
       <PerformancePanel
         equitySeries={equitySeries}
         perTradePnl={perTradePnl}
@@ -1829,6 +1823,48 @@ export default function DashboardPage(): JSX.Element {
         realized={realized}
         unrealized={unrealized}
         totalPnl={totalPnl}
+      />
+
+      {/* 3 · Actionable now — signal · orchestrator · risk gateway */}
+      <SectionLabel>Actionable now</SectionLabel>
+      <div className="nervyx-dashboard__grid nervyx-dashboard__grid--tri">
+        <ActiveSignalPanel
+          signal={activeSignal}
+          signalIdMetric={signalMetric('signal.id')}
+          signalConfidenceMetric={signalMetric('signal.confidence')}
+        />
+        <OrchestratorPanel proposals={proposals} heartbeat={orchHeartbeat} />
+        <RiskPanel profile={riskProfile} latestResult={latestRiskResult} heartbeat={riskHeartbeat} />
+      </div>
+
+      {/* 4 · Fills + market context */}
+      <SectionLabel>Fills &amp; market</SectionLabel>
+      <div className="nervyx-dashboard__grid nervyx-dashboard__grid--main">
+        <PaperFillsPanel fills={fills} summary={paperSummary} />
+        <div className="nervyx-dashboard__side-stack">
+          <CapitalProductivityPanel capital={capitalStatus} />
+          <MarketPulsePanel tickers={tickers} />
+        </div>
+      </div>
+
+      {/* 5 · Goal progress — 1000x trajectory */}
+      <SectionLabel>Goal · 1000x trajectory</SectionLabel>
+      <GoalTrajectoryPanel contract={goalTrajectoryStream.data} />
+
+      {/* 6 · Runtime internals (secondary / technical) — moved below the trade view */}
+      <SectionLabel>Runtime &amp; system internals</SectionLabel>
+      <DashboardStreamStatus items={dashboardStreamItems} browser={browserStatus} />
+
+      <DashboardControlCenterTruthPanel
+        portfolio={portfolioData}
+        portfolioEnvelope={portfolioStream.envelope}
+        liveCanaryContract={liveCanaryStream.data}
+        liveCanaryEnvelope={liveCanaryStream.envelope}
+        aPlusContract={aPlusStream.data}
+        aPlusEnvelope={aPlusStream.envelope}
+        riskTruth={mobileRiskStream.data}
+        riskEnvelope={mobileRiskStream.envelope}
+        exchangeAccounts={Array.isArray(user?.exchange_accounts) ? user.exchange_accounts : []}
       />
 
       <AdaptiveCapitalTelemetryPanel
@@ -1850,30 +1886,8 @@ export default function DashboardPage(): JSX.Element {
         </section>
       ) : null}
 
-      {/* Row 2: Signal + Orchestrator + Risk (3 columns) */}
-      <div className="nervyx-dashboard__grid nervyx-dashboard__grid--tri">
-        <ActiveSignalPanel
-          signal={activeSignal}
-          signalIdMetric={signalMetric('signal.id')}
-          signalConfidenceMetric={signalMetric('signal.confidence')}
-        />
-        <OrchestratorPanel proposals={proposals} heartbeat={orchHeartbeat} />
-        <RiskPanel profile={riskProfile} latestResult={latestRiskResult} heartbeat={riskHeartbeat} />
-      </div>
-
-      {/* Row 3: execution fills + market pulse (2 columns) */}
-      <div className="nervyx-dashboard__grid nervyx-dashboard__grid--main">
-        <PaperFillsPanel fills={fills} summary={paperSummary} />
-        <div className="nervyx-dashboard__side-stack">
-          <CapitalProductivityPanel capital={capitalStatus} />
-          <MarketPulsePanel tickers={tickers} />
-        </div>
-      </div>
-
-      {/* Row 4: System health */}
       {surfaces.length > 0 && <SystemHealthPanel surfaces={surfaces} />}
 
-      {/* Row 5: Quick Nav */}
       <QuickNav />
     </div>
   );
