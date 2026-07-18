@@ -16,8 +16,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import os
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,22 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_wss,
     closed_candle_key,
     current_candle_key,
+)
+from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
+    DEFAULT_MAX_PENDING_ROWS,
+    MAX_CLOSE_WAVE_ROWS,
+    Canonical5mLabelOutbox,
+    Canonical5mLabelOutboxConflictError,
+    Canonical5mLabelOutboxOverflowError,
+    OutboxEnqueueResult,
+    default_outbox_path,
+    deliver_pending_once,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+)
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    default_archive_path as default_canonical_5m_label_archive_path,
 )
 from v2.backend.app.services.runtime_clock import est_now_iso
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
@@ -51,6 +69,33 @@ DEFAULT_WS_BASE = "wss://fstream.binance.com/market/stream?streams="
 DEFAULT_STATUS_PATH = Path("v2/frontend/public/operator_runtime/v2_binance_kline_wss/latest/v2_binance_kline_wss_status.json")
 DEFAULT_PUBLIC_PATH = Path("v2/frontend/public/v2_binance_kline_wss/latest/operator_dashboard_payload.json")
 DEFAULT_WORKLOG_PATH = Path("claude_worklog/final_readiness/v2_binance_kline_wss_runtime/latest/v2_binance_kline_wss_status.json")
+# Multiple websocket chunks close the adaptive universe concurrently. Hold a
+# short bounded wave window, capped only by the archive resource contract, so
+# those facts share a durable transaction without freezing today's symbol count.
+# Awaiting durability in each websocket chunk must not stall a five-second
+# close wave. One short event-loop microbatch turn coalesces concurrent chunks
+# while keeping the upstream websocket queues moving.
+DEFAULT_LABEL_CLOSE_WAVE_FLUSH_SECONDS = 0.01
+DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS = 5.0
+DEFAULT_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 4
+MAX_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 8
+
+
+@dataclass(frozen=True)
+class _Canonical5mLabelAdmissionResult:
+    """An honest acknowledgement resolved only after durable outbox readback."""
+
+    state: str
+    volatile_admitted: bool
+    durable_outbox_committed: bool
+    reason: str | None = None
+    outbox_transaction_id: str | None = None
+
+
+@dataclass(frozen=True)
+class _QueuedCanonical5mAdmission:
+    payload_json: str
+    acknowledgement: asyncio.Future[_Canonical5mLabelAdmissionResult]
 
 
 def _est_iso() -> str:
@@ -109,6 +154,700 @@ class _RedisHolder:
                 client.close()
         except Exception:
             pass
+
+
+class _Canonical5mLabelArchivePipeline:
+    """Bounded WSS-only close-wave queue feeding the durable label archive."""
+
+    def __init__(
+        self,
+        *,
+        archive_path: Path,
+        outbox_path: Path,
+        queue_capacity: int,
+        batch_rows: int,
+        max_pending_rows: int,
+        flush_seconds: float,
+        retry_seconds: float,
+        stats: dict[str, Any],
+    ) -> None:
+        self.stats = stats
+        self.archive_path = Path(archive_path)
+        self.outbox_path = Path(outbox_path)
+        configuration_error: str | None = None
+        try:
+            self.queue_capacity = self._bounded_int(
+                queue_capacity,
+                name="canonical_5m_label_queue_capacity",
+                maximum=MAX_LABEL_QUEUE_CAPACITY,
+            )
+            self.batch_rows = self._bounded_int(
+                batch_rows,
+                name="canonical_5m_label_batch_rows",
+                maximum=MAX_CLOSE_WAVE_ROWS,
+            )
+            self.flush_seconds = self._bounded_float(
+                flush_seconds,
+                name="canonical_5m_label_flush_seconds",
+            )
+            self.retry_seconds = self._bounded_float(
+                retry_seconds,
+                name="canonical_5m_label_retry_seconds",
+            )
+        except Exception as exc:
+            self.queue_capacity = 1
+            self.batch_rows = 1
+            self.flush_seconds = DEFAULT_LABEL_CLOSE_WAVE_FLUSH_SECONDS
+            self.retry_seconds = DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS
+            configuration_error = self._error_text(
+                "CANONICAL_5M_LABEL_PIPELINE_CONFIGURATION_INVALID", exc
+            )
+        self.queue: asyncio.Queue[_QueuedCanonical5mAdmission] = asyncio.Queue(
+            maxsize=self.queue_capacity
+        )
+        self.max_pending_rows = int(max_pending_rows)
+        if (
+            configuration_error is None
+            and self.max_pending_rows < self.batch_rows
+        ):
+            configuration_error = (
+                "canonical_5m_label_max_pending_rows_below_batch_rows"
+            )
+        self._configuration_error = configuration_error
+        self._retry_batch: list[_QueuedCanonical5mAdmission] = []
+        self._admission_futures: set[
+            asyncio.Future[_Canonical5mLabelAdmissionResult]
+        ] = set()
+        self._last_outbox_status: dict[str, Any] = {}
+        self._initialization_error: str | None = None
+        self._outbox_error: str | None = None
+        self._archive_error: str | None = None
+        self._worker_error: str | None = None
+        self._blocker_persistence_error: str | None = None
+        self._sticky_blocker: str | None = None
+        self._sticky_blocker_pending_persistence: str | None = None
+        self._next_archive_retry_at = 0.0
+        self._initialization_attempted = False
+        self._initialized = False
+        self._stop_requested = False
+        self._wake_event = asyncio.Event()
+        self.outbox: Canonical5mLabelOutbox | None = None
+        self.archive: DurableCanonical5mLabelArchive | None = None
+        self._publish_runtime_stats()
+
+    async def initialize(self) -> bool:
+        """Open SQLite state in a worker thread before accepting facts."""
+
+        if self._initialization_attempted:
+            return self._initialized
+        self._initialization_attempted = True
+        if self._configuration_error is not None:
+            self._initialization_error = (
+                "CANONICAL_5M_LABEL_PIPELINE_CONFIGURATION_INVALID:"
+                f"{self._configuration_error}"
+            )
+            self._publish_runtime_stats()
+            return False
+
+        def _open_storage() -> tuple[
+            Canonical5mLabelOutbox,
+            DurableCanonical5mLabelArchive,
+            dict[str, Any],
+        ]:
+            outbox = Canonical5mLabelOutbox(
+                self.outbox_path,
+                max_pending_rows=self.max_pending_rows,
+            )
+            archive = DurableCanonical5mLabelArchive(self.archive_path)
+            return outbox, archive, outbox.status_snapshot()
+
+        try:
+            self.outbox, self.archive, self._last_outbox_status = (
+                await asyncio.to_thread(_open_storage)
+            )
+            self._initialized = True
+            persistent = self._last_outbox_status.get("integrity_blocker")
+            if persistent:
+                self._sticky_blocker = str(persistent)
+            if int(self._last_outbox_status.get("pending_rows") or 0) > 0:
+                self._archive_error = (
+                    "CANONICAL_5M_LABEL_OUTBOX_RECOVERY_PENDING"
+                )
+        except Exception as exc:
+            self._initialization_error = self._error_text(
+                "CANONICAL_5M_LABEL_PIPELINE_INITIALIZATION_FAILED", exc
+            )
+        self._publish_runtime_stats()
+        return self._initialized
+
+    @staticmethod
+    def _bounded_int(value: int, *, name: str, maximum: int) -> int:
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or value <= 0
+            or value > maximum
+        ):
+            raise ValueError(f"{name}_outside_1_to_{maximum}")
+        return value
+
+    @staticmethod
+    def _bounded_float(value: float, *, name: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed) or parsed <= 0.0 or parsed > 60.0:
+            raise ValueError(f"{name}_outside_0_to_60_seconds")
+        return parsed
+
+    @staticmethod
+    def _error_text(prefix: str, exc: BaseException) -> str:
+        detail = str(exc).replace("\n", " ")[:300]
+        return f"{prefix}:{type(exc).__name__}:{detail}"
+
+    async def _refresh_outbox_status(self) -> None:
+        if self.outbox is None:
+            return
+        self._last_outbox_status = await asyncio.to_thread(
+            self.outbox.status_snapshot
+        )
+        persistent = self._last_outbox_status.get("integrity_blocker")
+        if persistent:
+            self._sticky_blocker = str(persistent)
+
+    def _publish_runtime_stats(self) -> None:
+        self.stats["canonical_5m_label_pipeline"] = self.status_snapshot()
+
+    def _mark_sticky_blocker(self, reason: str) -> None:
+        normalized = str(reason)[:500]
+        self._sticky_blocker = self._sticky_blocker or normalized
+        self._sticky_blocker_pending_persistence = (
+            self._sticky_blocker_pending_persistence or normalized
+        )
+
+    async def _flush_sticky_blocker(self) -> None:
+        reason = self._sticky_blocker_pending_persistence
+        if reason is None or self.outbox is None:
+            return
+        try:
+            await asyncio.to_thread(
+                self.outbox.record_integrity_blocker,
+                reason,
+            )
+            self._sticky_blocker_pending_persistence = None
+            self._blocker_persistence_error = None
+            await self._refresh_outbox_status()
+        except Exception as exc:
+            self._blocker_persistence_error = self._error_text(
+                "CANONICAL_5M_LABEL_BLOCKER_PERSIST_FAILED", exc
+            )
+
+    @staticmethod
+    def _resolve_immediately(
+        result: _Canonical5mLabelAdmissionResult,
+    ) -> asyncio.Future[_Canonical5mLabelAdmissionResult]:
+        future = asyncio.get_running_loop().create_future()
+        future.set_result(result)
+        return future
+
+    def submit(
+        self,
+        payload: dict[str, Any],
+    ) -> asyncio.Future[_Canonical5mLabelAdmissionResult]:
+        """Queue a fact and return an acknowledgement future, never a false ack."""
+
+        self.stats["canonical_5m_label_candidates"] = int(
+            self.stats.get("canonical_5m_label_candidates") or 0
+        ) + 1
+        if self._sticky_blocker is not None:
+            self.stats["canonical_5m_label_candidates_rejected"] = int(
+                self.stats.get("canonical_5m_label_candidates_rejected") or 0
+            ) + 1
+            return self._resolve_immediately(
+                _Canonical5mLabelAdmissionResult(
+                    state="REJECTED_PIPELINE_INTEGRITY_BLOCKED",
+                    volatile_admitted=False,
+                    durable_outbox_committed=False,
+                    reason=self._sticky_blocker,
+                )
+            )
+        if not self._initialized:
+            self.stats["canonical_5m_label_candidates_rejected"] = int(
+                self.stats.get("canonical_5m_label_candidates_rejected") or 0
+            ) + 1
+            self._publish_runtime_stats()
+            return self._resolve_immediately(
+                _Canonical5mLabelAdmissionResult(
+                    state="REJECTED_PIPELINE_NOT_INITIALIZED",
+                    volatile_admitted=False,
+                    durable_outbox_committed=False,
+                    reason=(
+                        self._initialization_error
+                        or "CANONICAL_5M_LABEL_PIPELINE_NOT_INITIALIZED"
+                    ),
+                )
+            )
+        try:
+            payload_json = Canonical5mLabelOutbox.exact_payload_json(payload)
+        except Exception as exc:
+            reason = self._error_text(
+                "CANONICAL_5M_WSS_PAYLOAD_VALIDATION_FAILED", exc
+            )
+            self._mark_sticky_blocker(reason)
+            self.stats["canonical_5m_label_candidates_rejected"] = int(
+                self.stats.get("canonical_5m_label_candidates_rejected") or 0
+            ) + 1
+            self._publish_runtime_stats()
+            return self._resolve_immediately(
+                _Canonical5mLabelAdmissionResult(
+                    state="REJECTED_INVALID_CANONICAL_FACT",
+                    volatile_admitted=False,
+                    durable_outbox_committed=False,
+                    reason=reason,
+                )
+            )
+        acknowledgement = asyncio.get_running_loop().create_future()
+        admission = _QueuedCanonical5mAdmission(
+            payload_json=payload_json,
+            acknowledgement=acknowledgement,
+        )
+        try:
+            self.queue.put_nowait(admission)
+        except asyncio.QueueFull:
+            reason = (
+                "CANONICAL_5M_LABEL_MEMORY_QUEUE_OVERFLOW:"
+                f"capacity={self.queue_capacity}"
+            )
+            self._mark_sticky_blocker(reason)
+            self.stats["canonical_5m_label_candidates_dropped"] = int(
+                self.stats.get("canonical_5m_label_candidates_dropped") or 0
+            ) + 1
+            self._publish_runtime_stats()
+            acknowledgement.set_result(
+                _Canonical5mLabelAdmissionResult(
+                    state="REJECTED_VOLATILE_QUEUE_OVERFLOW",
+                    volatile_admitted=False,
+                    durable_outbox_committed=False,
+                    reason=reason,
+                )
+            )
+            return acknowledgement
+        self._wake_event.set()
+        self._admission_futures.add(acknowledgement)
+        self.stats["canonical_5m_label_candidates_queued"] = int(
+            self.stats.get("canonical_5m_label_candidates_queued") or 0
+        ) + 1
+        self._publish_runtime_stats()
+        return acknowledgement
+
+    async def _persist_batch(
+        self,
+        batch: list[_QueuedCanonical5mAdmission],
+    ) -> OutboxEnqueueResult | None:
+        assert self.outbox is not None
+        try:
+            result = await asyncio.to_thread(
+                self.outbox.enqueue_payloads,
+                tuple(item.payload_json for item in batch),
+            )
+            if result.durable_readback_verified is not True:
+                raise RuntimeError("outbox_durable_readback_unverified")
+            self.stats["canonical_5m_label_outbox_transactions"] = int(
+                self.stats.get("canonical_5m_label_outbox_transactions") or 0
+            ) + 1
+            self.stats["canonical_5m_label_outboxed_rows"] = int(
+                self.stats.get("canonical_5m_label_outboxed_rows") or 0
+            ) + result.inserted_rows
+            self.stats["canonical_5m_label_outbox_duplicate_rows"] = int(
+                self.stats.get("canonical_5m_label_outbox_duplicate_rows") or 0
+            ) + result.duplicate_rows
+            self.stats["canonical_5m_label_outbox_last_transaction_id"] = (
+                result.transaction_id
+            )
+            self.stats["canonical_5m_label_outbox_last_batch_sha256"] = (
+                result.batch_sha256
+            )
+            self.stats["canonical_5m_label_outbox_last_attempted_rows"] = (
+                result.attempted_rows
+            )
+            self.stats["canonical_5m_label_outbox_last_inserted_rows"] = (
+                result.inserted_rows
+            )
+            self._last_outbox_status = {
+                **self._last_outbox_status,
+                "pending_rows": result.pending_rows,
+                "outbox_transactions": int(
+                    self._last_outbox_status.get("outbox_transactions") or 0
+                )
+                + 1,
+            }
+            self._outbox_error = None
+            return result
+        except (
+            Canonical5mLabelOutboxConflictError,
+            Canonical5mLabelOutboxOverflowError,
+        ) as exc:
+            reason = self._error_text(
+                "CANONICAL_5M_LABEL_OUTBOX_COMMIT_FAILED", exc
+            )
+            self._outbox_error = reason
+            self._mark_sticky_blocker(reason)
+            self.stats["canonical_5m_label_outbox_failures"] = int(
+                self.stats.get("canonical_5m_label_outbox_failures") or 0
+            ) + 1
+            await self._flush_sticky_blocker()
+            return None
+        except Exception as exc:
+            self._outbox_error = self._error_text(
+                "CANONICAL_5M_LABEL_OUTBOX_COMMIT_FAILED", exc
+            )
+            self._mark_sticky_blocker(self._outbox_error)
+            self.stats["canonical_5m_label_outbox_failures"] = int(
+                self.stats.get("canonical_5m_label_outbox_failures") or 0
+            ) + 1
+            await self._flush_sticky_blocker()
+            return None
+        finally:
+            self._publish_runtime_stats()
+
+    async def _deliver_pending(self, *, force: bool = False) -> None:
+        if self.outbox is None or self.archive is None:
+            return
+        now = time.monotonic()
+        if not force and now < self._next_archive_retry_at:
+            return
+        self._next_archive_retry_at = now + self.retry_seconds
+        delivered_any = False
+        try:
+            # Drain in bounded transactions. Yield between waves so websocket
+            # consumers and Redis persistence cannot be starved by recovery.
+            for _ in range(4):
+                delivered = await asyncio.to_thread(
+                    deliver_pending_once,
+                    outbox=self.outbox,
+                    archive=self.archive,
+                    limit=self.batch_rows,
+                )
+                if delivered is None:
+                    break
+                delivered_any = True
+                self.stats["canonical_5m_label_archive_transactions"] = int(
+                    self.stats.get(
+                        "canonical_5m_label_archive_transactions"
+                    )
+                    or 0
+                ) + 1
+                self.stats["canonical_5m_label_archive_inserted_rows"] = int(
+                    self.stats.get(
+                        "canonical_5m_label_archive_inserted_rows"
+                    )
+                    or 0
+                ) + delivered.inserted_rows
+                self.stats["canonical_5m_label_archive_duplicate_rows"] = int(
+                    self.stats.get(
+                        "canonical_5m_label_archive_duplicate_rows"
+                    )
+                    or 0
+                ) + delivered.duplicate_rows
+                self.stats["canonical_5m_label_archive_last_transaction_id"] = (
+                    delivered.archive_transaction_id
+                )
+                self.stats[
+                    "canonical_5m_label_archive_last_append_receipt_sha256"
+                ] = delivered.archive_append_receipt_sha256
+                await asyncio.sleep(0)
+            await self._refresh_outbox_status()
+            pending_rows = int(
+                self._last_outbox_status.get("pending_rows") or 0
+            )
+            if pending_rows == 0:
+                self._archive_error = None
+                self._next_archive_retry_at = 0.0
+            else:
+                self._archive_error = (
+                    "CANONICAL_5M_LABEL_OUTBOX_RECOVERY_PENDING"
+                )
+                if delivered_any:
+                    self._next_archive_retry_at = 0.0
+        except Exception as exc:
+            self._archive_error = self._error_text(
+                "CANONICAL_5M_LABEL_ARCHIVE_APPEND_FAILED", exc
+            )
+            self.stats["canonical_5m_label_archive_failures"] = int(
+                self.stats.get("canonical_5m_label_archive_failures") or 0
+            ) + 1
+            self._next_archive_retry_at = time.monotonic() + self.retry_seconds
+        finally:
+            self._publish_runtime_stats()
+
+    async def _collect_close_wave(
+        self,
+        stop_at: float | None,
+    ) -> list[_QueuedCanonical5mAdmission]:
+        if self._retry_batch:
+            return list(self._retry_batch)
+        remaining = (
+            self.retry_seconds if stop_at is None else stop_at - time.time()
+        )
+        if remaining <= 0.0 or self._stop_requested:
+            return []
+        if self.queue.empty():
+            # Idle waits follow the archive retry cadence, not the 10ms
+            # post-first-item coalescing window. The explicit wake event makes
+            # both a new admission and graceful shutdown prompt without a
+            # high-frequency empty-queue poll loop.
+            self._wake_event.clear()
+            if self.queue.empty() and not self._stop_requested:
+                try:
+                    await asyncio.wait_for(
+                        self._wake_event.wait(),
+                        timeout=min(self.retry_seconds, remaining),
+                    )
+                except TimeoutError:
+                    return []
+        if self._stop_requested:
+            return []
+        try:
+            first = self.queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return []
+        batch = [first]
+        wave_deadline = time.monotonic() + self.flush_seconds
+        while len(batch) < self.batch_rows:
+            timeout = wave_deadline - time.monotonic()
+            if timeout <= 0.0:
+                break
+            try:
+                batch.append(
+                    await asyncio.wait_for(self.queue.get(), timeout=timeout)
+                )
+            except TimeoutError:
+                break
+        return batch
+
+    def _take_available_close_wave(
+        self,
+    ) -> list[_QueuedCanonical5mAdmission]:
+        if self._retry_batch:
+            return list(self._retry_batch)
+        batch: list[_QueuedCanonical5mAdmission] = []
+        while len(batch) < self.batch_rows:
+            try:
+                batch.append(self.queue.get_nowait())
+            except asyncio.QueueEmpty:
+                break
+        return batch
+
+    def _complete_durable_admissions(
+        self,
+        batch: list[_QueuedCanonical5mAdmission],
+        result: OutboxEnqueueResult,
+    ) -> None:
+        acknowledgement = _Canonical5mLabelAdmissionResult(
+            state="DURABLE_OUTBOX_COMMITTED",
+            volatile_admitted=True,
+            durable_outbox_committed=True,
+            outbox_transaction_id=result.transaction_id,
+        )
+        for item in batch:
+            if not item.acknowledgement.done():
+                item.acknowledgement.set_result(acknowledgement)
+            self._admission_futures.discard(item.acknowledgement)
+            self.queue.task_done()
+        self.stats["canonical_5m_label_durable_acknowledgements"] = int(
+            self.stats.get(
+                "canonical_5m_label_durable_acknowledgements"
+            )
+            or 0
+        ) + len(batch)
+
+    def _fail_blocked_admissions(
+        self,
+        batch: list[_QueuedCanonical5mAdmission],
+    ) -> None:
+        reason = self._sticky_blocker or self._outbox_error or (
+            "CANONICAL_5M_LABEL_OUTBOX_COMMIT_FAILED"
+        )
+        acknowledgement = _Canonical5mLabelAdmissionResult(
+            state="REJECTED_DURABLE_OUTBOX_COMMIT_FAILED",
+            volatile_admitted=True,
+            durable_outbox_committed=False,
+            reason=reason,
+        )
+        for item in batch:
+            if not item.acknowledgement.done():
+                item.acknowledgement.set_result(acknowledgement)
+            self._admission_futures.discard(item.acknowledgement)
+            self.queue.task_done()
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
+        self._wake_event.set()
+
+    async def run_until(self, stop_at: float | None) -> bool:
+        """Recover first, then coalesce/persist/deliver close waves."""
+
+        if not self._initialized:
+            self._publish_runtime_stats()
+            return False
+        self._stop_requested = False
+        self._wake_event.clear()
+        try:
+            await self._flush_sticky_blocker()
+            await self._deliver_pending(force=True)
+            while not self._stop_requested and (
+                stop_at is None or time.time() < stop_at
+            ):
+                batch = await self._collect_close_wave(stop_at)
+                if not batch:
+                    await self._flush_sticky_blocker()
+                    await self._deliver_pending()
+                    continue
+                if not self._retry_batch:
+                    self._retry_batch = list(batch)
+                result = await self._persist_batch(self._retry_batch)
+                if result is not None:
+                    completed = list(self._retry_batch)
+                    self._complete_durable_admissions(completed, result)
+                    self._retry_batch.clear()
+                    await self._deliver_pending(force=True)
+                else:
+                    if self._sticky_blocker is not None:
+                        blocked = list(self._retry_batch)
+                        self._fail_blocked_admissions(blocked)
+                        self._retry_batch.clear()
+                        await self._deliver_pending(force=True)
+                        continue
+                    await self._deliver_pending(force=True)
+                    await asyncio.sleep(
+                        self.retry_seconds
+                        if stop_at is None
+                        else min(
+                            self.retry_seconds,
+                            max(0.0, stop_at - time.time()),
+                        )
+                    )
+            # Drain every already-admitted row in bounded close-wave commits.
+            # If a commit fails, its exact bytes stay in retry_batch and the
+            # status remains blocked rather than silently claiming shutdown.
+            while self._retry_batch or not self.queue.empty():
+                batch = self._take_available_close_wave()
+                if not batch:
+                    break
+                if not self._retry_batch:
+                    self._retry_batch = list(batch)
+                result = await self._persist_batch(self._retry_batch)
+                if result is not None:
+                    completed = list(self._retry_batch)
+                    self._complete_durable_admissions(completed, result)
+                    self._retry_batch.clear()
+                    await self._deliver_pending(force=True)
+                    continue
+                if self._sticky_blocker is not None:
+                    blocked = list(self._retry_batch)
+                    self._fail_blocked_admissions(blocked)
+                    self._retry_batch.clear()
+                await self._deliver_pending(force=True)
+                break
+            for _ in range(
+                max(1, math.ceil(self.max_pending_rows / self.batch_rows))
+            ):
+                await self._deliver_pending(force=True)
+                if int(
+                    self._last_outbox_status.get("pending_rows") or 0
+                ) == 0:
+                    break
+                if self._archive_error and not self._archive_error.endswith(
+                    "RECOVERY_PENDING"
+                ):
+                    break
+            await self._flush_sticky_blocker()
+        except asyncio.CancelledError:
+            volatile_rows = self.queue.qsize() + len(self._retry_batch)
+            if volatile_rows:
+                self._worker_error = (
+                    "CANONICAL_5M_LABEL_WORKER_CANCELLED_WITH_VOLATILE_ROWS:"
+                    f"{volatile_rows}"
+                )
+            self._publish_runtime_stats()
+            raise
+        except Exception as exc:
+            self._worker_error = self._error_text(
+                "CANONICAL_5M_LABEL_WORKER_CRASHED", exc
+            )
+            self.stats["canonical_5m_label_worker_crashes"] = int(
+                self.stats.get("canonical_5m_label_worker_crashes") or 0
+            ) + 1
+        finally:
+            self._publish_runtime_stats()
+        return self.status_snapshot()["healthy"] is True
+
+    def status_snapshot(self) -> dict[str, Any]:
+        persistent = self._last_outbox_status.get("integrity_blocker")
+        outbox_status = dict(self._last_outbox_status)
+        volatile_rows = self.queue.qsize() + len(self._retry_batch)
+        pending_rows = int(outbox_status.get("pending_rows") or 0)
+        runtime_error = next(
+            (
+                value
+                for value in (
+                    self._initialization_error,
+                    self._blocker_persistence_error,
+                    self._worker_error,
+                    self._outbox_error,
+                    self._archive_error,
+                )
+                if value
+            ),
+            None,
+        )
+        blocker = self._sticky_blocker or persistent or runtime_error
+        if blocker is None and volatile_rows:
+            blocker = (
+                "CANONICAL_5M_LABEL_VOLATILE_ADMISSION_PENDING_DURABLE_OUTBOX:"
+                f"{volatile_rows}"
+            )
+        if blocker is None and pending_rows:
+            blocker = "CANONICAL_5M_LABEL_OUTBOX_RECOVERY_PENDING"
+        return {
+            "schema_version": "canonical_5m_wss_label_pipeline_v1",
+            "enabled": True,
+            "initialization_attempted": self._initialization_attempted,
+            "initialized": self._initialized,
+            "healthy": self._initialized and blocker is None,
+            "blocked_reason": blocker,
+            "runtime_error": runtime_error,
+            "sticky_integrity_blocker": self._sticky_blocker or persistent,
+            "sticky_blocker_persistence_pending": (
+                self._sticky_blocker_pending_persistence is not None
+            ),
+            "source_authority": "BINANCE_WSS_FINALIZED_5M_ONLY",
+            "rest_recovery_used": False,
+            "redis_used_as_archive_source": False,
+            "exact_payload_outbox_before_archive": True,
+            "admission_ack_contract": (
+                "SUCCESS_RESOLVES_ONLY_AFTER_SQLITE_FULL_SYNC_COMMIT_READBACK"
+            ),
+            "durability_state": (
+                "VOLATILE_PENDING_DURABLE_OUTBOX"
+                if volatile_rows
+                else "NO_VOLATILE_ADMISSIONS"
+            ),
+            "volatile_rows_at_risk": volatile_rows,
+            "unresolved_admission_acknowledgements": len(
+                self._admission_futures
+            ),
+            "archive_path": str(self.archive_path),
+            "outbox_path": str(self.outbox_path),
+            "memory_queue_depth": self.queue.qsize(),
+            "memory_retry_batch_rows": len(self._retry_batch),
+            "memory_queue_capacity": self.queue_capacity,
+            "archive_batch_rows": self.batch_rows,
+            "close_wave_flush_seconds": self.flush_seconds,
+            "archive_retry_seconds": self.retry_seconds,
+            "pending_rows": pending_rows,
+            "delivered_rows": int(outbox_status.get("delivered_rows") or 0),
+            "max_pending_rows": outbox_status.get("max_pending_rows"),
+            "outbox": outbox_status,
+        }
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -239,6 +978,46 @@ def _stream_chunks(symbols: tuple[str, ...], timeframes: tuple[str, ...], max_st
     return [streams[index : index + chunk_size] for index in range(0, len(streams), chunk_size)]
 
 
+def _submit_wss_canonical_5m_label(
+    canonical: Any,
+    label_pipeline: _Canonical5mLabelArchivePipeline | None,
+) -> asyncio.Future[_Canonical5mLabelAdmissionResult] | None:
+    """Return a future that can only resolve success after durable readback."""
+
+    if (
+        label_pipeline is None
+        or
+        getattr(canonical, "is_closed", None) is not True
+        or getattr(canonical, "timeframe", None) != "5m"
+        or getattr(canonical, "source", None) != "binance_wss"
+    ):
+        return None
+    return label_pipeline.submit(canonical.to_dict())
+
+
+async def _await_wss_canonical_5m_label_durability(
+    canonical: Any,
+    label_pipeline: _Canonical5mLabelArchivePipeline | None,
+    stats: dict[str, Any],
+) -> _Canonical5mLabelAdmissionResult | None:
+    acknowledgement = _submit_wss_canonical_5m_label(
+        canonical,
+        label_pipeline,
+    )
+    if acknowledgement is None:
+        return None
+    result = await asyncio.shield(acknowledgement)
+    if result.durable_outbox_committed:
+        stats["canonical_5m_label_handler_durable_acks"] = int(
+            stats.get("canonical_5m_label_handler_durable_acks") or 0
+        ) + 1
+    else:
+        stats["canonical_5m_label_handler_rejections"] = int(
+            stats.get("canonical_5m_label_handler_rejections") or 0
+        ) + 1
+    return result
+
+
 def _base_status(
     *,
     symbols: tuple[str, ...],
@@ -251,6 +1030,15 @@ def _base_status(
     ws_base: str,
 ) -> dict[str, Any]:
     status = "V2_BINANCE_KLINE_WSS_CONNECTED" if stream_connected_count > 0 and not blocker else "V2_BINANCE_KLINE_WSS_BLOCKED"
+    label_pipeline = stats.get("canonical_5m_label_pipeline")
+    if not isinstance(label_pipeline, dict):
+        label_pipeline = {
+            "enabled": False,
+            "initialized": False,
+            "healthy": False,
+            "blocked_reason": "CANONICAL_5M_LABEL_PIPELINE_DISABLED",
+            "source_authority": "BINANCE_WSS_FINALIZED_5M_ONLY",
+        }
     return {
         "worker_id": WORKER_ID,
         "schema_version": "v2_binance_kline_wss_status_v1",
@@ -271,6 +1059,17 @@ def _base_status(
         "stream_count": sum(len(chunk) for chunk in chunks),
         "redis_ok": redis_ok,
         "blocked_reason": blocker,
+        "canonical_5m_label_archive_ok": (
+            label_pipeline.get("enabled") is True
+            and label_pipeline.get("healthy") is True
+        ),
+        "canonical_5m_label_archive_blocked_reason": label_pipeline.get(
+            "blocked_reason"
+        ),
+        "canonical_5m_label_source_authority": label_pipeline.get(
+            "source_authority"
+        ),
+        "canonical_5m_label_pipeline": label_pipeline,
         "ws_base": ws_base,
         "stats": stats,
         "heartbeat_key": _heartbeat_key(),
@@ -307,6 +1106,7 @@ async def _consume_chunk(
     max_candles: int,
     max_seconds_per_session: float,
     stop_at: float,
+    label_pipeline: _Canonical5mLabelArchivePipeline | None,
 ) -> None:
     url = ws_base + "/".join(streams)
     volatile_ttl = min(int(ttl_seconds), VOLATILE_TTL_CAP_SECONDS)
@@ -370,6 +1170,16 @@ async def _consume_chunk(
                             stats["kline_current_keys_written"] = int(stats.get("kline_current_keys_written") or 0) + 1
                     if _safe_set_json(redis_client, _source_key(symbol, timeframe), source_payload, ex=volatile_ttl):
                         stats["source_keys_written"] = int(stats.get("source_keys_written") or 0) + 1
+                    # Preserve the independent existing market-data feed first.
+                    # The returned admission future is resolved by the producer
+                    # worker only after the exact payload is FULL-sync committed
+                    # to the outbox and read back; this handler never emits a
+                    # premature durable acknowledgement.
+                    await _await_wss_canonical_5m_label_durability(
+                        canonical,
+                        label_pipeline,
+                        stats,
+                    )
                     stats["last_symbol"] = symbol
                     stats["last_timeframe"] = timeframe
                     stats["last_event_est"] = _est_iso()
@@ -379,6 +1189,91 @@ async def _consume_chunk(
             stats["connection_errors"] = int(stats.get("connection_errors") or 0) + 1
             stats[f"chunk_{chunk_id}_last_error"] = f"{type(exc).__name__}:{str(exc)[:160]}"
             await asyncio.sleep(2.0)
+
+
+def _build_label_pipeline(
+    args: argparse.Namespace,
+    stats: dict[str, Any],
+) -> _Canonical5mLabelArchivePipeline | None:
+    """Honor the explicit operator interlock before producer construction."""
+
+    if not bool(getattr(args, "enable_canonical_5m_label_archive", False)):
+        stats["canonical_5m_label_pipeline"] = {
+            "schema_version": "canonical_5m_wss_label_pipeline_v1",
+            "enabled": False,
+            "initialized": False,
+            "healthy": False,
+            "blocked_reason": "CANONICAL_5M_LABEL_PIPELINE_DISABLED",
+            "source_authority": "BINANCE_WSS_FINALIZED_5M_ONLY",
+            "exact_payload_outbox_before_archive": False,
+        }
+        return None
+    return _Canonical5mLabelArchivePipeline(
+        archive_path=Path(
+            getattr(
+                args,
+                "canonical_5m_label_archive_path",
+                default_canonical_5m_label_archive_path(),
+            )
+        ),
+        outbox_path=Path(
+            getattr(
+                args,
+                "canonical_5m_label_outbox_path",
+                default_outbox_path(),
+            )
+        ),
+        queue_capacity=int(
+            getattr(
+                args,
+                "canonical_5m_label_queue_capacity",
+                DEFAULT_LABEL_QUEUE_CAPACITY,
+            )
+        ),
+        batch_rows=int(
+            getattr(
+                args,
+                "canonical_5m_label_batch_rows",
+                MAX_CLOSE_WAVE_ROWS,
+            )
+        ),
+        max_pending_rows=int(
+            getattr(
+                args,
+                "canonical_5m_label_max_pending_rows",
+                DEFAULT_MAX_PENDING_ROWS,
+            )
+        ),
+        flush_seconds=float(
+            getattr(
+                args,
+                "canonical_5m_label_close_wave_flush_seconds",
+                DEFAULT_LABEL_CLOSE_WAVE_FLUSH_SECONDS,
+            )
+        ),
+        retry_seconds=float(
+            getattr(
+                args,
+                "canonical_5m_label_archive_retry_seconds",
+                DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS,
+            )
+        ),
+        stats=stats,
+    )
+
+
+def _runtime_cycle_exit_code(
+    *,
+    label_pipeline_enabled: bool,
+    pipeline_clean: bool,
+    cycle_results: list[Any],
+) -> int:
+    task_failed = any(
+        isinstance(result, BaseException) for result in cycle_results
+    )
+    if task_failed or (label_pipeline_enabled and not pipeline_clean):
+        return 2
+    return 0
 
 
 async def run_loop(args: argparse.Namespace) -> int:
@@ -414,25 +1309,56 @@ async def run_loop(args: argparse.Namespace) -> int:
         "session_timeouts": 0,
         "connected_chunks": 0,
     }
+    label_pipeline_enabled = bool(
+        getattr(args, "enable_canonical_5m_label_archive", False)
+    )
+    label_pipeline = _build_label_pipeline(args, stats)
+    if label_pipeline is not None:
+        await label_pipeline.initialize()
     status_paths = (Path(args.status_path), Path(args.public_path), Path(args.worklog_path))
+
+    async def write_status_once() -> dict[str, Any]:
+        redis_ok = redis_holder.ensure() is not None
+        snapshot = dict(stats)
+        snapshot["redis_reconnects"] = redis_holder.reconnects
+        label_status = (
+            label_pipeline.status_snapshot()
+            if label_pipeline is not None
+            else dict(stats["canonical_5m_label_pipeline"])
+        )
+        snapshot["canonical_5m_label_pipeline"] = label_status
+        blockers: list[str] = []
+        if not redis_ok:
+            blockers.append("Redis unavailable; websocket data not persisted.")
+        if label_pipeline_enabled and label_status.get("healthy") is not True:
+            blockers.append(
+                str(
+                    label_status.get("blocked_reason")
+                    or "CANONICAL_5M_LABEL_PIPELINE_UNHEALTHY"
+                )
+            )
+        payload = _base_status(
+            symbols=symbols,
+            timeframes=timeframes,
+            chunks=chunks,
+            stream_connected_count=int(stats.get("connected_chunks") or 0),
+            redis_ok=redis_ok,
+            stats=snapshot,
+            blocker=" | ".join(blockers) if blockers else None,
+            ws_base=str(args.ws_base),
+        )
+        await asyncio.to_thread(_write_status, payload, status_paths)
+        _safe_set_json(
+            redis_holder,
+            _heartbeat_key(),
+            payload,
+            ex=min(int(args.ttl_seconds), VOLATILE_TTL_CAP_SECONDS),
+        )
+        return payload
 
     async def status_writer(stop_at: float) -> None:
         while time.time() < stop_at:
-            redis_ok = redis_holder.ensure() is not None
-            snapshot = dict(stats)
-            snapshot["redis_reconnects"] = redis_holder.reconnects
-            payload = _base_status(
-                symbols=symbols,
-                timeframes=timeframes,
-                chunks=chunks,
-                stream_connected_count=int(stats.get("connected_chunks") or 0),
-                redis_ok=redis_ok,
-                stats=snapshot,
-                blocker=None if redis_ok else "Redis unavailable; websocket data not persisted.",
-                ws_base=str(args.ws_base),
-            )
-            _write_status(payload, status_paths)
-            _safe_set_json(redis_holder, _heartbeat_key(), payload, ex=min(int(args.ttl_seconds), VOLATILE_TTL_CAP_SECONDS))
+            payload = await write_status_once()
             print(json.dumps({
                 "status": payload["status"],
                 "generated_est": payload["generated_est"],
@@ -446,7 +1372,7 @@ async def run_loop(args: argparse.Namespace) -> int:
     while True:
         stop_at = time.time() + max(15.0, float(args.total_seconds))
         stats["connected_chunks"] = 0
-        tasks = [
+        consumer_tasks = [
             asyncio.create_task(
                 _consume_chunk(
                     chunk_id=index,
@@ -458,12 +1384,41 @@ async def run_loop(args: argparse.Namespace) -> int:
                     max_candles=int(args.max_candles),
                     max_seconds_per_session=float(args.max_seconds_per_session),
                     stop_at=stop_at,
+                    label_pipeline=label_pipeline,
                 )
             )
             for index, chunk in enumerate(chunks)
         ]
-        tasks.append(asyncio.create_task(status_writer(stop_at)))
-        await asyncio.gather(*tasks, return_exceptions=True)
+        status_task = asyncio.create_task(status_writer(stop_at))
+        pipeline_task = (
+            asyncio.create_task(label_pipeline.run_until(None))
+            if label_pipeline is not None
+            else None
+        )
+        cycle_results = await asyncio.gather(
+            *consumer_tasks,
+            status_task,
+            return_exceptions=True,
+        )
+        pipeline_clean = True
+        if label_pipeline is not None and pipeline_task is not None:
+            label_pipeline.request_stop()
+            try:
+                pipeline_clean = bool(await pipeline_task)
+            except Exception as exc:
+                pipeline_clean = False
+                label_pipeline._worker_error = label_pipeline._error_text(
+                    "CANONICAL_5M_LABEL_WORKER_TASK_FAILED", exc
+                )
+                label_pipeline._publish_runtime_stats()
+        await write_status_once()
+        cycle_exit_code = _runtime_cycle_exit_code(
+            label_pipeline_enabled=label_pipeline_enabled,
+            pipeline_clean=pipeline_clean,
+            cycle_results=list(cycle_results),
+        )
+        if cycle_exit_code:
+            return cycle_exit_code
         if not args.loop:
             break
     return 0
@@ -481,6 +1436,47 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--total-seconds", type=float, default=86400.0)
     parser.add_argument("--max-seconds-per-session", type=float, default=600.0)
     parser.add_argument("--heartbeat-interval-seconds", type=float, default=30.0)
+    parser.add_argument(
+        "--enable-canonical-5m-label-archive",
+        action="store_true",
+        help=(
+            "Explicitly enable the trainer 5m archive producer after its "
+            "outbox/archive admission has passed operator validation."
+        ),
+    )
+    parser.add_argument(
+        "--canonical-5m-label-archive-path",
+        default=str(default_canonical_5m_label_archive_path()),
+    )
+    parser.add_argument(
+        "--canonical-5m-label-outbox-path",
+        default=str(default_outbox_path()),
+    )
+    parser.add_argument(
+        "--canonical-5m-label-queue-capacity",
+        type=int,
+        default=DEFAULT_LABEL_QUEUE_CAPACITY,
+    )
+    parser.add_argument(
+        "--canonical-5m-label-batch-rows",
+        type=int,
+        default=MAX_CLOSE_WAVE_ROWS,
+    )
+    parser.add_argument(
+        "--canonical-5m-label-max-pending-rows",
+        type=int,
+        default=DEFAULT_MAX_PENDING_ROWS,
+    )
+    parser.add_argument(
+        "--canonical-5m-label-close-wave-flush-seconds",
+        type=float,
+        default=DEFAULT_LABEL_CLOSE_WAVE_FLUSH_SECONDS,
+    )
+    parser.add_argument(
+        "--canonical-5m-label-archive-retry-seconds",
+        type=float,
+        default=DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS,
+    )
     parser.add_argument("--status-path", default=str(DEFAULT_STATUS_PATH))
     parser.add_argument("--public-path", default=str(DEFAULT_PUBLIC_PATH))
     parser.add_argument("--worklog-path", default=str(DEFAULT_WORKLOG_PATH))
