@@ -29,12 +29,23 @@ def _first_present(*values: Any) -> Any:
     return None
 
 
+_GATE_TUNING_REDIS: Any = None
+
+
+def _gate_tuning_redis() -> Any:
+    """Reused Redis client (its connection pool auto-reconnects) — avoids
+    building a fresh pool on every pre-trade evaluation."""
+    global _GATE_TUNING_REDIS
+    if _GATE_TUNING_REDIS is None:
+        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
+        _GATE_TUNING_REDIS = redis.from_url(redis_url, decode_responses=True)
+    return _GATE_TUNING_REDIS
+
+
 def _get_adaptive_gate_tuning() -> dict[str, Any]:
     """Read adaptive gate tuning state from Redis (enables B-grade, sets confidence threshold)."""
     try:
-        redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-        redis_client = redis.from_url(redis_url, decode_responses=True)
-        tuning_json = redis_client.get(GATE_TUNING_KEY)
+        tuning_json = _gate_tuning_redis().get(GATE_TUNING_KEY)
         if tuning_json:
             return json.loads(tuning_json)
     except Exception as e:

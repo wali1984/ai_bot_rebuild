@@ -2639,7 +2639,8 @@ async def register_push_token(
     try:
         r = get_redis()
         entry = json.dumps({
-            "user_id": str(actor.get("user_id", "") if actor else ""),
+            # UserRecord's id key is "id" (safe_user); "user_id" was always "".
+            "user_id": str(actor.get("id", "") if actor else ""),
             "device_token": request.device_token,
             "platform": request.platform,
             "environment": request.environment,
@@ -2664,10 +2665,19 @@ async def unregister_push_token(
     device_token: str,
     actor: UserRecord = Depends(require_auth),
 ) -> dict[str, Any]:
-    """Unregister an APNS/FCM device token."""
+    """Unregister an APNS/FCM device token (owner only)."""
     try:
         r = get_redis()
-        r.hdel(_PUSH_STORE_KEY, device_token)
+        caller_id = str(actor.get("id", "") if actor else "")
+        raw = r.hget(_PUSH_STORE_KEY, device_token) if r is not None else None
+        if raw:
+            try:
+                stored = json.loads(raw)
+            except Exception:
+                stored = {}
+            # IDOR guard: only the token's owner may unregister it.
+            if caller_id and str(stored.get("user_id", "")) == caller_id:
+                r.hdel(_PUSH_STORE_KEY, device_token)
     except Exception:
         pass
     return {"status": "unregistered", "registered_at": _utc_now()}

@@ -381,7 +381,7 @@ function OrderTicket({ symbol, lastPrice, equity, onSubmit }: { symbol: string; 
     setResult(null);
     try {
       const body = { symbol, side: side.toLowerCase(), order_type: ot.toLowerCase(), quantity: numQty, price: ot !== 'Market' ? numPrice : undefined };
-      const res = await fetch('/api/v2/orders/paper', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('af_token') ?? ''}` }, body: JSON.stringify(body) });
+      const res = await fetch('/api/v2/orders/paper', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const json = await res.json() as Record<string, unknown>;
       const status = json.data ? (json.data as Record<string, unknown>).status ?? 'submitted' : json.detail ?? 'error';
       setResult(`Order ${status}: ${side} ${qty} ${symbol} @ ${ot === 'Market' ? 'Market' : fmtPrice(numPrice)}`);
