@@ -2842,7 +2842,11 @@ a { color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 14px;
+  position: relative;
+  /* Ambient depth glow so the frosted-glass cards have colour to refract. */
   background:
+    radial-gradient(50% 32% at 16% 0%, rgba(124, 92, 255, 0.11), transparent 62%),
+    radial-gradient(44% 30% at 94% 6%, rgba(45, 212, 191, 0.075), transparent 62%),
     linear-gradient(180deg, color-mix(in oklch, var(--nervyx-sense, var(--accent)) 7%, transparent), transparent 220px),
     var(--bg-base);
 }
@@ -2921,11 +2925,13 @@ a { color: inherit; }
 
 .nervyx-dashboard-panel {
   min-width: 0;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--nervyx-panel, var(--panel)) 92%, transparent), var(--bg-panel, #111827));
-  border: 1px solid color-mix(in oklch, var(--border, #1f2937) 82%, var(--accent) 18%);
-  border-radius: var(--radius, 8px);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+  /* Frosted glass panel */
+  background: var(--glass-bg-strong, rgba(18, 20, 32, 0.74));
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.09));
+  border-radius: 14px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.22);
   overflow: hidden;
 }
 
@@ -2968,26 +2974,45 @@ a { color: inherit; }
 }
 
 .nervyx-dashboard-kpi {
+  position: relative;
   min-width: 0;
-  min-height: 86px;
+  min-height: 92px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg-panel, #111827);
-  border: 1px solid color-mix(in oklch, var(--border, #1f2937) 82%, var(--accent) 18%);
-  border-radius: var(--radius, 8px);
+  padding: 13px 15px;
+  /* Frosted glass surface */
+  background: var(--glass-bg, rgba(18, 20, 32, 0.55));
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.09));
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.26);
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s ease, border-color .2s ease;
+  animation: glassRise .5s cubic-bezier(.2, .8, .2, 1) both;
+}
+/* Top-edge light sheen. */
+.nervyx-dashboard-kpi::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  pointer-events: none;
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nervyx-dashboard-kpi { background: var(--glass-bg-strong, rgba(18, 20, 32, 0.74)); }
 }
 
-.nervyx-dashboard-kpi[data-clickable="true"] {
-  cursor: pointer;
-  transition: border-color 120ms ease, transform 120ms ease;
-}
-
+.nervyx-dashboard-kpi[data-clickable="true"] { cursor: pointer; }
 .nervyx-dashboard-kpi[data-clickable="true"]:hover {
-  border-color: color-mix(in oklch, var(--accent) 55%, var(--border));
-  transform: translateY(-1px);
+  transform: translateY(-3px);
+  border-color: rgba(124, 92, 255, 0.45);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.42),
+              0 0 0 1px rgba(124, 92, 255, 0.30),
+              0 0 26px rgba(124, 92, 255, 0.14);
+}
+@media (prefers-reduced-motion: reduce) {
+  .nervyx-dashboard-kpi { animation: none; transition: none; }
+  .nervyx-dashboard-kpi[data-clickable="true"]:hover { transform: none; }
 }
 
 .nervyx-dashboard-kpi__label {
