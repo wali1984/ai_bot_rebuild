@@ -14,9 +14,9 @@ import pytest
 
 from v2.backend.app.cli import v2_binance_kline_wss_loop as wss_module
 from v2.backend.app.cli.v2_binance_kline_wss_loop import (
-    _Canonical5mLabelAdmissionResult,
     _await_wss_canonical_5m_label_durability,
     _build_label_pipeline,
+    _Canonical5mLabelAdmissionResult,
     _Canonical5mLabelArchivePipeline,
     _consume_chunk,
     _runtime_cycle_exit_code,
@@ -35,7 +35,10 @@ from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     MAX_APPEND_ROWS,
+    Canonical5mArchiveWriterLease,
+    Canonical5mArchiveWriterLeaseError,
     DurableCanonical5mLabelArchive,
+    canonical_5m_archive_writer_lease_path,
 )
 
 BASE = datetime(2026, 7, 18, 0, 0, tzinfo=UTC)
@@ -610,8 +613,10 @@ async def test_pipeline_archive_error_is_visible_and_redis_path_can_continue(
     # The producer API reports failure without throwing into the independent
     # caller that performs the existing Redis write.
     second_ack = pipeline.submit(_payload(7, symbol="ETHUSDT"))
+    assert pipeline._writer_lease is not None
     pipeline.archive = DurableCanonical5mLabelArchive(
-        tmp_path / "archive.sqlite3"
+        tmp_path / "archive.sqlite3",
+        writer_lease=pipeline._writer_lease,
     )
     assert await pipeline.run_until(time.time() + 0.05) is True
     assert (await second_ack).durable_outbox_committed is True
@@ -658,6 +663,7 @@ async def test_session_shutdown_flushes_all_already_admitted_queue_rows(
 
 def test_missing_enable_flag_never_constructs_or_initializes_producer(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def forbidden_constructor(*args, **kwargs):
         raise AssertionError("producer construction crossed default-off gate")
@@ -669,7 +675,16 @@ def test_missing_enable_flag_never_constructs_or_initializes_producer(
     )
     stats: dict[str, Any] = {}
 
-    pipeline = _build_label_pipeline(argparse.Namespace(), stats)
+    archive_path = tmp_path / "archive.sqlite3"
+    outbox_path = tmp_path / "outbox.sqlite3"
+    pipeline = _build_label_pipeline(
+        argparse.Namespace(
+            enable_canonical_5m_label_archive=False,
+            canonical_5m_label_archive_path=archive_path,
+            canonical_5m_label_outbox_path=outbox_path,
+        ),
+        stats,
+    )
 
     assert pipeline is None
     assert stats["canonical_5m_label_pipeline"]["enabled"] is False
@@ -677,6 +692,9 @@ def test_missing_enable_flag_never_constructs_or_initializes_producer(
     assert stats["canonical_5m_label_pipeline"]["blocked_reason"] == (
         "CANONICAL_5M_LABEL_PIPELINE_DISABLED"
     )
+    assert not archive_path.exists()
+    assert not outbox_path.exists()
+    assert not canonical_5m_archive_writer_lease_path(archive_path).exists()
 
 
 def test_enabled_unclean_shutdown_maps_to_nonzero_exit() -> None:
@@ -722,7 +740,348 @@ async def test_explicit_enable_reports_enabled_and_initializes_off_loop(
     assert status["enabled"] is True
     assert status["initialized"] is True
     assert status["healthy"] is True
+    assert status["archive_writer_lease_held"] is True
     assert (tmp_path / "outbox.sqlite3").exists()
+
+    with pytest.raises(
+        Canonical5mArchiveWriterLeaseError,
+        match="already_held",
+    ):
+        Canonical5mArchiveWriterLease.acquire(tmp_path / "archive.sqlite3")
+    await pipeline.close()
+    assert pipeline.status_snapshot()["archive_writer_lease_held"] is False
+    with Canonical5mArchiveWriterLease.acquire(
+        tmp_path / "archive.sqlite3"
+    ) as replacement:
+        assert replacement.held is True
+
+
+@pytest.mark.asyncio
+async def test_enabled_pipeline_lease_contention_fails_before_outbox_init(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "archive.sqlite3"
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=archive_path,
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    with Canonical5mArchiveWriterLease.acquire(archive_path):
+        assert await pipeline.initialize() is False
+    status = pipeline.status_snapshot()
+    assert status["healthy"] is False
+    assert "WRITER_LEASE" in str(status["blocked_reason"]).upper()
+    assert not (tmp_path / "outbox.sqlite3").exists()
+    assert not archive_path.exists()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_initialization_cancellation_releases_thread_lease(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "archive.sqlite3"
+    acquired = threading.Event()
+    allow_open_to_finish = threading.Event()
+    original_acquire = Canonical5mArchiveWriterLease.acquire
+
+    def delayed_acquire(path: Path) -> Canonical5mArchiveWriterLease:
+        lease = original_acquire(path)
+        acquired.set()
+        if not allow_open_to_finish.wait(timeout=5.0):
+            lease.release()
+            raise TimeoutError("test did not release initialization thread")
+        return lease
+
+    monkeypatch.setattr(
+        Canonical5mArchiveWriterLease,
+        "acquire",
+        staticmethod(delayed_acquire),
+    )
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=archive_path,
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+
+    initialization = asyncio.create_task(pipeline.initialize())
+    for _ in range(100):
+        if acquired.is_set():
+            break
+        await asyncio.sleep(0.01)
+    assert acquired.is_set() is True
+    initialization.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await initialization
+    # A repeated cancellation cannot reach or cancel the independent cleanup
+    # callback while the worker thread still owns the raw flock.
+    initialization.cancel()
+    allow_open_to_finish.set()
+
+    assert pipeline._writer_lease is None
+    assert pipeline.status_snapshot()["archive_writer_lease_held"] is False
+    assert pipeline.status_snapshot()["blocked_reason"] == (
+        "CANONICAL_5M_LABEL_PIPELINE_INITIALIZATION_CANCELLED"
+    )
+    replacement: Canonical5mArchiveWriterLease | None = None
+    for _ in range(100):
+        try:
+            replacement = original_acquire(archive_path)
+        except Canonical5mArchiveWriterLeaseError as exc:
+            assert "already_held" in str(exc)
+            await asyncio.sleep(0.01)
+            continue
+        break
+    assert replacement is not None
+    with replacement:
+        assert replacement.held is True
+
+
+@pytest.mark.asyncio
+async def test_pipeline_lost_writer_lease_is_immediately_unhealthy(
+    tmp_path: Path,
+) -> None:
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=tmp_path / "archive.sqlite3",
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    assert await pipeline.initialize() is True
+    assert pipeline._writer_lease is not None
+
+    pipeline._writer_lease.release()
+    status = pipeline.status_snapshot()
+
+    assert status["archive_writer_lease_held"] is False
+    assert status["healthy"] is False
+    assert status["blocked_reason"] == (
+        "CANONICAL_5M_LABEL_ARCHIVE_WRITER_LEASE_NOT_HELD"
+    )
+    await pipeline.close()
+
+
+@pytest.mark.asyncio
+async def test_pipeline_status_lease_validation_race_returns_unhealthy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=tmp_path / "archive.sqlite3",
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    assert await pipeline.initialize() is True
+    original_contract = Canonical5mArchiveWriterLease.contract
+
+    def lose_lease_before_contract(
+        lease: Canonical5mArchiveWriterLease,
+    ) -> dict[str, Any]:
+        lease.release()
+        return original_contract(lease)
+
+    monkeypatch.setattr(
+        Canonical5mArchiveWriterLease,
+        "contract",
+        lose_lease_before_contract,
+    )
+    status = pipeline.status_snapshot()
+
+    assert status["archive_writer_lease_held"] is False
+    assert status["archive_writer_lease_contract"] is None
+    assert status["healthy"] is False
+    assert status["blocked_reason"] == (
+        "CANONICAL_5M_LABEL_ARCHIVE_WRITER_LEASE_NOT_HELD"
+    )
+    await pipeline.close()
+
+
+def _run_loop_args(tmp_path: Path) -> argparse.Namespace:
+    return argparse.Namespace(
+        symbols="BTCUSDT",
+        max_symbols=1,
+        timeframes="5m",
+        max_streams_per_connection=1,
+        enable_canonical_5m_label_archive=True,
+        status_path=tmp_path / "status.json",
+        public_path=tmp_path / "public.json",
+        worklog_path=tmp_path / "worklog.json",
+        ws_base="wss://example.invalid/",
+        ttl_seconds=900,
+        total_seconds=15.0,
+        max_candles=10,
+        max_seconds_per_session=15.0,
+        heartbeat_interval_seconds=30.0,
+        loop=False,
+    )
+
+
+class _UnavailableRedisHolder:
+    reconnects = 0
+
+    @staticmethod
+    def ensure() -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_run_loop_unexpected_status_exception_releases_writer_lease(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=tmp_path / "archive.sqlite3",
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    monkeypatch.setattr(wss_module, "websockets", object())
+    monkeypatch.setattr(wss_module, "_RedisHolder", _UnavailableRedisHolder)
+    monkeypatch.setattr(wss_module, "_resolve_symbols", lambda *_args, **_kwargs: ("BTCUSDT",))
+    monkeypatch.setattr(wss_module, "_stream_chunks", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(wss_module, "_build_label_pipeline", lambda *_args: pipeline)
+
+    def _status_write_failure(*_args: object) -> None:
+        raise OSError("injected status write failure")
+
+    monkeypatch.setattr(wss_module, "_write_status", _status_write_failure)
+
+    with pytest.raises(OSError, match="status write failure"):
+        await wss_module.run_loop(_run_loop_args(tmp_path))
+
+    assert pipeline.status_snapshot()["archive_writer_lease_held"] is False
+    with Canonical5mArchiveWriterLease.acquire(tmp_path / "archive.sqlite3"):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_run_loop_cancellation_releases_writer_lease(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=tmp_path / "archive.sqlite3",
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    monkeypatch.setattr(wss_module, "websockets", object())
+    monkeypatch.setattr(wss_module, "_RedisHolder", _UnavailableRedisHolder)
+    monkeypatch.setattr(wss_module, "_resolve_symbols", lambda *_args, **_kwargs: ("BTCUSDT",))
+    monkeypatch.setattr(wss_module, "_stream_chunks", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(wss_module, "_build_label_pipeline", lambda *_args: pipeline)
+    monkeypatch.setattr(wss_module, "_write_status", lambda *_args: None)
+
+    task = asyncio.create_task(wss_module.run_loop(_run_loop_args(tmp_path)))
+    for _ in range(100):
+        if pipeline.status_snapshot()["archive_writer_lease_held"] is True:
+            break
+        await asyncio.sleep(0.01)
+    assert pipeline.status_snapshot()["archive_writer_lease_held"] is True
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert pipeline.status_snapshot()["archive_writer_lease_held"] is False
+    with Canonical5mArchiveWriterLease.acquire(tmp_path / "archive.sqlite3"):
+        pass
+
+
+@pytest.mark.asyncio
+async def test_cancelled_archive_thread_drains_before_lease_release(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "archive.sqlite3"
+    pipeline = _Canonical5mLabelArchivePipeline(
+        archive_path=archive_path,
+        outbox_path=tmp_path / "outbox.sqlite3",
+        queue_capacity=4,
+        batch_rows=4,
+        max_pending_rows=10,
+        flush_seconds=0.01,
+        retry_seconds=0.01,
+        stats={},
+    )
+    assert await pipeline.initialize() is True
+    assert pipeline.outbox is not None
+    pipeline.outbox.enqueue_payloads(
+        (Canonical5mLabelOutbox.exact_payload_json(_payload(0)),)
+    )
+
+    storage_entered = threading.Event()
+    allow_storage_to_finish = threading.Event()
+    original_deliver = wss_module.deliver_pending_once
+
+    def delayed_deliver(*args: Any, **kwargs: Any) -> Any:
+        storage_entered.set()
+        if not allow_storage_to_finish.wait(timeout=5.0):
+            raise TimeoutError("test did not release archive worker thread")
+        return original_deliver(*args, **kwargs)
+
+    monkeypatch.setattr(wss_module, "deliver_pending_once", delayed_deliver)
+    delivery = asyncio.create_task(pipeline._deliver_pending(force=True))
+    for _ in range(100):
+        if storage_entered.is_set():
+            break
+        await asyncio.sleep(0.01)
+    assert storage_entered.is_set() is True
+
+    delivery.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await delivery
+    close_call = asyncio.create_task(pipeline.close())
+    await asyncio.sleep(0)
+    assert close_call.done() is False
+    with pytest.raises(
+        Canonical5mArchiveWriterLeaseError,
+        match="already_held",
+    ):
+        Canonical5mArchiveWriterLease.acquire(archive_path)
+
+    # Cancelling the caller that awaits close must not cancel the independent
+    # drain/release task or expose the archive to a second sanctioned writer.
+    close_call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await close_call
+    allow_storage_to_finish.set()
+    assert pipeline._close_task is not None
+    await asyncio.wait_for(asyncio.shield(pipeline._close_task), timeout=5.0)
+
+    with Canonical5mArchiveWriterLease.acquire(archive_path) as replacement:
+        assert replacement.held is True
+    assert (
+        DurableCanonical5mLabelArchive(archive_path)
+        .verify_integrity()["archive_integrity_verified"]
+        is True
+    )
 
 
 @pytest.mark.asyncio

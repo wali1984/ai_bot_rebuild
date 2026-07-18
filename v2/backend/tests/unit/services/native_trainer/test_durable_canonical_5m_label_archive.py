@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -20,6 +21,8 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
     RETENTION_POLICY,
     Canonical5mArchiveError,
     Canonical5mArchiveReadbackError,
+    Canonical5mArchiveWriterLease,
+    Canonical5mArchiveWriterLeaseError,
     Canonical5mIdentityConflictError,
     Canonical5mValidationError,
     DurableCanonical5mLabelArchive,
@@ -28,7 +31,6 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     canonical_5m_label_evidence,
 )
-
 
 BASE = datetime(2026, 7, 18, 0, 0, tzinfo=UTC)
 OBSERVED = datetime(2026, 7, 18, 8, 0, tzinfo=UTC)
@@ -347,6 +349,176 @@ def test_exact_tail_transaction_attestation_rejects_empty_input(
         match="exact_tail_transaction_attestation_rows_empty",
     ):
         archive.attest_exact_tail_transaction([])
+
+
+def test_exact_archive_writer_lease_blocks_auto_mutation_and_is_one_shot(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    held = Canonical5mArchiveWriterLease.acquire(archive_path)
+    assert held.held is True
+    assert held.contract()["archive_path"] == str(archive_path.resolve())
+
+    with pytest.raises(
+        Canonical5mArchiveWriterLeaseError,
+        match="already_held",
+    ):
+        DurableCanonical5mLabelArchive(archive_path).append_candles([_candle(0)])
+
+    leased_archive = DurableCanonical5mLabelArchive(
+        archive_path,
+        writer_lease=held,
+    )
+    assert leased_archive.append_candles([_candle(0)]).inserted_rows == 1
+    held.release()
+    assert held.held is False
+    with pytest.raises(
+        Canonical5mArchiveWriterLeaseError,
+        match="not_held",
+    ):
+        leased_archive.append_candles([_candle(1)])
+
+    assert (
+        DurableCanonical5mLabelArchive(archive_path)
+        .append_candles([_candle(1)])
+        .inserted_rows
+        == 1
+    )
+
+
+def test_archive_writer_lease_cannot_be_fabricated_without_acquire(
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    with Canonical5mArchiveWriterLease.acquire(archive_path) as held:
+        descriptor = os.open(held.lock_path, os.O_RDWR)
+        try:
+            lock_stat = os.fstat(descriptor)
+            with pytest.raises(
+                Canonical5mArchiveWriterLeaseError,
+                match="must_use_acquire",
+            ):
+                Canonical5mArchiveWriterLease(
+                    archive_path=archive_path.resolve(),
+                    lock_path=held.lock_path,
+                    file_descriptor=descriptor,
+                    lock_device=lock_stat.st_dev,
+                    lock_inode=lock_stat.st_ino,
+                )
+        finally:
+            os.close(descriptor)
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="already_held",
+        ):
+            Canonical5mArchiveWriterLease.acquire(archive_path)
+
+
+def test_archive_writer_lease_acquire_releases_after_validation_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    original_validate = Canonical5mArchiveWriterLease.validate_for
+
+    with monkeypatch.context() as scoped:
+        def fail_validation(
+            _lease: Canonical5mArchiveWriterLease,
+            _path: Path,
+        ) -> None:
+            raise Canonical5mArchiveWriterLeaseError(
+                "injected_post_flock_validation_failure"
+            )
+
+        scoped.setattr(
+            Canonical5mArchiveWriterLease,
+            "validate_for",
+            fail_validation,
+        )
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="injected_post_flock_validation_failure",
+        ):
+            Canonical5mArchiveWriterLease.acquire(archive_path)
+
+    assert Canonical5mArchiveWriterLease.validate_for is original_validate
+    with Canonical5mArchiveWriterLease.acquire(archive_path) as replacement:
+        assert replacement.held is True
+
+
+def test_archive_auto_lease_releases_if_context_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    archive_path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(archive_path)
+    original_validate = Canonical5mArchiveWriterLease.validate_for
+    validation_calls = 0
+
+    with monkeypatch.context() as scoped:
+        def fail_second_validation(
+            lease: Canonical5mArchiveWriterLease,
+            path: Path,
+        ) -> None:
+            nonlocal validation_calls
+            validation_calls += 1
+            if validation_calls == 2:
+                raise Canonical5mArchiveWriterLeaseError(
+                    "injected_context_validation_failure"
+                )
+            original_validate(lease, path)
+
+        scoped.setattr(
+            Canonical5mArchiveWriterLease,
+            "validate_for",
+            fail_second_validation,
+        )
+        with pytest.raises(
+            Canonical5mArchiveWriterLeaseError,
+            match="injected_context_validation_failure",
+        ):
+            archive.append_candles([_candle(0)])
+
+    with Canonical5mArchiveWriterLease.acquire(archive_path) as replacement:
+        assert replacement.held is True
+
+
+def test_exact_transaction_identity_revalidates_old_tail_and_rejects_fabrication(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    first_rows = [_candle(0), _candle(1)]
+    first = archive.append_candles(first_rows)
+    archive.append_candles([_candle(2)])
+
+    verified = archive.attest_exact_transaction_identity(
+        transaction_id=first.transaction_id,
+        candles=first_rows,
+        expected_append_receipt_sha256=first.append_receipt_sha256,
+    )
+    wrong_hash = archive.attest_exact_transaction_identity(
+        transaction_id=first.transaction_id,
+        candles=first_rows,
+        expected_append_receipt_sha256="0" * 64,
+    )
+    fabricated_id = archive.attest_exact_transaction_identity(
+        transaction_id="canonical_5m_append_" + "f" * 32,
+        candles=first_rows,
+    )
+
+    assert verified["status"] == (
+        "VERIFIED_CANONICAL_5M_EXACT_TRANSACTION_IDENTITY"
+    )
+    assert verified["transaction_identity_verified"] is True
+    assert verified["transaction_is_current_tail"] is False
+    assert verified["append_receipt_sha256"] == first.append_receipt_sha256
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_EXPECTED_RECEIPT_MISMATCH" in (
+        wrong_hash["rejection_reasons"]
+    )
+    assert fabricated_id["transaction_identity_verified"] is False
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_ROW_COUNT_MISMATCH" in (
+        fabricated_id["rejection_reasons"]
+    )
 
 
 def test_empty_archive_initialization_is_deterministic_and_crash_retry_safe(

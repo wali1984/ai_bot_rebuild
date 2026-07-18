@@ -19,6 +19,7 @@ import json
 import math
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,8 @@ from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
     deliver_pending_once,
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    Canonical5mArchiveWriterLease,
+    Canonical5mArchiveWriterLeaseError,
     DurableCanonical5mLabelArchive,
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
@@ -233,6 +236,10 @@ class _Canonical5mLabelArchivePipeline:
         self._wake_event = asyncio.Event()
         self.outbox: Canonical5mLabelOutbox | None = None
         self.archive: DurableCanonical5mLabelArchive | None = None
+        self._writer_lease: Canonical5mArchiveWriterLease | None = None
+        self._storage_tasks: set[asyncio.Task[Any]] = set()
+        self._close_task: asyncio.Task[None] | None = None
+        self._closing = False
         self._publish_runtime_stats()
 
     async def initialize(self) -> bool:
@@ -252,19 +259,39 @@ class _Canonical5mLabelArchivePipeline:
         def _open_storage() -> tuple[
             Canonical5mLabelOutbox,
             DurableCanonical5mLabelArchive,
+            Canonical5mArchiveWriterLease,
             dict[str, Any],
         ]:
-            outbox = Canonical5mLabelOutbox(
-                self.outbox_path,
-                max_pending_rows=self.max_pending_rows,
+            writer_lease = Canonical5mArchiveWriterLease.acquire(
+                self.archive_path
             )
-            archive = DurableCanonical5mLabelArchive(self.archive_path)
-            return outbox, archive, outbox.status_snapshot()
+            try:
+                outbox = Canonical5mLabelOutbox(
+                    self.outbox_path,
+                    max_pending_rows=self.max_pending_rows,
+                )
+                archive = DurableCanonical5mLabelArchive(
+                    self.archive_path,
+                    writer_lease=writer_lease,
+                )
+                return (
+                    outbox,
+                    archive,
+                    writer_lease,
+                    outbox.status_snapshot(),
+                )
+            except Exception:
+                writer_lease.release()
+                raise
 
+        open_storage_task = asyncio.create_task(asyncio.to_thread(_open_storage))
         try:
-            self.outbox, self.archive, self._last_outbox_status = (
-                await asyncio.to_thread(_open_storage)
-            )
+            (
+                self.outbox,
+                self.archive,
+                self._writer_lease,
+                self._last_outbox_status,
+            ) = await asyncio.shield(open_storage_task)
             self._initialized = True
             persistent = self._last_outbox_status.get("integrity_blocker")
             if persistent:
@@ -273,12 +300,97 @@ class _Canonical5mLabelArchivePipeline:
                 self._archive_error = (
                     "CANONICAL_5M_LABEL_OUTBOX_RECOVERY_PENDING"
                 )
+        except asyncio.CancelledError:
+            # ``to_thread`` cannot be force-cancelled after it starts.  Wait
+            # for its bounded SQLite open in an independent task callback.  A
+            # second cancellation of this caller therefore cannot interrupt
+            # lease release and orphan the raw file descriptor/flock.
+            self._initialization_error = (
+                "CANONICAL_5M_LABEL_PIPELINE_INITIALIZATION_CANCELLED"
+            )
+
+            def _release_cancelled_open(
+                completed: asyncio.Task[
+                    tuple[
+                        Canonical5mLabelOutbox,
+                        DurableCanonical5mLabelArchive,
+                        Canonical5mArchiveWriterLease,
+                        dict[str, Any],
+                    ]
+                ],
+            ) -> None:
+                try:
+                    opened = completed.result()
+                    opened[2].release()
+                except BaseException as cleanup_exc:
+                    self._initialization_error = self._error_text(
+                        "CANONICAL_5M_LABEL_CANCELLED_INITIALIZATION_CLEANUP_FAILED",
+                        cleanup_exc,
+                    )
+                self._publish_runtime_stats()
+
+            open_storage_task.add_done_callback(_release_cancelled_open)
+            self._publish_runtime_stats()
+            raise
         except Exception as exc:
             self._initialization_error = self._error_text(
                 "CANONICAL_5M_LABEL_PIPELINE_INITIALIZATION_FAILED", exc
             )
         self._publish_runtime_stats()
         return self._initialized
+
+    async def close(self) -> None:
+        """Drain every worker-thread storage call before releasing the lease."""
+
+        if self._close_task is None:
+            self._closing = True
+            self._initialized = False
+            self._stop_requested = True
+            self._wake_event.set()
+            self._close_task = asyncio.create_task(
+                self._drain_storage_and_release()
+            )
+        await asyncio.shield(self._close_task)
+
+    async def _drain_storage_and_release(self) -> None:
+        storage_errors: list[BaseException] = []
+        while self._storage_tasks:
+            results = await asyncio.gather(
+                *tuple(self._storage_tasks),
+                return_exceptions=True,
+            )
+            storage_errors.extend(
+                result
+                for result in results
+                if isinstance(result, BaseException)
+            )
+        if storage_errors:
+            self._worker_error = self._error_text(
+                "CANONICAL_5M_LABEL_STORAGE_DRAIN_FAILED",
+                storage_errors[0],
+            )
+
+        writer_lease, self._writer_lease = self._writer_lease, None
+        self.archive = None
+        if writer_lease is not None:
+            writer_lease.release()
+        self._publish_runtime_stats()
+
+    async def _run_storage_call(
+        self,
+        function: Callable[..., Any],
+        /,
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
+        if self._closing:
+            raise RuntimeError("CANONICAL_5M_LABEL_PIPELINE_CLOSING")
+        task = asyncio.create_task(
+            asyncio.to_thread(function, *args, **kwargs)
+        )
+        self._storage_tasks.add(task)
+        task.add_done_callback(self._storage_tasks.discard)
+        return await asyncio.shield(task)
 
     @staticmethod
     def _bounded_int(value: int, *, name: str, maximum: int) -> int:
@@ -306,7 +418,7 @@ class _Canonical5mLabelArchivePipeline:
     async def _refresh_outbox_status(self) -> None:
         if self.outbox is None:
             return
-        self._last_outbox_status = await asyncio.to_thread(
+        self._last_outbox_status = await self._run_storage_call(
             self.outbox.status_snapshot
         )
         persistent = self._last_outbox_status.get("integrity_blocker")
@@ -328,7 +440,7 @@ class _Canonical5mLabelArchivePipeline:
         if reason is None or self.outbox is None:
             return
         try:
-            await asyncio.to_thread(
+            await self._run_storage_call(
                 self.outbox.record_integrity_blocker,
                 reason,
             )
@@ -444,7 +556,7 @@ class _Canonical5mLabelArchivePipeline:
     ) -> OutboxEnqueueResult | None:
         assert self.outbox is not None
         try:
-            result = await asyncio.to_thread(
+            result = await self._run_storage_call(
                 self.outbox.enqueue_payloads,
                 tuple(item.payload_json for item in batch),
             )
@@ -520,7 +632,7 @@ class _Canonical5mLabelArchivePipeline:
             # Drain in bounded transactions. Yield between waves so websocket
             # consumers and Redis persistence cannot be starved by recovery.
             for _ in range(4):
-                delivered = await asyncio.to_thread(
+                delivered = await self._run_storage_call(
                     deliver_pending_once,
                     outbox=self.outbox,
                     archive=self.archive,
@@ -800,6 +912,16 @@ class _Canonical5mLabelArchivePipeline:
             None,
         )
         blocker = self._sticky_blocker or persistent or runtime_error
+        writer_lease = self._writer_lease
+        writer_lease_contract: dict[str, Any] | None = None
+        if writer_lease is not None:
+            try:
+                writer_lease_contract = writer_lease.contract()
+            except Canonical5mArchiveWriterLeaseError:
+                writer_lease_contract = None
+        writer_lease_held = writer_lease_contract is not None
+        if blocker is None and self._initialized and not writer_lease_held:
+            blocker = "CANONICAL_5M_LABEL_ARCHIVE_WRITER_LEASE_NOT_HELD"
         if blocker is None and volatile_rows:
             blocker = (
                 "CANONICAL_5M_LABEL_VOLATILE_ADMISSION_PENDING_DURABLE_OUTBOX:"
@@ -812,7 +934,9 @@ class _Canonical5mLabelArchivePipeline:
             "enabled": True,
             "initialization_attempted": self._initialization_attempted,
             "initialized": self._initialized,
-            "healthy": self._initialized and blocker is None,
+            "healthy": (
+                self._initialized and writer_lease_held and blocker is None
+            ),
             "blocked_reason": blocker,
             "runtime_error": runtime_error,
             "sticky_integrity_blocker": self._sticky_blocker or persistent,
@@ -836,6 +960,8 @@ class _Canonical5mLabelArchivePipeline:
                 self._admission_futures
             ),
             "archive_path": str(self.archive_path),
+            "archive_writer_lease_held": writer_lease_held,
+            "archive_writer_lease_contract": writer_lease_contract,
             "outbox_path": str(self.outbox_path),
             "memory_queue_depth": self.queue.qsize(),
             "memory_retry_batch_rows": len(self._retry_batch),
@@ -1369,59 +1495,80 @@ async def run_loop(args: argparse.Namespace) -> int:
             }, sort_keys=True), flush=True)
             await asyncio.sleep(max(1.0, float(args.heartbeat_interval_seconds)))
 
-    while True:
-        stop_at = time.time() + max(15.0, float(args.total_seconds))
-        stats["connected_chunks"] = 0
-        consumer_tasks = [
-            asyncio.create_task(
-                _consume_chunk(
-                    chunk_id=index,
-                    streams=chunk,
-                    redis_client=redis_holder,
-                    stats=stats,
-                    ws_base=str(args.ws_base),
-                    ttl_seconds=int(args.ttl_seconds),
-                    max_candles=int(args.max_candles),
-                    max_seconds_per_session=float(args.max_seconds_per_session),
-                    stop_at=stop_at,
-                    label_pipeline=label_pipeline,
+    pipeline_task: asyncio.Task[bool] | None = None
+    try:
+        while True:
+            stop_at = time.time() + max(15.0, float(args.total_seconds))
+            stats["connected_chunks"] = 0
+            consumer_tasks = [
+                asyncio.create_task(
+                    _consume_chunk(
+                        chunk_id=index,
+                        streams=chunk,
+                        redis_client=redis_holder,
+                        stats=stats,
+                        ws_base=str(args.ws_base),
+                        ttl_seconds=int(args.ttl_seconds),
+                        max_candles=int(args.max_candles),
+                        max_seconds_per_session=float(
+                            args.max_seconds_per_session
+                        ),
+                        stop_at=stop_at,
+                        label_pipeline=label_pipeline,
+                    )
                 )
+                for index, chunk in enumerate(chunks)
+            ]
+            status_task = asyncio.create_task(status_writer(stop_at))
+            pipeline_task = (
+                asyncio.create_task(label_pipeline.run_until(None))
+                if label_pipeline is not None
+                else None
             )
-            for index, chunk in enumerate(chunks)
-        ]
-        status_task = asyncio.create_task(status_writer(stop_at))
-        pipeline_task = (
-            asyncio.create_task(label_pipeline.run_until(None))
-            if label_pipeline is not None
-            else None
-        )
-        cycle_results = await asyncio.gather(
-            *consumer_tasks,
-            status_task,
-            return_exceptions=True,
-        )
-        pipeline_clean = True
-        if label_pipeline is not None and pipeline_task is not None:
+            cycle_results = await asyncio.gather(
+                *consumer_tasks,
+                status_task,
+                return_exceptions=True,
+            )
+            pipeline_clean = True
+            if label_pipeline is not None and pipeline_task is not None:
+                label_pipeline.request_stop()
+                try:
+                    pipeline_clean = bool(await pipeline_task)
+                except Exception as exc:
+                    pipeline_clean = False
+                    label_pipeline._worker_error = label_pipeline._error_text(
+                        "CANONICAL_5M_LABEL_WORKER_TASK_FAILED", exc
+                    )
+                    label_pipeline._publish_runtime_stats()
+                finally:
+                    pipeline_task = None
+            await write_status_once()
+            cycle_exit_code = _runtime_cycle_exit_code(
+                label_pipeline_enabled=label_pipeline_enabled,
+                pipeline_clean=pipeline_clean,
+                cycle_results=list(cycle_results),
+            )
+            if cycle_exit_code:
+                return cycle_exit_code
+            if not args.loop:
+                return 0
+    finally:
+        if label_pipeline is not None:
             label_pipeline.request_stop()
+        if pipeline_task is not None and not pipeline_task.done():
+            pipeline_task.cancel()
             try:
-                pipeline_clean = bool(await pipeline_task)
+                await pipeline_task
+            except asyncio.CancelledError:
+                pass
             except Exception as exc:
-                pipeline_clean = False
                 label_pipeline._worker_error = label_pipeline._error_text(
-                    "CANONICAL_5M_LABEL_WORKER_TASK_FAILED", exc
+                    "CANONICAL_5M_LABEL_WORKER_CLEANUP_FAILED", exc
                 )
                 label_pipeline._publish_runtime_stats()
-        await write_status_once()
-        cycle_exit_code = _runtime_cycle_exit_code(
-            label_pipeline_enabled=label_pipeline_enabled,
-            pipeline_clean=pipeline_clean,
-            cycle_results=list(cycle_results),
-        )
-        if cycle_exit_code:
-            return cycle_exit_code
-        if not args.loop:
-            break
-    return 0
+        if label_pipeline is not None:
+            await label_pipeline.close()
 
 
 def main(argv: list[str] | None = None) -> int:

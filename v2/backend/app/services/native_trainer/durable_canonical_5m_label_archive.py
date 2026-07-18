@@ -7,13 +7,17 @@ service, prunes data, or touches an exchange.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import math
+import os
 import re
 import sqlite3
+import stat
 import uuid
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,7 +26,6 @@ from typing import Any
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_candle_id,
 )
-
 
 ARCHIVE_SCHEMA_VERSION = "durable_canonical_finalized_5m_label_archive_v1"
 APPEND_RECEIPT_SCHEMA_VERSION = (
@@ -43,6 +46,13 @@ EMPTY_INITIALIZATION_RECEIPT_SCHEMA_VERSION = (
 EXACT_TAIL_TRANSACTION_ATTESTATION_SCHEMA_VERSION = (
     "durable_canonical_finalized_5m_label_archive_exact_tail_transaction_v1"
 )
+EXACT_TRANSACTION_IDENTITY_ATTESTATION_SCHEMA_VERSION = (
+    "durable_canonical_finalized_5m_label_archive_exact_transaction_identity_v1"
+)
+ARCHIVE_WRITER_LEASE_SCHEMA_VERSION = (
+    "durable_canonical_finalized_5m_label_archive_writer_lease_v1"
+)
+_ARCHIVE_WRITER_LEASE_CONSTRUCTION_TOKEN = object()
 LABEL_PATH_PROOF_SCHEMA_VERSION = (
     "durable_canonical_finalized_5m_trainer_label_path_proof_v1"
 )
@@ -130,6 +140,190 @@ class Canonical5mIdentityConflictError(Canonical5mArchiveError):
 
 class Canonical5mArchiveReadbackError(Canonical5mArchiveError):
     pass
+
+
+class Canonical5mArchiveWriterLeaseError(Canonical5mArchiveError):
+    """The exact archive-path writer lease is absent, stale, or contended."""
+
+
+def canonical_5m_archive_writer_lease_path(archive_path: Path) -> Path:
+    """Return the one advisory writer-lock path for an exact archive path."""
+
+    exact_archive_path = Path(archive_path).expanduser().resolve()
+    return exact_archive_path.with_name(exact_archive_path.name + ".writer.lock")
+
+
+class Canonical5mArchiveWriterLease:
+    """One-shot, exact-path, nonblocking exclusive archive writer lease.
+
+    A lease instance cannot be reacquired after release.  The private file
+    descriptor remains open for the entire lease lifetime; validation binds
+    both the resolved archive path and the lock-file inode.  All sanctioned
+    archive mutation APIs either acquire this lease themselves or validate a
+    caller-provided instance before and after their critical section.
+    """
+
+    __slots__ = (
+        "_archive_path",
+        "_file_descriptor",
+        "_lock_device",
+        "_lock_inode",
+        "_lock_path",
+        "_owner_pid",
+        "_released",
+    )
+
+    def __init__(
+        self,
+        *,
+        archive_path: Path,
+        lock_path: Path,
+        file_descriptor: int,
+        lock_device: int,
+        lock_inode: int,
+        _construction_token: object | None = None,
+    ) -> None:
+        if _construction_token is not _ARCHIVE_WRITER_LEASE_CONSTRUCTION_TOKEN:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_must_use_acquire"
+            )
+        self._archive_path = Path(archive_path)
+        self._lock_path = Path(lock_path)
+        self._file_descriptor = int(file_descriptor)
+        self._lock_device = int(lock_device)
+        self._lock_inode = int(lock_inode)
+        self._owner_pid = os.getpid()
+        self._released = False
+
+    @classmethod
+    def acquire(cls, archive_path: Path) -> Canonical5mArchiveWriterLease:
+        exact_archive_path = Path(archive_path).expanduser().resolve()
+        lock_path = canonical_5m_archive_writer_lease_path(exact_archive_path)
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        flags = os.O_RDWR | os.O_CREAT
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= getattr(os, "O_NOFOLLOW", 0)
+        try:
+            file_descriptor = os.open(lock_path, flags, 0o600)
+        except OSError as exc:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_open_failed"
+            ) from exc
+        try:
+            lock_stat = os.fstat(file_descriptor)
+            if not stat.S_ISREG(lock_stat.st_mode):
+                raise Canonical5mArchiveWriterLeaseError(
+                    "canonical_5m_archive_writer_lease_not_regular_file"
+                )
+            fcntl.flock(file_descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            os.close(file_descriptor)
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_already_held"
+            ) from exc
+        except Exception:
+            os.close(file_descriptor)
+            raise
+        lease = cls(
+            archive_path=exact_archive_path,
+            lock_path=lock_path,
+            file_descriptor=file_descriptor,
+            lock_device=lock_stat.st_dev,
+            lock_inode=lock_stat.st_ino,
+            _construction_token=_ARCHIVE_WRITER_LEASE_CONSTRUCTION_TOKEN,
+        )
+        try:
+            lease.validate_for(exact_archive_path)
+        except BaseException:
+            # Validation occurs after the nonblocking flock.  Never strand
+            # that kernel lock if path/inode/PID validation itself fails.
+            try:
+                lease.release()
+            except Canonical5mArchiveWriterLeaseError:
+                pass
+            raise
+        return lease
+
+    @property
+    def archive_path(self) -> Path:
+        return self._archive_path
+
+    @property
+    def lock_path(self) -> Path:
+        return self._lock_path
+
+    @property
+    def held(self) -> bool:
+        if self._released or self._file_descriptor < 0:
+            return False
+        try:
+            self.validate_for(self._archive_path)
+        except Canonical5mArchiveWriterLeaseError:
+            return False
+        return True
+
+    def validate_for(self, archive_path: Path) -> None:
+        exact_archive_path = Path(archive_path).expanduser().resolve()
+        if exact_archive_path != self._archive_path:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_path_mismatch"
+            )
+        if os.getpid() != self._owner_pid:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_owner_process_mismatch"
+            )
+        if self._released or self._file_descriptor < 0:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_not_held"
+            )
+        try:
+            descriptor_stat = os.fstat(self._file_descriptor)
+            path_stat = os.stat(self._lock_path, follow_symlinks=False)
+        except OSError as exc:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_validation_failed"
+            ) from exc
+        identity = (self._lock_device, self._lock_inode)
+        if (
+            not stat.S_ISREG(descriptor_stat.st_mode)
+            or not stat.S_ISREG(path_stat.st_mode)
+            or (descriptor_stat.st_dev, descriptor_stat.st_ino) != identity
+            or (path_stat.st_dev, path_stat.st_ino) != identity
+        ):
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_inode_changed"
+            )
+
+    def contract(self) -> dict[str, Any]:
+        self.validate_for(self._archive_path)
+        return {
+            "schema_version": ARCHIVE_WRITER_LEASE_SCHEMA_VERSION,
+            "archive_path": str(self._archive_path),
+            "lock_path": str(self._lock_path),
+            "exclusive": True,
+            "continuously_held": True,
+            "process_probe_role": "SECONDARY_EVIDENCE_ONLY",
+        }
+
+    def release(self) -> None:
+        if self._released:
+            return
+        file_descriptor = self._file_descriptor
+        self._released = True
+        self._file_descriptor = -1
+        try:
+            os.close(file_descriptor)
+        except OSError as exc:
+            raise Canonical5mArchiveWriterLeaseError(
+                "canonical_5m_archive_writer_lease_release_failed"
+            ) from exc
+
+    def __enter__(self) -> Canonical5mArchiveWriterLease:
+        self.validate_for(self._archive_path)
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        self.release()
 
 
 @dataclass(frozen=True)
@@ -489,8 +683,35 @@ def validate_canonical_finalized_5m_candle(
 class DurableCanonical5mLabelArchive:
     """Crash-safe immutable archive and bounded trainer range reader."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(
+        self,
+        path: Path,
+        *,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> None:
         self.path = Path(path)
+        self._writer_lease = writer_lease
+        if writer_lease is not None:
+            writer_lease.validate_for(self.path)
+
+    @contextmanager
+    def writer_lease(
+        self,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> Iterator[Canonical5mArchiveWriterLease]:
+        """Yield a validated lease, acquiring one when the caller has none."""
+
+        held_lease = writer_lease or self._writer_lease
+        acquired_here = held_lease is None
+        if held_lease is None:
+            held_lease = Canonical5mArchiveWriterLease.acquire(self.path)
+        try:
+            held_lease.validate_for(self.path)
+            yield held_lease
+            held_lease.validate_for(self.path)
+        finally:
+            if acquired_here:
+                held_lease.release()
 
     @staticmethod
     def _configure_connection(connection: sqlite3.Connection) -> None:
@@ -498,7 +719,13 @@ class DurableCanonical5mLabelArchive:
         connection.execute("PRAGMA foreign_keys=ON")
         connection.execute("PRAGMA busy_timeout=60000")
 
-    def _connect_write(self, *, initialize: bool = False) -> sqlite3.Connection:
+    def _connect_write(
+        self,
+        *,
+        writer_lease: Canonical5mArchiveWriterLease,
+        initialize: bool = False,
+    ) -> sqlite3.Connection:
+        writer_lease.validate_for(self.path)
         if initialize:
             self.path.parent.mkdir(parents=True, exist_ok=True)
         elif not self.path.is_file():
@@ -642,14 +869,34 @@ class DurableCanonical5mLabelArchive:
         connection.execute("PRAGMA query_only=ON")
         return connection
 
-    def _ensure_initialized(self) -> None:
-        connection = self._connect_write(initialize=True)
+    def _ensure_initialized(
+        self,
+        *,
+        writer_lease: Canonical5mArchiveWriterLease,
+    ) -> None:
+        connection = self._connect_write(
+            initialize=True,
+            writer_lease=writer_lease,
+        )
         connection.close()
 
     def initialize_empty_archive(
         self,
         *,
         initialization_intent_id: str,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> dict[str, Any]:
+        with self.writer_lease(writer_lease) as held_lease:
+            return self._initialize_empty_archive_locked(
+                initialization_intent_id=initialization_intent_id,
+                writer_lease=held_lease,
+            )
+
+    def _initialize_empty_archive_locked(
+        self,
+        *,
+        initialization_intent_id: str,
+        writer_lease: Canonical5mArchiveWriterLease,
     ) -> dict[str, Any]:
         """Create or read one deterministic, fully verified empty genesis.
 
@@ -669,7 +916,7 @@ class DurableCanonical5mLabelArchive:
                 "empty_archive_initialization_intent_id_invalid"
             )
         archive_preexisted = self.path.is_file()
-        self._ensure_initialized()
+        self._ensure_initialized(writer_lease=writer_lease)
         integrity = self.verify_integrity()
         if (
             integrity.get("archive_integrity_verified") is not True
@@ -1070,6 +1317,20 @@ class DurableCanonical5mLabelArchive:
     def append_candles(
         self,
         candles: Iterable[Mapping[str, Any]],
+        *,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> Canonical5mAppendResult:
+        with self.writer_lease(writer_lease) as held_lease:
+            return self._append_candles_locked(
+                candles,
+                writer_lease=held_lease,
+            )
+
+    def _append_candles_locked(
+        self,
+        candles: Iterable[Mapping[str, Any]],
+        *,
+        writer_lease: Canonical5mArchiveWriterLease,
     ) -> Canonical5mAppendResult:
         validated_rows = self._bounded_validated_rows(candles)
         attempted_rows = len(validated_rows)
@@ -1089,9 +1350,9 @@ class DurableCanonical5mLabelArchive:
         inserted = 0
         duplicates = 0
         inserted_identities: list[tuple[str, int, str]] = []
-        self._ensure_initialized()
-        self.recover_pending_postcommit_readbacks()
-        connection = self._connect_write()
+        self._ensure_initialized(writer_lease=writer_lease)
+        self.recover_pending_postcommit_readbacks(writer_lease=writer_lease)
+        connection = self._connect_write(writer_lease=writer_lease)
         try:
             connection.execute("BEGIN IMMEDIATE")
             metadata = self._metadata(connection)
@@ -1284,6 +1545,7 @@ class DurableCanonical5mLabelArchive:
             transaction_id=transaction_id,
             receipt_sha256=receipt_sha256,
             inserted_identities=inserted_identities,
+            writer_lease=writer_lease,
         )
         return Canonical5mAppendResult(
             transaction_id=transaction_id,
@@ -1306,7 +1568,9 @@ class DurableCanonical5mLabelArchive:
         transaction_id: str,
         receipt_sha256: str,
         inserted_identities: Iterable[tuple[str, int, str]],
+        writer_lease: Canonical5mArchiveWriterLease,
     ) -> None:
+        writer_lease.validate_for(self.path)
         identities = tuple(inserted_identities)
         connection = self._connect_readonly()
         try:
@@ -1368,7 +1632,7 @@ class DurableCanonical5mLabelArchive:
         attestation_sha256 = hashlib.sha256(
             attestation_json.encode()
         ).hexdigest()
-        connection = self._connect_write()
+        connection = self._connect_write(writer_lease=writer_lease)
         try:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute(
@@ -1452,6 +1716,19 @@ class DurableCanonical5mLabelArchive:
         self,
         *,
         max_transactions: int = MAX_APPEND_ROWS,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> dict[str, Any]:
+        with self.writer_lease(writer_lease) as held_lease:
+            return self._recover_pending_postcommit_readbacks_locked(
+                max_transactions=max_transactions,
+                writer_lease=held_lease,
+            )
+
+    def _recover_pending_postcommit_readbacks_locked(
+        self,
+        *,
+        max_transactions: int,
+        writer_lease: Canonical5mArchiveWriterLease,
     ) -> dict[str, Any]:
         """Attest bounded transaction-A crash gaps after independent reopen."""
 
@@ -1541,6 +1818,7 @@ class DurableCanonical5mLabelArchive:
                 transaction_id=transaction_id,
                 receipt_sha256=receipt_sha256,
                 inserted_identities=identities,
+                writer_lease=writer_lease,
             )
         return {
             "status": "POSTCOMMIT_READBACK_RECOVERY_COMPLETE",
@@ -1551,6 +1829,20 @@ class DurableCanonical5mLabelArchive:
     def attest_exact_tail_transaction(
         self,
         candles: Iterable[Mapping[str, Any]],
+        *,
+        writer_lease: Canonical5mArchiveWriterLease | None = None,
+    ) -> dict[str, Any]:
+        with self.writer_lease(writer_lease) as held_lease:
+            return self._attest_exact_tail_transaction_locked(
+                candles,
+                writer_lease=held_lease,
+            )
+
+    def _attest_exact_tail_transaction_locked(
+        self,
+        candles: Iterable[Mapping[str, Any]],
+        *,
+        writer_lease: Canonical5mArchiveWriterLease,
     ) -> dict[str, Any]:
         """Prove one exact all-inserted append is the current archive tail.
 
@@ -1608,7 +1900,9 @@ class DurableCanonical5mLabelArchive:
             "rejection_reasons": [],
         }
         try:
-            recovery = self.recover_pending_postcommit_readbacks()
+            recovery = self.recover_pending_postcommit_readbacks(
+                writer_lease=writer_lease
+            )
         except (
             OSError,
             sqlite3.Error,
@@ -1631,7 +1925,7 @@ class DurableCanonical5mLabelArchive:
         metadata: dict[str, str] = {}
         connection: sqlite3.Connection | None = None
         try:
-            connection = self._connect_write()
+            connection = self._connect_write(writer_lease=writer_lease)
             # A reserved writer lock keeps the tail snapshot stable while the
             # exact transaction, receipts, and metadata are cross-checked.
             connection.execute("BEGIN IMMEDIATE")
@@ -1965,6 +2259,314 @@ class DurableCanonical5mLabelArchive:
             }
         )
         return proof
+
+    def attest_exact_transaction_identity(
+        self,
+        *,
+        transaction_id: str,
+        candles: Iterable[Mapping[str, Any]],
+        expected_append_receipt_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        """Revalidate one immutable append transaction at any archive depth.
+
+        Unlike ``attest_exact_tail_transaction``, this proof remains meaningful
+        after later sanctioned appends.  It binds every supplied canonical row
+        to one contiguous transaction, its append receipt, its postcommit
+        readback receipt, and its chain predecessor/formula.  It never claims
+        that the transaction is still the current archive tail.
+        """
+
+        validated_rows = self._bounded_validated_rows(candles)
+        normalized_transaction_id = str(transaction_id or "")
+        expected_receipt_sha = (
+            _valid_sha256(expected_append_receipt_sha256)
+            if expected_append_receipt_sha256 is not None
+            else None
+        )
+        expected_bindings = [
+            {
+                "symbol": str(row["symbol"]),
+                "candle_close_time_ms": int(row["close_time_ms"]),
+                "candle_id": str(row["candle_id"]),
+                "content_sha256": str(row["content_sha256"]),
+                "market_fact_sha256": str(row["market_fact_sha256"]),
+            }
+            for row in validated_rows
+        ]
+        expected_batch_sha256 = stable_sha256(expected_bindings)
+        rejection_reasons: list[str] = []
+        if not re.fullmatch(r"canonical_5m_append_[0-9a-f]{32}", normalized_transaction_id):
+            rejection_reasons.append("LABEL_ARCHIVE_TRANSACTION_ID_INVALID")
+        if not validated_rows:
+            rejection_reasons.append("LABEL_ARCHIVE_EXACT_TRANSACTION_ROWS_EMPTY")
+        if (
+            expected_append_receipt_sha256 is not None
+            and expected_receipt_sha is None
+        ):
+            rejection_reasons.append(
+                "LABEL_ARCHIVE_EXPECTED_APPEND_RECEIPT_SHA256_INVALID"
+            )
+
+        transaction_rows: list[sqlite3.Row] = []
+        receipt: sqlite3.Row | None = None
+        postcommit: sqlite3.Row | None = None
+        transaction_is_current_tail = False
+        try:
+            connection = self._connect_readonly()
+            try:
+                connection.execute("BEGIN")
+                transaction_rows = list(
+                    connection.execute(
+                        """
+                        SELECT sequence, symbol, candle_close_time_ms,
+                               candle_open_time_ms, available_at_ms, candle_id,
+                               raw_payload_hash, market_fact_sha256,
+                               content_sha256, payload_json,
+                               previous_chain_sha256, record_chain_sha256,
+                               append_transaction_id
+                        FROM canonical_5m_candles
+                        WHERE append_transaction_id = ?
+                        ORDER BY sequence ASC
+                        LIMIT ?
+                        """,
+                        (normalized_transaction_id, MAX_APPEND_ROWS + 1),
+                    )
+                )
+                receipt = connection.execute(
+                    """
+                    SELECT transaction_id, receipt_schema_version,
+                           batch_sha256, attempted_rows, inserted_rows,
+                           duplicate_rows, total_unique_rows,
+                           archive_chain_sha256, receipt_sha256, receipt_json,
+                           commit_prepared_at, precommit_readback_verified
+                    FROM canonical_5m_append_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (normalized_transaction_id,),
+                ).fetchone()
+                postcommit = connection.execute(
+                    """
+                    SELECT transaction_id, readback_schema_version,
+                           append_receipt_sha256, inserted_rows,
+                           inserted_identities_sha256,
+                           readback_receipt_sha256,
+                           readback_receipt_json, postcommit_readback_at
+                    FROM canonical_5m_postcommit_readback_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (normalized_transaction_id,),
+                ).fetchone()
+                latest = connection.execute(
+                    """
+                    SELECT sequence, record_chain_sha256
+                    FROM canonical_5m_candles
+                    ORDER BY sequence DESC LIMIT 1
+                    """
+                ).fetchone()
+                if transaction_rows and latest is not None:
+                    transaction_is_current_tail = (
+                        int(latest["sequence"])
+                        == int(transaction_rows[-1]["sequence"])
+                        and str(latest["record_chain_sha256"])
+                        == str(transaction_rows[-1]["record_chain_sha256"])
+                    )
+                predecessor = None
+                if transaction_rows:
+                    predecessor = connection.execute(
+                        """
+                        SELECT record_chain_sha256
+                        FROM canonical_5m_candles
+                        WHERE sequence < ?
+                        ORDER BY sequence DESC LIMIT 1
+                        """,
+                        (int(transaction_rows[0]["sequence"]),),
+                    ).fetchone()
+                connection.commit()
+            finally:
+                connection.close()
+        except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+            rejection_reasons.append(
+                "LABEL_ARCHIVE_EXACT_TRANSACTION_READ_FAILED:"
+                f"{type(exc).__name__}"
+            )
+            predecessor = None
+
+        if len(transaction_rows) != len(validated_rows):
+            rejection_reasons.append(
+                "LABEL_ARCHIVE_EXACT_TRANSACTION_ROW_COUNT_MISMATCH"
+            )
+        if transaction_rows:
+            sequences = [int(row["sequence"]) for row in transaction_rows]
+            if sequences != list(range(sequences[0], sequences[0] + len(sequences))):
+                rejection_reasons.append(
+                    "LABEL_ARCHIVE_EXACT_TRANSACTION_SEQUENCE_GAP"
+                )
+            expected_previous_chain = (
+                str(predecessor["record_chain_sha256"])
+                if predecessor is not None
+                else _GENESIS_CHAIN_SHA256
+            )
+            for stored, expected in zip(
+                transaction_rows,
+                validated_rows,
+                strict=False,
+            ):
+                try:
+                    stored_payload = json.loads(str(stored["payload_json"]))
+                    stored_validated = validate_canonical_finalized_5m_candle(
+                        stored_payload
+                    )
+                except (TypeError, ValueError, Canonical5mValidationError):
+                    rejection_reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_PAYLOAD_INVALID"
+                    )
+                    continue
+                exact_columns = (
+                    str(stored["symbol"]) == str(expected["symbol"])
+                    and int(stored["candle_close_time_ms"])
+                    == int(expected["close_time_ms"])
+                    and int(stored["candle_open_time_ms"])
+                    == int(expected["open_time_ms"])
+                    and int(stored["available_at_ms"])
+                    == int(expected["available_at_ms"])
+                    and str(stored["candle_id"]) == str(expected["candle_id"])
+                    and str(stored["raw_payload_hash"])
+                    == str(expected["raw_payload_hash"])
+                    and str(stored["market_fact_sha256"])
+                    == str(expected["market_fact_sha256"])
+                    and str(stored["content_sha256"])
+                    == str(expected["content_sha256"])
+                    and str(stored["payload_json"]) == str(expected["payload_json"])
+                    and str(stored["append_transaction_id"])
+                    == normalized_transaction_id
+                    and stored_validated["content_sha256"]
+                    == expected["content_sha256"]
+                )
+                if not exact_columns:
+                    rejection_reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_PAYLOAD_MISMATCH"
+                    )
+                if str(stored["previous_chain_sha256"]) != expected_previous_chain:
+                    rejection_reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_CHAIN_LINK_MISMATCH"
+                    )
+                expected_record_chain = self._record_chain_sha256(
+                    previous_chain_sha256=expected_previous_chain,
+                    validated=expected,
+                    append_transaction_id=normalized_transaction_id,
+                )
+                if str(stored["record_chain_sha256"]) != expected_record_chain:
+                    rejection_reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_CHAIN_FORMULA_MISMATCH"
+                    )
+                expected_previous_chain = expected_record_chain
+
+        if receipt is None:
+            rejection_reasons.append("LABEL_ARCHIVE_APPEND_RECEIPT_MISSING")
+        else:
+            rejection_reasons.extend(self._append_receipt_rejection_reasons(receipt))
+            if (
+                str(receipt["transaction_id"]) != normalized_transaction_id
+                or str(receipt["batch_sha256"]) != expected_batch_sha256
+                or int(receipt["attempted_rows"]) != len(validated_rows)
+                or int(receipt["inserted_rows"]) != len(validated_rows)
+                or int(receipt["duplicate_rows"]) != 0
+                or (
+                    transaction_rows
+                    and str(receipt["archive_chain_sha256"])
+                    != str(transaction_rows[-1]["record_chain_sha256"])
+                )
+            ):
+                rejection_reasons.append(
+                    "LABEL_ARCHIVE_EXACT_TRANSACTION_RECEIPT_BINDING_MISMATCH"
+                )
+            if (
+                expected_receipt_sha is not None
+                and str(receipt["receipt_sha256"]) != expected_receipt_sha
+            ):
+                rejection_reasons.append(
+                    "LABEL_ARCHIVE_EXACT_TRANSACTION_EXPECTED_RECEIPT_MISMATCH"
+                )
+
+        identities = [
+            (
+                str(row["symbol"]),
+                int(row["candle_close_time_ms"]),
+                str(row["content_sha256"]),
+            )
+            for row in transaction_rows
+        ]
+        if postcommit is None:
+            rejection_reasons.append(
+                "LABEL_ARCHIVE_POSTCOMMIT_READBACK_RECEIPT_MISSING"
+            )
+        else:
+            rejection_reasons.extend(
+                self._postcommit_receipt_rejection_reasons(postcommit)
+            )
+            if (
+                receipt is None
+                or str(postcommit["transaction_id"]) != normalized_transaction_id
+                or str(postcommit["append_receipt_sha256"])
+                != str(receipt["receipt_sha256"])
+                or int(postcommit["inserted_rows"]) != len(validated_rows)
+                or str(postcommit["inserted_identities_sha256"])
+                != self._inserted_identities_sha256(identities)
+            ):
+                rejection_reasons.append(
+                    "LABEL_ARCHIVE_EXACT_TRANSACTION_POSTCOMMIT_BINDING_MISMATCH"
+                )
+
+        transaction_bindings = [
+            {
+                "sequence": int(row["sequence"]),
+                "symbol": str(row["symbol"]),
+                "candle_close_time_ms": int(row["candle_close_time_ms"]),
+                "candle_id": str(row["candle_id"]),
+                "content_sha256": str(row["content_sha256"]),
+                "market_fact_sha256": str(row["market_fact_sha256"]),
+            }
+            for row in transaction_rows
+        ]
+        reasons = sorted(set(rejection_reasons))
+        material = {
+            "schema_version": EXACT_TRANSACTION_IDENTITY_ATTESTATION_SCHEMA_VERSION,
+            "archive_schema_version": ARCHIVE_SCHEMA_VERSION,
+            "archive_path": str(self.path),
+            "transaction_id": normalized_transaction_id,
+            "expected_rows": len(validated_rows),
+            "expected_batch_sha256": expected_batch_sha256,
+            "expected_bindings_sha256": stable_sha256(expected_bindings),
+            "transaction_bindings": transaction_bindings,
+            "append_receipt_sha256": (
+                str(receipt["receipt_sha256"]) if receipt is not None else None
+            ),
+            "postcommit_readback_receipt_sha256": (
+                str(postcommit["readback_receipt_sha256"])
+                if postcommit is not None
+                else None
+            ),
+            "transaction_total_unique_rows": (
+                int(receipt["total_unique_rows"]) if receipt is not None else None
+            ),
+            "transaction_archive_chain_sha256": (
+                str(transaction_rows[-1]["record_chain_sha256"])
+                if transaction_rows
+                else None
+            ),
+            "transaction_is_current_tail": transaction_is_current_tail,
+            "transaction_identity_verified": not reasons,
+            "rejection_reasons": reasons,
+        }
+        return {
+            **material,
+            "status": (
+                "VERIFIED_CANONICAL_5M_EXACT_TRANSACTION_IDENTITY"
+                if not reasons
+                else "BLOCKED_CANONICAL_5M_EXACT_TRANSACTION_IDENTITY_UNVERIFIED"
+            ),
+            "transaction_identity_attestation_sha256": stable_sha256(material),
+        }
 
     def verified_range(
         self,
