@@ -387,6 +387,24 @@
   min-width: 0;
   padding: 9px 10px;
   background: color-mix(in oklch, var(--bg-elevated) 92%, transparent);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+/* Subtle accent lift on hover — keeps the pro-terminal grid, adds motion. */
+.trade-account-strip > div:hover,
+.trade-chart-stats > div:hover,
+.trade-symbol-header__metric:hover {
+  background: color-mix(in oklch, rgba(124, 92, 255, 1) 9%, var(--bg-elevated));
+  box-shadow: inset 0 1px 0 rgba(124, 92, 255, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trade-symbol-header__metric,
+  .trade-account-strip > div,
+  .trade-chart-stats > div,
+  .trade-evidence-panel__summary > div {
+    transition: none;
+  }
 }
 
 .trade-symbol-header__metric span,
