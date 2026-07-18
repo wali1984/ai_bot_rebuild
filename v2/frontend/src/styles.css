@@ -2997,7 +2997,11 @@ a { color: inherit; }
 .nervyx-dashboard-kpi {
   position: relative;
   min-width: 0;
-  min-height: 92px;
+  /* Uniform card size — every KPI card is the same height; content scrolls
+     inside if it exceeds, so no card stretches taller and leaves blank space. */
+  height: 104px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
