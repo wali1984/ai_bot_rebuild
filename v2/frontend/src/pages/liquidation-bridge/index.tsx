@@ -295,8 +295,7 @@ function normalizeRuntimeDerivatives(raw: unknown): DerivativesData {
 
 function KPICard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }): JSX.Element {
   return (
-    <div style={{
-      background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+    <div className="glass glass-hover" style={{
       padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
     }}>
       <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
@@ -696,10 +695,22 @@ export default function DerivativesPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}
+      style={{ background: 'var(--bg-base)', paddingBottom: 48, position: 'relative', overflow: 'hidden' }}
     >
+      {/* Ambient depth — gives the frosted header/cards colour to refract. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background:
+            'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(239,83,80,0.07), transparent 72%)',
+        }}
+      />
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Derivatives</h1>
@@ -734,15 +745,15 @@ export default function DerivativesPage(): JSX.Element {
 
       {/* Derivatives analytics charts — top funding rates + OI distribution */}
       {rows.length > 0 && (
-        <div style={{ margin: '16px 24px 0', display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 14 }}>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ position: 'relative', zIndex: 1, margin: '16px 24px 0', display: 'grid', gridTemplateColumns: 'minmax(0, 1.6fr) minmax(0, 1fr)', gap: 14 }}>
+          <div className="glass" style={{ padding: '10px 12px' }}>
             <ChartFrame title="Top funding rates" subtitle="basis points · longs pay shorts when positive" height={180}>
               {topFunding.length
                 ? <PnLBars data={topFunding} height={180} usd={false} />
                 : <div style={{ height: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>No funding data</div>}
             </ChartFrame>
           </div>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <div className="glass" style={{ padding: '10px 12px' }}>
             <ChartFrame title="Open-interest share" subtitle="top symbols by notional" height={180}>
               {oiShare.length
                 ? <><Donut data={oiShare} height={160} centerLabel="symbols" centerValue={String(oiShare.length)} /><DonutLegend data={oiShare} /></>
