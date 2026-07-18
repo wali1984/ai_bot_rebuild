@@ -190,7 +190,7 @@ def online_learning_runtime_fields(
         prediction_rows=prediction_rows,
     )
     return {
-        **readiness,
+        **{key: value for key, value in readiness.items() if key != "schema_version"},
         "rows_rejected_by_reason": rows_rejected_by_reason,
         "loss_before": metrics.get("loss_before") or training.get("loss_before"),
         "loss_after": metrics.get("loss_after") or training.get("loss_after"),

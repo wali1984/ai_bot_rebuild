@@ -95,6 +95,7 @@ def test_online_learning_runtime_fields_publish_training_update_evidence() -> No
     assert fields["loss_after"] == 0.7
     assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
     assert fields["checkpoint_hash"] == "checkpoint-sha256"
+    assert "schema_version" not in fields
 
 
 def test_online_learning_runtime_fields_keep_checkpoint_evidence_from_persistent_runtime() -> None:
@@ -196,6 +197,7 @@ def test_native_runtime_payload_keeps_full_scrollable_prediction_grid(
     )
     runtime = payloads["native_trainer_runtime_status.json"]
 
+    assert runtime["schema_version"] == "native_trainer_runtime_status_v1"
     assert runtime["predictions_by_symbol_count"] == 90
     assert runtime["predictions_by_symbol_display_scope"] == "FULL_SCROLLABLE_TRAINER_GRID"
     assert len(runtime["predictions_by_symbol"]) == 90

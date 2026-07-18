@@ -2233,7 +2233,7 @@ def online_learning_runtime_fields(
         prediction_rows=prediction_rows,
     )
     return {
-        **readiness,
+        **{key: value for key, value in readiness.items() if key != "schema_version"},
         "rows_rejected_by_reason": rows_rejected_by_reason,
         "loss_before": nested_metrics.get("loss_before") or training.get("loss_before"),
         "loss_after": nested_metrics.get("loss_after") or training.get("loss_after"),
@@ -2507,6 +2507,7 @@ def publish_training_cycle_heartbeat(
         current_runtime_path,
         {
             **current_runtime,
+            "schema_version": "native_trainer_runtime_status_v1",
             "generated_est": generated_est,
             "generated_utc": generated_utc,
             "payload_age_seconds": 0,
@@ -3401,6 +3402,7 @@ def publish_persistent_payloads(
     )
     merged_runtime = {
         **current_runtime,
+        "schema_version": "native_trainer_runtime_status_v1",
         "generated_est": generated_est,
         "generated_utc": generated_utc,
         "payload_age_seconds": 0,

@@ -103,6 +103,7 @@ def test_online_learning_runtime_fields_publish_checkpoint_evidence() -> None:
     assert fields["effective_trainer_mode"] == "TRUSTED_REPLAY_TRAINING"
     assert fields["trainer_learning_ready"] is True
     assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
+    assert "schema_version" not in fields
     assert fields["checkpoint_hash"] == "checkpoint-sha256"
 
 
@@ -481,8 +482,11 @@ def test_training_cycle_heartbeat_refreshes_runtime_status_without_training(tmp_
     assert public_status["prediction_grid_current"] is True
     assert public_status["blocked_prediction_rows"] == 45
     assert public_status["training_steps_total"] == 9
+    assert public_status["schema_version"] == "native_cuda_trainer_persistent_runtime_status_v1"
     assert operator_status["training_cycle_status"] == "TRAINING_CYCLE_IN_PROGRESS"
+    assert operator_status["schema_version"] == "native_cuda_trainer_persistent_runtime_status_v1"
     assert merged_runtime["training_cycle_status"] == "TRAINING_CYCLE_IN_PROGRESS"
+    assert merged_runtime["schema_version"] == "native_trainer_runtime_status_v1"
     assert merged_runtime["persistent_trainer_service_active"] is True
     assert merged_runtime["prediction_grid_current"] is True
 
