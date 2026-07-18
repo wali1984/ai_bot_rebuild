@@ -38,7 +38,7 @@ import math
 import os
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
@@ -47,7 +47,6 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (
     BASELINE_25_SYMBOLS,
     resolve_symbols_with_provenance,
 )
-
 
 SCHEMA_VERSION = "v2_native_trainer_dataset_builder_v1"
 LIVE_GATE_BLOCKED = "blocked_human_only"
@@ -180,12 +179,12 @@ EXPLICIT_DATASET_TRAINING_TRUST_FIELDS = (
     "ppo_feature_cutoff",
 )
 
-# Hold-out split: deterministic by hash(feature_snapshot_id).
-HELD_OUT_FRACTION = 0.2
-
 # Minimum sample threshold below which the dataset cannot be called
 # "ready" for any production claim.
 MIN_TRAIN_ROWS_FOR_READINESS = 256
+
+LABEL_DIGEST_SCHEMA_VERSION = "v2_native_trainer_label_digest_v1"
+OUTCOME_DIGEST_SCHEMA_VERSION = "v2_native_trainer_outcome_digest_v1"
 
 
 # ---------------------------------------------------------------------------
@@ -198,15 +197,77 @@ def _utc_now_iso() -> str:
 
 
 def _parse_utc(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
+    """Parse an explicitly timezone-aware clock and normalize it to UTC.
+
+    A missing timezone is missing evidence, not permission to assume UTC.
+    Booleans and numeric epochs are deliberately unsupported because their
+    units/semantics are ambiguous at this trust boundary.
+    """
+
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _utc_iso(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _resolve_training_observed_at(value: datetime | str | None) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    parsed = _parse_utc(value)
+    if parsed is None:
+        raise ValueError("training_observed_at_must_be_timezone_aware")
+    return parsed
+
+
+def _canonical_sha256(payload: Mapping[str, Any]) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _is_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
+
+
+def _finite_float(value: Any) -> float | None:
+    if isinstance(value, bool):
         return None
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        parsed = float(value)
+    except (TypeError, ValueError):
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    return parsed if math.isfinite(parsed) else None
+
+
+def _window_seconds(value: Any) -> int | None:
+    text = str(value or "").strip().lower()
+    if len(text) < 2 or not text[:-1].isdigit():
+        return None
+    amount = int(text[:-1])
+    unit_seconds = {"s": 1, "m": 60, "h": 3600, "d": 86400}.get(text[-1])
+    if amount <= 0 or unit_seconds is None:
+        return None
+    return amount * unit_seconds
 
 
 def _safety_block() -> dict[str, Any]:
@@ -238,12 +299,6 @@ def _stable_row_id(symbol: str, timeframe: str, snapshot_id: str) -> str:
         f"{symbol}|{timeframe}|{snapshot_id}".encode("utf-8")
     ).hexdigest()[:32]
     return f"v2_native_ds_{digest}"
-
-
-def _is_held_out(row_id: str, fraction: float = HELD_OUT_FRACTION) -> bool:
-    """Deterministic hold-out membership by hash of row id."""
-    h = int(hashlib.sha256(row_id.encode("utf-8")).hexdigest()[:8], 16)
-    return (h % 10_000) < int(fraction * 10_000)
 
 
 # ---------------------------------------------------------------------------
@@ -473,32 +528,26 @@ def _replay_bundle_timing(bundle: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "entry_feature_generated_at": _first_present(
             bundle.get("entry_feature_generated_at"),
-            bundle.get("prediction_generated_at"),
         ),
         "prediction_generated_at": bundle.get("prediction_generated_at"),
         "feature_cutoff": feature_cutoff,
         "source_event_time": _first_present(
             bundle.get("source_event_time"),
             bundle.get("source_event_time_est"),
-            feature_cutoff,
-            bundle.get("candle_close_time"),
         ),
         "source_received_time_est": _first_present(
             bundle.get("source_received_time_est"),
-            bundle.get("source_available_time"),
-            bundle.get("available_at"),
-            bundle.get("entry_feature_available_at"),
         ),
+        "source_available_time": bundle.get("source_available_time"),
         "candle_open_time": bundle.get("candle_open_time"),
-        "candle_close_time": _first_present(
-            bundle.get("candle_close_time"),
-            feature_cutoff,
-        ),
+        "candle_close_time": bundle.get("candle_close_time"),
         "entry_feature_candle_closed_confirmed": _first_present(
             bundle.get("entry_feature_candle_closed_confirmed"),
             bundle.get("candle_closed_confirmed"),
             bundle.get("closed_candle"),
         ),
+        "masa_feature_cutoff": bundle.get("masa_feature_cutoff"),
+        "ppo_feature_cutoff": bundle.get("ppo_feature_cutoff"),
     }
 
 
@@ -516,8 +565,8 @@ def _trust_source_with_label_metadata(
 
     set_if_present("decision_time", label_row.decision_time)
     set_if_present("available_at", label_row.available_at)
-    set_if_present("source_available_time", label_row.available_at)
-    set_if_present("source_received_time_est", label_row.available_at)
+    set_if_present("source_available_time", label_row.source_available_time)
+    set_if_present("source_received_time_est", label_row.source_received_time)
     set_if_present("feature_cutoff", label_row.feature_cutoff)
     set_if_present(
         "source_event_time",
@@ -529,6 +578,8 @@ def _trust_source_with_label_metadata(
         label_row.candle_close_time or label_row.feature_cutoff,
     )
     set_if_present("generated_at", label_row.entry_feature_generated_at)
+    set_if_present("masa_feature_cutoff", label_row.masa_feature_cutoff)
+    set_if_present("ppo_feature_cutoff", label_row.ppo_feature_cutoff)
     if label_row.entry_feature_candle_closed_confirmed is not None:
         source.setdefault(
             "candle_closed_confirmed",
@@ -551,12 +602,14 @@ def _trust_source_from_replay_bundle(
     source = dict(bundle)
     source["decision_time"] = timing.get("decision_time")
     source["available_at"] = timing.get("available_at")
-    source["source_available_time"] = timing.get("available_at")
     source["source_received_time_est"] = timing.get("source_received_time_est")
+    source["source_available_time"] = timing.get("source_available_time")
     source["feature_cutoff"] = timing.get("feature_cutoff")
     source["source_event_time"] = timing.get("source_event_time")
     source["candle_open_time"] = timing.get("candle_open_time")
     source["candle_close_time"] = timing.get("candle_close_time")
+    source["masa_feature_cutoff"] = timing.get("masa_feature_cutoff")
+    source["ppo_feature_cutoff"] = timing.get("ppo_feature_cutoff")
     source["candle_closed_confirmed"] = timing.get(
         "entry_feature_candle_closed_confirmed"
     )
@@ -601,18 +654,49 @@ class LabelRow:
     candle_close_time: str | None = None
     entry_feature_candle_closed_confirmed: bool | None = None
     bundle_generated_at: str | None = None
-
-
-PRIMARY_OUTCOME_WINDOWS = ("5m", "15m", "1h", "1m")
+    source_received_time: str | None = None
+    source_available_time: str | None = None
+    masa_feature_cutoff: str | None = None
+    ppo_feature_cutoff: str | None = None
+    label_id: str | None = None
+    outcome_id: str | None = None
+    label_digest: str | None = None
+    outcome_digest: str | None = None
+    label_available_at: str | None = None
+    outcome_generated_at: str | None = None
+    outcome_available_at: str | None = None
+    outcome_window: str | None = None
+    label_horizon_start: str | None = None
+    label_horizon_end: str | None = None
+    label_horizon_seconds: int | None = None
+    outcome_finalized: bool | None = None
+    label_finalized: bool | None = None
+    training_observed_at: str | None = None
 
 
 def _select_primary_outcome(future_outcomes: dict[str, Any]) -> dict[str, Any] | None:
-    """Pick the first outcome window that has a non-null after-cost figure."""
-    for w in PRIMARY_OUTCOME_WINDOWS:
-        candidate = future_outcomes.get(w) or {}
-        if candidate.get("after_cost_return_bps") is not None:
-            return candidate
-    return None
+    selected = _select_primary_outcome_with_window(future_outcomes)
+    return selected[1] if selected is not None else None
+
+
+def _select_primary_outcome_with_window(
+    future_outcomes: Mapping[str, Any],
+) -> tuple[str, Mapping[str, Any]] | None:
+    """Select the shortest explicitly parseable matured outcome horizon."""
+
+    candidates: list[tuple[int, str, Mapping[str, Any]]] = []
+    for raw_window, raw_outcome in future_outcomes.items():
+        window = str(raw_window).strip().lower()
+        seconds = _window_seconds(window)
+        if seconds is None or not isinstance(raw_outcome, Mapping):
+            continue
+        if _finite_float(raw_outcome.get("after_cost_return_bps")) is None:
+            continue
+        candidates.append((seconds, window, raw_outcome))
+    if not candidates:
+        return None
+    _, window, outcome = min(candidates, key=lambda item: (item[0], item[1]))
+    return window, outcome
 
 
 def _label_for_outcome(after_cost_bps: float | None, paper_gate_status: str | None) -> str:
@@ -624,20 +708,331 @@ def _label_for_outcome(after_cost_bps: float | None, paper_gate_status: str | No
         if after_cost_bps >= 0:
             return "correct_no_trade"
         return "false_block_negative_outcome"
-    if after_cost_bps > 5.0:
+    if after_cost_bps > 0.0:
         return "true_positive_after_cost_gain"
-    if after_cost_bps < -5.0:
+    if after_cost_bps < 0.0:
         return "false_negative_after_cost_loss"
     return "neutral_no_edge"
+
+
+def _outcome_digest_material(row: LabelRow) -> dict[str, Any]:
+    return {
+        "schema_version": OUTCOME_DIGEST_SCHEMA_VERSION,
+        "outcome_id": row.outcome_id,
+        "feature_snapshot_id": row.feature_snapshot_id,
+        "symbol": row.symbol,
+        "timeframe": row.timeframe,
+        "side": row.side,
+        "decision_time": row.decision_time,
+        "outcome_window": row.outcome_window,
+        "label_horizon_start": row.label_horizon_start,
+        "label_horizon_end": row.label_horizon_end,
+        "label_horizon_seconds": row.label_horizon_seconds,
+        "outcome_generated_at": row.outcome_generated_at,
+        "outcome_available_at": row.outcome_available_at,
+        "after_cost_return_bps": row.after_cost_return_bps,
+        "max_favorable_bps": row.max_favorable_bps,
+        "max_adverse_bps": row.max_adverse_bps,
+    }
+
+
+def _label_digest_material(row: LabelRow) -> dict[str, Any]:
+    return {
+        "schema_version": LABEL_DIGEST_SCHEMA_VERSION,
+        "label_id": row.label_id,
+        "outcome_id": row.outcome_id,
+        "outcome_digest": row.outcome_digest,
+        "feature_snapshot_id": row.feature_snapshot_id,
+        "label": row.label,
+        "label_available_at": row.label_available_at,
+        "label_finalized": row.label_finalized,
+    }
+
+
+def _label_row_rejection_reasons(
+    row: LabelRow,
+    *,
+    training_observed_at: datetime,
+) -> list[str]:
+    reasons: list[str] = []
+    bound_training_observed_at = _parse_utc(row.training_observed_at)
+    if bound_training_observed_at is None:
+        reasons.append("LABEL_TRAINING_OBSERVED_AT_MISSING_OR_NOT_AWARE")
+    elif bound_training_observed_at != training_observed_at:
+        reasons.append("LABEL_TRAINING_OBSERVED_AT_BINDING_MISMATCH")
+    if not row.feature_snapshot_id:
+        reasons.append("FEATURE_SNAPSHOT_ID_MISSING")
+    if not str(row.label_id or "").strip():
+        reasons.append("LABEL_ID_MISSING")
+    if not str(row.outcome_id or "").strip():
+        reasons.append("OUTCOME_ID_MISSING")
+    if row.side not in {"long", "short"}:
+        reasons.append("LABEL_SIDE_NOT_DIRECTIONAL")
+    if _finite_float(row.after_cost_return_bps) is None:
+        reasons.append("AFTER_COST_OUTCOME_NOT_FINITE")
+    elif row.label != _label_for_outcome(
+        float(row.after_cost_return_bps), row.paper_gate_status
+    ):
+        reasons.append("LABEL_VALUE_OUTCOME_MISMATCH")
+    for field_name, value in (
+        ("MAX_FAVORABLE_BPS", row.max_favorable_bps),
+        ("MAX_ADVERSE_BPS", row.max_adverse_bps),
+    ):
+        if value is not None and _finite_float(value) is None:
+            reasons.append(f"{field_name}_NOT_FINITE")
+    if row.outcome_finalized is not True:
+        reasons.append("OUTCOME_FINALITY_NOT_PROVEN")
+    if row.label_finalized is not True:
+        reasons.append("LABEL_FINALITY_NOT_PROVEN")
+    window_seconds = _window_seconds(row.outcome_window)
+    if window_seconds is None:
+        reasons.append("OUTCOME_WINDOW_INVALID")
+    if (
+        isinstance(row.label_horizon_seconds, bool)
+        or not isinstance(row.label_horizon_seconds, int)
+        or row.label_horizon_seconds <= 0
+    ):
+        reasons.append("LABEL_HORIZON_SECONDS_INVALID")
+    elif window_seconds is not None and row.label_horizon_seconds != window_seconds:
+        reasons.append("LABEL_HORIZON_WINDOW_MISMATCH")
+
+    raw_clocks = {
+        "DECISION_TIME": row.decision_time,
+        "FEATURE_AVAILABLE_AT": row.available_at,
+        "ENTRY_FEATURE_GENERATED_AT": row.entry_feature_generated_at,
+        "PREDICTION_GENERATED_AT": row.prediction_generated_at,
+        "FEATURE_CUTOFF": row.feature_cutoff,
+        "SOURCE_EVENT_TIME": row.source_event_time,
+        "SOURCE_RECEIVED_TIME": row.source_received_time,
+        "SOURCE_AVAILABLE_TIME": row.source_available_time,
+        "CANDLE_OPEN_TIME": row.candle_open_time,
+        "CANDLE_CLOSE_TIME": row.candle_close_time,
+        "LABEL_HORIZON_START": row.label_horizon_start,
+        "LABEL_HORIZON_END": row.label_horizon_end,
+        "OUTCOME_GENERATED_AT": row.outcome_generated_at,
+        "OUTCOME_AVAILABLE_AT": row.outcome_available_at,
+        "LABEL_AVAILABLE_AT": row.label_available_at,
+        "BUNDLE_GENERATED_AT": row.bundle_generated_at,
+    }
+    clocks: dict[str, datetime] = {}
+    for field_name, raw_value in raw_clocks.items():
+        parsed = _parse_utc(raw_value)
+        if parsed is None:
+            reasons.append(f"{field_name}_MISSING_OR_NOT_AWARE")
+        else:
+            clocks[field_name] = parsed
+    for field_name, raw_value in (
+        ("MASA_FEATURE_CUTOFF", row.masa_feature_cutoff),
+        ("PPO_FEATURE_CUTOFF", row.ppo_feature_cutoff),
+    ):
+        if raw_value not in (None, ""):
+            parsed = _parse_utc(raw_value)
+            if parsed is None:
+                reasons.append(f"{field_name}_NOT_AWARE")
+            else:
+                clocks[field_name] = parsed
+
+    def require_order(
+        left: str,
+        right: str,
+        reason: str,
+        *,
+        strict: bool = False,
+    ) -> None:
+        if left not in clocks or right not in clocks:
+            return
+        ordered = clocks[left] < clocks[right] if strict else clocks[left] <= clocks[right]
+        if not ordered:
+            reasons.append(reason)
+
+    require_order("CANDLE_OPEN_TIME", "CANDLE_CLOSE_TIME", "CANDLE_WINDOW_NOT_FINAL", strict=True)
+    require_order("CANDLE_CLOSE_TIME", "FEATURE_CUTOFF", "CANDLE_CLOSE_AFTER_FEATURE_CUTOFF")
+    require_order("SOURCE_EVENT_TIME", "SOURCE_RECEIVED_TIME", "SOURCE_RECEIVED_BEFORE_EVENT")
+    require_order("SOURCE_RECEIVED_TIME", "SOURCE_AVAILABLE_TIME", "SOURCE_AVAILABLE_BEFORE_RECEIVED")
+    require_order("SOURCE_EVENT_TIME", "FEATURE_CUTOFF", "SOURCE_EVENT_AFTER_FEATURE_CUTOFF")
+    require_order("SOURCE_AVAILABLE_TIME", "FEATURE_AVAILABLE_AT", "SOURCE_AVAILABLE_AFTER_FEATURE_AVAILABLE")
+    require_order("FEATURE_CUTOFF", "ENTRY_FEATURE_GENERATED_AT", "FEATURE_GENERATED_BEFORE_CUTOFF")
+    require_order("ENTRY_FEATURE_GENERATED_AT", "FEATURE_AVAILABLE_AT", "FEATURE_AVAILABLE_BEFORE_GENERATED")
+    require_order("ENTRY_FEATURE_GENERATED_AT", "PREDICTION_GENERATED_AT", "PREDICTION_GENERATED_BEFORE_FEATURE")
+    require_order("PREDICTION_GENERATED_AT", "DECISION_TIME", "PREDICTION_GENERATED_AFTER_DECISION")
+    require_order("FEATURE_AVAILABLE_AT", "DECISION_TIME", "FEATURE_AVAILABLE_AFTER_DECISION")
+    require_order("FEATURE_CUTOFF", "DECISION_TIME", "FEATURE_CUTOFF_AFTER_DECISION")
+    require_order("MASA_FEATURE_CUTOFF", "DECISION_TIME", "MASA_FEATURE_CUTOFF_AFTER_DECISION")
+    require_order("PPO_FEATURE_CUTOFF", "DECISION_TIME", "PPO_FEATURE_CUTOFF_AFTER_DECISION")
+    require_order("MASA_FEATURE_CUTOFF", "PPO_FEATURE_CUTOFF", "MASA_FEATURE_CUTOFF_AFTER_PPO_FEATURE_CUTOFF")
+    require_order("DECISION_TIME", "LABEL_HORIZON_END", "LABEL_HORIZON_NOT_FORWARD", strict=True)
+    require_order("LABEL_HORIZON_END", "OUTCOME_GENERATED_AT", "OUTCOME_GENERATED_BEFORE_HORIZON_FINAL")
+    require_order("OUTCOME_GENERATED_AT", "OUTCOME_AVAILABLE_AT", "OUTCOME_AVAILABLE_BEFORE_GENERATED")
+    require_order("OUTCOME_AVAILABLE_AT", "LABEL_AVAILABLE_AT", "LABEL_AVAILABLE_BEFORE_OUTCOME")
+    require_order("LABEL_AVAILABLE_AT", "BUNDLE_GENERATED_AT", "BUNDLE_GENERATED_BEFORE_LABEL_AVAILABLE")
+
+    decision = clocks.get("DECISION_TIME")
+    horizon_start = clocks.get("LABEL_HORIZON_START")
+    horizon_end = clocks.get("LABEL_HORIZON_END")
+    if decision is not None and horizon_start is not None and decision != horizon_start:
+        reasons.append("LABEL_HORIZON_START_NOT_DECISION_TIME")
+    if (
+        horizon_start is not None
+        and horizon_end is not None
+        and isinstance(row.label_horizon_seconds, int)
+        and not isinstance(row.label_horizon_seconds, bool)
+        and horizon_end != horizon_start + timedelta(seconds=row.label_horizon_seconds)
+    ):
+        reasons.append("LABEL_HORIZON_DURATION_MISMATCH")
+    for field_name in (
+        "OUTCOME_AVAILABLE_AT",
+        "LABEL_AVAILABLE_AT",
+        "BUNDLE_GENERATED_AT",
+    ):
+        if clocks.get(field_name) is not None and clocks[field_name] > training_observed_at:
+            reasons.append(f"{field_name}_AFTER_TRAINING_OBSERVED_AT")
+    if row.entry_feature_candle_closed_confirmed is not True:
+        reasons.append("ENTRY_FEATURE_CANDLE_NOT_FINAL")
+
+    if not _is_sha256(row.outcome_digest):
+        reasons.append("OUTCOME_DIGEST_INVALID")
+    else:
+        try:
+            if _canonical_sha256(_outcome_digest_material(row)) != row.outcome_digest:
+                reasons.append("OUTCOME_DIGEST_MISMATCH")
+        except (TypeError, ValueError):
+            reasons.append("OUTCOME_DIGEST_MATERIAL_INVALID")
+    if not _is_sha256(row.label_digest):
+        reasons.append("LABEL_DIGEST_INVALID")
+    else:
+        try:
+            if _canonical_sha256(_label_digest_material(row)) != row.label_digest:
+                reasons.append("LABEL_DIGEST_MISMATCH")
+        except (TypeError, ValueError):
+            reasons.append("LABEL_DIGEST_MATERIAL_INVALID")
+    return sorted(set(reasons))
+
+
+def _label_row_from_bundle(
+    bundle: Mapping[str, Any],
+    *,
+    training_observed_at: datetime,
+) -> tuple[LabelRow | None, list[str]]:
+    outcomes = _mapping_value(bundle.get("future_outcomes"))
+    selected = _select_primary_outcome_with_window(outcomes)
+    if selected is None:
+        return None, ["NO_FINITE_OUTCOME_WINDOW"]
+    outcome_window, primary = selected
+    paper_gate = _mapping_value(bundle.get("paper_gate_decision"))
+    paper_gate_status = _first_present(
+        paper_gate.get("status"), paper_gate.get("paper_fill_gate_status")
+    )
+    block_reasons = list(
+        paper_gate.get("block_reasons")
+        or paper_gate.get("paper_fill_gate_block_reasons")
+        or []
+    )
+    after_cost = _finite_float(primary.get("after_cost_return_bps"))
+    label = _first_present(
+        primary.get("label"),
+        bundle.get("label"),
+        _label_for_outcome(after_cost, str(paper_gate_status or "")),
+    )
+    timing = _replay_bundle_timing(bundle)
+    row = LabelRow(
+        feature_snapshot_id=str(bundle.get("feature_snapshot_id") or ""),
+        symbol=str(bundle.get("symbol") or "").upper(),
+        timeframe=str(bundle.get("timeframe") or ""),
+        label=str(label or ""),
+        after_cost_return_bps=after_cost,
+        max_favorable_bps=_finite_float(primary.get("max_favorable_bps")),
+        max_adverse_bps=_finite_float(primary.get("max_adverse_bps")),
+        paper_gate_status=str(paper_gate_status) if paper_gate_status is not None else None,
+        paper_gate_block_reasons=block_reasons,
+        risk_decision_context=(
+            dict(bundle["risk_decision"])
+            if isinstance(bundle.get("risk_decision"), Mapping)
+            else None
+        ),
+        legacy_reference_action=(
+            str(bundle["legacy_reference_action"])
+            if bundle.get("legacy_reference_action") is not None
+            else None
+        ),
+        side=_normalized_bundle_side(bundle),
+        decision_time=timing.get("decision_time"),
+        available_at=timing.get("available_at"),
+        entry_feature_generated_at=timing.get("entry_feature_generated_at"),
+        prediction_generated_at=timing.get("prediction_generated_at"),
+        feature_cutoff=timing.get("feature_cutoff"),
+        source_event_time=timing.get("source_event_time"),
+        candle_open_time=timing.get("candle_open_time"),
+        candle_close_time=timing.get("candle_close_time"),
+        entry_feature_candle_closed_confirmed=timing.get(
+            "entry_feature_candle_closed_confirmed"
+        ),
+        bundle_generated_at=timing.get("bundle_generated_at"),
+        source_received_time=timing.get("source_received_time_est"),
+        source_available_time=timing.get("source_available_time"),
+        masa_feature_cutoff=timing.get("masa_feature_cutoff"),
+        ppo_feature_cutoff=timing.get("ppo_feature_cutoff"),
+        label_id=str(_first_present(primary.get("label_id"), bundle.get("label_id")) or ""),
+        outcome_id=str(
+            _first_present(
+                primary.get("outcome_id"),
+                primary.get("finalized_outcome_id"),
+                bundle.get("outcome_id"),
+                bundle.get("finalized_outcome_id"),
+            )
+            or ""
+        ),
+        label_digest=str(_first_present(primary.get("label_digest"), bundle.get("label_digest")) or ""),
+        outcome_digest=str(
+            _first_present(
+                primary.get("outcome_digest"),
+                primary.get("finalized_outcome_digest"),
+                bundle.get("outcome_digest"),
+                bundle.get("finalized_outcome_digest"),
+            )
+            or ""
+        ),
+        label_available_at=_first_present(
+            primary.get("label_available_at"), bundle.get("label_available_at")
+        ),
+        outcome_generated_at=_first_present(
+            primary.get("outcome_generated_at"), bundle.get("outcome_generated_at")
+        ),
+        outcome_available_at=_first_present(
+            primary.get("outcome_available_at"), bundle.get("outcome_available_at")
+        ),
+        outcome_window=outcome_window,
+        label_horizon_start=_first_present(
+            primary.get("label_horizon_start"), bundle.get("label_horizon_start")
+        ),
+        label_horizon_end=_first_present(
+            primary.get("label_horizon_end"), bundle.get("label_horizon_end")
+        ),
+        label_horizon_seconds=_first_present(
+            primary.get("label_horizon_seconds"), bundle.get("label_horizon_seconds")
+        ),
+        outcome_finalized=_first_present(
+            primary.get("outcome_finalized"), bundle.get("outcome_finalized")
+        ),
+        label_finalized=_first_present(
+            primary.get("label_finalized"), bundle.get("label_finalized")
+        ),
+        training_observed_at=_utc_iso(training_observed_at),
+    )
+    reasons = _label_row_rejection_reasons(
+        row, training_observed_at=training_observed_at
+    )
+    return (row if not reasons else None), reasons
 
 
 def load_label_rows(
     replay_bundles_path: Path,
     *,
     max_rows: int | None = None,
+    training_observed_at: datetime | str | None = None,
 ) -> list[LabelRow]:
     if not replay_bundles_path.exists():
         return []
+    observation_cutoff = _resolve_training_observed_at(training_observed_at)
     rows: list[LabelRow] = []
     with replay_bundles_path.open("r", encoding="utf-8") as fh:
         for line in fh:
@@ -648,61 +1043,63 @@ def load_label_rows(
                 bundle = json.loads(line)
             except (TypeError, ValueError):
                 continue
-            outcomes = bundle.get("future_outcomes") or {}
-            primary = _select_primary_outcome(outcomes) or {}
-            paper_gate = bundle.get("paper_gate_decision") or {}
-            paper_gate_status = paper_gate.get("status") or paper_gate.get(
-                "paper_fill_gate_status"
+            if not isinstance(bundle, Mapping):
+                continue
+            row, _ = _label_row_from_bundle(
+                bundle, training_observed_at=observation_cutoff
             )
-            block_reasons = list(
-                paper_gate.get("block_reasons")
-                or paper_gate.get("paper_fill_gate_block_reasons")
-                or []
-            )
-            after_cost = primary.get("after_cost_return_bps")
-            label = bundle.get("label") or _label_for_outcome(
-                after_cost, paper_gate_status
-            )
-            timing = _replay_bundle_timing(bundle)
-            rows.append(LabelRow(
-                feature_snapshot_id=str(bundle.get("feature_snapshot_id") or ""),
-                symbol=str(bundle.get("symbol") or ""),
-                timeframe=str(bundle.get("timeframe") or "1m"),
-                label=str(label),
-                after_cost_return_bps=after_cost,
-                max_favorable_bps=primary.get("max_favorable_bps"),
-                max_adverse_bps=primary.get("max_adverse_bps"),
-                paper_gate_status=paper_gate_status,
-                paper_gate_block_reasons=block_reasons,
-                risk_decision_context=bundle.get("risk_decision"),
-                legacy_reference_action=bundle.get("legacy_reference_action"),
-                side=_normalized_bundle_side(bundle),
-                decision_time=timing.get("decision_time"),
-                available_at=timing.get("available_at"),
-                entry_feature_generated_at=timing.get("entry_feature_generated_at"),
-                prediction_generated_at=timing.get("prediction_generated_at"),
-                feature_cutoff=timing.get("feature_cutoff"),
-                source_event_time=timing.get("source_event_time"),
-                candle_open_time=timing.get("candle_open_time"),
-                candle_close_time=timing.get("candle_close_time"),
-                entry_feature_candle_closed_confirmed=timing.get(
-                    "entry_feature_candle_closed_confirmed"
-                ),
-                bundle_generated_at=timing.get("bundle_generated_at"),
-            ))
-            if max_rows is not None and len(rows) >= max_rows:
-                break
-    return rows
+            if row is None:
+                continue
+            rows.append(row)
+    # Identical duplicates collapse; conflicting immutable labels poison neither
+    # side into training and are excluded as a set.
+    indexed_rows = list(_index_labels_by_snapshot(rows).values())
+    return indexed_rows if max_rows is None else indexed_rows[:max_rows]
 
 
 def _index_labels_by_snapshot(
     labels: Sequence[LabelRow],
 ) -> dict[str, LabelRow]:
     by_snapshot: dict[str, LabelRow] = {}
+    conflicted: set[str] = set()
     for row in labels:
-        if row.feature_snapshot_id:
-            # Keep the most recent occurrence (later rows win).
-            by_snapshot[row.feature_snapshot_id] = row
+        snapshot_id = row.feature_snapshot_id
+        if not snapshot_id or snapshot_id in conflicted:
+            continue
+        existing = by_snapshot.get(snapshot_id)
+        if existing is None:
+            by_snapshot[snapshot_id] = row
+            continue
+        same_immutable_label = (
+            existing.label_id == row.label_id
+            and existing.outcome_id == row.outcome_id
+            and existing.label_digest == row.label_digest
+            and existing.outcome_digest == row.outcome_digest
+            and existing.label == row.label
+            and existing.after_cost_return_bps == row.after_cost_return_bps
+            and existing.label_horizon_start == row.label_horizon_start
+            and existing.label_horizon_end == row.label_horizon_end
+            and existing.outcome_available_at == row.outcome_available_at
+        )
+        if not same_immutable_label:
+            by_snapshot.pop(snapshot_id, None)
+            conflicted.add(snapshot_id)
+    identity_owners: dict[tuple[str, str], str] = {}
+    for snapshot_id, row in list(by_snapshot.items()):
+        for identity_kind, identity_value in (
+            ("label", str(row.label_id or "")),
+            ("outcome", str(row.outcome_id or "")),
+        ):
+            if not identity_value:
+                continue
+            identity_key = (identity_kind, identity_value)
+            owner = identity_owners.get(identity_key)
+            if owner is None:
+                identity_owners[identity_key] = snapshot_id
+            elif owner != snapshot_id:
+                conflicted.update({owner, snapshot_id})
+    for snapshot_id in conflicted:
+        by_snapshot.pop(snapshot_id, None)
     return by_snapshot
 
 
@@ -754,6 +1151,23 @@ class DatasetRow:
     entry_feature_candle_closed_confirmed: bool | None = None
     bundle_generated_at: str | None = None
     source_event_time: str | None = None
+    source_received_time: str | None = None
+    source_available_time: str | None = None
+    label_id: str | None = None
+    outcome_id: str | None = None
+    label_digest: str | None = None
+    outcome_digest: str | None = None
+    label_available_at: str | None = None
+    outcome_generated_at: str | None = None
+    outcome_available_at: str | None = None
+    outcome_window: str | None = None
+    label_horizon_start: str | None = None
+    label_horizon_end: str | None = None
+    label_horizon_seconds: int | None = None
+    outcome_finalized: bool | None = None
+    label_finalized: bool | None = None
+    training_observed_at: str | None = None
+    label_reject_reasons: list[str] = field(default_factory=list)
 
     def to_jsonable(self) -> dict[str, Any]:
         return {
@@ -800,6 +1214,23 @@ class DatasetRow:
             ),
             "bundle_generated_at": self.bundle_generated_at,
             "source_event_time": self.source_event_time,
+            "source_received_time": self.source_received_time,
+            "source_available_time": self.source_available_time,
+            "label_id": self.label_id,
+            "outcome_id": self.outcome_id,
+            "label_digest": self.label_digest,
+            "outcome_digest": self.outcome_digest,
+            "label_available_at": self.label_available_at,
+            "outcome_generated_at": self.outcome_generated_at,
+            "outcome_available_at": self.outcome_available_at,
+            "outcome_window": self.outcome_window,
+            "label_horizon_start": self.label_horizon_start,
+            "label_horizon_end": self.label_horizon_end,
+            "label_horizon_seconds": self.label_horizon_seconds,
+            "outcome_finalized": self.outcome_finalized,
+            "label_finalized": self.label_finalized,
+            "training_observed_at": self.training_observed_at,
+            "label_reject_reasons": self.label_reject_reasons,
         }
 
 
@@ -854,6 +1285,61 @@ def _has_explicit_dataset_training_trust_evidence(payload: Mapping[str, Any] | N
     return any(payload.get(field) is not None for field in EXPLICIT_DATASET_TRAINING_TRUST_FIELDS)
 
 
+def _strict_feature_clock_rejection_reasons(
+    source: Mapping[str, Any],
+) -> list[str]:
+    reasons: list[str] = []
+    raw_clocks = {
+        "GENERATED_AT": source.get("generated_at"),
+        "FEATURE_CUTOFF": source.get("feature_cutoff"),
+        "AVAILABLE_AT": source.get("available_at"),
+        "DECISION_TIME": source.get("decision_time"),
+        "SOURCE_EVENT_TIME": source.get("source_event_time"),
+        "SOURCE_RECEIVED_TIME": source.get("source_received_time_est"),
+        "SOURCE_AVAILABLE_TIME": source.get("source_available_time"),
+        "CANDLE_OPEN_TIME": source.get("candle_open_time"),
+        "CANDLE_CLOSE_TIME": source.get("candle_close_time"),
+        "MASA_FEATURE_CUTOFF": source.get("masa_feature_cutoff"),
+        "PPO_FEATURE_CUTOFF": source.get("ppo_feature_cutoff"),
+    }
+    clocks: dict[str, datetime] = {}
+    for field_name, raw_value in raw_clocks.items():
+        if raw_value in (None, ""):
+            continue
+        parsed = _parse_utc(raw_value)
+        if parsed is None:
+            reasons.append(f"{field_name}_NOT_AWARE")
+        else:
+            clocks[field_name] = parsed
+
+    def after(left: str, right: str, reason: str) -> None:
+        if left in clocks and right in clocks and clocks[left] > clocks[right]:
+            reasons.append(reason)
+
+    after("AVAILABLE_AT", "DECISION_TIME", "source_available_after_decision_cutoff")
+    after("SOURCE_AVAILABLE_TIME", "DECISION_TIME", "source_available_after_decision_cutoff")
+    after("FEATURE_CUTOFF", "DECISION_TIME", "feature_timestamp_after_decision_cutoff")
+    after("GENERATED_AT", "DECISION_TIME", "feature_timestamp_after_decision_cutoff")
+    after("SOURCE_EVENT_TIME", "FEATURE_CUTOFF", "SOURCE_EVENT_AFTER_FEATURE_CUTOFF")
+    after("SOURCE_RECEIVED_TIME", "SOURCE_AVAILABLE_TIME", "SOURCE_RECEIVED_AFTER_AVAILABLE")
+    after("SOURCE_AVAILABLE_TIME", "AVAILABLE_AT", "SOURCE_AVAILABLE_AFTER_FEATURE_AVAILABLE")
+    after("CANDLE_CLOSE_TIME", "FEATURE_CUTOFF", "CANDLE_CLOSE_AFTER_FEATURE_CUTOFF")
+    after("MASA_FEATURE_CUTOFF", "DECISION_TIME", "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME")
+    after("PPO_FEATURE_CUTOFF", "DECISION_TIME", "PPO_FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    if (
+        "CANDLE_OPEN_TIME" in clocks
+        and "CANDLE_CLOSE_TIME" in clocks
+        and clocks["CANDLE_OPEN_TIME"] >= clocks["CANDLE_CLOSE_TIME"]
+    ):
+        reasons.append("CANDLE_WINDOW_NOT_FINAL")
+    if (
+        source.get("candle_closed_confirmed") is not True
+        and source.get("closed_candle") is not True
+    ):
+        reasons.append("candle_not_closed_confirmed")
+    return sorted(set(reasons))
+
+
 def _dataset_training_trust(
     *,
     symbol: str,
@@ -875,13 +1361,13 @@ def _dataset_training_trust(
         "timeframe": timeframe,
         "feature_snapshot_id": feature_snapshot_id,
         "feature_vector_hash": row_id,
-        "generated_at": source.get("generated_at") or source.get("generated_utc") or source.get("timestamp") or _utc_now_iso(),
-        "feature_cutoff": source.get("feature_cutoff") or source.get("decision_cutoff") or source.get("generated_at"),
-        "available_at": source.get("available_at") or source.get("source_available_time") or source.get("generated_at"),
-        "decision_time_est": source.get("decision_time") or source.get("decision_time_est") or source.get("decision_cutoff") or source.get("generated_at"),
+        "generated_at": source.get("generated_at"),
+        "feature_cutoff": source.get("feature_cutoff"),
+        "available_at": source.get("available_at"),
+        "decision_time_est": source.get("decision_time"),
         "source_event_time_est": source.get("source_event_time") or source.get("source_event_time_est"),
-        "source_received_time_est": source.get("source_received_time_est") or source.get("source_available_time") or source.get("available_at"),
-        "source_available_time": source.get("source_available_time") or source.get("available_at"),
+        "source_received_time_est": source.get("source_received_time_est"),
+        "source_available_time": source.get("source_available_time"),
         "candle_closed_confirmed": source.get("candle_closed_confirmed")
         if "candle_closed_confirmed" in source
         else source.get("closed_candle"),
@@ -907,16 +1393,78 @@ def _dataset_training_trust(
         "features": dict(vector),
     }
     trust = classify_training_sample(trust_row)
+    strict_clock_reasons = _strict_feature_clock_rejection_reasons(source)
+    accepted_for_training = trust["accepted_for_training"] is True
+    reject_reasons = sorted(
+        set(trust["reject_reasons"]).union(strict_clock_reasons)
+    )
+    if strict_clock_reasons:
+        accepted_for_training = False
     next_classification = classification
-    if classification in {ROW_TRAINABLE, ROW_HELD_OUT_VALIDATION} and trust["accepted_for_training"] is not True:
+    if (
+        classification in {ROW_TRAINABLE, ROW_HELD_OUT_VALIDATION}
+        and accepted_for_training is not True
+    ):
         next_classification = ROW_MARKET_STATE_REJECTED
     return (
         next_classification,
         trust["market_state_integrity_score"],
-        trust["accepted_for_training"],
-        list(trust["reject_reasons"]),
+        accepted_for_training,
+        reject_reasons,
         trust_row,
     )
+
+
+def _feature_label_binding_rejection_reasons(
+    features: Mapping[str, Any] | None,
+    label_row: LabelRow,
+    *,
+    symbol: str,
+    timeframe: str,
+) -> list[str]:
+    reasons: list[str] = []
+    if label_row.symbol.upper() != symbol.upper():
+        reasons.append("LABEL_SYMBOL_BINDING_MISMATCH")
+    if label_row.timeframe != timeframe:
+        reasons.append("LABEL_TIMEFRAME_BINDING_MISMATCH")
+    if not isinstance(features, Mapping):
+        return reasons
+    feature_snapshot_id = features.get("feature_snapshot_id")
+    if (
+        feature_snapshot_id not in (None, "")
+        and str(feature_snapshot_id) != label_row.feature_snapshot_id
+    ):
+        reasons.append("FEATURE_SNAPSHOT_LABEL_BINDING_MISMATCH")
+    expected_clocks = {
+        "decision_time": label_row.decision_time,
+        "available_at": label_row.available_at,
+        "generated_at": label_row.entry_feature_generated_at,
+        "feature_cutoff": label_row.feature_cutoff,
+        "source_event_time": label_row.source_event_time,
+        "source_received_time_est": label_row.source_received_time,
+        "source_available_time": label_row.source_available_time,
+        "candle_open_time": label_row.candle_open_time,
+        "candle_close_time": label_row.candle_close_time,
+        "masa_feature_cutoff": label_row.masa_feature_cutoff,
+        "ppo_feature_cutoff": label_row.ppo_feature_cutoff,
+    }
+    for field_name, expected_raw in expected_clocks.items():
+        observed_raw = features.get(field_name)
+        if observed_raw in (None, ""):
+            continue
+        observed = _parse_utc(observed_raw)
+        expected = _parse_utc(expected_raw)
+        if observed is None:
+            reasons.append(f"FEATURE_{field_name.upper()}_NOT_AWARE")
+        elif expected is None or observed != expected:
+            reasons.append(f"FEATURE_{field_name.upper()}_LABEL_BINDING_MISMATCH")
+    if (
+        "candle_closed_confirmed" in features
+        and features.get("candle_closed_confirmed")
+        is not label_row.entry_feature_candle_closed_confirmed
+    ):
+        reasons.append("FEATURE_CANDLE_FINALITY_LABEL_BINDING_MISMATCH")
+    return sorted(set(reasons))
 
 
 def build_dataset_row(
@@ -928,22 +1476,48 @@ def build_dataset_row(
     altdata: dict[str, Any] | None,
     risk_decision: dict[str, Any] | None,
     label_row: LabelRow | None,
+    training_observed_at: datetime | str | None = None,
 ) -> DatasetRow:
+    bound_cutoff = label_row.training_observed_at if label_row is not None else None
+    observation_cutoff = _resolve_training_observed_at(
+        bound_cutoff if training_observed_at is None and bound_cutoff else training_observed_at
+    )
+    label_reject_reasons: list[str] = []
+    non_economic_evidence_marker = bool(
+        label_row is not None
+        and label_row.label == "insufficient_evidence"
+        and label_row.after_cost_return_bps is None
+    )
+    if label_row is not None and not non_economic_evidence_marker:
+        label_reject_reasons.extend(
+            _label_row_rejection_reasons(
+                label_row, training_observed_at=observation_cutoff
+            )
+        )
+        label_reject_reasons.extend(
+            _feature_label_binding_rejection_reasons(
+                features,
+                label_row,
+                symbol=symbol,
+                timeframe=timeframe,
+            )
+        )
+    label_reject_reasons = sorted(set(label_reject_reasons))
+    effective_label_row = label_row if not label_reject_reasons else None
     feature_snapshot_id = (
         (features or {}).get("feature_snapshot_id")
-        or (label_row.feature_snapshot_id if label_row else None)
+        or (effective_label_row.feature_snapshot_id if effective_label_row else None)
         or f"{symbol}:{timeframe}:no_feature_snapshot"
     )
     row_id = _stable_row_id(symbol, timeframe, str(feature_snapshot_id))
     vector = _extract_feature_vector(features, ta)
     vector.update(_extract_altdata_feature_vector(altdata))
-    label = (label_row.label if label_row else "label_missing")
+    label = (
+        effective_label_row.label if effective_label_row else "label_missing"
+    )
     classification, missing_flags, stale_flags, freshness_state = _classify_row(
         vector, features, label
     )
-    if classification == ROW_TRAINABLE and _is_held_out(row_id):
-        classification = ROW_HELD_OUT_VALIDATION
-
     source_lineage: list[str] = []
     if features is not None:
         source_lineage.append(FEATURES_KEY_TEMPLATE.format(symbol=symbol, timeframe=timeframe))
@@ -951,11 +1525,13 @@ def build_dataset_row(
         source_lineage.append(TA_KEY_TEMPLATE.format(symbol=symbol, timeframe=timeframe))
     if altdata is not None:
         source_lineage.append(ALTDATA_KEY_TEMPLATE.format(symbol=symbol))
-    if label_row is not None:
+    if effective_label_row is not None:
         source_lineage.append("replay_outcome_bundles.jsonl")
     if risk_decision is not None:
         source_lineage.append(RISK_DECISIONS_KEY)
-    trust_source_payload = _trust_source_with_label_metadata(features, label_row)
+    trust_source_payload = _trust_source_with_label_metadata(
+        features, effective_label_row
+    )
     (
         classification,
         market_state_integrity_score,
@@ -974,7 +1550,13 @@ def build_dataset_row(
         classification=classification,
         source_payload=trust_source_payload,
     )
-    label_side = label_row.side if label_row else None
+    if label_reject_reasons:
+        classification = ROW_MARKET_STATE_REJECTED
+        accepted_for_training = False
+        training_reject_reasons = sorted(
+            set(training_reject_reasons).union(label_reject_reasons)
+        )
+    label_side = effective_label_row.side if effective_label_row else None
 
     return DatasetRow(
         row_id=row_id,
@@ -988,24 +1570,28 @@ def build_dataset_row(
         feature_freshness_state=freshness_state,
         label=label,
         after_cost_return_bps=(
-            label_row.after_cost_return_bps if label_row else None
+            effective_label_row.after_cost_return_bps if effective_label_row else None
         ),
         max_favorable_bps=(
-            label_row.max_favorable_bps if label_row else None
+            effective_label_row.max_favorable_bps if effective_label_row else None
         ),
         max_adverse_bps=(
-            label_row.max_adverse_bps if label_row else None
+            effective_label_row.max_adverse_bps if effective_label_row else None
         ),
         paper_gate_status=(
-            label_row.paper_gate_status if label_row else None
+            effective_label_row.paper_gate_status if effective_label_row else None
         ),
         paper_gate_block_reasons=(
-            label_row.paper_gate_block_reasons if label_row else []
+            effective_label_row.paper_gate_block_reasons
+            if effective_label_row
+            else []
         ),
         risk_decision_context=risk_decision,
         altdata_context=altdata,
         legacy_reference_action=(
-            label_row.legacy_reference_action if label_row else None
+            effective_label_row.legacy_reference_action
+            if effective_label_row
+            else None
         ),
         classification=classification,
         source_lineage=source_lineage,
@@ -1023,29 +1609,100 @@ def build_dataset_row(
         side=label_side,
         action=label_side,
         decision_time=trust_row.get("decision_time_est") or (
-            label_row.decision_time if label_row else None
+            effective_label_row.decision_time if effective_label_row else None
         ),
         entry_feature_available_at=(
-            label_row.available_at if label_row else None
+            effective_label_row.available_at if effective_label_row else None
         ),
         entry_feature_generated_at=(
-            label_row.entry_feature_generated_at if label_row else None
+            effective_label_row.entry_feature_generated_at
+            if effective_label_row
+            else None
         ),
         prediction_generated_at=(
-            label_row.prediction_generated_at if label_row else None
+            effective_label_row.prediction_generated_at
+            if effective_label_row
+            else None
         ),
         entry_feature_cutoff=(
-            label_row.feature_cutoff if label_row else None
+            effective_label_row.feature_cutoff if effective_label_row else None
         ),
         entry_feature_candle_closed_confirmed=(
-            label_row.entry_feature_candle_closed_confirmed if label_row else None
+            effective_label_row.entry_feature_candle_closed_confirmed
+            if effective_label_row
+            else None
         ),
         bundle_generated_at=(
-            label_row.bundle_generated_at if label_row else None
+            effective_label_row.bundle_generated_at
+            if effective_label_row
+            else None
         ),
         source_event_time=(
-            label_row.source_event_time if label_row else None
+            effective_label_row.source_event_time if effective_label_row else None
         ),
+        source_received_time=(
+            effective_label_row.source_received_time
+            if effective_label_row
+            else None
+        ),
+        source_available_time=(
+            effective_label_row.source_available_time
+            if effective_label_row
+            else None
+        ),
+        label_id=effective_label_row.label_id if effective_label_row else None,
+        outcome_id=effective_label_row.outcome_id if effective_label_row else None,
+        label_digest=(
+            effective_label_row.label_digest if effective_label_row else None
+        ),
+        outcome_digest=(
+            effective_label_row.outcome_digest if effective_label_row else None
+        ),
+        label_available_at=(
+            effective_label_row.label_available_at
+            if effective_label_row
+            else None
+        ),
+        outcome_generated_at=(
+            effective_label_row.outcome_generated_at
+            if effective_label_row
+            else None
+        ),
+        outcome_available_at=(
+            effective_label_row.outcome_available_at
+            if effective_label_row
+            else None
+        ),
+        outcome_window=(
+            effective_label_row.outcome_window if effective_label_row else None
+        ),
+        label_horizon_start=(
+            effective_label_row.label_horizon_start
+            if effective_label_row
+            else None
+        ),
+        label_horizon_end=(
+            effective_label_row.label_horizon_end
+            if effective_label_row
+            else None
+        ),
+        label_horizon_seconds=(
+            effective_label_row.label_horizon_seconds
+            if effective_label_row
+            else None
+        ),
+        outcome_finalized=(
+            effective_label_row.outcome_finalized
+            if effective_label_row
+            else None
+        ),
+        label_finalized=(
+            effective_label_row.label_finalized
+            if effective_label_row
+            else None
+        ),
+        training_observed_at=_utc_iso(observation_cutoff),
+        label_reject_reasons=label_reject_reasons,
     )
 
 
@@ -1065,14 +1722,70 @@ class DatasetBuildResult:
     symbol_resolution: dict[str, Any] = field(default_factory=dict)
 
 
+def _apply_purged_chronological_validation(rows: Sequence[DatasetRow]) -> None:
+    """Mark an adaptive chronological suffix as forward validation.
+
+    The suffix size is derived from the number of distinct decision-time groups
+    (square-root schedule), rather than a fixed market/sample threshold. Every
+    training label whose forward horizon touches the validation boundary is
+    purged so training and validation labels cannot overlap in event time.
+    """
+
+    eligible: list[tuple[datetime, datetime, DatasetRow]] = []
+    for row in rows:
+        if row.classification != ROW_TRAINABLE:
+            continue
+        decision_time = _parse_utc(row.decision_time or row.decision_time_est)
+        label_horizon_end = _parse_utc(row.label_horizon_end)
+        if decision_time is None or label_horizon_end is None:
+            row.classification = ROW_MARKET_STATE_REJECTED
+            row.accepted_for_training = False
+            row.training_reject_reasons = sorted(
+                set(row.training_reject_reasons).union(
+                    {"CHRONOLOGICAL_VALIDATION_CLOCKS_MISSING_OR_NOT_AWARE"}
+                )
+            )
+            continue
+        eligible.append((decision_time, label_horizon_end, row))
+    decision_groups = sorted({decision for decision, _, _ in eligible})
+    if len(decision_groups) < 2:
+        return
+    validation_group_count = math.isqrt(len(decision_groups))
+    validation_start = decision_groups[-validation_group_count]
+    for decision_time, label_horizon_end, row in eligible:
+        if decision_time >= validation_start:
+            row.classification = ROW_HELD_OUT_VALIDATION
+            continue
+        if label_horizon_end >= validation_start:
+            row.classification = ROW_MARKET_STATE_REJECTED
+            row.accepted_for_training = False
+            row.training_reject_reasons = sorted(
+                set(row.training_reject_reasons).union(
+                    {"LABEL_HORIZON_OVERLAPS_VALIDATION_BOUNDARY"}
+                )
+            )
+
+
 def build_dataset_for_universe(
     *,
     reader: V2OnlyReader,
     label_rows_by_snapshot: dict[str, LabelRow] | None = None,
     universe: Iterable[str] | None = None,
     timeframes: Iterable[str] = TIMEFRAMES,
+    training_observed_at: datetime | str | None = None,
 ) -> DatasetBuildResult:
     label_rows_by_snapshot = label_rows_by_snapshot or {}
+    bound_cutoffs = {
+        _utc_iso(parsed)
+        for row in label_rows_by_snapshot.values()
+        if (parsed := _parse_utc(row.training_observed_at)) is not None
+    }
+    if training_observed_at is None and len(bound_cutoffs) > 1:
+        raise ValueError("label_rows_have_multiple_training_observed_at_cutoffs")
+    inherited_cutoff = next(iter(bound_cutoffs), None)
+    observation_cutoff = _resolve_training_observed_at(
+        inherited_cutoff if training_observed_at is None else training_observed_at
+    )
     if universe is None:
         symbol_resolution = resolve_symbols_with_provenance(include_baseline=True)
         universe_list = list(symbol_resolution.get("symbols") or [])
@@ -1121,8 +1834,10 @@ def build_dataset_for_universe(
                 altdata=altdata_for_row,
                 risk_decision=risk_decision,
                 label_row=label_row,
+                training_observed_at=observation_cutoff,
             )
             rows.append(row)
+    _apply_purged_chronological_validation(rows)
     return DatasetBuildResult(
         rows=rows,
         universe=universe_list,
@@ -1138,6 +1853,7 @@ def build_rows_from_replay_bundles(
     replay_bundles_path: Path,
     *,
     max_rows: int | None = None,
+    training_observed_at: datetime | str | None = None,
 ) -> list[DatasetRow]:
     """Build dataset rows directly from V2 replay-outcome bundles.
 
@@ -1147,9 +1863,10 @@ def build_rows_from_replay_bundles(
     confidence + expected-move features and the future-outcomes window
     carries the after-cost label. Together they form a complete row.
     """
-    rows: list[DatasetRow] = []
     if not replay_bundles_path.exists():
-        return rows
+        return []
+    observation_cutoff = _resolve_training_observed_at(training_observed_at)
+    parsed_bundles: list[tuple[Mapping[str, Any], LabelRow | None, list[str]]] = []
     with replay_bundles_path.open("r", encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
@@ -1159,124 +1876,166 @@ def build_rows_from_replay_bundles(
                 bundle = json.loads(line)
             except (TypeError, ValueError):
                 continue
-            outcomes = bundle.get("future_outcomes") or {}
-            primary = _select_primary_outcome(outcomes) or {}
-            after_cost = primary.get("after_cost_return_bps")
-            label = bundle.get("label") or _label_for_outcome(
-                after_cost,
-                (bundle.get("paper_gate_decision") or {}).get("status"),
-            )
-            orchestrator = bundle.get("orchestrator_decision") or {}
-            winners = orchestrator.get("bucket_winners") or []
-            if not winners:
+            if not isinstance(bundle, Mapping):
                 continue
-            for winner in winners:
-                symbol = str(winner.get("symbol") or bundle.get("symbol") or "")
-                if not symbol:
-                    continue
-                timeframe = str(bundle.get("timeframe") or "1m")
-                snapshot_id = str(
-                    bundle.get("feature_snapshot_id")
-                    or f"{symbol}:{timeframe}:replay:{bundle.get('generated_at') or ''}"
-                )
-                side = _normalized_bundle_side(bundle)
-                timing = _replay_bundle_timing(bundle)
-                conf = winner.get("winner_confidence_calibrated")
-                expected_move_after_cost = winner.get(
-                    "winner_expected_move_after_cost_bps"
-                )
-                freshness = winner.get("winner_freshness_seconds")
-                # Synthesize a stable feature vector from the orchestrator
-                # decision summary. These features describe the prediction
-                # that drove the historical action and are the most honest
-                # V2-native signals available from a replay bundle.
-                vector = {
-                    "ema_9": None,
-                    "ema_21": None,
-                    "ema_spread": (
-                        float(expected_move_after_cost) / 10.0
-                        if expected_move_after_cost is not None
-                        else None
-                    ),
-                    "rsi_14": (
-                        50.0 + (float(conf) - 0.5) * 40.0
-                        if conf is not None
-                        else None
-                    ),
-                    "macd": (
-                        float(expected_move_after_cost)
-                        if expected_move_after_cost is not None
-                        else None
-                    ),
-                    "macd_signal": 0.0,
-                    "atr_14": None,
-                    "vol_zscore": None,
-                    "feature_freshness_seconds": (
-                        float(freshness) if freshness is not None else None
-                    ),
-                }
-                altdata_snapshot = (
-                    bundle.get("altdata_snapshot")
-                    if isinstance(bundle.get("altdata_snapshot"), dict)
+            label_row, label_reject_reasons = _label_row_from_bundle(
+                bundle, training_observed_at=observation_cutoff
+            )
+            parsed_bundles.append((bundle, label_row, label_reject_reasons))
+
+    valid_label_index = _index_labels_by_snapshot(
+        [label_row for _, label_row, _ in parsed_bundles if label_row is not None]
+    )
+    rows: list[DatasetRow] = []
+    for bundle, parsed_label_row, parsed_label_reject_reasons in parsed_bundles:
+        snapshot_id_raw = str(bundle.get("feature_snapshot_id") or "")
+        label_row = parsed_label_row
+        label_reject_reasons = list(parsed_label_reject_reasons)
+        if label_row is not None and valid_label_index.get(snapshot_id_raw) is None:
+            label_row = None
+            label_reject_reasons.append("CONFLICTING_DUPLICATE_LABEL_FOR_SNAPSHOT")
+        no_outcome_evidence = "NO_FINITE_OUTCOME_WINDOW" in label_reject_reasons
+        explicit_insufficient = (
+            str(bundle.get("label") or "").strip().lower()
+            == "insufficient_evidence"
+            and no_outcome_evidence
+        )
+        if explicit_insufficient:
+            label_reject_reasons = []
+
+        timing = _replay_bundle_timing(bundle)
+        orchestrator = _mapping_value(bundle.get("orchestrator_decision"))
+        winners = orchestrator.get("bucket_winners") or []
+        if not isinstance(winners, list) or not winners:
+            continue
+        for winner in winners:
+            if not isinstance(winner, Mapping):
+                continue
+            symbol = str(winner.get("symbol") or bundle.get("symbol") or "").upper()
+            if not symbol:
+                continue
+            timeframe = str(bundle.get("timeframe") or "")
+            if label_row is not None and (
+                label_row.symbol != symbol or label_row.timeframe != timeframe
+            ):
+                # A bundle-level outcome may never supervise a different
+                # bucket winner. Exclude the mismatched winner entirely.
+                continue
+            snapshot_id = snapshot_id_raw
+            if not snapshot_id:
+                label_reject_reasons.append("FEATURE_SNAPSHOT_ID_MISSING")
+                snapshot_id = f"{symbol}:{timeframe}:replay:missing-snapshot-id"
+            side = label_row.side if label_row is not None else _normalized_bundle_side(bundle)
+            conf = _finite_float(winner.get("winner_confidence_calibrated"))
+            expected_move_after_cost = _finite_float(
+                winner.get("winner_expected_move_after_cost_bps")
+            )
+            freshness = _finite_float(winner.get("winner_freshness_seconds"))
+            vector = {
+                "ema_9": None,
+                "ema_21": None,
+                "ema_spread": (
+                    expected_move_after_cost / 10.0
+                    if expected_move_after_cost is not None
                     else None
+                ),
+                "rsi_14": (
+                    50.0 + (conf - 0.5) * 40.0 if conf is not None else None
+                ),
+                "macd": expected_move_after_cost,
+                "macd_signal": 0.0,
+                "atr_14": None,
+                "vol_zscore": None,
+                "feature_freshness_seconds": freshness,
+            }
+            altdata_snapshot = (
+                dict(bundle["altdata_snapshot"])
+                if isinstance(bundle.get("altdata_snapshot"), Mapping)
+                else None
+            )
+            vector.update(_extract_altdata_feature_vector(altdata_snapshot))
+            missing_flags: list[str] = []
+            stale_flags: list[str] = []
+            freshness_state = "FRESH"
+            if explicit_insufficient:
+                label = "insufficient_evidence"
+                row_classification = ROW_INSUFFICIENT_EVIDENCE
+            elif label_row is None:
+                label = "label_missing"
+                row_classification = (
+                    ROW_MARKET_STATE_REJECTED
+                    if label_reject_reasons
+                    else ROW_LABEL_MISSING
                 )
-                vector.update(_extract_altdata_feature_vector(altdata_snapshot))
-                missing = _missing_keys(vector)
+            else:
+                label = label_row.label
                 row_classification = ROW_TRAINABLE
-                missing_flags: list[str] = []
-                stale_flags: list[str] = []
-                freshness_state = "FRESH"
-                # Explicit insufficient-evidence rows stay visible in
-                # their own bucket — never collapsed into LABEL_MISSING.
-                if label == "insufficient_evidence":
-                    row_classification = ROW_INSUFFICIENT_EVIDENCE
-                elif not label or label == "label_missing":
-                    row_classification = ROW_LABEL_MISSING
-                elif after_cost is None:
-                    row_classification = ROW_LABEL_MISSING
-                row_id = _stable_row_id(symbol, timeframe, snapshot_id)
-                if row_classification == ROW_TRAINABLE and _is_held_out(row_id):
-                    row_classification = ROW_HELD_OUT_VALIDATION
-                (
-                    row_classification,
-                    market_state_integrity_score,
-                    accepted_for_training,
-                    training_reject_reasons,
-                    trust_row,
-                ) = _dataset_training_trust(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    feature_snapshot_id=snapshot_id,
-                    row_id=row_id,
-                    vector=vector,
-                    missing_flags=missing_flags,
-                    stale_flags=stale_flags,
-                    freshness_state=freshness_state,
-                    classification=row_classification,
-                    source_payload=_trust_source_from_replay_bundle(bundle, timing),
+            row_id = _stable_row_id(symbol, timeframe, snapshot_id)
+            (
+                row_classification,
+                market_state_integrity_score,
+                accepted_for_training,
+                training_reject_reasons,
+                trust_row,
+            ) = _dataset_training_trust(
+                symbol=symbol,
+                timeframe=timeframe,
+                feature_snapshot_id=snapshot_id,
+                row_id=row_id,
+                vector=vector,
+                missing_flags=missing_flags,
+                stale_flags=stale_flags,
+                freshness_state=freshness_state,
+                classification=row_classification,
+                source_payload=_trust_source_from_replay_bundle(bundle, timing),
+            )
+            if label_reject_reasons:
+                row_classification = ROW_MARKET_STATE_REJECTED
+                accepted_for_training = False
+                training_reject_reasons = sorted(
+                    set(training_reject_reasons).union(label_reject_reasons)
                 )
-                paper_gate = bundle.get("paper_gate_decision") or {}
-                rows.append(DatasetRow(
+            paper_gate = _mapping_value(bundle.get("paper_gate_decision"))
+            rows.append(
+                DatasetRow(
                     row_id=row_id,
                     symbol=symbol,
                     timeframe=timeframe,
                     feature_snapshot_id=snapshot_id,
-                    generated_at=str(bundle.get("generated_at") or ""),
+                    generated_at=_utc_iso(observation_cutoff),
                     feature_vector=vector,
                     missing_feature_flags=missing_flags,
                     stale_feature_flags=stale_flags,
                     feature_freshness_state=freshness_state,
-                    label=str(label),
-                    after_cost_return_bps=after_cost,
-                    max_favorable_bps=primary.get("max_favorable_bps"),
-                    max_adverse_bps=primary.get("max_adverse_bps"),
-                    paper_gate_status=paper_gate.get("status"),
-                    paper_gate_block_reasons=list(
-                        paper_gate.get("block_reasons") or []
+                    label=label,
+                    after_cost_return_bps=(
+                        label_row.after_cost_return_bps if label_row else None
                     ),
-                    risk_decision_context=bundle.get("risk_decision"),
+                    max_favorable_bps=(
+                        label_row.max_favorable_bps if label_row else None
+                    ),
+                    max_adverse_bps=(
+                        label_row.max_adverse_bps if label_row else None
+                    ),
+                    paper_gate_status=(
+                        label_row.paper_gate_status
+                        if label_row
+                        else str(paper_gate.get("status") or "") or None
+                    ),
+                    paper_gate_block_reasons=(
+                        list(label_row.paper_gate_block_reasons)
+                        if label_row
+                        else list(paper_gate.get("block_reasons") or [])
+                    ),
+                    risk_decision_context=(
+                        dict(bundle["risk_decision"])
+                        if isinstance(bundle.get("risk_decision"), Mapping)
+                        else None
+                    ),
                     altdata_context=altdata_snapshot,
-                    legacy_reference_action=bundle.get("legacy_reference_action"),
+                    legacy_reference_action=(
+                        label_row.legacy_reference_action if label_row else None
+                    ),
                     classification=row_classification,
                     source_lineage=["replay_outcome_bundles.jsonl"],
                     feature_cutoff=trust_row.get("feature_cutoff"),
@@ -1292,12 +2051,11 @@ def build_rows_from_replay_bundles(
                     training_reject_reasons=training_reject_reasons,
                     side=side,
                     action=side,
-                    decision_time=(
-                        trust_row.get("decision_time_est")
-                        or timing.get("decision_time")
-                    ),
+                    decision_time=timing.get("decision_time"),
                     entry_feature_available_at=timing.get("available_at"),
-                    entry_feature_generated_at=timing.get("entry_feature_generated_at"),
+                    entry_feature_generated_at=timing.get(
+                        "entry_feature_generated_at"
+                    ),
                     prediction_generated_at=timing.get("prediction_generated_at"),
                     entry_feature_cutoff=timing.get("feature_cutoff"),
                     entry_feature_candle_closed_confirmed=timing.get(
@@ -1305,9 +2063,45 @@ def build_rows_from_replay_bundles(
                     ),
                     bundle_generated_at=timing.get("bundle_generated_at"),
                     source_event_time=timing.get("source_event_time"),
-                ))
-                if max_rows is not None and len(rows) >= max_rows:
-                    return rows
+                    source_received_time=timing.get("source_received_time_est"),
+                    source_available_time=timing.get("source_available_time"),
+                    label_id=label_row.label_id if label_row else None,
+                    outcome_id=label_row.outcome_id if label_row else None,
+                    label_digest=label_row.label_digest if label_row else None,
+                    outcome_digest=label_row.outcome_digest if label_row else None,
+                    label_available_at=(
+                        label_row.label_available_at if label_row else None
+                    ),
+                    outcome_generated_at=(
+                        label_row.outcome_generated_at if label_row else None
+                    ),
+                    outcome_available_at=(
+                        label_row.outcome_available_at if label_row else None
+                    ),
+                    outcome_window=label_row.outcome_window if label_row else None,
+                    label_horizon_start=(
+                        label_row.label_horizon_start if label_row else None
+                    ),
+                    label_horizon_end=(
+                        label_row.label_horizon_end if label_row else None
+                    ),
+                    label_horizon_seconds=(
+                        label_row.label_horizon_seconds if label_row else None
+                    ),
+                    outcome_finalized=(
+                        label_row.outcome_finalized if label_row else None
+                    ),
+                    label_finalized=(
+                        label_row.label_finalized if label_row else None
+                    ),
+                    training_observed_at=_utc_iso(observation_cutoff),
+                    label_reject_reasons=sorted(set(label_reject_reasons)),
+                )
+            )
+            if max_rows is not None and len(rows) >= max_rows:
+                _apply_purged_chronological_validation(rows)
+                return rows
+    _apply_purged_chronological_validation(rows)
     return rows
 
 
@@ -1472,22 +2266,96 @@ def _dataset_replay_evidence_reject_reasons(row: DatasetRow) -> list[str]:
         reasons.append("NON_DIRECTIONAL_SIDE")
     if row.after_cost_return_bps is None:
         reasons.append("MISSING_AFTER_COST_OUTCOME_LABEL")
-
-    decision = _parse_utc(row.decision_time or row.decision_time_est)
-    if decision is None:
-        reasons.append("MISSING_DECISION_TIME")
-    for label, value in (
-        ("AVAILABLE_AT", row.available_at or row.entry_feature_available_at),
-        ("GENERATED_AT", row.entry_feature_generated_at),
-        ("FEATURE_CUTOFF", row.feature_cutoff or row.entry_feature_cutoff),
+    if row.classification not in {ROW_TRAINABLE, ROW_HELD_OUT_VALIDATION}:
+        reasons.append("ROW_NOT_TRAINABLE_OR_FORWARD_VALIDATION")
+    if row.accepted_for_training is not True:
+        reasons.append("MARKET_STATE_NOT_ACCEPTED_FOR_TRAINING")
+    for field_name, first_raw, second_raw in (
+        (
+            "DECISION_TIME",
+            row.decision_time,
+            row.decision_time_est,
+        ),
+        (
+            "FEATURE_AVAILABLE_AT",
+            row.available_at,
+            row.entry_feature_available_at,
+        ),
+        (
+            "FEATURE_CUTOFF",
+            row.feature_cutoff,
+            row.entry_feature_cutoff,
+        ),
     ):
-        parsed = _parse_utc(value)
-        if parsed is None:
-            reasons.append(f"MISSING_{label}")
-        elif decision is not None and parsed > decision:
-            reasons.append(f"{label}_AFTER_DECISION_TIME")
-    if row.entry_feature_candle_closed_confirmed is not True:
-        reasons.append("MISSING_OR_FALSE_ENTRY_FEATURE_CANDLE_CLOSED_CONFIRMATION")
+        if first_raw in (None, "") or second_raw in (None, ""):
+            continue
+        first = _parse_utc(first_raw)
+        second = _parse_utc(second_raw)
+        if first is None or second is None:
+            reasons.append(f"{field_name}_DUPLICATE_CLOCK_NOT_AWARE")
+        elif first != second:
+            reasons.append(f"{field_name}_DUPLICATE_CLOCK_CONFLICT")
+    if (
+        row.candle_closed_confirmed is not None
+        and row.entry_feature_candle_closed_confirmed is not None
+        and row.candle_closed_confirmed
+        is not row.entry_feature_candle_closed_confirmed
+    ):
+        reasons.append("FEATURE_CANDLE_FINALITY_DUPLICATE_CONFLICT")
+    observation_cutoff = _parse_utc(row.training_observed_at)
+    if observation_cutoff is None:
+        reasons.append("TRAINING_OBSERVED_AT_MISSING_OR_NOT_AWARE")
+    else:
+        label_row = LabelRow(
+            feature_snapshot_id=row.feature_snapshot_id,
+            symbol=row.symbol,
+            timeframe=row.timeframe,
+            label=row.label,
+            after_cost_return_bps=row.after_cost_return_bps,
+            max_favorable_bps=row.max_favorable_bps,
+            max_adverse_bps=row.max_adverse_bps,
+            paper_gate_status=row.paper_gate_status,
+            paper_gate_block_reasons=list(row.paper_gate_block_reasons),
+            risk_decision_context=row.risk_decision_context,
+            legacy_reference_action=row.legacy_reference_action,
+            side=_side_from_dataset_row(row),
+            decision_time=row.decision_time,
+            available_at=row.entry_feature_available_at,
+            entry_feature_generated_at=row.entry_feature_generated_at,
+            prediction_generated_at=row.prediction_generated_at,
+            feature_cutoff=row.entry_feature_cutoff,
+            source_event_time=row.source_event_time,
+            candle_open_time=row.candle_open_time,
+            candle_close_time=row.candle_close_time,
+            entry_feature_candle_closed_confirmed=(
+                row.entry_feature_candle_closed_confirmed
+            ),
+            bundle_generated_at=row.bundle_generated_at,
+            source_received_time=row.source_received_time,
+            source_available_time=row.source_available_time,
+            masa_feature_cutoff=row.masa_feature_cutoff,
+            ppo_feature_cutoff=row.ppo_feature_cutoff,
+            label_id=row.label_id,
+            outcome_id=row.outcome_id,
+            label_digest=row.label_digest,
+            outcome_digest=row.outcome_digest,
+            label_available_at=row.label_available_at,
+            outcome_generated_at=row.outcome_generated_at,
+            outcome_available_at=row.outcome_available_at,
+            outcome_window=row.outcome_window,
+            label_horizon_start=row.label_horizon_start,
+            label_horizon_end=row.label_horizon_end,
+            label_horizon_seconds=row.label_horizon_seconds,
+            outcome_finalized=row.outcome_finalized,
+            label_finalized=row.label_finalized,
+            training_observed_at=row.training_observed_at,
+        )
+        reasons.extend(
+            _label_row_rejection_reasons(
+                label_row, training_observed_at=observation_cutoff
+            )
+        )
+    reasons.extend(row.label_reject_reasons)
     return sorted(set(reasons))
 
 
@@ -1509,7 +2377,7 @@ def _dataset_replay_evidence_row(row: DatasetRow) -> dict[str, Any]:
         "decision_time": decision_time,
         "available_at": available_at,
         "entry_feature_available_at": available_at,
-        "generated_at": row.entry_feature_generated_at,
+        "generated_at": row.generated_at,
         "entry_feature_generated_at": row.entry_feature_generated_at,
         "prediction_generated_at": row.prediction_generated_at,
         "feature_cutoff": feature_cutoff,
@@ -1517,7 +2385,26 @@ def _dataset_replay_evidence_row(row: DatasetRow) -> dict[str, Any]:
         "entry_feature_candle_closed_confirmed": (
             row.entry_feature_candle_closed_confirmed
         ),
-        "bundle_generated_at": row.bundle_generated_at or row.generated_at,
+        "bundle_generated_at": row.bundle_generated_at,
+        "source_event_time": row.source_event_time,
+        "source_received_time": row.source_received_time,
+        "source_available_time": row.source_available_time,
+        "label_id": row.label_id,
+        "outcome_id": row.outcome_id,
+        "label_digest": row.label_digest,
+        "outcome_digest": row.outcome_digest,
+        "label_available_at": row.label_available_at,
+        "outcome_generated_at": row.outcome_generated_at,
+        "outcome_available_at": row.outcome_available_at,
+        "outcome_window": row.outcome_window,
+        "label_horizon_start": row.label_horizon_start,
+        "label_horizon_end": row.label_horizon_end,
+        "label_horizon_seconds": row.label_horizon_seconds,
+        "outcome_finalized": row.outcome_finalized,
+        "label_finalized": row.label_finalized,
+        "training_observed_at": row.training_observed_at,
+        "masa_feature_cutoff": row.masa_feature_cutoff,
+        "ppo_feature_cutoff": row.ppo_feature_cutoff,
         "realized_after_cost_return_bps": row.after_cost_return_bps,
         "after_cost_return_bps": row.after_cost_return_bps,
         "max_favorable_bps": row.max_favorable_bps,
@@ -1568,7 +2455,11 @@ def build_replay_evidence_sidecar(rows: Sequence[DatasetRow]) -> tuple[dict[str,
                     "available_at": row.available_at or row.entry_feature_available_at,
                     "generated_at": row.entry_feature_generated_at,
                     "feature_cutoff": row.feature_cutoff or row.entry_feature_cutoff,
-                    "bundle_generated_at": row.bundle_generated_at or row.generated_at,
+                    "bundle_generated_at": row.bundle_generated_at,
+                    "outcome_available_at": row.outcome_available_at,
+                    "label_available_at": row.label_available_at,
+                    "label_horizon_end": row.label_horizon_end,
+                    "training_observed_at": row.training_observed_at,
                     "reasons": reasons,
                 })
             continue

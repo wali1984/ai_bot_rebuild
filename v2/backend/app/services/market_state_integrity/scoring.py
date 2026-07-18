@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from v2.backend.app.services.feature_lineage_masks import (
@@ -102,33 +101,6 @@ def _float(value: Any, default: float | None = None) -> float | None:
     return parsed
 
 
-def _parse_dt(value: Any) -> datetime | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def _tf_seconds(timeframe: str) -> int:
-    unit = timeframe[-1:].lower()
-    try:
-        value = int(timeframe[:-1])
-    except ValueError:
-        return 60
-    if unit == "m":
-        return value * 60
-    if unit == "h":
-        return value * 60 * 60
-    if unit == "d":
-        return value * 24 * 60 * 60
-    return 60
-
-
 def _age_seconds(row: dict[str, Any]) -> float | None:
     raw = row.get("generated_utc") or row.get("generated_at") or row.get("timestamp")
     if not isinstance(raw, str):
@@ -190,59 +162,6 @@ def _missing_features_are_optional_or_event_dependent(names: list[str]) -> bool:
     return True
 
 
-def _with_training_snapshot_time_inference(row: dict[str, Any], timeframe: str) -> tuple[dict[str, Any], dict[str, str]]:
-    """Infer feature-snapshot timing only for trainer-consumable rows.
-
-    This does not assert exchange/live availability. It allows current feature
-    snapshots with core OHLC data to train with explicit lineage masks while
-    strict prediction/risk/live gates still reject rows that carry future leaks
-    or explicit unclosed-candle evidence.
-    """
-    inferred: dict[str, str] = {}
-    enriched = dict(row)
-    if not _has_core_market_snapshot(row):
-        return enriched, inferred
-    if str(row.get("feature_freshness_state") or "").upper() != "CURRENT":
-        return enriched, inferred
-    if row.get("trainer_consumable") is not True and "features" not in row:
-        return enriched, inferred
-
-    generated = (
-        row.get("source_event_time_est")
-        or row.get("source_event_time_utc")
-        or row.get("generated_at")
-        or row.get("generated_utc")
-        or row.get("generated_est")
-    )
-    generated_dt = _parse_dt(generated)
-    if generated_dt is None:
-        return enriched, inferred
-    generated_iso = generated_dt.isoformat().replace("+00:00", "Z")
-
-    if not row.get("source_event_time_est") and not row.get("source_event_time_utc"):
-        enriched["source_event_time_est"] = generated_iso
-        inferred["source_event_time_est"] = "INFERRED_FROM_FEATURE_SNAPSHOT_GENERATED_AT"
-    if not row.get("source_received_time_est") and not row.get("received_at"):
-        enriched["source_received_time_est"] = generated_iso
-        inferred["source_received_time_est"] = "INFERRED_FROM_FEATURE_SNAPSHOT_GENERATED_AT"
-    if not row.get("decision_cutoff_time_est") and not row.get("decision_time_est"):
-        enriched["decision_cutoff_time_est"] = generated_iso
-        inferred["decision_cutoff_time_est"] = "INFERRED_FROM_FEATURE_SNAPSHOT_GENERATED_AT"
-    if row.get("candle_closed_confirmed") is None and os.environ.get(
-        "PIPELINE_TRUST_UNSAFE_FINALITY_INFERENCE", ""
-    ).strip().lower() in {"1", "true", "yes"}:
-        enriched["candle_closed_confirmed"] = True
-        inferred["candle_closed_confirmed"] = "UNSAFE_DEV_ONLY_INFERRED_FROM_CURRENT_TRAINER_CONSUMABLE_FEATURE_SNAPSHOT"
-    if row.get("candle_close_time") is None:
-        enriched["candle_close_time"] = generated_iso
-        inferred["candle_close_time"] = "INFERRED_FROM_FEATURE_SNAPSHOT_GENERATED_AT"
-    if row.get("candle_open_time") is None:
-        open_dt = generated_dt - timedelta(seconds=_tf_seconds(timeframe))
-        enriched["candle_open_time"] = open_dt.isoformat().replace("+00:00", "Z")
-        inferred["candle_open_time"] = "INFERRED_FROM_TIMEFRAME_AND_FEATURE_SNAPSHOT_GENERATED_AT"
-    return enriched, inferred
-
-
 def score_market_state(
     row: dict[str, Any],
     *,
@@ -252,7 +171,13 @@ def score_market_state(
     reasons: list[str] = []
     symbol = str(row.get("symbol") or "UNKNOWN").upper()
     timeframe = str(row.get("timeframe") or row.get("tf") or "unknown")
-    row, inferred_lineage = _with_training_snapshot_time_inference(row, timeframe)
+    # Temporal clocks and candle finality are evidence, not values that can be
+    # reconstructed from a feature snapshot's generation clock.  In particular,
+    # generated_at cannot prove event_time, available_at, decision_time, candle
+    # boundaries, or that an exchange candle was final.  Keep the original row
+    # intact and fail closed in the validators when any of those proofs is absent.
+    row = dict(row)
+    inferred_lineage: dict[str, str] = {}
     decision_time = str(row.get("decision_time_est") or row.get("generated_est") or row.get("generated_utc") or "")
     age = _age_seconds(row)
 
@@ -350,22 +275,7 @@ def score_market_state(
     ]
     score = round(sum(scores) / len(scores), 4)
     reasons = sorted(set(reason for reason in reasons if reason))
-    trainer_snapshot_safe_inference = (
-        row.get("trainer_consumable") is True
-        and freshness_state == "CURRENT"
-        and _has_core_market_snapshot(row)
-        and row.get("candle_closed_confirmed") is None
-        and bool(inferred_lineage.get("source_event_time_est"))
-        and bool(inferred_lineage.get("decision_cutoff_time_est"))
-        and bool(inferred_lineage.get("candle_open_time"))
-        and bool(inferred_lineage.get("candle_close_time"))
-    )
-    training_tolerable_reasons = (
-        {"CANDLE_COMPLETION_UNKNOWN", "candle_closed_confirmed_missing"}
-        if trainer_snapshot_safe_inference
-        else set()
-    )
-    training_block_reasons = sorted(set(reasons) - training_tolerable_reasons)
+    training_block_reasons = reasons
     critical_prediction_reasons = {
         "feature_timestamp_after_decision_cutoff",
         "source_available_after_decision_cutoff",

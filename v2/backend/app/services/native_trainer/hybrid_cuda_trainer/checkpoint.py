@@ -1,19 +1,70 @@
 """Safe local checkpoint manifest handling for V2 hybrid trainer."""
 from __future__ import annotations
 
+import fcntl
+import hashlib
+import importlib
 import json
+import os
+import struct
 import tempfile
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
+from .confidence import CONFIDENCE_HEAD_ACTIONS, CONFIDENCE_HEAD_SCHEMA_VERSION
 from .config import CHECKPOINT_SOURCE, LIVE_GATE_BLOCKED
-from .model import V2HybridPolicyModel
+from .model import (
+    ConfidenceHeadCheckpointIncompatibleError,
+    V2HybridPolicyModel,
+)
+
+CHECKPOINT_EVIDENCE_SCHEMA_VERSION = "v2_hybrid_checkpoint_evidence_v1"
+CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION = "v2_hybrid_checkpoint_causal_order_v1"
+_CHECKPOINT_CAUSAL_LEDGER_NAME = ".checkpoint-causal-order.jsonl"
+_CHECKPOINT_CAUSAL_LOCK_NAME = ".checkpoint-causal-order.lock"
+_CHECKPOINT_CAUSAL_GENESIS_DIGEST = "0" * 64
+_CHECKPOINT_STORE_SUBDIRECTORIES = frozenset(
+    {"non_serving_training_candidates", "rejected_optimizer_attempts"}
+)
+_CAUSAL_EVIDENCE_FIELDS = frozenset(
+    {
+        "checkpoint_causal_order_schema_version",
+        "checkpoint_causal_store",
+        "checkpoint_generation",
+        "parent_checkpoint_generation",
+        "checkpoint_semantic_digest",
+        "checkpoint_causal_record_digest",
+    }
+)
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _strict_generated_utc(
+    value: Any,
+    *,
+    allow_future_after_clock_rollback: bool = False,
+) -> datetime:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("checkpoint_generated_utc_missing")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("checkpoint_generated_utc_invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError("checkpoint_generated_utc_naive")
+    generated = parsed.astimezone(UTC)
+    if not allow_future_after_clock_rollback and generated > datetime.now(UTC):
+        raise ValueError("checkpoint_generated_utc_in_future")
+    return generated
 
 
 def _atomic_write_text(path: Path, text: str) -> None:
@@ -29,11 +80,248 @@ def _atomic_write_text(path: Path, text: str) -> None:
             delete=False,
         ) as handle:
             handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
             tmp_path = Path(handle.name)
         tmp_path.replace(path)
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
         if tmp_path is not None and tmp_path.exists():
             tmp_path.unlink()
+
+
+@dataclass(frozen=True)
+class _PrivateCheckpointCopy:
+    """One private artifact copy shared by every load-time verifier."""
+
+    stream: BinaryIO = field(repr=False, compare=False)
+    sha256: str
+    size_bytes: int
+
+
+def _sha256_private_stream(stream: BinaryIO) -> str:
+    digest = hashlib.sha256()
+    stream.seek(0)
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        digest.update(chunk)
+    stream.seek(0)
+    return digest.hexdigest()
+
+
+@contextmanager
+def _private_checkpoint_copy(path: Path) -> Iterator[_PrivateCheckpointCopy]:
+    """Copy a mutable checkpoint path once into a private anonymous stream.
+
+    The source handle is opened and consumed exactly once.  Hashing, safe NPZ
+    inspection, and model restoration then share the anonymous temporary file,
+    so replacing the source path cannot change the bytes admitted to the model.
+    """
+    with tempfile.TemporaryFile(mode="w+b") as private_stream:
+        size_bytes = 0
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                private_stream.write(chunk)
+                size_bytes += len(chunk)
+        private_stream.flush()
+        private_stream.seek(0)
+        with os.fdopen(os.dup(private_stream.fileno()), "rb") as read_only_stream:
+            observed_sha256 = _sha256_private_stream(read_only_stream)
+            yield _PrivateCheckpointCopy(
+                stream=read_only_stream,
+                sha256=observed_sha256,
+                size_bytes=size_bytes,
+            )
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"noncanonical_json_constant:{value}")
+
+
+def _strict_json_loads(value: str) -> Any:
+    return json.loads(value, parse_constant=_reject_json_constant)
+
+
+def _safe_npz_semantics(
+    source: Path | BinaryIO,
+    *,
+    model_id: str,
+) -> dict[str, Any]:
+    """Read safe NPZ semantics without constructing or mutating a model."""
+    np = importlib.import_module("numpy")
+    digest = hashlib.sha256()
+    digest.update(b"v2_in_memory_served_policy_parameters_v1\0")
+    digest.update(str(model_id).encode("utf-8"))
+    digest.update(b"\0")
+    if hasattr(source, "seek"):
+        source.seek(0)
+    with np.load(source, allow_pickle=False) as data:
+        format_values = data.get("__format_version")
+        input_dim_values = data.get("__input_dim")
+        head_schema_values = data.get("__confidence_head_schema_version")
+        head_actions_values = data.get("__confidence_head_actions_json")
+        calibration_values = data.get("__confidence_calibration_state_json")
+        if (
+            format_values is None
+            or str(format_values[0]) != "v2_hybrid_policy_npz_v2"
+            or input_dim_values is None
+            or head_schema_values is None
+            or head_actions_values is None
+            or calibration_values is None
+        ):
+            raise ValueError("checkpoint_npz_semantic_metadata_missing")
+        head_actions = tuple(_strict_json_loads(str(head_actions_values[0])))
+        calibration_state = _strict_json_loads(str(calibration_values[0]))
+        if not isinstance(calibration_state, dict):
+            raise ValueError("checkpoint_npz_calibration_state_not_object")
+        torch_keys = sorted(
+            str(key) for key in data.files if str(key).startswith("torch::")
+        )
+        fallback = data.get("fallback::weights")
+        if torch_keys:
+            for key in torch_keys:
+                name = key.removeprefix("torch::")
+                array = np.ascontiguousarray(data[key])
+                if not bool(np.isfinite(array).all()):
+                    raise ValueError("checkpoint_npz_parameter_nonfinite")
+                digest.update(name.encode("utf-8"))
+                digest.update(b"\0")
+                digest.update(str(array.dtype).encode("ascii"))
+                digest.update(b"\0")
+                digest.update(
+                    json.dumps(list(array.shape), separators=(",", ":")).encode(
+                        "ascii"
+                    )
+                )
+                digest.update(b"\0")
+                digest.update(memoryview(array).cast("B"))
+        elif fallback is not None:
+            values = np.asarray(fallback, dtype=np.float64).reshape(-1)
+            if not bool(np.isfinite(values).all()) or values.size <= 0:
+                raise ValueError("checkpoint_npz_fallback_parameters_invalid")
+            for value in values.tolist():
+                digest.update(struct.pack("!d", float(value)))
+        else:
+            raise ValueError("checkpoint_npz_parameter_payload_missing")
+        return {
+            "input_dim": int(input_dim_values[0]),
+            "confidence_head_schema_version": str(head_schema_values[0]),
+            "confidence_head_actions": head_actions,
+            "confidence_calibration_state": calibration_state,
+            "model_parameter_fingerprint": digest.hexdigest(),
+        }
+
+
+def _canonical_digest(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _manifest_int(value: Any, *, field_name: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name}_not_integer")
+    parsed = int(value)
+    if float(value) != float(parsed):
+        raise ValueError(f"{field_name}_not_integer")
+    return parsed
+
+
+def _is_sha256(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(
+        character in "0123456789abcdef" for character in text
+    )
+
+
+def _base_checkpoint_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    return {
+        field_name: value
+        for field_name, value in evidence.items()
+        if field_name not in _CAUSAL_EVIDENCE_FIELDS
+    }
+
+
+def _checkpoint_semantic_digest(
+    *,
+    model_id: str,
+    input_dim: int,
+    checkpoint_causal_store: str,
+    confidence_calibration_state: dict[str, Any],
+    model_parameter_fingerprint: str | None,
+    lineage_kind: str,
+    parent_checkpoint_id: str | None,
+    parent_policy_fingerprint: str | None,
+    consumed_ppo_update_keys: tuple[str, ...],
+    training_partition_digest: str | None,
+    checkpoint_evidence: dict[str, Any],
+) -> str:
+    """Hash stable checkpoint semantics before assigning causal generation.
+
+    Wall-clock time, filesystem paths, and serialized-size metadata are excluded:
+    none identifies a policy generation, and all can vary across an idempotent
+    crash retry.  Model parameters, calibration, lineage, exact-PPO inputs, and
+    role evidence are included and are independently bound to the NPZ artifact.
+    """
+    return _canonical_digest(
+        {
+            "schema_version": CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION,
+            "model_id": str(model_id),
+            "input_dim": int(input_dim),
+            "checkpoint_causal_store": checkpoint_causal_store,
+            "confidence_calibration_state": dict(confidence_calibration_state),
+            "model_parameter_fingerprint": model_parameter_fingerprint,
+            "lineage_kind": str(lineage_kind),
+            "parent_checkpoint_id": parent_checkpoint_id,
+            "parent_policy_fingerprint": parent_policy_fingerprint,
+            "consumed_ppo_update_keys": list(consumed_ppo_update_keys),
+            "training_partition_digest": training_partition_digest,
+            "checkpoint_evidence": _base_checkpoint_evidence(
+                dict(checkpoint_evidence)
+            ),
+        }
+    )
+
+
+@dataclass(frozen=True)
+class _CausalGenerationRecord:
+    checkpoint_generation: int
+    checkpoint_causal_store: str
+    checkpoint_semantic_digest: str
+    parent_checkpoint_id: str | None
+    parent_checkpoint_generation: int | None
+    generated_utc: str
+    previous_record_digest: str
+    checkpoint_causal_record_digest: str
+
+    def payload_without_digest(self) -> dict[str, Any]:
+        return {
+            "schema_version": CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION,
+            "checkpoint_generation": self.checkpoint_generation,
+            "checkpoint_causal_store": self.checkpoint_causal_store,
+            "checkpoint_semantic_digest": self.checkpoint_semantic_digest,
+            "parent_checkpoint_id": self.parent_checkpoint_id,
+            "parent_checkpoint_generation": self.parent_checkpoint_generation,
+            "generated_utc": self.generated_utc,
+            "previous_record_digest": self.previous_record_digest,
+        }
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            **self.payload_without_digest(),
+            "checkpoint_causal_record_digest": (
+                self.checkpoint_causal_record_digest
+            ),
+        }
 
 
 @dataclass(frozen=True)
@@ -50,7 +338,207 @@ class CheckpointManifest:
     weight_file_path: str | None = None
     weight_file_format: str | None = None
     weight_file_size_bytes: int | None = None
+    confidence_calibration_fitted: bool = False
+    confidence_calibration_temperature: float | None = None
+    confidence_calibration_sample: int = 0
+    confidence_calibration_reason: str | None = None
+    confidence_calibration_fit_partition: str | None = None
+    confidence_calibration_validation_rows_used: int = 0
+    confidence_calibration_label_semantics: str | None = None
+    confidence_head_schema_version: str | None = None
+    confidence_head_actions: tuple[str, ...] = ()
+    confidence_calibration_long_sample: int = 0
+    confidence_calibration_short_sample: int = 0
+    confidence_calibration_model_parameter_fingerprint: str | None = None
+    confidence_calibration_row_digest: str | None = None
+    confidence_calibration_state: dict[str, Any] = field(default_factory=dict)
+    model_parameter_fingerprint: str | None = None
+    weight_file_sha256: str | None = None
+    lineage_kind: str = "SERVING_CANDIDATE"
+    parent_checkpoint_id: str | None = None
+    parent_policy_fingerprint: str | None = None
+    consumed_ppo_update_keys: tuple[str, ...] = ()
+    training_partition_digest: str | None = None
+    checkpoint_evidence_schema_version: str | None = None
+    checkpoint_evidence: dict[str, Any] = field(default_factory=dict)
+    checkpoint_evidence_digest: str | None = None
+    checkpoint_causal_order_schema_version: str | None = None
+    checkpoint_causal_store: str | None = None
+    checkpoint_generation: int = 0
+    parent_checkpoint_generation: int | None = None
+    checkpoint_semantic_digest: str | None = None
+    checkpoint_causal_record_digest: str | None = None
     external_deserialization_used: bool = False
+
+
+def _load_private_checkpoint_copy(
+    *,
+    source_path: Path,
+    manifest: CheckpointManifest,
+    model: V2HybridPolicyModel,
+) -> dict[str, Any]:
+    """Verify and restore one checkpoint from one private byte identity."""
+
+    def failure(load_status: str, **evidence: Any) -> dict[str, Any]:
+        return {
+            "private_checkpoint_copy_verified": False,
+            "latest_checkpoint_loadable": False,
+            "model_state_restored": False,
+            "load_status": load_status,
+            **evidence,
+        }
+
+    try:
+        with _private_checkpoint_copy(source_path) as snapshot:
+            expected_sha256 = str(manifest.weight_file_sha256 or "")
+            if not _is_sha256(expected_sha256):
+                return failure(
+                    "WEIGHT_BLOB_SHA256_MISSING",
+                    weight_file_sha256_verified=False,
+                )
+            if snapshot.sha256 != expected_sha256:
+                return failure(
+                    "WEIGHT_BLOB_SHA256_MISMATCH",
+                    weight_file_sha256_verified=False,
+                    observed_weight_file_sha256=snapshot.sha256,
+                )
+            if manifest.weight_file_size_bytes is None:
+                return failure(
+                    "WEIGHT_BLOB_SIZE_MISSING",
+                    weight_file_sha256_verified=True,
+                )
+            try:
+                expected_size = _manifest_int(
+                    manifest.weight_file_size_bytes,
+                    field_name="weight_file_size_bytes",
+                )
+            except (TypeError, ValueError, OverflowError):
+                return failure(
+                    "WEIGHT_BLOB_SIZE_INVALID",
+                    weight_file_sha256_verified=True,
+                )
+            if expected_size <= 0 or snapshot.size_bytes != expected_size:
+                return failure(
+                    "WEIGHT_BLOB_SIZE_MISMATCH",
+                    weight_file_sha256_verified=True,
+                    observed_weight_file_size_bytes=snapshot.size_bytes,
+                )
+            try:
+                safe_semantics = _safe_npz_semantics(
+                    snapshot.stream,
+                    model_id=manifest.model_id,
+                )
+            except Exception as exc:  # noqa: BLE001 - fail before model mutation
+                confidence_head_incompatible = isinstance(exc, ValueError) and (
+                    "checkpoint_npz_semantic_metadata_missing" in str(exc)
+                )
+                return failure(
+                    (
+                        "LOAD_FAILED:ConfidenceHeadCheckpointIncompatibleError"
+                        if confidence_head_incompatible
+                        else "SAFE_NPZ_SEMANTIC_VERIFICATION_FAILED:"
+                        f"{type(exc).__name__}"
+                    ),
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_confidence_head_compatible=False,
+                    checkpoint_identity_verified=False,
+                    confidence_calibration_fitted=False,
+                    confidence_calibration_reason=(
+                        "CHECKPOINT_CONFIDENCE_HEAD_INCOMPATIBLE"
+                        if confidence_head_incompatible
+                        else "CHECKPOINT_SAFE_NPZ_SEMANTICS_INVALID"
+                    ),
+                    load_error_reason=(
+                        "CHECKPOINT_CONFIDENCE_HEAD_NOT_PER_DIRECTIONAL_ACTION_V1"
+                        if confidence_head_incompatible
+                        else str(exc)
+                    ),
+                    weight_file_sha256_verified=True,
+                )
+            if safe_semantics.get("input_dim") != model.input_dim:
+                return failure(
+                    "SAFE_NPZ_INPUT_DIM_MISMATCH",
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_confidence_head_compatible=False,
+                    checkpoint_identity_verified=False,
+                    weight_file_sha256_verified=True,
+                )
+            if (
+                safe_semantics.get("confidence_head_schema_version")
+                != CONFIDENCE_HEAD_SCHEMA_VERSION
+                or tuple(safe_semantics.get("confidence_head_actions") or ())
+                != tuple(CONFIDENCE_HEAD_ACTIONS)
+            ):
+                return failure(
+                    "LOAD_FAILED:ConfidenceHeadCheckpointIncompatibleError",
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_confidence_head_compatible=False,
+                    checkpoint_identity_verified=False,
+                    confidence_calibration_fitted=False,
+                    confidence_calibration_reason=(
+                        "CHECKPOINT_CONFIDENCE_HEAD_INCOMPATIBLE"
+                    ),
+                    load_error_reason=(
+                        "CHECKPOINT_CONFIDENCE_HEAD_NOT_PER_DIRECTIONAL_ACTION_V1"
+                    ),
+                    weight_file_sha256_verified=True,
+                )
+            if (
+                safe_semantics.get("confidence_calibration_state")
+                != manifest.confidence_calibration_state
+                or safe_semantics.get("model_parameter_fingerprint")
+                != manifest.model_parameter_fingerprint
+            ):
+                return failure(
+                    "CHECKPOINT_CONTENT_IDENTITY_MISMATCH",
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_confidence_head_compatible=True,
+                    checkpoint_identity_verified=False,
+                    weight_file_sha256_verified=True,
+                )
+            if _sha256_private_stream(snapshot.stream) != snapshot.sha256:
+                return failure(
+                    "PRIVATE_CHECKPOINT_COPY_MUTATED_DURING_VERIFICATION",
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_confidence_head_compatible=True,
+                    checkpoint_identity_verified=False,
+                    weight_file_sha256_verified=False,
+                )
+            try:
+                loaded = model.load_weight_blob_stream(
+                    snapshot.stream,
+                    source_label=str(source_path),
+                )
+            except ConfidenceHeadCheckpointIncompatibleError as exc:
+                return failure(
+                    "LOAD_FAILED:ConfidenceHeadCheckpointIncompatibleError",
+                    checkpoint_confidence_head_compatible=False,
+                    confidence_calibration_fitted=False,
+                    confidence_calibration_reason=(
+                        "CHECKPOINT_CONFIDENCE_HEAD_INCOMPATIBLE"
+                    ),
+                    load_error_reason=str(exc),
+                    weight_file_sha256_verified=True,
+                )
+            except Exception as exc:  # noqa: BLE001 - report fail-closed evidence
+                return failure(
+                    f"LOAD_FAILED:{type(exc).__name__}",
+                    weight_file_sha256_verified=True,
+                )
+            return {
+                "private_checkpoint_copy_verified": True,
+                "private_checkpoint_source_open_count": 1,
+                "private_checkpoint_copy_sha256": snapshot.sha256,
+                "private_checkpoint_copy_size_bytes": snapshot.size_bytes,
+                "safe_semantics": safe_semantics,
+                "loaded": loaded,
+                "weight_file_sha256_verified": True,
+            }
+    except OSError as exc:
+        return failure(
+            f"PRIVATE_CHECKPOINT_COPY_FAILED:{type(exc).__name__}",
+            weight_file_sha256_verified=False,
+        )
 
 
 class V2HybridCheckpointManager:
@@ -58,11 +546,534 @@ class V2HybridCheckpointManager:
 
     def __init__(self, model_dir: Path) -> None:
         self.model_dir = Path(model_dir)
+        self._manifest_scan_errors: list[dict[str, str]] = []
 
     def _validate_model_dir(self) -> None:
         text = str(self.model_dir)
         if not (text.startswith(".local_models") or "/.local_models/" in text):
             raise ValueError("checkpoint manifests must live under .local_models")
+
+    @property
+    def _causal_root(self) -> Path:
+        if self.model_dir.name in _CHECKPOINT_STORE_SUBDIRECTORIES:
+            return self.model_dir.parent
+        return self.model_dir
+
+    @property
+    def _causal_ledger_path(self) -> Path:
+        return self._causal_root / _CHECKPOINT_CAUSAL_LEDGER_NAME
+
+    @property
+    def _causal_store(self) -> str:
+        if self.model_dir.name in _CHECKPOINT_STORE_SUBDIRECTORIES:
+            return self.model_dir.name
+        return "serving_root"
+
+    def _read_causal_ledger(
+        self,
+        *,
+        repair_torn_tail: bool = False,
+    ) -> tuple[_CausalGenerationRecord, ...]:
+        path = self._causal_ledger_path
+        if not path.exists():
+            return ()
+        records: list[_CausalGenerationRecord] = []
+        previous_digest = _CHECKPOINT_CAUSAL_GENESIS_DIGEST
+        semantic_digests: set[str] = set()
+        expected_fields = {
+            "schema_version",
+            "checkpoint_generation",
+            "checkpoint_causal_store",
+            "checkpoint_semantic_digest",
+            "parent_checkpoint_id",
+            "parent_checkpoint_generation",
+            "generated_utc",
+            "previous_record_digest",
+            "checkpoint_causal_record_digest",
+        }
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            raise RuntimeError("checkpoint_causal_ledger_unreadable") from exc
+        if content and not content.endswith(b"\n"):
+            if not repair_torn_tail:
+                raise RuntimeError("checkpoint_causal_ledger_torn_tail")
+            committed_length = content.rfind(b"\n") + 1
+            try:
+                with path.open("r+b") as handle:
+                    handle.truncate(committed_length)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                directory_fd = os.open(path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            except OSError as exc:
+                raise RuntimeError(
+                    "checkpoint_causal_ledger_torn_tail_repair_failed"
+                ) from exc
+            content = content[:committed_length]
+        try:
+            lines = content.decode("utf-8").splitlines()
+        except UnicodeDecodeError as exc:
+            raise RuntimeError("checkpoint_causal_ledger_invalid_utf8") from exc
+        for line_number, line in enumerate(lines, start=1):
+            if not line.strip():
+                raise RuntimeError(
+                    f"checkpoint_causal_ledger_blank_row:{line_number}"
+                )
+            try:
+                raw = _strict_json_loads(line)
+                if not isinstance(raw, dict) or set(raw) != expected_fields:
+                    raise ValueError("causal_ledger_fields_invalid")
+                if raw.get("schema_version") != CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION:
+                    raise ValueError("causal_ledger_schema_invalid")
+                generation = _manifest_int(
+                    raw.get("checkpoint_generation"),
+                    field_name="checkpoint_generation",
+                )
+                if generation != line_number:
+                    raise ValueError("causal_ledger_generation_not_contiguous")
+                checkpoint_causal_store = str(
+                    raw.get("checkpoint_causal_store") or ""
+                )
+                if checkpoint_causal_store not in {
+                    "serving_root",
+                    *_CHECKPOINT_STORE_SUBDIRECTORIES,
+                }:
+                    raise ValueError("causal_ledger_store_invalid")
+                semantic_digest = str(raw.get("checkpoint_semantic_digest") or "")
+                if not _is_sha256(semantic_digest):
+                    raise ValueError("causal_ledger_semantic_digest_invalid")
+                if semantic_digest in semantic_digests:
+                    raise ValueError("causal_ledger_semantic_digest_duplicate")
+                parent_checkpoint_id = raw.get("parent_checkpoint_id")
+                if parent_checkpoint_id is not None and (
+                    not isinstance(parent_checkpoint_id, str)
+                    or not parent_checkpoint_id
+                    or Path(parent_checkpoint_id).name != parent_checkpoint_id
+                ):
+                    raise ValueError("causal_ledger_parent_id_invalid")
+                raw_parent_generation = raw.get("parent_checkpoint_generation")
+                parent_generation = (
+                    None
+                    if raw_parent_generation is None
+                    else _manifest_int(
+                        raw_parent_generation,
+                        field_name="parent_checkpoint_generation",
+                    )
+                )
+                if parent_checkpoint_id is None and parent_generation is not None:
+                    raise ValueError("causal_ledger_parent_generation_without_parent")
+                if parent_checkpoint_id is not None and (
+                    parent_generation is None
+                    or parent_generation < 0
+                    or parent_generation >= generation
+                ):
+                    raise ValueError("causal_ledger_parent_generation_invalid")
+                generated_utc = str(raw.get("generated_utc") or "")
+                _strict_generated_utc(
+                    generated_utc,
+                    allow_future_after_clock_rollback=True,
+                )
+                if raw.get("previous_record_digest") != previous_digest:
+                    raise ValueError("causal_ledger_chain_predecessor_mismatch")
+                record = _CausalGenerationRecord(
+                    checkpoint_generation=generation,
+                    checkpoint_causal_store=checkpoint_causal_store,
+                    checkpoint_semantic_digest=semantic_digest,
+                    parent_checkpoint_id=parent_checkpoint_id,
+                    parent_checkpoint_generation=parent_generation,
+                    generated_utc=generated_utc,
+                    previous_record_digest=previous_digest,
+                    checkpoint_causal_record_digest=str(
+                        raw.get("checkpoint_causal_record_digest") or ""
+                    ),
+                )
+                if (
+                    not _is_sha256(record.checkpoint_causal_record_digest)
+                    or _canonical_digest(record.payload_without_digest())
+                    != record.checkpoint_causal_record_digest
+                ):
+                    raise ValueError("causal_ledger_record_digest_invalid")
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise RuntimeError(
+                    f"checkpoint_causal_ledger_invalid:{line_number}"
+                ) from exc
+            records.append(record)
+            semantic_digests.add(semantic_digest)
+            previous_digest = record.checkpoint_causal_record_digest
+        return tuple(records)
+
+    def _read_causal_ledger_with_tail_recovery(
+        self,
+    ) -> tuple[_CausalGenerationRecord, ...]:
+        try:
+            return self._read_causal_ledger()
+        except RuntimeError as exc:
+            if str(exc) != "checkpoint_causal_ledger_torn_tail":
+                raise
+        with self._exclusive_write_lock():
+            return self._read_causal_ledger(repair_torn_tail=True)
+
+    def _append_causal_record(self, record: _CausalGenerationRecord) -> None:
+        path = self._causal_ledger_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(
+                json.dumps(
+                    record.payload(),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                )
+                + "\n"
+            )
+            handle.flush()
+            os.fsync(handle.fileno())
+        directory_fd = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+    def _causal_manifest_paths(self, checkpoint_id: str) -> tuple[Path, ...]:
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            return ()
+        roots = (self._causal_root,) + tuple(
+            self._causal_root / directory
+            for directory in sorted(_CHECKPOINT_STORE_SUBDIRECTORIES)
+        )
+        return tuple(
+            path
+            for path in (root / f"{checkpoint_id}.json" for root in roots)
+            if path.is_file()
+        )
+
+    def _validate_lineage_artifact(self, raw: dict[str, Any]) -> None:
+        checkpoint_id = str(raw.get("checkpoint_id") or "")
+        if raw.get("weight_blob_written") is not True:
+            raise ValueError("checkpoint_lineage_weight_missing")
+        if raw.get("weight_file_format") != "npz":
+            raise ValueError("checkpoint_lineage_weight_format_invalid")
+        resolved = self._resolve_weight_path(
+            raw.get("weight_file_path"),
+            checkpoint_id,
+        )
+        if resolved is None:
+            raise ValueError("checkpoint_lineage_weight_path_unresolved")
+        expected_sha256 = str(raw.get("weight_file_sha256") or "")
+        expected_size = _manifest_int(
+            raw.get("weight_file_size_bytes"),
+            field_name="weight_file_size_bytes",
+        )
+        with _private_checkpoint_copy(resolved) as snapshot:
+            if (
+                not _is_sha256(expected_sha256)
+                or snapshot.sha256 != expected_sha256
+            ):
+                raise ValueError("checkpoint_lineage_weight_sha256_invalid")
+            if expected_size <= 0 or snapshot.size_bytes != expected_size:
+                raise ValueError("checkpoint_lineage_weight_size_invalid")
+            semantics = _safe_npz_semantics(
+                snapshot.stream,
+                model_id=str(raw.get("model_id") or ""),
+            )
+        if (
+            semantics.get("input_dim")
+            != _manifest_int(raw.get("input_dim"), field_name="input_dim")
+            or semantics.get("model_parameter_fingerprint")
+            != raw.get("model_parameter_fingerprint")
+            or semantics.get("confidence_calibration_state")
+            != raw.get("confidence_calibration_state")
+        ):
+            raise ValueError("checkpoint_lineage_weight_semantics_invalid")
+
+    def _validate_causal_manifest(
+        self,
+        raw: dict[str, Any],
+        *,
+        ledger_records: tuple[_CausalGenerationRecord, ...],
+    ) -> int:
+        causal_fields = {
+            "checkpoint_causal_order_schema_version",
+            "checkpoint_causal_store",
+            "checkpoint_generation",
+            "parent_checkpoint_generation",
+            "checkpoint_semantic_digest",
+            "checkpoint_causal_record_digest",
+        }
+        present = causal_fields.intersection(raw)
+        if not present:
+            return 0
+        if present != causal_fields:
+            raise ValueError("checkpoint_causal_fields_partial")
+        if (
+            raw.get("checkpoint_causal_order_schema_version")
+            != CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
+        ):
+            raise ValueError("checkpoint_causal_schema_invalid")
+        if raw.get("checkpoint_source") != CHECKPOINT_SOURCE:
+            raise ValueError("checkpoint_causal_source_invalid")
+        if raw.get("checkpoint_causal_store") != self._causal_store:
+            raise ValueError("checkpoint_causal_store_invalid")
+        generation = _manifest_int(
+            raw.get("checkpoint_generation"),
+            field_name="checkpoint_generation",
+        )
+        if generation <= 0 or generation > len(ledger_records):
+            raise ValueError("checkpoint_generation_invalid")
+        semantic_digest = str(raw.get("checkpoint_semantic_digest") or "")
+        record_digest = str(raw.get("checkpoint_causal_record_digest") or "")
+        if not _is_sha256(semantic_digest) or not _is_sha256(record_digest):
+            raise ValueError("checkpoint_causal_digest_invalid")
+        parent_checkpoint_id = raw.get("parent_checkpoint_id")
+        raw_parent_generation = raw.get("parent_checkpoint_generation")
+        parent_generation = (
+            None
+            if raw_parent_generation is None
+            else _manifest_int(
+                raw_parent_generation,
+                field_name="parent_checkpoint_generation",
+            )
+        )
+        if parent_checkpoint_id is None and parent_generation is not None:
+            raise ValueError("checkpoint_parent_generation_without_parent")
+        if parent_checkpoint_id is not None and (
+            parent_generation is None
+            or parent_generation < 0
+            or parent_generation >= generation
+        ):
+            raise ValueError("checkpoint_parent_generation_invalid")
+        evidence = raw.get("checkpoint_evidence")
+        if not isinstance(evidence, dict):
+            raise ValueError("checkpoint_causal_evidence_missing")
+        evidence_bindings = {
+            "checkpoint_causal_order_schema_version": (
+                CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
+            ),
+            "checkpoint_causal_store": self._causal_store,
+            "checkpoint_generation": generation,
+            "parent_checkpoint_generation": parent_generation,
+            "checkpoint_semantic_digest": semantic_digest,
+            "checkpoint_causal_record_digest": record_digest,
+        }
+        if any(
+            evidence.get(field_name) != expected
+            for field_name, expected in evidence_bindings.items()
+        ):
+            raise ValueError("checkpoint_causal_evidence_binding_mismatch")
+        if (
+            raw.get("checkpoint_evidence_schema_version")
+            != CHECKPOINT_EVIDENCE_SCHEMA_VERSION
+            or raw.get("checkpoint_evidence_digest")
+            != _canonical_digest(evidence)
+        ):
+            raise ValueError("checkpoint_evidence_digest_mismatch")
+        observed_semantic_digest = _checkpoint_semantic_digest(
+            model_id=str(raw.get("model_id") or ""),
+            input_dim=_manifest_int(raw.get("input_dim"), field_name="input_dim"),
+            checkpoint_causal_store=self._causal_store,
+            confidence_calibration_state=(
+                dict(raw.get("confidence_calibration_state"))
+                if isinstance(raw.get("confidence_calibration_state"), dict)
+                else {}
+            ),
+            model_parameter_fingerprint=raw.get("model_parameter_fingerprint"),
+            lineage_kind=str(raw.get("lineage_kind") or "SERVING_CANDIDATE"),
+            parent_checkpoint_id=parent_checkpoint_id,
+            parent_policy_fingerprint=raw.get("parent_policy_fingerprint"),
+            consumed_ppo_update_keys=tuple(
+                str(value) for value in (raw.get("consumed_ppo_update_keys") or ())
+            ),
+            training_partition_digest=raw.get("training_partition_digest"),
+            checkpoint_evidence=evidence,
+        )
+        if observed_semantic_digest != semantic_digest:
+            raise ValueError("checkpoint_semantic_digest_mismatch")
+        manifest_fingerprint = str(raw.get("model_parameter_fingerprint") or "")
+        calibration_state = raw.get("confidence_calibration_state")
+        if (
+            _is_sha256(manifest_fingerprint)
+            and isinstance(calibration_state, dict)
+            and calibration_state
+        ):
+            calibration_fingerprint = _canonical_digest(calibration_state)
+            state_fingerprint = _canonical_digest(
+                {
+                    "confidence_calibration_fingerprint": calibration_fingerprint,
+                    "checkpoint_evidence_digest": raw.get(
+                        "checkpoint_evidence_digest"
+                    ),
+                }
+            )
+            expected_checkpoint_id = (
+                f"v2_hybrid_ckpt_{str(raw.get('model_id') or '')[-8:]}_"
+                f"{manifest_fingerprint[:16]}_{state_fingerprint[:12]}"
+            )
+        else:
+            expected_checkpoint_id = (
+                f"v2_hybrid_ckpt_{str(raw.get('model_id') or '')[-8:]}_"
+                f"{semantic_digest[:16]}_{record_digest[:12]}"
+            )
+        if raw.get("checkpoint_id") != expected_checkpoint_id:
+            raise ValueError("checkpoint_causal_content_identity_mismatch")
+        record = ledger_records[generation - 1]
+        if (
+            record.checkpoint_generation != generation
+            or record.checkpoint_causal_store != self._causal_store
+            or record.checkpoint_semantic_digest != semantic_digest
+            or record.parent_checkpoint_id != parent_checkpoint_id
+            or record.parent_checkpoint_generation != parent_generation
+            or record.generated_utc != raw.get("generated_utc")
+            or record.checkpoint_causal_record_digest != record_digest
+        ):
+            raise ValueError("checkpoint_causal_ledger_binding_mismatch")
+        if parent_checkpoint_id is not None:
+            parent_paths = self._causal_manifest_paths(parent_checkpoint_id)
+            if len(parent_paths) != 1:
+                raise ValueError("checkpoint_causal_parent_manifest_unavailable")
+            parent_manager = V2HybridCheckpointManager(parent_paths[0].parent)
+            parent_raw = _strict_json_loads(
+                parent_paths[0].read_text(encoding="utf-8")
+            )
+            if not isinstance(parent_raw, dict):
+                raise ValueError("checkpoint_causal_parent_manifest_invalid")
+            observed_parent_generation = parent_manager._validate_causal_manifest(
+                parent_raw,
+                ledger_records=ledger_records,
+            )
+            if observed_parent_generation == 0:
+                if (
+                    parent_raw.get("checkpoint_id") != parent_checkpoint_id
+                    or parent_raw.get("checkpoint_source")
+                    not in (None, CHECKPOINT_SOURCE)
+                ):
+                    raise ValueError("checkpoint_legacy_parent_identity_invalid")
+                _strict_generated_utc(parent_raw.get("generated_utc"))
+            if (
+                observed_parent_generation != parent_generation
+                or parent_raw.get("model_parameter_fingerprint")
+                != raw.get("parent_policy_fingerprint")
+            ):
+                raise ValueError("checkpoint_causal_parent_binding_mismatch")
+            parent_manager._validate_lineage_artifact(parent_raw)
+        return generation
+
+    def _parent_checkpoint_generation(
+        self,
+        *,
+        parent_checkpoint_id: str | None,
+        parent_policy_fingerprint: str | None,
+        ledger_records: tuple[_CausalGenerationRecord, ...],
+    ) -> int | None:
+        if parent_checkpoint_id is None:
+            return None
+        paths = self._causal_manifest_paths(parent_checkpoint_id)
+        if not paths:
+            raise RuntimeError("checkpoint_parent_manifest_missing")
+        if len(paths) != 1:
+            raise RuntimeError("checkpoint_parent_manifest_ambiguous")
+        try:
+            raw = _strict_json_loads(paths[0].read_text(encoding="utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError("checkpoint_parent_manifest_not_object")
+            if raw.get("checkpoint_id") != parent_checkpoint_id:
+                raise ValueError("checkpoint_parent_identity_mismatch")
+            if raw.get("checkpoint_source") not in (None, CHECKPOINT_SOURCE):
+                raise ValueError("checkpoint_parent_source_invalid")
+            if not isinstance(raw.get("model_id"), str) or not raw.get("model_id"):
+                raise ValueError("checkpoint_parent_model_id_invalid")
+            if (
+                _manifest_int(raw.get("input_dim"), field_name="input_dim")
+                <= 0
+            ):
+                raise ValueError("checkpoint_parent_input_dim_invalid")
+            if not isinstance(raw.get("weight_blob_written"), bool):
+                raise ValueError("checkpoint_parent_weight_flag_invalid")
+            if not _is_sha256(parent_policy_fingerprint):
+                raise ValueError("checkpoint_parent_policy_fingerprint_invalid")
+            if raw.get("model_parameter_fingerprint") != parent_policy_fingerprint:
+                raise ValueError("checkpoint_parent_policy_fingerprint_mismatch")
+            parent_manager = V2HybridCheckpointManager(paths[0].parent)
+            generation = parent_manager._validate_causal_manifest(
+                raw,
+                ledger_records=ledger_records,
+            )
+            parent_manager._validate_lineage_artifact(raw)
+            _strict_generated_utc(
+                raw.get("generated_utc"),
+                allow_future_after_clock_rollback=generation > 0,
+            )
+        except (OSError, TypeError, ValueError, OverflowError) as exc:
+            raise RuntimeError("checkpoint_parent_manifest_invalid") from exc
+        return generation
+
+    def _allocate_causal_generation(
+        self,
+        *,
+        checkpoint_semantic_digest: str,
+        parent_checkpoint_id: str | None,
+        parent_policy_fingerprint: str | None,
+    ) -> _CausalGenerationRecord:
+        records = self._read_causal_ledger(repair_torn_tail=True)
+        parent_generation = self._parent_checkpoint_generation(
+            parent_checkpoint_id=parent_checkpoint_id,
+            parent_policy_fingerprint=parent_policy_fingerprint,
+            ledger_records=records,
+        )
+        for record in records:
+            if record.checkpoint_semantic_digest == checkpoint_semantic_digest:
+                if (
+                    record.checkpoint_causal_store != self._causal_store
+                    or record.parent_checkpoint_id != parent_checkpoint_id
+                    or record.parent_checkpoint_generation != parent_generation
+                ):
+                    raise RuntimeError(
+                        "checkpoint_causal_semantic_identity_conflict"
+                    )
+                return record
+        generation = len(records) + 1
+        if parent_generation is not None and parent_generation >= generation:
+            raise RuntimeError("checkpoint_parent_generation_not_predecessor")
+        previous_digest = (
+            records[-1].checkpoint_causal_record_digest
+            if records
+            else _CHECKPOINT_CAUSAL_GENESIS_DIGEST
+        )
+        base_record = _CausalGenerationRecord(
+            checkpoint_generation=generation,
+            checkpoint_causal_store=self._causal_store,
+            checkpoint_semantic_digest=checkpoint_semantic_digest,
+            parent_checkpoint_id=parent_checkpoint_id,
+            parent_checkpoint_generation=parent_generation,
+            generated_utc=_utc_iso(),
+            previous_record_digest=previous_digest,
+            checkpoint_causal_record_digest="",
+        )
+        record = _CausalGenerationRecord(
+            **{
+                **base_record.__dict__,
+                "checkpoint_causal_record_digest": _canonical_digest(
+                    base_record.payload_without_digest()
+                ),
+            }
+        )
+        self._append_causal_record(record)
+        return record
+
+    @contextmanager
+    def _exclusive_write_lock(self) -> Iterator[None]:
+        self._causal_root.mkdir(parents=True, exist_ok=True)
+        lock_path = self._causal_root / _CHECKPOINT_CAUSAL_LOCK_NAME
+        with lock_path.open("a+b") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def write_manifest(
         self,
@@ -75,15 +1086,108 @@ class V2HybridCheckpointManager:
         weight_file_path: str | None = None,
         weight_file_format: str | None = None,
         weight_file_size_bytes: int | None = None,
+        confidence_calibration_state: dict[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        model_parameter_fingerprint: str | None = None,
+        weight_file_sha256: str | None = None,
+        lineage_kind: str = "SERVING_CANDIDATE",
+        parent_checkpoint_id: str | None = None,
+        parent_policy_fingerprint: str | None = None,
+        consumed_ppo_update_keys: tuple[str, ...] = (),
+        training_partition_digest: str | None = None,
+        checkpoint_evidence: dict[str, Any] | None = None,
+        checkpoint_evidence_digest: str | None = None,
+        _causal_record: _CausalGenerationRecord | None = None,
+        _semantic_digest: str | None = None,
     ) -> CheckpointManifest:
         self._validate_model_dir()
         self.model_dir.mkdir(parents=True, exist_ok=True)
-        checkpoint_id = f"v2_hybrid_ckpt_{model_id[-24:]}"
+        calibration = dict(confidence_calibration_state or {})
+        ordered_consumed_keys = tuple(dict.fromkeys(consumed_ppo_update_keys))
+        base_evidence = _base_checkpoint_evidence(dict(checkpoint_evidence or {}))
+        semantic_digest = _semantic_digest
+        if semantic_digest is None:
+            semantic_digest = _checkpoint_semantic_digest(
+                model_id=model_id,
+                input_dim=input_dim,
+                checkpoint_causal_store=self._causal_store,
+                confidence_calibration_state=calibration,
+                model_parameter_fingerprint=model_parameter_fingerprint,
+                lineage_kind=lineage_kind,
+                parent_checkpoint_id=parent_checkpoint_id,
+                parent_policy_fingerprint=parent_policy_fingerprint,
+                consumed_ppo_update_keys=ordered_consumed_keys,
+                training_partition_digest=training_partition_digest,
+                checkpoint_evidence=base_evidence,
+            )
+        if not isinstance(semantic_digest, str) or not _is_sha256(semantic_digest):
+            raise ValueError("checkpoint_semantic_digest_invalid")
+        if _causal_record is None:
+            with self._exclusive_write_lock():
+                record = self._allocate_causal_generation(
+                    checkpoint_semantic_digest=semantic_digest,
+                    parent_checkpoint_id=parent_checkpoint_id,
+                    parent_policy_fingerprint=parent_policy_fingerprint,
+                )
+                return self.write_manifest(
+                    model_id=model_id,
+                    input_dim=input_dim,
+                    device=device,
+                    cuda_active=cuda_active,
+                    weight_blob_written=weight_blob_written,
+                    weight_file_path=weight_file_path,
+                    weight_file_format=weight_file_format,
+                    weight_file_size_bytes=weight_file_size_bytes,
+                    confidence_calibration_state=calibration,
+                    checkpoint_id=checkpoint_id,
+                    model_parameter_fingerprint=model_parameter_fingerprint,
+                    weight_file_sha256=weight_file_sha256,
+                    lineage_kind=lineage_kind,
+                    parent_checkpoint_id=parent_checkpoint_id,
+                    parent_policy_fingerprint=parent_policy_fingerprint,
+                    consumed_ppo_update_keys=ordered_consumed_keys,
+                    training_partition_digest=training_partition_digest,
+                    checkpoint_evidence=base_evidence,
+                    checkpoint_evidence_digest=checkpoint_evidence_digest,
+                    _causal_record=record,
+                    _semantic_digest=semantic_digest,
+                )
+        if (
+            _causal_record.checkpoint_semantic_digest != semantic_digest
+            or _causal_record.parent_checkpoint_id != parent_checkpoint_id
+        ):
+            raise ValueError("checkpoint_causal_record_semantics_mismatch")
+        checkpoint_id = checkpoint_id or (
+            f"v2_hybrid_ckpt_{model_id[-8:]}_"
+            f"{semantic_digest[:16]}_"
+            f"{_causal_record.checkpoint_causal_record_digest[:12]}"
+        )
+        evidence = {
+            **base_evidence,
+            "checkpoint_causal_order_schema_version": (
+                CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
+            ),
+            "checkpoint_causal_store": self._causal_store,
+            "checkpoint_generation": _causal_record.checkpoint_generation,
+            "parent_checkpoint_generation": (
+                _causal_record.parent_checkpoint_generation
+            ),
+            "checkpoint_semantic_digest": semantic_digest,
+            "checkpoint_causal_record_digest": (
+                _causal_record.checkpoint_causal_record_digest
+            ),
+        }
+        causal_evidence_digest = _canonical_digest(evidence)
+        if (
+            checkpoint_evidence_digest is not None
+            and checkpoint_evidence_digest != causal_evidence_digest
+        ):
+            raise ValueError("checkpoint_causal_evidence_digest_mismatch")
         manifest = CheckpointManifest(
             checkpoint_id=checkpoint_id,
             checkpoint_source=CHECKPOINT_SOURCE,
             path=str(self.model_dir / f"{checkpoint_id}.json"),
-            generated_utc=_utc_iso(),
+            generated_utc=_causal_record.generated_utc,
             model_id=model_id,
             input_dim=int(input_dim),
             device=device,
@@ -92,6 +1196,64 @@ class V2HybridCheckpointManager:
             weight_file_path=weight_file_path,
             weight_file_format=weight_file_format,
             weight_file_size_bytes=weight_file_size_bytes,
+            confidence_calibration_fitted=calibration.get("fitted") is True,
+            confidence_calibration_temperature=(
+                float(calibration["temperature"])
+                if calibration.get("fitted") is True
+                and calibration.get("temperature") is not None
+                else None
+            ),
+            confidence_calibration_sample=int(calibration.get("sample") or 0),
+            confidence_calibration_reason=calibration.get("reason"),
+            confidence_calibration_fit_partition=calibration.get("fit_partition"),
+            confidence_calibration_validation_rows_used=int(
+                calibration.get("validation_rows_used") or 0
+            ),
+            confidence_calibration_label_semantics=calibration.get("label_semantics"),
+            confidence_head_schema_version=calibration.get(
+                "confidence_head_schema_version"
+            ),
+            confidence_head_actions=tuple(
+                str(action)
+                for action in (calibration.get("confidence_head_actions") or ())
+            ),
+            confidence_calibration_long_sample=int(
+                (calibration.get("action_counts") or {}).get("long") or 0
+            ),
+            confidence_calibration_short_sample=int(
+                (calibration.get("action_counts") or {}).get("short") or 0
+            ),
+            confidence_calibration_model_parameter_fingerprint=calibration.get(
+                "model_parameter_fingerprint"
+            ),
+            confidence_calibration_row_digest=calibration.get("row_digest"),
+            confidence_calibration_state=calibration,
+            model_parameter_fingerprint=model_parameter_fingerprint,
+            weight_file_sha256=weight_file_sha256,
+            lineage_kind=str(lineage_kind),
+            parent_checkpoint_id=parent_checkpoint_id,
+            parent_policy_fingerprint=parent_policy_fingerprint,
+            consumed_ppo_update_keys=ordered_consumed_keys,
+            training_partition_digest=training_partition_digest,
+            checkpoint_evidence_schema_version=(
+                CHECKPOINT_EVIDENCE_SCHEMA_VERSION
+                if causal_evidence_digest
+                else None
+            ),
+            checkpoint_evidence=evidence,
+            checkpoint_evidence_digest=causal_evidence_digest,
+            checkpoint_causal_order_schema_version=(
+                CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
+            ),
+            checkpoint_causal_store=self._causal_store,
+            checkpoint_generation=_causal_record.checkpoint_generation,
+            parent_checkpoint_generation=(
+                _causal_record.parent_checkpoint_generation
+            ),
+            checkpoint_semantic_digest=semantic_digest,
+            checkpoint_causal_record_digest=(
+                _causal_record.checkpoint_causal_record_digest
+            ),
         )
         path = Path(manifest.path)
         _atomic_write_text(path, json.dumps(manifest.__dict__, indent=2, sort_keys=True))
@@ -105,87 +1267,458 @@ class V2HybridCheckpointManager:
         device: str,
         cuda_active: bool,
         write_weight_blob: bool = True,
+        lineage_kind: str = "SERVING_CANDIDATE",
+        parent_checkpoint_id: str | None = None,
+        parent_policy_fingerprint: str | None = None,
+        consumed_ppo_update_keys: tuple[str, ...] = (),
+        training_partition_digest: str | None = None,
+        checkpoint_evidence: dict[str, Any] | None = None,
     ) -> CheckpointManifest:
         self._validate_model_dir()
-        checkpoint_id = f"v2_hybrid_ckpt_{model.model_id[-24:]}"
-        weight: dict[str, Any] = {}
-        if write_weight_blob:
-            weight = model.save_weight_blob(self.model_dir / f"{checkpoint_id}.weights.npz")
-        return self.write_manifest(
-            model_id=model.model_id,
-            input_dim=input_dim,
-            device=device,
-            cuda_active=cuda_active,
-            weight_blob_written=bool(weight),
-            weight_file_path=weight.get("weight_file_path"),
-            weight_file_format=weight.get("weight_file_format"),
-            weight_file_size_bytes=weight.get("weight_file_size_bytes"),
+        from .on_policy_behavior import model_parameter_fingerprint
+
+        calibration_state = model.set_confidence_calibration_state(
+            model.confidence_calibration_state
         )
+        parameter_fingerprint = model_parameter_fingerprint(model)
+        calibration_fingerprint = hashlib.sha256(
+            json.dumps(
+                calibration_state,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+        ordered_consumed_keys = tuple(dict.fromkeys(consumed_ppo_update_keys))
+        base_evidence = {
+            **dict(checkpoint_evidence or {}),
+            "schema_version": CHECKPOINT_EVIDENCE_SCHEMA_VERSION,
+            "lineage_kind": str(lineage_kind),
+            "parent_checkpoint_id": parent_checkpoint_id,
+            "parent_policy_fingerprint": parent_policy_fingerprint,
+            "consumed_ppo_update_keys": list(ordered_consumed_keys),
+            "training_partition_digest": training_partition_digest,
+        }
+        with self._exclusive_write_lock():
+            semantic_digest = _checkpoint_semantic_digest(
+                model_id=model.model_id,
+                input_dim=input_dim,
+                checkpoint_causal_store=self._causal_store,
+                confidence_calibration_state=calibration_state,
+                model_parameter_fingerprint=parameter_fingerprint,
+                lineage_kind=lineage_kind,
+                parent_checkpoint_id=parent_checkpoint_id,
+                parent_policy_fingerprint=parent_policy_fingerprint,
+                consumed_ppo_update_keys=ordered_consumed_keys,
+                training_partition_digest=training_partition_digest,
+                checkpoint_evidence=base_evidence,
+            )
+            causal_record = self._allocate_causal_generation(
+                checkpoint_semantic_digest=semantic_digest,
+                parent_checkpoint_id=parent_checkpoint_id,
+                parent_policy_fingerprint=parent_policy_fingerprint,
+            )
+            evidence = {
+                **base_evidence,
+                "checkpoint_causal_order_schema_version": (
+                    CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
+                ),
+                "checkpoint_causal_store": self._causal_store,
+                "checkpoint_generation": causal_record.checkpoint_generation,
+                "parent_checkpoint_generation": (
+                    causal_record.parent_checkpoint_generation
+                ),
+                "checkpoint_semantic_digest": semantic_digest,
+                "checkpoint_causal_record_digest": (
+                    causal_record.checkpoint_causal_record_digest
+                ),
+            }
+            evidence_digest = _canonical_digest(evidence)
+            checkpoint_state_fingerprint = _canonical_digest(
+                {
+                    "confidence_calibration_fingerprint": calibration_fingerprint,
+                    "checkpoint_evidence_digest": evidence_digest,
+                }
+            )
+            checkpoint_id = (
+                f"v2_hybrid_ckpt_{model.model_id[-8:]}_"
+                f"{parameter_fingerprint[:16]}_{checkpoint_state_fingerprint[:12]}"
+            )
+            weight: dict[str, Any] = {}
+            weight_path = self.model_dir / f"{checkpoint_id}.weights.npz"
+            manifest_path = self.model_dir / f"{checkpoint_id}.json"
+            if manifest_path.exists():
+                try:
+                    existing = _strict_json_loads(
+                        manifest_path.read_text(encoding="utf-8")
+                    )
+                except (OSError, json.JSONDecodeError, ValueError) as exc:
+                    raise RuntimeError("checkpoint_existing_manifest_invalid") from exc
+                expected_fields = {
+                    "checkpoint_id": checkpoint_id,
+                    "model_id": model.model_id,
+                    "model_parameter_fingerprint": parameter_fingerprint,
+                    "confidence_calibration_state": calibration_state,
+                    "checkpoint_evidence": evidence,
+                    "checkpoint_evidence_digest": evidence_digest,
+                }
+                if any(
+                    existing.get(field_name) != expected
+                    for field_name, expected in expected_fields.items()
+                ):
+                    raise RuntimeError(
+                        "checkpoint_existing_semantic_identity_conflict"
+                    )
+                existing_has_weight = existing.get("weight_blob_written") is True
+                if existing_has_weight:
+                    if not weight_path.is_file():
+                        raise RuntimeError("checkpoint_existing_weight_missing")
+                    existing_sha = str(existing.get("weight_file_sha256") or "")
+                    actual_digest = hashlib.sha256()
+                    with weight_path.open("rb") as handle:
+                        for chunk in iter(
+                            lambda: handle.read(1024 * 1024), b""
+                        ):
+                            actual_digest.update(chunk)
+                    if (
+                        len(existing_sha) != 64
+                        or actual_digest.hexdigest() != existing_sha
+                    ):
+                        raise RuntimeError("checkpoint_existing_weight_sha256_conflict")
+                elif write_weight_blob:
+                    raise RuntimeError(
+                        "checkpoint_metadata_identity_cannot_replace_with_weight"
+                    )
+                rows = self._manifest_rows(
+                    input_dim=input_dim,
+                    model_id=model.model_id,
+                    require_weight_blob=existing_has_weight,
+                )
+                if self._manifest_scan_errors:
+                    raise RuntimeError("checkpoint_manifest_scan_invalid")
+                for _mtime, existing_manifest in rows:
+                    if existing_manifest.checkpoint_id == checkpoint_id:
+                        return existing_manifest
+                raise RuntimeError("checkpoint_existing_manifest_unreadable")
+            if weight_path.exists():
+                if write_weight_blob:
+                    quarantine = self.model_dir / (
+                        f".{weight_path.name}.orphan.{os.getpid()}.{datetime.now(UTC).timestamp():.0f}"
+                    )
+                    weight_path.replace(quarantine)
+                    directory_fd = os.open(weight_path.parent, os.O_RDONLY)
+                    try:
+                        os.fsync(directory_fd)
+                    finally:
+                        os.close(directory_fd)
+                else:
+                    raise RuntimeError(
+                        "checkpoint_metadata_write_refuses_orphan_weight"
+                    )
+            if write_weight_blob:
+                weight = model.save_weight_blob(weight_path)
+                weight_path = Path(str(weight.get("weight_file_path") or ""))
+                if not weight_path.is_file():
+                    raise RuntimeError("checkpoint_weight_blob_not_durable")
+                with weight_path.open("rb") as handle:
+                    os.fsync(handle.fileno())
+                directory_fd = os.open(weight_path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+                digest = hashlib.sha256()
+                with weight_path.open("rb") as handle:
+                    for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(chunk)
+                weight["weight_file_sha256"] = digest.hexdigest()
+            return self.write_manifest(
+                model_id=model.model_id,
+                input_dim=input_dim,
+                device=device,
+                cuda_active=cuda_active,
+                weight_blob_written=bool(weight),
+                weight_file_path=weight.get("weight_file_path"),
+                weight_file_format=weight.get("weight_file_format"),
+                weight_file_size_bytes=weight.get("weight_file_size_bytes"),
+                confidence_calibration_state=calibration_state,
+                checkpoint_id=checkpoint_id,
+                model_parameter_fingerprint=parameter_fingerprint,
+                weight_file_sha256=weight.get("weight_file_sha256"),
+                lineage_kind=lineage_kind,
+                parent_checkpoint_id=parent_checkpoint_id,
+                parent_policy_fingerprint=parent_policy_fingerprint,
+                consumed_ppo_update_keys=ordered_consumed_keys,
+                training_partition_digest=training_partition_digest,
+                checkpoint_evidence=evidence,
+                checkpoint_evidence_digest=evidence_digest,
+                _causal_record=causal_record,
+                _semantic_digest=semantic_digest,
+            )
 
     def _resolve_weight_path(self, weight_file_path: Any, checkpoint_id: str) -> Path | None:
-        """CWD-independent resolution of a manifest's weight blob.
+        """Resolve only the manager-owned, exact checkpoint artifact.
 
         Manifests may store a repo-root-relative ``weight_file_path`` (the live
         dir does), so a tool invoked from a different working directory would
         fail to find it and wrongly report NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST.
-        The blob is always written to ``model_dir/{checkpoint_id}.weights.npz``,
-        so fall back to that (and to the basename inside model_dir) before giving
-        up. Returns the first existing candidate, or None.
+        The blob is always written to ``model_dir/{checkpoint_id}.weights.npz``.
+        Never follow a manifest-controlled external path: a stale stored path is
+        tolerated only by resolving the canonical manager-owned filename.
         """
-        candidates: list[Path] = []
-        if weight_file_path:
-            candidates.append(Path(str(weight_file_path)))
-            candidates.append(self.model_dir / Path(str(weight_file_path)).name)
-        if checkpoint_id:
-            candidates.append(self.model_dir / f"{checkpoint_id}.weights.npz")
-        for candidate in candidates:
-            try:
-                if candidate.exists():
-                    return candidate
-            except OSError:
-                continue
+        del weight_file_path
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            return None
+        candidate = self.model_dir / f"{checkpoint_id}.weights.npz"
+        try:
+            model_root = self.model_dir.resolve(strict=True)
+            resolved = candidate.resolve(strict=True)
+            if resolved.parent == model_root and resolved.is_file():
+                return resolved
+        except OSError:
+            return None
         return None
 
     def _manifest_rows(
         self,
         *,
         input_dim: int | None = None,
+        model_id: str | None = None,
+        allowed_lineage_kinds: frozenset[str] | None = None,
         require_weight_blob: bool = False,
-    ) -> list[tuple[float, CheckpointManifest]]:
-        manifests: list[tuple[float, CheckpointManifest]] = []
+    ) -> list[tuple[tuple[int, int, datetime, str], CheckpointManifest]]:
+        self._manifest_scan_errors = []
+        manifests: list[
+            tuple[tuple[int, int, datetime, str], CheckpointManifest]
+        ] = []
+        try:
+            ledger_records = self._read_causal_ledger_with_tail_recovery()
+        except RuntimeError as exc:
+            self._manifest_scan_errors.append(
+                {"path": str(self._causal_ledger_path), "reason": str(exc)}
+            )
+            return []
         for path in self.model_dir.glob("v2_hybrid_ckpt_*.json"):
             if path.name.endswith(".tmp"):
                 continue
             try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
-            except Exception:
+                raw = _strict_json_loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, ValueError) as exc:
+                self._manifest_scan_errors.append(
+                    {"path": str(path), "reason": type(exc).__name__}
+                )
                 continue
-            if input_dim is not None and int(raw.get("input_dim") or -1) != int(input_dim):
+            if not isinstance(raw, dict) or any(
+                field_name not in raw
+                for field_name in (
+                    "checkpoint_id",
+                    "model_id",
+                    "input_dim",
+                    "weight_blob_written",
+                )
+            ):
+                self._manifest_scan_errors.append(
+                    {"path": str(path), "reason": "CORE_MANIFEST_FIELDS_MISSING"}
+                )
+                continue
+            try:
+                raw_input_dim = _manifest_int(
+                    raw.get("input_dim"), field_name="input_dim"
+                )
+                if raw_input_dim <= 0:
+                    raise ValueError("input_dim_not_positive")
+                if not isinstance(raw.get("checkpoint_id"), str) or not str(
+                    raw.get("checkpoint_id")
+                ):
+                    raise ValueError("checkpoint_id_not_string")
+                if str(raw.get("checkpoint_id")) != path.stem:
+                    raise ValueError("checkpoint_id_filename_mismatch")
+                if not isinstance(raw.get("model_id"), str) or not str(
+                    raw.get("model_id")
+                ):
+                    raise ValueError("model_id_not_string")
+                if not isinstance(raw.get("weight_blob_written"), bool):
+                    raise ValueError("weight_blob_written_not_boolean")
+                checkpoint_generation = self._validate_causal_manifest(
+                    raw,
+                    ledger_records=ledger_records,
+                )
+                generated_utc = _strict_generated_utc(
+                    raw.get("generated_utc"),
+                    allow_future_after_clock_rollback=checkpoint_generation > 0,
+                )
+                calibration_sample = _manifest_int(
+                    raw.get("confidence_calibration_sample") or 0,
+                    field_name="confidence_calibration_sample",
+                )
+                calibration_validation_rows = _manifest_int(
+                    raw.get("confidence_calibration_validation_rows_used") or 0,
+                    field_name="confidence_calibration_validation_rows_used",
+                )
+                calibration_long_sample = _manifest_int(
+                    raw.get("confidence_calibration_long_sample") or 0,
+                    field_name="confidence_calibration_long_sample",
+                )
+                calibration_short_sample = _manifest_int(
+                    raw.get("confidence_calibration_short_sample") or 0,
+                    field_name="confidence_calibration_short_sample",
+                )
+                for count in (
+                    calibration_sample,
+                    calibration_validation_rows,
+                    calibration_long_sample,
+                    calibration_short_sample,
+                ):
+                    if count < 0:
+                        raise ValueError("checkpoint_manifest_negative_count")
+                head_actions_raw = raw.get("confidence_head_actions") or ()
+                consumed_keys_raw = raw.get("consumed_ppo_update_keys") or ()
+                if not isinstance(head_actions_raw, list | tuple):
+                    raise ValueError("confidence_head_actions_not_sequence")
+                if not isinstance(consumed_keys_raw, list | tuple):
+                    raise ValueError("consumed_ppo_update_keys_not_sequence")
+            except (TypeError, ValueError, OverflowError) as exc:
+                self._manifest_scan_errors.append(
+                    {
+                        "path": str(path),
+                        "reason": str(exc) or type(exc).__name__,
+                    }
+                )
+                continue
+            if input_dim is not None and raw_input_dim != int(input_dim):
+                continue
+            if model_id is not None and str(raw.get("model_id") or "") != model_id:
+                continue
+            lineage_kind = str(raw.get("lineage_kind") or "LEGACY_SERVING_CANDIDATE")
+            if (
+                allowed_lineage_kinds is not None
+                and lineage_kind not in allowed_lineage_kinds
+            ):
                 continue
             manifests.append(
                 (
-                    path.stat().st_mtime,
+                    (
+                        1 if checkpoint_generation > 0 else 0,
+                        checkpoint_generation,
+                        (
+                            datetime.min.replace(tzinfo=UTC)
+                            if checkpoint_generation > 0
+                            else generated_utc
+                        ),
+                        str(raw["checkpoint_id"]),
+                    ),
                     CheckpointManifest(
                         checkpoint_id=str(raw.get("checkpoint_id") or path.stem),
                         checkpoint_source=str(raw.get("checkpoint_source") or CHECKPOINT_SOURCE),
                         path=str(raw.get("path") or path),
                         generated_utc=str(raw.get("generated_utc") or ""),
                         model_id=str(raw.get("model_id") or ""),
-                        input_dim=int(raw.get("input_dim") or 0),
+                        input_dim=raw_input_dim,
                         device=str(raw.get("device") or "unknown"),
                         cuda_active=bool(raw.get("cuda_active")),
                         weight_blob_written=bool(raw.get("weight_blob_written")),
                         weight_file_path=raw.get("weight_file_path"),
                         weight_file_format=raw.get("weight_file_format"),
                         weight_file_size_bytes=raw.get("weight_file_size_bytes"),
-                        external_deserialization_used=bool(raw.get("external_deserialization_used", False)),
+                        confidence_calibration_fitted=bool(
+                            raw.get("confidence_calibration_fitted", False)
+                        ),
+                        confidence_calibration_temperature=raw.get(
+                            "confidence_calibration_temperature"
+                        ),
+                        confidence_calibration_sample=calibration_sample,
+                        confidence_calibration_reason=raw.get(
+                            "confidence_calibration_reason"
+                        ),
+                        confidence_calibration_fit_partition=raw.get(
+                            "confidence_calibration_fit_partition"
+                        ),
+                        confidence_calibration_validation_rows_used=(
+                            calibration_validation_rows
+                        ),
+                        confidence_calibration_label_semantics=raw.get(
+                            "confidence_calibration_label_semantics"
+                        ),
+                        confidence_head_schema_version=raw.get(
+                            "confidence_head_schema_version"
+                        ),
+                        confidence_head_actions=tuple(
+                            str(action)
+                            for action in head_actions_raw
+                        ),
+                        confidence_calibration_long_sample=calibration_long_sample,
+                        confidence_calibration_short_sample=calibration_short_sample,
+                        confidence_calibration_model_parameter_fingerprint=raw.get(
+                            "confidence_calibration_model_parameter_fingerprint"
+                        ),
+                        confidence_calibration_row_digest=raw.get(
+                            "confidence_calibration_row_digest"
+                        ),
+                        confidence_calibration_state=(
+                            dict(raw.get("confidence_calibration_state"))
+                            if isinstance(
+                                raw.get("confidence_calibration_state"), dict
+                            )
+                            else {}
+                        ),
+                        model_parameter_fingerprint=raw.get(
+                            "model_parameter_fingerprint"
+                        ),
+                        weight_file_sha256=raw.get("weight_file_sha256"),
+                        lineage_kind=str(
+                            raw.get("lineage_kind") or "LEGACY_SERVING_CANDIDATE"
+                        ),
+                        parent_checkpoint_id=raw.get("parent_checkpoint_id"),
+                        parent_policy_fingerprint=raw.get(
+                            "parent_policy_fingerprint"
+                        ),
+                        consumed_ppo_update_keys=tuple(
+                            str(value)
+                            for value in consumed_keys_raw
+                        ),
+                        training_partition_digest=raw.get(
+                            "training_partition_digest"
+                        ),
+                        checkpoint_evidence_schema_version=raw.get(
+                            "checkpoint_evidence_schema_version"
+                        ),
+                        checkpoint_evidence=(
+                            dict(raw.get("checkpoint_evidence"))
+                            if isinstance(raw.get("checkpoint_evidence"), dict)
+                            else {}
+                        ),
+                        checkpoint_evidence_digest=raw.get(
+                            "checkpoint_evidence_digest"
+                        ),
+                        checkpoint_causal_order_schema_version=raw.get(
+                            "checkpoint_causal_order_schema_version"
+                        ),
+                        checkpoint_causal_store=raw.get(
+                            "checkpoint_causal_store"
+                        ),
+                        checkpoint_generation=checkpoint_generation,
+                        parent_checkpoint_generation=(
+                            raw.get("parent_checkpoint_generation")
+                            if checkpoint_generation > 0
+                            else None
+                        ),
+                        checkpoint_semantic_digest=raw.get(
+                            "checkpoint_semantic_digest"
+                        ),
+                        checkpoint_causal_record_digest=raw.get(
+                            "checkpoint_causal_record_digest"
+                        ),
+                        external_deserialization_used=bool(
+                            raw.get("external_deserialization_used", False)
+                        ),
                     ),
                 )
             )
         if require_weight_blob:
             manifests = [
-                (mtime, manifest)
-                for mtime, manifest in manifests
+                (sort_key, manifest)
+                for sort_key, manifest in manifests
                 if manifest.weight_blob_written
                 and self._resolve_weight_path(
                     manifest.weight_file_path, manifest.checkpoint_id
@@ -195,20 +1728,327 @@ class V2HybridCheckpointManager:
         manifests.sort(key=lambda item: item[0], reverse=True)
         return manifests
 
-    def latest_manifest(self, *, input_dim: int | None = None) -> CheckpointManifest | None:
-        manifests = self._manifest_rows(input_dim=input_dim)
+    def latest_manifest(
+        self,
+        *,
+        input_dim: int | None = None,
+        model_id: str | None = None,
+        allowed_lineage_kinds: frozenset[str] | None = None,
+    ) -> CheckpointManifest | None:
+        manifests = self._manifest_rows(
+            input_dim=input_dim,
+            model_id=model_id,
+            allowed_lineage_kinds=allowed_lineage_kinds,
+        )
         if not manifests:
             return None
         return manifests[0][1]
 
-    def load_latest_weights(self, model: V2HybridPolicyModel) -> dict[str, Any]:
-        latest_metadata_manifest = self.latest_manifest(input_dim=model.input_dim)
-        manifest_rows = self._manifest_rows(input_dim=model.input_dim, require_weight_blob=True)
+    def manifests(
+        self,
+        *,
+        input_dim: int | None = None,
+        model_id: str | None = None,
+        allowed_lineage_kinds: frozenset[str] | None = None,
+        require_weight_blob: bool = False,
+    ) -> tuple[CheckpointManifest, ...]:
+        """Return every matching manifest, newest first, or fail on scan damage."""
+        rows = self._manifest_rows(
+            input_dim=input_dim,
+            model_id=model_id,
+            allowed_lineage_kinds=allowed_lineage_kinds,
+            require_weight_blob=require_weight_blob,
+        )
+        if self._manifest_scan_errors:
+            raise RuntimeError("checkpoint_manifest_scan_invalid")
+        return tuple(manifest for _mtime, manifest in rows)
+
+    def verify_manifest_artifact(
+        self,
+        manifest: CheckpointManifest,
+    ) -> dict[str, Any]:
+        """Verify one durable checkpoint without mutating a serving model.
+
+        Startup reconciliation must inspect every optimizer-attempt artifact,
+        including historical candidates which are not the latest checkpoint.
+        Loading each artifact into the serving model would both mutate policy
+        state and make recovery order-dependent.  This verifier reads only the
+        explicit no-pickle NPZ representation and binds its bytes, parameter
+        semantics, calibration, evidence, lineage, and content-addressed ID.
+        """
+        reasons: list[str] = []
+        resolved_weight_path = self._resolve_weight_path(
+            manifest.weight_file_path, manifest.checkpoint_id
+        )
+        if manifest.checkpoint_source != CHECKPOINT_SOURCE:
+            reasons.append("CHECKPOINT_SOURCE_INVALID")
+        if manifest.external_deserialization_used:
+            reasons.append("EXTERNAL_DESERIALIZATION_NOT_ALLOWED")
+        if not manifest.weight_blob_written:
+            reasons.append("WEIGHT_BLOB_NOT_WRITTEN")
+        if manifest.weight_file_format != "npz":
+            reasons.append("WEIGHT_FORMAT_NOT_SAFE_NPZ")
+        if resolved_weight_path is None or not resolved_weight_path.is_file():
+            reasons.append("WEIGHT_BLOB_PATH_UNRESOLVED")
+        elif resolved_weight_path.suffix != ".npz":
+            reasons.append("WEIGHT_BLOB_SUFFIX_NOT_NPZ")
+
+        observed_sha256: str | None = None
+        observed_size_bytes: int | None = None
+        semantics: dict[str, Any] = {}
+        if resolved_weight_path is not None and resolved_weight_path.is_file():
+            try:
+                with _private_checkpoint_copy(resolved_weight_path) as snapshot:
+                    observed_sha256 = snapshot.sha256
+                    observed_size_bytes = snapshot.size_bytes
+                    try:
+                        semantics = _safe_npz_semantics(
+                            snapshot.stream,
+                            model_id=manifest.model_id,
+                        )
+                    except Exception as exc:  # noqa: BLE001 - fail-closed evidence
+                        reasons.append(
+                            "WEIGHT_BLOB_SEMANTIC_READ_FAILED:"
+                            f"{type(exc).__name__}"
+                        )
+            except OSError:
+                reasons.append("WEIGHT_BLOB_HASH_FAILED")
+            expected_sha256 = str(manifest.weight_file_sha256 or "")
+            if len(expected_sha256) != 64:
+                reasons.append("WEIGHT_BLOB_SHA256_MISSING")
+            elif observed_sha256 != expected_sha256:
+                reasons.append("WEIGHT_BLOB_SHA256_MISMATCH")
+            if manifest.weight_file_size_bytes is None:
+                reasons.append("WEIGHT_BLOB_SIZE_MISSING")
+            else:
+                try:
+                    expected_size = _manifest_int(
+                        manifest.weight_file_size_bytes,
+                        field_name="weight_file_size_bytes",
+                    )
+                    if (
+                        expected_size <= 0
+                        or observed_size_bytes != expected_size
+                    ):
+                        reasons.append("WEIGHT_BLOB_SIZE_MISMATCH")
+                except (OSError, TypeError, ValueError, OverflowError):
+                    reasons.append("WEIGHT_BLOB_SIZE_INVALID")
+
+        parameter_fingerprint = str(
+            semantics.get("model_parameter_fingerprint") or ""
+        )
+        manifest_fingerprint = str(manifest.model_parameter_fingerprint or "")
+        if len(manifest_fingerprint) != 64:
+            reasons.append("MODEL_PARAMETER_FINGERPRINT_MISSING")
+        elif parameter_fingerprint != manifest_fingerprint:
+            reasons.append("MODEL_PARAMETER_FINGERPRINT_MISMATCH")
+        if semantics:
+            if semantics.get("input_dim") != manifest.input_dim:
+                reasons.append("CHECKPOINT_INPUT_DIM_MISMATCH")
+            if (
+                semantics.get("confidence_head_schema_version")
+                != CONFIDENCE_HEAD_SCHEMA_VERSION
+            ):
+                reasons.append("CONFIDENCE_HEAD_SCHEMA_MISMATCH")
+            if tuple(semantics.get("confidence_head_actions") or ()) != tuple(
+                CONFIDENCE_HEAD_ACTIONS
+            ):
+                reasons.append("CONFIDENCE_HEAD_ACTIONS_MISMATCH")
+            if (
+                semantics.get("confidence_calibration_state")
+                != manifest.confidence_calibration_state
+            ):
+                reasons.append("CONFIDENCE_CALIBRATION_STATE_MISMATCH")
+
+        evidence = dict(manifest.checkpoint_evidence)
+        evidence_digest = str(manifest.checkpoint_evidence_digest or "")
+        if (
+            manifest.checkpoint_evidence_schema_version
+            != CHECKPOINT_EVIDENCE_SCHEMA_VERSION
+        ):
+            reasons.append("CHECKPOINT_EVIDENCE_SCHEMA_MISMATCH")
+        if len(evidence_digest) != 64 or not evidence:
+            reasons.append("CHECKPOINT_EVIDENCE_MISSING")
+        else:
+            try:
+                observed_evidence_digest = _canonical_digest(evidence)
+            except (TypeError, ValueError, OverflowError):
+                observed_evidence_digest = ""
+            if observed_evidence_digest != evidence_digest:
+                reasons.append("CHECKPOINT_EVIDENCE_DIGEST_MISMATCH")
+        evidence_bindings: tuple[tuple[str, Any], ...] = (
+            ("schema_version", CHECKPOINT_EVIDENCE_SCHEMA_VERSION),
+            ("lineage_kind", manifest.lineage_kind),
+            ("parent_checkpoint_id", manifest.parent_checkpoint_id),
+            ("parent_policy_fingerprint", manifest.parent_policy_fingerprint),
+            (
+                "consumed_ppo_update_keys",
+                list(manifest.consumed_ppo_update_keys),
+            ),
+            ("training_partition_digest", manifest.training_partition_digest),
+        )
+        for field_name, expected in evidence_bindings:
+            if evidence.get(field_name) != expected:
+                reasons.append(f"CHECKPOINT_EVIDENCE_{field_name.upper()}_MISMATCH")
+        if manifest.checkpoint_generation > 0:
+            causal_evidence_bindings: tuple[tuple[str, Any], ...] = (
+                (
+                    "checkpoint_causal_order_schema_version",
+                    manifest.checkpoint_causal_order_schema_version,
+                ),
+                (
+                    "checkpoint_causal_store",
+                    manifest.checkpoint_causal_store,
+                ),
+                ("checkpoint_generation", manifest.checkpoint_generation),
+                (
+                    "parent_checkpoint_generation",
+                    manifest.parent_checkpoint_generation,
+                ),
+                ("checkpoint_semantic_digest", manifest.checkpoint_semantic_digest),
+                (
+                    "checkpoint_causal_record_digest",
+                    manifest.checkpoint_causal_record_digest,
+                ),
+            )
+            for field_name, expected in causal_evidence_bindings:
+                if evidence.get(field_name) != expected:
+                    reasons.append(
+                        f"CHECKPOINT_EVIDENCE_{field_name.upper()}_MISMATCH"
+                    )
+            try:
+                observed_generation = self._validate_causal_manifest(
+                    dict(manifest.__dict__),
+                    ledger_records=self._read_causal_ledger_with_tail_recovery(),
+                )
+                if observed_generation != manifest.checkpoint_generation:
+                    raise ValueError("checkpoint_generation_mismatch")
+            except (RuntimeError, TypeError, ValueError, OverflowError):
+                reasons.append("CHECKPOINT_CAUSAL_ORDER_BINDING_INVALID")
+
+        checkpoint_identity_verified = False
+        if manifest_fingerprint and evidence_digest and manifest.confidence_calibration_state:
+            try:
+                calibration_fingerprint = _canonical_digest(
+                    manifest.confidence_calibration_state
+                )
+                state_fingerprint = _canonical_digest(
+                    {
+                        "confidence_calibration_fingerprint": calibration_fingerprint,
+                        "checkpoint_evidence_digest": evidence_digest,
+                    }
+                )
+                expected_checkpoint_id = (
+                    f"v2_hybrid_ckpt_{manifest.model_id[-8:]}_"
+                    f"{manifest_fingerprint[:16]}_{state_fingerprint[:12]}"
+                )
+                checkpoint_identity_verified = (
+                    manifest.checkpoint_id == expected_checkpoint_id
+                )
+            except (TypeError, ValueError, OverflowError):
+                checkpoint_identity_verified = False
+        if not checkpoint_identity_verified:
+            reasons.append("CHECKPOINT_CONTENT_IDENTITY_MISMATCH")
+
+        verified = not reasons
+        return {
+            "checkpoint_artifact_verified": verified,
+            "latest_checkpoint_loadable": verified,
+            "model_state_restored": False,
+            "verification_is_non_mutating": True,
+            "checkpoint_id": manifest.checkpoint_id,
+            "checkpoint_path": manifest.path,
+            "weight_file_path": manifest.weight_file_path,
+            "resolved_weight_file_path": (
+                str(resolved_weight_path) if resolved_weight_path else None
+            ),
+            "weight_file_sha256": manifest.weight_file_sha256,
+            "observed_weight_file_sha256": observed_sha256,
+            "weight_file_sha256_verified": bool(
+                observed_sha256
+                and observed_sha256 == manifest.weight_file_sha256
+            ),
+            "model_id": manifest.model_id,
+            "model_parameter_fingerprint": parameter_fingerprint or None,
+            "model_parameter_fingerprint_verified": bool(
+                parameter_fingerprint
+                and parameter_fingerprint == manifest.model_parameter_fingerprint
+            ),
+            "lineage_kind": manifest.lineage_kind,
+            "parent_checkpoint_id": manifest.parent_checkpoint_id,
+            "checkpoint_causal_order_schema_version": (
+                manifest.checkpoint_causal_order_schema_version
+            ),
+            "checkpoint_causal_store": manifest.checkpoint_causal_store,
+            "checkpoint_generation": manifest.checkpoint_generation,
+            "parent_checkpoint_generation": manifest.parent_checkpoint_generation,
+            "checkpoint_semantic_digest": manifest.checkpoint_semantic_digest,
+            "checkpoint_causal_record_digest": (
+                manifest.checkpoint_causal_record_digest
+            ),
+            "parent_policy_fingerprint": manifest.parent_policy_fingerprint,
+            "consumed_ppo_update_keys": list(manifest.consumed_ppo_update_keys),
+            "training_partition_digest": manifest.training_partition_digest,
+            "checkpoint_evidence": evidence,
+            "checkpoint_evidence_digest": manifest.checkpoint_evidence_digest,
+            "checkpoint_evidence_verified": bool(
+                evidence_digest and "CHECKPOINT_EVIDENCE_DIGEST_MISMATCH" not in reasons
+            ),
+            "checkpoint_identity_verified": checkpoint_identity_verified,
+            "artifact_verification_rejection_reasons": tuple(sorted(set(reasons))),
+            "load_status": (
+                "VERIFIED_WITHOUT_MODEL_MUTATION"
+                if verified
+                else "ARTIFACT_VERIFICATION_FAILED"
+            ),
+        }
+
+    def load_latest_weights(
+        self,
+        model: V2HybridPolicyModel,
+        *,
+        allowed_lineage_kinds: frozenset[str] | None = None,
+    ) -> dict[str, Any]:
+        # Report the newest same-shape metadata row for operator visibility, but
+        # only deserialize a weight artifact with the exact architecture/model ID.
+        latest_metadata_manifest = self.latest_manifest(
+            input_dim=model.input_dim,
+            allowed_lineage_kinds=allowed_lineage_kinds,
+        )
+        manifest_rows = self._manifest_rows(
+            input_dim=model.input_dim,
+            model_id=model.model_id,
+            allowed_lineage_kinds=allowed_lineage_kinds,
+            require_weight_blob=True,
+        )
+        if self._manifest_scan_errors:
+            evidence_digest_invalid = any(
+                error.get("reason") == "checkpoint_evidence_digest_mismatch"
+                for error in self._manifest_scan_errors
+            )
+            return {
+                "checkpoint_manifest_exists": True,
+                "checkpoint_id": None,
+                "weight_blob_written": False,
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "checkpoint_evidence_verified": False,
+                "manifest_scan_errors": list(self._manifest_scan_errors),
+                "load_status": (
+                    "CHECKPOINT_EVIDENCE_DIGEST_MISMATCH"
+                    if evidence_digest_invalid
+                    else "CHECKPOINT_MANIFEST_SCAN_INVALID"
+                ),
+            }
         manifest = manifest_rows[0][1] if manifest_rows else None
         if manifest is None:
             return {
                 "checkpoint_manifest_exists": latest_metadata_manifest is not None,
-                "checkpoint_id": latest_metadata_manifest.checkpoint_id if latest_metadata_manifest else None,
+                "checkpoint_id": (
+                    latest_metadata_manifest.checkpoint_id
+                    if latest_metadata_manifest
+                    else None
+                ),
                 "weight_blob_written": False,
                 "latest_checkpoint_loadable": False,
                 "model_state_restored": False,
@@ -217,23 +2057,192 @@ class V2HybridCheckpointManager:
         resolved_weight_path = self._resolve_weight_path(
             manifest.weight_file_path, manifest.checkpoint_id
         )
-        try:
-            loaded = model.load_weight_blob(Path(resolved_weight_path or manifest.weight_file_path))
-        except Exception as exc:
+        if resolved_weight_path is None:
+            return {
+                "checkpoint_manifest_exists": True,
+                "checkpoint_id": manifest.checkpoint_id,
+                "weight_blob_written": True,
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "load_status": "WEIGHT_BLOB_PATH_UNRESOLVED",
+            }
+        if manifest.checkpoint_evidence_digest:
+            if (
+                manifest.checkpoint_evidence_schema_version
+                != CHECKPOINT_EVIDENCE_SCHEMA_VERSION
+            ):
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "checkpoint_evidence_verified": False,
+                    "load_status": "CHECKPOINT_EVIDENCE_SCHEMA_MISMATCH",
+                }
+            observed_evidence_digest = hashlib.sha256(
+                json.dumps(
+                    manifest.checkpoint_evidence,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            if observed_evidence_digest != manifest.checkpoint_evidence_digest:
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "checkpoint_evidence_verified": False,
+                    "load_status": "CHECKPOINT_EVIDENCE_DIGEST_MISMATCH",
+                }
+            if not manifest.confidence_calibration_state:
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "checkpoint_evidence_verified": True,
+                    "checkpoint_identity_verified": False,
+                    "load_status": "CHECKPOINT_CALIBRATION_STATE_BINDING_MISSING",
+                }
+            calibration_fingerprint = hashlib.sha256(
+                json.dumps(
+                    manifest.confidence_calibration_state,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            checkpoint_state_fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "confidence_calibration_fingerprint": calibration_fingerprint,
+                        "checkpoint_evidence_digest": (
+                            manifest.checkpoint_evidence_digest
+                        ),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            expected_checkpoint_id = (
+                f"v2_hybrid_ckpt_{manifest.model_id[-8:]}_"
+                f"{str(manifest.model_parameter_fingerprint or '')[:16]}_"
+                f"{checkpoint_state_fingerprint[:12]}"
+            )
+            if (
+                len(str(manifest.model_parameter_fingerprint or "")) != 64
+                or manifest.checkpoint_id != expected_checkpoint_id
+            ):
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "checkpoint_evidence_verified": True,
+                    "checkpoint_identity_verified": False,
+                    "load_status": "CHECKPOINT_CONTENT_IDENTITY_MISMATCH",
+                }
+            if manifest.model_id != model.model_id:
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "checkpoint_evidence_verified": True,
+                    "checkpoint_identity_verified": True,
+                    "load_status": "CHECKPOINT_MODEL_ARCHITECTURE_ID_MISMATCH",
+                }
+        private_load = _load_private_checkpoint_copy(
+            source_path=resolved_weight_path,
+            manifest=manifest,
+            model=model,
+        )
+        if private_load.get("private_checkpoint_copy_verified") is not True:
             return {
                 "checkpoint_manifest_exists": True,
                 "checkpoint_id": manifest.checkpoint_id,
                 "weight_blob_written": True,
                 "weight_file_path": manifest.weight_file_path,
+                **private_load,
+            }
+        loaded = dict(private_load["loaded"])
+        from .on_policy_behavior import model_parameter_fingerprint
+
+        restored_fingerprint = model_parameter_fingerprint(model)
+        if (
+            manifest.model_parameter_fingerprint
+            and restored_fingerprint != manifest.model_parameter_fingerprint
+        ):
+            return {
+                "checkpoint_manifest_exists": True,
+                "checkpoint_id": manifest.checkpoint_id,
+                "weight_blob_written": True,
                 "latest_checkpoint_loadable": False,
                 "model_state_restored": False,
-                "load_status": f"LOAD_FAILED:{type(exc).__name__}",
+                "weight_file_sha256_verified": bool(manifest.weight_file_sha256),
+                "model_parameter_fingerprint_verified": False,
+                "load_status": "MODEL_PARAMETER_FINGERPRINT_MISMATCH",
             }
+        checkpoint_identity_verified = False
+        if manifest.checkpoint_evidence_digest:
+            calibration_fingerprint = hashlib.sha256(
+                json.dumps(
+                    model.confidence_calibration_state,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            checkpoint_state_fingerprint = hashlib.sha256(
+                json.dumps(
+                    {
+                        "confidence_calibration_fingerprint": calibration_fingerprint,
+                        "checkpoint_evidence_digest": (
+                            manifest.checkpoint_evidence_digest
+                        ),
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                    allow_nan=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            expected_checkpoint_id = (
+                f"v2_hybrid_ckpt_{model.model_id[-8:]}_"
+                f"{restored_fingerprint[:16]}_{checkpoint_state_fingerprint[:12]}"
+            )
+            if (
+                manifest.model_id != model.model_id
+                or manifest.checkpoint_id != expected_checkpoint_id
+            ):
+                return {
+                    "checkpoint_manifest_exists": True,
+                    "checkpoint_id": manifest.checkpoint_id,
+                    "latest_checkpoint_loadable": False,
+                    "model_state_restored": False,
+                    "weight_file_sha256_verified": bool(
+                        manifest.weight_file_sha256
+                    ),
+                    "model_parameter_fingerprint_verified": True,
+                    "checkpoint_evidence_verified": True,
+                    "checkpoint_identity_verified": False,
+                    "load_status": "CHECKPOINT_CONTENT_IDENTITY_MISMATCH",
+                }
+            checkpoint_identity_verified = True
         return {
             "checkpoint_manifest_exists": True,
             "checkpoint_id": manifest.checkpoint_id,
             "latest_metadata_checkpoint_id": (
-                latest_metadata_manifest.checkpoint_id if latest_metadata_manifest else manifest.checkpoint_id
+                latest_metadata_manifest.checkpoint_id
+                if latest_metadata_manifest
+                else manifest.checkpoint_id
             ),
             "metadata_only_manifest_ignored_for_weight_load": bool(
                 latest_metadata_manifest
@@ -241,13 +2250,71 @@ class V2HybridCheckpointManager:
             ),
             "weight_blob_written": True,
             "weight_file_path": manifest.weight_file_path,
+            "resolved_weight_file_path": str(resolved_weight_path),
             "weight_file_format": manifest.weight_file_format,
             "weight_file_size_bytes": manifest.weight_file_size_bytes,
             "safe_weight_format": manifest.weight_file_format == "npz",
+            "weight_file_sha256": manifest.weight_file_sha256,
+            "weight_file_sha256_verified": bool(manifest.weight_file_sha256),
+            "private_checkpoint_copy_verified": True,
+            "private_checkpoint_source_open_count": private_load[
+                "private_checkpoint_source_open_count"
+            ],
+            "private_checkpoint_copy_sha256": private_load[
+                "private_checkpoint_copy_sha256"
+            ],
+            "private_checkpoint_copy_size_bytes": private_load[
+                "private_checkpoint_copy_size_bytes"
+            ],
+            "model_parameter_fingerprint": restored_fingerprint,
+            "model_parameter_fingerprint_verified": bool(
+                manifest.model_parameter_fingerprint
+                and restored_fingerprint == manifest.model_parameter_fingerprint
+            ),
+            "lineage_kind": manifest.lineage_kind,
+            "parent_checkpoint_id": manifest.parent_checkpoint_id,
+            "checkpoint_causal_order_schema_version": (
+                manifest.checkpoint_causal_order_schema_version
+            ),
+            "checkpoint_causal_store": manifest.checkpoint_causal_store,
+            "checkpoint_generation": manifest.checkpoint_generation,
+            "parent_checkpoint_generation": manifest.parent_checkpoint_generation,
+            "checkpoint_semantic_digest": manifest.checkpoint_semantic_digest,
+            "checkpoint_causal_record_digest": (
+                manifest.checkpoint_causal_record_digest
+            ),
+            "parent_policy_fingerprint": manifest.parent_policy_fingerprint,
+            "consumed_ppo_update_keys": list(
+                manifest.consumed_ppo_update_keys
+            ),
+            "training_partition_digest": manifest.training_partition_digest,
+            "checkpoint_evidence_schema_version": (
+                manifest.checkpoint_evidence_schema_version
+            ),
+            "checkpoint_evidence": dict(manifest.checkpoint_evidence),
+            "checkpoint_evidence_digest": manifest.checkpoint_evidence_digest,
+            "checkpoint_evidence_verified": bool(
+                manifest.checkpoint_evidence_digest
+            ),
+            "checkpoint_identity_verified": checkpoint_identity_verified,
+            "checkpoint_confidence_head_compatible": True,
+            "pre_deserialization_semantic_verification": True,
             "latest_checkpoint_loadable": True,
             "model_state_restored": bool(loaded.get("model_state_restored")),
             "optimizer_state_restored_or_intentionally_not_required": True,
-            "optimizer_state_note": "AdamW optimizer is intentionally recreated each cycle; model weights persist.",
+            "optimizer_state_note": (
+                "AdamW optimizer is intentionally recreated each cycle; "
+                "model weights persist."
+            ),
+            "confidence_calibration_fitted": loaded.get(
+                "confidence_calibration_fitted"
+            ),
+            "confidence_calibration_reason": loaded.get(
+                "confidence_calibration_reason"
+            ),
+            "confidence_calibration_state": dict(
+                model.confidence_calibration_state
+            ),
             "load_status": "LOADED",
         }
 
@@ -260,6 +2327,94 @@ class V2HybridCheckpointManager:
             "weight_file_path": manifest.weight_file_path if manifest else None,
             "weight_file_format": manifest.weight_file_format if manifest else None,
             "weight_file_size_bytes": manifest.weight_file_size_bytes if manifest else None,
+            "confidence_calibration_fitted": (
+                manifest.confidence_calibration_fitted if manifest else False
+            ),
+            "confidence_calibration_temperature": (
+                manifest.confidence_calibration_temperature if manifest else None
+            ),
+            "confidence_calibration_sample": (
+                manifest.confidence_calibration_sample if manifest else 0
+            ),
+            "confidence_calibration_reason": (
+                manifest.confidence_calibration_reason if manifest else None
+            ),
+            "confidence_calibration_fit_partition": (
+                manifest.confidence_calibration_fit_partition if manifest else None
+            ),
+            "confidence_calibration_validation_rows_used": (
+                manifest.confidence_calibration_validation_rows_used if manifest else 0
+            ),
+            "confidence_calibration_label_semantics": (
+                manifest.confidence_calibration_label_semantics if manifest else None
+            ),
+            "confidence_head_schema_version": (
+                manifest.confidence_head_schema_version if manifest else None
+            ),
+            "confidence_head_actions": (
+                list(manifest.confidence_head_actions) if manifest else []
+            ),
+            "confidence_calibration_long_sample": (
+                manifest.confidence_calibration_long_sample if manifest else 0
+            ),
+            "confidence_calibration_short_sample": (
+                manifest.confidence_calibration_short_sample if manifest else 0
+            ),
+            "confidence_calibration_model_parameter_fingerprint": (
+                manifest.confidence_calibration_model_parameter_fingerprint
+                if manifest
+                else None
+            ),
+            "confidence_calibration_row_digest": (
+                manifest.confidence_calibration_row_digest if manifest else None
+            ),
+            "confidence_calibration_state": (
+                dict(manifest.confidence_calibration_state) if manifest else {}
+            ),
+            "model_parameter_fingerprint": (
+                manifest.model_parameter_fingerprint if manifest else None
+            ),
+            "weight_file_sha256": manifest.weight_file_sha256 if manifest else None,
+            "lineage_kind": manifest.lineage_kind if manifest else None,
+            "parent_checkpoint_id": manifest.parent_checkpoint_id if manifest else None,
+            "checkpoint_causal_order_schema_version": (
+                manifest.checkpoint_causal_order_schema_version
+                if manifest
+                else None
+            ),
+            "checkpoint_causal_store": (
+                manifest.checkpoint_causal_store if manifest else None
+            ),
+            "checkpoint_generation": (
+                manifest.checkpoint_generation if manifest else 0
+            ),
+            "parent_checkpoint_generation": (
+                manifest.parent_checkpoint_generation if manifest else None
+            ),
+            "checkpoint_semantic_digest": (
+                manifest.checkpoint_semantic_digest if manifest else None
+            ),
+            "checkpoint_causal_record_digest": (
+                manifest.checkpoint_causal_record_digest if manifest else None
+            ),
+            "parent_policy_fingerprint": (
+                manifest.parent_policy_fingerprint if manifest else None
+            ),
+            "consumed_ppo_update_keys": (
+                list(manifest.consumed_ppo_update_keys) if manifest else []
+            ),
+            "training_partition_digest": (
+                manifest.training_partition_digest if manifest else None
+            ),
+            "checkpoint_evidence_schema_version": (
+                manifest.checkpoint_evidence_schema_version if manifest else None
+            ),
+            "checkpoint_evidence": (
+                dict(manifest.checkpoint_evidence) if manifest else {}
+            ),
+            "checkpoint_evidence_digest": (
+                manifest.checkpoint_evidence_digest if manifest else None
+            ),
             "safe_weight_format": (manifest.weight_file_format == "npz") if manifest else False,
             "external_deserialization_used": False,
             "torch_pickle_load_used": False,

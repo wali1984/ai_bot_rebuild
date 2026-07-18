@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,6 +26,13 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
     read_runtime_execution_state,
 )
 from v2.backend.app.services.market_state_integrity import TrustGateResult
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
+    BEHAVIOR_POLICY_LINEAGE_FIELDS,
+)
+from v2.backend.app.services.ordinary_paper_admission import (
+    OrdinaryPaperAdmissionResult,
+    revalidate_ordinary_paper_transport,
+)
 from v2.backend.app.domain.orchestrator_decision import (
     DECISION_ACTION_ABSTAIN,
     DECISION_ACTION_HOLD,
@@ -70,12 +78,25 @@ _TRUST_ENVELOPE_FIELDS = (
     "feature_cutoff",
     "decision_time",
     "available_at",
+    "candle_closed_confirmed",
+    "candle_open_time",
+    "candle_close_time",
+    "source_event_time_est",
+    "source_received_time_est",
+    "source_available_time",
+    "masa_feature_cutoff",
+    "ppo_feature_cutoff",
+    "ppo_decision_time",
     "symbol",
     "timeframe",
     "selected_action",
     "model_version",
     "checkpoint_id",
     "source_hashes",
+    "microstructure_trust_evidence",
+    "microstructure_trust_evidence_sha256",
+    "source_redis_key",
+    "source_prediction_observed_ttl_seconds",
     "feature_vector_hash",
     "input_feature_hash",
     "all_tf_candle_timestamps",
@@ -99,7 +120,26 @@ _TRUST_ENVELOPE_FIELDS = (
     "sweep_risk_score",
     "microstructure_gate_allows_a_grade",
     "risk_microstructure_reject_reasons",
+    "risk_ordinary_paper_reject_reasons",
     "source_availability",
+    "market_state_id",
+    "ordinary_paper_admission_schema_version",
+    "ordinary_paper_quality_schema_version",
+    "ordinary_paper_admission_mode",
+    "paper_quality_sizing_formula",
+    "paper_quality_sizing_weight",
+    "publisher_paper_quality_sizing_weight",
+    "ordinary_paper_effective_sizing_weight",
+    "ordinary_paper_effective_sizing_formula",
+    "ordinary_paper_effective_sizing_factors",
+    "ordinary_paper_raw_microstructure_action",
+    "ordinary_paper_effective_microstructure_action",
+    "ordinary_paper_legacy_microstructure_block_reasons",
+    "ordinary_scale_free_paper_admission_revalidated",
+    "ordinary_scale_free_paper_admission_rejection_reasons",
+    "ordinary_paper_admission_evidence",
+    "ordinary_paper_admission_evidence_sha256",
+    *BEHAVIOR_POLICY_LINEAGE_FIELDS,
 )
 
 
@@ -180,6 +220,137 @@ def _read_json_key(client, key: str) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def _strict_aware_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _canonical_orchestrator_record_rejection_reasons(
+    client,
+    *,
+    winner: dict[str, Any],
+    now_ms: int,
+) -> list[str]:
+    decision_id = str(winner.get("orchestrator_decision_id") or "")
+    if not decision_id:
+        return ["canonical_orchestrator_decision_id_missing"]
+    record = _read_json_key(
+        client, f"{V2_REDIS_PREFIX}decision:orchestrator:{decision_id}"
+    )
+    if not record:
+        return ["canonical_orchestrator_decision_record_missing"]
+    if record.get("producer") != "v2_orchestrator_arbitration_loop":
+        return ["canonical_orchestrator_decision_producer_mismatch"]
+    if str(record.get("orchestrator_decision_id") or "") != decision_id:
+        return ["canonical_orchestrator_decision_id_mismatch"]
+    expected = {
+        "prediction_id": winner.get("prediction_id")
+        or winner.get("winner_proposal_id"),
+        "signal_id": winner.get("signal_id"),
+        "symbol": winner.get("symbol"),
+        "timeframe": winner.get("timeframe"),
+        "feature_snapshot_id": winner.get("feature_snapshot_id"),
+        "market_state_id": winner.get("market_state_id"),
+    }
+    for field, value in expected.items():
+        if value not in (None, "") and str(record.get(field) or "") != str(value):
+            return [f"canonical_orchestrator_decision_{field}_mismatch"]
+    winner_hash = winner.get("feature_vector_hash") or winner.get("input_feature_hash")
+    record_hash = record.get("feature_vector_hash") or record.get("input_feature_hash")
+    if (winner_hash not in (None, "") or record_hash not in (None, "")) and str(
+        winner_hash or ""
+    ) != str(record_hash or ""):
+        return ["canonical_orchestrator_decision_feature_hash_mismatch"]
+    for field in (
+        "ordinary_paper_admission_evidence_sha256",
+        "paper_quality_sizing_weight",
+        "ordinary_paper_effective_sizing_weight",
+        "ordinary_scale_free_paper_admission_revalidated",
+    ):
+        winner_value = winner.get(field)
+        record_value = record.get(field)
+        if (winner_value not in (None, "") or record_value not in (None, "")) and (
+            winner_value != record_value
+        ):
+            return [f"canonical_orchestrator_decision_{field}_mismatch"]
+    expected_action = (
+        "proceed_long"
+        if str(winner.get("side") or "").lower() == "long"
+        else "proceed_short"
+        if str(winner.get("side") or "").lower() == "short"
+        else "hold"
+    )
+    action = str(record.get("orchestrator_action") or record.get("decision") or "").lower()
+    if action != expected_action:
+        return ["canonical_orchestrator_decision_action_mismatch"]
+    generated_at = _strict_aware_utc(
+        record.get("generated_utc") or record.get("created_at")
+    )
+    expires_at = _strict_aware_utc(record.get("expires_at"))
+    now = datetime.fromtimestamp(now_ms / 1000.0, tz=timezone.utc)
+    if generated_at is None:
+        return ["canonical_orchestrator_decision_generated_time_invalid"]
+    if expires_at is None:
+        return ["canonical_orchestrator_decision_expiry_invalid"]
+    if generated_at > now:
+        return ["canonical_orchestrator_decision_generated_in_future"]
+    if expires_at <= now or expires_at <= generated_at:
+        return ["canonical_orchestrator_decision_expired"]
+    if (now - generated_at).total_seconds() > 900:
+        return ["canonical_orchestrator_decision_stale"]
+    return []
+
+
+def _winner_trust_gate_result(
+    winner: dict[str, Any],
+    *,
+    additional_reject_reasons: list[str],
+) -> TrustGateResult:
+    raw = winner.get("trust_gate_result")
+    if not isinstance(raw, Mapping):
+        reasons = ["trust_gate_result_missing", *additional_reject_reasons]
+        return TrustGateResult(
+            accepted=False,
+            severity="reject",
+            reject_reasons=tuple(dict.fromkeys(reasons)),
+            warnings=(),
+            data_quality_score=0.0,
+            future_leak_detected=False,
+            cutoff_mismatch_detected=False,
+            replay_required=True,
+            metrics={"source": LOOP_WORKER_ID},
+        )
+    accepted = (
+        raw.get("accepted") is True
+        if "accepted" in raw
+        else raw.get("allowed") is True
+    )
+    reasons = [str(reason) for reason in raw.get("reject_reasons") or [] if reason]
+    reasons.extend(additional_reject_reasons)
+    try:
+        data_quality_score = float(raw.get("data_quality_score"))
+    except (TypeError, ValueError):
+        data_quality_score = 1.0 if accepted else 0.0
+    return TrustGateResult(
+        accepted=bool(accepted and not reasons),
+        severity="reject" if reasons or not accepted else str(raw.get("severity") or "info"),
+        reject_reasons=tuple(dict.fromkeys(reasons or (["trust_gate_rejected"] if not accepted else []))),
+        warnings=tuple(str(item) for item in raw.get("warnings") or [] if item),
+        data_quality_score=max(0.0, min(1.0, data_quality_score)),
+        future_leak_detected=raw.get("future_leak_detected") is True,
+        cutoff_mismatch_detected=raw.get("cutoff_mismatch_detected") is True,
+        replay_required=raw.get("replay_required") is not False,
+        metrics={**dict(raw.get("metrics") or {}), "source": LOOP_WORKER_ID},
+    )
+
+
 def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for field in _TRUST_ENVELOPE_FIELDS:
@@ -196,6 +367,47 @@ def _copy_trust_envelope_fields(source: dict[str, Any]) -> dict[str, Any]:
     if isinstance(source_hashes, dict) and source_hashes:
         out["source_hashes"] = dict(source_hashes)
     return out
+
+
+def _ordinary_paper_risk_assessment(
+    client,
+    winner: dict[str, Any],
+) -> OrdinaryPaperAdmissionResult:
+    evidence = winner.get("ordinary_paper_admission_evidence")
+    replay_key = (
+        str(evidence.get("replay_snapshot_key") or "")
+        if isinstance(evidence, Mapping)
+        else ""
+    )
+    source_prediction_key = (
+        str(evidence.get("source_redis_key") or "")
+        if isinstance(evidence, Mapping)
+        else ""
+    )
+    replay_snapshot = _read_json_key(client, replay_key) if replay_key else None
+    source_prediction = (
+        _read_json_key(client, source_prediction_key)
+        if source_prediction_key
+        else None
+    )
+    try:
+        replay_snapshot_ttl = client.ttl(replay_key) if replay_key else None
+    except Exception:
+        replay_snapshot_ttl = None
+    try:
+        source_prediction_ttl = (
+            client.ttl(source_prediction_key) if source_prediction_key else None
+        )
+    except Exception:
+        source_prediction_ttl = None
+    return revalidate_ordinary_paper_transport(
+        winner,
+        replay_snapshot=replay_snapshot,
+        replay_snapshot_observed_ttl_seconds=replay_snapshot_ttl,
+        source_prediction=source_prediction,
+        source_prediction_observed_ttl_seconds=source_prediction_ttl,
+        expected_identity=winner,
+    )
 
 
 def _microstructure_contexts(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -450,7 +662,7 @@ def _write_per_id_risk_decision_record(
     decision: Any,
     winner: dict[str, Any],
     now_ms: int,
-) -> None:
+) -> str:
     """Immutable per-ID risk decision record for the risk-gateway path.
 
     Every risk_decision_id this loop stamps into signal lineage must
@@ -459,10 +671,10 @@ def _write_per_id_risk_decision_record(
     """
 
     if client is None:
-        return
+        return "WRITE_ERROR"
     risk_decision_id = str(getattr(risk_record, "risk_decision_id", "") or "")
     if not risk_decision_id:
-        return
+        return "WRITE_ERROR"
     generated_utc = _utc_iso()
     expires_at = datetime.fromtimestamp(
         (now_ms / 1000.0) + _PER_ID_DECISION_RECORD_TTL_SECONDS, tz=timezone.utc
@@ -479,6 +691,7 @@ def _write_per_id_risk_decision_record(
     )
     reasons = [str(getattr(risk_record, "risk_reason_code", "") or "")]
     reasons += [str(x) for x in winner.get("risk_microstructure_reject_reasons") or []]
+    reasons += [str(x) for x in winner.get("risk_ordinary_paper_reject_reasons") or []]
     record = {
         "schema_version": "v2_per_id_risk_decision_record_v1",
         "risk_decision_id": risk_decision_id,
@@ -490,6 +703,7 @@ def _write_per_id_risk_decision_record(
         "side": winner.get("side") or winner.get("selected_action"),
         "decision": getattr(risk_record, "risk_action", None),
         "risk_action": getattr(risk_record, "risk_action", None),
+        "risk_reason_code": getattr(risk_record, "risk_reason_code", None),
         "status": getattr(risk_record, "risk_action", None),
         "reasons": [r for r in reasons if r],
         "max_loss_usd": winner.get("max_loss_usd")
@@ -507,30 +721,66 @@ def _write_per_id_risk_decision_record(
         "checkpoint_hash": winner.get("checkpoint_id")
         or winner.get("checkpoint_hash"),
         "provider_hashes": dict(winner.get("source_hashes") or {}),
+        "orchestrator_decision_id": winner.get("orchestrator_decision_id"),
         "input_decision_action": getattr(risk_record, "input_decision_action", None),
         "producer": LOOP_WORKER_ID,
+        "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
         "live_gate": LIVE_GATE_BLOCKED,
     }
-    _safe_set_v2(
-        client,
-        f"{V2_REDIS_PREFIX}decision:risk:{risk_decision_id}",
-        record,
-        ex=_PER_ID_DECISION_RECORD_TTL_SECONDS,
-    )
-    # Legacy surfaces stamp the same decision as rd_{prediction_hash} (no
-    # dec_ segment). Publish the identical immutable record under that alias
-    # so every stamped id dereferences; this is the same record, not a
-    # last-write-wins preview.
-    if risk_decision_id.startswith("rd_dec_"):
-        alias_id = "rd_" + risk_decision_id[len("rd_dec_"):]
-        _safe_set_v2(
-            client,
-            f"{V2_REDIS_PREFIX}decision:risk:{alias_id}",
-            {**record, "alias_of": risk_decision_id},
+    record.update(_copy_trust_envelope_fields(winner))
+    # Reassert fields controlled by the risk worker after copying lineage.
+    record["risk_decision_id"] = risk_decision_id
+    record["orchestrator_decision_id"] = winner.get("orchestrator_decision_id")
+    record["risk_action"] = getattr(risk_record, "risk_action", None)
+    record["decision"] = getattr(risk_record, "risk_action", None)
+    record["paper_only"] = True
+    record["routes_to_live"] = False
+    record["places_real_order"] = False
+    record["live_gate"] = LIVE_GATE_BLOCKED
+    key = f"{V2_REDIS_PREFIX}decision:risk:{risk_decision_id}"
+    try:
+        created = client.set(
+            key,
+            json.dumps(record, sort_keys=True, default=str),
             ex=_PER_ID_DECISION_RECORD_TTL_SECONDS,
+            nx=True,
         )
+    except Exception:
+        return "WRITE_ERROR"
+    write_status = "CREATED" if created else "EXISTING_IDENTICAL"
+    if not created:
+        existing = _read_json_key(client, key)
+        stable_fields = (
+            "schema_version",
+            "risk_decision_id",
+            "orchestrator_decision_id",
+            "prediction_id",
+            "signal_id",
+            "symbol",
+            "timeframe",
+            "side",
+            "decision",
+            "risk_action",
+            "risk_reason_code",
+            "feature_snapshot_id",
+            "market_state_id",
+            "feature_vector_hash",
+            "input_feature_hash",
+            "ordinary_paper_admission_evidence_sha256",
+            "ordinary_paper_effective_sizing_weight",
+            "ordinary_scale_free_paper_admission_revalidated",
+            "producer",
+            "paper_only",
+            "routes_to_live",
+            "places_real_order",
+            "live_gate",
+        )
+        if not existing or not all(
+            existing.get(field) == record.get(field) for field in stable_fields
+        ):
+            return "CONFLICT"
     if candidate_id:
         index_key = f"{V2_REDIS_PREFIX}decision:index:by_candidate:{candidate_id}"
         existing_index = _read_json_key(client, index_key) or {}
@@ -542,6 +792,7 @@ def _write_per_id_risk_decision_record(
                 "signal_id": signal_id,
                 "generated_utc": generated_utc,
                 "expires_at": expires_at,
+                "producer": LOOP_WORKER_ID,
             }
         )
         _safe_set_v2(
@@ -557,11 +808,13 @@ def _write_per_id_risk_decision_record(
                 "candidate_id": candidate_id,
                 "generated_utc": generated_utc,
                 "expires_at": expires_at,
+                "producer": LOOP_WORKER_ID,
             }
         )
         _safe_set_v2(
             client, sig_index_key, existing_sig, ex=_PER_ID_DECISION_RECORD_TTL_SECONDS
         )
+    return write_status
 
 
 def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
@@ -577,49 +830,86 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
     decisions: list[OrchestratorDecisionRecord] = []
     risks: list[Any] = []
     risk_payloads: list[dict[str, Any]] = []
+    canonical_risk_record_status_counts = {
+        "CREATED": 0,
+        "EXISTING_IDENTICAL": 0,
+        "CONFLICT": 0,
+        "WRITE_ERROR": 0,
+    }
     for winner in winners:
         if not isinstance(winner, dict):
             continue
-        microstructure_reject_reasons = _microstructure_reject_reasons(winner)
         winner_for_payload = dict(winner)
-        winner_for_payload["risk_microstructure_reject_reasons"] = microstructure_reject_reasons
+        ordinary_assessment = _ordinary_paper_risk_assessment(
+            client, winner_for_payload
+        )
+        if ordinary_assessment.claimed:
+            winner_for_payload.update(ordinary_assessment.transport_payload())
+        microstructure_reject_reasons = (
+            []
+            if ordinary_assessment.claimed
+            else _microstructure_reject_reasons(winner_for_payload)
+        )
+        ordinary_reject_reasons = (
+            [
+                f"ORDINARY_PAPER_ADMISSION:{reason}"
+                for reason in ordinary_assessment.rejection_reasons
+            ]
+            if ordinary_assessment.claimed and not ordinary_assessment.accepted
+            else []
+        )
+        winner_for_payload["risk_microstructure_reject_reasons"] = (
+            microstructure_reject_reasons
+        )
+        winner_for_payload["risk_ordinary_paper_reject_reasons"] = (
+            ordinary_reject_reasons
+        )
+        canonical_orchestrator_reasons = (
+            _canonical_orchestrator_record_rejection_reasons(
+                client,
+                winner=winner_for_payload,
+                now_ms=now,
+            )
+        )
+        trust_gate_result = _winner_trust_gate_result(
+            winner_for_payload,
+            additional_reject_reasons=[
+                *microstructure_reject_reasons,
+                *ordinary_reject_reasons,
+                *canonical_orchestrator_reasons,
+            ],
+        )
         try:
             decision = _winner_to_decision(winner_for_payload, now_ms=now)
             risk = evaluator(
                 decision=decision,
-                trust_gate_result=TrustGateResult(
-                    accepted=False,
-                    severity="reject",
-                    reject_reasons=tuple(
-                        ["live_trading_disabled", "market_state_envelope_missing"]
-                        + microstructure_reject_reasons
-                    ),
-                    warnings=(),
-                    data_quality_score=0.0,
-                    future_leak_detected=False,
-                    cutoff_mismatch_detected=False,
-                    replay_required=True,
-                    metrics={"source": LOOP_WORKER_ID},
-                ),
+                trust_gate_result=trust_gate_result,
             )
         except Exception:
             continue
         decisions.append(decision)
         risks.append(risk)
-        risk_payloads.append(
-            _enrich_risk_payload(
-                risk_record=risk,
-                decision=decision,
-                winner=winner_for_payload,
-            )
-        )
-        _write_per_id_risk_decision_record(
+        canonical_record_status = _write_per_id_risk_decision_record(
             client,
             risk_record=risk,
             decision=decision,
             winner=winner_for_payload,
             now_ms=now,
         )
+        canonical_risk_record_status_counts[canonical_record_status] = (
+            canonical_risk_record_status_counts.get(canonical_record_status, 0) + 1
+        )
+        enriched = _enrich_risk_payload(
+            risk_record=risk,
+            decision=decision,
+            winner=winner_for_payload,
+        )
+        enriched["canonical_orchestrator_record_rejection_reasons"] = (
+            canonical_orchestrator_reasons
+        )
+        enriched["canonical_risk_record_status"] = canonical_record_status
+        enriched["canonical_risk_record_producer"] = LOOP_WORKER_ID
+        risk_payloads.append(enriched)
     keys_written: list[str] = []
     if client is not None:
         active_profile = _active_risk_profile_payload()
@@ -649,6 +939,10 @@ def run_once(*, ttl_seconds: int = 300) -> dict[str, Any]:
         redis_ok=client is not None,
         live_context=live_context,
     )
+    status["canonical_risk_record_status_counts"] = (
+        canonical_risk_record_status_counts
+    )
+    status["canonical_risk_producer"] = LOOP_WORKER_ID
     if client is not None and _safe_set_v2(
         client, f"{V2_REDIS_PREFIX}risk:gateway:heartbeat", status, ex=ttl_seconds
     ):

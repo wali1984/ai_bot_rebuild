@@ -1,19 +1,14 @@
-"""WI-3: fit the confidence temperature from realised outcomes (calibration).
+"""Deprecated external confidence fitter (fail-closed compatibility command).
 
-The policy is overconfident -- its high-confidence directional calls lose too
-often (the governor's HIGH_CONFIDENCE_LOSS_CLUSTER, and the worse-than-live CVaR
-that blocks H2L promotion). A fixed temperature (1.4) cannot fix that. This job
-runs the current checkpoint on a held-out slice, pairs each directional call's
-RAW confidence with whether it was actually profitable, and fits the temperature
-(Guo et al. temperature scaling) that minimises NLL. A well-fit T>1 pushes the
-overconfident losers below the confidence floor, so the edge gate blocks them --
-this only makes selection STRICTER, never looser. Read-only; writes a small
-state file the model reads live. Paper/shadow only; live gate stays blocked.
+Confidence calibration is now fitted only from the trainer's purged training
+partition and persisted inside the same checkpoint blob as the calibrated
+weights.  A global state file fitted from a held-out slice would leak forward
+validation into inference and could calibrate unrelated weights, so this command
+never scores, writes, or adopts calibration state.
 """
 from __future__ import annotations
 
 import argparse
-import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,11 +16,9 @@ from typing import Any
 
 from v2.backend.app.cli.v2_trainer_offline_batch_train import (
     LIVE_CHECKPOINT_DIR,
-    load_or_build_examples,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
     CONFIDENCE_TEMPERATURE_STATE_PATH,
-    fit_temperature,
 )
 
 
@@ -71,42 +64,25 @@ def run_fit(
     confirm: bool,
     state_path: Path,
 ) -> dict[str, Any]:
-    raw_probs, wins = _directional_confidence_outcomes(checkpoint_dir, rows)
-    fit = fit_temperature(raw_probs, wins)
-    report: dict[str, Any] = {
-        "schema_version": "trainer_confidence_calibration_fit_v1",
+    return {
+        "schema_version": "trainer_confidence_calibration_external_fitter_deprecated_v2",
         "generated_utc": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "checkpoint_dir": checkpoint_dir,
-        "directional_decisions": len(raw_probs),
-        "fit": fit,
+        "rows_received_but_not_scored": len(rows),
+        "confirm_requested_but_refused": bool(confirm),
         "state_path": str(state_path),
+        "state_write_attempted": False,
+        "state_mutated": False,
+        "external_state_adopted_by_inference": False,
+        "decision": "BLOCKED_EXTERNAL_CALIBRATION_BYPASS_DEPRECATED",
+        "reason": (
+            "CALIBRATION_MUST_BE_PURGED_TRAIN_ONLY_AND_BOUND_TO_THE_SAME_CHECKPOINT_BLOB"
+        ),
         "paper_only": True,
         "places_real_order": False,
         "routes_to_live": False,
         "live_gate": "blocked_human_only",
     }
-    if not fit.get("fitted"):
-        report["decision"] = "REFUSE_WRITE_INSUFFICIENT_OR_UNFIT"
-        return report
-    # Only adopt a fit that actually improves calibration (ECE) out-of-sample.
-    if fit["ece_after"] > fit["ece_before"] + 1e-9:
-        report["decision"] = "REFUSE_WRITE_ECE_NOT_IMPROVED"
-        return report
-    if not confirm:
-        report["decision"] = "DRY_RUN_PASS_CONFIRM_TO_WRITE"
-        return report
-    state = {
-        "temperature": fit["temperature"],
-        "fitted_utc": report["generated_utc"],
-        "sample": fit["sample"],
-        "ece_before": fit["ece_before"],
-        "ece_after": fit["ece_after"],
-        "source": "v2_trainer_fit_confidence_calibration",
-    }
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    state_path.write_text(json.dumps(state, indent=2))
-    report["decision"] = "WROTE_FITTED_TEMPERATURE"
-    return report
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -126,34 +102,25 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
-
     args = parse_args(argv)
-    rows, _ = load_or_build_examples(
-        symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
-        timeframes=[t.strip().lower() for t in args.timeframes.split(",") if t.strip()],
-        limit=args.limit,
-        cache_path=args.cache_path,
-        rebuild_cache=False,
-    )
     report = run_fit(
         checkpoint_dir=args.checkpoint_dir,
-        rows=rows,
+        rows=(),
         confirm=args.confirm,
         state_path=CONFIDENCE_TEMPERATURE_STATE_PATH,
     )
+    import json  # noqa: PLC0415
+
     text = json.dumps(report, indent=2, default=str)
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
         Path(args.output).write_text(text)
     print(text)
-    fit = report.get("fit", {})
     print(
         "CALIBRATION_FIT:",
         f"decision={report.get('decision')}",
-        f"T={fit.get('temperature')}",
-        f"ece {fit.get('ece_before')}->{fit.get('ece_after')}",
-        f"n={report.get('directional_decisions')}",
+        "external_state_write=False",
+        "checkpoint_bound_required=True",
     )
     return 0
 

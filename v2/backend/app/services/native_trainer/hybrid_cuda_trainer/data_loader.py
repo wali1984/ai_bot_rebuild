@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -34,16 +35,19 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     default_archive_root,
-    iter_manifest_records_from_offset,
-    iter_snapshots,
     iter_snapshots_from_offset,
     load_snapshot as load_durable_feature_snapshot,
+    verify_record as verify_durable_feature_snapshot,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     build_trusted_replay_row,
     snapshot_to_final_candle,
 )
+from v2.backend.app.services.ordinary_paper_admission import (
+    build_microstructure_trust_evidence,
+)
 
+from .on_policy_behavior import BEHAVIOR_POLICY_LINEAGE_FIELDS
 from .safety import V2OnlyJsonIO, assert_v2_key
 from .tensor_builder import FeatureTensorRecord, V2UnifiedFeatureTensorBuilder
 
@@ -82,8 +86,10 @@ TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY = (
 # tensor build. That synchronous rebuild (data_loader_time_ms ~48s) starved the
 # GPU (it idled while CPU/IO prepped the same immutable historical rows over and
 # over). Closed-trade feedback rows + their feature snapshots are append-mostly
-# and immutable-by-id, so the row->example build is deterministic: memoize it by
-# a content hash of the row across loader instances (module-level, lock-guarded).
+# and immutable-by-id only after the snapshot is verified against the durable
+# archive. Memoize by feedback content, resolved archive root, and verified
+# snapshot content identity across loader instances (module-level,
+# lock-guarded).
 # Warm cycles then rebuild only new/changed rows, collapsing the fresh load to
 # well under a second. Successful examples only are cached; a row that yields no
 # example (e.g. a snapshot not yet archived) is left uncached so a later-arriving
@@ -95,17 +101,109 @@ _CLOSED_TRADE_EXAMPLE_CACHE_STATS = {"hits": 0, "misses": 0}
 
 
 def _closed_trade_example_cache_enabled() -> bool:
-    return (os.getenv("V2_TRAINER_CLOSED_TRADE_EXAMPLE_CACHE", "1").strip().lower()
-            not in {"0", "false", "no", "off"})
+    return (
+        os.getenv("V2_TRAINER_CLOSED_TRADE_EXAMPLE_CACHE", "1").strip().lower()
+        not in {"0", "false", "no", "off"}
+    )
 
 
-def _closed_trade_example_cache_key(row: Mapping[str, Any]) -> str:
-    """Stable content hash so an identical row maps to an identical example."""
+def _closed_trade_example_cache_key(
+    row: Mapping[str, Any],
+    *,
+    archive_root: Path,
+    snapshot_content_sha256: str,
+) -> str:
+    """Bind memoized examples to the immutable snapshot namespace and bytes."""
+
+    material = {
+        "archive_root": str(Path(archive_root).resolve(strict=False)),
+        "snapshot_content_sha256": str(snapshot_content_sha256),
+        "feedback_row": dict(row),
+    }
     try:
-        blob = json.dumps(row, sort_keys=True, default=str, separators=(",", ":"))
+        blob = json.dumps(
+            material,
+            sort_keys=True,
+            default=str,
+            separators=(",", ":"),
+        )
     except (TypeError, ValueError):
-        blob = repr(sorted((str(k), str(v)) for k, v in row.items()))
-    return hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()
+        blob = repr(material)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _valid_sha256(value: Any) -> str | None:
+    normalized = str(value or "").strip().lower()
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        return None
+    return normalized
+
+
+def _expected_feature_snapshot_content_sha256(
+    row: Mapping[str, Any],
+) -> str | None:
+    """Return one immutable anchor, rejecting invalid or conflicting claims."""
+
+    candidates: list[Any] = [
+        row.get("durable_feature_snapshot_archive_content_sha256"),
+        row.get("feature_snapshot_content_sha256"),
+        row.get("entry_feature_snapshot_content_sha256"),
+    ]
+    source_hashes = row.get("source_hashes")
+    if isinstance(source_hashes, Mapping):
+        candidates.extend(
+            (
+                source_hashes.get("durable_feature_snapshot_archive_content_sha256"),
+                source_hashes.get("feature_snapshot_content_sha256"),
+            )
+        )
+    provided = [candidate for candidate in candidates if candidate not in (None, "")]
+    normalized = {_valid_sha256(candidate) for candidate in provided}
+    if not provided or None in normalized or len(normalized) != 1:
+        return None
+    return next(iter(normalized))
+
+
+def _feature_snapshot_content_hash_claim_present(row: Mapping[str, Any]) -> bool:
+    direct_claim = any(
+        row.get(field_name) not in (None, "")
+        for field_name in (
+            "durable_feature_snapshot_archive_content_sha256",
+            "feature_snapshot_content_sha256",
+            "entry_feature_snapshot_content_sha256",
+        )
+    )
+    source_hashes = row.get("source_hashes")
+    source_claim = isinstance(source_hashes, Mapping) and any(
+        source_hashes.get(field_name) not in (None, "")
+        for field_name in (
+            "durable_feature_snapshot_archive_content_sha256",
+            "feature_snapshot_content_sha256",
+        )
+    )
+    return direct_claim or source_claim
+
+
+def _mutable_snapshot_matches_immutable_proof(
+    *,
+    row: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+    feature_snapshot_id: Any,
+) -> bool:
+    """Allow a mutable copy only when a durable content identity anchors it."""
+
+    expected_hash = _expected_feature_snapshot_content_sha256(row)
+    observed_hash = _valid_sha256(snapshot.get("content_sha256"))
+    if expected_hash is None or observed_hash != expected_hash:
+        return False
+    if verify_durable_feature_snapshot(snapshot):
+        return False
+    observed_id = snapshot.get("feature_snapshot_id") or snapshot.get("snapshot_id")
+    return str(observed_id or "") == str(feature_snapshot_id)
+
+
 COUNTERFACTUAL_TRAINER_FEEDBACK_SOURCES = {
     "V2_CONTINUOUS_EDGE_FACTORY_COUNTERFACTUAL_CLOSED_WINDOW",
     "V2_CONTINUOUS_EDGE_FACTORY_REPLAY_CLOSED_WINDOW",
@@ -128,9 +226,49 @@ def _parse_iso_utc(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(text)
     except (TypeError, ValueError):
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
+
+
+def _resolve_training_observed_at(value: datetime | str | None) -> datetime:
+    """Resolve one aware cutoff for an entire loader invocation."""
+
+    if value is None:
+        return datetime.now(tz=timezone.utc)
+    parsed = _parse_iso_utc(value)
+    if parsed is None:
+        raise ValueError("training_observed_at_must_be_aware_utc")
+    return parsed
+
+
+def _training_example_observed_by(
+    example: "TrainingExample",
+    *,
+    training_observed_at: datetime,
+) -> bool:
+    """Reject labels whose availability lies beyond the consumer's cutoff."""
+
+    if example.label_timing_valid is not True:
+        return False
+    label_available_at = _parse_iso_utc(example.label_available_at)
+    if (
+        label_available_at is not None
+        and label_available_at > training_observed_at
+    ):
+        return False
+    trust_row = example.trust_row if isinstance(example.trust_row, Mapping) else {}
+    for field_name in ("label_available_at", "outcome_available_at"):
+        raw_value = trust_row.get(field_name)
+        if raw_value not in (None, "") and _parse_iso_utc(raw_value) is None:
+            return False
+    outcome_available_at_raw = trust_row.get("outcome_available_at")
+    outcome_available_at = _parse_iso_utc(outcome_available_at_raw)
+    return not (
+        outcome_available_at_raw not in (None, "")
+        and outcome_available_at is not None
+        and outcome_available_at > training_observed_at
+    )
 
 
 @dataclass(frozen=True)
@@ -143,6 +281,183 @@ class TrainingExample:
     payload_keys: tuple[str, ...]
     row_classification: str
     trust_row: dict[str, Any] | None = None
+    # Resolved once from the decision contract at construction time. Temporal
+    # training must never infer chronology from loader/input order.
+    decision_time: str | None = None
+    # Time at which the realized/counterfactual label was fully knowable.  This
+    # is resolved once, alongside decision_time, so a later mutation of the
+    # source trust row cannot silently change a purged validation boundary.
+    label_available_at: str | None = None
+    label_timing_source: str | None = field(default=None, init=False)
+    label_timing_valid: bool = field(default=False, init=False)
+    label_timing_error: str | None = field(default=None, init=False)
+    # Entry-time action sampled by the behavior policy. These are distinct from
+    # hindsight/supervised labels and are frozen with the example so PPO cannot
+    # silently follow a later-mutated trust row.
+    behavior_action_index: int | None = None
+    behavior_action: str | None = None
+
+    def __post_init__(self) -> None:
+        raw_decision_time: Any = self.decision_time
+        if raw_decision_time in (None, "") and isinstance(self.trust_row, Mapping):
+            for field in (
+                "decision_time",
+                "decision_time_est",
+                "decision_cutoff_time_est",
+                "decision_cutoff",
+            ):
+                candidate = self.trust_row.get(field)
+                if candidate not in (None, ""):
+                    raw_decision_time = candidate
+                    break
+        parsed = _parse_trust_time(raw_decision_time)
+        canonical = (
+            parsed.isoformat(timespec="microseconds").replace("+00:00", "Z")
+            if parsed is not None
+            else None
+        )
+        object.__setattr__(self, "decision_time", canonical)
+
+        timing_candidates: list[tuple[datetime, str]] = []
+        invalid_timing_sources: list[str] = []
+
+        def add_timestamp(value: Any, source: str) -> None:
+            if value in (None, ""):
+                return
+            parsed_timestamp = _parse_trust_time(value)
+            if parsed_timestamp is None:
+                invalid_timing_sources.append(source)
+                return
+            timing_candidates.append((parsed_timestamp, source))
+
+        add_timestamp(self.label_available_at, "example.label_available_at")
+        trust_targets: Mapping[str, Any] = {}
+        if isinstance(self.trust_row, Mapping):
+            for field_name in (
+                "label_available_at",
+                "outcome_available_at",
+                "exit_time",
+                "exit_price_utc",
+                "closed_at",
+            ):
+                add_timestamp(
+                    self.trust_row.get(field_name),
+                    f"trust_row.{field_name}",
+                )
+            raw_targets = self.trust_row.get("outcome_targets")
+            if isinstance(raw_targets, Mapping):
+                trust_targets = raw_targets
+                for field_name in (
+                    "label_available_at",
+                    "outcome_available_at",
+                    "exit_time",
+                    "exit_price_utc",
+                    "closed_at",
+                ):
+                    add_timestamp(
+                        raw_targets.get(field_name),
+                        f"outcome_targets.{field_name}",
+                    )
+
+        duration_values: list[tuple[Any, str]] = []
+        if isinstance(self.trust_row, Mapping):
+            for field_name in (
+                "label_horizon_seconds",
+                "outcome_horizon_seconds",
+                "holding_period",
+                "holding_period_seconds",
+                "hold_time_seconds",
+            ):
+                value = self.trust_row.get(field_name)
+                if value not in (None, ""):
+                    duration_values.append((value, f"trust_row.{field_name}"))
+        for field_name in (
+            "label_horizon_seconds",
+            "outcome_horizon_seconds",
+            "holding_period",
+            "holding_period_seconds",
+            "hold_time_seconds",
+        ):
+            value = trust_targets.get(field_name)
+            if value not in (None, ""):
+                duration_values.append((value, f"outcome_targets.{field_name}"))
+
+        if parsed is not None:
+            for raw_duration, source in duration_values:
+                if isinstance(raw_duration, bool):
+                    invalid_timing_sources.append(source)
+                    continue
+                try:
+                    duration_seconds = float(raw_duration)
+                except (TypeError, ValueError, OverflowError):
+                    invalid_timing_sources.append(source)
+                    continue
+                if not math.isfinite(duration_seconds) or duration_seconds <= 0.0:
+                    invalid_timing_sources.append(source)
+                    continue
+                timing_candidates.append(
+                    (parsed + timedelta(seconds=duration_seconds), source)
+                )
+
+        label_timing_error: str | None = None
+        label_available_at: str | None = None
+        label_timing_source: str | None = None
+        if parsed is None:
+            label_timing_error = "DECISION_TIME_INVALID"
+        elif invalid_timing_sources:
+            label_timing_error = (
+                "LABEL_TIMING_INVALID:" + ",".join(sorted(set(invalid_timing_sources)))
+            )
+        elif not timing_candidates:
+            label_timing_error = "LABEL_TIMING_MISSING"
+        else:
+            label_time, label_timing_source = max(
+                timing_candidates,
+                key=lambda item: item[0],
+            )
+            if label_time <= parsed:
+                label_timing_error = "LABEL_AVAILABLE_AT_NOT_AFTER_DECISION_TIME"
+                label_timing_source = None
+            else:
+                label_available_at = label_time.isoformat(timespec="microseconds").replace(
+                    "+00:00", "Z"
+                )
+
+        object.__setattr__(self, "label_available_at", label_available_at)
+        object.__setattr__(self, "label_timing_source", label_timing_source)
+        object.__setattr__(self, "label_timing_valid", label_timing_error is None)
+        object.__setattr__(self, "label_timing_error", label_timing_error)
+
+        raw_behavior_index: Any = self.behavior_action_index
+        raw_behavior_action: Any = self.behavior_action
+        if isinstance(self.trust_row, Mapping):
+            if raw_behavior_index is None:
+                raw_behavior_index = self.trust_row.get("behavior_action_index")
+            if raw_behavior_index is None:
+                # Backward-compatible source alias, but never a supervised
+                # label_action_index fallback.
+                raw_behavior_index = self.trust_row.get("selected_action_index")
+            if raw_behavior_action in (None, ""):
+                raw_behavior_action = self.trust_row.get("behavior_action")
+            if raw_behavior_action in (None, ""):
+                raw_behavior_action = self.trust_row.get("selected_action")
+
+        parsed_behavior_index: int | None = None
+        if not isinstance(raw_behavior_index, bool):
+            try:
+                candidate_index = int(raw_behavior_index)
+            except (TypeError, ValueError, OverflowError):
+                candidate_index = None
+            if candidate_index is not None:
+                try:
+                    exactly_integral = float(raw_behavior_index) == float(candidate_index)
+                except (TypeError, ValueError, OverflowError):
+                    exactly_integral = False
+                if exactly_integral:
+                    parsed_behavior_index = candidate_index
+        normalized_behavior_action = str(raw_behavior_action or "").strip().lower() or None
+        object.__setattr__(self, "behavior_action_index", parsed_behavior_index)
+        object.__setattr__(self, "behavior_action", normalized_behavior_action)
 
 
 EXPLICIT_TRAINING_TRUST_FIELDS = (
@@ -319,8 +634,40 @@ def _classification_from_lineage(
     integrity classification must reflect what was missing at decision time,
     not what cannot be re-derived from an archived snapshot.
     """
-    if tensor.data_coverage_percent < 20.0:
-        return "INSUFFICIENT_V2_DATA_COVERAGE"
+    vector_lengths = {
+        len(tensor.values),
+        len(tensor.missing_mask),
+        len(tensor.stale_mask),
+        len(tensor.source_availability),
+        len(tensor.source_availability_vector),
+        len(tensor.feature_names),
+        len(tensor.source_labels),
+    }
+    if len(vector_lengths) != 1 or not tensor.values:
+        return "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE"
+    usable_observation = False
+    for value, missing, stale, available in zip(
+        tensor.values,
+        tensor.missing_mask,
+        tensor.stale_mask,
+        tensor.source_availability,
+    ):
+        if isinstance(value, bool):
+            continue
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if (
+            missing == 0
+            and stale == 0
+            and available == 1
+            and math.isfinite(numeric_value)
+        ):
+            usable_observation = True
+            break
+    if not usable_observation:
+        return "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE"
     if lineage is not None:
         if int(lineage.get("stale_feature_count") or 0) > 0:
             return "STALE_MASKED"
@@ -416,8 +763,8 @@ def _parse_trust_time(value: Any) -> datetime | None:
             return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
         except (OverflowError, OSError, ValueError):
             return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -506,12 +853,12 @@ def _paper_outcome_label_row_usable(row: Mapping[str, Any]) -> bool:
 
 def trainer_feedback_quarantine_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
     reasons: list[str] = []
-    for field in (
+    for field_name in (
         "quarantine_reason",
         "invalid_admission_quarantine_reason",
         "paper_admission_quarantine_reason",
     ):
-        value = row.get(field)
+        value = row.get(field_name)
         if value not in (None, "", "NONE"):
             reasons.append(str(value))
     values = row.get("quarantine_reasons")
@@ -524,47 +871,33 @@ def trainer_feedback_quarantine_rejection_reasons(row: Mapping[str, Any]) -> lis
     return sorted(set(reasons))
 
 
-def _high_confidence_loss_calibration_row(row: Mapping[str, Any]) -> bool:
-    try:
-        confidence = float(
-            row.get("confidence_at_entry")
-            or row.get("confidence_calibrated")
-            or row.get("selected_action_probability")
-            or 0.0
-        )
-    except (TypeError, ValueError):
-        confidence = 0.0
-    if confidence < 0.70:
-        return False
-    if row.get("high_confidence_loss") is True:
-        return True
-    if str(row.get("outcome_label") or "").lower() == "loss":
-        return True
-    if row.get("action_was_profitable") is False:
-        return True
-    try:
-        return float(row.get("realized_pnl_bps") or 0.0) < 0.0
-    except (TypeError, ValueError):
-        return False
-
-
 def _feedback_trust_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
     reasons: list[str] = []
-    for field in REQUIRED_TRUST_ENVELOPE_FIELDS:
-        value = row.get(field)
-        if value in (None, "") or (field == "source_hashes" and (not isinstance(value, Mapping) or not value)):
-            reasons.append(f"MISSING_TRUST_{field.upper()}")
+    for field_name in REQUIRED_TRUST_ENVELOPE_FIELDS:
+        value = row.get(field_name)
+        if value in (None, "") or (
+            field_name == "source_hashes"
+            and (not isinstance(value, Mapping) or not value)
+        ):
+            reasons.append(f"MISSING_TRUST_{field_name.upper()}")
     decision_time = _parse_trust_time(row.get("decision_time"))
     available_at = _parse_trust_time(row.get("available_at"))
     feature_cutoff = _parse_trust_time(row.get("feature_cutoff"))
+    for field_name, parsed in (
+        ("DECISION_TIME", decision_time),
+        ("AVAILABLE_AT", available_at),
+        ("FEATURE_CUTOFF", feature_cutoff),
+    ):
+        if row.get(field_name.lower()) not in (None, "") and parsed is None:
+            reasons.append(f"{field_name}_UNPARSEABLE")
+    for field_name in ("label_available_at", "outcome_available_at"):
+        raw_value = row.get(field_name)
+        if raw_value not in (None, "") and _parse_trust_time(raw_value) is None:
+            reasons.append(f"{field_name.upper()}_UNPARSEABLE")
     if available_at is not None and decision_time is not None and available_at > decision_time:
         reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
     if feature_cutoff is not None and decision_time is not None and feature_cutoff > decision_time:
         reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
-    if _high_confidence_loss_calibration_row(row):
-        reasons = [
-            reason for reason in reasons if not reason.startswith("MISSING_TRUST_")
-        ]
     return reasons
 
 
@@ -576,13 +909,60 @@ def _extra_contract_rejection_reasons(row: Mapping[str, Any]) -> list[str]:
         reasons.append("MTF_SNAPSHOT_INVALID")
     for reason in row.get("mtf_snapshot_reject_reasons") or []:
         reasons.append(f"MTF_SNAPSHOT:{reason}")
-    masa_cutoff = _parse_trust_time(row.get("masa_feature_cutoff"))
-    ppo_cutoff = _parse_trust_time(row.get("ppo_feature_cutoff"))
-    decision_time = _parse_trust_time(row.get("decision_time_est"))
-    if masa_cutoff is not None and ppo_cutoff is not None and masa_cutoff != ppo_cutoff:
-        reasons.append("MASA_PPO_CUTOFF_MISMATCH")
-    if masa_cutoff is not None and decision_time is not None and masa_cutoff > decision_time:
-        reasons.append("MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    clock_values = {
+        "FEATURE_CUTOFF": row.get("feature_cutoff"),
+        "AVAILABLE_AT": row.get("available_at"),
+        "DECISION_TIME": row.get("decision_time"),
+    }
+    parsed_clocks = {
+        field_name: _parse_trust_time(raw_value)
+        for field_name, raw_value in clock_values.items()
+    }
+    for field_name, raw_value in clock_values.items():
+        if raw_value in (None, ""):
+            reasons.append(f"{field_name}_MISSING")
+        elif parsed_clocks[field_name] is None:
+            reasons.append(f"{field_name}_UNPARSEABLE")
+    feature_cutoff = parsed_clocks["FEATURE_CUTOFF"]
+    available_at = parsed_clocks["AVAILABLE_AT"]
+    decision_time = parsed_clocks["DECISION_TIME"]
+    if (
+        feature_cutoff is not None
+        and decision_time is not None
+        and feature_cutoff > decision_time
+    ):
+        reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    if (
+        available_at is not None
+        and decision_time is not None
+        and available_at > decision_time
+    ):
+        reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
+
+    masa_cutoff_raw = row.get("masa_feature_cutoff")
+    ppo_cutoff_raw = row.get("ppo_feature_cutoff")
+    masa_cutoff = _parse_trust_time(masa_cutoff_raw)
+    ppo_cutoff = _parse_trust_time(ppo_cutoff_raw)
+    if masa_cutoff_raw not in (None, "") and masa_cutoff is None:
+        reasons.append("MASA_FEATURE_CUTOFF_UNPARSEABLE")
+    if ppo_cutoff_raw not in (None, "") and ppo_cutoff is None:
+        reasons.append("PPO_FEATURE_CUTOFF_UNPARSEABLE")
+    if (
+        masa_cutoff is not None
+        and decision_time is not None
+        and masa_cutoff > decision_time
+    ):
+        reasons.append("MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME")
+    if (
+        ppo_cutoff is not None
+        and decision_time is not None
+        and ppo_cutoff > decision_time
+    ):
+        reasons.append("PPO_FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    for field_name in ("label_available_at", "outcome_available_at"):
+        raw_value = row.get(field_name)
+        if raw_value not in (None, "") and _parse_trust_time(raw_value) is None:
+            reasons.append(f"{field_name.upper()}_UNPARSEABLE")
     if row.get("backfilled") is True and str(row.get("source_mode") or "").lower() == "live":
         reasons.append("BACKFILLED_DATA_MARKED_LIVE")
     return reasons
@@ -648,6 +1028,51 @@ class V2HybridTrainerDataLoader:
         if cache is not None and key in cache:
             return cache[key]
         return self.io.get_json(key)
+
+    def _get_exact_json_with_ttl(self, key: str) -> tuple[dict[str, Any] | None, int | None]:
+        """Atomically re-read one expiring source and its remaining TTL.
+
+        This bypasses the request cache deliberately: an ordinary PAPER source
+        envelope is only valid when the exact bytes used by the tensor still
+        exist under the canonical Redis key at evidence-construction time.
+        """
+
+        assert_v2_key(key)
+        client = getattr(self.io, "client", None)
+        audit = getattr(self.io, "audit", None)
+        if audit is not None:
+            audit.reads_attempted += 1
+        if client is None:
+            if audit is not None:
+                audit.reads_missing += 1
+            return None, None
+        try:
+            pipe = client.pipeline(transaction=True)
+            pipe.get(key)
+            pipe.ttl(key)
+            raw, raw_ttl = pipe.execute()
+        except Exception as exc:  # noqa: BLE001
+            if audit is not None:
+                audit.errors.append(
+                    f"exact_get_ttl_failed:{key}:{type(exc).__name__}"
+                )
+            return None, None
+        if raw is None:
+            if audit is not None:
+                audit.reads_missing += 1
+            return None, int(raw_ttl) if isinstance(raw_ttl, int) else None
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8")
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except ValueError:
+                if audit is not None:
+                    audit.errors.append(f"json_decode_failed:{key}")
+                return None, int(raw_ttl) if isinstance(raw_ttl, int) else None
+        payload = dict(raw) if isinstance(raw, Mapping) else None
+        ttl = int(raw_ttl) if isinstance(raw_ttl, int) and not isinstance(raw_ttl, bool) else None
+        return payload, ttl
 
     def _get_first(self, *keys: str) -> tuple[Any, str]:
         for key in keys:
@@ -1187,33 +1612,41 @@ class V2HybridTrainerDataLoader:
                         "done",
                         "rollout_id",
                         "trajectory_index",
-                        "action_probabilities",
-                        "selected_action_log_prob",
-                        "selected_action_probability",
-                        "ppo_on_policy_entry_fields_present",
-                        "ppo_on_policy_ineligible_reason",
-                        "entry_policy_fields_source",
+                        "behavior_action_sampling_mode",
+                        "behavior_distribution_contract",
+                        "strategy_supply_hypothesis",
+                        *BEHAVIOR_POLICY_LINEAGE_FIELDS,
                     )
                     if outcome_row.get(field) not in (None, "")
                 }
             )
         if _has_explicit_training_trust_evidence(trust_row):
             trust_result = classify_training_sample(trust_row)
-            trust_row["accepted_for_training"] = trust_result["accepted_for_training"]
-            trust_row["valid_for_training"] = trust_result["valid_for_training"]
             trust_row["market_state_integrity_score"] = trust_result["market_state_integrity_score"]
             extra_reasons = _extra_contract_rejection_reasons(trust_row)
             trust_row["reject_reasons"] = sorted(set(list(trust_result["reject_reasons"]) + extra_reasons))
             trust_row["source_lineage"] = trust_result["source_lineage"]
-            if trust_result["accepted_for_training"] is not True or extra_reasons:
+            final_accepted = bool(
+                trust_result["accepted_for_training"] is True
+                and trust_result["valid_for_training"] is True
+                and not trust_row["reject_reasons"]
+            )
+            trust_row["accepted_for_training"] = final_accepted
+            trust_row["valid_for_training"] = final_accepted
+            if not final_accepted:
                 classification = "MARKET_STATE_REJECTED"
                 trust_row["trainer_consumable"] = False
                 trust_row["row_classification"] = classification
         else:
-            trust_row["accepted_for_training"] = classification != "STALE_MASKED"
-            trust_row["valid_for_training"] = trust_row["accepted_for_training"]
+            classification = "MARKET_STATE_REJECTED"
+            trust_row["accepted_for_training"] = False
+            trust_row["valid_for_training"] = False
+            trust_row["trainer_consumable"] = False
+            trust_row["row_classification"] = classification
             trust_row["market_state_integrity_score"] = None
-            trust_row["reject_reasons"] = []
+            trust_row["reject_reasons"] = [
+                "MISSING_EXPLICIT_TRAINING_TRUST_EVIDENCE"
+            ]
 
         return TrainingExample(
             symbol=symbol,
@@ -1250,7 +1683,7 @@ class V2HybridTrainerDataLoader:
                 features_full[key] = latest.get(key, ohlcv.get(key))
             if features_full.get(key) is None and tensor_missing.get(key) == 0:
                 features_full[key] = tensor_values.get(key)
-        decision_time = latest.get("decision_time") or latest.get("decision_cutoff") or latest.get("generated_at")
+        decision_time = prediction.get("decision_time") or latest.get("decision_time")
         mtf_snapshot = build_multi_timeframe_decision_snapshot(
             symbol=symbol,
             decision_time=decision_time,
@@ -1262,6 +1695,37 @@ class V2HybridTrainerDataLoader:
         snapshot_feature_cutoff = mtf_snapshot.get("feature_cutoff")
         snapshot_all_tf_candle_timestamps = mtf_snapshot.get("all_tf_candle_timestamps") or []
         snapshot_all_source_event_times = mtf_snapshot.get("all_source_event_times") or []
+        source_keys = payloads.get("_keys")
+        source_keys = source_keys if isinstance(source_keys, Mapping) else {}
+        microstructure_source_key = str(
+            source_keys.get("microstructure_trust") or ""
+        )
+        canonical_microstructure_source_key = (
+            f"v2:microstructure:trust_score:{symbol}:{timeframe}"
+        )
+        microstructure_readback: dict[str, Any] | None = None
+        microstructure_ttl: int | None = None
+        if microstructure_source_key == canonical_microstructure_source_key:
+            microstructure_readback, microstructure_ttl = (
+                self._get_exact_json_with_ttl(microstructure_source_key)
+            )
+        microstructure_evidence = build_microstructure_trust_evidence(
+            source_payload=(
+                payloads.get("microstructure_trust")
+                if isinstance(payloads.get("microstructure_trust"), Mapping)
+                else None
+            ),
+            source_payload_readback=microstructure_readback,
+            source_key=microstructure_source_key,
+            source_observed_ttl_seconds=microstructure_ttl,
+            tensor_id=tensor.tensor_id,
+            feature_snapshot_id=tensor.feature_snapshot_id,
+            tensor_source_lineage_hash=tensor.source_lineage_hash,
+            tensor_decision_time=tensor.decision_time,
+            symbol=symbol.upper(),
+            timeframe=timeframe,
+            tensor_temporal_rejection_reasons=tensor.temporal_rejection_reasons,
+        )
         return {
             "trust_schema_version": latest.get("trust_schema_version")
             or prediction.get("trust_schema_version")
@@ -1287,11 +1751,12 @@ class V2HybridTrainerDataLoader:
             "multi_timeframe_decision_snapshot": mtf_snapshot,
             "feature_snapshot_id": tensor.feature_snapshot_id,
             "feature_vector_hash": tensor.tensor_id,
-            "feature_cutoff": latest.get("feature_cutoff")
-            or latest.get("decision_cutoff")
-            or snapshot_feature_cutoff
-            or latest.get("generated_at"),
-            "available_at": latest.get("available_at") or latest.get("source_available_time") or latest.get("generated_at"),
+            "feature_cutoff": prediction.get("feature_cutoff")
+            or latest.get("feature_cutoff")
+            or snapshot_feature_cutoff,
+            "decision_time": decision_time,
+            "available_at": prediction.get("available_at")
+            or latest.get("available_at"),
             "latency_ms": latest.get("latency_ms"),
             "generated_at": latest.get("generated_at") or latest.get("generated_utc"),
             "feature_freshness_state": latest.get("feature_freshness_state"),
@@ -1311,7 +1776,7 @@ class V2HybridTrainerDataLoader:
             or latest.get("source_available_time")
             or latest.get("available_at"),
             "source_available_time": latest.get("source_available_time") or latest.get("available_at"),
-            "decision_time_est": decision_time,
+            "decision_time_est": latest.get("decision_time_est"),
             "masa_feature_cutoff": prediction.get("masa_feature_cutoff") or latest.get("masa_feature_cutoff"),
             "ppo_feature_cutoff": prediction.get("ppo_feature_cutoff")
             or latest.get("ppo_feature_cutoff")
@@ -1324,6 +1789,13 @@ class V2HybridTrainerDataLoader:
             or latest.get("all_source_event_times")
             or [],
             "source_lineage": latest.get("source_lineage") or {},
+            "microstructure_trust_evidence": microstructure_evidence,
+            "microstructure_trust_evidence_sha256": microstructure_evidence.get(
+                "evidence_sha256"
+            ),
+            "microstructure_trust_evidence_rejection_reasons": list(
+                microstructure_evidence.get("producer_rejection_reasons") or []
+            ),
             "price_disagreement_bps": latest.get("price_disagreement_bps") or prediction.get("price_disagreement_bps"),
             "duplicate_event_count": latest.get("duplicate_event_count"),
             "out_of_order_event_count": latest.get("out_of_order_event_count"),
@@ -1343,10 +1815,17 @@ class V2HybridTrainerDataLoader:
         trusted_only: bool = False,
         closed_trade_only: bool = False,
         snapshot_fast_path: bool = False,
+        training_observed_at: datetime | str | None = None,
     ) -> list[TrainingExample]:
+        observation_cutoff = _resolve_training_observed_at(training_observed_at)
         examples: list[TrainingExample] = []
         if trusted_only:
             for example in self._closed_trade_snapshot_training_examples():
+                if not _training_example_observed_by(
+                    example,
+                    training_observed_at=observation_cutoff,
+                ):
+                    continue
                 examples.append(example)
                 if limit is not None and len(examples) >= int(limit):
                     return examples
@@ -1359,8 +1838,14 @@ class V2HybridTrainerDataLoader:
                     timeframe=timeframe,
                     snapshot_fast_path=snapshot_fast_path,
                 )
-                if trusted_only and not _example_trusted_for_training(example):
-                    continue
+                if trusted_only:
+                    if not _example_trusted_for_training(example):
+                        continue
+                    if not _training_example_observed_by(
+                        example,
+                        training_observed_at=observation_cutoff,
+                    ):
+                        continue
                 examples.append(example)
                 if limit is not None and len(examples) >= int(limit):
                     return examples
@@ -1488,6 +1973,7 @@ class V2HybridTrainerDataLoader:
         *,
         limit: int | None = None,
         backfill: bool = False,
+        training_observed_at: datetime | str | None = None,
     ) -> list[TrainingExample]:
         """Consume labelable snapshots from a persistent oldest-first cursor.
 
@@ -1507,6 +1993,7 @@ class V2HybridTrainerDataLoader:
         starting the next epoch over history. The frontier cursor is never
         touched by this lane.
         """
+        observation_cutoff = _resolve_training_observed_at(training_observed_at)
         examples: list[TrainingExample] = []
         requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
         scan_limit = min(
@@ -1517,7 +2004,7 @@ class V2HybridTrainerDataLoader:
             ),
             TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE,
         )
-        embargo_cutoff = datetime.now(tz=timezone.utc) - timedelta(
+        embargo_cutoff = observation_cutoff - timedelta(
             seconds=TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS
         )
         backfill_stop_offset: int | None = None
@@ -1551,9 +2038,7 @@ class V2HybridTrainerDataLoader:
                 # The region past the frontier cursor belongs to the primary lane.
                 frontier_reached = True
                 break
-            decision_time = _parse_iso_utc(
-                snapshot.get("decision_time") or snapshot.get("generated_utc")
-            )
+            decision_time = _parse_iso_utc(snapshot.get("decision_time"))
             if decision_time is not None and decision_time > embargo_cutoff:
                 frontier_reached = True
                 break
@@ -1604,11 +2089,12 @@ class V2HybridTrainerDataLoader:
                 "ohlcv": candle_key,
             }
             tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
-            if tensor.data_coverage_percent < 20.0:
-                rejections["data_coverage_below_20pct"] = rejections.get("data_coverage_below_20pct", 0) + 1
-                continue
             snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
             classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
+            if classification == "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE":
+                reason = "no_verifiable_observed_feature_evidence"
+                rejections[reason] = rejections.get(reason, 0) + 1
+                continue
             missing_feature_names = list(
                 (
                     (snapshot_lineage or {}).get("missing_feature_names")
@@ -1625,10 +2111,22 @@ class V2HybridTrainerDataLoader:
                 )
                 or []
             )
+            schema_introduction_attested = bool(
+                snapshot.get("feature_family_introduced_after_snapshot_time") is True
+            )
+            missing_names_optional_or_event = (
+                _missing_names_are_optional_or_event_dependent(missing_feature_names)
+                and not any(
+                    str(name).lower().startswith("critical_family_absent:")
+                    for name in missing_feature_names
+                )
+            )
             safe_missing_mask_replay_candidate = (
                 classification == "MISSING_MASKED"
                 and not stale_feature_names
-                and "critical_family_absent:ohlcv_core" not in missing_feature_names
+                and missing_names_optional_or_event
+                and snapshot_lineage is not None
+                and schema_introduction_attested
             )
             trust_row = dict(replay_row)
             trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
@@ -1649,7 +2147,9 @@ class V2HybridTrainerDataLoader:
                         if safe_missing_mask_replay_candidate
                         else None
                     ),
-                    "feature_family_introduced_after_snapshot_time": safe_missing_mask_replay_candidate,
+                    "feature_family_introduced_after_snapshot_time": (
+                        schema_introduction_attested
+                    ),
                     "critical_missing_vs_optional_missing": (
                         "HISTORICAL_SCHEMA_MISSING_MASKED"
                         if safe_missing_mask_replay_candidate
@@ -1683,10 +2183,30 @@ class V2HybridTrainerDataLoader:
                 row_classification=classification,
                 trust_row=trust_row,
             )
+            if not _training_example_observed_by(
+                example,
+                training_observed_at=observation_cutoff,
+            ):
+                rejections["label_available_after_training_observed_at"] = (
+                    rejections.get(
+                        "label_available_after_training_observed_at",
+                        0,
+                    )
+                    + 1
+                )
+                continue
             if classification == "STALE_MASKED":
                 rejections["stale_masked"] = rejections.get("stale_masked", 0) + 1
                 continue
             if classification == "MISSING_MASKED":
+                if not safe_missing_mask_replay_candidate:
+                    reason = (
+                        "missing_mask_schema_introduction_unproven"
+                        if missing_names_optional_or_event
+                        else "missing_critical_feature_family"
+                    )
+                    rejections[reason] = rejections.get(reason, 0) + 1
+                    continue
                 rejections["missing_masked_accepted_for_replay"] = (
                     rejections.get("missing_masked_accepted_for_replay", 0) + 1
                 )
@@ -1699,7 +2219,7 @@ class V2HybridTrainerDataLoader:
                 reason == "MISSING_CRITICAL_FEATURE_FAMILY" for reason in sample_reject_reasons
             )
             if sample.get("accepted_for_training") is not True or sample_reject_reasons:
-                if not only_missing_family:
+                if not only_missing_family or not safe_missing_mask_replay_candidate:
                     for reason in sample_reject_reasons or ["sample_not_accepted"]:
                         rejections[f"sample:{reason}"] = rejections.get(f"sample:{reason}", 0) + 1
                     continue
@@ -1754,23 +2274,70 @@ class V2HybridTrainerDataLoader:
                     continue
                 row_with_source = dict(row)
                 row_with_source.setdefault("trainer_feedback_source_key", source_key)
-                if cache_enabled:
-                    key = _closed_trade_example_cache_key(row_with_source)
+                feature_snapshot_id = row_with_source.get(
+                    "entry_feature_snapshot_id"
+                ) or row_with_source.get("feature_snapshot_id")
+                if feature_snapshot_id in (None, ""):
+                    continue
+                cache_key: str | None = None
+                # An immutable content claim is sufficient to address an
+                # already-validated cached example.  Consult that cache before
+                # reading a mutable Redis copy; the cached entry was inserted
+                # only after byte-identity verification against this same hash.
+                expected_snapshot_hash = (
+                    _expected_feature_snapshot_content_sha256(row_with_source)
+                )
+                if cache_enabled and expected_snapshot_hash is not None:
+                    cache_key = _closed_trade_example_cache_key(
+                        row_with_source,
+                        archive_root=Path(self.trusted_replay_archive_root),
+                        snapshot_content_sha256=expected_snapshot_hash,
+                    )
                     with _CLOSED_TRADE_EXAMPLE_CACHE_LOCK:
-                        cached = _CLOSED_TRADE_EXAMPLE_CACHE.get(key)
+                        cached = _CLOSED_TRADE_EXAMPLE_CACHE.get(cache_key)
                         if cached is not None:
-                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(key)
+                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
                     if cached is not None:
                         examples.append(cached)
                         continue
-                example = self._closed_trade_snapshot_training_example(row_with_source)
+                snapshot, snapshot_source = self._closed_trade_feature_snapshot(
+                    row=row_with_source,
+                    feature_snapshot_id=feature_snapshot_id,
+                )
+                if not isinstance(snapshot, Mapping):
+                    continue
+                snapshot_content_sha256 = _valid_sha256(
+                    snapshot.get("content_sha256")
+                )
+                if snapshot_content_sha256 is None:
+                    continue
+                if cache_enabled and cache_key is None:
+                    cache_key = _closed_trade_example_cache_key(
+                        row_with_source,
+                        archive_root=Path(self.trusted_replay_archive_root),
+                        snapshot_content_sha256=snapshot_content_sha256,
+                    )
+                    with _CLOSED_TRADE_EXAMPLE_CACHE_LOCK:
+                        cached = _CLOSED_TRADE_EXAMPLE_CACHE.get(cache_key)
+                        if cached is not None:
+                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
+                            _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
+                    if cached is not None:
+                        examples.append(cached)
+                        continue
+                example = self._closed_trade_snapshot_training_example(
+                    row_with_source,
+                    resolved_snapshot=snapshot,
+                    resolved_snapshot_source=snapshot_source,
+                )
                 if example is not None:
                     examples.append(example)
                     if cache_enabled:
+                        assert cache_key is not None
                         with _CLOSED_TRADE_EXAMPLE_CACHE_LOCK:
-                            _CLOSED_TRADE_EXAMPLE_CACHE[key] = example
-                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(key)
+                            _CLOSED_TRADE_EXAMPLE_CACHE[cache_key] = example
+                            _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["misses"] += 1
                             while len(_CLOSED_TRADE_EXAMPLE_CACHE) > _CLOSED_TRADE_EXAMPLE_CACHE_CAP:
                                 _CLOSED_TRADE_EXAMPLE_CACHE.popitem(last=False)
@@ -1782,21 +2349,10 @@ class V2HybridTrainerDataLoader:
         row: Mapping[str, Any],
         feature_snapshot_id: Any,
     ) -> tuple[Mapping[str, Any] | None, str | None]:
-        snapshot_key = f"v2:features:snapshot:{feature_snapshot_id}"
-        snapshot = self._get(snapshot_key)
-        if isinstance(snapshot, Mapping):
-            return snapshot, snapshot_key
-        for field in ("entry_feature_snapshot", "feature_snapshot"):
-            embedded = row.get(field)
-            if not isinstance(embedded, Mapping):
-                continue
-            embedded_id = embedded.get("feature_snapshot_id") or embedded.get("snapshot_id")
-            if embedded_id in (None, "") or str(embedded_id) != str(feature_snapshot_id):
-                continue
-            features = embedded.get("features") if isinstance(embedded.get("features"), Mapping) else {}
-            if not features:
-                continue
-            return embedded, f"trainer_feedback.{field}"
+        # The disk archive is immutable-by-content and therefore authoritative
+        # for training. Redis and embedded payloads are mutable caches and may
+        # only recover availability when a durable SHA-256 recorded on the
+        # feedback row proves byte-for-byte equivalence.
         try:
             archived = load_durable_feature_snapshot(
                 feature_snapshot_id,
@@ -1807,18 +2363,62 @@ class V2HybridTrainerDataLoader:
         if isinstance(archived, Mapping):
             features = archived.get("features") if isinstance(archived.get("features"), Mapping) else {}
             archived_id = archived.get("feature_snapshot_id") or archived.get("snapshot_id")
-            if features and str(archived_id or feature_snapshot_id) == str(feature_snapshot_id):
+            expected_hash = _expected_feature_snapshot_content_sha256(row)
+            observed_hash = _valid_sha256(archived.get("content_sha256"))
+            content_claim_matches = (
+                not _feature_snapshot_content_hash_claim_present(row)
+                or (
+                    expected_hash is not None
+                    and observed_hash == expected_hash
+                )
+            )
+            if (
+                features
+                and str(archived_id or feature_snapshot_id)
+                == str(feature_snapshot_id)
+                and content_claim_matches
+            ):
                 return archived, f"durable_feature_snapshot_archive:{feature_snapshot_id}"
+
+        if _expected_feature_snapshot_content_sha256(row) is None:
+            return None, None
+        snapshot_key = f"v2:features:snapshot:{feature_snapshot_id}"
+        mutable_candidates: list[tuple[Mapping[str, Any], str]] = []
+        snapshot = self._get(snapshot_key)
+        if isinstance(snapshot, Mapping):
+            mutable_candidates.append((snapshot, snapshot_key))
+        for field_name in ("entry_feature_snapshot", "feature_snapshot"):
+            embedded = row.get(field_name)
+            if isinstance(embedded, Mapping):
+                mutable_candidates.append(
+                    (embedded, f"trainer_feedback.{field_name}")
+                )
+        for candidate, source in mutable_candidates:
+            if _mutable_snapshot_matches_immutable_proof(
+                row=row,
+                snapshot=candidate,
+                feature_snapshot_id=feature_snapshot_id,
+            ):
+                return candidate, f"verified_mutable_equivalent:{source}"
         return None, None
 
-    def _closed_trade_snapshot_training_example(self, row: Mapping[str, Any]) -> TrainingExample | None:
+    def _closed_trade_snapshot_training_example(
+        self,
+        row: Mapping[str, Any],
+        *,
+        resolved_snapshot: Mapping[str, Any] | None = None,
+        resolved_snapshot_source: str | None = None,
+    ) -> TrainingExample | None:
         feature_snapshot_id = row.get("entry_feature_snapshot_id") or row.get("feature_snapshot_id")
         if feature_snapshot_id in (None, ""):
             return None
-        snapshot, snapshot_source = self._closed_trade_feature_snapshot(
-            row=row,
-            feature_snapshot_id=feature_snapshot_id,
-        )
+        snapshot = resolved_snapshot
+        snapshot_source = resolved_snapshot_source
+        if not isinstance(snapshot, Mapping):
+            snapshot, snapshot_source = self._closed_trade_feature_snapshot(
+                row=row,
+                feature_snapshot_id=feature_snapshot_id,
+            )
         if not isinstance(snapshot, Mapping):
             return None
         symbol = str(row.get("symbol") or "").upper()
@@ -1833,9 +2433,13 @@ class V2HybridTrainerDataLoader:
         if str(snapshot.get("timeframe") or "") not in {"", timeframe}:
             return None
         decision_time = _parse_trust_time(row.get("decision_time"))
-        snapshot_available_at = _parse_trust_time(snapshot.get("available_at") or snapshot.get("generated_utc") or snapshot.get("generated_at"))
-        snapshot_feature_cutoff = _parse_trust_time(snapshot.get("feature_cutoff") or snapshot.get("source_available_time"))
-        if decision_time is None:
+        snapshot_available_at = _parse_trust_time(snapshot.get("available_at"))
+        snapshot_feature_cutoff = _parse_trust_time(snapshot.get("feature_cutoff"))
+        if (
+            decision_time is None
+            or snapshot_available_at is None
+            or snapshot_feature_cutoff is None
+        ):
             return None
         if snapshot_available_at is not None and snapshot_available_at > decision_time:
             return None
@@ -1846,22 +2450,30 @@ class V2HybridTrainerDataLoader:
             return None
         payloads = self._payloads_from_feature_snapshot(snapshot=snapshot, features=features, feedback_row=row)
         tensor = self.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
-        if tensor.data_coverage_percent < 20.0:
-            return None
         targets = self._outcome_targets_from_row(row)
         directional_value = self._directional_label_bps_from_outcome(row)
         action = self._label_action(directional_value)
         snapshot_lineage = _reconcile_lineage_with_row(_snapshot_decision_time_lineage(snapshot), row)
         classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
+        if classification == "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE":
+            return None
         lineage_fields = _lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage)
         missing_feature_names = list(lineage_fields["missing_feature_names"])
-        stale_feature_names = list(lineage_fields["stale_feature_names"])
         optional_missing_masked = classification == "MISSING_MASKED" and _missing_names_are_optional_or_event_dependent(
             missing_feature_names
         )
         trainer_consumable = classification == "TRAINABLE" or optional_missing_masked
-        feature_cutoff = row.get("feature_cutoff") or snapshot.get("feature_cutoff") or snapshot.get("source_event_time_est")
-        available_at = row.get("available_at") or snapshot.get("available_at") or snapshot.get("source_available_time")
+        feature_cutoff = row.get("feature_cutoff") or snapshot.get("feature_cutoff")
+        available_at = row.get("available_at") or snapshot.get("available_at")
+        effective_feature_cutoff = _parse_trust_time(feature_cutoff)
+        effective_available_at = _parse_trust_time(available_at)
+        if (
+            effective_feature_cutoff is None
+            or effective_available_at is None
+            or effective_feature_cutoff > decision_time
+            or effective_available_at > decision_time
+        ):
+            return None
         candle_close_time = row.get("candle_close_time") or snapshot.get("candle_close_time") or feature_cutoff
         candle_open_time = row.get("candle_open_time") or snapshot.get("candle_open_time")
         source_event_time = row.get("source_event_time") or row.get("source_event_time_est") or snapshot.get(
@@ -2136,7 +2748,17 @@ class V2HybridTrainerDataLoader:
 
     @staticmethod
     def _directional_label_bps_from_outcome(row: Mapping[str, Any]) -> float:
-        value = float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps") or 0.0)
+        nested_targets = (
+            row.get("outcome_targets")
+            if isinstance(row.get("outcome_targets"), Mapping)
+            else {}
+        )
+        value_raw = row.get("realized_net_pnl_bps")
+        if value_raw in (None, ""):
+            value_raw = nested_targets.get("realized_net_pnl_bps")
+        if value_raw in (None, ""):
+            value_raw = row.get("realized_pnl_bps")
+        value = float(0.0 if value_raw in (None, "") else value_raw)
         directional = str(row.get("directional_outcome") or "").strip().upper()
         if directional == "UP":
             return abs(value)
@@ -2153,8 +2775,29 @@ class V2HybridTrainerDataLoader:
 
     @staticmethod
     def _outcome_targets_from_row(row: Mapping[str, Any]) -> dict[str, Any]:
-        realized_bps = float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps") or 0.0)
-        realized_usd = float(row.get("realized_net_pnl_usd") or row.get("realized_pnl_usd") or row.get("realized_pnl") or 0.0)
+        nested_targets = (
+            row.get("outcome_targets")
+            if isinstance(row.get("outcome_targets"), Mapping)
+            else {}
+        )
+        realized_bps_raw = row.get("realized_net_pnl_bps")
+        if realized_bps_raw in (None, ""):
+            realized_bps_raw = nested_targets.get("realized_net_pnl_bps")
+        if realized_bps_raw in (None, ""):
+            realized_bps_raw = row.get("realized_pnl_bps")
+        realized_usd_raw = row.get("realized_net_pnl_usd")
+        if realized_usd_raw in (None, ""):
+            realized_usd_raw = nested_targets.get("realized_net_pnl_usd")
+        if realized_usd_raw in (None, ""):
+            realized_usd_raw = row.get("realized_pnl_usd")
+        if realized_usd_raw in (None, ""):
+            realized_usd_raw = row.get("realized_pnl")
+        realized_bps = float(
+            0.0 if realized_bps_raw in (None, "") else realized_bps_raw
+        )
+        realized_usd = float(
+            0.0 if realized_usd_raw in (None, "") else realized_usd_raw
+        )
         selected_action = str(row.get("selected_action") or row.get("action") or row.get("side") or "").strip().lower()
         directional = str(row.get("directional_outcome") or "").strip().upper()
         if not directional:
@@ -2168,6 +2811,9 @@ class V2HybridTrainerDataLoader:
         return {
             "realized_net_pnl_bps": realized_bps,
             "realized_net_pnl_usd": realized_usd,
+            "realized_gross_pnl_usd": row.get("realized_gross_pnl_usd"),
+            "closed_entry_notional_usd": row.get("closed_entry_notional_usd"),
+            "closed_exit_notional_usd": row.get("closed_exit_notional_usd"),
             "directional_outcome": directional,
             "trade_outcome": trade_outcome,
             "selected_action": selected_action,
@@ -2178,8 +2824,54 @@ class V2HybridTrainerDataLoader:
             ),
             "holding_period": row.get("holding_period") or row.get("hold_time_seconds"),
             "fees": row.get("fees"),
+            "fees_usd": row.get("fees_usd"),
+            "entry_fee_usd": row.get("entry_fee_usd"),
+            "entry_fee_bps_per_side": row.get("entry_fee_bps_per_side"),
+            "entry_fee_source": row.get("entry_fee_source"),
+            "entry_fee_fallback": row.get("entry_fee_fallback"),
+            "exit_fee_usd": row.get("exit_fee_usd"),
+            "exit_fee_bps_per_side": row.get("exit_fee_bps_per_side"),
+            "exit_fee_source": row.get("exit_fee_source"),
+            "exit_fee_fallback": row.get("exit_fee_fallback"),
+            "exit_fee_rate_basis": row.get("exit_fee_rate_basis"),
+            "total_fees_usd": row.get("total_fees_usd"),
             "slippage": row.get("slippage"),
+            "slippage_usd": row.get("slippage_usd"),
+            "entry_slippage_usd": row.get("entry_slippage_usd"),
+            "entry_slippage_bps_per_side": row.get(
+                "entry_slippage_bps_per_side"
+            ),
+            "entry_slippage_source": row.get("entry_slippage_source"),
+            "entry_slippage_fallback": row.get("entry_slippage_fallback"),
+            "exit_slippage_usd": row.get("exit_slippage_usd"),
+            "exit_slippage_bps_per_side": row.get(
+                "exit_slippage_bps_per_side"
+            ),
+            "exit_slippage_source": row.get("exit_slippage_source"),
+            "exit_slippage_available_at": row.get(
+                "exit_slippage_available_at"
+            ),
+            "exit_slippage_fallback": row.get("exit_slippage_fallback"),
+            "exit_slippage_provenance_status": row.get(
+                "exit_slippage_provenance_status"
+            ),
+            "total_slippage_usd": row.get("total_slippage_usd"),
+            "total_execution_costs_usd": row.get("total_execution_costs_usd"),
+            "paper_round_trip_cost_accounting_version": row.get(
+                "paper_round_trip_cost_accounting_version"
+            ),
+            "paper_cost_rate_scope": row.get("paper_cost_rate_scope"),
+            "paper_net_pnl_formula": row.get("paper_net_pnl_formula"),
+            "outcome_cost_unit": row.get("outcome_cost_unit"),
+            "round_trip_cost_fallback_used": row.get(
+                "round_trip_cost_fallback_used"
+            ),
+            "round_trip_cost_provenance_status": row.get(
+                "round_trip_cost_provenance_status"
+            ),
             "funding": row.get("funding"),
+            "funding_usd": row.get("funding_usd"),
+            "funding_pnl_usd": row.get("funding_pnl_usd"),
             "MFE": row.get("MFE") if row.get("MFE") is not None else row.get("mfe_bps"),
             "MAE": row.get("MAE") if row.get("MAE") is not None else row.get("mae_bps"),
             "exit_reason": row.get("exit_reason") or row.get("close_reason"),
@@ -2190,9 +2882,16 @@ class V2HybridTrainerDataLoader:
 
     @staticmethod
     def _label_action(expected_move_after_cost_bps: float) -> int:
-        if expected_move_after_cost_bps >= 4.0:
+        """Map an already cost-adjusted outcome without a market-static band.
+
+        Zero is the mathematical break-even invariant.  Cost, spread, impact,
+        and funding adaptation must happen before this function; adding a fixed
+        bps dead-zone here would silently turn small realized directions into
+        HOLD labels under every market regime.
+        """
+        if expected_move_after_cost_bps > 0.0:
             return 1
-        if expected_move_after_cost_bps <= -4.0:
+        if expected_move_after_cost_bps < 0.0:
             return 2
         return 0
 

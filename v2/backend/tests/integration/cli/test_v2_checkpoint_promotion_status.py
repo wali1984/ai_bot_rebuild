@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -360,31 +361,69 @@ def test_cli_emits_operator_required_when_root_absent(
 
 
 def test_module_does_not_import_torch() -> None:
-    sys.modules.pop("torch", None)
-    importlib.import_module(
-        "v2.backend.app.services.rl_core.checkpoint_promotion"
+    script = """
+import importlib
+import json
+import sys
+
+importlib.import_module(
+    "v2.backend.app.services.rl_core.checkpoint_promotion"
+)
+print(json.dumps({"torch_imported": "torch" in sys.modules}))
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and test script
+        [sys.executable, "-c", script],
+        cwd=Path(__file__).resolve().parents[5],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
-    assert "torch" not in sys.modules
+    assert json.loads(completed.stdout)["torch_imported"] is False
 
 
 def test_module_does_not_deserialize_pickle(tmp_path: Path) -> None:
     """Scanner must not import or invoke pickle / torch.load loaders."""
-    sys.modules.pop("torch", None)
-    svc = importlib.reload(
-        importlib.import_module(
-            "v2.backend.app.services.rl_core.checkpoint_promotion"
-        )
-    )
     root = tmp_path / "models"
     root.mkdir()
     (root / "ckpt_pkl_guard.pt").write_bytes(b"\x80\x04(garbage_pickle_payload)")
     (root / "ckpt_pkl_guard_metadata.json").write_text(
         json.dumps(_torch_native_metadata())
     )
-    payload = svc.scan_local_models(root)
-    assert payload["overall_state"] == svc.STATE_READY
-    assert "torch" not in sys.modules
-    source = Path(svc.__file__).read_text(encoding="utf-8")
+    script = """
+import importlib
+import json
+import sys
+from pathlib import Path
+
+svc = importlib.import_module(
+    "v2.backend.app.services.rl_core.checkpoint_promotion"
+)
+payload = svc.scan_local_models(Path(sys.argv[1]))
+source = Path(svc.__file__).read_text(encoding="utf-8")
+print(
+    json.dumps(
+        {
+            "overall_state": payload["overall_state"],
+            "state_ready": svc.STATE_READY,
+            "torch_imported": "torch" in sys.modules,
+            "source": source,
+        }
+    )
+)
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and test script
+        [sys.executable, "-c", script, str(root)],
+        cwd=Path(__file__).resolve().parents[5],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    observed = json.loads(completed.stdout)
+    assert observed["overall_state"] == observed["state_ready"]
+    assert observed["torch_imported"] is False
+    source = observed["source"]
     assert "import pickle" not in source
     assert "pickle.loads" not in source
     assert "pickle.load(" not in source

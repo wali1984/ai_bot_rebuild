@@ -14,10 +14,15 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder i
 )
 
 _NAMES = [n for n, _ in FEATURE_SPEC]
+DECISION_TIME = "2026-07-18T12:00:00Z"
+AVAILABLE_AT = "2026-07-18T11:59:59Z"
 
 
 def test_feature_spec_grew_and_has_no_duplicates() -> None:
-    assert len(FEATURE_SPEC) == 477
+    # Commit e88e2318e3 removed 31 AiCoin/Nansen/LunarCrush/Santiment
+    # features by operator directive.  The 155 TA-full features remain; the
+    # resulting checkpoint-keyed tensor contract is 446 x 4 channels.
+    assert len(FEATURE_SPEC) == 446
     assert len(_NAMES) == len(set(_NAMES)), "FEATURE_SPEC must have no duplicate names"
     taf = [n for n in _NAMES if n.startswith("taf_")]
     assert len(taf) == 155
@@ -33,10 +38,16 @@ def test_taf_features_resolve_from_ta_full_indicators() -> None:
     payloads = {
         "features_ta_full": {
             "indicators": {"ta_ADX": 27.5, "ta_CCI": -80.0, "rsi_14": 61.0, "atr_14": 12.3},
+            "available_at": AVAILABLE_AT,
         }
     }
-    rec = b.build(symbol="BTCUSDT", timeframe="1m", payloads=payloads)
-    assert len(rec.model_vector) == len(FEATURE_SPEC) * 4 == 1908
+    rec = b.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads=payloads,
+    )
+    assert len(rec.model_vector) == len(FEATURE_SPEC) * 4 == 1784
     assert rec.model_vector[_NAMES.index("taf_ta_adx")] == 27.5
     assert rec.model_vector[_NAMES.index("taf_rsi_14")] == 61.0
     assert rec.model_vector[_NAMES.index("taf_atr_14")] == 12.3
@@ -47,6 +58,6 @@ def test_taf_features_resolve_from_ta_full_indicators() -> None:
 def test_no_ta_full_payload_leaves_taf_missing_not_crashing() -> None:
     b = V2UnifiedFeatureTensorBuilder()
     rec = b.build(symbol="BTCUSDT", timeframe="1m", payloads={})
-    assert len(rec.model_vector) == 1908
+    assert len(rec.model_vector) == 1784
     taf_missing = sum(1 for n in _NAMES if n.startswith("taf_") and rec.missing_mask[_NAMES.index(n)] == 1)
     assert taf_missing == 155  # all taf_ honestly missing when no ta_full payload

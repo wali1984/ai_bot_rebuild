@@ -1,3 +1,5 @@
+"""Synthetic missing-feature lineage contract tests, never runtime evidence."""
+
 from __future__ import annotations
 
 import json
@@ -15,12 +17,41 @@ from v2.backend.app.services.market_state_integrity.scoring import score_market_
 from v2.backend.app.services.signal_publisher import build_signal_record
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
-
 GOAL_ID = "V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
+EVIDENCE_SCOPE = "SYNTHETIC_CONTRACT_TEST_ONLY"
+CONTRACT_TEST_PASSED = "CONTRACT_TEST_PASSED_NON_RUNTIME"
+CONTRACT_TEST_FAILED = "CONTRACT_TEST_FAILED"
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _non_runtime_evidence_boundary(generated_utc: str) -> dict[str, Any]:
+    return {
+        "evidence_scope": EVIDENCE_SCOPE,
+        "contract_test_only": True,
+        "canonical_current_cycle_contract_consumed": False,
+        "canonical_current_cycle_contract_verified": False,
+        "canonical_runtime_ready": False,
+        "serving_authorized": False,
+        "a_plus_authorized": False,
+        "paper_authorized": False,
+        "live_authorized": False,
+        "live_execution_authorized": False,
+        "routes_to_paper": False,
+        "routes_to_live": False,
+        "paper_only": True,
+        "producer_clock_field": "generated_utc",
+        "artifact_generated_at": generated_utc,
+        "artifact_persistence": "OVERWRITTEN_NON_EXPIRING_JSON_SNAPSHOT",
+        "artifact_ttl_enforced": False,
+        "artifact_expires_at": None,
+        "artifact_freshness_authoritative": False,
+        "runtime_authority_block_reason": (
+            "SYNTHETIC_PROOFS_DO_NOT_ESTABLISH_CURRENT_RUNTIME_READINESS"
+        ),
+    }
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -216,32 +247,43 @@ def build_phase6_missing_feature_lineage_status(
     sample_symbols: int = 10,
     timeframes: tuple[str, ...] = ("1m", "5m", "15m", "1h", "4h"),
 ) -> dict[str, Any]:
+    generated_utc = _utc_now()
     proofs = [
         _proof_score_false_mask(),
         _proof_score_true_mask_blocks(),
         _proof_prediction_and_signal_lineage(),
     ]
     runtime_sample = _runtime_sample(redis_client, sample_symbols=sample_symbols, timeframes=timeframes)
-    sampled_rate = runtime_sample.get("false_positive_missing_critical_feature_block_rate")
-    sample_passed = sampled_rate is None or float(sampled_rate) < 0.10
-    pass_conditions = {
+    runtime_sample_observed = runtime_sample.get("status") == "SAMPLED"
+    runtime_sample_false_positive_free = (
+        runtime_sample.get("false_positive_missing_critical_feature_blocks") == 0
+        if runtime_sample_observed
+        else None
+    )
+    contract_test_conditions = {
         "missing_feature_names_from_actual_snapshot": proofs[2]["passed"],
         "source_availability_preserved": proofs[2]["signal_source_availability"] == {"ohlcv": True, "orderbook": True},
         "missing_mask_preserved": proofs[0]["missing_mask_close"] is False,
         "stale_mask_preserved": proofs[2]["passed"],
         "market_state_integrity_reads_canonical_masks": proofs[0]["passed"] and proofs[1]["passed"],
-        "false_positive_missing_critical_feature_blocks_lt_10pct": sample_passed,
         "actual_missing_features_still_block": proofs[1]["passed"],
     }
-    ready = all(pass_conditions.values()) and all(proof["passed"] for proof in proofs)
+    contract_tests_passed = all(contract_test_conditions.values()) and all(
+        proof["passed"] for proof in proofs
+    )
     return {
-        "schema_version": "missing_critical_feature_lineage_fix_status_v1",
+        "schema_version": "missing_critical_feature_lineage_fix_status_v2",
         "goal_id": GOAL_ID,
-        "generated_utc": _utc_now(),
-        "status": "MISSING_CRITICAL_FEATURE_LINEAGE_FIX_READY" if ready else "MISSING_CRITICAL_FEATURE_LINEAGE_FIX_BLOCKED",
+        "generated_utc": generated_utc,
+        **_non_runtime_evidence_boundary(generated_utc),
+        "status": CONTRACT_TEST_PASSED if contract_tests_passed else CONTRACT_TEST_FAILED,
+        "contract_tests_passed": contract_tests_passed,
         "behavioral_proofs": proofs,
         "runtime_sample": runtime_sample,
-        "pass_conditions": pass_conditions,
+        "runtime_sample_authoritative": False,
+        "runtime_sample_observed": runtime_sample_observed,
+        "runtime_sample_false_positive_free": runtime_sample_false_positive_free,
+        "contract_test_conditions": contract_test_conditions,
         "places_real_order": False,
         "test_order_submitted": False,
         "exchange_leverage_mutated": False,

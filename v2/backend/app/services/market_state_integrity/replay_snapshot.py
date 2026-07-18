@@ -43,6 +43,18 @@ def build_replay_snapshot(
         "action_probabilities": list(prediction.get("action_probabilities") or []) or None,
         "selected_action_probability": prediction.get("selected_action_probability"),
         "policy_value": prediction.get("policy_value"),
+        "behavior_policy_sampling_mode": prediction.get(
+            "behavior_policy_sampling_mode"
+        ),
+        "behavior_policy_distribution_contract": prediction.get(
+            "behavior_policy_distribution_contract"
+        ),
+        "ppo_on_policy_entry_fields_present": prediction.get(
+            "ppo_on_policy_entry_fields_present"
+        ),
+        "ppo_on_policy_ineligible_reason": prediction.get(
+            "ppo_on_policy_ineligible_reason"
+        ),
         "model_version": prediction.get("model_version") or prediction.get("model_source") or prediction.get("model_id"),
         "model_id": prediction.get("model_id"),
         "checkpoint_id": prediction.get("checkpoint_id"),

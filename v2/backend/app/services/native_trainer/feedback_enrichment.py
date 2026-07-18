@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import math
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,7 +9,6 @@ from v2.backend.app.services.paper_trade_management.position_validity import (
     source_fill_ids,
     validate_closed_trade,
 )
-
 
 REQUIRED_FEEDBACK_FIELDS: tuple[str, ...] = (
     "prediction_id",
@@ -390,7 +391,7 @@ def _coerce_float(value: Any) -> float | None:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
-    return parsed if parsed == parsed else None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _utc_iso_from_value(value: Any) -> str | None:
@@ -400,8 +401,8 @@ def _utc_iso_from_value(value: Any) -> str | None:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
@@ -480,8 +481,136 @@ def _confidence_bucket(value: Any) -> str | None:
     return f"{low:.1f}-{high:.1f}"
 
 
+def _policy_relative_confidence_evidence(
+    *,
+    selected_action_probability: Any,
+    action_probabilities: Any,
+) -> dict[str, Any]:
+    """Classify confidence relative to the captured policy distribution.
+
+    This deliberately uses no absolute market threshold. A selected action is
+    relatively high-confidence only when its captured probability is the
+    unique maximum of the same entry-time behavior distribution. Negative
+    outcomes remain continuous calibration samples even when this stricter
+    diagnostic classification is unavailable.
+    """
+
+    selected = _coerce_float(selected_action_probability)
+    if selected is None or not isinstance(action_probabilities, (list, tuple)):
+        return {
+            "valid": False,
+            "selected_action_unique_argmax": False,
+            "selected_action_probability": selected,
+            "runner_up_probability": None,
+            "probability_margin": None,
+            "reason": "POLICY_DISTRIBUTION_EVIDENCE_MISSING",
+        }
+    probabilities = [_coerce_float(value) for value in action_probabilities]
+    if (
+        len(probabilities) < 2
+        or any(value is None or value < 0.0 or value > 1.0 for value in probabilities)
+    ):
+        return {
+            "valid": False,
+            "selected_action_unique_argmax": False,
+            "selected_action_probability": selected,
+            "runner_up_probability": None,
+            "probability_margin": None,
+            "reason": "POLICY_DISTRIBUTION_EVIDENCE_INVALID",
+        }
+    ordered = sorted((float(value) for value in probabilities), reverse=True)
+    maximum, runner_up = ordered[0], ordered[1]
+    selected_matches_maximum = math.isclose(
+        selected,
+        maximum,
+        rel_tol=1e-9,
+        abs_tol=1e-12,
+    )
+    unique_argmax = bool(selected_matches_maximum and maximum > runner_up)
+    return {
+        "valid": True,
+        "selected_action_unique_argmax": unique_argmax,
+        "selected_action_probability": selected,
+        "runner_up_probability": runner_up,
+        "probability_margin": maximum - runner_up if unique_argmax else None,
+        "reason": (
+            "SELECTED_ACTION_UNIQUE_POLICY_ARGMAX"
+            if unique_argmax
+            else "SELECTED_ACTION_NOT_UNIQUE_POLICY_ARGMAX"
+        ),
+    }
+
+
 def _mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _feedback_identity_conflict_reasons(
+    close_event: dict[str, Any],
+    outcome_label: dict[str, Any],
+) -> list[str]:
+    """Reject cross-record stitching before first-present field merging."""
+
+    aliases: dict[str, tuple[str, ...]] = {
+        "position_id": ("position_id",),
+        "symbol": ("symbol",),
+        "timeframe": ("timeframe",),
+        "prediction_id": (
+            "prediction_id",
+            "entry_prediction_id",
+            "source_prediction_id",
+        ),
+        "signal_id": ("signal_id", "source_signal_id"),
+        "decision_id": ("decision_id",),
+        "feature_snapshot_id": (
+            "feature_snapshot_id",
+            "entry_feature_snapshot_id",
+        ),
+        "mtf_snapshot_id": ("mtf_snapshot_id",),
+        "checkpoint_id": ("checkpoint_id",),
+        "paper_fill_id": ("paper_fill_id", "entry_fill_id"),
+        "source_hashes": ("source_hashes",),
+    }
+
+    def normalize(field: str, value: Any) -> str:
+        if isinstance(value, dict):
+            return json.dumps(
+                value,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            )
+        text = str(value).strip()
+        if field == "symbol":
+            return text.upper()
+        if field == "timeframe":
+            return text.lower()
+        return text
+
+    reasons: list[str] = []
+    values_by_source: dict[str, dict[str, set[str]]] = {}
+    for source_name, source in (
+        ("CLOSE_EVENT", close_event),
+        ("OUTCOME_LABEL", outcome_label),
+    ):
+        source_values: dict[str, set[str]] = {}
+        for field, field_aliases in aliases.items():
+            values = {
+                normalize(field, source.get(alias))
+                for alias in field_aliases
+                if source.get(alias) not in (None, "", [], {})
+            }
+            source_values[field] = values
+            if len(values) > 1:
+                reasons.append(f"{source_name}_{field.upper()}_CONFLICT")
+        values_by_source[source_name] = source_values
+
+    for field in aliases:
+        close_values = values_by_source["CLOSE_EVENT"].get(field) or set()
+        outcome_values = values_by_source["OUTCOME_LABEL"].get(field) or set()
+        if close_values and outcome_values and close_values != outcome_values:
+            reasons.append(f"CLOSE_OUTCOME_{field.upper()}_CONFLICT")
+    return sorted(set(reasons))
 
 
 def _context_source(context: dict[str, Any]) -> str:
@@ -766,8 +895,8 @@ def _parse_utc(value: Any) -> datetime | None:
             return datetime.fromtimestamp(parsed_epoch, tz=timezone.utc)
         except (OverflowError, OSError, ValueError):
             return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -836,6 +965,20 @@ def _trust_envelope_rejection_reasons(row: dict[str, Any]) -> list[str]:
     decision_time = _parse_utc(row.get("decision_time"))
     available_at = _parse_utc(row.get("available_at"))
     feature_cutoff = _parse_utc(row.get("feature_cutoff"))
+    for field_name, parsed in (
+        ("DECISION_TIME", decision_time),
+        ("AVAILABLE_AT", available_at),
+        ("FEATURE_CUTOFF", feature_cutoff),
+    ):
+        raw_value = row.get(field_name.lower())
+        if raw_value not in (None, "") and parsed is None:
+            reasons.append(f"{field_name}_UNPARSEABLE")
+    if (
+        feature_cutoff is not None
+        and available_at is not None
+        and feature_cutoff > available_at
+    ):
+        reasons.append("FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
     if available_at is not None and decision_time is not None and available_at > decision_time:
         reasons.append("AVAILABLE_AT_AFTER_DECISION_TIME")
     if feature_cutoff is not None and decision_time is not None and feature_cutoff > decision_time:
@@ -1039,6 +1182,10 @@ def build_strategy_hedge_exit_feedback(
     close_event: dict[str, Any],
     outcome_label: dict[str, Any],
 ) -> dict[str, Any]:
+    identity_conflict_reasons = _feedback_identity_conflict_reasons(
+        close_event,
+        outcome_label,
+    )
     liquidity_context = _first_present(
         close_event.get("liquidity_context"),
         outcome_label.get("liquidity_context"),
@@ -1306,6 +1453,16 @@ def build_strategy_hedge_exit_feedback(
             close_event.get("realized_pnl_usdt"),
             outcome_label.get("realized_pnl_usdt"),
         ),
+        "realized_gross_pnl_usd": _first_present(
+            close_event.get("realized_gross_pnl_usd"),
+            outcome_label.get("realized_gross_pnl_usd"),
+            close_event.get("gross_realized_pnl_usd"),
+            outcome_label.get("gross_realized_pnl_usd"),
+        ),
+        "closed_entry_notional_usd": _first_present(
+            close_event.get("closed_entry_notional_usd"),
+            outcome_label.get("closed_entry_notional_usd"),
+        ),
         "realized_pnl": _first_present(
             close_event.get("realized_pnl"),
             outcome_label.get("realized_pnl"),
@@ -1570,15 +1727,29 @@ def build_strategy_hedge_exit_feedback(
     )
     realized_bps = _coerce_float(row.get("realized_pnl_bps"))
     realized_usd = _coerce_float(row.get("realized_net_pnl_usd"))
-    high_confidence_loss = (
-        (_coerce_float(confidence_at_entry) or 0.0) >= 0.70
-        and (
-            row.get("action_was_profitable") is False
-            or (realized_bps is not None and realized_bps < 0.0)
-            or (realized_usd is not None and realized_usd < 0.0)
-        )
+    negative_realized_outcome = bool(
+        row.get("action_was_profitable") is False
+        or (realized_bps is not None and realized_bps < 0.0)
+        or (realized_usd is not None and realized_usd < 0.0)
+    )
+    relative_confidence = _policy_relative_confidence_evidence(
+        selected_action_probability=_first_present(
+            row.get("selected_action_probability"),
+            row.get("confidence_raw"),
+        ),
+        action_probabilities=row.get("action_probabilities"),
+    )
+    high_confidence_loss = bool(
+        negative_realized_outcome
+        and relative_confidence["selected_action_unique_argmax"] is True
     )
     row["high_confidence_loss"] = high_confidence_loss
+    row["negative_realized_outcome"] = negative_realized_outcome
+    row["high_confidence_loss_static_threshold_used"] = False
+    row["high_confidence_loss_adaptive_rule"] = (
+        "selected_action_probability_is_unique_entry_policy_argmax"
+    )
+    row["high_confidence_loss_policy_relative_evidence"] = relative_confidence
     row["confidence_at_entry"] = confidence_at_entry
     row["confidence_bucket"] = _confidence_bucket(confidence_at_entry)
     row["microstructure_trust_at_entry"] = _first_present(
@@ -1589,14 +1760,86 @@ def build_strategy_hedge_exit_feedback(
             "composite_microstructure_trust_score"
         ),
     )
-    if high_confidence_loss:
+    if negative_realized_outcome and _coerce_float(confidence_at_entry) is not None:
         row["outcome_label"] = "loss"
         row["calibration_loss_sample"] = True
-        row["calibration_loss_reason"] = "HIGH_CONFIDENCE_NEGATIVE_REALIZED_OUTCOME"
+        row["calibration_loss_reason"] = (
+            "POLICY_RELATIVE_HIGH_CONFIDENCE_NEGATIVE_REALIZED_OUTCOME"
+            if high_confidence_loss
+            else "CONTINUOUS_CONFIDENCE_NEGATIVE_REALIZED_OUTCOME"
+        )
         row["trainer_calibration_consumable"] = True
     row["fees"] = _first_present(close_event.get("fees"), outcome_label.get("fees"), close_event.get("fees_usd"), outcome_label.get("fees_usd"))
     row["slippage"] = _first_present(close_event.get("slippage"), outcome_label.get("slippage"), close_event.get("realized_slippage_usd"), outcome_label.get("realized_slippage_usd"))
     row["funding"] = _first_present(close_event.get("funding"), outcome_label.get("funding"), close_event.get("funding_pnl_usd"), outcome_label.get("funding_pnl_usd"))
+    row["fees_usd"] = _first_present(
+        close_event.get("fees_usd"),
+        outcome_label.get("fees_usd"),
+        close_event.get("fees"),
+        outcome_label.get("fees"),
+    )
+    row["slippage_usd"] = _first_present(
+        close_event.get("slippage_usd"),
+        outcome_label.get("slippage_usd"),
+        close_event.get("realized_slippage_usd"),
+        outcome_label.get("realized_slippage_usd"),
+        close_event.get("slippage"),
+        outcome_label.get("slippage"),
+    )
+    row["funding_pnl_usd"] = _first_present(
+        close_event.get("funding_pnl_usd"),
+        outcome_label.get("funding_pnl_usd"),
+        close_event.get("funding"),
+        outcome_label.get("funding"),
+    )
+    for component_field in (
+        "closed_entry_notional_usd",
+        "closed_exit_notional_usd",
+        "entry_cost_accounting_version",
+        "entry_cost_allocation_method",
+        "entry_cost_allocation_fraction_of_pre_close_position",
+        "entry_cost_pre_close_quantity",
+        "entry_cost_closed_quantity",
+        "entry_cost_is_final_close",
+        "entry_cost_basis_status",
+        "entry_fee_usd",
+        "entry_fee_bps_per_side",
+        "entry_fee_source",
+        "entry_fee_fallback",
+        "entry_fee_fallback_bps_per_side",
+        "exit_fee_usd",
+        "exit_fee_bps_per_side",
+        "exit_fee_source",
+        "exit_fee_fallback",
+        "exit_fee_rate_basis",
+        "total_fees_usd",
+        "entry_slippage_usd",
+        "entry_slippage_bps_per_side",
+        "entry_slippage_source",
+        "entry_slippage_fallback",
+        "entry_slippage_fallback_bps_per_side",
+        "exit_slippage_usd",
+        "exit_slippage_bps_per_side",
+        "exit_slippage_source",
+        "exit_slippage_available_at",
+        "exit_slippage_fallback",
+        "exit_slippage_provenance_status",
+        "total_slippage_usd",
+        "total_execution_costs_usd",
+        "funding_usd",
+        "outcome_cost_unit",
+        "paper_round_trip_cost_accounting_version",
+        "paper_cost_rate_scope",
+        "paper_net_pnl_formula",
+        "round_trip_cost_fallback_used",
+        "round_trip_cost_provenance_status",
+    ):
+        row[component_field] = _first_present(
+            close_event.get(component_field),
+            outcome_label.get(component_field),
+            _mapping(close_event.get("outcome_targets")).get(component_field),
+            _mapping(outcome_label.get("outcome_targets")).get(component_field),
+        )
     row["MFE"] = _first_present(close_event.get("MFE"), outcome_label.get("MFE"), close_event.get("mfe_bps"), outcome_label.get("mfe_bps"))
     row["MAE"] = _first_present(close_event.get("MAE"), outcome_label.get("MAE"), close_event.get("mae_bps"), outcome_label.get("mae_bps"))
     _apply_mtf_snapshot_alias_from_entry_features(row)
@@ -1607,14 +1850,47 @@ def build_strategy_hedge_exit_feedback(
         {
             "realized_net_pnl_bps": row.get("realized_net_pnl_bps"),
             "realized_net_pnl_usd": row.get("realized_net_pnl_usd"),
+            "realized_gross_pnl_usd": row.get("realized_gross_pnl_usd"),
+            "closed_entry_notional_usd": row.get("closed_entry_notional_usd"),
+            "closed_exit_notional_usd": row.get("closed_exit_notional_usd"),
             "directional_outcome": row.get("directional_outcome"),
             "trade_outcome": row.get("trade_outcome"),
             "selected_action": row.get("selected_action"),
             "action_was_profitable": row.get("action_was_profitable"),
             "holding_period": row.get("holding_period"),
             "fees": row.get("fees"),
+            "fees_usd": row.get("fees_usd"),
+            "entry_fee_usd": row.get("entry_fee_usd"),
+            "entry_fee_bps_per_side": row.get("entry_fee_bps_per_side"),
+            "entry_fee_source": row.get("entry_fee_source"),
+            "entry_fee_fallback": row.get("entry_fee_fallback"),
+            "exit_fee_usd": row.get("exit_fee_usd"),
+            "exit_fee_bps_per_side": row.get("exit_fee_bps_per_side"),
+            "exit_fee_source": row.get("exit_fee_source"),
+            "exit_fee_fallback": row.get("exit_fee_fallback"),
+            "total_fees_usd": row.get("total_fees_usd"),
             "slippage": row.get("slippage"),
+            "slippage_usd": row.get("slippage_usd"),
+            "entry_slippage_usd": row.get("entry_slippage_usd"),
+            "entry_slippage_bps_per_side": row.get(
+                "entry_slippage_bps_per_side"
+            ),
+            "entry_slippage_source": row.get("entry_slippage_source"),
+            "entry_slippage_fallback": row.get("entry_slippage_fallback"),
+            "exit_slippage_usd": row.get("exit_slippage_usd"),
+            "exit_slippage_bps_per_side": row.get(
+                "exit_slippage_bps_per_side"
+            ),
+            "exit_slippage_source": row.get("exit_slippage_source"),
+            "exit_slippage_fallback": row.get("exit_slippage_fallback"),
+            "exit_slippage_provenance_status": row.get(
+                "exit_slippage_provenance_status"
+            ),
+            "total_slippage_usd": row.get("total_slippage_usd"),
+            "total_execution_costs_usd": row.get("total_execution_costs_usd"),
             "funding": row.get("funding"),
+            "funding_usd": row.get("funding_usd"),
+            "funding_pnl_usd": row.get("funding_pnl_usd"),
             "MFE": row.get("MFE"),
             "MAE": row.get("MAE"),
             "exit_reason": row.get("exit_reason"),
@@ -1632,10 +1908,19 @@ def build_strategy_hedge_exit_feedback(
     audit_quality_classes = [f"audit_quality:{reason.lower()}" for reason in audit_quality_reasons]
     trust_classes = [f"trust:{reason.lower()}" for reason in trust_reasons]
     closed_trade_classes = [f"closed_trade_validity:{reason.lower()}" for reason in closed_trade_reasons]
+    identity_conflict_classes = [
+        f"identity_conflict:{reason.lower()}"
+        for reason in identity_conflict_reasons
+    ]
     stale_lineage = _is_pre_remediation_stale_lineage(row, missing)
     if stale_lineage:
         missing_classes = ["stale_lineage"]
-    if stale_lineage and not audit_quality_reasons and not trust_reasons:
+    if (
+        stale_lineage
+        and not audit_quality_reasons
+        and not trust_reasons
+        and not identity_conflict_reasons
+    ):
         row["quarantine_non_critical"] = True
         row["non_critical_quarantine_reason"] = (
             "PRE_REMEDIATION_ACCEPTED_FILL_MISSING_ENTRY_FEATURE_SNAPSHOT_ID"
@@ -1648,6 +1933,7 @@ def build_strategy_hedge_exit_feedback(
     row["audit_quality_contract_version"] = "paper_closed_trade_audit_quality_v1"
     row["audit_quality_rejection_reasons"] = audit_quality_reasons
     row["trust_envelope_rejection_reasons"] = trust_reasons
+    row["feedback_identity_conflict_reasons"] = identity_conflict_reasons
     row["closed_trade_validity_status"] = closed_trade_validity.get("status")
     row["closed_trade_validity_rejection_reasons"] = closed_trade_reasons
     row["trainer_consumable"] = (
@@ -1655,6 +1941,7 @@ def build_strategy_hedge_exit_feedback(
         and not audit_quality_reasons
         and not trust_reasons
         and not closed_trade_reasons
+        and not identity_conflict_reasons
     )
     row["missing_feedback_fields"] = missing
     row["missing_trust_fields"] = [
@@ -1663,14 +1950,24 @@ def build_strategy_hedge_exit_feedback(
         if reason.startswith("MISSING_TRUST_")
     ]
     row["missing_feedback_classifications"] = sorted(
-        set(missing_classes + audit_quality_classes + trust_classes + closed_trade_classes)
+        set(
+            missing_classes
+            + audit_quality_classes
+            + trust_classes
+            + closed_trade_classes
+            + identity_conflict_classes
+        )
     )
     row["quarantine_reason"] = (
         "NONE"
         if not row["missing_feedback_classifications"]
         else (
             f"stale_lineage:{row['non_critical_quarantine_reason']}"
-            if row.get("quarantine_non_critical") and not audit_quality_reasons
+            if (
+                row.get("quarantine_non_critical")
+                and not audit_quality_reasons
+                and not identity_conflict_reasons
+            )
             else ",".join(row["missing_feedback_classifications"])
         )
     )

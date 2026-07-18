@@ -4,9 +4,25 @@ import json
 import os
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 from v2.backend.app.services.native_trainer import persistent_cuda_trainer_runtime as runtime_module
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
+    V2HybridCheckpointManager,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
+    V2HybridPolicyModel,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FeatureTensorRecord,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state import (
+    PPOConsumptionLedger,
+    ppo_consumption_update_key,
+    training_partition_digest,
+)
 from v2.backend.app.services.native_trainer.persistent_cuda_trainer_runtime import (
     PersistentTrainerPaths,
     build_paper_drawdown_attribution,
@@ -14,8 +30,8 @@ from v2.backend.app.services.native_trainer.persistent_cuda_trainer_runtime impo
     build_persistent_runtime_status,
     build_resource_status,
     checkpoint_retention_status,
-    publish_training_cycle_heartbeat,
     publish_persistent_payloads,
+    publish_training_cycle_heartbeat,
     record_cycle_state,
 )
 
@@ -34,6 +50,11 @@ class _FakeRedis:
         del ex
         self.values[key] = json.loads(value)
         return True
+
+
+def test_parse_runtime_time_rejects_naive_clock_instead_of_assuming_utc() -> None:
+    assert runtime_module.parse_runtime_time("2026-07-18T01:02:03") is None
+    assert runtime_module.parse_runtime_time("2026-07-18T01:02:03Z") is not None
 
 
 def _trusted_feedback_row(
@@ -99,14 +120,22 @@ def test_online_learning_runtime_fields_publish_checkpoint_evidence() -> None:
         prediction_rows=10,
     )
 
-    assert fields["online_learning_status"] == "WEIGHTS_UPDATING"
-    assert fields["effective_trainer_mode"] == "TRUSTED_REPLAY_TRAINING"
-    assert fields["trainer_learning_ready"] is True
-    assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
+    assert fields["online_learning_status"] == (
+        "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+    )
+    assert fields["effective_trainer_mode"] == "INFERENCE_ONLY"
+    assert fields["trainer_learning_ready"] is False
+    assert fields["checkpoint_path"] is None
     assert "schema_version" not in fields
     assert fields["trainer_process_status"] == "INACTIVE"
-    assert fields["cuda_inference_status"] == "BLOCKED_NO_CUDA_INFERENCE_EVIDENCE"
-    assert fields["checkpoint_hash"] == "checkpoint-sha256"
+    assert fields["cuda_inference_status"] == (
+        "BLOCKED_NO_CURRENT_CUDA_PROBE_EVIDENCE"
+    )
+    assert fields["checkpoint_hash"] is None
+    assert "current_cycle_learning_envelope_present" in fields[
+        "readiness_blocking_reasons"
+    ]
+    assert fields["unbound_legacy_evidence_used_for_readiness"] is False
 
 
 def test_gpu_saturation_controller_backs_off_after_validation_checkpoint_rejection() -> None:
@@ -119,19 +148,23 @@ def test_gpu_saturation_controller_backs_off_after_validation_checkpoint_rejecti
         vram_total_mb=16_000.0,
         oom_occurred=False,
         checkpoint_promotion_rejected=True,
-        checkpoint_promotion_reason="VALIDATION_LOSS_REGRESSED",
+        checkpoint_promotion_reason="SERVING_CANDIDATE_PROGRESS_GATE_FAILED",
+        validation_regression_reasons=("CANDIDATE_VALIDATION_LOSS_REGRESSED",),
         validation_loss_delta=0.858461,
         overfit_gap_warning=True,
     )
 
-    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
+    assert decision["classification"] == "COMPARABLE_VALIDATION_REGRESSION_BACKOFF"
     assert decision["steps_multiplier"] == 2
     assert decision["checkpoint_promotion_rejected"] is True
-    assert decision["checkpoint_promotion_reason"] == "VALIDATION_LOSS_REGRESSED"
+    assert decision["checkpoint_promotion_reason"] == "SERVING_CANDIDATE_PROGRESS_GATE_FAILED"
+    assert decision["comparable_validation_regression_reasons"] == [
+        "CANDIDATE_VALIDATION_LOSS_REGRESSED"
+    ]
     assert decision["artificial_load_added"] is False
 
 
-def test_gpu_saturation_controller_backs_off_on_validation_delta_without_rejection_flag() -> None:
+def test_gpu_saturation_controller_does_not_back_off_on_raw_validation_delta() -> None:
     decision = runtime_module.adaptive_gpu_saturation_decision(
         state={"steps_multiplier": 3},
         accepted_rows=16_384,
@@ -146,10 +179,10 @@ def test_gpu_saturation_controller_backs_off_on_validation_delta_without_rejecti
         overfit_gap_warning=False,
     )
 
-    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
-    assert decision["steps_multiplier"] == 1
-    assert decision["validation_regressed"] is True
-    assert decision["validation_loss_backoff_delta"] == runtime_module.RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA
+    assert decision["classification"] == "CPU_PREP_BOTTLENECK_RAISING_EPOCHS"
+    assert decision["steps_multiplier"] == 4
+    assert decision["validation_regressed"] is False
+    assert decision["validation_loss_delta_actuation_used"] is False
 
 
 def test_gpu_saturation_controller_uses_top_level_checkpoint_promotion() -> None:
@@ -175,16 +208,42 @@ def test_gpu_saturation_controller_uses_top_level_checkpoint_promotion() -> None
         checkpoint_promotion={
             "checkpoint_promotion_rejected": True,
             "checkpoint_promotion_reason": "TRAIN_VAL_OVERFIT_GAP",
+            "checkpoint_promotion_rejection_reasons": [
+                "SERVING_VALIDATION_SPLIT_PIT_UNSAFE"
+            ],
         },
     )
 
-    assert decision["classification"] == "VALIDATION_CHECKPOINT_BACKOFF"
-    assert decision["steps_multiplier"] == 2
+    assert decision["classification"] == "CPU_PREP_BOTTLENECK_RAISING_EPOCHS"
+    assert decision["steps_multiplier"] == 4
     assert decision["checkpoint_promotion_rejected"] is True
     assert decision["checkpoint_promotion_reason"] == "TRAIN_VAL_OVERFIT_GAP"
+    assert decision["validation_regressed"] is False
     assert client.values[runtime_module.RESIDENT_GPU_SATURATION_CONTROLLER_KEY][
         "checkpoint_promotion_rejected"
     ] is True
+
+
+def test_gpu_saturation_controller_treats_only_zero_rows_as_data_starved() -> None:
+    decision = runtime_module.adaptive_gpu_saturation_decision(
+        state={"steps_multiplier": 3},
+        accepted_rows=0,
+        data_loader_time_ms=100_000.0,
+        gpu_train_time_ms=10_000.0,
+        vram_reserved_mb=4_000.0,
+        vram_total_mb=16_000.0,
+        oom_occurred=False,
+        checkpoint_promotion_rejected=True,
+        checkpoint_promotion_reason="SERVING_VALIDATION_ROW_COUNTS_INVALID",
+        validation_regression_reasons=("CANDIDATE_VALIDATION_LOSS_REGRESSED",),
+    )
+
+    assert decision["classification"] == "DATA_STARVED_NOT_GPU_CONFIG_BLOCKED"
+    assert decision["steps_multiplier"] == 3
+    assert decision["data_starved"] is True
+    assert decision["data_starvation_actuation_rule"] == "accepted_rows_gt_0"
+    assert decision["reason_coded_validation_regression_observed"] is True
+    assert decision["validation_regressed"] is False
 
 
 def test_drawdown_attribution_separates_trial_overlay_from_native() -> None:
@@ -235,60 +294,103 @@ def test_drawdown_guard_pauses_when_attribution_lost_and_delta_breaches() -> Non
     assert guard["stop_promoting_new_threshold_trial_signals"] is True
 
 
-def test_checkpoint_retention_keeps_latest_below_300gb(tmp_path: Path) -> None:
+def _retention_model(monkeypatch, *, seed: int) -> V2HybridPolicyModel:
+    monkeypatch.setenv("V2_TRAINER_HIDDEN_SIZE", "16")
+    monkeypatch.setenv("V2_TRAINER_RESIDUAL_BLOCKS", "1")
+    monkeypatch.setenv("V2_TRAINER_DROPOUT", "0")
+    return V2HybridPolicyModel(input_dim=4, seed=seed)
+
+
+def _mutate_retention_model(model: V2HybridPolicyModel) -> None:
+    if model.torch_available:
+        assert model.torch is not None and model.net is not None
+        with model.torch.no_grad():
+            next(model.net.parameters()).view(-1)[0].add_(0.001)
+    else:
+        model._fallback_weights[0] += 0.001  # noqa: SLF001
+
+
+def _write_retention_checkpoint(
+    *,
+    manager: V2HybridCheckpointManager,
+    model: V2HybridPolicyModel,
+    lineage_kind: str,
+    parent_checkpoint_id: str | None = None,
+    parent_policy_fingerprint: str | None = None,
+    consumed_ppo_update_keys: tuple[str, ...] = (),
+):
+    return manager.write_checkpoint(
+        model=model,
+        input_dim=4,
+        device=model.device,
+        cuda_active=model.cuda_active,
+        lineage_kind=lineage_kind,
+        parent_checkpoint_id=parent_checkpoint_id,
+        parent_policy_fingerprint=parent_policy_fingerprint,
+        consumed_ppo_update_keys=consumed_ppo_update_keys,
+        training_partition_digest=(
+            training_partition_digest(consumed_ppo_update_keys)
+            if consumed_ppo_update_keys
+            else None
+        ),
+        checkpoint_evidence={"retention_unit_test": True},
+    )
+
+
+def test_checkpoint_retention_uses_causal_generation_not_touched_mtime(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     paths = PersistentTrainerPaths(repo_root=tmp_path)
     checkpoint_dir = paths.model_dir
-    checkpoint_dir.mkdir(parents=True)
-    (checkpoint_dir / "v2_hybrid_ckpt_old.json").write_text("{}", encoding="utf-8")
-    latest = checkpoint_dir / "v2_hybrid_ckpt_latest.json"
-    latest.write_text("{}", encoding="utf-8")
-    control_file = checkpoint_dir / "checkpoint_retention_manifest.json"
-    control_file.write_text('{"latest_checkpoint": "stale"}', encoding="utf-8")
+    manager = V2HybridCheckpointManager(checkpoint_dir)
+    model = _retention_model(monkeypatch, seed=201)
+    oldest = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    _mutate_retention_model(model)
+    newest = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    touched_time = time.time() + 10_000
+    os.utime(Path(oldest.path), (touched_time, touched_time))
+    os.utime(
+        checkpoint_dir / f"{oldest.checkpoint_id}.weights.npz",
+        (touched_time, touched_time),
+    )
 
     status = checkpoint_retention_status(
         paths=paths,
-        latest_checkpoint_id="v2_hybrid_ckpt_latest",
+        latest_checkpoint_id=newest.checkpoint_id,
         apply_rollover=True,
     )
 
-    assert status["checkpoint_count"] == 2
+    assert status["checkpoint_count"] == 4
     assert status["rollover_action_taken"] == "NONE"
-    assert status["latest_checkpoint"] == latest.name
-    assert status["checkpoint_dir_size_bytes"] == sum(
-        path.stat().st_size
-        for path in checkpoint_dir.glob("v2_hybrid_ckpt_*")
-        if path.is_file()
-    )
-    assert latest.exists()
+    assert status["latest_checkpoint"] == f"{newest.checkpoint_id}.json"
+    assert status["latest_checkpoint_id"] == newest.checkpoint_id
+    assert status["checkpoint_retention_scan_verified"] is True
+    assert status["filesystem_mtime_used_for_ordering"] is False
+    assert Path(oldest.path).exists()
+    assert Path(newest.path).exists()
 
 
 def test_checkpoint_retention_recovers_latest_complete_pair_without_caller_id(
     tmp_path: Path,
+    monkeypatch,
 ) -> None:
     paths = PersistentTrainerPaths(repo_root=tmp_path)
     checkpoint_dir = paths.model_dir
-    checkpoint_dir.mkdir(parents=True)
-    checkpoint_id = "v2_hybrid_ckpt_complete"
-    weight = checkpoint_dir / f"{checkpoint_id}.weights.npz"
-    weight.write_bytes(b"unit-weight")
-    metadata = checkpoint_dir / f"{checkpoint_id}.json"
-    metadata.write_text(
-        json.dumps(
-            {
-                "checkpoint_id": checkpoint_id,
-                "weight_blob_written": True,
-            }
-        ),
-        encoding="utf-8",
-    )
-    (checkpoint_dir / "v2_hybrid_ckpt_orphan.json").write_text(
-        json.dumps(
-            {
-                "checkpoint_id": "v2_hybrid_ckpt_orphan",
-                "weight_blob_written": False,
-            }
-        ),
-        encoding="utf-8",
+    manager = V2HybridCheckpointManager(checkpoint_dir)
+    model = _retention_model(monkeypatch, seed=203)
+    checkpoint = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
     )
 
     status = checkpoint_retention_status(
@@ -297,9 +399,291 @@ def test_checkpoint_retention_recovers_latest_complete_pair_without_caller_id(
         apply_rollover=False,
     )
 
-    assert status["latest_checkpoint_id"] == checkpoint_id
-    assert status["latest_checkpoint_id_source"] == "newest_complete_checkpoint_artifact"
-    assert status["pinned_checkpoints"] == sorted([metadata.name, weight.name])
+    assert status["latest_checkpoint_id"] == checkpoint.checkpoint_id
+    assert (
+        status["latest_checkpoint_id_source"]
+        == "newest_validated_causal_serving_checkpoint"
+    )
+    pinned = set(status["pinned_checkpoints"])
+    assert f"{checkpoint.checkpoint_id}.json" in pinned
+    assert f"{checkpoint.checkpoint_id}.weights.npz" in pinned
+    assert ".checkpoint-causal-order.jsonl" in pinned
+    assert ".checkpoint-causal-order.lock" in pinned
+
+
+def test_checkpoint_retention_pins_lifecycle_stores_ledger_and_pending_reconciliation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    root = paths.model_dir
+    candidate_dir = root / "non_serving_training_candidates"
+    rejected_dir = root / "rejected_optimizer_attempts"
+    model = _retention_model(monkeypatch, seed=205)
+    serving = _write_retention_checkpoint(
+        manager=V2HybridCheckpointManager(root),
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    candidate_manager = V2HybridCheckpointManager(candidate_dir)
+    rejected_manager = V2HybridCheckpointManager(rejected_dir)
+    _mutate_retention_model(model)
+    old_candidate = _write_retention_checkpoint(
+        manager=candidate_manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+    _mutate_retention_model(model)
+    latest_candidate = _write_retention_checkpoint(
+        manager=candidate_manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+    receipt_hash = "a" * 64
+    outcome_digest = "b" * 64
+    parent_fingerprint = "c" * 64
+    pending_key = ppo_consumption_update_key(
+        receipt_hash=receipt_hash,
+        finalized_outcome_digest=outcome_digest,
+        parent_policy_fingerprint=parent_fingerprint,
+    )
+    _mutate_retention_model(model)
+    pending_rejected = _write_retention_checkpoint(
+        manager=rejected_manager,
+        model=model,
+        lineage_kind="REJECTED_TRAINING_ATTEMPT",
+        consumed_ppo_update_keys=(pending_key,),
+    )
+    _mutate_retention_model(model)
+    free_rejected = _write_retention_checkpoint(
+        manager=rejected_manager,
+        model=model,
+        lineage_kind="REJECTED_TRAINING_ATTEMPT",
+    )
+    ledger = PPOConsumptionLedger(candidate_dir / "ppo_consumption.sqlite3")
+    ledger.claim_attempts(
+        attempts=[
+            {
+                "update_key": pending_key,
+                "receipt_hash": receipt_hash,
+                "finalized_outcome_digest": outcome_digest,
+                "parent_policy_fingerprint": parent_fingerprint,
+            }
+        ],
+        owner_id="00000000-0000-0000-0000-000000000000:999999999:0",
+    )
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=serving.checkpoint_id,
+        rollover_limit_gb=0,
+        apply_rollover=True,
+    )
+
+    pinned = set(status["pinned_checkpoints"])
+    assert f"{serving.checkpoint_id}.json" in pinned
+    assert (
+        "non_serving_training_candidates/"
+        f"{latest_candidate.checkpoint_id}.weights.npz" in pinned
+    )
+    assert (
+        "rejected_optimizer_attempts/"
+        f"{pending_rejected.checkpoint_id}.json" in pinned
+    )
+    assert "non_serving_training_candidates/ppo_consumption.sqlite3" in pinned
+    assert not Path(old_candidate.path).exists()
+    assert not (
+        candidate_dir / f"{old_candidate.checkpoint_id}.weights.npz"
+    ).exists()
+    assert not Path(free_rejected.path).exists()
+    assert not (
+        rejected_dir / f"{free_rejected.checkpoint_id}.weights.npz"
+    ).exists()
+    assert Path(pending_rejected.path).exists()
+    assert ledger.path.exists()
+    assert status["complete_pair_deletion_only"] is True
+    assert status["pending_ppo_claim_state_verified"] is True
+
+
+def test_checkpoint_retention_pins_terminal_ppo_artifact_and_full_parent_chain(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    candidate_dir = paths.model_dir / "non_serving_training_candidates"
+    manager = V2HybridCheckpointManager(candidate_dir)
+    model = _retention_model(monkeypatch, seed=207)
+    parent = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+    receipt_hash = "d" * 64
+    outcome_digest = "e" * 64
+    parent_policy_fingerprint = "f" * 64
+    update_key = ppo_consumption_update_key(
+        receipt_hash=receipt_hash,
+        finalized_outcome_digest=outcome_digest,
+        parent_policy_fingerprint=parent_policy_fingerprint,
+    )
+    partition = training_partition_digest([update_key])
+    owner_id = "00000000-0000-0000-0000-000000000000:999999999:0"
+    ledger = PPOConsumptionLedger(candidate_dir / "ppo_consumption.sqlite3")
+    attempt = {
+        "update_key": update_key,
+        "receipt_hash": receipt_hash,
+        "finalized_outcome_digest": outcome_digest,
+        "parent_policy_fingerprint": parent_policy_fingerprint,
+    }
+    ledger.claim_attempts(attempts=[attempt], owner_id=owner_id)
+    ledger.mark_optimizer_started(
+        owner_id=owner_id,
+        update_keys=[update_key],
+        partition_digest=partition,
+    )
+    _mutate_retention_model(model)
+    terminal = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+        parent_checkpoint_id=parent.checkpoint_id,
+        parent_policy_fingerprint=parent.model_parameter_fingerprint,
+        consumed_ppo_update_keys=(update_key,),
+    )
+    ledger.record_attempts(
+        attempts=[attempt],
+        child_policy_fingerprint=str(terminal.model_parameter_fingerprint),
+        disposition="NON_SERVING_CANDIDATE_PERSISTED",
+        checkpoint_id=terminal.checkpoint_id,
+        checkpoint_path=str(
+            (candidate_dir / f"{terminal.checkpoint_id}.weights.npz").resolve()
+        ),
+        checkpoint_sha256=terminal.weight_file_sha256,
+        partition_digest=partition,
+        owner_id=owner_id,
+    )
+    _mutate_retention_model(model)
+    latest = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=None,
+        rollover_limit_gb=0,
+        apply_rollover=True,
+    )
+
+    reasons = status["pinned_checkpoint_reasons"]
+    terminal_name = (
+        f"non_serving_training_candidates/{terminal.checkpoint_id}.json"
+    )
+    parent_name = f"non_serving_training_candidates/{parent.checkpoint_id}.json"
+    assert Path(terminal.path).exists()
+    assert Path(parent.path).exists()
+    assert Path(latest.path).exists()
+    assert "TERMINAL_PPO_ATTEMPT_DURABLE_ARTIFACT" in reasons[terminal_name]
+    assert (
+        "TERMINAL_PPO_ATTEMPT_DURABLE_ARTIFACT_ANCESTOR"
+        in reasons[parent_name]
+    )
+    assert status["terminal_ppo_attempt_count"] == 1
+    assert status["terminal_checkpoint_reference_count"] == 1
+    assert status["terminal_checkpoint_bindings_verified"] is True
+    assert status["parent_chain_holes_fail_closed"] is True
+
+
+def test_checkpoint_retention_corrupt_weight_blocks_every_deletion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    manager = V2HybridCheckpointManager(paths.model_dir)
+    model = _retention_model(monkeypatch, seed=211)
+    first = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    _mutate_retention_model(model)
+    newest = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="VERIFIED_SERVING_POLICY",
+    )
+    corrupt_weight = (
+        paths.model_dir / f"{newest.checkpoint_id}.weights.npz"
+    )
+    corrupt_weight.write_bytes(corrupt_weight.read_bytes() + b"corrupt")
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=newest.checkpoint_id,
+        rollover_limit_gb=0,
+        apply_rollover=True,
+    )
+
+    assert Path(first.path).exists()
+    assert (
+        paths.model_dir / f"{first.checkpoint_id}.weights.npz"
+    ).exists()
+    assert Path(newest.path).exists()
+    assert corrupt_weight.exists()
+    assert status["deleted_checkpoints"] == []
+    assert status["checkpoint_retention_scan_verified"] is False
+    assert status["checkpoint_rollover_status"] == "ROLLOVER_BLOCKED_SCAN_INVALID"
+    assert any(
+        reason.startswith("CHECKPOINT_ARTIFACT_INVALID:")
+        for reason in status["checkpoint_retention_scan_rejection_reasons"]
+    )
+
+
+def test_checkpoint_retention_corrupt_ppo_ledger_blocks_every_deletion(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    candidate_dir = paths.model_dir / "non_serving_training_candidates"
+    manager = V2HybridCheckpointManager(candidate_dir)
+    model = _retention_model(monkeypatch, seed=213)
+    first = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+    _mutate_retention_model(model)
+    newest = _write_retention_checkpoint(
+        manager=manager,
+        model=model,
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+    ledger = PPOConsumptionLedger(candidate_dir / "ppo_consumption.sqlite3")
+    with ledger._connect() as connection:  # noqa: SLF001 - corruption probe
+        connection.execute(
+            "UPDATE metadata SET value = ? WHERE key = 'chain_tip'",
+            ("f" * 64,),
+        )
+        connection.commit()
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=None,
+        rollover_limit_gb=0,
+        apply_rollover=True,
+    )
+
+    assert Path(first.path).exists()
+    assert (
+        candidate_dir / f"{first.checkpoint_id}.weights.npz"
+    ).exists()
+    assert Path(newest.path).exists()
+    assert status["deleted_checkpoints"] == []
+    assert status["ppo_consumption_ledger_integrity_verified"] is False
+    assert "PPO_LEDGER_CHAIN_TIP_MISMATCH" in status[
+        "checkpoint_retention_scan_rejection_reasons"
+    ]
 
 
 def test_resource_status_distinguishes_sample_set_below_target_from_training_blocker(monkeypatch) -> None:
@@ -605,7 +989,12 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    repo_root = tmp_path / "explicit-repo"
+    foreign_cwd = tmp_path / "foreign-cwd"
+    repo_root.mkdir()
+    foreign_cwd.mkdir()
+    monkeypatch.chdir(foreign_cwd)
+    paths = PersistentTrainerPaths(repo_root=repo_root)
     captured: dict[str, object] = {}
     monkeypatch.setattr(runtime_module, "connect_redis", lambda: None)
     monkeypatch.setattr(
@@ -619,29 +1008,62 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
         },
     )
 
-    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
+    def _fake_run_hybrid_trainer_cycle(
+        *,
+        config,
+        io,
+        publish,
+        replay_buffer,
+        prefetched_backfill_examples=None,
+        trusted_replay_archive_root=None,
+        behavior_receipt_archive_root=None,
+    ):
         captured["symbols"] = config.symbols
         captured["timeframes"] = config.timeframes
+        captured["model_dir"] = config.model_dir
+        captured["expected_cycle_cadence_seconds"] = config.expected_cycle_cadence_seconds
         captured["live_gate"] = config.live_gate
         captured["live_symbols"] = config.live_symbols
         captured["max_training_rows_per_cycle"] = config.max_training_rows_per_cycle
         captured["batch_size"] = config.batch_size
         captured["train_steps"] = config.train_steps
         captured["publish"] = publish
+        captured["trusted_replay_archive_root"] = trusted_replay_archive_root
+        captured["behavior_receipt_archive_root"] = behavior_receipt_archive_root
         return object()
 
     monkeypatch.setattr(runtime_module, "run_hybrid_trainer_cycle", _fake_run_hybrid_trainer_cycle)
+    monkeypatch.setattr(
+        runtime_module,
+        "_ensure_prefetch_thread_started",
+        lambda *, trusted_replay_archive_root: captured.setdefault(
+            "prefetch_archive_root", trusted_replay_archive_root
+        ),
+    )
 
-    runtime_module.run_native_training_cycle(paths=paths, max_rows=64, risk_caps_configured=True)
+    runtime_module.run_native_training_cycle(
+        paths=paths,
+        max_rows=64,
+        risk_caps_configured=True,
+        interval_seconds=17,
+    )
 
     assert captured["symbols"] == ("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT")
     assert captured["timeframes"] == ("1m", "5m", "15m", "1h", "4h")
+    assert captured["model_dir"] == repo_root / runtime_module.MODEL_DIR_REL
+    assert captured["expected_cycle_cadence_seconds"] == 17
     assert captured["live_gate"] == "blocked_human_only"
     assert captured["live_symbols"] == ()
     assert captured["max_training_rows_per_cycle"] == 64
     assert captured["batch_size"] == 64
     assert captured["train_steps"] == 1
     assert captured["publish"] is True
+    assert captured["trusted_replay_archive_root"] == paths.trusted_replay_archive_root
+    assert captured["behavior_receipt_archive_root"] == paths.behavior_receipt_archive_root
+    assert captured["prefetch_archive_root"] == paths.trusted_replay_archive_root
+    assert str(foreign_cwd) not in str(captured["model_dir"])
+    assert str(foreign_cwd) not in str(captured["trusted_replay_archive_root"])
+    assert str(foreign_cwd) not in str(captured["behavior_receipt_archive_root"])
 
 
 def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
@@ -662,7 +1084,16 @@ def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
         },
     )
 
-    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
+    def _fake_run_hybrid_trainer_cycle(
+        *,
+        config,
+        io,
+        publish,
+        replay_buffer,
+        prefetched_backfill_examples=None,
+        trusted_replay_archive_root=None,
+        behavior_receipt_archive_root=None,
+    ):
         captured["max_training_rows_per_cycle"] = config.max_training_rows_per_cycle
         captured["batch_size"] = config.batch_size
         captured["train_steps"] = config.train_steps
@@ -670,6 +1101,7 @@ def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
         return object()
 
     monkeypatch.setattr(runtime_module, "run_hybrid_trainer_cycle", _fake_run_hybrid_trainer_cycle)
+    monkeypatch.setattr(runtime_module, "_ensure_prefetch_thread_started", lambda **_kwargs: None)
 
     runtime_module.run_native_training_cycle(paths=paths, max_rows=32768, risk_caps_configured=True)
 
@@ -677,6 +1109,89 @@ def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
     assert captured["batch_size"] == runtime_module.RESIDENT_MAX_BATCH_SIZE
     assert captured["train_steps"] == runtime_module.RESIDENT_MAX_TRAIN_STEPS_PER_CYCLE
     assert captured["publish"] is True
+
+
+def test_prefetch_worker_uses_explicit_trusted_replay_root_from_foreign_cwd(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+        data_loader as data_loader_module,
+    )
+
+    archive_root = tmp_path / "explicit-repo" / ".local_data" / "trusted-replay"
+    foreign_cwd = tmp_path / "foreign-cwd"
+    archive_root.mkdir(parents=True)
+    foreign_cwd.mkdir()
+    monkeypatch.chdir(foreign_cwd)
+    captured: dict[str, object] = {}
+    stop_event = runtime_module.threading.Event()
+
+    class _Loader:
+        def __init__(self, *, io, trusted_replay_archive_root):
+            captured["archive_root"] = trusted_replay_archive_root
+
+        def load_trusted_replay_examples(self, *, limit, backfill):
+            captured["limit"] = limit
+            captured["backfill"] = backfill
+            stop_event.set()
+            return []
+
+    monkeypatch.setattr(data_loader_module, "V2HybridTrainerDataLoader", _Loader)
+    monkeypatch.setattr(runtime_module, "connect_redis", lambda: None)
+
+    runtime_module._prefetch_backfill_worker(  # noqa: SLF001
+        trusted_replay_archive_root=archive_root,
+        stop_event=stop_event,
+    )
+
+    assert captured["archive_root"] == archive_root
+    assert captured["limit"] == runtime_module._PREFETCH_CHUNK_ROWS  # noqa: SLF001
+    assert captured["backfill"] is True
+    assert str(foreign_cwd) not in str(captured["archive_root"])
+
+
+def test_persistent_cli_default_repo_root_and_cadence_are_cwd_independent(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    foreign_cwd = tmp_path / "foreign-cwd"
+    foreign_cwd.mkdir()
+    monkeypatch.chdir(foreign_cwd)
+    captured: dict[str, object] = {}
+
+    def _fake_cycle(**kwargs):
+        captured.update(kwargs)
+        return {
+            "operator_dashboard_payload.json": {
+                "gate": runtime_module.READY,
+                "trainer": {},
+                "paper_drawdown": {},
+            }
+        }
+
+    monkeypatch.setattr(runtime_module, "run_one_persistent_cycle", _fake_cycle)
+
+    result = runtime_module.persistent_loop_main(
+        ["--once", "--no-training", "--interval-seconds", "999"]
+    )
+
+    assert result == 0
+    assert captured["paths"].repo_root == runtime_module.CANONICAL_REPO_ROOT
+    assert captured["interval_seconds"] == 300
+    assert captured["run_training"] is False
+
+
+def test_hybrid_trainer_config_rejects_nonpositive_expected_cadence() -> None:
+    for value in (0, -1):
+        try:
+            runtime_module.HybridTrainerConfig(
+                expected_cycle_cadence_seconds=value
+            ).validate_safety()
+        except ValueError as exc:
+            assert "expected_cycle_cadence_seconds must be positive" in str(exc)
+        else:  # pragma: no cover - fail-closed validation is required.
+            raise AssertionError("nonpositive expected trainer cadence must fail closed")
 
 
 def test_legacy_grade_runtime_config_defaults_fast_live_cadence_and_flags_partitioning(
@@ -734,7 +1249,16 @@ def test_run_native_training_cycle_uses_legacy_runtime_env_overrides(
         },
     )
 
-    def _fake_run_hybrid_trainer_cycle(*, config, io, publish, replay_buffer, prefetched_backfill_examples=None):
+    def _fake_run_hybrid_trainer_cycle(
+        *,
+        config,
+        io,
+        publish,
+        replay_buffer,
+        prefetched_backfill_examples=None,
+        trusted_replay_archive_root=None,
+        behavior_receipt_archive_root=None,
+    ):
         captured["rollout_max_envs"] = config.rollout_max_envs
         captured["rollout_n_steps"] = config.rollout_n_steps
         captured["batch_size"] = config.batch_size
@@ -743,6 +1267,7 @@ def test_run_native_training_cycle_uses_legacy_runtime_env_overrides(
         return object()
 
     monkeypatch.setattr(runtime_module, "run_hybrid_trainer_cycle", _fake_run_hybrid_trainer_cycle)
+    monkeypatch.setattr(runtime_module, "_ensure_prefetch_thread_started", lambda **_kwargs: None)
 
     runtime_module.run_native_training_cycle(paths=paths, max_rows=4096, risk_caps_configured=True)
 
@@ -909,7 +1434,7 @@ def test_publish_persistent_payloads_merges_current_runtime_liveness_fields(tmp_
         "last_prediction_age_seconds": 1.0,
     }
 
-    publish_persistent_payloads(
+    payloads = publish_persistent_payloads(
         paths=paths,
         persistent=persistent,
         resource={"bottleneck_reason": "DATASET_TOO_SMALL"},
@@ -930,6 +1455,71 @@ def test_publish_persistent_payloads_merges_current_runtime_liveness_fields(tmp_
     assert runtime["trainer_liveness_status"] == "HEALTHY"
     assert runtime["heartbeat_age_seconds"] == 1.0
     assert runtime["prediction_grid_current"] is True
+    dashboard = payloads["operator_dashboard_payload.json"]
+    assert dashboard["gate"] == runtime_module.BLOCKED
+    assert "CURRENT_TRAINER_RESULT_MISSING" in dashboard["blockers"]
+    assert "TRAINER_LEARNING_NOT_READY" in dashboard["blockers"]
+
+
+def test_dashboard_readiness_blocks_stale_current_cycle_evidence(
+    monkeypatch,
+) -> None:
+    class _TrainerResult:
+        status = {
+            "generated_utc": "2026-06-22T10:00:00Z",
+            "checkpoint_id": "serving-1",
+            "trainer_process_status": "ACTIVE_CURRENT_CYCLE",
+            "cuda_inference_status": "ACTIVE",
+            "prediction_publication_status": "ACTIVE",
+        }
+        metrics = {"checkpoint_reload": {"checkpoint_id": "serving-1"}}
+
+    monkeypatch.setattr(
+        runtime_module,
+        "_verified_serving_checkpoint_evidence",
+        lambda *_args, **_kwargs: (True, ()),
+    )
+    persistent = {
+        "generated_utc": "2026-06-22T10:00:00Z",
+        "service_active": True,
+        "training_loop_active": True,
+        "trainer_liveness_status": "HEALTHY",
+        "worker_health_status": "HEALTHY",
+        "trainer_process_status": "ACTIVE",
+        "cuda_inference_status": "ACTIVE",
+        "prediction_publication_status": "ACTIVE",
+        "prediction_grid_current": True,
+        "trainer_learning_ready": True,
+        "online_learning_status": "WEIGHTS_UPDATING",
+        "checkpoint_weight_blob_written": True,
+        "checkpoint_reload_verified": True,
+        "heartbeat_age_seconds": 1.0,
+        "legacy_runtime_effective_config": {"prediction_loop_seconds": 5},
+    }
+    checkpoint = {
+        "checkpoint_retention_scan_verified": True,
+        "active_verified_serving_checkpoint_id": "serving-1",
+    }
+
+    blockers = runtime_module.dashboard_runtime_readiness_blockers(
+        persistent=persistent,
+        checkpoint=checkpoint,
+        trainer_result=_TrainerResult(),
+        now_utc=datetime(2026, 6, 22, 10, 1, tzinfo=timezone.utc),
+    )
+
+    assert "TRAINER_RUNTIME_STATUS_STALE" in blockers
+    assert "CURRENT_CYCLE_RUNTIME_EVIDENCE_STALE" in blockers
+    assert "CURRENT_CYCLE_SERVING_CHECKPOINT_SEMANTICS_NOT_VERIFIED" not in blockers
+
+    current_blockers = runtime_module.dashboard_runtime_readiness_blockers(
+        persistent=persistent,
+        checkpoint=checkpoint,
+        trainer_result=_TrainerResult(),
+        now_utc=datetime(2026, 6, 22, 10, 0, 5, tzinfo=timezone.utc),
+    )
+
+    assert current_blockers == []
 
 
 def test_publish_persistent_payloads_overwrites_stale_checkpoint_identity(
@@ -1095,7 +1685,9 @@ def test_publish_persistent_payloads_does_not_reuse_stale_trusted_rows_when_feed
     assert runtime["trusted_rows_loaded"] == 0
     assert runtime["latest_training_metrics"]["metrics"]["trusted_rows_loaded"] == 0
     assert runtime["latest_training_metrics"]["metrics"]["feedback_source_status"] == "REDIS_UNAVAILABLE"
-    assert runtime["online_learning_status"] == "BLOCKED_NO_TRUSTED_FEEDBACK"
+    assert runtime["online_learning_status"] == (
+        "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+    )
     assert runtime["effective_trainer_mode"] == "INFERENCE_ONLY"
 
 
@@ -1450,6 +2042,74 @@ def test_run_one_persistent_cycle_heartbeats_when_no_trusted_examples(tmp_path: 
     assert resource["bottleneck_reason"] == "NO_TRUSTED_EXAMPLES_BUILT"
 
 
+def test_run_one_persistent_cycle_heartbeats_when_no_prediction_examples(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    prediction_path = paths.public_root / runtime_module.PREDICTION_REL
+    prediction_path.parent.mkdir(parents=True, exist_ok=True)
+    prediction_path.write_text(
+        json.dumps(
+            {
+                "prediction_rows_count": 10,
+                "expected_prediction_count": 10,
+                "blocked_prediction_rows_count": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "systemctl_show",
+        lambda unit: {"ActiveState": "active", "MainPID": str(os.getpid()), "UnitFileState": "masked"}
+        if unit == runtime_module.LEGACY_BRIDGE_UNIT
+        else {"ActiveState": "active", "MainPID": str(os.getpid())},
+    )
+    monkeypatch.setattr(runtime_module, "connect_redis", lambda: None)
+    monkeypatch.setattr(
+        runtime_module,
+        "refresh_all_timeframe_payload",
+        lambda _repo_root: {"ran": False, "status": "SKIPPED_TEST"},
+    )
+
+    def _no_prediction_examples(**_kwargs):
+        raise RuntimeError("no prediction examples built")
+
+    monkeypatch.setattr(
+        runtime_module,
+        "run_native_training_cycle",
+        _no_prediction_examples,
+    )
+
+    runtime_module.run_one_persistent_cycle(
+        paths=paths,
+        max_rows=64,
+        risk_caps_configured=True,
+        run_training=True,
+    )
+
+    state = json.loads(paths.state_path.read_text(encoding="utf-8"))
+    runtime = json.loads(
+        (paths.operator_dir / "native_trainer_runtime_status.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    resource = json.loads(
+        (paths.operator_dir / "native_trainer_gpu_status.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert state["training_steps_total"] == 0
+    assert state["last_training_blocker_reason"] == "NO_PREDICTION_EXAMPLES_BUILT"
+    assert state["step_events"][-1]["heartbeat_only"] is True
+    assert runtime["generated_utc"].endswith("Z")
+    assert runtime["training_loop_active"] is True
+    assert runtime["training_cycle_blocked_reason"] == "NO_PREDICTION_EXAMPLES_BUILT"
+    assert resource["bottleneck_reason"] == "NO_PREDICTION_EXAMPLES_BUILT"
+
+
 def test_run_one_persistent_cycle_keeps_inference_active_with_empty_feedback(
     tmp_path: Path,
     monkeypatch,
@@ -1543,8 +2203,12 @@ def test_run_one_persistent_cycle_keeps_inference_active_with_empty_feedback(
     assert calls["count"] == 1
     assert state["training_steps_total"] == 0
     assert state["last_training_blocker_reason"] == "NO_TRUSTED_FEEDBACK_ROWS"
-    assert runtime["prediction_publication_status"] == "ACTIVE"
-    assert runtime["online_learning_status"] == "BLOCKED_NO_TRUSTED_FEEDBACK"
+    assert runtime["prediction_publication_status"] == (
+        "BLOCKED_NO_CURRENT_COMPLETE_PREDICTION_PUBLICATION"
+    )
+    assert runtime["online_learning_status"] == (
+        "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+    )
     assert runtime["effective_trainer_mode"] == "INFERENCE_ONLY"
     assert runtime["trusted_rows_loaded"] == 0
     assert runtime["optimizer_steps_this_cycle"] == 0
@@ -1648,7 +2312,9 @@ def test_run_one_persistent_cycle_merges_quarantine_rejections_when_result_has_n
 
     runtime = json.loads((paths.operator_dir / "native_trainer_runtime_status.json").read_text(encoding="utf-8"))
 
-    assert runtime["online_learning_status"] == "BLOCKED_NO_TRUSTED_FEEDBACK"
+    assert runtime["online_learning_status"] == (
+        "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+    )
     assert runtime["effective_trainer_mode"] == "INFERENCE_ONLY"
     assert runtime["trusted_rows_loaded"] == 0
     assert runtime["rows_rejected_by_reason"] == {
@@ -1766,6 +2432,301 @@ def test_confidence_artifacts_compute_brier_ece_from_trusted_feedback(monkeypatc
     assert abs(calibration["ece"] - 0.25) < 1e-9
     assert reliability["sample_count"] == 2
     assert len(reliability["buckets"]) == 2
+
+
+def _unit_holdout_example() -> runtime_module.TrainingExample:
+    tensor = FeatureTensorRecord(
+        tensor_id="holdout-tensor-1",
+        symbol="BTCUSDT",
+        timeframe="1m",
+        feature_snapshot_id="holdout-snapshot-1",
+        values=(0.1,),
+        missing_mask=(0,),
+        stale_mask=(0,),
+        source_availability=(1,),
+        feature_names=("ret_pct",),
+        source_labels=("unit",),
+        missing_feature_names=(),
+        stale_feature_names=(),
+        data_coverage_percent=100.0,
+        source_availability_vector=(1,),
+    )
+    return runtime_module.TrainingExample(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        tensor=tensor,
+        label_action_index=1,
+        label_expected_move_after_cost_bps=5.0,
+        payload_keys=("unit",),
+        row_classification="PIT_SAFE_UNIT_HOLDOUT",
+        decision_time="2026-06-22T10:00:00Z",
+        label_available_at="2026-06-22T10:02:00Z",
+        trust_row={
+            "sample_id": "holdout-sample-1",
+            "decision_time": "2026-06-22T10:00:00Z",
+            "label_available_at": "2026-06-22T10:02:00Z",
+            "outcome_available_at": "2026-06-22T10:02:00Z",
+            "future_return_after_cost_bps": 5.0,
+            "future_labels_not_in_feature_tensor": True,
+            "target_action": "long",
+        },
+    )
+
+
+def _patch_unit_holdout_inputs(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runtime_module,
+        "_trusted_replay_holdout_manifest",
+        lambda _repo_root: {
+            "manifest_path": "/unit/holdout.json",
+            "holdout_window": {
+                "start_decision_time": "2026-06-22T09:00:00Z",
+                "end_decision_time": "2026-06-22T11:00:00Z",
+                "rows": 1,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "_trusted_replay_holdout_examples",
+        lambda **_kwargs: {
+            "examples": [_unit_holdout_example()],
+            "rows_rejected_by_reason": {},
+            "snapshots_scanned": 1,
+            "holdout_candidates_found": 1,
+            "holdout_sample_identity_hash": "a" * 64,
+        },
+    )
+
+
+def test_holdout_checkpoint_manifest_scan_failure_blocks_before_load(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **kwargs):
+            assert kwargs["allowed_lineage_kinds"] == frozenset(
+                {runtime_module.VERIFIED_SERVING_LINEAGE}
+            )
+            assert kwargs["require_weight_blob"] is True
+            raise RuntimeError("checkpoint_manifest_scan_invalid")
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "BLOCKED_CHECKPOINT_MANIFEST_SCAN_INVALID"
+    assert result["confidence_outcome_join_available"] is False
+
+
+def test_holdout_checkpoint_rejects_non_serving_lineage_before_artifact_load(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+    candidate = SimpleNamespace(
+        checkpoint_id="candidate-1",
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+    )
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **_kwargs):
+            return (candidate,)
+
+        def verify_manifest_artifact(self, _manifest):  # pragma: no cover
+            raise AssertionError("candidate artifact must not be evaluated")
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "BLOCKED_CHECKPOINT_LINEAGE_INVALID"
+    assert result["checkpoint_id"] == "candidate-1"
+
+
+def test_holdout_checkpoint_invalid_artifact_fails_closed_before_model_load(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+    serving = SimpleNamespace(
+        checkpoint_id="serving-1",
+        lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
+    )
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **_kwargs):
+            return (serving,)
+
+        def verify_manifest_artifact(self, _manifest):
+            return {
+                "checkpoint_artifact_verified": False,
+                "artifact_verification_rejection_reasons": (
+                    "WEIGHT_BLOB_SHA256_MISMATCH",
+                ),
+            }
+
+        def load_latest_weights(self, *_args, **_kwargs):  # pragma: no cover
+            raise AssertionError("invalid artifact must not be deserialized")
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "BLOCKED_CHECKPOINT_ARTIFACT_VERIFICATION_FAILED"
+    assert result["checkpoint_artifact_rejection_reasons"] == [
+        "WEIGHT_BLOB_SHA256_MISMATCH"
+    ]
+
+
+def test_holdout_checkpoint_requires_full_serving_semantics_after_safe_load(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+    serving = SimpleNamespace(
+        checkpoint_id="serving-1",
+        lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
+    )
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **_kwargs):
+            return (serving,)
+
+        def verify_manifest_artifact(self, _manifest):
+            return {"checkpoint_artifact_verified": True}
+
+        def load_latest_weights(self, _model, **_kwargs):
+            return {
+                "checkpoint_id": "serving-1",
+                "latest_checkpoint_loadable": True,
+                "model_state_restored": True,
+                "load_status": "LOADED",
+            }
+
+    class _Model:
+        def __init__(self, *, input_dim):
+            self.input_dim = input_dim
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+    monkeypatch.setattr(runtime_module, "V2HybridPolicyModel", _Model)
+    monkeypatch.setattr(
+        runtime_module,
+        "_verified_serving_checkpoint_evidence",
+        lambda *_args, **_kwargs: (
+            False,
+            ("serving_checkpoint_pit_edge_gate_not_passed",),
+        ),
+    )
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "BLOCKED_CHECKPOINT_SERVING_SEMANTICS_INVALID"
+    assert result["checkpoint_serving_semantic_rejection_reasons"] == [
+        "serving_checkpoint_pit_edge_gate_not_passed"
+    ]
+
+
+def test_holdout_checkpoint_evaluates_only_after_verified_serving_safe_load(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _patch_unit_holdout_inputs(monkeypatch)
+    weight_path = tmp_path / "serving-1.weights.npz"
+    weight_path.write_bytes(b"unit-safe-weight-blob")
+    serving = SimpleNamespace(
+        checkpoint_id="serving-1",
+        lineage_kind=runtime_module.VERIFIED_SERVING_LINEAGE,
+    )
+
+    class _Manager:
+        def __init__(self, _model_dir):
+            pass
+
+        def manifests(self, **kwargs):
+            assert kwargs["allowed_lineage_kinds"] == frozenset(
+                {runtime_module.VERIFIED_SERVING_LINEAGE}
+            )
+            return (serving,)
+
+        def verify_manifest_artifact(self, _manifest):
+            return {"checkpoint_artifact_verified": True}
+
+        def load_latest_weights(self, _model, **kwargs):
+            assert kwargs["allowed_lineage_kinds"] == frozenset(
+                {runtime_module.VERIFIED_SERVING_LINEAGE}
+            )
+            return {
+                "checkpoint_id": "serving-1",
+                "latest_checkpoint_loadable": True,
+                "model_state_restored": True,
+                "resolved_weight_file_path": str(weight_path.resolve()),
+                "load_status": "LOADED",
+            }
+
+    class _Model:
+        device = "cpu"
+        cuda_active = False
+
+        def __init__(self, *, input_dim):
+            self.input_dim = input_dim
+
+        def forward(self, _tensor):
+            return SimpleNamespace(
+                confidence_calibrated=0.8,
+                selected_action="long",
+                expected_move_bps=7.0,
+            )
+
+    monkeypatch.setattr(runtime_module, "V2HybridCheckpointManager", _Manager)
+    monkeypatch.setattr(runtime_module, "V2HybridPolicyModel", _Model)
+    monkeypatch.setattr(
+        runtime_module,
+        "_verified_serving_checkpoint_evidence",
+        lambda *_args, **_kwargs: (True, ()),
+    )
+
+    result = runtime_module.build_trusted_replay_holdout_calibration(
+        repo_root=tmp_path,
+        model_dir=tmp_path / "models",
+        generated_utc="2026-06-22T12:00:00Z",
+    )
+
+    assert result["status"] == "ACTIVE_TRUSTED_HOLDOUT_CALIBRATION"
+    assert result["checkpoint_id"] == "serving-1"
+    assert result["checkpoint_path"] == str(weight_path.resolve())
+    assert result["checkpoint_weight_blob_loaded"] is True
+    assert result["trusted_holdout_rows"] == 1
 
 
 def test_confidence_artifacts_activate_from_trusted_replay_holdout(
@@ -1946,3 +2907,36 @@ def test_trainer_quality_artifact_computes_expected_move_mae_and_calibration(mon
     assert quality["calibration_sample_count"] == 2
     assert abs(quality["brier_score"] - 0.0625) < 1e-9
     assert abs(quality["ece"] - 0.25) < 1e-9
+
+
+def test_trainer_quality_preserves_exact_zero_net_pnl_instead_of_gross_fallback(
+    monkeypatch,
+) -> None:
+    row = _trusted_feedback_row()
+    row.update(
+        {
+            "feature_snapshot_id": "feat-1",
+            "confidence_calibrated": 0.5,
+            "expected_move_after_cost_bps": 0.0,
+            "realized_net_pnl_bps": 0.0,
+            "realized_pnl_bps": 25.0,
+            "directional_outcome": "FLAT",
+            "action_was_profitable": False,
+            "trade_outcome": "BREAKEVEN",
+        }
+    )
+    feedback = runtime_module._trusted_feedback_metric_rows([row])  # noqa: SLF001
+    assert feedback["expected_move_rows"] == [
+        {"expected": 0.0, "realized": 0.0}
+    ]
+
+    monkeypatch.setattr(runtime_module, "_redis_json_list", lambda _key: [row])
+    quality = runtime_module.build_trainer_quality_artifact(
+        generated_utc="2026-06-22T10:00:02Z"
+    )
+    assert quality["trade_outcome_counts"] == {
+        "WIN": 0,
+        "LOSS": 0,
+        "BREAKEVEN": 1,
+    }
+    assert quality["expected_move_mae"] == 0.0

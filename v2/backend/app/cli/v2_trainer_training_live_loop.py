@@ -20,8 +20,8 @@ from v2.backend.app.services.native_trainer.baseline_model import (
     evaluate_all_baselines,
 )
 from v2.backend.app.services.native_trainer.dataset_builder import (
-    DatasetBuildResult,
     V2OnlyReader,
+    _index_labels_by_snapshot,
     build_dataset_for_universe,
     build_quality_report,
     build_rows_from_replay_bundles,
@@ -29,7 +29,6 @@ from v2.backend.app.services.native_trainer.dataset_builder import (
     default_replay_bundles_path,
     emit_dataset_artifacts,
     load_label_rows,
-    _index_labels_by_snapshot,
 )
 from v2.backend.app.services.native_trainer.packet import (
     default_packet_paths,
@@ -104,22 +103,31 @@ def run_once(
     write_v2_redis: bool = True,
     ttl_seconds: int = 900,
 ) -> dict[str, Any]:
-    started = _utc_iso()
+    training_observed_at = datetime.now(timezone.utc)
+    started = training_observed_at.isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
     client = _connect_redis()
     reader = _reader_from_client(client)
     dataset_paths = default_dataset_paths(repo_root)
     packet_paths = default_packet_paths(repo_root)
     replay_bundles_path = default_replay_bundles_path(repo_root)
 
-    labels = load_label_rows(replay_bundles_path, max_rows=max_label_rows)
+    labels = load_label_rows(
+        replay_bundles_path,
+        max_rows=max_label_rows,
+        training_observed_at=training_observed_at,
+    )
     label_index = _index_labels_by_snapshot(labels)
     build_result = build_dataset_for_universe(
         reader=reader,
         label_rows_by_snapshot=label_index,
+        training_observed_at=training_observed_at,
     )
     replay_rows = build_rows_from_replay_bundles(
         replay_bundles_path,
         max_rows=max_label_rows,
+        training_observed_at=training_observed_at,
     )
     build_result.rows.extend(replay_rows)
     quality = build_quality_report(build_result.rows)

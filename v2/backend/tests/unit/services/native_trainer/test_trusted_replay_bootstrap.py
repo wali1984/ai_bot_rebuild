@@ -204,6 +204,69 @@ def test_open_candle_rejected() -> None:
     assert "OPEN_CANDLE_REJECTED" in reasons
 
 
+def test_costs_cannot_flip_small_down_move_into_profitable_long() -> None:
+    decision_time = datetime(2026, 6, 22, 0, 1, tzinfo=timezone.utc)
+    candles = []
+    for seconds, close in (
+        (5 * 60, 100.0),
+        (15 * 60, 99.99),  # raw 15m return = -1 bps
+        (60 * 60, 100.0),
+        (4 * 60 * 60, 100.0),
+    ):
+        candles.append(
+            {
+                "candle_close_time": (decision_time + timedelta(seconds=seconds))
+                .isoformat(timespec="seconds")
+                .replace("+00:00", "Z"),
+                "close": close,
+                "high": max(100.0, close),
+                "low": min(100.0, close),
+                "candle_closed_confirmed": True,
+            }
+        )
+
+    row, reasons = build_trusted_replay_row(
+        _snapshot(selected_action="long"),
+        candles=candles,
+        round_trip_cost_bps=2.0,
+        action_threshold_bps=0.5,
+    )
+
+    assert row is not None, reasons
+    assert row["raw_future_return_15m_bps"] == pytest.approx(-1.0)
+    assert row["counterfactual_long_net_pnl_bps"] == pytest.approx(-3.0)
+    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(-1.0)
+    assert row["target_action"] == "hold"
+    assert row["future_return_after_cost_bps"] == 0.0
+    assert row["directional_outcome"] == "DOWN"
+    assert row["counterfactual_action_was_profitable"] is False
+    assert row["actual_behavior_net_pnl_bps"] == pytest.approx(-3.0)
+    assert row["actual_behavior_trade_outcome"] == "LOSS"
+    assert row["actual_behavior_action_was_profitable"] is False
+    assert row["trade_outcome"] == "BREAKEVEN"
+
+
+@pytest.mark.parametrize(
+    ("label_kwargs", "expected_reason"),
+    (
+        ({"round_trip_cost_bps": float("nan")}, "ROUND_TRIP_COST_BPS_INVALID"),
+        ({"action_threshold_bps": float("inf")}, "ACTION_THRESHOLD_BPS_INVALID"),
+    ),
+)
+def test_invalid_cost_label_inputs_fail_closed(
+    label_kwargs: dict[str, float],
+    expected_reason: str,
+) -> None:
+    row, reasons = build_trusted_replay_row(
+        _snapshot(),
+        candles=_candles(),
+        **label_kwargs,
+    )
+
+    assert row is None
+    assert reasons == [expected_reason]
+
+
 def test_temporal_split_has_no_overlap() -> None:
     items = [
         (f"2026-06-22T00:{minute:02d}:00Z", f"row-{minute}")
@@ -404,4 +467,4 @@ def test_expected_move_not_used_as_realized_reward() -> None:
 
     assert row is not None, reasons
     assert row["uses_expected_move_as_realized_reward"] is False
-    assert row["realized_reward_source"] == "future_return_after_cost_bps_from_finalized_candles"
+    assert row["realized_reward_source"] == "counterfactual_target_after_cost_from_finalized_candles"

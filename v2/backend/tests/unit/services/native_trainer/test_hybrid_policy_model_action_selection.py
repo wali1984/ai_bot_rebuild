@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_HEAD_SCHEMA_VERSION,
     calibrate_confidence,
     softmax,
 )
@@ -131,19 +132,29 @@ def test_attention_encoder_is_off_by_default_and_env_gated(monkeypatch: pytest.M
     assert on.model_id != off.model_id
 
 
-def test_attention_off_preserves_legacy_model_identity(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_action_conditioned_confidence_head_forks_legacy_model_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("V2_TRAINER_ATTENTION_ENCODER", raising=False)
     model = V2HybridPolicyModel(input_dim=1248)
 
-    legacy_identity = (
+    action_conditioned_identity = (
         f"{model.input_dim}|{model.seed}|{model.hidden_size}|{model.residual_block_count}"
+        f"|confidence={CONFIDENCE_HEAD_SCHEMA_VERSION}"
     )
     expected_model_id = "v2_hybrid_policy_" + hashlib.sha256(
-        legacy_identity.encode()
+        action_conditioned_identity.encode()
     ).hexdigest()[:24]
 
     assert model.attention_encoder_enabled is False
     assert model.model_id == expected_model_id
+    legacy_identity = (
+        f"{model.input_dim}|{model.seed}|{model.hidden_size}|{model.residual_block_count}"
+    )
+    legacy_model_id = "v2_hybrid_policy_" + hashlib.sha256(
+        legacy_identity.encode()
+    ).hexdigest()[:24]
+    assert model.model_id != legacy_model_id
 
 
 def test_attention_encoder_only_enables_when_input_splits_into_four_blocks(
@@ -153,7 +164,10 @@ def test_attention_encoder_only_enables_when_input_splits_into_four_blocks(
     # 1247 is not divisible by 4 -> attention must stay disabled (safe fallback).
     odd = V2HybridPolicyModel(input_dim=1247)
     assert odd.attention_encoder_enabled is False
-    odd_identity = f"{odd.input_dim}|{odd.seed}|{odd.hidden_size}|{odd.residual_block_count}"
+    odd_identity = (
+        f"{odd.input_dim}|{odd.seed}|{odd.hidden_size}|{odd.residual_block_count}"
+        f"|confidence={CONFIDENCE_HEAD_SCHEMA_VERSION}"
+    )
     assert odd.model_id == "v2_hybrid_policy_" + hashlib.sha256(
         odd_identity.encode()
     ).hexdigest()[:24]

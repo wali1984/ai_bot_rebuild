@@ -1,76 +1,183 @@
-"""WI-3 confidence-calibration (temperature scaling) unit tests."""
+"""Checkpoint-bound profitability confidence calibration tests."""
 from __future__ import annotations
 
-import json
-import math
+from typing import Any
 
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import confidence as conf
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
-    DEFAULT_CONFIDENCE_TEMPERATURE,
+    CONFIDENCE_CALIBRATION_SCHEMA_VERSION,
+    CONFIDENCE_FIT_PARTITION,
+    CONFIDENCE_LABEL_SEMANTICS,
     expected_calibration_error,
     fit_temperature,
+    normalize_calibration_state,
     resolve_confidence_temperature,
 )
 
 
-def _overconfident_dataset(n: int = 400):
-    """Model says ~0.9 confident but is only right ~55% of the time (overconfident)."""
-    raw, wins = [], []
-    for i in range(n):
+def _overconfident_dataset(n: int = 400) -> tuple[list[float], list[int]]:
+    raw, outcomes = [], []
+    for index in range(n):
         raw.append(0.9)
-        wins.append(1 if i % 20 < 11 else 0)  # 55% win rate
-    return raw, wins
+        outcomes.append(1 if index % 20 < 11 else 0)
+    return raw, outcomes
 
 
-def test_fit_temperature_spreads_overconfident_probs() -> None:
-    raw, wins = _overconfident_dataset()
-    fit = fit_temperature(raw, wins)
+def _fit_with_lineage(
+    raw: list[float],
+    outcomes: list[int],
+    **kwargs: Any,
+) -> dict[str, Any]:
+    return fit_temperature(
+        raw,
+        outcomes,
+        row_ids=[f"row_{index}" for index in range(len(raw))],
+        action_labels=[
+            "long" if index % 2 == 0 else "short"
+            for index in range(len(raw))
+        ],
+        **kwargs,
+    )
+
+
+def test_fit_temperature_spreads_overconfident_probabilities() -> None:
+    raw, outcomes = _overconfident_dataset()
+    fit = _fit_with_lineage(raw, outcomes)
     assert fit["fitted"] is True
-    # Overconfident -> fitted T must be > 1 (pushes 0.9 down toward the true 0.55).
     assert fit["temperature"] > 1.0
-    # Calibration error must improve vs the fixed default.
     assert fit["ece_after"] <= fit["ece_before"] + 1e-9
+    assert fit["brier_after"] <= fit["brier_before"] + 1e-9
+    assert fit["label_semantics"] == CONFIDENCE_LABEL_SEMANTICS
+    assert fit["fit_partition"] == CONFIDENCE_FIT_PARTITION
+    assert fit["validation_rows_used"] == 0
 
 
-def test_fit_temperature_refuses_small_sample() -> None:
-    fit = fit_temperature([0.9] * 10, [1] * 10)
+def test_fit_temperature_requires_both_profitability_classes_not_static_min_n() -> None:
+    fit = _fit_with_lineage([0.9] * 10, [1] * 10)
     assert fit["fitted"] is False
-    assert fit["reason"] == "INSUFFICIENT_OUTCOME_SAMPLE"
-    assert fit["temperature"] == DEFAULT_CONFIDENCE_TEMPERATURE
+    assert fit["reason"] == "CALIBRATION_CLASS_VARIATION_MISSING"
+    assert fit["temperature"] is None
+
+    two_rows = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+    )
+    assert two_rows["fitted"] is True
+    assert two_rows["sample"] == 2
 
 
-def test_ece_lower_after_good_temperature() -> None:
-    raw, wins = _overconfident_dataset()
-    fit = fit_temperature(raw, wins)
-    ece_default = expected_calibration_error(raw, wins, DEFAULT_CONFIDENCE_TEMPERATURE)
-    ece_fitted = expected_calibration_error(raw, wins, fit["temperature"])
-    assert ece_fitted <= ece_default + 1e-9
+def test_forward_validation_rows_are_rejected_from_fitting_api() -> None:
+    fit = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+        validation_rows_used=1,
+    )
+    assert fit["fitted"] is False
+    assert fit["reason"] == "CALIBRATION_FORWARD_VALIDATION_LEAKAGE_BLOCKED"
 
 
-def test_resolve_temperature_reads_state_then_falls_back(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("V2_TRAINER_CONFIDENCE_TEMPERATURE", raising=False)
-    state = tmp_path / "confidence_temperature.json"
-    monkeypatch.setattr(conf, "CONFIDENCE_TEMPERATURE_STATE_PATH", state)
-    conf._TEMPERATURE_CACHE.update({"mtime": None, "value": None})
-    # No file -> default.
-    assert resolve_confidence_temperature() == DEFAULT_CONFIDENCE_TEMPERATURE
-    # File present -> fitted value used.
-    state.write_text(json.dumps({"temperature": 2.3}))
-    assert math.isclose(resolve_confidence_temperature(), 2.3, rel_tol=1e-6)
+def test_calibration_counts_reject_fractional_or_boolean_evidence() -> None:
+    fit = _fit_with_lineage([0.8, 0.2], [1, 0])
+    fractional = normalize_calibration_state({**fit, "sample": 2.5})
+    assert fractional["fitted"] is False
+    assert fractional["reason"] == "CHECKPOINT_CALIBRATION_COUNTS_INVALID"
+
+    boolean_validation_count = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+        validation_rows_used=False,
+    )
+    assert boolean_validation_count["fitted"] is False
+    assert boolean_validation_count["reason"] == (
+        "CALIBRATION_VALIDATION_ROW_COUNT_INVALID"
+    )
 
 
-def test_resolve_temperature_env_override(monkeypatch) -> None:
+def test_length_mismatch_fails_closed_instead_of_zip_truncation() -> None:
+    fit = fit_temperature(
+        [0.8, 0.2],
+        [1],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+    )
+    assert fit["fitted"] is False
+    assert fit["reason"] == "CALIBRATION_INPUT_LENGTH_MISMATCH"
+
+
+def test_ece_is_lower_after_fitted_temperature() -> None:
+    raw, outcomes = _overconfident_dataset()
+    fit = _fit_with_lineage(raw, outcomes)
+    assert expected_calibration_error(raw, outcomes, fit["temperature"]) <= (
+        expected_calibration_error(raw, outcomes, 1.0) + 1e-9
+    )
+
+
+def test_temperature_resolver_accepts_only_valid_checkpoint_state(monkeypatch) -> None:
+    fit = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+    )
+    assert resolve_confidence_temperature(fit) is None
+    structurally_bound = {
+        **fit,
+        "model_parameter_fingerprint": "f" * 64,
+    }
+    assert resolve_confidence_temperature(structurally_bound) == fit["temperature"]
+
     monkeypatch.setenv("V2_TRAINER_CONFIDENCE_TEMPERATURE", "1.9")
-    assert math.isclose(resolve_confidence_temperature(), 1.9, rel_tol=1e-6)
+    assert resolve_confidence_temperature(None) is None
+    assert resolve_confidence_temperature({"fitted": True, "temperature": 1.9}) is None
 
 
-def test_disabled_path_is_default() -> None:
-    # With no env and no state, the model's calibration is byte-identical to the
-    # historical fixed-temperature behaviour.
-    import os
+def test_calibration_fit_requires_directional_action_lineage() -> None:
+    missing_actions = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+    )
+    assert missing_actions["fitted"] is False
+    assert missing_actions["reason"] == (
+        "CALIBRATION_ACTION_LABELS_MISSING_OR_LENGTH_MISMATCH"
+    )
 
-    os.environ.pop("V2_TRAINER_CONFIDENCE_TEMPERATURE", None)
-    conf._TEMPERATURE_CACHE.update({"mtime": None, "value": None})
-    # Point at a definitely-missing path.
-    conf.CONFIDENCE_TEMPERATURE_STATE_PATH = conf.Path("/nonexistent/confidence_temperature.json")
-    assert resolve_confidence_temperature() == DEFAULT_CONFIDENCE_TEMPERATURE
+    one_direction = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "long"],
+    )
+    assert one_direction["fitted"] is False
+    assert one_direction["reason"] == (
+        "CALIBRATION_DIRECTIONAL_ACTION_COVERAGE_MISSING"
+    )
+
+
+def test_legacy_claimed_net_sign_calibration_state_is_invalidated() -> None:
+    fit = fit_temperature(
+        [0.8, 0.2],
+        [1, 0],
+        row_ids=["win", "loss"],
+        action_labels=["long", "short"],
+    )
+    assert fit["schema_version"] == CONFIDENCE_CALIBRATION_SCHEMA_VERSION
+    assert fit["label_semantics"] == CONFIDENCE_LABEL_SEMANTICS
+
+    legacy = {
+        **fit,
+        "label_semantics": (
+            "P_SELECTED_DIRECTIONAL_ACTION_REALIZED_NET_PNL_"
+            "AFTER_EXPLICIT_COSTS_GT_ZERO_V1"
+        ),
+        "model_parameter_fingerprint": "f" * 64,
+    }
+    normalized = normalize_calibration_state(legacy)
+
+    assert normalized["fitted"] is False
+    assert normalized["reason"] == "CHECKPOINT_CALIBRATION_LABEL_SEMANTICS_INVALID"

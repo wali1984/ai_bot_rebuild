@@ -104,6 +104,11 @@ def missing_mask_training_override_status(
     core_missing = sorted(
         name for name in missing_names if name.lower() in CORE_PRICE_MISSING_NAMES
     )
+    critical_family_missing = sorted(
+        name
+        for name in missing_names
+        if name.strip().lower().startswith("critical_family_absent:")
+    )
     stale_count = int(row.get("stale_feature_count") or len(stale_names) or 0)
 
     unsafe_reason = None
@@ -123,6 +128,8 @@ def missing_mask_training_override_status(
         unsafe_reason = "STALE_FEATURE_FAMILY"
     elif core_missing:
         unsafe_reason = "CRITICAL_CORE_PRICE_FAMILY_MISSING"
+    elif critical_family_missing:
+        unsafe_reason = "CRITICAL_FEATURE_FAMILY_MISSING"
     elif hard_reasons:
         unsafe_reason = hard_reasons[0]
     elif reasons and not reasons.issubset(TRAINING_MISSING_MASK_TOLERATED_REASONS):
@@ -167,6 +174,15 @@ def classify_training_sample(row: dict[str, Any], thresholds: IntegrityThreshold
             for reason in reasons
             if reason not in TRAINING_MISSING_MASK_TOLERATED_REASONS
         ]
+    elif missing_mask_override["unsafe_to_train_reason"] in {
+        "CRITICAL_CORE_PRICE_FAMILY_MISSING",
+        "CRITICAL_FEATURE_FAMILY_MISSING",
+    }:
+        # The explicit critical-family prefix is authoritative.  A producer's
+        # stale ``accepted_for_training`` flag or otherwise complete core-price
+        # payload cannot self-attest around the missing critical family.
+        accepted = False
+        reasons.append("MISSING_CRITICAL_FEATURE_FAMILY")
     return {
         "market_state_id": score.market_state_id,
         "feature_snapshot_id": row.get("feature_snapshot_id"),

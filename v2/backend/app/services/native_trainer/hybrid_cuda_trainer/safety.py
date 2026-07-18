@@ -194,3 +194,102 @@ class V2OnlyJsonIO:
         self.audit.writes_succeeded += 1
         self.audit.keys_written.append(key)
         return True
+
+    def set_json_expiring(self, key: str, payload: Any, *, ex: int) -> bool:
+        """Write JSON only when the backend proves native expiry support."""
+
+        self.audit.writes_attempted += 1
+        try:
+            assert_prediction_or_trainer_key(key)
+        except ValueError as exc:
+            self.audit.old_redis_write_attempts += 1
+            self.audit.writes_failed += 1
+            self.audit.errors.append(str(exc))
+            return False
+        if self.client is None or isinstance(ex, bool) or int(ex) <= 0:
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"expiring_write_precondition_failed:{key}")
+            return False
+        try:
+            serialized = json.dumps(payload, sort_keys=True, default=str)
+            result = self.client.set(key, serialized, ex=int(ex))
+        except TypeError:
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"expiry_not_supported:{key}")
+            return False
+        except Exception as exc:  # noqa: BLE001
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"set_failed:{key}:{type(exc).__name__}")
+            return False
+        # redis-py returns literal ``True`` only after Redis acknowledges the
+        # expiring SET.  ``None`` (a common permissive test-double result) is
+        # not proof that the TTL was accepted, so status publication must fail
+        # closed instead of creating an immortal ACTIVE heartbeat.
+        if result is not True:
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"expiring_set_not_acknowledged:{key}")
+            return False
+        self.audit.writes_succeeded += 1
+        self.audit.keys_written.append(key)
+        return True
+
+    def set_json_immutable(
+        self,
+        key: str,
+        payload: Any,
+        *,
+        ex: int | None = None,
+    ) -> bool:
+        """Create a content-addressed JSON record once, or verify exact identity.
+
+        A backend that cannot provide Redis ``SET ... NX`` semantics fails closed;
+        silently degrading to a last-write-wins write would make an audit receipt
+        mutable.
+        """
+        self.audit.writes_attempted += 1
+        try:
+            assert_prediction_or_trainer_key(key)
+        except ValueError as exc:
+            self.audit.old_redis_write_attempts += 1
+            self.audit.writes_failed += 1
+            self.audit.errors.append(str(exc))
+            return False
+        if self.client is None:
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"no_client:{key}")
+            return False
+        try:
+            serialized = json.dumps(payload, sort_keys=True, default=str)
+            created = self.client.set(key, serialized, ex=ex, nx=True)
+        except Exception as exc:  # noqa: BLE001
+            self.audit.writes_failed += 1
+            self.audit.errors.append(
+                f"immutable_set_failed:{key}:{type(exc).__name__}"
+            )
+            return False
+        if created:
+            self.audit.writes_succeeded += 1
+            self.audit.keys_written.append(key)
+            return True
+        try:
+            existing = self.client.get(key)
+            if isinstance(existing, (bytes, bytearray)):
+                existing = existing.decode("utf-8")
+            existing_payload = json.loads(existing) if isinstance(existing, str) else existing
+            identical = json.dumps(
+                existing_payload,
+                sort_keys=True,
+                default=str,
+            ) == serialized
+        except Exception as exc:  # noqa: BLE001
+            self.audit.writes_failed += 1
+            self.audit.errors.append(
+                f"immutable_verify_failed:{key}:{type(exc).__name__}"
+            )
+            return False
+        if identical:
+            self.audit.writes_succeeded += 1
+            return True
+        self.audit.writes_failed += 1
+        self.audit.errors.append(f"immutable_content_conflict:{key}")
+        return False

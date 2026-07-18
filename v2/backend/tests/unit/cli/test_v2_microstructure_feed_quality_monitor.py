@@ -58,6 +58,7 @@ def test_microstructure_monitor_writes_only_microstructure_keys(tmp_path) -> Non
     assert trust["orderbook_sources"] == ["binance"]
     assert trust["source_availability"]["binance_direct_orderbook"] is True
     assert "microstructure_action" in trust
+    assert isinstance(trust["sweep_direction_uncertain"], bool)
 
 
 def test_microstructure_monitor_consumes_generic_v2_market_orderbook_without_overstating_direct_feed(tmp_path) -> None:

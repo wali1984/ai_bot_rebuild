@@ -89,8 +89,8 @@ def _parse_utc(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -207,7 +207,7 @@ def build_archive_record_from_prediction_payload(payload: Mapping[str, Any]) -> 
         symbol=payload.get("symbol"),
         timeframe=payload.get("timeframe"),
         feature_cutoff=payload.get("feature_cutoff") or feature_snapshot.get("feature_cutoff"),
-        decision_time=payload.get("feature_decision_time") or payload.get("decision_time"),
+        decision_time=payload.get("decision_time"),
         available_at=payload.get("available_at") or feature_snapshot.get("available_at"),
         mtf_snapshot_id=payload.get("mtf_snapshot_id") or feature_snapshot.get("mtf_snapshot_id"),
         features=features,

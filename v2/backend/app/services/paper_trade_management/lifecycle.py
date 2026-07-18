@@ -1,25 +1,35 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 from dataclasses import dataclass, replace
 from typing import Any
 
 from .accounting import coerce_float
 from .caps import PaperExposureCaps, evaluate_exposure_caps
 from .exits import PAPER_EXIT_POLICY_VERSION, PaperExitConfig, effective_atr_stop_bps, evaluate_exit
+from .generation_identity import (
+    closed_generation_match,
+    entry_generation_identity,
+    normalize_timestamp,
+)
 from .hedging import evaluate_adaptive_hedge_trigger, evaluate_adaptive_hedge_unwind
 from .netting import classify_fill
-from .outcomes import build_close_event
+from .outcomes import build_close_event, capture_close_outcome_availability
 from .policy_funding_repair import repair_policy_funding_rows
 from .position_state import (
     ADAPTIVE_CAPITAL_POLICY_VERSION,
+    PAPER_POSITION_RECONSTRUCTION_PERSISTENCE_FIELDS,
+    PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION,
     PaperNetPosition,
     first_present,
     position_from_fill,
     seconds_between,
     utc_iso_from_any,
     utc_now_iso,
+    validate_paper_position_reconstruction,
 )
-
 
 _ADAPTIVE_CAPITAL_REQUIRED_FIELDS = (
     "risk_budget_usd",
@@ -49,7 +59,29 @@ _ADAPTIVE_CAPITAL_CARRY_FIELDS = (
     "recommended_leverage",
     "recommended_margin_mode",
     "margin_mode_simulated",
+    "maintenance_margin_rate",
+    "maintenance_margin_cum",
     "maintenance_margin_estimate",
+    "maintenance_margin_notional_usd",
+    "maintenance_margin_mark_price",
+    "maintenance_margin_mark_time",
+    "maintenance_bracket_id",
+    "maintenance_bracket_maint_margin_ratio",
+    "maintenance_bracket_cum",
+    "maintenance_bracket_max_initial_leverage",
+    "maintenance_bracket_evidence_hash",
+    "maintenance_bracket_evidence_checksum_sha256",
+    "maintenance_bracket_evidence_hmac_sha256",
+    "maintenance_bracket_binding",
+    "maintenance_bracket_environment_id",
+    "maintenance_bracket_key_id",
+    "maintenance_bracket_source",
+    "maintenance_bracket_available_at",
+    "maintenance_bracket_expires_at",
+    "maintenance_bracket_consumer_observed_at",
+    "maintenance_bracket_prevalidated",
+    "maintenance_bracket_evidence_status",
+    "maintenance_bracket_evidence_reason",
     "liquidation_price_estimate",
     "liquidation_buffer_bps",
     "risk_budget_usd",
@@ -66,11 +98,15 @@ _ADAPTIVE_CAPITAL_CARRY_FIELDS = (
     "capital_allocation_reason",
 )
 
+_PAPER_NETTING_FILL_RECEIPT_SCHEMA_VERSION = "PAPER_NETTING_FILL_RECEIPT_V1"
+
 
 @dataclass(frozen=True)
 class PaperLifecycleConfig:
     exposure_caps: PaperExposureCaps = PaperExposureCaps()
     exit_config: PaperExitConfig = PaperExitConfig()
+    # Fallback execution-cost rates are per side, not pre-summed round-trip
+    # rates. A close charges the entry notional once and the exit notional once.
     fee_bps: float = 4.0
     slippage_bps: float = 2.0
     allow_explicit_hedge: bool = False
@@ -97,39 +133,68 @@ def _fill_identity(row: dict[str, Any]) -> str:
     return f"{row.get('symbol')}:{row.get('timeframe')}:{row.get('side')}"
 
 
-def _closed_fill_ids(existing_ledger: dict[str, Any]) -> dict[str, str]:
-    """Map each closed source fill id to the LATEST exit timestamp that consumed it.
+def _close_proves_generation_fully_consumed(closed: dict[str, Any]) -> bool:
+    """Return true only when the close proves no quantity remained.
 
-    Fill identities are not generation-unique: `_fill_identity` falls back to
-    recurring lineage ids (signal_id / prediction_id — strategy-supply
-    hypothesis ids are stable across cycles) and finally to
-    ``symbol:timeframe:side``. A bare id-set therefore marks every future
-    re-entry on the same identity as CLOSED_PREVIOUSLY and silently prunes
-    it with no close row (observed 2026-07-17T05:12-05:13Z: EGLDUSDT opened
-    and vanished one cycle later — every vanished symbol had a prior close
-    this session, every survivor did not). The exit timestamp lets the
-    caller distinguish a replayed fill of an already-closed generation
-    (fill time <= exit time) from a genuinely NEW fill re-using the
-    identity (fill time > exit time).
+    A partial close carries every entry fill id for lineage, but that does not
+    mean every fill was fully consumed.  Suppressing those ids on restart would
+    delete the remainder.  New close rows bind the answer directly through the
+    exact entry-cost allocation receipt; older rows need equivalent quantity
+    evidence and otherwise stay unsuppressed.
     """
-    closed: dict[str, str] = {}
-    for row in existing_ledger.get("closed_trades") or existing_ledger.get("closes") or []:
-        if not isinstance(row, dict):
-            continue
-        exit_ts = str(
-            first_present(
-                row.get("exit_price_utc"),
-                row.get("exit_time"),
-                row.get("closed_at"),
-            )
-            or ""
+
+    explicit = closed.get("entry_cost_is_final_close")
+    if explicit is False:
+        return False
+    pre_close = coerce_float(closed.get("entry_cost_pre_close_quantity"))
+    closed_quantity = coerce_float(
+        first_present(
+            closed.get("entry_cost_closed_quantity"),
+            closed.get("closed_quantity"),
         )
-        for fill_id in row.get("source_fill_ids") or []:
-            key = str(fill_id)
-            prior = closed.get(key)
-            if prior is None or exit_ts > prior:
-                closed[key] = exit_ts
-    return closed
+    )
+    if pre_close is not None and pre_close > 0.0 and closed_quantity is not None:
+        quantity_proves_final = closed_quantity >= pre_close or math.isclose(
+            pre_close,
+            closed_quantity,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+        return explicit is True and quantity_proves_final
+    remaining = coerce_float(
+        first_present(
+            closed.get("remaining_quantity_after_close"),
+            closed.get("position_remaining_quantity"),
+        )
+    )
+    return (
+        explicit is True
+        and remaining is not None
+        and abs(remaining) <= 1e-12
+    )
+
+
+def _closed_generation_evidence(
+    fill: dict[str, Any],
+    *,
+    fill_id: str,
+    closed_trades: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    for closed in closed_trades:
+        if not _close_proves_generation_fully_consumed(closed):
+            continue
+        evidence = closed_generation_match(
+            fill,
+            closed,
+            accepted_source_identity=fill_id,
+        )
+        if evidence is not None:
+            return {
+                **evidence,
+                "close_id": closed.get("close_id"),
+                "closed_position_id": closed.get("position_id"),
+            }
+    return None
 
 
 def _existing_closed_trades(existing_ledger: dict[str, Any]) -> list[dict[str, Any]]:
@@ -651,9 +716,126 @@ def _prior_positions_by_symbol(existing_ledger: dict[str, Any]) -> dict[str, dic
     return prior
 
 
-def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any] | None) -> None:
-    if not prior:
+def _prior_matches_position_generation(
+    position: PaperNetPosition,
+    prior: dict[str, Any],
+) -> bool:
+    prior_generation = prior.get("position_generation_id")
+    if prior_generation not in (None, ""):
+        return str(prior_generation) == str(position.position_generation_id or "")
+    prior_position_id = prior.get("position_id")
+    if prior_position_id not in (None, "") and str(prior_position_id) == position.position_id:
+        return True
+    if str(prior.get("symbol") or "").upper() != position.symbol:
+        return False
+    prior_side = str(prior.get("side") or "").lower()
+    if prior_side in {"buy", "long"}:
+        prior_side = "long"
+    elif prior_side in {"sell", "short"}:
+        prior_side = "short"
+    if prior_side and prior_side != position.side:
+        return False
+
+    prior_entry_ids = {
+        str(item)
+        for item in (prior.get("source_fill_ids") or [])
+        if item not in (None, "")
+    }
+    prior_entry_fill = first_present(prior.get("entry_fill_id"), prior.get("fill_id"))
+    if prior_entry_fill not in (None, ""):
+        prior_entry_ids.add(str(prior_entry_fill))
+    if prior_entry_ids and position.fill_ids:
+        return str(position.fill_ids[0]) in prior_entry_ids
+
+    # Legacy position ids were symbol-static.  Preserve their path/context
+    # carry only when the normalized entry timestamp also identifies this exact
+    # generation; a later reopen of the same symbol must not inherit old state.
+    prior_entry_time = normalize_timestamp(
+        first_present(
+            prior.get("entry_generation_time_utc"),
+            prior.get("entry_time"),
+            prior.get("opened_est"),
+        )
+    )
+    current_entry_time = normalize_timestamp(
+        first_present(position.entry_generation_time_utc, position.opened_est)
+    )
+    return bool(
+        prior_position_id == position.legacy_position_id
+        and prior_entry_time
+        and current_entry_time
+        and prior_entry_time == current_entry_time
+    )
+
+
+def _carry_prior_position_state(
+    position: PaperNetPosition,
+    prior: dict[str, Any] | None,
+    *,
+    require_generation_match: bool = True,
+    carry_capital: bool = True,
+    restore_economic_snapshot: bool = False,
+) -> None:
+    if not prior or (
+        require_generation_match
+        and not _prior_matches_position_generation(position, prior)
+    ):
         return
+    if restore_economic_snapshot:
+        reconstruction_reasons = validate_paper_position_reconstruction(prior)
+        if reconstruction_reasons:
+            raise ValueError(
+                "INVALID_PERSISTED_OPEN_POSITION_RECONSTRUCTION:"
+                + ",".join(reconstruction_reasons)
+            )
+        source_fill_ids = [
+            str(value)
+            for value in prior.get("source_fill_ids") or []
+            if value not in (None, "")
+        ]
+        quantity = coerce_float(prior.get("net_quantity"))
+        avg_entry_price = coerce_float(prior.get("avg_entry_price"))
+        if quantity is None or avg_entry_price is None:
+            raise ValueError("PERSISTED_POSITION_ECONOMICS_MISSING")
+        position.position_id = str(prior["position_id"])
+        position.legacy_position_id = (
+            str(prior["legacy_position_id"])
+            if prior.get("legacy_position_id") not in (None, "")
+            else None
+        )
+        position.position_generation_id = str(prior["position_generation_id"])
+        position.position_id_version = str(prior["position_id_version"])
+        position.entry_generation_time_utc = str(
+            prior["entry_generation_time_utc"]
+        )
+        position.net_quantity = float(quantity)
+        position.avg_entry_price = float(avg_entry_price)
+        position.fill_ids = source_fill_ids
+        position.realized_pnl = float(coerce_float(prior.get("realized_pnl")) or 0.0)
+        for attr in (
+            "entry_fees_incurred_usd",
+            "entry_fees_remaining_usd",
+            "entry_fees_allocated_to_closes_usd",
+            "entry_fee_fallback_bps_per_side",
+            "entry_slippage_incurred_usd",
+            "entry_slippage_remaining_usd",
+            "entry_slippage_allocated_to_closes_usd",
+            "entry_slippage_fallback_bps_per_side",
+        ):
+            setattr(position, attr, coerce_float(prior.get(attr)))
+        position.entry_fee_cost_sources = [
+            str(value)
+            for value in prior.get("entry_fee_cost_sources") or []
+            if value not in (None, "")
+        ]
+        position.entry_slippage_cost_sources = [
+            str(value)
+            for value in prior.get("entry_slippage_cost_sources") or []
+            if value not in (None, "")
+        ]
+        position.entry_cost_basis_status = str(
+            prior.get("entry_cost_basis_status") or "MISSING_ENTRY_COST_BASIS"
+        )
     best = prior.get("best_favorable_price")
     try:
         best_value = float(best)
@@ -799,7 +981,29 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         "recommended_leverage",
         "recommended_margin_mode",
         "margin_mode_simulated",
+        "maintenance_margin_rate",
+        "maintenance_margin_cum",
         "maintenance_margin_estimate",
+        "maintenance_margin_notional_usd",
+        "maintenance_margin_mark_price",
+        "maintenance_margin_mark_time",
+        "maintenance_bracket_id",
+        "maintenance_bracket_maint_margin_ratio",
+        "maintenance_bracket_cum",
+        "maintenance_bracket_max_initial_leverage",
+        "maintenance_bracket_evidence_hash",
+        "maintenance_bracket_evidence_checksum_sha256",
+        "maintenance_bracket_evidence_hmac_sha256",
+        "maintenance_bracket_binding",
+        "maintenance_bracket_environment_id",
+        "maintenance_bracket_key_id",
+        "maintenance_bracket_source",
+        "maintenance_bracket_available_at",
+        "maintenance_bracket_expires_at",
+        "maintenance_bracket_consumer_observed_at",
+        "maintenance_bracket_prevalidated",
+        "maintenance_bracket_evidence_status",
+        "maintenance_bracket_evidence_reason",
         "liquidation_price_estimate",
         "liquidation_buffer_bps",
         "risk_budget_usd",
@@ -882,6 +1086,18 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         "fee_bps",
         "fee_bps_source",
         "fee_bps_configured_schedule",
+        "entry_cost_accounting_version",
+        "entry_fees_incurred_usd",
+        "entry_fees_remaining_usd",
+        "entry_fees_allocated_to_closes_usd",
+        "entry_fee_fallback_bps_per_side",
+        "entry_slippage_incurred_usd",
+        "entry_slippage_remaining_usd",
+        "entry_slippage_allocated_to_closes_usd",
+        "entry_slippage_fallback_bps_per_side",
+        "entry_fee_cost_sources",
+        "entry_slippage_cost_sources",
+        "entry_cost_basis_status",
         "holding_period_funding_bps",
         "holding_period_funding_source",
         "partial_fill_estimate",
@@ -913,7 +1129,13 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
         value = prior.get(attr)
         if attr == "policy_activated_at" and value in (None, "") and prior_allocation is not None:
             value = prior_allocation.get("policy_activated_at")
-        if attr in _ADAPTIVE_CAPITAL_CARRY_FIELDS and position_has_complete_adaptive_capital:
+        if (
+            not restore_economic_snapshot
+            and attr in _ADAPTIVE_CAPITAL_CARRY_FIELDS
+            and (
+            position_has_complete_adaptive_capital or not carry_capital
+            )
+        ):
             continue
         if (
             attr == "adaptive_capital_policy_version"
@@ -921,7 +1143,17 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
             and not _prior_has_complete_adaptive_capital_v1(prior)
         ):
             continue
-        if value not in (None, "", {}, []):
+        if (
+            restore_economic_snapshot
+            and attr in PAPER_POSITION_RECONSTRUCTION_PERSISTENCE_FIELDS
+        ):
+            # The reconstruction hash binds explicit null/empty states too.
+            # A newly constructed object may have derived a diagnostic while
+            # parsing the persisted row; restoring only non-empty values would
+            # then change the byte-equivalent economic/risk envelope and make a
+            # position written by this process impossible to restore.
+            setattr(position, attr, value)
+        elif value not in (None, "", {}, []):
             setattr(position, attr, value)
     for attr in ("mfe_bps", "mae_bps", "mfe_usd", "mae_usd"):
         value = prior.get(attr)
@@ -935,6 +1167,292 @@ def _carry_prior_position_state(position: PaperNetPosition, prior: dict[str, Any
     if isinstance(history, list):
         position.trailing_stop_history = [dict(row) for row in history if isinstance(row, dict)]
     _restore_path_telemetry_from_prior(position, prior)
+    position.recompute_capital_accounting()
+
+
+def _prior_has_partial_close_evidence(
+    prior: dict[str, Any],
+    closed_trades: list[dict[str, Any]],
+) -> bool:
+    for field in (
+        "entry_fees_allocated_to_closes_usd",
+        "entry_slippage_allocated_to_closes_usd",
+    ):
+        allocated = coerce_float(prior.get(field))
+        if allocated is not None and allocated > 0.0:
+            return True
+    source_identity = first_present(
+        prior.get("entry_fill_id"),
+        *(
+            prior.get("source_fill_ids")
+            if isinstance(prior.get("source_fill_ids"), list)
+            else []
+        ),
+    )
+    for closed in closed_trades:
+        if _close_proves_generation_fully_consumed(closed):
+            continue
+        if closed_generation_match(
+            prior,
+            closed,
+            accepted_source_identity=source_identity,
+        ) is not None:
+            return True
+    return False
+
+
+def _restore_hashed_prior_position(
+    prior: dict[str, Any],
+    *,
+    observed_at: str,
+) -> tuple[PaperNetPosition | None, list[str]]:
+    reasons = validate_paper_position_reconstruction(
+        prior,
+        observed_at=observed_at,
+    )
+    if reasons:
+        return None, reasons
+    side = str(prior.get("side") or "").lower()
+    if side == "buy":
+        side = "long"
+    elif side == "sell":
+        side = "short"
+    source_fill_ids = [
+        str(value)
+        for value in prior.get("source_fill_ids") or []
+        if value not in (None, "")
+    ]
+    quantity = coerce_float(prior.get("net_quantity"))
+    price = coerce_float(prior.get("avg_entry_price"))
+    if not source_fill_ids or quantity is None or price is None:
+        return None, ["PERSISTED_POSITION_ECONOMICS_MISSING"]
+    try:
+        restored = position_from_fill(
+            prior,
+            fill_id=source_fill_ids[0],
+            side=side,
+            quantity=float(quantity),
+            price=float(price),
+        )
+        _carry_prior_position_state(
+            restored,
+            prior,
+            require_generation_match=False,
+            restore_economic_snapshot=True,
+        )
+        restored_envelope = restored.reconstruction_envelope(
+            generated_utc=str(prior["position_reconstruction_generated_at"])
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        return None, [f"PERSISTED_POSITION_RESTORE_FAILED:{exc}"]
+    if (
+        restored_envelope.get("position_reconstruction_hash")
+        != prior.get("position_reconstruction_hash")
+    ):
+        return None, ["PERSISTED_POSITION_RESTORE_ROUND_TRIP_HASH_MISMATCH"]
+    return restored, []
+
+
+def _seeded_fill_replay_status(
+    fill: dict[str, Any],
+    *,
+    position: PaperNetPosition,
+    prior: dict[str, Any],
+) -> tuple[str | None, list[str]]:
+    """Classify an accepted row relative to a verified persisted open state."""
+
+    fill_position_id = fill.get("position_id")
+    fill_generation_id = fill.get("position_generation_id")
+    if (
+        fill_position_id not in (None, "")
+        and fill_generation_id not in (None, "")
+        and str(fill_position_id) == position.position_id
+        and str(fill_generation_id) == str(position.position_generation_id)
+    ):
+        return "VERIFIED_OPEN_POSITION_SNAPSHOT_REPLAY", []
+    fill_id = _fill_identity(fill)
+    if fill_id not in position.fill_ids:
+        return None, []
+    persisted_status = str(fill.get("paper_fill_persistence_status") or "")
+    lifecycle_status = str(fill.get("paper_lifecycle_status") or "")
+    if persisted_status.startswith("EXISTING_") or lifecycle_status in {
+        "OPEN_POSITION",
+        "NETTED_INTO_EXISTING_POSITION",
+        "OPEN_POSITION_RESTORED_FROM_HASHED_SNAPSHOT",
+    }:
+        return "VERIFIED_SOURCE_FILL_REPLAY", []
+    fill_time = normalize_timestamp(
+        first_present(
+            fill.get("fill_time_utc"),
+            fill.get("fill_time"),
+            fill.get("fill_price_utc"),
+            fill.get("accepted_at_utc"),
+            fill.get("decision_time"),
+            fill.get("generated_utc"),
+        )
+    )
+    snapshot_time = normalize_timestamp(
+        prior.get("position_reconstruction_generated_at")
+    )
+    if fill_time and snapshot_time and fill_time <= snapshot_time:
+        return "VERIFIED_SOURCE_FILL_REPLAY_BEFORE_SNAPSHOT", []
+    return None, ["SOURCE_FILL_ID_REUSED_WHILE_POSITION_OPEN"]
+
+
+def _netting_receipt_material(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": row.get("paper_netting_fill_receipt_schema_version"),
+        "close_id": row.get("paper_netting_close_id"),
+        "position_generation_id": row.get(
+            "paper_netting_position_generation_id"
+        ),
+        "fill_id": _fill_identity(row),
+        "side": str(row.get("side") or "").lower(),
+        "input_quantity": coerce_float(row.get("paper_netting_input_quantity")),
+        "consumed_quantity": coerce_float(
+            row.get("paper_netting_consumed_quantity")
+        ),
+        "residual_quantity": coerce_float(
+            row.get("paper_netting_residual_quantity")
+        ),
+    }
+
+
+def _netting_receipt_hash(row: dict[str, Any]) -> str | None:
+    try:
+        canonical = json.dumps(
+            _netting_receipt_material(row),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _attach_netting_receipt(
+    row: dict[str, Any],
+    *,
+    close_event: dict[str, Any],
+    input_quantity: float,
+    consumed_quantity: float,
+    residual_quantity: float,
+) -> dict[str, Any]:
+    receipt = dict(row)
+    receipt.update(
+        {
+            "paper_netting_fill_receipt_schema_version": (
+                _PAPER_NETTING_FILL_RECEIPT_SCHEMA_VERSION
+            ),
+            "paper_netting_close_id": close_event.get("close_id"),
+            "paper_netting_position_generation_id": close_event.get(
+                "position_generation_id"
+            ),
+            "paper_netting_input_quantity": float(input_quantity),
+            "paper_netting_consumed_quantity": float(consumed_quantity),
+            "paper_netting_residual_quantity": float(residual_quantity),
+        }
+    )
+    receipt_hash = _netting_receipt_hash(receipt)
+    if receipt_hash is None:
+        raise ValueError("PAPER_NETTING_FILL_RECEIPT_HASH_FAILED")
+    receipt["paper_netting_fill_receipt_hash"] = receipt_hash
+    return receipt
+
+
+def _netting_receipt_integrity_reasons(
+    fill: dict[str, Any],
+    *,
+    closed_trades: list[dict[str, Any]],
+) -> list[str]:
+    reasons: list[str] = []
+    if (
+        fill.get("paper_netting_fill_receipt_schema_version")
+        != _PAPER_NETTING_FILL_RECEIPT_SCHEMA_VERSION
+    ):
+        reasons.append("PAPER_NETTING_FILL_RECEIPT_SCHEMA_INVALID")
+    supplied_hash = str(fill.get("paper_netting_fill_receipt_hash") or "")
+    if not supplied_hash or supplied_hash != _netting_receipt_hash(fill):
+        reasons.append("PAPER_NETTING_FILL_RECEIPT_HASH_INVALID")
+    input_quantity = coerce_float(fill.get("paper_netting_input_quantity"))
+    consumed_quantity = coerce_float(fill.get("paper_netting_consumed_quantity"))
+    residual_quantity = coerce_float(fill.get("paper_netting_residual_quantity"))
+    if (
+        input_quantity is None
+        or consumed_quantity is None
+        or residual_quantity is None
+        or not all(
+            math.isfinite(value) and value >= 0.0
+            for value in (input_quantity, consumed_quantity, residual_quantity)
+        )
+        or not math.isclose(
+            input_quantity,
+            consumed_quantity + residual_quantity,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+    ):
+        reasons.append("PAPER_NETTING_FILL_RECEIPT_QUANTITY_CONSERVATION_FAILED")
+    close_id = str(fill.get("paper_netting_close_id") or "")
+    generation_id = str(fill.get("paper_netting_position_generation_id") or "")
+    matching_closes = [
+        closed
+        for closed in closed_trades
+        if str(closed.get("close_id") or "") == close_id
+        and str(closed.get("position_generation_id") or "") == generation_id
+    ]
+    if len(matching_closes) != 1:
+        reasons.append("PAPER_NETTING_FILL_RECEIPT_CLOSE_BINDING_INVALID")
+    elif consumed_quantity is not None:
+        closed_quantity = coerce_float(matching_closes[0].get("closed_quantity"))
+        if closed_quantity is None or not math.isclose(
+            consumed_quantity,
+            closed_quantity,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        ):
+            reasons.append("PAPER_NETTING_FILL_RECEIPT_CLOSE_QUANTITY_MISMATCH")
+    return list(dict.fromkeys(reasons))
+
+
+def _historical_netting_receipt_evidence(
+    fill: dict[str, Any],
+    *,
+    closed_trades: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if _netting_receipt_integrity_reasons(fill, closed_trades=closed_trades):
+        return None
+    supplied_hash = str(fill["paper_netting_fill_receipt_hash"])
+    residual = coerce_float(fill.get("paper_netting_residual_quantity"))
+    if residual is None or residual > 1e-12:
+        return None
+    close_id = str(fill.get("paper_netting_close_id") or "")
+    generation_id = str(fill.get("paper_netting_position_generation_id") or "")
+    consumed_quantity = coerce_float(fill.get("paper_netting_consumed_quantity"))
+    for closed in closed_trades:
+        if str(closed.get("close_id") or "") != close_id:
+            continue
+        if str(closed.get("position_generation_id") or "") != generation_id:
+            continue
+        closed_quantity = coerce_float(closed.get("closed_quantity"))
+        if (
+            consumed_quantity is None
+            or closed_quantity is None
+            or not math.isclose(
+                consumed_quantity,
+                closed_quantity,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            )
+        ):
+            continue
+        return {
+            "close_id": close_id,
+            "position_generation_id": generation_id,
+            "receipt_hash": supplied_hash,
+        }
+    return None
 
 
 def _accepted_fill_with_position_metadata(
@@ -998,6 +1516,11 @@ def _accepted_fill_with_position_metadata(
         "margin_mutated_is_false": True,
     }
     position_fields = {
+        "position_id": position.position_id,
+        "legacy_position_id": position.legacy_position_id,
+        "position_generation_id": position.position_generation_id,
+        "position_id_version": position.position_id_version,
+        "entry_generation_time_utc": position.entry_generation_time_utc,
         "signal_id": position.source_signal_id,
         "entry_signal_id": position.source_signal_id,
         "prediction_id": position.prediction_id,
@@ -1126,6 +1649,28 @@ def _accepted_fill_with_position_metadata(
         "fee_bps": position.fee_bps,
         "fee_bps_source": position.fee_bps_source,
         "fee_bps_configured_schedule": position.fee_bps_configured_schedule,
+        "entry_cost_accounting_version": position.entry_cost_accounting_version,
+        "entry_fees_incurred_usd": position.entry_fees_incurred_usd,
+        "entry_fees_remaining_usd": position.entry_fees_remaining_usd,
+        "entry_fees_allocated_to_closes_usd": (
+            position.entry_fees_allocated_to_closes_usd
+        ),
+        "entry_fee_fallback_bps_per_side": (
+            position.entry_fee_fallback_bps_per_side
+        ),
+        "entry_slippage_incurred_usd": position.entry_slippage_incurred_usd,
+        "entry_slippage_remaining_usd": position.entry_slippage_remaining_usd,
+        "entry_slippage_allocated_to_closes_usd": (
+            position.entry_slippage_allocated_to_closes_usd
+        ),
+        "entry_slippage_fallback_bps_per_side": (
+            position.entry_slippage_fallback_bps_per_side
+        ),
+        "entry_fee_cost_sources": list(position.entry_fee_cost_sources),
+        "entry_slippage_cost_sources": list(
+            position.entry_slippage_cost_sources
+        ),
+        "entry_cost_basis_status": position.entry_cost_basis_status,
         "expected_funding_bps": position.expected_funding_bps,
         "funding_rate": position.funding_rate,
         "funding_interval_seconds": position.funding_interval_seconds,
@@ -1348,6 +1893,19 @@ def _mark_for_symbol(mark_prices: dict[str, Any], symbol: str, fallback: float |
     return fallback, "ENTRY_PRICE_FALLBACK_ONLY_FOR_UNCHANGED_MARK"
 
 
+def _maintenance_bracket_for_symbol(
+    mark_prices: dict[str, Any],
+    symbol: str,
+) -> dict[str, Any] | None:
+    """Return only the prevalidated lifecycle mapping attached to this mark."""
+
+    value = mark_prices.get(symbol.upper())
+    if not isinstance(value, dict):
+        return None
+    evidence = value.get("maintenance_bracket_evidence")
+    return dict(evidence) if isinstance(evidence, dict) else None
+
+
 def _first_number(*values: Any) -> float | None:
     for value in values:
         parsed = coerce_float(value)
@@ -1458,12 +2016,53 @@ def _close_position(
             "paper_only": True,
             "places_real_order": False,
         }
+    close_event, outcome, timing_reasons = capture_close_outcome_availability(
+        close_event,
+        outcome,
+    )
+    if timing_reasons:
+        return None, None, {
+            "symbol": symbol,
+            "position_id": position.position_id,
+            "close_reason": close_reason,
+            "exit_time": exit_time,
+            "exit_price": exit_price,
+            "close_quantity": quantity,
+            "paper_close_blocked": True,
+            "paper_close_block_reasons": timing_reasons,
+            "paper_outcome_availability_status": "BLOCKED",
+            "paper_only": True,
+            "places_real_order": False,
+        }
+    try:
+        # Cost basis consumption is deliberately after dirty/timing admission
+        # and before the quantity mutation.  Failed close construction or
+        # publication therefore cannot spend entry costs, while an admitted
+        # partial close persists the exact pro-rata remainder with the open
+        # position.
+        position.consume_entry_cost_allocation(close_event)
+    except (TypeError, ValueError) as exc:
+        return None, None, {
+            "symbol": symbol,
+            "position_id": position.position_id,
+            "close_reason": close_reason,
+            "exit_time": exit_time,
+            "exit_price": exit_price,
+            "close_quantity": quantity,
+            "paper_close_blocked": True,
+            "paper_close_block_reasons": ["ENTRY_COST_BASIS_CONSUMPTION_FAILED"],
+            "paper_close_cost_basis_error": str(exc),
+            "paper_only": True,
+            "places_real_order": False,
+        }
     position.realized_pnl += float(
         first_present(close_event.get("realized_net_pnl_usd"), close_event["realized_pnl_usd"])
     )
     position.net_quantity = max(0.0, position.net_quantity - quantity)
     if position.net_quantity <= 1e-12:
         del positions[symbol]
+    else:
+        position.recompute_capital_accounting()
     return close_event, outcome, None
 
 
@@ -1541,7 +2140,6 @@ def reconcile_paper_lifecycle(
     trailing_context_policy = _trailing_stop_context_policy(closed_trades, config)
     trailing_context_decisions: list[dict[str, Any]] = []
     prior_positions = _prior_positions_by_symbol(existing_ledger)
-    closed_fill_ids = _closed_fill_ids(existing_ledger)
     blocked_entries: list[dict[str, Any]] = []
     accepted_open_fills: list[dict[str, Any]] = []
     closed_previously_fills: list[dict[str, Any]] = []
@@ -1551,41 +2149,175 @@ def reconcile_paper_lifecycle(
     new_close_events: list[dict[str, Any]] = []
     new_outcomes: list[dict[str, Any]] = []
     dirty_close_blocks: list[dict[str, Any]] = []
-    seen_fill_ids: set[str] = set()
+    seen_fill_generations: set[str] = set()
+    restored_prior_rows: dict[str, dict[str, Any]] = {}
+    reconstruction_blocks: list[dict[str, Any]] = []
+    blocked_prior_keys: set[str] = set()
+
+    for prior_key, prior in prior_positions.items():
+        has_reconstruction_envelope = any(
+            prior.get(field) not in (None, "")
+            for field in (
+                "position_reconstruction_schema_version",
+                "position_reconstruction_hash",
+                "position_reconstruction_generated_at",
+            )
+        )
+        if has_reconstruction_envelope:
+            restored, restore_reasons = _restore_hashed_prior_position(
+                prior,
+                observed_at=generated_utc,
+            )
+            if restored is not None:
+                positions[prior_key] = restored
+                restored_prior_rows[prior_key] = prior
+                continue
+            block = {
+                "symbol": prior.get("symbol"),
+                "position_id": prior.get("position_id"),
+                "position_generation_id": prior.get("position_generation_id"),
+                "paper_lifecycle_status": "POSITION_RECONSTRUCTION_BLOCKED",
+                "paper_lifecycle_block_reasons": restore_reasons,
+                "paper_only": True,
+                "places_real_order": False,
+            }
+            reconstruction_blocks.append(block)
+            blocked_entries.append(block)
+            blocked_prior_keys.add(prior_key)
+            continue
+        if _prior_has_partial_close_evidence(prior, closed_trades):
+            block = {
+                "symbol": prior.get("symbol"),
+                "position_id": prior.get("position_id"),
+                "position_generation_id": prior.get("position_generation_id"),
+                "paper_lifecycle_status": "LEGACY_PARTIAL_POSITION_RECONSTRUCTION_BLOCKED",
+                "paper_lifecycle_block_reasons": [
+                    "LEGACY_PARTIAL_POSITION_MISSING_VERSIONED_HASHED_RECONSTRUCTION"
+                ],
+                "paper_only": True,
+                "places_real_order": False,
+            }
+            reconstruction_blocks.append(block)
+            blocked_entries.append(block)
+            blocked_prior_keys.add(prior_key)
 
     for fill in accepted_fills:
         if not isinstance(fill, dict):
             continue
         fill_id = _fill_identity(fill)
-        if fill_id in seen_fill_ids:
-            continue
-        seen_fill_ids.add(fill_id)
-        _closed_exit_ts = closed_fill_ids.get(fill_id)
-        if _closed_exit_ts is not None:
-            # Temporal generation guard: identities recur across trade
-            # generations (recurring hypothesis/signal ids, or the
-            # symbol:timeframe:side fallback). Only prune the fill as
-            # already-closed when it is NOT newer than the close that
-            # consumed its identity; a fill stamped after that exit is a
-            # NEW trade generation and must open normally. Missing
-            # timestamps stay fail-closed (pruned) — a replayed historical
-            # fill without a stamp must never double-open.
-            _fill_ts = str(
-                first_present(
-                    fill.get("fill_time"),
-                    fill.get("fill_price_utc"),
-                    fill.get("decision_time"),
-                    fill.get("generated_utc"),
-                )
-                or ""
+        has_netting_receipt = any(
+            fill.get(field) not in (None, "")
+            for field in (
+                "paper_netting_fill_receipt_schema_version",
+                "paper_netting_fill_receipt_hash",
+                "paper_netting_close_id",
             )
-            if not (_fill_ts and _closed_exit_ts and _fill_ts > _closed_exit_ts):
-                carried = _accepted_fill_with_entry_policy_metadata(
-                    fill,
-                    status="CLOSED_PREVIOUSLY",
-                )
-                closed_previously_fills.append(carried)
+        )
+        netting_receipt_reasons = (
+            _netting_receipt_integrity_reasons(
+                fill,
+                closed_trades=closed_trades,
+            )
+            if has_netting_receipt
+            else []
+        )
+        if netting_receipt_reasons:
+            rejected = dict(fill)
+            rejected["paper_lifecycle_status"] = (
+                "HISTORICAL_NETTING_FILL_RECEIPT_BLOCKED"
+            )
+            rejected["paper_lifecycle_block_reasons"] = netting_receipt_reasons
+            blocked_entries.append(rejected)
+            continue
+        if (
+            not has_netting_receipt
+            and str(fill.get("paper_lifecycle_status") or "")
+            in {
+                "CLOSE_OR_REDUCE_EXISTING_POSITION",
+                "NETTING_FILL_CONSUMED_PREVIOUSLY",
+            }
+        ):
+            rejected = dict(fill)
+            rejected["paper_lifecycle_status"] = (
+                "LEGACY_HISTORICAL_NETTING_FILL_BLOCKED"
+            )
+            rejected["paper_lifecycle_block_reasons"] = [
+                "LEGACY_NETTING_FILL_MISSING_VERSIONED_CLOSE_RECEIPT"
+            ]
+            blocked_entries.append(rejected)
+            continue
+        historical_netting = _historical_netting_receipt_evidence(
+            fill,
+            closed_trades=closed_trades,
+        )
+        if historical_netting is not None:
+            carried = _accepted_fill_with_entry_policy_metadata(
+                fill,
+                status="NETTING_FILL_CONSUMED_PREVIOUSLY",
+            )
+            carried["historical_netting_receipt_evidence"] = historical_netting
+            closed_previously_fills.append(carried)
+            continue
+        fill_symbol = str(fill.get("symbol") or "").upper()
+        fill_key = (
+            _hedge_position_key(fill_symbol)
+            if _is_hedge_child_row(fill)
+            else fill_symbol
+        )
+        if fill_key in blocked_prior_keys:
+            rejected = dict(fill)
+            rejected["paper_lifecycle_status"] = (
+                "ENTRY_BLOCKED_BY_UNRESTORABLE_PRIOR_POSITION"
+            )
+            rejected["paper_lifecycle_block_reasons"] = [
+                "PRIOR_OPEN_POSITION_RECONSTRUCTION_NOT_TRUSTED"
+            ]
+            blocked_entries.append(rejected)
+            continue
+        seeded_position = positions.get(fill_key)
+        seeded_prior = restored_prior_rows.get(fill_key)
+        if seeded_position is not None and seeded_prior is not None:
+            replay_status, replay_blockers = _seeded_fill_replay_status(
+                fill,
+                position=seeded_position,
+                prior=seeded_prior,
+            )
+            if replay_status is not None:
                 continue
+            if replay_blockers:
+                rejected = dict(fill)
+                rejected["paper_lifecycle_status"] = (
+                    "ENTRY_BLOCKED_AMBIGUOUS_SOURCE_FILL_REPLAY"
+                )
+                rejected["paper_lifecycle_block_reasons"] = replay_blockers
+                blocked_entries.append(rejected)
+                continue
+        fill_generation = entry_generation_identity(
+            fill,
+            source_identity_override=fill_id,
+        )
+        dedupe_identity = (
+            fill_generation.generation_id
+            if fill_generation.complete
+            else f"legacy:{fill_id}"
+        )
+        if dedupe_identity in seen_fill_generations:
+            continue
+        seen_fill_generations.add(dedupe_identity)
+        closed_evidence = _closed_generation_evidence(
+            fill,
+            fill_id=fill_id,
+            closed_trades=closed_trades,
+        )
+        if closed_evidence is not None:
+            carried = _accepted_fill_with_entry_policy_metadata(
+                fill,
+                status="CLOSED_PREVIOUSLY",
+            )
+            carried["closed_generation_match"] = closed_evidence
+            carried["position_generation_id"] = fill_generation.generation_id
+            closed_previously_fills.append(carried)
+            continue
         classified = classify_fill(fill)
         if not classified["economic"]:
             rejected = dict(fill)
@@ -1712,8 +2444,35 @@ def reconcile_paper_lifecycle(
                 rejected["paper_lifecycle_block_reasons"] = list(cap["blockers"])
                 blocked_entries.append(rejected)
                 continue
-            existing.apply_same_side_fill(fill_id=fill_id, quantity=quantity, price=price)
-            _carry_prior_position_state(existing, fill)
+            incoming_position = position_from_fill(
+                fill,
+                fill_id=fill_id,
+                side=side,
+                quantity=quantity,
+                price=price,
+            )
+            try:
+                existing.apply_same_side_fill(
+                    fill_id=fill_id,
+                    quantity=quantity,
+                    price=price,
+                    incoming_position=incoming_position,
+                )
+                _carry_prior_position_state(
+                    existing,
+                    fill,
+                    require_generation_match=False,
+                    carry_capital=False,
+                )
+            except ValueError as exc:
+                rejected = dict(fill)
+                rejected["paper_lifecycle_status"] = "ENTRY_BLOCKED"
+                rejected["paper_lifecycle_block_reasons"] = [
+                    "PAPER_SAME_SIDE_CAPITAL_AGGREGATION_FAILED"
+                ]
+                rejected["paper_same_side_capital_error"] = str(exc)
+                blocked_entries.append(rejected)
+                continue
             accepted_open_fills.append(
                 _accepted_fill_with_position_metadata(
                     fill,
@@ -1765,12 +2524,19 @@ def reconcile_paper_lifecycle(
         netting_events.append({"symbol": symbol, "event": "OPPOSITE_SIDE_REDUCED_OR_CLOSED", "from_side": existing.side, "to_side": side, "quantity": close_qty})
         residual_qty = max(0.0, quantity - close_qty)
         if residual_qty <= 1e-12:
-            accepted_open_fills.append(
-                _accepted_fill_with_entry_policy_metadata(
-                    fill,
-                    status="CLOSE_OR_REDUCE_EXISTING_POSITION",
-                )
+            consumed_fill = _accepted_fill_with_entry_policy_metadata(
+                fill,
+                status="CLOSE_OR_REDUCE_EXISTING_POSITION",
             )
+            if close_event is not None:
+                consumed_fill = _attach_netting_receipt(
+                    consumed_fill,
+                    close_event=close_event,
+                    input_quantity=quantity,
+                    consumed_quantity=close_qty,
+                    residual_quantity=0.0,
+                )
+            accepted_open_fills.append(consumed_fill)
             continue
         residual_notional = abs(residual_qty * price)
         cap = evaluate_exposure_caps(
@@ -1793,13 +2559,20 @@ def reconcile_paper_lifecycle(
         reverse_fill["notional_usdt"] = residual_notional
         positions[symbol] = position_from_fill(reverse_fill, fill_id=fill_id, side=side, quantity=residual_qty, price=price)
         _carry_prior_position_state(positions[symbol], prior_positions.get(symbol))
-        accepted_open_fills.append(
-            _accepted_fill_with_position_metadata(
-                reverse_fill,
-                status="REVERSE_POSITION_OPENED_AFTER_NETTING",
-                position=positions[symbol],
-            )
+        reverse_row = _accepted_fill_with_position_metadata(
+            reverse_fill,
+            status="REVERSE_POSITION_OPENED_AFTER_NETTING",
+            position=positions[symbol],
         )
+        if close_event is not None:
+            reverse_row = _attach_netting_receipt(
+                reverse_row,
+                close_event=close_event,
+                input_quantity=quantity,
+                consumed_quantity=close_qty,
+                residual_quantity=residual_qty,
+            )
+        accepted_open_fills.append(reverse_row)
 
     # ── Adaptive hedge pair management (pre-pass) ─────────────────────────
     # Hedge children ("{SYM}::HEDGE" keys) are owned by the pair manager, not
@@ -1819,6 +2592,10 @@ def reconcile_paper_lifecycle(
             mark, _mark_src = _mark_for_symbol(
                 mark_prices, base_symbol, hedge_position.last_mark_price or hedge_position.avg_entry_price
             )
+            maintenance_bracket = _maintenance_bracket_for_symbol(
+                mark_prices,
+                base_symbol,
+            )
             if mark is None or mark <= 0:
                 hedge_pair_events.append(
                     {"symbol": base_symbol, "action": "HOLD", "reason": "MARK_PRICE_MISSING"}
@@ -1826,12 +2603,20 @@ def reconcile_paper_lifecycle(
                 if parent_position is not None:
                     hedge_protected_symbols.add(base_symbol)
                 continue
-            hedge_position.update_mark(mark_price=mark, mark_time=generated_utc)
+            hedge_position.update_mark(
+                mark_price=mark,
+                mark_time=generated_utc,
+                maintenance_bracket_evidence=maintenance_bracket,
+            )
             hedge_pnl_bps_value = hedge_position.unrealized_pnl_bps()
             parent_pnl_bps_value = None
             parent_payload: dict[str, Any] = {}
             if parent_position is not None:
-                parent_position.update_mark(mark_price=mark, mark_time=generated_utc)
+                parent_position.update_mark(
+                    mark_price=mark,
+                    mark_time=generated_utc,
+                    maintenance_bracket_evidence=maintenance_bracket,
+                )
                 parent_pnl_bps_value = parent_position.unrealized_pnl_bps()
                 parent_payload = parent_position.to_payload(generated_utc=generated_utc)
             hedge_best_excursion = None
@@ -1929,10 +2714,15 @@ def reconcile_paper_lifecycle(
             # not close them independently.
             continue
         mark, mark_source = _mark_for_symbol(mark_prices, symbol, position.last_mark_price or position.avg_entry_price)
+        maintenance_bracket = _maintenance_bracket_for_symbol(mark_prices, symbol)
         exit_spread_bps, exit_spread_source, exit_spread_available_at = _exit_spread_from_mapping(
             mark_prices.get(symbol.upper()) if isinstance(mark_prices, dict) else None
         )
-        position.update_mark(mark_price=mark, mark_time=generated_utc)
+        position.update_mark(
+            mark_price=mark,
+            mark_time=generated_utc,
+            maintenance_bracket_evidence=maintenance_bracket,
+        )
         effective_exit_config, trailing_context_decision = _exit_config_for_trailing_context(
             position=position,
             base_exit_config=config.exit_config,
@@ -2137,6 +2927,21 @@ def reconcile_paper_lifecycle(
             new_close_events.append(close_event)
             new_outcomes.append(outcome)
 
+    for prior_key, prior in restored_prior_rows.items():
+        restored_position = positions.get(prior_key)
+        if restored_position is None or str(
+            restored_position.position_generation_id or ""
+        ) != str(prior.get("position_generation_id") or ""):
+            continue
+        snapshot_payload = restored_position.to_payload(generated_utc=generated_utc)
+        accepted_open_fills.append(
+            _accepted_fill_with_position_metadata(
+                snapshot_payload,
+                status="OPEN_POSITION_RESTORED_FROM_HASHED_SNAPSHOT",
+                position=restored_position,
+            )
+        )
+
     open_positions = [pos.to_payload(generated_utc=generated_utc) for pos in positions.values()]
     # Hedge children key under "{SYM}::HEDGE" so they never overwrite the
     # parent row (both payloads carry the same base symbol field).
@@ -2222,6 +3027,15 @@ def reconcile_paper_lifecycle(
             "outcome_label_count": len(outcome_labels),
             "blocked_entry_count": len(blocked_entries),
             "dirty_close_block_count": len(dirty_close_blocks),
+            "hashed_position_reconstruction_restored_count": len(
+                restored_prior_rows
+            ),
+            "position_reconstruction_block_count": len(reconstruction_blocks),
+            "position_reconstruction_blocks": reconstruction_blocks[:25],
+            "position_reconstruction_schema_version": (
+                PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION
+            ),
+            "final_close_required_for_source_fill_suppression": True,
         },
         "paper_position_exposure_cap_status": {
             "evaluations": cap_evaluations,

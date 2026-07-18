@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import pytest
 
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     REQUIRED_FEEDBACK_FIELDS,
+    _coerce_float,
     build_strategy_hedge_exit_feedback,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader
 from v2.backend.app.services.paper_trade_management.outcomes import build_close_event
 from v2.backend.app.services.paper_trade_management.position_state import (
     PaperNetPosition,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -59,7 +59,7 @@ def _minimal_position(
         mtf_snapshot_id="mtf_unit",
         feature_cutoff="2026-06-18T17:59:59Z",
         decision_time="2026-06-18T18:00:00Z",
-        available_at="2026-06-18T17:59:30Z",
+        available_at="2026-06-18T17:59:59.500Z",
         selected_action=side,
         model_version="unit_model",
         checkpoint_id="unit_checkpoint",
@@ -101,7 +101,12 @@ def _minimal_position(
     )
 
 
-def _build_feedback(position: PaperNetPosition, *, close_event_overrides: dict | None = None) -> dict:
+def _build_feedback(
+    position: PaperNetPosition,
+    *,
+    close_event_overrides: dict | None = None,
+    outcome_label_overrides: dict | None = None,
+) -> dict:
     close_event, outcome = build_close_event(
         position=position,
         close_quantity=position.net_quantity,
@@ -125,6 +130,8 @@ def _build_feedback(position: PaperNetPosition, *, close_event_overrides: dict |
         close_event["intra_trade_low_price"] = float(position.avg_entry_price) * 0.995
     if close_event_overrides:
         close_event.update(close_event_overrides)
+    if outcome_label_overrides:
+        outcome.update(outcome_label_overrides)
     return build_strategy_hedge_exit_feedback(
         close_event=close_event,
         outcome_label=outcome,
@@ -138,6 +145,8 @@ def test_high_confidence_loss_feedback_fields_are_calibration_consumable() -> No
         close_event_overrides={
             "confidence_calibrated": 0.78,
             "confidence_raw": 0.96,
+            "selected_action_probability": 0.78,
+            "action_probabilities": [0.04, 0.05, 0.78, 0.04, 0.03, 0.03, 0.03],
             "expected_move_after_cost_bps": 18.0,
             "realized_pnl_bps": -42.0,
             "realized_net_pnl_usd": -0.42,
@@ -152,6 +161,10 @@ def test_high_confidence_loss_feedback_fields_are_calibration_consumable() -> No
     )
 
     assert row["high_confidence_loss"] is True
+    assert row["high_confidence_loss_static_threshold_used"] is False
+    assert row["high_confidence_loss_policy_relative_evidence"][
+        "selected_action_unique_argmax"
+    ] is True
     assert row["outcome_label"] == "loss"
     assert row["confidence_at_entry"] == 0.78
     assert row["confidence_bucket"] == "0.7-0.8"
@@ -166,6 +179,110 @@ def test_high_confidence_loss_feedback_fields_are_calibration_consumable() -> No
     assert row["exit_reason"] == "TIER_1_ATR_VOLATILITY_STOP"
     assert row["MFE"] == 4.0
     assert row["MAE"] == 42.0
+
+
+def test_policy_relative_loss_classification_has_no_absolute_confidence_floor() -> None:
+    position = _minimal_position(feature_snapshot_id="fs_relative_conf_loss")
+    row = _build_feedback(
+        position,
+        close_event_overrides={
+            "confidence_calibrated": 0.20,
+            "confidence_raw": 0.20,
+            "selected_action_probability": 0.20,
+            "action_probabilities": [0.16, 0.17, 0.20, 0.13, 0.12, 0.11, 0.11],
+            "realized_pnl_bps": -8.0,
+            "realized_net_pnl_usd": -0.08,
+        },
+    )
+
+    assert row["high_confidence_loss"] is True
+    assert row["high_confidence_loss_static_threshold_used"] is False
+    assert row["calibration_loss_sample"] is True
+    assert row["trainer_calibration_consumable"] is True
+
+
+def test_negative_outcome_is_continuous_calibration_sample_without_unique_argmax() -> None:
+    position = _minimal_position(feature_snapshot_id="fs_continuous_conf_loss")
+    row = _build_feedback(
+        position,
+        close_event_overrides={
+            "confidence_calibrated": 0.99,
+            "confidence_raw": 0.20,
+            "selected_action_probability": 0.20,
+            "action_probabilities": [0.20, 0.20, 0.20, 0.10, 0.10, 0.10, 0.10],
+            "realized_pnl_bps": -8.0,
+            "realized_net_pnl_usd": -0.08,
+        },
+    )
+
+    assert row["high_confidence_loss"] is False
+    assert row["calibration_loss_sample"] is True
+    assert row["calibration_loss_reason"] == (
+        "CONTINUOUS_CONFIDENCE_NEGATIVE_REALIZED_OUTCOME"
+    )
+    assert row["trainer_calibration_consumable"] is True
+
+
+@pytest.mark.parametrize("value", [float("inf"), float("-inf"), float("nan")])
+def test_feedback_numeric_coercion_rejects_nonfinite_values(value: float) -> None:
+    assert _coerce_float(value) is None
+
+
+@pytest.mark.parametrize(
+    ("clock_overrides", "expected_reason"),
+    [
+        ({"decision_time": "2026-06-18T18:00:00"}, "DECISION_TIME_UNPARSEABLE"),
+        ({"available_at": "not-a-clock"}, "AVAILABLE_AT_UNPARSEABLE"),
+        ({"feature_cutoff": "2026-06-18 17:59:59"}, "FEATURE_CUTOFF_UNPARSEABLE"),
+        (
+            {
+                "feature_cutoff": "2026-06-18T17:59:45Z",
+                "available_at": "2026-06-18T17:59:30Z",
+            },
+            "FEATURE_CUTOFF_AFTER_AVAILABLE_AT",
+        ),
+    ],
+)
+def test_feedback_trust_envelope_rejects_malformed_or_inverted_clocks(
+    clock_overrides: dict[str, object],
+    expected_reason: str,
+) -> None:
+    position = _minimal_position(feature_snapshot_id="fs_invalid_clock")
+    row = _build_feedback(position, close_event_overrides=clock_overrides)
+
+    assert expected_reason in row["trust_envelope_rejection_reasons"]
+    assert row["trainer_consumable"] is False
+
+
+@pytest.mark.parametrize(
+    ("outcome_override", "expected_reason"),
+    [
+        ({"symbol": "BTCUSDT"}, "CLOSE_OUTCOME_SYMBOL_CONFLICT"),
+        ({"timeframe": "5m"}, "CLOSE_OUTCOME_TIMEFRAME_CONFLICT"),
+        ({"prediction_id": "different_prediction"}, "CLOSE_OUTCOME_PREDICTION_ID_CONFLICT"),
+        ({"checkpoint_id": "different_checkpoint"}, "CLOSE_OUTCOME_CHECKPOINT_ID_CONFLICT"),
+        (
+            {"source_hashes": {"feature_vector_hash": "different"}},
+            "CLOSE_OUTCOME_SOURCE_HASHES_CONFLICT",
+        ),
+    ],
+)
+def test_feedback_rejects_cross_record_identity_stitching(
+    outcome_override: dict[str, object],
+    expected_reason: str,
+) -> None:
+    position = _minimal_position(feature_snapshot_id="fs_identity_conflict")
+    row = _build_feedback(
+        position,
+        outcome_label_overrides=outcome_override,
+    )
+
+    assert expected_reason in row["feedback_identity_conflict_reasons"]
+    assert row["trainer_consumable"] is False
+    assert any(
+        value == f"identity_conflict:{expected_reason.lower()}"
+        for value in row["missing_feedback_classifications"]
+    )
 
 
 def test_positive_edge_probation_feedback_is_paper_only_calibration_sample() -> None:
@@ -198,7 +315,7 @@ def test_positive_edge_probation_feedback_is_paper_only_calibration_sample() -> 
     assert row["preemptive_decision"] == "POSITIVE_EDGE_PROBATION_PAPER"
 
 
-def test_high_confidence_loss_calibration_sample_ignores_missing_trust_envelope_only() -> None:
+def test_high_confidence_loss_calibration_sample_cannot_bypass_missing_trust() -> None:
     row = {
         "high_confidence_loss": True,
         "outcome_label": "loss",
@@ -221,7 +338,9 @@ def test_high_confidence_loss_calibration_sample_ignores_missing_trust_envelope_
         "source_hashes": {},
     }
 
-    assert data_loader._feedback_trust_rejection_reasons(row) == []  # noqa: SLF001
+    assert data_loader._feedback_trust_rejection_reasons(row) == [  # noqa: SLF001
+        "MISSING_TRUST_SOURCE_HASHES"
+    ]
 
 
 # ---------------------------------------------------------------------------

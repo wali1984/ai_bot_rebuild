@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
 
@@ -48,11 +48,21 @@ def test_future_feature_time_rejects_prediction_risk_paper_live() -> None:
 
 
 def test_current_trainer_consumable_feature_snapshot_can_train_with_optional_masks() -> None:
+    decision_time = datetime.now(timezone.utc)
+    candle_close_time = decision_time - timedelta(seconds=1)
     row = {
         "symbol": "SOLUSDT",
         "timeframe": "1m",
         "feature_snapshot_id": "fs-current-1",
-        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "generated_at": decision_time.isoformat().replace("+00:00", "Z"),
+        "source_event_time_est": candle_close_time.isoformat().replace("+00:00", "Z"),
+        "source_received_time_est": decision_time.isoformat().replace("+00:00", "Z"),
+        "decision_cutoff_time_est": decision_time.isoformat().replace("+00:00", "Z"),
+        "candle_open_time": (candle_close_time - timedelta(minutes=1))
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "candle_close_time": candle_close_time.isoformat().replace("+00:00", "Z"),
+        "candle_closed_confirmed": True,
         "feature_freshness_state": "CURRENT",
         "trainer_consumable": True,
         "missing_feature_count": 4,
@@ -77,7 +87,33 @@ def test_current_trainer_consumable_feature_snapshot_can_train_with_optional_mas
     assert score.valid_for_training is True
     assert "MISSING_CRITICAL_FEATURE_FAMILY" not in score.reject_reasons
     assert score.source_lineage["optional_missing_features_masked"] is True
-    assert score.source_lineage["inferred"]["source_event_time_est"] == "INFERRED_FROM_FEATURE_SNAPSHOT_GENERATED_AT"
+    assert score.source_lineage["inferred"] == {}
+
+
+def test_current_trainer_snapshot_without_explicit_finality_or_clocks_is_not_trainable() -> None:
+    row = {
+        "symbol": "SOLUSDT",
+        "timeframe": "1m",
+        "feature_snapshot_id": "fs-current-unproven-finality",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "feature_freshness_state": "CURRENT",
+        "trainer_consumable": True,
+        "features": {
+            "open": 65.19,
+            "high": 65.22,
+            "low": 65.1,
+            "close": 65.1,
+        },
+    }
+
+    score = score_market_state(row)
+
+    assert score.valid_for_training is False
+    assert "CANDLE_COMPLETION_UNKNOWN" in score.reject_reasons
+    assert "candle_closed_confirmed_missing" in score.reject_reasons
+    assert "source_event_time_missing" in score.reject_reasons
+    assert "candle_open_or_close_time_missing" in score.reject_reasons
+    assert score.source_lineage["inferred"] == {}
 
 
 def test_missing_liquidity_zone_fields_are_masked_optional_context() -> None:

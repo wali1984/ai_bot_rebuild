@@ -1,10 +1,21 @@
 from __future__ import annotations
 
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
-    V2HybridTrainerDataLoader,
+from pathlib import Path
+
+import pytest
+
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    data_loader as data_loader_module,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    append_snapshot,
+    build_archive_record,
 )
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     apply_trainer_feedback_field_contract,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+    V2HybridTrainerDataLoader,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
@@ -67,6 +78,81 @@ class _FakeTensorBuilder:
         return _tensor()
 
 
+def test_extra_contract_rejection_revokes_all_training_admission_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        data_loader_module,
+        "classify_training_sample",
+        lambda _row: {
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "market_state_integrity_score": 100.0,
+            "reject_reasons": [],
+            "source_lineage": {},
+        },
+    )
+    monkeypatch.setattr(
+        data_loader_module,
+        "_extra_contract_rejection_reasons",
+        lambda _row: ["FORCED_INVALID_MTF_CONTRACT"],
+    )
+    loader = V2HybridTrainerDataLoader(tensor_builder=_FakeTensorBuilder())
+
+    example = loader._build_example_from_payloads(  # noqa: SLF001
+        symbol="BTCUSDT",
+        timeframe="1m",
+        payloads={
+            "features_latest": {
+                "feature_snapshot_id": "feature-invalid-contract",
+                "decision_time": "2026-07-18T12:00:00Z",
+                "available_at": "2026-07-18T11:59:59Z",
+                "features": {
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                },
+            }
+        },
+    )
+
+    assert example.row_classification == "MARKET_STATE_REJECTED"
+    assert example.trust_row["accepted_for_training"] is False
+    assert example.trust_row["valid_for_training"] is False
+    assert example.trust_row["trainer_consumable"] is False
+    assert example.trust_row["reject_reasons"] == [
+        "FORCED_INVALID_MTF_CONTRACT"
+    ]
+
+
+def _archive_snapshot(
+    snapshot: dict[str, object],
+    feedback: dict[str, object],
+    root: Path,
+) -> None:
+    features = dict(snapshot.get("features") or {})
+    record = build_archive_record(
+        snapshot_id=snapshot["feature_snapshot_id"],
+        symbol=snapshot["symbol"],
+        timeframe=snapshot["timeframe"],
+        feature_cutoff=snapshot["feature_cutoff"],
+        decision_time=feedback["decision_time"],
+        available_at=snapshot["available_at"],
+        mtf_snapshot_id=feedback["mtf_snapshot_id"],
+        features=features,
+        missing_mask={name: False for name in features},
+        stale_mask={name: False for name in features},
+        source_availability={name: True for name in features},
+        source_hashes=dict(feedback.get("source_hashes") or {}),
+        extra={
+            "candle_close_time": snapshot.get("candle_close_time"),
+            "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
+        },
+    )
+    append_snapshot(record, root=root)
+
+
 def _context(name: str) -> dict[str, str]:
     return {"context_type": name, "source": "unit", "status": "available"}
 
@@ -115,6 +201,8 @@ def _paper_exploration_feedback(**overrides: object) -> dict[str, object]:
         "expected_max_loss_usd": 1.0,
         "feature_cutoff": "2026-07-09T11:45:00Z",
         "decision_time": "2026-07-09T12:00:00Z",
+        "outcome_available_at": "2026-07-09T12:15:00Z",
+        "label_horizon_seconds": 900,
         "available_at": "2026-07-09T11:59:30Z",
         "generated_at": "2026-07-09T12:00:00Z",
         "model_version": "paper_exploration_materialization",
@@ -138,7 +226,9 @@ def _paper_exploration_feedback(**overrides: object) -> dict[str, object]:
     return feedback
 
 
-def test_loader_consumes_mature_counterfactual_feedback_key() -> None:
+def test_loader_consumes_mature_counterfactual_feedback_key(
+    tmp_path: Path,
+) -> None:
     snapshot = {
         "feature_snapshot_id": "feat",
         "symbol": "BTCUSDT",
@@ -210,6 +300,7 @@ def test_loader_consumes_mature_counterfactual_feedback_key() -> None:
         "routes_to_live": False,
         "places_real_order": False,
     }
+    _archive_snapshot(snapshot, feedback, tmp_path)
     loader = V2HybridTrainerDataLoader(
         io=_FakeIO(
             {
@@ -219,6 +310,7 @@ def test_loader_consumes_mature_counterfactual_feedback_key() -> None:
             }
         ),
         tensor_builder=_FakeTensorBuilder(),
+        trusted_replay_archive_root=tmp_path,
     )
 
     examples = loader.load_training_examples(
@@ -234,9 +326,12 @@ def test_loader_consumes_mature_counterfactual_feedback_key() -> None:
     assert examples[0].trust_row["counts_as_live_ready"] is False
 
 
-def test_loader_consumes_mature_paper_exploration_materialization_feedback_key() -> None:
+def test_loader_consumes_mature_paper_exploration_materialization_feedback_key(
+    tmp_path: Path,
+) -> None:
     snapshot = _paper_exploration_snapshot()
     feedback = _paper_exploration_feedback()
+    _archive_snapshot(snapshot, feedback, tmp_path)
     source_key = "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
     loader = V2HybridTrainerDataLoader(
         io=_FakeIO(
@@ -248,6 +343,7 @@ def test_loader_consumes_mature_paper_exploration_materialization_feedback_key()
             }
         ),
         tensor_builder=_FakeTensorBuilder(),
+        trusted_replay_archive_root=tmp_path,
     )
 
     examples = loader.load_training_examples(
@@ -264,6 +360,78 @@ def test_loader_consumes_mature_paper_exploration_materialization_feedback_key()
     assert examples[0].trust_row["counts_as_live_ready"] is False
     assert examples[0].trust_row["routes_to_live"] is False
     assert examples[0].trust_row["places_real_order"] is False
+
+
+def test_loader_rejects_outcome_not_available_by_training_observation_cutoff(
+    tmp_path: Path,
+) -> None:
+    source_key = "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+    feedback = _paper_exploration_feedback(
+        outcome_available_at="2099-01-01T00:00:00Z",
+    )
+    snapshot = _paper_exploration_snapshot()
+    _archive_snapshot(snapshot, feedback, tmp_path)
+    loader = V2HybridTrainerDataLoader(
+        io=_FakeIO(
+            {
+                "v2:trainer:feedback:outcomes": [],
+                "v2:trainer:feedback:counterfactuals": [],
+                source_key: [feedback],
+                "v2:features:snapshot:paper-explore-feat": snapshot,
+            }
+        ),
+        tensor_builder=_FakeTensorBuilder(),
+        trusted_replay_archive_root=tmp_path,
+    )
+
+    examples = loader.load_training_examples(
+        symbols=["ORDIUSDT"],
+        timeframes=["15m"],
+        trusted_only=True,
+        closed_trade_only=True,
+        training_observed_at="2026-07-18T10:00:00Z",
+    )
+
+    assert examples == []
+
+
+def test_closed_feedback_preserves_entry_behavior_action_identity(
+    tmp_path: Path,
+) -> None:
+    source_key = "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+    feedback = _paper_exploration_feedback(
+        side="short",
+        action="short",
+        selected_action="short",
+        selected_action_index=2,
+    )
+    snapshot = _paper_exploration_snapshot()
+    _archive_snapshot(snapshot, feedback, tmp_path)
+    loader = V2HybridTrainerDataLoader(
+        io=_FakeIO(
+            {
+                "v2:trainer:feedback:outcomes": [],
+                "v2:trainer:feedback:counterfactuals": [],
+                source_key: [feedback],
+                "v2:features:snapshot:paper-explore-feat": snapshot,
+            }
+        ),
+        tensor_builder=_FakeTensorBuilder(),
+        trusted_replay_archive_root=tmp_path,
+    )
+
+    examples = loader.load_training_examples(
+        symbols=["ORDIUSDT"],
+        timeframes=["15m"],
+        trusted_only=True,
+        closed_trade_only=True,
+    )
+
+    assert len(examples) == 1
+    assert examples[0].trust_row is not None
+    assert examples[0].trust_row["selected_action_index"] == 2
+    assert examples[0].behavior_action_index == 2
+    assert examples[0].behavior_action == "short"
 
 
 def test_loader_skips_pending_paper_exploration_no_fill_feedback() -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import math
 from datetime import datetime
 from pathlib import Path
 
@@ -9,12 +10,27 @@ import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
 from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
+from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive import (
+    EVENT_ENTRY_ACCEPTED,
+    EVENT_OUTCOME_FINALIZED,
+    EVENT_PUBLISHED,
+    append_lifecycle_event,
+    archive_behavior_receipt,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    append_snapshot,
+    build_archive_record,
+)
 from v2.backend.app.services.native_trainer.feedback_enrichment import (
     build_strategy_hedge_exit_feedback,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import checkpoint as checkpoint_module
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    checkpoint as checkpoint_module,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import model as model_module
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import ppo_trainer as ppo_trainer_module
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    ppo_trainer as ppo_trainer_module,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
@@ -25,21 +41,204 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader impo
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
+    U53_DENOMINATOR,
+    build_exact_cost_provenance,
+    build_finalized_outcome_binding,
+    build_positive_edge_behavior_receipt,
+    build_ppo_consumption_update_key,
+    canonical_sha256,
+    model_parameter_fingerprint,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
     V2HybridPPOTrainer,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FEATURE_SPEC,
     FeatureTensorRecord,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.paper_trade_management.outcomes import build_close_event
 from v2.backend.app.services.paper_trade_management.position_state import position_from_fill
-
 
 DECISION_TIME = "2026-06-21T10:01:00Z"
 AVAILABLE_AT = "2026-06-21T10:00:30Z"
 FEATURE_CUTOFF = "2026-06-21T10:00:00Z"
+CHECKPOINT_ID = "v2_hybrid_ckpt_deadbeef_0123456789abcdef_abcdef012345"
+CHECKPOINT_WEIGHT_SHA256 = "c" * 64
+CHECKPOINT_EVIDENCE_DIGEST = "e" * 64
+
+
+def _cost_provenance() -> dict[str, object]:
+    orderbook = {
+        "schema_version": "v2_orderbook_features_v1",
+        "symbol": "BTCUSDT",
+        "event_time": "2026-06-21T10:00:00Z",
+        "available_at": "2026-06-21T10:00:01Z",
+        "generated_at": "2026-06-21T10:00:02Z",
+        "spread_bps": 0.5,
+        "depth_5_bid_usd": 100.0,
+        "depth_5_ask_usd": 120.0,
+        "sequence_gap_flag": 0,
+    }
+    fee_evidence = {
+        "schema_version": "paper_cost_fee_schedule_evidence_v1",
+        "configuration_kind": "CONFIGURED_TAKER_FEE_BPS_PER_SIDE",
+        "taker_fee_bps_per_side": 0.5,
+        "fee_source": "unit:paper_fee_schedule",
+    }
+    notional_evidence = {
+        "schema_version": "paper_cost_notional_configuration_evidence_v1",
+        "configuration_kind": "COST_MODEL_REFERENCE_NOTIONAL_USD",
+        "notional_usd": 100.0,
+        "notional_source": "UNIT_EXPLICIT_COST_MODEL_NOTIONAL_USD",
+    }
+    return build_exact_cost_provenance(
+        source_key="v2:costs:round_trip_bps:BTCUSDT",
+        source_payload={
+            "symbol": "BTCUSDT",
+            "round_trip_cost_bps": 2.0,
+            "taker_fee_bps_per_side": 0.5,
+            "fee_source": "unit:paper_fee_schedule",
+            "fee_schedule_evidence": fee_evidence,
+            "fee_schedule_evidence_sha256": canonical_sha256(fee_evidence),
+            "spread_bps": 0.5,
+            "spread_source": "orderbook_features_binance_live_spread_bps",
+            "spread_age_seconds": 39.0,
+            "impact_per_side_bps": 0.25,
+            "impact_source": "notional_over_top5_depth_times_half_spread",
+            "depth_used_usd": 100.0,
+            "notional_usd_assumed": 100.0,
+            "notional_configuration_evidence": notional_evidence,
+            "notional_configuration_evidence_sha256": canonical_sha256(
+                notional_evidence
+            ),
+            "freshness_status": "FRESH_ORDERBOOK",
+            "conservative_floor_applied": False,
+            "flat_baseline_round_trip_bps": 12.0,
+            "orderbook_key": "v2:orderbook:features:binance:BTCUSDT",
+            "computed_utc": "2026-06-21T10:00:40Z",
+            "available_at": "2026-06-21T10:00:40Z",
+            "orderbook_schema_version": "v2_orderbook_features_v1",
+            "orderbook_source_payload_sha256": canonical_sha256(orderbook),
+            "orderbook_source_payload": orderbook,
+            "orderbook_observed_at": "2026-06-21T10:00:00Z",
+            "orderbook_available_at": "2026-06-21T10:00:01Z",
+            "orderbook_generated_at": "2026-06-21T10:00:02Z",
+            "orderbook_source_clock_field": "available_at",
+            "orderbook_sequence_gap_flag": False,
+            "source_future_clock_invalid": False,
+            "adaptive_max_age_seconds": 120.0,
+            "adaptive_freshness_sample_count": 3,
+            "adaptive_freshness_method": (
+                "RECENT_DISTINCT_SOURCE_INTERVAL_MEDIAN_PLUS_MAD"
+            ),
+            "adaptive_freshness_proven": True,
+            "expires_at": "2026-06-21T10:02:01Z",
+            "publication_ttl_seconds": 81,
+            "estimator_version": "adaptive_cost_model_v1",
+            "notes": [],
+            "scope": "PAPER_ONLY_ADAPTIVE_COST_MODEL",
+        },
+        consumer_observed_at="2026-06-21T10:00:50Z",
+    )
+
+
+def _bind_finalized_outcome(
+    trust: dict[str, object],
+    *,
+    reward: float,
+    receipt_hash: str,
+    behavior_fingerprint: str,
+) -> None:
+    gross_pnl_usd = reward + 0.02
+    entry_price = 100.0
+    selected_action = str(trust["selected_action"])
+    exit_price = (
+        entry_price + gross_pnl_usd
+        if selected_action == "long"
+        else entry_price - gross_pnl_usd
+    )
+    entry_fee_usd = exit_fee_usd = 0.005
+    entry_slippage_usd = exit_slippage_usd = 0.005
+    trust.update(
+        {
+            "close_id": f"close_{trust['prediction_id']}",
+            "position_id": f"position_{trust['prediction_id']}",
+            "close_event_time": "2026-06-21T10:06:00Z",
+            "exit_time": "2026-06-21T10:06:00Z",
+            "outcome_generated_at": "2026-06-21T10:06:01Z",
+            "outcome_available_at": "2026-06-21T10:06:02Z",
+            "outcome_availability_status": "READY",
+            "entry_price": entry_price,
+            "exit_price": exit_price,
+            "side": selected_action,
+            "closed_quantity": 1.0,
+            "gross_realized_pnl_usd": gross_pnl_usd,
+            "realized_gross_pnl_usd": gross_pnl_usd,
+            "realized_net_pnl_usd": reward,
+            "realized_net_pnl_bps": reward * 100.0,
+            "closed_entry_notional_usd": entry_price,
+            "closed_exit_notional_usd": exit_price,
+            "entry_fee_usd": entry_fee_usd,
+            "exit_fee_usd": exit_fee_usd,
+            "total_fees_usd": 0.01,
+            "fees_usd": 0.01,
+            "fees": 0.01,
+            "entry_slippage_usd": entry_slippage_usd,
+            "exit_slippage_usd": exit_slippage_usd,
+            "total_slippage_usd": 0.01,
+            "slippage_usd": 0.01,
+            "slippage": 0.01,
+            "total_execution_costs_usd": 0.02,
+            "funding_usd": 0.0,
+            "funding_pnl_usd": 0.0,
+            "funding": 0.0,
+            "outcome_cost_unit": "USD",
+            "paper_round_trip_cost_accounting_version": "PAPER_ROUND_TRIP_CLOSE_COST_V1",
+            "paper_cost_rate_scope": "PER_SIDE_BPS_APPLIED_TO_CORRESPONDING_NOTIONAL",
+            "paper_net_pnl_formula": (
+                "realized_gross_pnl_usd - entry_fee_usd - exit_fee_usd - "
+                "entry_slippage_usd - exit_slippage_usd + funding_pnl_usd"
+            ),
+            "round_trip_cost_fallback_used": False,
+            "round_trip_cost_provenance_status": "COMPLETE_ENTRY_AND_EXIT_COST_PROVENANCE",
+            "entry_cost_accounting_version": "PAPER_ENTRY_COST_BASIS_V1",
+            "entry_cost_allocation_method": "PRO_RATA_BY_CLOSED_QUANTITY_WITH_FINAL_CLOSE_REMAINDER",
+            "entry_cost_allocation_fraction_of_pre_close_position": 1.0,
+            "entry_cost_pre_close_quantity": 1.0,
+            "entry_cost_closed_quantity": 1.0,
+            "entry_cost_is_final_close": True,
+            "entry_fee_source": "UNIT_ENTRY_FEE_USD",
+            "entry_fee_fallback": False,
+            "entry_fee_fallback_bps_per_side": None,
+            "entry_fee_bps_per_side": entry_fee_usd / entry_price * 10_000.0,
+            "entry_slippage_source": "UNIT_ENTRY_SLIPPAGE_USD",
+            "entry_slippage_fallback": False,
+            "entry_slippage_fallback_bps_per_side": None,
+            "entry_slippage_bps_per_side": entry_slippage_usd / entry_price * 10_000.0,
+            "entry_cost_basis_status": "COMPLETE_ENTRY_FEE_AND_SLIPPAGE_USD_BASIS",
+            "exit_fee_source": "UNIT_ENTRY_BOUND_EXIT_FEE_RATE",
+            "exit_fee_fallback": False,
+            "exit_fee_rate_basis": "ENTRY_BOUND_PER_SIDE_FEE_RATE_REUSED_FOR_PAPER_EXIT",
+            "exit_fee_bps_per_side": exit_fee_usd / exit_price * 10_000.0,
+            "exit_slippage_source": "UNIT_EXIT_SPREAD",
+            "exit_slippage_available_at": "2026-06-21T10:06:00Z",
+            "exit_slippage_fallback": False,
+            "exit_slippage_provenance_status": "EXIT_SPREAD_AVAILABLE_BY_CLOSE_TIME",
+            "exit_slippage_bps_per_side": exit_slippage_usd / exit_price * 10_000.0,
+            "realized_after_cost_reward": reward,
+            "reward": reward,
+        }
+    )
+    finalized = build_finalized_outcome_binding(trust)
+    trust.update(finalized)
+    trust["ppo_consumption_update_key"] = build_ppo_consumption_update_key(
+        behavior_policy_receipt_hash=receipt_hash,
+        finalized_outcome_digest=str(finalized["finalized_outcome_digest"]),
+        parent_behavior_fingerprint=behavior_fingerprint,
+    )
+    trust["ppo_consumption_ledger_eligible"] = True
 
 
 def test_training_window_gpu_sample_parser_and_summary() -> None:
@@ -186,6 +385,40 @@ def _feature_snapshot(
         "stale_feature_flags": [],
         "features": features,
     }
+
+
+def _archive_feature_snapshot(snapshot: dict[str, object], root: Path) -> None:
+    features = dict(snapshot.get("features") or {})
+    missing_names = [str(value) for value in snapshot.get("missing_feature_flags") or []]
+    stale_names = [str(value) for value in snapshot.get("stale_feature_flags") or []]
+    record = build_archive_record(
+        snapshot_id=snapshot["feature_snapshot_id"],
+        symbol=snapshot["symbol"],
+        timeframe=snapshot["timeframe"],
+        feature_cutoff=snapshot["feature_cutoff"],
+        decision_time=DECISION_TIME,
+        available_at=snapshot["available_at"],
+        mtf_snapshot_id="mtf_1",
+        features=features,
+        missing_mask=missing_names,
+        stale_mask=stale_names,
+        source_availability={name: True for name in features},
+        source_hashes=dict(snapshot.get("source_hashes") or {}),
+        extra={
+            "missing_feature_flags": missing_names,
+            "missing_feature_count": int(
+                snapshot.get("missing_feature_count") or len(missing_names)
+            ),
+            "stale_feature_flags": stale_names,
+            "candle_open_time": snapshot.get("candle_open_time"),
+            "candle_close_time": snapshot.get("candle_close_time"),
+            "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
+            "latest_unclosed_kline_excluded": snapshot.get(
+                "latest_unclosed_kline_excluded"
+            ),
+        },
+    )
+    append_snapshot(record, root=root)
 
 
 def _trust_prediction(
@@ -378,6 +611,12 @@ def _training_example(index: int = 1, *, trust_overrides: dict[str, object] | No
         "expected_move_after_cost_bps": 9999.0,
     }
     trust_row.update(trust_overrides or {})
+    if trust_row.get("old_log_prob") not in (None, ""):
+        trust_row.setdefault("behavior_policy_sampling_mode", "CATEGORICAL_SAMPLE")
+        trust_row.setdefault(
+            "behavior_policy_distribution_contract",
+            "RAW_LOGITS_SOFTMAX_V1",
+        )
     return TrainingExample(
         symbol="BTCUSDT",
         timeframe="1m",
@@ -388,6 +627,173 @@ def _training_example(index: int = 1, *, trust_overrides: dict[str, object] | No
         row_classification="TRAINABLE",
         trust_row=trust_row,
     )
+
+
+def _attach_exact_long_behavior_receipt(
+    row: TrainingExample,
+    model: V2HybridPolicyModel,
+    *,
+    archive_root: Path,
+    finalized_advantage: float | None = None,
+) -> dict[str, object]:
+    assert model.torch is not None and model.net is not None
+    with model.torch.no_grad():
+        model.net.expected_move_head.weight.zero_()
+        model.net.expected_move_head.bias.fill_(math.atanh(12.0 / 120.0))
+    forward = model.forward(row.tensor)
+    fingerprint = model_parameter_fingerprint(model)
+    trust = row.trust_row
+    assert trust is not None
+    plan_hash = "a" * 64
+    plan_input_hash = "b" * 64
+    receipt = build_positive_edge_behavior_receipt(
+        prediction_id=str(trust["prediction_id"]),
+        model_output=forward,
+        symbol=row.symbol,
+        timeframe=row.timeframe,
+        checkpoint_id=CHECKPOINT_ID,
+        checkpoint_weight_sha256=CHECKPOINT_WEIGHT_SHA256,
+        checkpoint_evidence_digest=CHECKPOINT_EVIDENCE_DIGEST,
+        checkpoint_evidence_verified=True,
+        checkpoint_identity_verified=True,
+        served_policy_fingerprint=fingerprint,
+        feature_tensor_id=row.tensor.tensor_id,
+        feature_vector_hash=row.tensor.tensor_id,
+        feature_cutoff=trust["feature_cutoff"],
+        available_at=trust["available_at"],
+        candle_close_time=trust["candle_close_time"],
+        decision_time=trust["decision_time"],
+        candle_closed_confirmed=True,
+        round_trip_cost_bps=2.0,
+        cost_provenance=_cost_provenance(),
+        draw_u53=U53_DENOMINATOR - 1,
+        sampling_plan_hash=plan_hash,
+        sampling_plan_input_hash=plan_input_hash,
+    )
+    trust.update(
+        {
+            "symbol": row.symbol,
+            "timeframe": row.timeframe,
+            "checkpoint_id": CHECKPOINT_ID,
+            "feature_tensor_id": row.tensor.tensor_id,
+            "feature_vector_hash": row.tensor.tensor_id,
+            "selected_action": receipt["selected_action"],
+            "selected_action_index": receipt["selected_action_index"],
+            "behavior_action_index": receipt["selected_action_index"],
+            "behavior_action": receipt["selected_action"],
+            "behavior_action_mask": list(receipt["behavior_action_mask"]),
+            "behavior_action_source": receipt["behavior_action_source"],
+            "behavior_policy_sampling_mode": receipt[
+                "behavior_policy_sampling_mode"
+            ],
+            "behavior_policy_distribution_contract": receipt[
+                "behavior_policy_distribution_contract"
+            ],
+            "behavior_policy_fingerprint": fingerprint,
+            "behavior_policy_checkpoint_hash": CHECKPOINT_WEIGHT_SHA256,
+            "behavior_policy_receipt": receipt,
+            "behavior_policy_receipt_hash": receipt["receipt_hash"],
+            "behavior_policy_receipt_key": (
+                "v2:trainer:hybrid_cuda:on_policy_receipt:"
+                f"{receipt['receipt_hash']}"
+            ),
+            "behavior_policy_receipt_write_success": True,
+            "on_policy_action_receipt_valid": True,
+            "action_labels": list(receipt["action_labels"]),
+            "raw_action_logits": list(receipt["raw_action_logits"]),
+            "raw_action_probabilities": list(receipt["raw_action_probabilities"]),
+            "action_probabilities": list(receipt["action_probabilities"]),
+            "selected_action_probability": receipt[
+                "selected_action_probability"
+            ],
+            "selected_action_log_prob": receipt[
+                "selected_action_log_prob"
+            ],
+            "policy_value": receipt["policy_value"],
+            "old_log_prob": receipt["selected_action_log_prob"],
+            "old_value": receipt["policy_value"],
+            "on_policy_sampling_selected": True,
+            "on_policy_sampling_plan_hash": plan_hash,
+            "on_policy_sampling_plan_input_hash": plan_input_hash,
+            "on_policy_sampling_lane": "ADAPTIVE_BOUNDED_PAPER_EXPLORATION",
+            "on_policy_sampling_counts_as_a_plus_evidence": False,
+            "on_policy_sampling_routes_to_live": False,
+            "ppo_on_policy_entry_fields_present": True,
+            "strategy_supply_hypothesis": False,
+        }
+    )
+    _bind_finalized_outcome(
+        trust,
+        reward=(
+            float(receipt["policy_value"]) + finalized_advantage
+            if finalized_advantage is not None
+            else float(trust["reward"])
+        ),
+        receipt_hash=str(receipt["receipt_hash"]),
+        behavior_fingerprint=fingerprint,
+    )
+    archived = archive_behavior_receipt(receipt, root=archive_root)
+    published = append_lifecycle_event(
+        receipt_hash=str(receipt["receipt_hash"]),
+        event_type=EVENT_PUBLISHED,
+        binding={
+            "prediction_id": receipt["prediction_id"],
+            "symbol": receipt["symbol"],
+            "timeframe": receipt["timeframe"],
+            "checkpoint_id": receipt["checkpoint_id"],
+            "decision_time": trust["decision_time"],
+            "archive_content_sha256": archived.archive_content_sha256,
+        },
+        root=archive_root,
+        recorded_at=str(trust["decision_time"]),
+    )
+    entry = append_lifecycle_event(
+        receipt_hash=str(receipt["receipt_hash"]),
+        event_type=EVENT_ENTRY_ACCEPTED,
+        binding={
+            "paper_fill_id": f"fill_{row.tensor.tensor_id}",
+            "prediction_id": receipt["prediction_id"],
+            "symbol": receipt["symbol"],
+            "timeframe": receipt["timeframe"],
+            "decision_time": trust["decision_time"],
+            "entry_time": trust["decision_time"],
+            "entry_fee_schedule_evidence_sha256": receipt["cost_provenance"][
+                "source_payload"
+            ]["fee_schedule_evidence_sha256"],
+        },
+        root=archive_root,
+        recorded_at=str(trust["decision_time"]),
+    )
+    finalized_event = append_lifecycle_event(
+        receipt_hash=str(receipt["receipt_hash"]),
+        event_type=EVENT_OUTCOME_FINALIZED,
+        binding={
+            "finalized_outcome_id": trust["finalized_outcome_id"],
+            "finalized_outcome_digest": trust["finalized_outcome_digest"],
+            "ppo_consumption_update_key": trust["ppo_consumption_update_key"],
+            "outcome_available_at": trust["outcome_available_at"],
+        },
+        root=archive_root,
+        recorded_at=str(trust["outcome_available_at"]),
+    )
+    trust.update(
+        {
+            "behavior_policy_receipt_archive_write_success": True,
+            "behavior_policy_receipt_archive_content_sha256": (
+                archived.archive_content_sha256
+            ),
+            "behavior_policy_receipt_archive_published_event_hash": (
+                published.event_hash
+            ),
+            "behavior_policy_receipt_archive_entry_event_hash": entry.event_hash,
+            "behavior_policy_receipt_archive_finalized": True,
+            "behavior_policy_receipt_archive_finalization_event_hash": (
+                finalized_event.event_hash
+            ),
+            "behavior_policy_receipt_archive_retention_required_until_trainer_consumption": True,
+        }
+    )
+    return receipt
 
 
 class _FakeRedis:
@@ -726,7 +1132,9 @@ def test_feedback_batch_uses_realized_after_cost_reward() -> None:
     assert result.metrics["outcome_supervised_update_used"] is True
 
 
-def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
+def test_snapshot_backed_feedback_uses_verified_durable_feature_snapshot(
+    tmp_path: Path,
+) -> None:
     close_event, outcome_label = _close_and_outcome(action="short")
     prediction = _trust_prediction(selected_action="short")
     row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
@@ -740,6 +1148,7 @@ def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
     features.pop("best_bid_size")
     features.pop("estimated_price_impact_bps")
     snapshot["features"] = features
+    _archive_feature_snapshot(snapshot, tmp_path)
     loader = V2HybridTrainerDataLoader(
         io=V2OnlyJsonIO(
             client=_FakeRedis(
@@ -748,7 +1157,8 @@ def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
                     "v2:features:snapshot:feat_1": snapshot,
                 }
             )
-        )
+        ),
+        trusted_replay_archive_root=tmp_path,
     )
 
     examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
@@ -777,7 +1187,9 @@ def test_snapshot_backed_feedback_uses_entry_feature_snapshot() -> None:
     assert summary["training_trusted_rows"] == 1
 
 
-def test_snapshot_with_explicit_missing_critical_source_still_blocks_training() -> None:
+def test_snapshot_with_explicit_missing_critical_source_still_blocks_training(
+    tmp_path: Path,
+) -> None:
     close_event, outcome_label = _close_and_outcome(action="short")
     prediction = _trust_prediction(selected_action="short")
     row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
@@ -788,6 +1200,7 @@ def test_snapshot_with_explicit_missing_critical_source_still_blocks_training() 
     snapshot = _feature_snapshot()
     snapshot["missing_feature_flags"] = ["ohlcv_window", "orderbook"]
     snapshot["missing_feature_count"] = 2
+    _archive_feature_snapshot(snapshot, tmp_path)
     loader = V2HybridTrainerDataLoader(
         io=V2OnlyJsonIO(
             client=_FakeRedis(
@@ -796,7 +1209,8 @@ def test_snapshot_with_explicit_missing_critical_source_still_blocks_training() 
                     "v2:features:snapshot:feat_1": snapshot,
                 }
             )
-        )
+        ),
+        trusted_replay_archive_root=tmp_path,
     )
 
     trusted_examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
@@ -810,7 +1224,7 @@ def test_snapshot_with_explicit_missing_critical_source_still_blocks_training() 
         assert summary["training_trusted_rows"] == 0
 
 
-def test_embedded_entry_feature_snapshot_trains_when_archive_snapshot_missing() -> None:
+def test_unanchored_embedded_entry_feature_snapshot_does_not_train() -> None:
     close_event, outcome_label = _close_and_outcome(action="long")
     prediction = _trust_prediction(selected_action="long")
     row = paper_loop._build_trainer_feedback_rows(  # noqa: SLF001
@@ -831,10 +1245,7 @@ def test_embedded_entry_feature_snapshot_trains_when_archive_snapshot_missing() 
 
     examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
 
-    assert len(examples) == 1
-    trust_row = examples[0].trust_row or {}
-    assert trust_row["source_lineage"]["feature_snapshot_key"] == "trainer_feedback.entry_feature_snapshot"
-    assert examples[0].tensor.feature_snapshot_id == "feat_1"
+    assert examples == []
 
 
 def test_embedded_entry_prediction_snapshot_reconstructs_without_archive_prediction() -> None:
@@ -921,7 +1332,9 @@ def test_ppo_rejects_rows_without_on_policy_fields() -> None:
     assert result.metrics["learning_update_lane"] == "outcome_supervised"
 
 
-def test_ppo_mixed_lane_keeps_outcome_rows_in_training_batch() -> None:
+def test_ppo_mixed_lane_keeps_outcome_rows_in_training_batch(
+    tmp_path: Path,
+) -> None:
     ppo_row = _training_example(
         1,
         trust_overrides={
@@ -931,12 +1344,38 @@ def test_ppo_mixed_lane_keeps_outcome_rows_in_training_batch() -> None:
             "done": True,
             "rollout_id": "rollout_1",
             "trajectory_index": 0,
+            "behavior_action_index": 1,
+            "behavior_action": "long",
+            "decision_time": "2026-06-21T10:01:00Z",
+            "decision_time_est": "2026-06-21T10:01:00Z",
         },
     )
-    replay_row = _training_example(2)
-    second_replay_row = _training_example(3)
+    replay_row = _training_example(
+        2,
+        trust_overrides={
+            "decision_time": "2026-06-21T10:11:00Z",
+            "decision_time_est": "2026-06-21T10:11:00Z",
+        },
+    )
+    second_replay_row = _training_example(
+        3,
+        trust_overrides={
+            "decision_time": "2026-06-21T10:21:00Z",
+            "decision_time_est": "2026-06-21T10:21:00Z",
+        },
+    )
     model = V2HybridPolicyModel(input_dim=len(ppo_row.tensor.model_vector), seed=7)
-    trainer = V2HybridPPOTrainer(model=model)
+    if not model.torch_available:
+        pytest.skip("exact PPO receipt regression requires torch")
+    _attach_exact_long_behavior_receipt(
+        ppo_row,
+        model,
+        archive_root=tmp_path,
+    )
+    trainer = V2HybridPPOTrainer(
+        model=model,
+        behavior_receipt_archive_root=tmp_path,
+    )
 
     result = trainer.train(
         [replay_row, second_replay_row, ppo_row],
@@ -957,7 +1396,9 @@ def test_ppo_mixed_lane_keeps_outcome_rows_in_training_batch() -> None:
     assert result.train_rows == 2
 
 
-def test_ppo_equal_nonzero_advantages_do_not_skip_mixed_training() -> None:
+def test_ppo_equal_nonzero_advantages_do_not_skip_mixed_training(
+    tmp_path: Path,
+) -> None:
     ppo_rows = [
         _training_example(
             1,
@@ -968,6 +1409,8 @@ def test_ppo_equal_nonzero_advantages_do_not_skip_mixed_training() -> None:
                 "done": True,
                 "rollout_id": "rollout_equal",
                 "trajectory_index": 0,
+                "behavior_action_index": 1,
+                "behavior_action": "long",
             },
         ),
         _training_example(
@@ -979,12 +1422,29 @@ def test_ppo_equal_nonzero_advantages_do_not_skip_mixed_training() -> None:
                 "done": True,
                 "rollout_id": "rollout_equal",
                 "trajectory_index": 1,
+                "behavior_action_index": 1,
+                "behavior_action": "long",
             },
         ),
     ]
     replay_row = _training_example(3)
     model = V2HybridPolicyModel(input_dim=len(ppo_rows[0].tensor.model_vector), seed=7)
-    trainer = V2HybridPPOTrainer(model=model)
+    if not model.torch_available:
+        pytest.skip("exact PPO receipt regression requires torch")
+    for row in ppo_rows:
+        receipt = _attach_exact_long_behavior_receipt(
+            row,
+            model,
+            archive_root=tmp_path,
+            finalized_advantage=2.2558026,
+        )
+        assert row.trust_row is not None
+        reward = float(receipt["policy_value"]) + 2.2558026
+        assert row.trust_row["reward"] == pytest.approx(reward)
+    trainer = V2HybridPPOTrainer(
+        model=model,
+        behavior_receipt_archive_root=tmp_path,
+    )
 
     result = trainer.train(
         [*ppo_rows, replay_row],
@@ -1052,7 +1512,7 @@ def test_checkpoint_loads_when_manifest_weight_path_is_stale(tmp_path: Path) -> 
     data["weight_file_path"] = "does/not/exist/from/this/cwd.weights.npz"
     manifest_json.write_text(json.dumps(data))
 
-    fresh = model_module.V2HybridPolicyModel(input_dim=model.input_dim)
+    fresh = model_module.V2HybridPolicyModel(input_dim=model.input_dim, seed=7)
     loaded = V2HybridCheckpointManager(model_dir).load_latest_weights(fresh)
     assert loaded["latest_checkpoint_loadable"] is True
     assert loaded["model_state_restored"] is True

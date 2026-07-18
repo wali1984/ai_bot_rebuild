@@ -7,6 +7,8 @@ from typing import Any
 
 from v2.backend.app.services.native_trainer.a_plus_phase1_evidence import (
     CLOSED_TRADES_KEY,
+    DIAGNOSTIC_COMPLETE,
+    DIAGNOSTIC_INCOMPLETE,
     FEEDBACK_KEY,
     FEEDBACK_QUARANTINE_KEY,
     GOAL_ID,
@@ -14,6 +16,24 @@ from v2.backend.app.services.native_trainer.a_plus_phase1_evidence import (
     build_a_plus_phase1_trainer_artifacts,
     write_a_plus_phase1_trainer_artifacts,
 )
+
+
+def _assert_non_runtime_boundary(payload: dict[str, Any]) -> None:
+    assert payload["evidence_scope"] == "LEGACY_NON_CANONICAL_DIAGNOSTIC"
+    assert payload["contract_test_only"] is False
+    assert payload["canonical_current_cycle_contract_consumed"] is False
+    assert payload["canonical_current_cycle_contract_verified"] is False
+    assert payload["canonical_runtime_ready"] is False
+    assert payload["serving_authorized"] is False
+    assert payload["a_plus_authorized"] is False
+    assert payload["paper_authorized"] is False
+    assert payload["live_authorized"] is False
+    assert payload["live_execution_authorized"] is False
+    assert payload["routes_to_paper"] is False
+    assert payload["routes_to_live"] is False
+    assert payload["artifact_ttl_enforced"] is False
+    assert payload["artifact_expires_at"] is None
+    assert payload["artifact_freshness_authoritative"] is False
 
 
 class FakeRedis:
@@ -179,8 +199,8 @@ def test_a_plus_phase1_artifacts_ready_from_current_feedback_and_checkpoint(tmp_
     feedback = artifacts["trainer_feedback_consumption_status.json"]
     weights = artifacts["trainer_weight_update_proof.json"]
     checkpoint = artifacts["trainer_checkpoint_update_proof.json"]
-    assert repair["status"] == "REPAIRED_AND_RUNTIME_CONFIRMED"
-    assert repair["ready_conditions"] == {
+    assert repair["status"] == DIAGNOSTIC_COMPLETE
+    assert repair["diagnostic_conditions"] == {
         "checkpoint_weight_blob_updated": True,
         "consumable_feedback_rows_gt_0": True,
         "trusted_rows_loaded_gt_0": True,
@@ -193,6 +213,9 @@ def test_a_plus_phase1_artifacts_ready_from_current_feedback_and_checkpoint(tmp_
     assert checkpoint["checkpoint_weight_blob_updated"] is True
     assert checkpoint["predictions_changed_after_feedback"] is True
     assert checkpoint["published_prediction_sample"]["prediction_id"] == "pred_current"
+    for payload in artifacts.values():
+        _assert_non_runtime_boundary(payload)
+    assert feedback["status"] == "DIAGNOSTIC_FEEDBACK_CONTRACT_OBSERVED_NON_CANONICAL"
 
 
 def test_a_plus_phase1_writer_blocks_missing_feedback_fields_without_live_mutation(tmp_path: Path) -> None:
@@ -230,7 +253,8 @@ def test_a_plus_phase1_writer_blocks_missing_feedback_fields_without_live_mutati
         generated_utc="2026-07-06T10:11:00Z",
     )
 
-    assert status["status"] == "BLOCKED_EVIDENCE_INCOMPLETE"
+    assert status["status"] == DIAGNOSTIC_INCOMPLETE
+    _assert_non_runtime_boundary(status)
     assert status["places_real_order"] is False
     assert status["exchange_leverage_mutated"] is False
     feedback = json.loads((goal_dir / "trainer_feedback_consumption_status.json").read_text())

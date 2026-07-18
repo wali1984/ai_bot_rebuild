@@ -16,9 +16,10 @@ edge-proven offline (Step 3) before any integration.
 """
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 DEFAULT_SEQ_LEN = 16
@@ -37,17 +38,19 @@ class WindowedExample:
 
 
 def _parse_decision_ms(value: Any) -> float | None:
-    if value is None:
+    if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):  # noqa: UP038
         # epoch seconds or ms -> normalise to ms
         v = float(value)
+        if not math.isfinite(v) or v <= 0.0:
+            return None
         return v if v > 1e11 else v * 1000.0
     try:
         text = str(value).strip().replace("Z", "+00:00")
         parsed = datetime.fromisoformat(text)
-        if parsed.tzinfo is None:
-            parsed = parsed.replace(tzinfo=UTC)
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
         return parsed.timestamp() * 1000.0
     except (TypeError, ValueError):
         return None
@@ -82,8 +85,9 @@ def build_example_windows(
     (stable within equal timestamps by original index). Each example's window is
     the ``seq_len`` frames up to and including itself; shorter histories are
     left-padded with the oldest available frame. Examples without a usable
-    model_vector are skipped. Output preserves the input order of the kept
-    examples.
+    model_vector or parseable immutable decision_time are skipped. Missing
+    chronology is never replaced with input order. Output preserves the input
+    order of the kept examples.
     """
     seq_len = max(1, int(seq_len))
     # Decorate with (group, decision_ms, original_index, vector), skipping unusable rows.
@@ -93,8 +97,11 @@ def build_example_windows(
         if vec is None:
             continue
         dms = _parse_decision_ms(getattr(ex, "decision_time", None))
-        # Fall back to input order when decision_time is missing (monotonic proxy).
-        decorated.append((_group_key(ex), dms if dms is not None else float(idx), idx, vec, ex))
+        if dms is None:
+            # Fail closed: list position is not event-time evidence and can be
+            # reversed by a loader, cursor, cache, or replay merge.
+            continue
+        decorated.append((_group_key(ex), dms, idx, vec, ex))
 
     # Per group, sort by (decision_ms, original_index) so windows are time-ordered
     # and strictly causal.
@@ -108,9 +115,14 @@ def build_example_windows(
     windows_by_idx: dict[int, WindowedExample] = {}
     for rows in by_group.values():
         vectors = [vec for _dms, _idx, vec, _ex in rows]
-        for position, (_dms, original_idx, _vec, ex) in enumerate(rows):
-            start = position - seq_len + 1
-            real = vectors[max(0, start): position + 1]
+        decision_times = [dms for dms, _idx, _vec, _ex in rows]
+        for position, (target_dms, original_idx, _vec, ex) in enumerate(rows):
+            start = max(0, position - seq_len + 1)
+            real = vectors[start: position + 1]
+            # The sorted prefix is causal; retain an explicit invariant so a
+            # future refactor cannot admit a newer frame into this decision.
+            if any(frame_dms > target_dms for frame_dms in decision_times[start: position + 1]):
+                raise ValueError("TEMPORAL_WINDOW_CONTAINS_FUTURE_FRAME")
             real_count = len(real)
             if real_count < seq_len:
                 # Left-pad by repeating the oldest real frame.
@@ -153,23 +165,23 @@ def model_batch_tensor(
 
     The SINGLE place that decides frame-vs-window, so every training/eval/predict
     path stays consistent. When ``temporal`` is off (or no lookup) it returns the
-    exact 2D tensor the single-frame model always used. When on, each row's window
-    is looked up by id; a row missing from the lookup falls back to repeating its
-    own frame (keeps shape valid; only happens for rows outside the lookup's set).
+    exact 2D tensor the single-frame model always used. When on, each row must
+    have a window built from a parseable decision_time. A missing lookup fails
+    closed instead of silently degrading to single-frame training.
     """
     import numpy as np  # noqa: PLC0415
 
-    if temporal and window_lookup is not None:
+    if temporal:
+        if window_lookup is None:
+            raise ValueError("TEMPORAL_WINDOW_LOOKUP_MISSING")
         # Build via numpy (C-level) -- a nested Python list of B*T*F floats +
         # torch.tensor() is pathologically slow for large eval batches.
         frames: list[Any] = []
         for r in rows:
             window = window_lookup.get(id(r))
             if window is None:
-                frame = np.asarray(r.tensor.model_vector, dtype=np.float32)
-                frames.append(np.tile(frame, (max(1, int(seq_len)), 1)))
-            else:
-                frames.append(np.asarray(window, dtype=np.float32))
+                raise ValueError("TEMPORAL_WINDOW_MISSING_PARSEABLE_DECISION_TIME")
+            frames.append(np.asarray(window, dtype=np.float32))
         arr = np.stack(frames)  # (B, T, F)
         return torch_module.from_numpy(arr).to(device)
     arr = np.asarray(

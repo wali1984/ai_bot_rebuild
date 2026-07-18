@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
@@ -655,6 +655,9 @@ class FeatureTensorRecord:
     stale_feature_names: tuple[str, ...]
     data_coverage_percent: float
     source_availability_vector: tuple[int, ...]
+    decision_time: str | None = None
+    source_lineage_hash: str = ""
+    temporal_rejection_reasons: tuple[str, ...] = ()
 
     @property
     def model_vector(self) -> tuple[float, ...]:
@@ -695,22 +698,16 @@ def _dig(payload: Mapping[str, Any] | None, *keys: str) -> Any:
 
 def _provider_feature_values(payloads: Mapping[str, Any]) -> dict[str, float]:
     """Extract point-in-time checked provider bridge features supplied by callers."""
-    candidates: list[Any] = []
     context = payloads.get("provider_feature_context")
-    if isinstance(context, Mapping):
-        candidates.append(context.get("provider_features"))
-    candidates.append(payloads.get("provider_features"))
-    for candidate in candidates:
-        if not isinstance(candidate, Mapping):
-            continue
-        out: dict[str, float] = {}
-        for name, value in candidate.items():
-            parsed = _finite_float(value)
-            if parsed is not None:
-                out[str(name)] = parsed
-        if out:
-            return out
-    return {}
+    candidate = context.get("provider_features") if isinstance(context, Mapping) else None
+    if not isinstance(candidate, Mapping):
+        return {}
+    out: dict[str, float] = {}
+    for name, value in candidate.items():
+        parsed = _finite_float(value)
+        if parsed is not None:
+            out[str(name)] = parsed
+    return out
 
 
 def _first_present(*values: Any) -> Any:
@@ -720,31 +717,56 @@ def _first_present(*values: Any) -> Any:
     return None
 
 
-def _parse_ms(value: Any) -> int | None:
-    try:
-        if value is None:
+def _strict_utc_datetime(value: Any) -> datetime | None:
+    """Parse an unambiguous instant and reject naive wall-clock strings.
+
+    Unix epochs are unambiguous UTC instants. ISO strings and ``datetime``
+    values must carry an explicit UTC offset; silently assigning UTC to a
+    naive producer clock would make point-in-time validation fictional.
+    """
+
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, (int, float)):
+        epoch = float(value)
+        if not math.isfinite(epoch):
             return None
-        parsed = float(value)
-    except (TypeError, ValueError):
-        if isinstance(value, str):
-            try:
-                return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000)
-            except ValueError:
-                return None
+        if abs(epoch) >= 10_000_000_000:
+            epoch /= 1000.0
+        try:
+            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
+    elif isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
         return None
-    if math.isnan(parsed) or math.isinf(parsed):
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    number = int(parsed)
-    return number * 1000 if abs(number) < 10_000_000_000 else number
+    return parsed.astimezone(timezone.utc)
 
 
-def _now_ms() -> int:
-    return int(datetime.now(tz=timezone.utc).timestamp() * 1000)
+def _strict_utc_ms(value: Any) -> int | None:
+    parsed = _strict_utc_datetime(value)
+    if parsed is None:
+        return None
+    return int(parsed.timestamp() * 1000)
+
+
+def _iso_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
 
 
 def _kline_close_ms(row: Any) -> int | None:
     if isinstance(row, Mapping):
-        return _parse_ms(
+        return _strict_utc_ms(
             _first_present(
                 row.get("close_time"),
                 row.get("candle_close_time"),
@@ -753,82 +775,363 @@ def _kline_close_ms(row: Any) -> int | None:
             )
         )
     if isinstance(row, (list, tuple)) and len(row) >= 7:
-        return _parse_ms(row[6])
+        return _strict_utc_ms(row[6])
     return None
 
 
-def _binance_row_to_mapping(row: tuple[Any, ...] | list[Any]) -> Mapping[str, Any]:
-    return {
-        "open": row[1],
-        "high": row[2],
-        "low": row[3],
-        "close": row[4],
-        "volume": row[5],
-        "close_time": row[6],
-        "quote_volume": row[7],
-        "num_trades": row[8],
-        "taker_buy_base_vol": row[9],
-        "taker_buy_quote_vol": row[10],
-        "candle_closed_confirmed": True,
-    }
+def _latest_kline(
+    ohlcv: Any,
+    *,
+    decision_time_ms: int,
+) -> tuple[Mapping[str, Any], tuple[str, ...]]:
+    """Return the newest candle whose finality is independently provable.
 
+    A producer boolean is only an assertion. It is accepted only together with
+    a strict-aware close clock that is not after the observation/decision
+    cutoff. Raw Binance arrays carry no explicit finality assertion and are
+    therefore never promoted to closed candles in this consumer.
+    """
 
-def _latest_kline(ohlcv: Any) -> Mapping[str, Any]:
-    allow_unknown = os.environ.get("PIPELINE_TRUST_ALLOW_UNKNOWN_KLINE_FINALITY", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }
     if isinstance(ohlcv, Mapping):
+        candidates: tuple[Any, ...] = (ohlcv,)
+    elif isinstance(ohlcv, list):
+        candidates = tuple(reversed(ohlcv))
+    else:
+        candidates = ()
+    if not candidates:
+        return {}, ()
+
+    reasons: list[str] = []
+    for candidate in candidates:
+        if not isinstance(candidate, Mapping):
+            reasons.append("OHLCV_FINALITY_UNKNOWN")
+            continue
         finality = _first_present(
-            ohlcv.get("closed_candle"),
-            ohlcv.get("is_closed"),
-            ohlcv.get("candle_closed_confirmed"),
+            candidate.get("closed_candle"),
+            candidate.get("is_closed"),
+            candidate.get("candle_closed_confirmed"),
         )
-        if finality is not True and not allow_unknown:
-            return {}
-        return ohlcv
-    if isinstance(ohlcv, list) and ohlcv:
-        selected = None
-        for candidate in reversed(ohlcv):
-            if isinstance(candidate, Mapping):
-                finality = _first_present(
-                    candidate.get("closed_candle"),
-                    candidate.get("is_closed"),
-                    candidate.get("candle_closed_confirmed"),
-                )
-                if finality is True:
-                    selected = candidate
-                    break
+        if finality is not True:
+            reasons.append("OHLCV_FINALITY_NOT_CONFIRMED")
+            continue
+        close_time_ms = _kline_close_ms(candidate)
+        if close_time_ms is None:
+            reasons.append("OHLCV_CLOSE_TIME_NOT_STRICT_UTC")
+            continue
+        if close_time_ms > decision_time_ms:
+            reasons.append("OHLCV_CLOSE_TIME_AFTER_DECISION_TIME")
+            continue
+        return candidate, tuple(sorted(set(reasons)))
+    return {}, tuple(sorted(set(reasons)))
+
+
+_SOURCE_CLOCK_FIELDS: tuple[str, ...] = (
+    "event_time",
+    "source_event_time",
+    "ingested_at",
+    "received_at",
+    "source_received_time",
+    "available_at",
+    "source_available_time",
+    "generated_at",
+    "generated_utc",
+    "feature_cutoff",
+    "decision_time",
+    "execution_time",
+)
+_FRESHNESS_FIELDS: tuple[str, ...] = (
+    "freshness_state",
+    "feature_freshness_state",
+    "freshness_flag",
+    "is_fresh",
+    "fresh",
+)
+
+_SOURCE_LABELS_BY_PAYLOAD: dict[str, tuple[str, ...]] = {
+    "prices": ("v2:market:prices",),
+    "ohlcv": ("v2:market:ohlcv",),
+    "orderbook": ("v2:market:orderbook", "v2:orderbook:features"),
+    "funding": ("v2:market:funding",),
+    "open_interest": ("v2:market:open_interest",),
+    "open_interest_hist": ("v2:market:open_interest_hist",),
+    "long_short": ("v2:market:long_short",),
+    "features_latest": ("v2:features:latest",),
+    "features_ta": ("v2:features:ta",),
+    "features_ta_full": ("v2:features:ta_full",),
+    "ta_full_htf_1h": ("v2:features:ta_full:1h",),
+    "technical_analysis": ("v2:features:ta",),
+    "liquidations": ("v2:liquidations:events",),
+    "liquidations_agg": ("v2:market:liquidations:aggregate",),
+    "liquidation_levels": (
+        "v2:market:liquidation_levels",
+        "v2:liquidations:levels",
+    ),
+    "liquidity_zones": ("v2:market:liquidity_zones",),
+    "fvg": ("v2:market:fvg",),
+    "market_structure": ("v2:market:structure",),
+    "structure": ("v2:market:structure",),
+    "sweep_risk": ("v2:market:sweep_risk",),
+    "vwap_features": ("v2:market:vwap",),
+    "volume_profile": ("v2:market:volume_profile",),
+    "cvd_features": ("v2:market:cvd",),
+    "trade_tape": ("v2:market:trade_tape_features",),
+    "trade_tape_features": ("v2:market:trade_tape_features",),
+    "advanced_trade_tape": ("v2:market:trade_tape_features",),
+    "microstructure": (
+        "v2:market:microstructure",
+        "v2:microstructure:adversarial_features",
+        "v2:microstructure:cross_venue_confirmation",
+        "v2:microstructure:feed_quality",
+        "v2:microstructure:sweep_risk",
+        "v2:microstructure:trade_tape_confirmation",
+    ),
+    "microstructure_trust": ("v2:microstructure:trust_score",),
+    "cascade_context": ("v2:microstructure:cascade_context",),
+    "symbol_score": ("v2:altdata:symbol_score",),
+    "public_intel": ("v2:altdata:public_intel",),
+    "whale_walls": ("v2:altdata:whale_walls",),
+    "moralis_features": ("v2:features:moralis",),
+    "smart_money_signals": ("v2:smart_money:signals",),
+    "altdata_confluence": ("v2:altdata:confluence",),
+    "provider_feature_context": ("provider_feature_bridge",),
+    "paper_positions": ("v2:paper:positions",),
+    "risk_decisions": ("v2:risk:decisions",),
+    "orchestrator_decisions": ("v2:orchestrator:decisions",),
+    "coinank_open_interest": ("latest:coinank:open_interest",),
+    "coinank_funding": ("latest:coinank:funding",),
+    "coinank_long_short": ("latest:coinank:long_short",),
+    "coinank_liquidations": ("latest:coinank:liquidations",),
+    "coinank_market_order_flow": ("latest:coinank:market_order_flow",),
+}
+
+
+def _resolve_decision_time(
+    payloads: Mapping[str, Any],
+    *,
+    decision_time: Any,
+) -> tuple[datetime, str]:
+    latest = payloads.get("features_latest")
+    prediction = payloads.get("prediction")
+    candidates: tuple[tuple[str, Any], ...] = (
+        ("argument.decision_time", decision_time),
+        ("payloads.decision_time", payloads.get("decision_time")),
+        ("payloads.observation_cutoff", payloads.get("observation_cutoff")),
+        ("features_latest.decision_time", _dig(latest, "decision_time")),
+        ("features_latest.decision_cutoff", _dig(latest, "decision_cutoff")),
+        ("prediction.decision_time", _dig(prediction, "decision_time")),
+    )
+    for source, raw in candidates:
+        if raw in (None, ""):
+            continue
+        parsed = _strict_utc_datetime(raw)
+        if parsed is None:
+            raise ValueError(f"{source}_not_strict_utc")
+        return parsed, source
+    # A live build with no recorded decision clock is an observation at this
+    # exact aware instant. Historical/replay producers are expected to carry a
+    # durable decision_time, which takes precedence above.
+    return datetime.now(tz=timezone.utc), "builder.observed_at"
+
+
+def _source_temporal_state(
+    *,
+    payload_name: str,
+    payload: Any,
+    decision_time: datetime,
+    require_available_at: bool = False,
+    available_at_override: Any = None,
+    _seen_ids: set[int] | None = None,
+) -> tuple[int | None, tuple[str, ...]]:
+    seen_ids = set() if _seen_ids is None else set(_seen_ids)
+    if isinstance(payload, (Mapping, list, tuple)):
+        payload_id = id(payload)
+        if payload_id in seen_ids:
+            return None, (f"{payload_name.upper()}_NESTED_PAYLOAD_CYCLE",)
+        seen_ids.add(payload_id)
+
+    if isinstance(payload, (list, tuple)):
+        available_times: list[int] = []
+        row_reasons: list[str] = []
+        for row in payload:
+            if not isinstance(row, (Mapping, list, tuple)):
                 continue
-            if allow_unknown and isinstance(candidate, (list, tuple)) and len(candidate) >= 11:
-                selected = candidate
-                break
-        row = selected if selected is not None else ohlcv[-1]
-        if isinstance(row, Mapping):
-            finality = _first_present(
-                row.get("closed_candle"),
-                row.get("is_closed"),
-                row.get("candle_closed_confirmed"),
+            available_ms, reasons = _source_temporal_state(
+                payload_name=payload_name,
+                payload=row,
+                decision_time=decision_time,
+                require_available_at=require_available_at,
+                available_at_override=available_at_override,
+                _seen_ids=seen_ids,
             )
-            if finality is not True and not allow_unknown:
-                return {}
-            return row
-        if isinstance(row, (list, tuple)) and len(row) >= 11:
-            if not allow_unknown:
-                return {}
-            return {
-                "open": row[1],
-                "high": row[2],
-                "low": row[3],
-                "close": row[4],
-                "volume": row[5],
-                "quote_volume": row[7],
-                "num_trades": row[8],
-                "taker_buy_base_vol": row[9],
-                "taker_buy_quote_vol": row[10],
-            }
-    return {}
+            if available_ms is not None:
+                available_times.append(available_ms)
+            row_reasons.extend(reasons)
+        unique = tuple(sorted(set(row_reasons)))
+        return (max(available_times) if available_times and not unique else None, unique)
+    if not isinstance(payload, Mapping) or not payload:
+        return None, ()
+
+    prefix = payload_name.upper()
+    parsed_clocks: dict[str, datetime] = {}
+    reasons: list[str] = []
+    for field in _SOURCE_CLOCK_FIELDS:
+        raw = payload.get(field)
+        if raw in (None, ""):
+            continue
+        parsed = _strict_utc_datetime(raw)
+        if parsed is None:
+            reasons.append(f"{prefix}_{field.upper()}_NOT_STRICT_UTC")
+            continue
+        parsed_clocks[field] = parsed
+        if parsed > decision_time:
+            reasons.append(f"{prefix}_{field.upper()}_AFTER_DECISION_TIME")
+
+    literal_available = parsed_clocks.get("available_at")
+    available = literal_available or parsed_clocks.get("source_available_time")
+    if available is None and available_at_override not in (None, ""):
+        override = _strict_utc_datetime(available_at_override)
+        if override is None:
+            reasons.append(f"{prefix}_AVAILABLE_AT_OVERRIDE_NOT_STRICT_UTC")
+        else:
+            available = override
+            if override > decision_time:
+                reasons.append(f"{prefix}_AVAILABLE_AT_AFTER_DECISION_TIME")
+    if require_available_at and available is None:
+        reasons.append(f"{prefix}_AVAILABLE_AT_MISSING")
+
+    freshness_asserted = any(field in payload for field in _FRESHNESS_FIELDS)
+    if freshness_asserted and available is None:
+        reasons.append(f"{prefix}_AVAILABLE_AT_MISSING_FOR_FRESHNESS_FLAG")
+    if available is not None and available > decision_time:
+        reasons.append(f"{prefix}_AVAILABLE_AT_AFTER_DECISION_TIME")
+
+    event = parsed_clocks.get("event_time") or parsed_clocks.get("source_event_time")
+    ingested = parsed_clocks.get("ingested_at") or parsed_clocks.get("received_at")
+    if event is not None and ingested is not None and event > ingested:
+        reasons.append(f"{prefix}_EVENT_TIME_AFTER_INGESTED_AT")
+    if event is not None and available is not None and event > available:
+        reasons.append(f"{prefix}_EVENT_TIME_AFTER_AVAILABLE_AT")
+    if ingested is not None and available is not None and ingested > available:
+        reasons.append(f"{prefix}_INGESTED_AT_AFTER_AVAILABLE_AT")
+    generated = parsed_clocks.get("generated_at") or parsed_clocks.get("generated_utc")
+    if generated is not None and available is not None and generated > available:
+        reasons.append(f"{prefix}_GENERATED_AT_AFTER_AVAILABLE_AT")
+    feature_cutoff = parsed_clocks.get("feature_cutoff")
+    if feature_cutoff is not None and feature_cutoff > decision_time:
+        reasons.append(f"{prefix}_FEATURE_CUTOFF_AFTER_DECISION_TIME")
+
+    # A causal wrapper availability clock is a conservative upper bound for
+    # nested values that do not publish their own availability. Nested clocks
+    # still have to be strict, causally ordered, and no later than the decision.
+    # This closes bridge payloads whose selected row carried a future event_time
+    # underneath an otherwise causal top-level wrapper.
+    for key, nested in payload.items():
+        if key in _SOURCE_CLOCK_FIELDS or key in _FRESHNESS_FIELDS:
+            continue
+        if not isinstance(nested, (Mapping, list, tuple)):
+            continue
+        _nested_available_ms, nested_reasons = _source_temporal_state(
+            payload_name=payload_name,
+            payload=nested,
+            decision_time=decision_time,
+            require_available_at=require_available_at,
+            available_at_override=available,
+            _seen_ids=seen_ids,
+        )
+        reasons.extend(nested_reasons)
+
+    unique = tuple(sorted(set(reasons)))
+    return (
+        int(available.timestamp() * 1000) if available is not None and not unique else None,
+        unique,
+    )
+
+
+def _canonical_json_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            str(key): _canonical_json_value(item)
+            for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_canonical_json_value(item) for item in value]
+    if isinstance(value, (set, frozenset)):
+        return sorted((_canonical_json_value(item) for item in value), key=repr)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def _is_lineage_key(key: str) -> bool:
+    lowered = key.lower()
+    return (
+        lowered
+        in {
+            "source",
+            "provider",
+            "venue",
+            "exchange",
+            "schema_version",
+            "source_hashes",
+            "source_ids",
+            "source_lineage",
+            "source_availability",
+            "provenance",
+            "lineage",
+            "missing_feature_flags",
+            "stale_feature_flags",
+            "missing_mask",
+            "stale_mask",
+        }
+        or lowered in _SOURCE_CLOCK_FIELDS
+        or lowered in _FRESHNESS_FIELDS
+        or lowered.endswith(("_hash", "_sha256", "_id", "_at", "_time", "_utc"))
+    )
+
+
+def _lineage_projection(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        projected = {
+            str(key): _canonical_json_value(item)
+            for key, item in value.items()
+            if _is_lineage_key(str(key))
+        }
+        return {
+            key: projected[key]
+            for key in sorted(projected)
+        }
+    if isinstance(value, (list, tuple)):
+        rows = [_lineage_projection(item) for item in value]
+        return [row for row in rows if row]
+    return None
+
+
+def _source_lineage_material(payloads: Mapping[str, Any]) -> dict[str, Any]:
+    projected: dict[str, Any] = {}
+    for payload_name, payload in payloads.items():
+        if str(payload_name).startswith("_"):
+            continue
+        item = _lineage_projection(payload)
+        if item:
+            projected[str(payload_name)] = item
+    keys = payloads.get("_keys")
+    if isinstance(keys, Mapping):
+        projected["_keys"] = _canonical_json_value(keys)
+    return projected
+
+
+def _sha256_json(value: Any) -> str:
+    encoded = json.dumps(
+        _canonical_json_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _oi_change_pct(open_interest_hist: Any) -> float | None:
@@ -1026,15 +1329,110 @@ class V2UnifiedFeatureTensorBuilder:
         symbol: str,
         timeframe: str,
         payloads: Mapping[str, Any],
+        decision_time: Any = None,
     ) -> FeatureTensorRecord:
+        resolved_decision_time, decision_time_source = _resolve_decision_time(
+            payloads,
+            decision_time=decision_time,
+        )
+        decision_time_ms = int(resolved_decision_time.timestamp() * 1000)
+        temporal_reasons: list[str] = []
+        invalid_source_labels: set[str] = set()
+        invalid_payload_names: set[str] = set()
+        source_payloads = payloads
+
+        # Validate every mapped feature-bearing payload before any value is
+        # selected. Replacing an invalid payload as a unit prevents a value from
+        # escaping through a fallback whose static FEATURE_SPEC label names a
+        # different source (for example liquidity_zones -> sweep_risk).
+        for payload_name, source_labels in _SOURCE_LABELS_BY_PAYLOAD.items():
+            if payload_name in {"ohlcv", "orderbook"}:
+                continue
+            _available_ms, reasons = _source_temporal_state(
+                payload_name=payload_name,
+                payload=source_payloads.get(payload_name),
+                decision_time=resolved_decision_time,
+                require_available_at=True,
+            )
+            if reasons:
+                temporal_reasons.extend(reasons)
+                invalid_source_labels.update(source_labels)
+                invalid_payload_names.add(payload_name)
+
+        raw_provider_features = source_payloads.get("provider_features")
+        if isinstance(raw_provider_features, Mapping) and raw_provider_features:
+            # Top-level provider_features has no identity-bound source context
+            # and is never an admissible bridge, even if it happens to contain
+            # numeric values. Only provider_feature_context is read below.
+            temporal_reasons.append("PROVIDER_FEATURES_RAW_CONTEXT_REQUIRED")
+
+        validated_payloads = dict(source_payloads)
+        for payload_name in invalid_payload_names:
+            validated_payloads[payload_name] = {}
+
+        latest = validated_payloads.get("features_latest")
+        latest_features = latest.get("features") if isinstance(latest, Mapping) else None
+
+        ohlcv, candle_reasons = _latest_kline(
+            source_payloads.get("ohlcv"),
+            decision_time_ms=decision_time_ms,
+        )
+        temporal_reasons.extend(candle_reasons)
+        if candle_reasons and not ohlcv:
+            invalid_source_labels.add("v2:market:ohlcv")
+        _ohlcv_available_ms, ohlcv_clock_reasons = _source_temporal_state(
+            payload_name="ohlcv",
+            payload=ohlcv,
+            decision_time=resolved_decision_time,
+            require_available_at=True,
+        )
+        if ohlcv_clock_reasons:
+            temporal_reasons.extend(ohlcv_clock_reasons)
+            invalid_source_labels.add("v2:market:ohlcv")
+            ohlcv = {}
+
+        raw_orderbook = source_payloads.get("orderbook")
+        orderbook_available_override = None
+        if (
+            isinstance(raw_orderbook, Mapping)
+            and isinstance(latest, Mapping)
+            and isinstance(latest_features, Mapping)
+            and dict(raw_orderbook) == dict(latest_features)
+            and isinstance(latest.get("source_hashes"), Mapping)
+            and bool(latest.get("source_hashes"))
+        ):
+            # Durable replay stores the captured feature vector plus aggregate
+            # snapshot availability and immutable source hashes. Only that
+            # exact value-equal representation may inherit the snapshot clock.
+            orderbook_available_override = latest.get("available_at")
+        orderbook_available_ms, orderbook_clock_reasons = _source_temporal_state(
+            payload_name="orderbook",
+            payload=raw_orderbook,
+            decision_time=resolved_decision_time,
+            require_available_at=True,
+            available_at_override=orderbook_available_override,
+        )
+        if orderbook_clock_reasons:
+            temporal_reasons.extend(orderbook_clock_reasons)
+            invalid_source_labels.update(
+                {"v2:market:orderbook", "v2:orderbook:features"}
+            )
+            orderbook: Any = {}
+        else:
+            orderbook = raw_orderbook
+
+        validated_payloads["ohlcv"] = ohlcv
+        validated_payloads["orderbook"] = orderbook
+        payloads = validated_payloads
+
+        # All references below are derived only from the sanitized payload map.
         latest = payloads.get("features_latest")
         latest_features = latest.get("features") if isinstance(latest, Mapping) else None
         ta = payloads.get("features_ta")
         ta_indicators = ta.get("indicators") if isinstance(ta, Mapping) else None
         ta_full = payloads.get("features_ta_full")
         technical_analysis = payloads.get("technical_analysis")
-        ohlcv = _latest_kline(payloads.get("ohlcv"))
-        orderbook = payloads.get("orderbook")
+
         micro = payloads.get("microstructure")
         liquidation_levels = payloads.get("liquidation_levels")
         liquidity_zones = payloads.get("liquidity_zones")
@@ -1120,15 +1518,11 @@ class V2UnifiedFeatureTensorBuilder:
         ask_px, ask_qty = _best_book_side(orderbook, "ask")
         mid = None if bid_px is None or ask_px is None else (bid_px + ask_px) / 2.0
         spread_bps = None if bid_px is None or ask_px is None or bid_px <= 0 else ((ask_px - bid_px) / bid_px) * 10000.0
-        orderbook_available_ms = _parse_ms(
-            _first_present(
-                _dig(orderbook, "available_at"),
-                _dig(orderbook, "received_at"),
-                _dig(orderbook, "generated_at"),
-                _dig(orderbook, "event_time"),
-            )
+        orderbook_update_age_ms = (
+            None
+            if orderbook_available_ms is None
+            else decision_time_ms - orderbook_available_ms
         )
-        orderbook_update_age_ms = None if orderbook_available_ms is None else max(0, _now_ms() - orderbook_available_ms)
         sequence_gap_raw = _first_present(
             _dig(micro, "sequence_gap_flag", "book_sequence_gap"),
             _dig(orderbook, "sequence_gap_flag"),
@@ -1257,7 +1651,10 @@ class V2UnifiedFeatureTensorBuilder:
             "depth_20_ask_usd": _dig(orderbook, "depth_20_ask_usd"),
             "depth_slope": _dig(orderbook, "depth_slope"),
             "estimated_price_impact_bps": _dig(orderbook, "estimated_price_impact_bps", "price_impact_bps"),
-            "update_age_ms": _first_present(_dig(orderbook, "update_age_ms"), orderbook_update_age_ms),
+            # Recompute age from immutable clocks. A producer-supplied age may
+            # have been measured at a different observation time and must not
+            # override point-in-time evidence here.
+            "update_age_ms": orderbook_update_age_ms,
             "sequence_gap_flag": sequence_gap_flag,
             "source_latency_ms": _dig(orderbook, "source_latency_ms"),
             "microstructure_trust_score": _first_present(
@@ -1711,10 +2108,21 @@ class V2UnifiedFeatureTensorBuilder:
         source_availability: list[int] = []
         missing_names: list[str] = []
         stale_names: list[str] = []
-        for name, source in FEATURE_SPEC:
+        resolved_source_labels = tuple(
+            coinank_sources.get(name)
+            or provider_sources.get(name)
+            or source
+            for name, source in FEATURE_SPEC
+        )
+        for (name, _source), resolved_source in zip(
+            FEATURE_SPEC,
+            resolved_source_labels,
+            strict=True,
+        ):
             val = _finite_float(raw_by_name.get(name))
-            missing = val is None
-            stale = name in stale_input_flags or latest_not_current
+            temporal_invalid = resolved_source in invalid_source_labels
+            missing = val is None or temporal_invalid
+            stale = name in stale_input_flags or latest_not_current or temporal_invalid
             values.append(0.0 if missing else float(val))
             missing_mask.append(1 if missing else 0)
             stale_mask.append(1 if stale else 0)
@@ -1731,9 +2139,32 @@ class V2UnifiedFeatureTensorBuilder:
             or _dig(ta, "feature_snapshot_id")
             or f"{symbol}:{timeframe}:no_feature_snapshot"
         )
-        tensor_id = "v2_hybrid_tensor_" + hashlib.sha256(
-            f"{symbol}|{timeframe}|{snapshot_id}|{values}|{missing_mask}|{stale_mask}".encode()
-        ).hexdigest()[:32]
+        normalized_temporal_reasons = tuple(sorted(set(temporal_reasons)))
+        source_lineage_material = {
+            "schema_version": "v2_feature_tensor_lineage_v2",
+            "symbol": str(symbol),
+            "timeframe": str(timeframe),
+            "feature_snapshot_id": snapshot_id,
+            "decision_time": _iso_utc(resolved_decision_time),
+            "decision_time_source": decision_time_source,
+            "source_labels": resolved_source_labels,
+            "source_payload_provenance": _source_lineage_material(source_payloads),
+            "temporal_rejection_reasons": normalized_temporal_reasons,
+        }
+        source_lineage_hash = _sha256_json(source_lineage_material)
+        tensor_id = "v2_hybrid_tensor_" + _sha256_json(
+            {
+                "schema_version": "v2_feature_tensor_identity_v2",
+                "symbol": str(symbol),
+                "timeframe": str(timeframe),
+                "feature_snapshot_id": snapshot_id,
+                "values": values,
+                "missing_mask": missing_mask,
+                "stale_mask": stale_mask,
+                "source_availability": source_availability,
+                "source_lineage_hash": source_lineage_hash,
+            }
+        )[:32]
         return FeatureTensorRecord(
             tensor_id=tensor_id,
             symbol=symbol,
@@ -1744,14 +2175,12 @@ class V2UnifiedFeatureTensorBuilder:
             stale_mask=tuple(stale_mask),
             source_availability=tuple(source_availability),
             feature_names=tuple(name for name, _ in FEATURE_SPEC),
-            source_labels=tuple(
-                coinank_sources.get(name)
-                or provider_sources.get(name)
-                or source
-                for name, source in FEATURE_SPEC
-            ),
+            source_labels=resolved_source_labels,
             missing_feature_names=tuple(missing_names),
             stale_feature_names=tuple(stale_names),
             data_coverage_percent=float(coverage),
             source_availability_vector=tuple(source_availability),
+            decision_time=_iso_utc(resolved_decision_time),
+            source_lineage_hash=source_lineage_hash,
+            temporal_rejection_reasons=normalized_temporal_reasons,
         )

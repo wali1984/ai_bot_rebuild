@@ -25,10 +25,15 @@ from v2.backend.app.services.paper_trade_management.lifecycle import (
 from v2.backend.app.services.paper_trade_management.outcomes import (
     FUNDING_PNL_ACCOUNTING_FORMULA,
     FUNDING_PNL_ACCOUNTING_VERSION,
+    OUTCOME_AVAILABILITY_SCHEMA_VERSION,
+    OUTCOME_AVAILABILITY_SOURCE,
     build_close_event,
+    capture_close_outcome_availability,
 )
 from v2.backend.app.services.paper_trade_management.position_state import (
     ADAPTIVE_CAPITAL_POLICY_VERSION,
+    maintenance_bracket_evidence_from_payload,
+    parse_aware_utc,
     position_from_fill,
 )
 from v2.backend.app.services.trade_lifecycle_guard import (
@@ -77,6 +82,41 @@ def _fill(
         "trainer_source": "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW",
         "timeframe": timeframe,
         "paper_fill_allowed": True,
+        "maintenance_margin_rate": 0.005,
+    }
+
+
+_TEST_BRACKET_CHECKSUM = "a" * 64
+_TEST_BRACKET_HMAC = "b" * 64
+_TEST_BRACKET_BINDING = "mainnet:paper-test-trader:PAPER_TEST_READONLY"
+
+
+def _maintenance_bracket_evidence(
+    *,
+    bracket_id: int = 1,
+    ratio: float = 0.005,
+    cum: float = 0.0,
+    max_initial_leverage: float = 20.0,
+    available_at: str = "2026-06-11T09:59:30Z",
+    expires_at: str = "2026-06-11T10:10:00Z",
+    consumer_observed_at: str = "2026-06-11T10:00:00Z",
+) -> dict:
+    return {
+        "prevalidated": True,
+        "bracket_id": bracket_id,
+        "maint_margin_ratio": ratio,
+        "cum": cum,
+        "max_initial_leverage": max_initial_leverage,
+        "evidence_hash": _TEST_BRACKET_CHECKSUM,
+        "evidence_checksum_sha256": _TEST_BRACKET_CHECKSUM,
+        "evidence_hmac_sha256": _TEST_BRACKET_HMAC,
+        "binding": _TEST_BRACKET_BINDING,
+        "environment_id": "mainnet",
+        "key_id": "unit-key",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET",
+        "available_at": available_at,
+        "expires_at": expires_at,
+        "consumer_observed_at": consumer_observed_at,
     }
 
 
@@ -290,6 +330,152 @@ def _position(fill_id: str, *, price: float = 100.0):
     )
 
 
+def test_close_builder_keeps_entry_and_pending_outcome_availability_distinct() -> None:
+    close_event, outcome = build_close_event(
+        position=_position("outcome-time-builder"),
+        close_quantity=1.0,
+        exit_price=101.0,
+        exit_time="2026-06-11T10:05:00Z",
+        close_reason="TEST_CLOSE",
+    )
+
+    for row in (close_event, outcome):
+        assert row["close_event_time"] == "2026-06-11T10:05:00Z"
+        assert parse_aware_utc(row["outcome_generated_at"]) is not None
+        assert row["outcome_availability_schema_version"] == (
+            OUTCOME_AVAILABILITY_SCHEMA_VERSION
+        )
+        assert row["outcome_availability_status"] == (
+            "PENDING_LIFECYCLE_PUBLICATION"
+        )
+        assert "outcome_available_at" not in row
+        # This remains the entry feature's availability clock.  It must never
+        # be relabelled as post-close outcome availability.
+        assert row["available_at"] == "2026-06-11T09:59:30Z"
+
+
+def test_lifecycle_seals_new_close_outcome_availability_after_generation() -> None:
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="outcome-time-publish")],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=100.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    close_event = result["new_close_events"][0]
+    outcome = result["new_outcome_labels"][0]
+    for row in (close_event, outcome):
+        close_time = parse_aware_utc(row["close_event_time"])
+        generated_at = parse_aware_utc(row["outcome_generated_at"])
+        available_at = parse_aware_utc(row["outcome_available_at"])
+        assert close_time is not None
+        assert generated_at is not None
+        assert available_at is not None
+        assert close_time <= generated_at <= available_at
+        assert row["outcome_available_at_source"] == OUTCOME_AVAILABILITY_SOURCE
+        assert row["outcome_availability_status"] == "READY"
+        assert row["available_at"] == "2026-06-11T09:59:30Z"
+    assert close_event["outcome_generated_at"] == outcome["outcome_generated_at"]
+    assert close_event["outcome_available_at"] == outcome["outcome_available_at"]
+
+
+def test_outcome_availability_seal_fails_closed_on_invalid_pit_order() -> None:
+    close_event, outcome = build_close_event(
+        position=_position("outcome-time-order"),
+        close_quantity=1.0,
+        exit_price=101.0,
+        exit_time="2026-06-11T10:05:00Z",
+        close_reason="TEST_CLOSE",
+    )
+    for row in (close_event, outcome):
+        row["outcome_generated_at"] = "2026-06-11T10:05:02Z"
+
+    sealed_close, sealed_outcome, reasons = capture_close_outcome_availability(
+        close_event,
+        outcome,
+        outcome_available_at="2026-06-11T10:05:01Z",
+    )
+
+    assert reasons == ["OUTCOME_AVAILABLE_AT_BEFORE_OUTCOME_GENERATED_AT"]
+    assert "outcome_available_at" not in sealed_close
+    assert "outcome_available_at" not in sealed_outcome
+
+
+def test_lifecycle_blocks_close_when_outcome_clock_precedes_close_event(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "v2.backend.app.services.paper_trade_management.outcomes._utc_now_iso_microseconds",
+        lambda: "2026-06-11T10:04:59Z",
+    )
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[_fill(fill_id="outcome-time-fail-closed")],
+        mark_prices={"BTCUSDT": 102.0},
+        generated_utc="2026-06-11T10:05:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exposure_caps=PaperExposureCaps(max_single_symbol_exposure_pct=0.05),
+            exit_config=PaperExitConfig(
+                take_profit_bps=100.0,
+                stop_loss_bps=99999.0,
+            ),
+        ),
+    )
+
+    assert result["new_close_events"] == []
+    assert result["new_outcome_labels"] == []
+    assert result["open_positions"][0]["symbol"] == "BTCUSDT"
+    block = result["paper_closed_trade_outcome_label_status"]["dirty_close_blocks"][0]
+    assert block["paper_outcome_availability_status"] == "BLOCKED"
+    assert block["paper_close_block_reasons"] == [
+        "OUTCOME_AVAILABLE_AT_BEFORE_CLOSE_EVENT_TIME",
+        "OUTCOME_GENERATED_AT_BEFORE_CLOSE_EVENT_TIME",
+    ]
+
+
+def test_lifecycle_does_not_backfill_outcome_availability_on_historical_rows() -> None:
+    historical_close = {
+        "close_id": "legacy-close-without-availability",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "exit_price_utc": "2026-06-10T10:05:00Z",
+        "realized_pnl_usd": 1.0,
+        "realized_net_pnl_usd": 0.9,
+    }
+    historical_outcome = {
+        "outcome_label_id": "legacy-outcome-without-availability",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "exit_time": "2026-06-10T10:05:00Z",
+        "realized_pnl_usd": 1.0,
+        "realized_net_pnl_usd": 0.9,
+    }
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [historical_close],
+            "outcome_labels": [historical_outcome],
+        },
+        accepted_fills=[],
+        generated_utc="2026-06-11T10:05:00Z",
+    )
+
+    assert "outcome_available_at" not in result["closed_trades"][0]
+    assert "outcome_generated_at" not in result["closed_trades"][0]
+    assert "outcome_available_at" not in result["outcome_labels"][0]
+    assert "outcome_generated_at" not in result["outcome_labels"][0]
+
+
 def test_active_runtime_exit_config_suppresses_static_stop_loss() -> None:
     position = _position("static_stop_disabled")
 
@@ -474,6 +660,17 @@ def test_closed_feedback_preserves_paper_execution_evidence() -> None:
     assert feedback["mark_price"] == pytest.approx(100.08)
     assert feedback["index_price"] == pytest.approx(100.0)
     for row in (close_event, outcome, feedback):
+        assert row["closed_entry_notional_usd"] == pytest.approx(100.0)
+        assert row["realized_gross_pnl_usd"] == pytest.approx(1.0)
+        assert row["fees_usd"] == pytest.approx(row["fees"])
+        assert row["slippage_usd"] == pytest.approx(row["slippage"])
+        assert row["funding_pnl_usd"] == pytest.approx(row["funding"])
+        assert row["realized_net_pnl_usd"] == pytest.approx(
+            row["realized_gross_pnl_usd"]
+            - row["fees_usd"]
+            - row["slippage_usd"]
+            + row["funding_pnl_usd"]
+        )
         assert row["production_grade_cost_flag"] is True
         assert row["production_grade_cost_evidence"] is True
         assert row["counts_as_production_grade_training_evidence"] is True
@@ -512,6 +709,710 @@ def test_same_symbol_repeated_long_nets_into_one_position() -> None:
     assert len(result["open_positions"]) == 1
     assert result["open_positions"][0]["net_quantity"] == 1.5
     assert result["paper_hedge_netting_status"]["same_side_netting_count"] == 1
+
+
+def test_position_from_fill_reconciles_notional_margin_and_leverage() -> None:
+    fill = _fill(fill_id="capital-reconcile", qty=2.0, price=50.0)
+    fill.update(
+        {
+            "gross_notional_usd": 250.0,
+            "allocated_margin_usd": 50.0,
+            "effective_leverage": 4.0,
+            "maintenance_margin_rate": 0.01,
+            "maintenance_margin_estimate": 99.0,
+            "liquidation_price_estimate": 1.0,
+            "liquidation_buffer_bps": 9999.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                ratio=0.01,
+            ),
+        }
+    )
+
+    position = position_from_fill(
+        fill,
+        fill_id="capital-reconcile",
+        side="long",
+        quantity=2.0,
+        price=50.0,
+    )
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert payload["gross_notional_usd"] == pytest.approx(100.0)
+    assert payload["allocated_margin_usd"] == pytest.approx(25.0)
+    assert payload["effective_leverage"] == pytest.approx(4.0)
+    assert payload["allocated_margin_usd"] * payload["effective_leverage"] == pytest.approx(
+        payload["gross_notional_usd"]
+    )
+    assert payload["maintenance_margin_estimate"] == pytest.approx(1.0)
+    assert payload["allocated_margin_usd_upstream"] == pytest.approx(50.0)
+    assert payload["capital_accounting_reconciled"] is True
+    assert "ALLOCATED_MARGIN_RECOMPUTED_FROM_NOTIONAL_LEVERAGE" in payload[
+        "capital_accounting_reconciliation_reasons"
+    ]
+
+
+def test_position_from_fill_never_promotes_recommended_to_executed_leverage() -> None:
+    fill = _fill(fill_id="recommendation-is-advisory", qty=2.0, price=50.0)
+    fill["recommended_leverage"] = 8.0
+
+    position = position_from_fill(
+        fill,
+        fill_id="recommendation-is-advisory",
+        side="long",
+        quantity=2.0,
+        price=50.0,
+    )
+
+    assert position.recommended_leverage == pytest.approx(8.0)
+    assert position.effective_leverage == pytest.approx(1.0)
+    assert position.allocated_margin_usd == pytest.approx(100.0)
+    assert position.leverage_source == "FAIL_CLOSED_1X_EXECUTED_LEVERAGE_MISSING"
+
+
+def test_position_from_fill_never_labels_isolated_liquidation_math_as_cross() -> None:
+    fill = _fill(fill_id="cross-margin-model-unavailable", qty=2.0, price=50.0)
+    fill.update(
+        {
+            "effective_leverage": 2.0,
+            "recommended_margin_mode": "cross_paper_simulated",
+            "margin_mode_simulated": "cross_paper_simulated",
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(),
+        }
+    )
+
+    position = position_from_fill(
+        fill,
+        fill_id="cross-margin-model-unavailable",
+        side="long",
+        quantity=2.0,
+        price=50.0,
+    )
+
+    assert position.recommended_margin_mode == "cross_paper_simulated"
+    assert position.margin_mode_simulated == "isolated_paper_simulated"
+    assert (
+        "CROSS_MARGIN_SIMULATION_DOWNGRADED_NO_ACCOUNT_WIDE_LIQUIDATION_MODEL"
+        in position.capital_accounting_reconciliation_reasons
+    )
+    assert position.liquidation_price_estimate is not None
+
+
+def test_position_from_fill_missing_maintenance_has_no_liquidation_estimate() -> None:
+    fill = _fill(fill_id="maintenance-missing", qty=1.0, price=100.0)
+    fill.pop("maintenance_margin_rate")
+
+    position = position_from_fill(
+        fill,
+        fill_id="maintenance-missing",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    position.recompute_capital_accounting()
+
+    assert position.maintenance_margin_rate is None
+    assert position.maintenance_margin_estimate is None
+    assert position.liquidation_price_estimate is None
+    assert position.liquidation_buffer_bps is None
+    assert "MAINTENANCE_BRACKET_EVIDENCE_MISSING_FAIL_CLOSED" in (
+        position.capital_accounting_reconciliation_reasons
+    )
+
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+    assert payload["maintenance_margin_estimate"] is None
+    assert payload["current_capital_accounting"]["maintenance_margin_estimate"] is None
+
+
+def test_missing_maintenance_cannot_be_reconstructed_from_legacy_zero_estimate() -> None:
+    fill = _fill(fill_id="maintenance-legacy-zero", qty=1.0, price=100.0)
+    fill.pop("maintenance_margin_rate")
+    fill["maintenance_margin_estimate"] = 0.0
+
+    position = position_from_fill(
+        fill,
+        fill_id="maintenance-legacy-zero",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    position.recompute_capital_accounting()
+    payload = position.to_payload(generated_utc="2026-06-11T10:01:00Z")
+
+    assert position.maintenance_margin_rate is None
+    assert position.maintenance_margin_estimate is None
+    assert position.liquidation_price_estimate is None
+    assert position.liquidation_buffer_bps is None
+    assert payload["maintenance_margin_estimate"] is None
+    assert payload["current_capital_accounting"]["maintenance_margin_estimate"] is None
+
+
+def test_same_side_netting_recomputes_aggregate_capital_state() -> None:
+    first = _fill(fill_id="aggregate-a", qty=1.0, price=100.0)
+    first.update(
+        {
+            "effective_leverage": 2.0,
+            "allocated_margin_usd": 500.0,
+            "maintenance_margin_rate": 0.005,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                bracket_id=1,
+                ratio=0.005,
+            ),
+        }
+    )
+    second = _fill(fill_id="aggregate-b", qty=1.0, price=100.0)
+    second.update(
+        {
+            "effective_leverage": 4.0,
+            "allocated_margin_usd": 500.0,
+            "maintenance_margin_rate": 0.01,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                bracket_id=2,
+                ratio=0.01,
+                max_initial_leverage=4.0,
+            ),
+        }
+    )
+
+    whole_position_bracket = _maintenance_bracket_evidence(
+        bracket_id=3,
+        ratio=0.006,
+        cum=0.2,
+        max_initial_leverage=3.0,
+        consumer_observed_at="2026-06-11T10:01:00Z",
+    )
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[first, second],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 100.0,
+                "maintenance_bracket_evidence": whole_position_bracket,
+            }
+        },
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=10000.0,
+            exit_config=PaperExitConfig(
+                take_profit_bps=99999.0,
+                stop_loss_bps=99999.0,
+                profit_bank_bps=99999.0,
+                profit_lock_bps=99999.0,
+            ),
+        ),
+    )
+
+    position = result["open_positions"][0]
+    assert position["net_quantity"] == pytest.approx(2.0)
+    assert position["avg_entry_price"] == pytest.approx(100.0)
+    assert position["gross_notional_usd"] == pytest.approx(200.0)
+    assert position["allocated_margin_usd"] == pytest.approx(75.0)
+    assert position["effective_leverage"] == pytest.approx(200.0 / 75.0)
+    assert position["allocated_margin_usd"] * position["effective_leverage"] == pytest.approx(
+        position["gross_notional_usd"]
+    )
+    assert position["maintenance_bracket_id"] == 3
+    assert position["maintenance_margin_rate"] == pytest.approx(0.006)
+    assert position["maintenance_margin_cum"] == pytest.approx(0.2)
+    assert position["maintenance_margin_notional_usd"] == pytest.approx(200.0)
+    assert position["maintenance_margin_estimate"] == pytest.approx(1.0)
+    assert position["liquidation_price_estimate"] is not None
+    assert position["liquidation_buffer_bps"] is not None
+    assert result["paper_hedge_netting_status"]["same_side_netting_count"] == 1
+
+
+def test_same_side_fill_uses_conservative_bracket_without_weighting_rates() -> None:
+    first_fill = _fill(fill_id="tier-fill-a", qty=1.0, price=100.0)
+    first_fill.update(
+        {
+            "effective_leverage": 2.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                bracket_id=1,
+                ratio=0.005,
+            ),
+        }
+    )
+    second_fill = _fill(fill_id="tier-fill-b", qty=1.0, price=100.0)
+    second_fill.update(
+        {
+            "effective_leverage": 4.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                bracket_id=2,
+                ratio=0.01,
+                max_initial_leverage=4.0,
+            ),
+        }
+    )
+    position = position_from_fill(
+        first_fill,
+        fill_id="tier-fill-a",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    incoming = position_from_fill(
+        second_fill,
+        fill_id="tier-fill-b",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    position.apply_same_side_fill(
+        fill_id="tier-fill-b",
+        quantity=1.0,
+        price=100.0,
+        incoming_position=incoming,
+    )
+
+    assert position.maintenance_bracket_id == 2
+    assert position.maintenance_margin_rate == pytest.approx(0.01)
+    assert position.maintenance_margin_rate != pytest.approx(0.0075)
+    assert position.maintenance_margin_estimate == pytest.approx(2.0)
+    assert position.maintenance_bracket_evidence_status == (
+        "READY_CONSERVATIVE_SAME_SIDE_FILL"
+    )
+    assert position.allocated_margin_usd * position.effective_leverage == pytest.approx(
+        position.gross_notional_usd
+    )
+
+
+def test_mark_tier_boundary_reselects_whole_position_bracket_and_uses_cum() -> None:
+    fill = _fill(fill_id="tier-boundary", qty=5.0, price=99.0)
+    fill.update(
+        {
+            "effective_leverage": 2.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                bracket_id=1,
+                ratio=0.004,
+            ),
+        }
+    )
+    position = position_from_fill(
+        fill,
+        fill_id="tier-boundary",
+        side="long",
+        quantity=5.0,
+        price=99.0,
+    )
+
+    position.update_mark(
+        mark_price=99.99,
+        mark_time="2026-06-11T10:01:00Z",
+        maintenance_bracket_evidence=_maintenance_bracket_evidence(
+            bracket_id=1,
+            ratio=0.004,
+            consumer_observed_at="2026-06-11T10:01:00Z",
+        ),
+    )
+    assert position.maintenance_margin_notional_usd == pytest.approx(499.95)
+    assert position.maintenance_margin_estimate == pytest.approx(1.9998)
+
+    position.update_mark(
+        mark_price=100.0,
+        mark_time="2026-06-11T10:02:00Z",
+        maintenance_bracket_evidence=_maintenance_bracket_evidence(
+            bracket_id=2,
+            ratio=0.01,
+            cum=3.0,
+            max_initial_leverage=3.0,
+            consumer_observed_at="2026-06-11T10:02:00Z",
+        ),
+    )
+    assert position.maintenance_bracket_id == 2
+    assert position.maintenance_margin_notional_usd == pytest.approx(500.0)
+    assert position.maintenance_margin_estimate == pytest.approx(2.0)
+    # Entry-basis capital does not drift with the mark-basis maintenance tier.
+    assert position.gross_notional_usd == pytest.approx(495.0)
+    assert position.allocated_margin_usd == pytest.approx(247.5)
+    assert position.allocated_margin_usd * position.effective_leverage == pytest.approx(
+        position.gross_notional_usd
+    )
+
+
+def test_maintenance_bracket_roundtrip_and_lifecycle_restart() -> None:
+    fill = _fill(fill_id="bracket-restart", qty=2.0, price=100.0)
+    fill.update(
+        {
+            "effective_leverage": 2.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                ratio=0.006,
+                cum=0.25,
+            ),
+        }
+    )
+    mark_evidence = _maintenance_bracket_evidence(
+        ratio=0.006,
+        cum=0.25,
+        consumer_observed_at="2026-06-11T10:01:00Z",
+    )
+    first = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 101.0,
+                "maintenance_bracket_evidence": mark_evidence,
+            }
+        },
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+    persisted = first["open_positions"][0]
+    assert persisted["maintenance_bracket_evidence"]["binding"] == (
+        _TEST_BRACKET_BINDING
+    )
+    assert persisted["maintenance_bracket_evidence_hash"] == (
+        _TEST_BRACKET_CHECKSUM
+    )
+
+    restarted = reconcile_paper_lifecycle(
+        existing_ledger=first,
+        accepted_fills=[fill],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 102.0,
+                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                    ratio=0.006,
+                    cum=0.25,
+                    consumer_observed_at="2026-06-11T10:02:00Z",
+                ),
+            }
+        },
+        generated_utc="2026-06-11T10:02:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+    restored = restarted["open_positions"][0]
+    assert restored["maintenance_bracket_id"] == 1
+    assert restored["maintenance_bracket_maint_margin_ratio"] == pytest.approx(0.006)
+    assert restored["maintenance_bracket_cum"] == pytest.approx(0.25)
+    assert restored["maintenance_bracket_max_initial_leverage"] == pytest.approx(20.0)
+    assert restored["maintenance_bracket_source"].startswith("BINANCE_USDM")
+    assert restored["maintenance_bracket_available_at"] == "2026-06-11T09:59:30Z"
+    assert restored["maintenance_bracket_expires_at"] == "2026-06-11T10:10:00Z"
+    assert restored["maintenance_margin_notional_usd"] == pytest.approx(204.0)
+    assert restored["maintenance_margin_estimate"] == pytest.approx(0.974)
+
+    position = position_from_fill(
+        fill,
+        fill_id="bracket-close-lineage",
+        side="long",
+        quantity=2.0,
+        price=100.0,
+    )
+    position.update_mark(
+        mark_price=102.0,
+        mark_time="2026-06-11T10:02:00Z",
+        maintenance_bracket_evidence=_maintenance_bracket_evidence(
+            ratio=0.006,
+            cum=0.25,
+            consumer_observed_at="2026-06-11T10:02:00Z",
+        ),
+    )
+    close_event, outcome = build_close_event(
+        position=position,
+        close_quantity=2.0,
+        exit_price=102.0,
+        exit_time="2026-06-11T10:03:00Z",
+        close_reason="UNIT_BRACKET_LINEAGE_CLOSE",
+    )
+    for payload in (close_event, outcome):
+        assert payload["maintenance_margin_rate"] == pytest.approx(0.006)
+        assert payload["maintenance_margin_cum"] == pytest.approx(0.25)
+        assert payload["maintenance_bracket_id"] == 1
+        assert payload["maintenance_bracket_evidence_hash"] == (
+            _TEST_BRACKET_CHECKSUM
+        )
+        assert payload["maintenance_bracket_binding"] == (
+            _TEST_BRACKET_BINDING
+        )
+        assert payload["maintenance_bracket_environment_id"] == "mainnet"
+        assert payload["maintenance_bracket_evidence_status"] == "READY"
+
+
+def test_authenticated_bracket_drives_tier_zero_near_liquidation_exit() -> None:
+    fill = _fill(fill_id="bracket-tier-zero", qty=10.0, price=100.0)
+    fill.update(
+        {
+            "effective_leverage": 10.0,
+            "allocated_margin_usd": 100.0,
+            "gross_notional_usd": 1000.0,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                ratio=0.005,
+                cum=0.0,
+            ),
+        }
+    )
+    mark_evidence = _maintenance_bracket_evidence(
+        ratio=0.005,
+        cum=0.0,
+        consumer_observed_at="2026-06-11T10:01:00Z",
+    )
+    result = reconcile_paper_lifecycle(
+        existing_ledger={},
+        accepted_fills=[fill],
+        mark_prices={
+            "BTCUSDT": {
+                "price": 91.0,
+                "maintenance_bracket_evidence": mark_evidence,
+            }
+        },
+        generated_utc="2026-06-11T10:01:00Z",
+        config=PaperLifecycleConfig(
+            portfolio_equity_usdt=100000.0,
+            exit_config=PaperExitConfig(
+                emergency_liquidation_distance_bps=250.0,
+                min_hold_seconds=0,
+                static_stop_loss_enabled=False,
+                static_take_profit_enabled=False,
+            ),
+        ),
+    )
+
+    evaluations = result["paper_exit_coordinator_status"]["evaluations"]
+    assert len(evaluations) == 1
+    assert evaluations[0]["should_close"] is True
+    assert evaluations[0]["close_reason"] == (
+        "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE"
+    )
+    assert evaluations[0]["current_liquidation_distance_bps"] <= 250.0
+    assert result["new_close_events"][0]["close_reason"] == (
+        "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE"
+    )
+
+
+def test_missing_or_stale_mark_bracket_makes_maintenance_and_liquidation_unknown() -> None:
+    fill = _fill(fill_id="bracket-missing-at-mark", qty=1.0, price=100.0)
+    fill["maintenance_bracket_evidence"] = _maintenance_bracket_evidence()
+    position = position_from_fill(
+        fill,
+        fill_id="bracket-missing-at-mark",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+
+    position.update_mark(
+        mark_price=101.0,
+        mark_time="2026-06-11T10:01:00Z",
+        maintenance_bracket_evidence=None,
+    )
+    assert position.maintenance_margin_rate is None
+    assert position.maintenance_margin_estimate is None
+    assert position.liquidation_price_estimate is None
+    assert position.liquidation_buffer_bps is None
+    assert position.maintenance_bracket_id == 1
+    assert position.maintenance_bracket_evidence_status == "MISSING_FOR_CURRENT_MARK"
+
+    position.update_mark(
+        mark_price=102.0,
+        mark_time="2026-06-11T10:02:00Z",
+        maintenance_bracket_evidence=_maintenance_bracket_evidence(
+            bracket_id=2,
+            ratio=0.01,
+            cum=3.0,
+            expires_at="2026-06-11T10:01:59Z",
+            consumer_observed_at="2026-06-11T10:01:00Z",
+        ),
+    )
+    assert position.maintenance_margin_estimate is None
+    assert position.liquidation_price_estimate is None
+    assert position.maintenance_bracket_id == 2
+    assert position.maintenance_bracket_evidence_status == "STALE_AT_MARK"
+
+
+@pytest.mark.parametrize(
+    ("remove_field", "overrides"),
+    (
+        ("evidence_hmac_sha256", {}),
+        (None, {"evidence_hmac_sha256": "B" * 64}),
+        (None, {"evidence_hash": "c" * 64}),
+        (None, {"binding": "testnet:paper-test-trader:PAPER_TEST_READONLY"}),
+        (None, {"source": "UNTRUSTED_BRACKET_SOURCE"}),
+    ),
+    ids=(
+        "missing-hmac",
+        "noncanonical-hmac",
+        "checksum-hash-mismatch",
+        "environment-binding-mismatch",
+        "wrong-source",
+    ),
+)
+def test_mark_bracket_rejects_missing_or_tampered_provenance(
+    remove_field: str | None,
+    overrides: dict[str, object],
+) -> None:
+    fill = _fill(fill_id="bracket-provenance-adversarial")
+    fill["maintenance_bracket_evidence"] = _maintenance_bracket_evidence()
+    position = position_from_fill(
+        fill,
+        fill_id="bracket-provenance-adversarial",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    evidence = _maintenance_bracket_evidence(
+        consumer_observed_at="2026-06-11T10:01:00Z"
+    )
+    if remove_field is not None:
+        evidence.pop(remove_field)
+    evidence.update(overrides)
+
+    position.update_mark(
+        mark_price=101.0,
+        mark_time="2026-06-11T10:01:00Z",
+        maintenance_bracket_evidence=evidence,
+    )
+
+    assert position.maintenance_bracket_evidence_status == "INVALID"
+    assert position.maintenance_margin_rate is None
+    assert position.maintenance_margin_estimate is None
+    assert position.liquidation_price_estimate is None
+    assert position.liquidation_buffer_bps is None
+
+
+def test_flattened_bracket_aliases_roundtrip_into_lifecycle_evidence() -> None:
+    flattened = {
+        "maintenance_bracket_id": 2,
+        "maintenance_bracket_prevalidated": True,
+        "maintenance_margin_rate": 0.01,
+        "maintenance_margin_cum": 3.0,
+        "maintenance_bracket_max_initial_leverage": 3.0,
+        "maintenance_bracket_evidence_checksum_sha256": _TEST_BRACKET_CHECKSUM,
+        "maintenance_bracket_evidence_hmac_sha256": _TEST_BRACKET_HMAC,
+        "maintenance_bracket_account_binding_id": _TEST_BRACKET_BINDING,
+        "maintenance_bracket_environment_id": "mainnet",
+        "maintenance_bracket_key_id": "unit-key",
+        "maintenance_bracket_source": (
+            "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET"
+        ),
+        "maintenance_margin_evidence_available_at": "2026-06-11T09:59:30Z",
+        "maintenance_bracket_expires_at": "2026-06-11T10:10:00Z",
+        "maintenance_bracket_consumer_observed_at": "2026-06-11T10:00:00Z",
+    }
+
+    evidence = maintenance_bracket_evidence_from_payload(flattened)
+
+    assert evidence is not None
+    assert evidence["binding"] == _TEST_BRACKET_BINDING
+    assert evidence["available_at"] == "2026-06-11T09:59:30Z"
+    assert evidence["evidence_checksum_sha256"] == _TEST_BRACKET_CHECKSUM
+    assert evidence["evidence_hmac_sha256"] == _TEST_BRACKET_HMAC
+
+    fill = _fill(fill_id="flattened-bracket-restart")
+    fill.update(flattened)
+    position = position_from_fill(
+        fill,
+        fill_id="flattened-bracket-restart",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    assert position.maintenance_bracket_evidence_status == "READY"
+    assert position.maintenance_margin_rate == pytest.approx(0.01)
+    assert position.liquidation_price_estimate is not None
+
+
+def test_selector_shaped_bracket_audit_record_normalizes_only_with_explicit_trust() -> None:
+    raw_selector = {
+        "prevalidated": True,
+        "selected_bracket": 2,
+        "maintenance_margin_rate": 0.01,
+        "maintenance_margin_cum": 3.0,
+        "max_initial_leverage": 3.0,
+        "content_checksum_sha256": _TEST_BRACKET_CHECKSUM,
+        "evidence_hmac_sha256": _TEST_BRACKET_HMAC,
+        "credential_binding_id": _TEST_BRACKET_BINDING,
+        "exchange_environment": "mainnet",
+        "evidence_auth_key_id": "unit-key",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET",
+        "available_at": "2026-06-11T09:59:30Z",
+        "expires_at": "2026-06-11T10:10:00Z",
+        "consumer_observed_at": "2026-06-11T10:00:00Z",
+    }
+
+    evidence = maintenance_bracket_evidence_from_payload(
+        {"paper_maintenance_margin_bracket_evidence": raw_selector}
+    )
+
+    assert evidence == {
+        "prevalidated": True,
+        "bracket_id": 2,
+        "maint_margin_ratio": 0.01,
+        "cum": 3.0,
+        "max_initial_leverage": 3.0,
+        "evidence_hash": _TEST_BRACKET_CHECKSUM,
+        "evidence_checksum_sha256": _TEST_BRACKET_CHECKSUM,
+        "evidence_hmac_sha256": _TEST_BRACKET_HMAC,
+        "binding": _TEST_BRACKET_BINDING,
+        "environment_id": "mainnet",
+        "key_id": "unit-key",
+        "source": "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET",
+        "available_at": "2026-06-11T09:59:30Z",
+        "expires_at": "2026-06-11T10:10:00Z",
+        "consumer_observed_at": "2026-06-11T10:00:00Z",
+    }
+
+    untrusted = dict(raw_selector)
+    untrusted.pop("prevalidated")
+    untrusted_evidence = maintenance_bracket_evidence_from_payload(
+        {"paper_maintenance_margin_bracket_evidence": untrusted}
+    )
+    assert untrusted_evidence is not None
+    assert untrusted_evidence["prevalidated"] is False
+
+
+def test_reopen_same_symbol_after_close_uses_new_position_generation() -> None:
+    old_fill = _fill(fill_id="reused-generation", qty=1.0, price=100.0)
+    old_position = position_from_fill(
+        old_fill,
+        fill_id="reused-generation",
+        side="long",
+        quantity=1.0,
+        price=100.0,
+    )
+    new_fill = _fill(fill_id="reused-generation", qty=1.0, price=101.0)
+    new_fill["fill_price_utc"] = "2026-06-11T10:06:00Z"
+    new_fill["generated_utc"] = "2026-06-11T10:06:00Z"
+    new_fill["decision_time"] = "2026-06-11T10:06:00Z"
+
+    result = reconcile_paper_lifecycle(
+        existing_ledger={
+            "closed_trades": [
+                {
+                    "close_id": "old-generation-close",
+                    "position_id": old_position.position_id,
+                    "legacy_position_id": old_position.legacy_position_id,
+                    "position_generation_id": old_position.position_generation_id,
+                    "entry_fill_id": "reused-generation",
+                    "source_fill_ids": ["reused-generation"],
+                    "symbol": "BTCUSDT",
+                    "side": "long",
+                    "entry_time": "2026-06-11T10:00:00Z",
+                    "exit_time": "2026-06-11T10:05:00Z",
+                }
+            ]
+        },
+        accepted_fills=[new_fill],
+        mark_prices={"BTCUSDT": 101.0},
+        generated_utc="2026-06-11T10:07:00Z",
+        config=PaperLifecycleConfig(portfolio_equity_usdt=10000.0),
+    )
+
+    assert result["closed_previously_fills"] == []
+    assert len(result["open_positions"]) == 1
+    reopened = result["open_positions"][0]
+    assert reopened["legacy_position_id"] == "paper_pos_BTCUSDT"
+    assert reopened["position_id"] != old_position.position_id
+    assert reopened["position_generation_id"] != old_position.position_generation_id
+    repeated = position_from_fill(
+        new_fill,
+        fill_id="reused-generation",
+        side="long",
+        quantity=1.0,
+        price=101.0,
+    )
+    assert repeated.position_id == reopened["position_id"]
 
 
 def test_long_then_short_closes_before_reverse() -> None:
@@ -784,7 +1685,6 @@ def test_major_move_fields_reach_trainer_feedback() -> None:
             "squeeze_evidence_score": 0.74,
             "future_window_label_source": "closed_candle_replay_label",
             **_audit_quality_fields(),
-            "squeeze_evidence_score": 0.74,
         }
     )
     result = reconcile_paper_lifecycle(
@@ -2050,7 +2950,12 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
             "entry_feature_decision_time": "2026-06-11T10:00:00Z",
             "entry_feature_source": "v2:features:latest:BTCUSDT:1m",
             "entry_feature_candle_closed_confirmed": True,
+            "effective_leverage": 2.0,
+            "leverage_source": "VALIDATED_PAPER_EXECUTION_ENVELOPE",
             "adaptive_allocation": allocation,
+            "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                expires_at="2026-06-11T10:20:00Z",
+            ),
             "correlation_input_source": "ADAPTIVE_ALLOCATION_MODEL_INPUTS",
             "correlation_input_status": "READY",
             "correlation_diagnostics": {"pair_count": 5},
@@ -2071,7 +2976,14 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
     opened = reconcile_paper_lifecycle(
         existing_ledger={},
         accepted_fills=[fill],
-        mark_prices={"BTCUSDT": 100.0},
+        mark_prices={
+            "BTCUSDT": {
+                "price": 100.0,
+                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                    expires_at="2026-06-11T10:20:00Z",
+                ),
+            }
+        },
         generated_utc="2026-06-11T10:00:00Z",
         config=cfg,
     )
@@ -2080,21 +2992,45 @@ def test_closed_trade_carries_accounting_and_path_telemetry() -> None:
         accepted_fills=[fill],
         # -100bps adverse move: below stops under test, above the 150bps
         # catastrophic floor added by the A+ goal (Phase 8).
-        mark_prices={"BTCUSDT": 99.0},
+        mark_prices={
+            "BTCUSDT": {
+                "price": 99.0,
+                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                    expires_at="2026-06-11T10:20:00Z",
+                    consumer_observed_at="2026-06-11T10:05:00Z",
+                ),
+            }
+        },
         generated_utc="2026-06-11T10:05:00Z",
         config=cfg,
     )
     favorable = reconcile_paper_lifecycle(
         existing_ledger=adverse,
         accepted_fills=[fill],
-        mark_prices={"BTCUSDT": 105.0},
+        mark_prices={
+            "BTCUSDT": {
+                "price": 105.0,
+                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                    expires_at="2026-06-11T10:20:00Z",
+                    consumer_observed_at="2026-06-11T10:10:00Z",
+                ),
+            }
+        },
         generated_utc="2026-06-11T10:10:00Z",
         config=cfg,
     )
     closed = reconcile_paper_lifecycle(
         existing_ledger=favorable,
         accepted_fills=[fill],
-        mark_prices={"BTCUSDT": 104.0},
+        mark_prices={
+            "BTCUSDT": {
+                "price": 104.0,
+                "maintenance_bracket_evidence": _maintenance_bracket_evidence(
+                    expires_at="2026-06-11T10:20:00Z",
+                    consumer_observed_at="2026-06-11T10:15:00Z",
+                ),
+            }
+        },
         generated_utc="2026-06-11T10:15:00Z",
         config=cfg,
     )
@@ -2978,10 +3914,13 @@ def test_lifecycle_enriches_previously_closed_accepted_fill_with_policy_and_fund
     result = reconcile_paper_lifecycle(
         existing_ledger={
             "closed_trades": [
-                {
-                    "close_id": "already_closed",
-                    "source_fill_ids": ["policy-closed"],
-                }
+                    {
+                        "close_id": "already_closed",
+                        "source_fill_ids": ["policy-closed"],
+                        "entry_cost_is_final_close": True,
+                        "entry_cost_pre_close_quantity": 1.0,
+                        "entry_cost_closed_quantity": 1.0,
+                    }
             ],
         },
         accepted_fills=[fill],
@@ -3096,10 +4035,13 @@ def test_lifecycle_does_not_synthesize_policy_activation_for_timestampless_close
     result = reconcile_paper_lifecycle(
         existing_ledger={
             "closed_trades": [
-                {
-                    "close_id": "already_closed",
-                    "source_fill_ids": ["timestampless-policy-closed"],
-                }
+                    {
+                        "close_id": "already_closed",
+                        "source_fill_ids": ["timestampless-policy-closed"],
+                        "entry_cost_is_final_close": True,
+                        "entry_cost_pre_close_quantity": 1.0,
+                        "entry_cost_closed_quantity": 1.0,
+                    }
             ],
         },
         accepted_fills=[fill],

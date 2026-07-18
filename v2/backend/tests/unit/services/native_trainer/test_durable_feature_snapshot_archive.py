@@ -132,6 +132,7 @@ def test_prediction_payload_archive_record_accepts_flattened_replay_snapshot() -
         "symbol": "BTCUSDT",
         "timeframe": "1m",
         "feature_cutoff": FEATURE_CUTOFF,
+        "decision_time": DECISION_TIME,
         "feature_decision_time": DECISION_TIME,
         "available_at": AVAILABLE_AT,
         "mtf_snapshot_id": "mtf-1",

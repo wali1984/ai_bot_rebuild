@@ -13,6 +13,9 @@ evidence gate.
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 import time
 from typing import Any, Sequence
 
@@ -22,6 +25,55 @@ BACKTEST_SCHEMA_VERSION = "v2_trainer_policy_backtest_report_v1"
 BACKTEST_MAX_ROWS = 16_384
 _LONG_INDEX = ACTION_INDEX["long"]
 _SHORT_INDEX = ACTION_INDEX["short"]
+
+
+def _example_identity(example: Any) -> str:
+    tensor = getattr(example, "tensor", None)
+    material = {
+        "symbol": getattr(example, "symbol", None),
+        "timeframe": getattr(example, "timeframe", None),
+        "tensor_id": getattr(tensor, "tensor_id", None),
+        "feature_snapshot_id": getattr(tensor, "feature_snapshot_id", None),
+        "decision_time": getattr(example, "decision_time", None),
+        "label_available_at": getattr(example, "label_available_at", None),
+        "label_expected_move_after_cost_bps": getattr(
+            example,
+            "label_expected_move_after_cost_bps",
+            None,
+        ),
+    }
+    return hashlib.sha256(
+        json.dumps(
+            material,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _strict_finite_row(example: Any) -> bool:
+    label = getattr(example, "label_expected_move_after_cost_bps", None)
+    if label is None or isinstance(label, bool):
+        return False
+    try:
+        label_value = float(label)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    tensor = getattr(example, "tensor", None)
+    vector = getattr(tensor, "model_vector", None)
+    if not math.isfinite(label_value) or not isinstance(vector, (list, tuple)) or not vector:
+        return False
+    for value in vector:
+        if isinstance(value, bool):
+            return False
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if not math.isfinite(numeric):
+            return False
+    return True
 
 
 def _bucket_stats(bucket: dict[str, Any]) -> dict[str, Any]:
@@ -44,9 +96,15 @@ def run_policy_archive_backtest(
     *,
     model: Any,
     examples: Sequence[Any],
+    excluded_training_examples: Sequence[Any] = (),
+    untouched_forward_partition_proven: bool = False,
     max_rows: int = BACKTEST_MAX_ROWS,
 ) -> dict[str, Any]:
-    """Batched forward pass of the current policy against labeled outcomes."""
+    """Evaluate only an untouched, PIT-proven forward partition.
+
+    This remains diagnostic evidence. It cannot grant runtime, A+, paper, or
+    live readiness and refuses in-sample, missing-label, or nonfinite rows.
+    """
     started = time.perf_counter()
     rows = list(examples)[: max(1, int(max_rows))]
     base: dict[str, Any] = {
@@ -55,11 +113,38 @@ def run_policy_archive_backtest(
         "backtest_rows_per_second": None,
         "counts_as_A_plus": False,
         "counts_as_live_ready": False,
-        "evidence_class": "BACKTEST_ONLY_NOT_A_PLUS_EVIDENCE",
+        "evidence_class": "NO_EVIDENCE_UNTOUCHED_FORWARD_PARTITION_UNPROVEN",
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
     }
+    if untouched_forward_partition_proven is not True:
+        base["status"] = "BLOCKED_UNTOUCHED_FORWARD_PARTITION_NOT_PROVEN"
+        return base
+    training_identities = {
+        _example_identity(example) for example in excluded_training_examples
+    }
+    row_identities = [_example_identity(example) for example in rows]
+    overlap = sorted(set(row_identities).intersection(training_identities))
+    if overlap or len(row_identities) != len(set(row_identities)):
+        base.update(
+            {
+                "status": "BLOCKED_FORWARD_PARTITION_IDENTITY_OVERLAP",
+                "partition_overlap_count": len(overlap),
+                "duplicate_forward_row_count": len(row_identities)
+                - len(set(row_identities)),
+            }
+        )
+        return base
+    invalid_rows = sum(1 for example in rows if not _strict_finite_row(example))
+    if invalid_rows:
+        base.update(
+            {
+                "status": "BLOCKED_INVALID_FORWARD_ROW",
+                "invalid_forward_row_count": invalid_rows,
+            }
+        )
+        return base
     if not rows or not getattr(model, "torch_available", False):
         base["status"] = "NO_ROWS_OR_TORCH_UNAVAILABLE"
         return base
@@ -68,9 +153,8 @@ def run_policy_archive_backtest(
     device = model.device
     try:
         vectors = [list(example.tensor.model_vector) for example in rows]
-        labels_bps = [float(example.label_expected_move_after_cost_bps or 0.0) for example in rows]
+        labels_bps = [float(example.label_expected_move_after_cost_bps) for example in rows]
         x = torch.tensor(vectors, dtype=torch.float32, device=device)
-        x = torch.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
         was_training = net.training
         net.eval()
         with torch.no_grad():
@@ -138,23 +222,23 @@ def run_policy_archive_backtest(
     profit_factor = round(gross_win / gross_loss, 6) if gross_loss > 0 else (None if gross_win == 0 else float("inf"))
     expectancy = round(net_bps / total_trades, 6) if total_trades else None
     win_rate = round(wins / total_trades, 6) if total_trades else None
-    # Leverage/margin exploration (study-only): at the backtest's observed
-    # after-cost edge, score a leverage grid x margin modes so the trainer keeps
-    # a per-cycle signal of which risk-adjusted leverage/margin profile is best.
-    # Never routes to live; leverage here is a studied variable, not an order.
-    from .leverage_margin_exploration import evaluate_leverage_margin_grid
-
-    leverage_margin_study = evaluate_leverage_margin_grid(
-        {
-            "expected_move_after_cost_bps": expectancy,
-            "stop_distance_bps": 25.0,
-            "equity_usd": 200.0,
-            "notional_usd": 60.0,
-        }
-    )
+    leverage_margin_study = {
+        "status": "NOT_EVALUATED_MISSING_EVIDENCE_BOUND_PAPER_RISK_INPUTS",
+        "fictional_stop_equity_notional_inputs_used": False,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
     base.update(
         {
-            "status": "OK",
+            "status": "OK_UNTOUCHED_FORWARD_DIAGNOSTIC_ONLY",
+            "evidence_class": "UNTOUCHED_FORWARD_DIAGNOSTIC_NOT_READINESS",
+            "untouched_forward_partition_proven": True,
+            "forward_partition_digest": hashlib.sha256(
+                "".join(row_identities).encode("ascii")
+            ).hexdigest(),
+            "excluded_training_identity_count": len(training_identities),
+            "partition_overlap_count": 0,
             "leverage_margin_exploration": leverage_margin_study,
             "rows_evaluated": len(rows),
             "backtest_rows_per_second": round(len(rows) / elapsed, 3),
@@ -167,17 +251,10 @@ def run_policy_archive_backtest(
             "action_distribution": action_counts,
             "confidence_calibration_bins": calibration_bins,
             "bucket_breakdown": {key: _bucket_stats(bucket) for key, bucket in sorted(buckets.items())},
-            "a_plus_readiness_signal": bool(
-                total_trades >= 100
-                and (profit_factor or 0) not in (None,)
-                and isinstance(profit_factor, (int, float))
-                and profit_factor > 1.2
-                and (expectancy or 0) > 0
-                and (win_rate or 0) > 0.5
-            ),
+            "a_plus_readiness_signal": False,
             "a_plus_readiness_note": (
-                "readiness signal is a backtest heuristic over labeled archive rows; "
-                "A+ grade itself requires real paper closes through the 5-trade gate"
+                "untouched forward diagnostics never count as A+ or runtime readiness; "
+                "real paper outcomes and canonical runtime evidence remain mandatory"
             ),
         }
     )

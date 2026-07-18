@@ -680,6 +680,10 @@ def _build_symbol_rows(
                 _float(sweep.get("short_liquidation_sweep_risk")) or 0.0,
             ),
             "sweep_risk_score": sweep.get("sweep_risk"),
+            # Preserve the structural direction proof separately from sweep
+            # magnitude.  Ordinary PAPER may continuously down-size high sweep
+            # risk, but an uncertain sweep direction still fails closed.
+            "sweep_direction_uncertain": bool(sweep.get("direction_uncertain")),
             "available_at": combined_feed.get("available_at"),
             "decision_time": decision_time,
             "orderbook_sources": active_orderbook_sources,

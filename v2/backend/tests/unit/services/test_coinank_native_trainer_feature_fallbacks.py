@@ -16,11 +16,14 @@ def test_native_trainer_tensor_consumes_direct_coinank_current_features() -> Non
     record = V2UnifiedFeatureTensorBuilder().build(
         symbol="BTCUSDT",
         timeframe="15m",
+        decision_time="2026-06-15T00:01:00Z",
         payloads={
             "coinank_funding": {
+                "available_at": "2026-06-15T00:00:30Z",
                 "data": {"success": True, "code": "1", "data": [{"fundingRate": 0.00031}]}
             },
             "coinank_open_interest": {
+                "available_at": "2026-06-15T00:00:30Z",
                 "data": {
                     "success": True,
                     "code": "1",
@@ -31,6 +34,7 @@ def test_native_trainer_tensor_consumes_direct_coinank_current_features() -> Non
                 }
             },
             "coinank_long_short": {
+                "available_at": "2026-06-15T00:00:30Z",
                 "data": {
                     "success": True,
                     "code": "1",
@@ -40,9 +44,11 @@ def test_native_trainer_tensor_consumes_direct_coinank_current_features() -> Non
                 }
             },
             "coinank_liquidations": {
+                "available_at": "2026-06-15T00:00:30Z",
                 "data": {"success": True, "code": "1", "data": [{"longTurnover": 20.0, "shortTurnover": 7.5}]}
             },
             "coinank_market_order_flow": {
+                "available_at": "2026-06-15T00:00:30Z",
                 "data": {"success": True, "code": "1", "data": [[1, 80.0, 20.0]]}
             },
         },

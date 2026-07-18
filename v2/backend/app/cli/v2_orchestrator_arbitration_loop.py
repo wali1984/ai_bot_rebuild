@@ -15,7 +15,7 @@ import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +25,14 @@ from v2.backend.app.services.live_gate.runtime_execution_state import (
     read_runtime_execution_state,
 )
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
+    BEHAVIOR_POLICY_LINEAGE_FIELDS,
+)
+from v2.backend.app.services.ordinary_paper_admission import (
+    OrdinaryPaperAdmissionResult,
+    assess_ordinary_paper_candidate,
+    microstructure_admission_values,
+)
 
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_PAYLOAD_PATH = Path(
@@ -92,6 +100,127 @@ def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
         return False
 
 
+_PER_ID_ORCHESTRATOR_RECORD_TTL_SECONDS = 7200
+
+
+def _read_json_key(r, key: str) -> dict[str, Any] | None:
+    if r is None or not key.startswith(V2_REDIS_PREFIX):
+        return None
+    try:
+        raw = r.get(key)
+        payload = json.loads(raw) if raw else None
+    except (TypeError, ValueError, OSError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _write_per_id_orchestrator_decision_record(
+    r,
+    *,
+    winner: dict[str, Any],
+    generated_at: datetime,
+) -> str:
+    """Create one immutable orchestrator decision record.
+
+    The arbitrator is the only producer allowed to own this namespace.  A
+    repeated identical decision is idempotent; an ID collision with different
+    identity/action is never overwritten and therefore cannot route to risk.
+    """
+
+    decision_id = str(winner.get("orchestrator_decision_id") or "")
+    if r is None or not decision_id:
+        return "WRITE_ERROR"
+    key = f"{V2_REDIS_PREFIX}decision:orchestrator:{decision_id}"
+    generated_utc = generated_at.astimezone(timezone.utc).isoformat(
+        timespec="seconds"
+    ).replace("+00:00", "Z")
+    expires_at = (
+        generated_at.astimezone(timezone.utc)
+        + timedelta(seconds=_PER_ID_ORCHESTRATOR_RECORD_TTL_SECONDS)
+    ).isoformat(timespec="seconds").replace("+00:00", "Z")
+    side = str(winner.get("side") or "").lower()
+    action = "proceed_long" if side == "long" else "proceed_short" if side == "short" else "hold"
+    record = {
+        "schema_version": "v2_per_id_orchestrator_decision_record_v1",
+        "orchestrator_decision_id": decision_id,
+        "decision_id": winner.get("decision_id"),
+        "candidate_id": winner.get("winner_proposal_id"),
+        "prediction_id": winner.get("prediction_id") or winner.get("winner_proposal_id"),
+        "signal_id": winner.get("signal_id"),
+        "symbol": winner.get("symbol"),
+        "timeframe": winner.get("timeframe"),
+        "side": side,
+        "decision": action,
+        "orchestrator_action": action,
+        "status": "ORCHESTRATOR_DECISION_RECORDED",
+        "route": "paper_to_risk_gateway",
+        "reasons": ["ARBITRATION_BUCKET_WINNER"],
+        "generated_utc": generated_utc,
+        "created_at": generated_utc,
+        "expires_at": expires_at,
+        "producer": "v2_orchestrator_arbitration_loop",
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_only": True,
+        "live_gate": LIVE_GATE_BLOCKED,
+    }
+    record.update(_copy_trust_envelope_fields(winner))
+    # Reassert fields owned by this worker after copying upstream evidence.
+    record.update(
+        {
+            "orchestrator_decision_id": decision_id,
+            "prediction_id": winner.get("prediction_id")
+            or winner.get("winner_proposal_id"),
+            "signal_id": winner.get("signal_id"),
+            "symbol": winner.get("symbol"),
+            "timeframe": winner.get("timeframe"),
+            "side": side,
+            "decision": action,
+            "orchestrator_action": action,
+            "generated_utc": generated_utc,
+            "created_at": generated_utc,
+            "expires_at": expires_at,
+            "producer": "v2_orchestrator_arbitration_loop",
+            "routes_to_live": False,
+            "places_real_order": False,
+            "paper_only": True,
+            "live_gate": LIVE_GATE_BLOCKED,
+        }
+    )
+    try:
+        created = r.set(
+            key,
+            json.dumps(record, sort_keys=True, default=str),
+            ex=_PER_ID_ORCHESTRATOR_RECORD_TTL_SECONDS,
+            nx=True,
+        )
+    except Exception:
+        return "WRITE_ERROR"
+    if created:
+        return "CREATED"
+    existing = _read_json_key(r, key)
+    stable_fields = (
+        "schema_version",
+        "orchestrator_decision_id",
+        "prediction_id",
+        "signal_id",
+        "symbol",
+        "timeframe",
+        "side",
+        "decision",
+        "orchestrator_action",
+        "feature_snapshot_id",
+        "market_state_id",
+        "feature_vector_hash",
+        "input_feature_hash",
+        "ordinary_paper_admission_evidence_sha256",
+        "producer",
+    )
+    if existing and all(existing.get(field) == record.get(field) for field in stable_fields):
+        return "EXISTING_IDENTICAL"
+    return "CONFLICT"
+
+
 def _bounded_scan(r, pattern: str, *, count: int = 1000, budget_seconds: float = 20.0):
     """SCAN with a large batch count + a hard time budget.
 
@@ -143,7 +272,8 @@ def _scan_predictions(r) -> list[dict]:
             if ttl == 0:
                 continue
             data = dict(data)
-            data["source_redis_key"] = key
+            data["source_redis_key"] = str(key)
+            data["source_prediction_observed_ttl_seconds"] = int(ttl)
             existing = by_prediction_id.get(prediction_id)
             if existing is None or _prediction_source_rank(key) > _prediction_source_rank(
                 str(existing.get("source_redis_key") or "")
@@ -168,6 +298,43 @@ def _load_latest_feature_row(r, prediction: dict[str, Any]) -> dict[str, Any] | 
     if not isinstance(payload, dict):
         return None
     payload = dict(payload)
+    prediction_snapshot_id = _first_text(
+        prediction.get("feature_snapshot_id"), prediction.get("feature_tensor_id")
+    )
+    payload_snapshot_id = _first_text(
+        payload.get("feature_snapshot_id"), payload.get("snapshot_id")
+    )
+    if not prediction_snapshot_id or payload_snapshot_id != prediction_snapshot_id:
+        return None
+    if str(payload.get("symbol") or symbol).upper() != symbol.upper():
+        return None
+    if str(payload.get("timeframe") or timeframe) != timeframe:
+        return None
+    prediction_hash = _first_text(
+        prediction.get("feature_vector_hash"), prediction.get("input_feature_hash")
+    )
+    payload_hash = _first_text(
+        payload.get("feature_vector_hash"), payload.get("input_feature_hash")
+    )
+    if prediction_hash and payload_hash and prediction_hash != payload_hash:
+        return None
+    decision_time = _parse_utc(
+        _first_text(prediction.get("decision_time"), prediction.get("decision_time_est"))
+    )
+    available_at = _parse_utc(
+        _first_text(payload.get("available_at"), payload.get("source_available_time"))
+    )
+    feature_cutoff = _parse_utc(
+        _first_text(payload.get("feature_cutoff"), payload.get("source_event_time_est"))
+    )
+    if (
+        decision_time is None
+        or available_at is None
+        or feature_cutoff is None
+        or available_at > decision_time
+        or feature_cutoff > decision_time
+    ):
+        return None
     payload["source_redis_key"] = key
     return payload
 
@@ -179,7 +346,6 @@ def _prediction_integrity_input(r, prediction: dict[str, Any]) -> dict[str, Any]
     merged = dict(prediction)
     for key in (
         "features",
-        "generated_at",
         "feature_freshness_state",
         "missing_feature_count",
         "missing_feature_flags",
@@ -203,6 +369,7 @@ def _prediction_integrity_input(r, prediction: dict[str, Any]) -> dict[str, Any]
             merged[key] = feature[key]
     merged["integrity_feature_snapshot_id"] = feature.get("feature_snapshot_id")
     merged["integrity_feature_redis_key"] = feature.get("source_redis_key")
+    merged["integrity_feature_snapshot_exact_match"] = True
     return merged
 
 
@@ -211,6 +378,67 @@ def _first_text(*values: Any) -> str | None:
         if isinstance(value, str) and value.strip():
             return value.strip()
     return None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _prediction_temporal_rejection_reasons(prediction: dict[str, Any]) -> list[str]:
+    reasons: list[str] = []
+    decision_time = _parse_utc(
+        _first_text(prediction.get("decision_time"), prediction.get("decision_time_est"))
+    )
+    available_at = _parse_utc(
+        _first_text(prediction.get("available_at"), prediction.get("source_available_time"))
+    )
+    feature_cutoff = _parse_utc(
+        _first_text(prediction.get("feature_cutoff"), prediction.get("source_event_time_est"))
+    )
+    candle_close_time = _parse_utc(prediction.get("candle_close_time"))
+    masa_feature_cutoff = _parse_utc(prediction.get("masa_feature_cutoff"))
+    ppo_decision_time = _parse_utc(prediction.get("ppo_decision_time"))
+    if decision_time is None:
+        reasons.append("DECISION_TIME_MISSING_OR_INVALID")
+    if available_at is None:
+        reasons.append("AVAILABLE_AT_MISSING_OR_INVALID")
+    elif decision_time is not None and available_at > decision_time:
+        reasons.append("FEATURE_AVAILABLE_AFTER_DECISION_TIME")
+    if feature_cutoff is None:
+        reasons.append("FEATURE_CUTOFF_MISSING_OR_INVALID")
+    elif decision_time is not None and feature_cutoff > decision_time:
+        reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
+    if prediction.get("candle_closed_confirmed") is not True:
+        reasons.append("FINAL_CANDLE_NOT_CONFIRMED")
+    if candle_close_time is None:
+        reasons.append("CANDLE_CLOSE_TIME_MISSING_OR_INVALID")
+    elif feature_cutoff is not None and candle_close_time > feature_cutoff:
+        reasons.append("CANDLE_CLOSE_AFTER_FEATURE_CUTOFF")
+    elif decision_time is not None and candle_close_time > decision_time:
+        reasons.append("CANDLE_CLOSE_AFTER_DECISION_TIME")
+    if masa_feature_cutoff is None:
+        reasons.append("MASA_FEATURE_CUTOFF_MISSING_OR_INVALID")
+    if ppo_decision_time is None:
+        reasons.append("PPO_DECISION_TIME_MISSING_OR_INVALID")
+    if (
+        masa_feature_cutoff is not None
+        and ppo_decision_time is not None
+        and masa_feature_cutoff > ppo_decision_time
+    ):
+        reasons.append("MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME")
+    if not _first_text(
+        prediction.get("feature_snapshot_id"), prediction.get("feature_tensor_id")
+    ):
+        reasons.append("FEATURE_SNAPSHOT_ID_MISSING")
+    return sorted(set(reasons))
 
 
 def _finite_float(value: Any, default: float = 0.0) -> float:
@@ -251,10 +479,13 @@ def _prediction_age_seconds(prediction: dict) -> float | None:
 def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
     """Convert a V2 prediction dict into the proposal + V2Signal shape
     expected by the orchestrator arbitration service."""
-    side_for_action = {"long": "long", "short": "short", "close": "flat", "hold": "flat", "hedge": "flat"}
-    sel = side_for_action.get(p.get("selected_action", "hold"), "flat")
-    if sel == "flat":
-        sel = "long" if (p.get("expected_move_bps") or 0) >= 0 else "short"
+    selected_action = str(p.get("selected_action") or "hold").strip().lower()
+    side_for_action = {"long": "long", "short": "short"}
+    sel = side_for_action.get(selected_action)
+    # HOLD/flat/close/hedge and unknown actions are decisions not to open a
+    # directional position.  Never infer LONG/SHORT from a diagnostic move.
+    if sel is None:
+        return None
     symbol = str(p.get("symbol") or _runtime_default_symbol()).upper()
     prediction_id = _first_text(p.get("prediction_id"), p.get("id"))
     feature_snapshot_id = _first_text(p.get("feature_snapshot_id"), p.get("feature_tensor_id"))
@@ -267,6 +498,9 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
     )
     if not prediction_id or not feature_snapshot_id or not generated_utc:
         return None
+    freshness_seconds = _prediction_age_seconds(p)
+    if freshness_seconds is None:
+        return None
     model_version = _first_text(
         p.get("model_version"),
         p.get("model_id"),
@@ -276,43 +510,59 @@ def _prediction_to_proposal_and_signal(p: dict) -> tuple[dict, dict] | None:
     source = _first_text(p.get("trainer_source"), p.get("source")) or "V2_NATIVE_PREDICTION"
     confidence_raw = max(0.0, min(1.0, _finite_float(p.get("confidence_raw"), 0.0)))
     confidence_calibrated = max(0.0, min(1.0, _finite_float(p.get("confidence_calibrated"), confidence_raw)))
-    expected_move_after_cost = _finite_float(p.get("expected_move_after_cost_bps"), 0.0)
+    expected_move_after_cost_signed = _finite_float(
+        p.get("expected_move_after_cost_bps"), 0.0
+    )
+    # Upstream edge is signed in market-return space: positive is favourable
+    # to LONG and negative is favourable to SHORT.  Arbitration compares edge
+    # in position-return space so equal/opposite long and short opportunities
+    # receive equal scores.  Preserve the signed input separately for lineage.
+    expected_move_after_cost_directional = (
+        expected_move_after_cost_signed
+        if sel == "long"
+        else -expected_move_after_cost_signed
+    )
     proposal = {
         "proposal_id": prediction_id,
         "symbol": symbol,
         "side": sel,
         "confidence_calibrated": confidence_calibrated,
-        "expected_move_after_cost_bps": expected_move_after_cost,
+        "expected_move_after_cost_bps": expected_move_after_cost_directional,
         "generated_utc": generated_utc,
         "source": source,
-        "freshness_seconds": 5.0,
+        "freshness_seconds": freshness_seconds,
         "model_version": model_version,
     }
+    signal_id = _first_text(p.get("signal_id")) or prediction_id
     signal = {
-        "signal_id": prediction_id,
+        "signal_id": signal_id,
         "symbol": symbol,
         "timeframe": p.get("timeframe"),
         "side": sel,
         "confidence_raw": confidence_raw,
         "confidence_calibrated": confidence_calibrated,
-        "expected_move_after_cost_bps": expected_move_after_cost,
+        "expected_move_after_cost_bps": expected_move_after_cost_directional,
+        "expected_move_after_cost_bps_signed": expected_move_after_cost_signed,
+        "expected_move_after_cost_bps_directional": expected_move_after_cost_directional,
         "source_prediction_id": prediction_id,
         "prediction_id": prediction_id,
         "feature_snapshot_id": feature_snapshot_id,
         "generated_utc": generated_utc,
-        "freshness_seconds": 5.0,
+        "freshness_seconds": freshness_seconds,
         "model_version": model_version,
         "trainer_source": p.get("trainer_source"),
         "model_id": p.get("model_id"),
         "checkpoint_id": p.get("checkpoint_id"),
+        "upstream_paper_fill_allowed": p.get("paper_fill_allowed") is True,
+        "upstream_paper_fill_gate_status": p.get("paper_fill_gate_status"),
     }
     signal.update(_copy_trust_envelope_fields(p))
-    signal["signal_id"] = prediction_id
+    signal["signal_id"] = signal_id
     signal["prediction_id"] = prediction_id
     signal["source_prediction_id"] = prediction_id
     signal["symbol"] = symbol
     signal["timeframe"] = p.get("timeframe")
-    signal["selected_action"] = p.get("selected_action")
+    signal["selected_action"] = selected_action
     signal["model_version"] = model_version
     signal["checkpoint_id"] = p.get("checkpoint_id")
     signal["feature_snapshot_id"] = feature_snapshot_id
@@ -341,12 +591,25 @@ _TRUST_ENVELOPE_FIELDS = (
     "feature_cutoff",
     "decision_time",
     "available_at",
+    "candle_closed_confirmed",
+    "candle_open_time",
+    "candle_close_time",
+    "source_event_time_est",
+    "source_received_time_est",
+    "source_available_time",
+    "masa_feature_cutoff",
+    "ppo_feature_cutoff",
+    "ppo_decision_time",
     "symbol",
     "timeframe",
     "selected_action",
     "model_version",
     "checkpoint_id",
     "source_hashes",
+    "microstructure_trust_evidence",
+    "microstructure_trust_evidence_sha256",
+    "source_redis_key",
+    "source_prediction_observed_ttl_seconds",
     "feature_vector_hash",
     "input_feature_hash",
     "all_tf_candle_timestamps",
@@ -371,6 +634,24 @@ _TRUST_ENVELOPE_FIELDS = (
     "microstructure_gate_allows_a_grade",
     "orchestrator_microstructure_block_reasons",
     "source_availability",
+    "market_state_id",
+    "ordinary_paper_admission_schema_version",
+    "ordinary_paper_quality_schema_version",
+    "ordinary_paper_admission_mode",
+    "paper_quality_sizing_formula",
+    "paper_quality_sizing_weight",
+    "publisher_paper_quality_sizing_weight",
+    "ordinary_paper_effective_sizing_weight",
+    "ordinary_paper_effective_sizing_formula",
+    "ordinary_paper_effective_sizing_factors",
+    "ordinary_paper_raw_microstructure_action",
+    "ordinary_paper_effective_microstructure_action",
+    "ordinary_paper_legacy_microstructure_block_reasons",
+    "ordinary_scale_free_paper_admission_revalidated",
+    "ordinary_scale_free_paper_admission_rejection_reasons",
+    "ordinary_paper_admission_evidence",
+    "ordinary_paper_admission_evidence_sha256",
+    *BEHAVIOR_POLICY_LINEAGE_FIELDS,
 )
 
 
@@ -401,7 +682,21 @@ def _first_present(*values: Any) -> Any:
 
 def _microstructure_contexts(payload: dict[str, Any]) -> list[dict[str, Any]]:
     contexts = [payload]
-    for key in ("microstructure_context", "market_microstructure", "microstructure"):
+    trust_evidence = payload.get("microstructure_trust_evidence")
+    trust_source = (
+        trust_evidence.get("source_payload")
+        if isinstance(trust_evidence, dict)
+        else None
+    )
+    if isinstance(trust_source, dict):
+        contexts.append(trust_source)
+    for key in (
+        "microstructure_context",
+        "market_microstructure",
+        "microstructure",
+        "sweep_risk",
+        "liquidation_context",
+    ):
         value = payload.get(key)
         if isinstance(value, dict):
             contexts.append(value)
@@ -429,6 +724,64 @@ def _microstructure_float(payload: dict[str, Any], *keys: str) -> float | None:
         return None
     parsed = _finite_float(value, default=None)
     return parsed if parsed is not None else None
+
+
+def _ordinary_paper_assessment(
+    redis_client,
+    prediction: dict[str, Any],
+    *,
+    integrity: dict[str, Any],
+) -> OrdinaryPaperAdmissionResult:
+    replay_key = str(prediction.get("replay_snapshot_key") or "")
+    replay_snapshot = _read_json_key(redis_client, replay_key) if replay_key else None
+    try:
+        replay_snapshot_ttl = redis_client.ttl(replay_key) if replay_key else None
+    except Exception:
+        replay_snapshot_ttl = None
+    raw_market_reasons = [
+        str(reason) for reason in integrity.get("reject_reasons") or [] if reason
+    ]
+    continuous_market_reasons = {
+        "LATENCY_ABOVE_GATE",
+        "MAJOR_SOURCE_DISAGREEMENT",
+    }
+    microstructure = microstructure_admission_values(prediction)
+    return assess_ordinary_paper_candidate(
+        prediction,
+        market_state_integrity_score=integrity.get(
+            "market_state_integrity_score"
+        ),
+        market_state_reject_reasons=[
+            reason
+            for reason in raw_market_reasons
+            if reason not in continuous_market_reasons
+        ],
+        market_state_quality_reasons=[
+            reason
+            for reason in raw_market_reasons
+            if reason in continuous_market_reasons
+        ],
+        microstructure_trust_score=microstructure.get(
+            "microstructure_trust_score"
+        ),
+        sweep_risk_score=microstructure.get("sweep_risk_score"),
+        microstructure_action=microstructure.get("microstructure_action"),
+        book_sequence_gap=microstructure.get("book_sequence_gap"),
+        feed_integrity_pass=microstructure.get("feed_integrity_pass"),
+        latency_within_bound=microstructure.get("latency_within_bound"),
+        sequence_gap_free=microstructure.get("sequence_gap_free"),
+        sweep_direction_uncertain=microstructure.get(
+            "sweep_direction_uncertain"
+        ),
+        microstructure_missing_components=microstructure.get(
+            "microstructure_missing_components"
+        ),
+        legacy_microstructure_block_reasons=_microstructure_block_reasons(
+            prediction
+        ),
+        replay_snapshot=replay_snapshot,
+        replay_snapshot_observed_ttl_seconds=replay_snapshot_ttl,
+    )
 
 
 def _microstructure_block_reasons(payload: dict[str, Any]) -> list[str]:
@@ -495,18 +848,20 @@ def _hppm_gate(prediction: dict[str, Any]) -> list[str]:
         reasons.append(
             f"HPPM_LOW_CONFIDENCE:{conf:.3f}<{_HPPM_MIN_CONFIDENCE_CALIBRATED}"
         )
-    move = _finite_float(prediction.get("expected_move_after_cost_bps"), 0.0)
-    if move < _HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS:
+    action = str(prediction.get("selected_action") or "").strip().lower()
+    move_signed = _finite_float(prediction.get("expected_move_after_cost_bps"), 0.0)
+    move_directional = -move_signed if action == "short" else move_signed
+    if move_directional < _HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS:
         reasons.append(
-            f"HPPM_LOW_EXPECTED_MOVE:{move:.1f}bps<{_HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS}"
+            "HPPM_LOW_EXPECTED_MOVE:"
+            f"{move_directional:.1f}bps<{_HPPM_MIN_EXPECTED_MOVE_AFTER_COST_BPS}"
         )
     coverage = _finite_float(prediction.get("data_coverage_percent"), 0.0)
     if coverage < _HPPM_MIN_DATA_COVERAGE_PCT:
         reasons.append(
             f"HPPM_LOW_DATA_COVERAGE:{coverage:.1f}%<{_HPPM_MIN_DATA_COVERAGE_PCT}"
         )
-    action = str(prediction.get("selected_action") or "").lower()
-    if action in ("hold", "flat", ""):
+    if action in ("hold", "flat", "close", "hedge", ""):
         reasons.append("HPPM_HOLD_ACTION_EXCLUDED")
     return reasons
 
@@ -544,17 +899,103 @@ def run_once() -> dict:
         integrity = score_market_state(_prediction_integrity_input(r, p)).to_dict()
         if p.get("prediction_id"):
             integrity_by_prediction_id[str(p.get("prediction_id"))] = integrity
-        integrity_block_reasons = (
-            ["MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR"]
-            if not integrity.get("valid_for_orchestrator")
-            else []
+        ordinary_assessment = _ordinary_paper_assessment(
+            r, p, integrity=integrity
         )
-        microstructure_block_reasons = _microstructure_block_reasons(p)
-        # Only gate out predictions that are EXPLICITLY set to False by an
-        # upstream publisher. Missing / None means the publisher hasn't
-        # annotated this prediction yet; in that case fall through to the
-        # market-state integrity check which is the authoritative quality gate.
-        gate_explicitly_blocked = p.get("paper_fill_allowed") is False
+        if ordinary_assessment.claimed:
+            p = {**p, **ordinary_assessment.transport_payload()}
+        if ordinary_assessment.claimed and not ordinary_assessment.accepted:
+            integrity_block_reasons = [
+                "ORDINARY_SCALE_FREE_PAPER_ADMISSION_REVALIDATION_FAILED",
+                *ordinary_assessment.rejection_reasons,
+            ]
+        elif (
+            not ordinary_assessment.accepted
+            and not integrity.get("valid_for_orchestrator")
+        ):
+            integrity_block_reasons = [
+                "MARKET_STATE_INTEGRITY_REJECTED_FOR_ORCHESTRATOR"
+            ]
+        else:
+            # The ordinary lane has independently revalidated immutable
+            # structure and uses the positive score magnitude as a continuous
+            # sizing factor.  The legacy 80-point cliff is telemetry only.
+            integrity_block_reasons = []
+        temporal_block_reasons = _prediction_temporal_rejection_reasons(p)
+        integrity_block_reasons.extend(temporal_block_reasons)
+        microstructure_block_reasons = (
+            []
+            if ordinary_assessment.claimed
+            else _microstructure_block_reasons(p)
+        )
+        route_gate_blocked = p.get("routes_to_orchestrator") is not True
+        gate_explicitly_blocked = (
+            p.get("paper_fill_allowed") is False or route_gate_blocked
+        )
+        selected_action = str(p.get("selected_action") or "hold").strip().lower()
+        if (
+            selected_action not in {"long", "short"}
+            and not gate_explicitly_blocked
+            and not integrity_block_reasons
+            and not microstructure_block_reasons
+        ):
+            # A directional diagnostic attached to HOLD/flat/close must never
+            # be promoted into a new position.  Surface it through the worker's
+            # existing held-decision contract and do not publish a paper signal.
+            reasons = list(p.get("paper_fill_gate_block_reasons") or [])
+            reasons.extend(integrity_block_reasons)
+            reasons.extend(integrity.get("reject_reasons") or [])
+            reasons.extend(microstructure_block_reasons)
+            if route_gate_blocked:
+                reasons.append("ROUTES_TO_ORCHESTRATOR_NOT_EXPLICIT_TRUE")
+            reasons.append(f"NON_ROUTEABLE_SELECTED_ACTION:{selected_action.upper()}")
+            held_by_gate.append({
+                "symbol": p.get("symbol"),
+                "timeframe": p.get("timeframe"),
+                "prediction_id": p.get("prediction_id"),
+                "signal_id": f"held_signal_{p.get('prediction_id')}",
+                "orchestrator_decision_id": f"held_decision_{p.get('prediction_id')}",
+                "risk_decision_id": None,
+                "risk_state": "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_NON_ROUTEABLE_ACTION",
+                "feature_snapshot_id": p.get("feature_snapshot_id"),
+                "side": "flat",
+                "selected_action": selected_action,
+                "expected_move_after_cost_bps": p.get("expected_move_after_cost_bps"),
+                "confidence_calibrated": p.get("confidence_calibrated"),
+                "price_target": p.get("price_target"),
+                "data_coverage_percent": p.get("data_coverage_percent"),
+                "missing_feature_count": len(p.get("missing_feature_flags") or []),
+                "stale_feature_count": len(p.get("stale_feature_flags") or []),
+                "feature_freshness_state": p.get("feature_freshness_state"),
+                "market_state_id": integrity.get("market_state_id"),
+                "market_state_integrity_score": integrity.get("market_state_integrity_score"),
+                "valid_for_paper": integrity.get("valid_for_paper"),
+                "valid_for_live": integrity.get("valid_for_live"),
+                "market_state_reject_reasons": integrity.get("reject_reasons"),
+                "trainer_source": p.get("trainer_source"),
+                "checkpoint_weight_status": p.get("checkpoint_weight_status"),
+                "paper_fill_allowed": False,
+                "paper_fill_gate_status": "HELD_NON_ROUTEABLE_ACTION",
+                "paper_fill_gate_block_reasons": sorted(
+                    set(str(reason) for reason in reasons if reason)
+                ),
+                "orchestrator_microstructure_block_reasons": microstructure_block_reasons,
+                "checkpoint_blocker": p.get("checkpoint_blocker"),
+                "decision": "HELD_BY_NON_ROUTEABLE_ACTION",
+                "decision_reason_code": "non_routeable_selected_action",
+                "routes_to_risk_gateway": False,
+                "places_real_order": False,
+                "generated_utc": p.get("generated_utc"),
+            })
+            held_by_gate[-1].update(_copy_trust_envelope_fields(p))
+            # Reassert the fail-closed fields after copying upstream lineage.
+            held_by_gate[-1]["side"] = "flat"
+            held_by_gate[-1]["selected_action"] = selected_action
+            held_by_gate[-1]["paper_fill_allowed"] = False
+            continue
+        # Routing is an explicit capability: missing/None is blocked just like
+        # False.  Market-state integrity is an additional gate, not a substitute
+        # for upstream route authorization.
         if gate_explicitly_blocked or integrity_block_reasons or microstructure_block_reasons:
             # Gate blocked this prediction; do not arbitrate, but surface
             # block reasons so downstream consumers can diagnose.
@@ -562,6 +1003,8 @@ def run_once() -> dict:
             reasons.extend(integrity_block_reasons)
             reasons.extend(integrity.get("reject_reasons") or [])
             reasons.extend(microstructure_block_reasons)
+            if route_gate_blocked:
+                reasons.append("ROUTES_TO_ORCHESTRATOR_NOT_EXPLICIT_TRUE")
             if gate_explicitly_blocked and not integrity_block_reasons:
                 reasons.append("PAPER_FILL_ALLOWED_EXPLICITLY_FALSE")
             risk_state = "NOT_ROUTED_TO_RISK_GATEWAY_BECAUSE_PAPER_FILL_GATE_BLOCKED"
@@ -598,15 +1041,27 @@ def run_once() -> dict:
                 "orchestrator_microstructure_block_reasons": microstructure_block_reasons,
                 "checkpoint_blocker": p.get("checkpoint_blocker"),
                 "decision": decision,
+                "paper_fill_allowed": False,
+                "routes_to_risk_gateway": False,
                 "places_real_order": False,
                 "generated_utc": p.get("generated_utc"),
             })
             held_by_gate[-1].update(_copy_trust_envelope_fields(p))
+            # Upstream lineage is evidence only and must not overwrite the
+            # fail-closed decision made by this worker.
+            held_by_gate[-1]["paper_fill_allowed"] = False
+            held_by_gate[-1]["routes_to_risk_gateway"] = False
+            held_by_gate[-1]["places_real_order"] = False
             continue
 
         # High-precision paper mode gate (item 6): apply additional quality
         # thresholds when V2_HIGH_PRECISION_PAPER_MODE=1.
-        hppm_reasons = _hppm_gate(p) if _high_precision_paper_mode_active() else []
+        hppm_reasons = (
+            _hppm_gate(p)
+            if _high_precision_paper_mode_active()
+            and not ordinary_assessment.accepted
+            else []
+        )
         if hppm_reasons:
             held_by_gate.append({
                 "symbol": p.get("symbol"),
@@ -666,16 +1121,31 @@ def run_once() -> dict:
     arb = service.arbitrate(proposals)
     deconflict = deconflict_signals(signals)
     keys_written: list[str] = []
+    canonical_record_status_counts = {
+        "CREATED": 0,
+        "EXISTING_IDENTICAL": 0,
+        "CONFLICT": 0,
+        "WRITE_ERROR": 0,
+    }
+    canonical_record_blocked_winner_ids: list[str] = []
+    bucket_winners: list[dict[str, Any]] = []
     if r is not None:
         proposals_payload = []
         for pr in proposals:
             lineage = signal_by_prediction_id.get(str(pr.proposal_id)) or {}
+            directional_edge = float(pr.expected_move_after_cost_bps)
+            signed_edge = _finite_float(
+                lineage.get("expected_move_after_cost_bps_signed"),
+                directional_edge if pr.side == "long" else -directional_edge,
+            )
             row = {
                 "proposal_id": pr.proposal_id,
                 "symbol": pr.symbol,
                 "side": pr.side,
                 "confidence_calibrated": pr.confidence_calibrated,
-                "expected_move_after_cost_bps": pr.expected_move_after_cost_bps,
+                "expected_move_after_cost_bps": signed_edge,
+                "expected_move_after_cost_bps_signed": signed_edge,
+                "expected_move_after_cost_bps_directional": directional_edge,
                 "source": pr.source,
                 "freshness_seconds": pr.freshness_seconds,
                 "model_version": pr.model_version,
@@ -687,10 +1157,15 @@ def run_once() -> dict:
             row["side"] = pr.side
             row["model_version"] = pr.model_version
             proposals_payload.append(row)
-        bucket_winners = []
+        candidate_bucket_winners = []
         for w in arb.bucket_winners:
             lineage = signal_by_prediction_id.get(str(w.winner.proposal_id)) or {}
             decision_id = _first_text(lineage.get("decision_id")) or f"dec_{w.winner.proposal_id}"
+            directional_edge = float(w.winner.expected_move_after_cost_bps)
+            signed_edge = _finite_float(
+                lineage.get("expected_move_after_cost_bps_signed"),
+                directional_edge if w.side == "long" else -directional_edge,
+            )
             row = {
                 "symbol": w.symbol,
                 "side": w.side,
@@ -700,7 +1175,9 @@ def run_once() -> dict:
                 "decision_id": decision_id,
                 "orchestrator_decision_id": f"dec_{w.winner.proposal_id}",
                 "winner_confidence_calibrated": w.winner.confidence_calibrated,
-                "winner_expected_move_after_cost_bps": w.winner.expected_move_after_cost_bps,
+                "winner_expected_move_after_cost_bps": signed_edge,
+                "winner_expected_move_after_cost_bps_signed": signed_edge,
+                "winner_expected_move_after_cost_bps_directional": directional_edge,
                 "winner_freshness_seconds": w.winner.freshness_seconds,
                 "winner_model_version": w.winner.model_version,
                 "considered_proposal_ids": list(w.considered_proposal_ids),
@@ -716,7 +1193,43 @@ def run_once() -> dict:
             row["orchestrator_decision_id"] = f"dec_{w.winner.proposal_id}"
             row["winner_model_version"] = w.winner.model_version
             row["model_version"] = lineage.get("model_version") or w.winner.model_version
-            bucket_winners.append(row)
+            candidate_bucket_winners.append(row)
+        record_generated_at = datetime.now(timezone.utc)
+        for row in candidate_bucket_winners:
+            record_status = _write_per_id_orchestrator_decision_record(
+                r,
+                winner=row,
+                generated_at=record_generated_at,
+            )
+            canonical_record_status_counts[record_status] = (
+                canonical_record_status_counts.get(record_status, 0) + 1
+            )
+            if record_status in {"CREATED", "EXISTING_IDENTICAL"}:
+                row["canonical_orchestrator_record_status"] = record_status
+                row["canonical_orchestrator_record_producer"] = (
+                    "v2_orchestrator_arbitration_loop"
+                )
+                bucket_winners.append(row)
+                if record_status == "CREATED":
+                    keys_written.append(
+                        f"{V2_REDIS_PREFIX}decision:orchestrator:"
+                        f"{row['orchestrator_decision_id']}"
+                    )
+            else:
+                canonical_record_blocked_winner_ids.append(
+                    str(row.get("winner_proposal_id") or "")
+                )
+                skipped_malformed.append(
+                    {
+                        "symbol": row.get("symbol"),
+                        "timeframe": row.get("timeframe"),
+                        "prediction_id": row.get("prediction_id"),
+                        "reason": (
+                            "CANONICAL_ORCHESTRATOR_DECISION_RECORD_"
+                            f"{record_status}"
+                        ),
+                    }
+                )
         decisions_payload = {
             "schema_version": "v2_orchestrator_decisions_v2",
             "generated_utc": _utc_iso(),
@@ -730,6 +1243,8 @@ def run_once() -> dict:
             "held_by_paper_fill_gate_count": len(held_by_gate),
             "skipped_malformed_predictions": skipped_malformed[:200],
             "skipped_malformed_prediction_count": len(skipped_malformed),
+            "canonical_record_status_counts": canonical_record_status_counts,
+            "canonical_record_blocked_winner_ids": canonical_record_blocked_winner_ids,
         }
         if _safe_write(
             r, f"{V2_REDIS_PREFIX}orchestrator:proposals",
@@ -741,14 +1256,27 @@ def run_once() -> dict:
             json.dumps(decisions_payload), ex=600,
         ):
             keys_written.append(f"{V2_REDIS_PREFIX}orchestrator:decisions")
-        # Paper signals — bucket winners are GUARANTEED to be from
-        # paper_fill_allowed=True predictions (predictions with
-        # paper_fill_allowed=False are excluded from arbitration above).
-        # Propagate paper_fill_allowed=True and enrichment fields so
-        # v2_trade_management_paper_loop can record accepted paper fills.
+        # Paper signals are proposals awaiting the binding risk gateway.  An
+        # upstream paper gate can make a prediction eligible for arbitration,
+        # but the orchestrator cannot grant fill permission.  The canonical
+        # risk-decision id is deterministic and dereferences only after the
+        # risk worker has evaluated the matching orchestrator decision.
         sig_payload = []
         for w in bucket_winners:
             lineage = signal_by_prediction_id.get(str(w["winner_proposal_id"])) or {}
+            orchestrator_decision_id = (
+                w.get("orchestrator_decision_id")
+                or f"dec_{w['winner_proposal_id']}"
+            )
+            risk_decision_id = f"rd_{orchestrator_decision_id}"
+            signed_edge = _finite_float(
+                w.get("winner_expected_move_after_cost_bps_signed"),
+                w["winner_expected_move_after_cost_bps"],
+            )
+            directional_edge = _finite_float(
+                w.get("winner_expected_move_after_cost_bps_directional"),
+                signed_edge if w["side"] == "long" else -signed_edge,
+            )
             signal_row = {
                 "signal_id": lineage.get("signal_id") or f"sig_{w['winner_proposal_id']}",
                 "side": w["side"],
@@ -757,19 +1285,29 @@ def run_once() -> dict:
                 "winner_proposal_id": w["winner_proposal_id"],
                 "prediction_id": w["winner_proposal_id"],
                 "source_prediction_id": w["winner_proposal_id"],
-                "risk_decision_id": f"rd_{w['winner_proposal_id']}",
-                "orchestrator_decision_id": w.get("orchestrator_decision_id") or f"dec_{w['winner_proposal_id']}",
+                "risk_decision_id": risk_decision_id,
+                "orchestrator_decision_id": orchestrator_decision_id,
                 "decision_id": w.get("decision_id") or lineage.get("decision_id") or f"dec_{w['winner_proposal_id']}",
-                "expected_move_after_cost_bps": w["winner_expected_move_after_cost_bps"],
+                "expected_move_after_cost_bps": signed_edge,
+                "expected_move_after_cost_bps_signed": signed_edge,
+                "expected_move_after_cost_bps_directional": directional_edge,
                 "confidence_calibrated": w["winner_confidence_calibrated"],
                 "model_version": lineage.get("model_version") or w.get("winner_model_version"),
                 "trainer_source": lineage.get("trainer_source"),
                 "model_id": lineage.get("model_id"),
                 "checkpoint_id": lineage.get("checkpoint_id"),
                 "feature_snapshot_id": lineage.get("feature_snapshot_id"),
-                "paper_fill_allowed": True,
-                "paper_fill_gate_status": "PAPER_FILL_ALLOWED_BY_ORCHESTRATOR_GATE",
-                "paper_fill_gate_block_reasons": [],
+                "upstream_paper_fill_allowed": (
+                    lineage.get("upstream_paper_fill_allowed") is True
+                ),
+                "upstream_paper_fill_gate_status": lineage.get(
+                    "upstream_paper_fill_gate_status"
+                ),
+                "paper_fill_allowed": False,
+                "paper_fill_gate_status": "RISK_PENDING",
+                "paper_fill_gate_block_reasons": ["RISK_GATEWAY_DECISION_PENDING"],
+                "risk_state": "PENDING_RISK_GATEWAY_DECISION",
+                "routes_to_risk_gateway": True,
                 "feature_freshness_state": "CURRENT",
                 "market_state_id": (integrity_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("market_state_id"),
                 "market_state_integrity_score": (integrity_by_prediction_id.get(str(w["winner_proposal_id"])) or {}).get("market_state_integrity_score"),
@@ -794,8 +1332,8 @@ def run_once() -> dict:
             signal_row["winner_proposal_id"] = w["winner_proposal_id"]
             signal_row["prediction_id"] = w["winner_proposal_id"]
             signal_row["source_prediction_id"] = w["winner_proposal_id"]
-            signal_row["risk_decision_id"] = f"rd_{w['winner_proposal_id']}"
-            signal_row["orchestrator_decision_id"] = w.get("orchestrator_decision_id") or f"dec_{w['winner_proposal_id']}"
+            signal_row["risk_decision_id"] = risk_decision_id
+            signal_row["orchestrator_decision_id"] = orchestrator_decision_id
             signal_row["decision_id"] = (
                 w.get("decision_id")
                 or lineage.get("decision_id")
@@ -804,6 +1342,10 @@ def run_once() -> dict:
             signal_row["model_version"] = lineage.get("model_version") or w.get("winner_model_version")
             signal_row["checkpoint_id"] = lineage.get("checkpoint_id")
             signal_row["feature_snapshot_id"] = lineage.get("feature_snapshot_id")
+            signal_row["expected_move_after_cost_bps"] = signed_edge
+            signal_row["expected_move_after_cost_bps_signed"] = signed_edge
+            signal_row["expected_move_after_cost_bps_directional"] = directional_edge
+            signal_row["paper_fill_allowed"] = False
             sig_payload.append(signal_row)
         if _safe_write(
             r, f"{V2_REDIS_PREFIX}signals:paper",
@@ -840,7 +1382,10 @@ def run_once() -> dict:
         "held_by_paper_fill_gate": held_by_gate,
         "skipped_malformed_prediction_count": len(skipped_malformed),
         "skipped_malformed_predictions": skipped_malformed[:200],
-        "bucket_winners_count": len(arb.bucket_winners),
+        "bucket_winners_count": len(bucket_winners),
+        "arbitration_bucket_winners_before_canonical_store": len(arb.bucket_winners),
+        "canonical_record_status_counts": canonical_record_status_counts,
+        "canonical_record_blocked_winner_ids": canonical_record_blocked_winner_ids,
         "stale_proposal_count": len(arb.stale_proposal_ids),
         "deconflict_reason": getattr(deconflict, "conflict_reason", None),
         "deconflict_selected_side": getattr(deconflict, "selected_side", None),

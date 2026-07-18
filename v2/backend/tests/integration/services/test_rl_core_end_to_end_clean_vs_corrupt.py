@@ -6,6 +6,11 @@ from types import SimpleNamespace
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     V2HybridTrainerDataLoader,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    CONFIDENCE_HEAD_ACTIONS,
+    CONFIDENCE_HEAD_SCHEMA_VERSION,
+    CONFIDENCE_LABEL_SEMANTICS,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.publisher import (
     build_prediction_payload,
 )
@@ -44,13 +49,13 @@ class _StubTensorBuilder:
             values=values,
             missing_mask=masks,
             stale_mask=masks,
-            source_availability=masks,
+            source_availability=(1,) * len(values),
             feature_names=feature_names,
             source_labels=source_labels,
             missing_feature_names=(),
             stale_feature_names=(),
             data_coverage_percent=100.0,
-            source_availability_vector=masks,
+            source_availability_vector=(1,) * len(values),
         )
 
 
@@ -76,6 +81,11 @@ def _seed(
         "all_tf_candle_timestamps": ["2026-06-11T00:01:00Z"],
         "all_source_event_times": ["2026-06-11T00:01:00Z"],
         "features": {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.5,
+            "close": 101.0,
+            "funding_rate": 0.0001,
             "ret_pct": 0.001,
             "log_return": 0.001,
             "range_pct": 0.004,
@@ -238,11 +248,23 @@ def _model_output(**overrides) -> SimpleNamespace:
     values = {
         "selected_action": "long",
         "selected_action_index": 1,
+        "action_logits": [0.0, 2.0, -1.0, -10.0, -10.0, -10.0, -10.0],
         "action_probabilities": [0.1, 0.8, 0.1, 0.0, 0.0, 0.0, 0.0],
         "expected_move_bps": 15.0,
         "confidence_raw": 0.9,
         "confidence_calibrated": 0.9,
-        "calibration": "test",
+        "calibration": {
+            "calibration_fitted": True,
+            "probability_semantics_valid": True,
+            "label_semantics": CONFIDENCE_LABEL_SEMANTICS,
+            "confidence_head_schema_version": CONFIDENCE_HEAD_SCHEMA_VERSION,
+            "confidence_head_actions": list(CONFIDENCE_HEAD_ACTIONS),
+            "selected_action": "long",
+            "selected_action_is_directional": True,
+            "confidence_head_action_index": 0,
+            "confidence_raw_by_direction": {"long": 0.9, "short": 0.1},
+            "model_parameter_fingerprint": "f" * 64,
+        },
         "policy_value": 0.0,
         "masa_signal": 0.55,
         "model_id": "model-test",
@@ -256,7 +278,7 @@ def _model_output(**overrides) -> SimpleNamespace:
     )
 
 
-def test_clean_path_produces_publishable_prediction_payload() -> None:
+def test_clean_path_produces_structurally_valid_prediction_payload() -> None:
     client = _MemoryClient()
     _seed(client)
     loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client), tensor_builder=_StubTensorBuilder())
@@ -274,8 +296,17 @@ def test_clean_path_produces_publishable_prediction_payload() -> None:
     )
 
     assert example.row_classification != "MARKET_STATE_REJECTED"
-    assert len(trusted) == 1
-    assert payload["paper_fill_allowed"] is True
+    assert trusted == []
+    assert example.label_timing_valid is False
+    assert example.label_timing_error == "LABEL_TIMING_MISSING"
+    # Building a prediction object proves structural/PIT validity, but it does
+    # not fabricate the publisher's exact cost-source or Redis readback receipt.
+    assert payload["paper_fill_allowed"] is False
+    assert payload["routes_to_orchestrator"] is False
+    assert (
+        "ordinary_paper_exact_cost:behavior_receipt_exact_cost_provenance_missing"
+        in payload["paper_fill_gate_block_reasons"]
+    )
     assert payload["replay_snapshot_ready"] is True
     assert payload["replay_snapshot_id"] == payload["decision_id"]
     assert str(payload["mtf_snapshot_id"]).startswith("mtf_")
@@ -284,7 +315,9 @@ def test_clean_path_produces_publishable_prediction_payload() -> None:
     assert payload["counterfactual_directional_action_from_expected_move"] == "long"
     assert payload["counterfactual_directional_expected_move_after_cost_bps"] == 15.0
     assert payload["selected_hold_with_directional_edge_after_cost"] is False
-    assert "market_state_invalid_for_prediction" not in payload["paper_fill_gate_block_reasons"]
+    assert "market_state_invalid_for_prediction" not in payload[
+        "paper_fill_gate_block_reasons"
+    ]
     assert payload["market_state_integrity_score"] >= 80.0
 
 
@@ -314,7 +347,9 @@ def test_hold_with_directional_edge_is_diagnostic_only_and_blocked() -> None:
     assert payload["paper_fill_allowed"] is False
     assert payload["routes_to_orchestrator"] is False
     assert "action_not_directional" in payload["paper_fill_gate_block_reasons"]
-    assert "expected_move_after_cost_below_threshold" in payload["paper_fill_gate_block_reasons"]
+    assert "ordinary_paper_after_cost_edge_zero" in payload[
+        "paper_fill_gate_block_reasons"
+    ]
     assert payload["expected_move_after_cost_bps"] == 0.0
     assert payload["counterfactual_directional_action_from_expected_move"] == "short"
     assert payload["counterfactual_directional_expected_move_after_cost_bps"] == -8.0

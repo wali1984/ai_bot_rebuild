@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
@@ -10,6 +11,126 @@ from v2.backend.app.services.paper_trade_management.position_state import PaperN
 
 
 GOAL_ID = "V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
+PHASE7_RECEIPT_SCHEMA = "v2_a_plus_phase7_executed_contract_receipt_v1"
+PHASE7_TEST_PATH = (
+    "v2/backend/tests/unit/services/native_trainer/"
+    "test_a_plus_phase7_exit_repair.py"
+)
+PHASE7_TEST_NODE = "test_phase7_exit_repair_behavioral_contract"
+
+
+def _canonical_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _sha256_path(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _strict_utc(value: Any) -> datetime | None:
+    text = str(value or "")
+    if not text or (not text.endswith("Z") and "+" not in text[10:]):
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if (
+        parsed.tzinfo is None
+        or parsed.utcoffset() is None
+        or parsed.utcoffset() != timezone.utc.utcoffset(parsed)
+    ):
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _phase7_source_hashes(repo_root: Path) -> dict[str, str]:
+    paths = (
+        "v2/backend/app/services/native_trainer/a_plus_phase7_exit_repair.py",
+        "v2/backend/app/services/paper_trade_management/exits.py",
+        "v2/backend/app/services/paper_trade_management/position_state.py",
+        "v2/backend/app/cli/v2_trade_management_paper_loop.py",
+    )
+    try:
+        return {relative: _sha256_path(repo_root / relative) for relative in paths}
+    except OSError:
+        return {}
+
+
+def _receipt_validation(
+    *,
+    receipt: Mapping[str, Any] | None,
+    evidence_run_id: str | None,
+    observed_utc: str,
+    diagnostic_output_sha256: str,
+    repo_root: Path,
+) -> dict[str, Any]:
+    reasons: list[str] = []
+    row = dict(receipt or {})
+    observed_at = _strict_utc(observed_utc)
+    completed_at = _strict_utc(row.get("completed_at"))
+    expires_at = _strict_utc(row.get("expires_at"))
+    run_id = str(evidence_run_id or "")
+    expected_sources = _phase7_source_hashes(repo_root)
+    test_path = repo_root / PHASE7_TEST_PATH
+    try:
+        expected_test_hash = _sha256_path(test_path)
+    except OSError:
+        expected_test_hash = ""
+
+    if not row:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_MISSING")
+    if row.get("schema_version") != PHASE7_RECEIPT_SCHEMA:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_SCHEMA_INVALID")
+    if not run_id or row.get("run_id") != run_id:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_RUN_ID_MISMATCH")
+    if observed_at is None:
+        reasons.append("OBSERVED_AT_NOT_STRICT_UTC")
+    if completed_at is None or expires_at is None:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_CLOCK_INVALID")
+    elif observed_at is not None and not (
+        completed_at <= observed_at <= expires_at
+    ):
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_NOT_CURRENT")
+    if row.get("pytest_nodeid") != f"{PHASE7_TEST_PATH}::{PHASE7_TEST_NODE}":
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_NODE_MISMATCH")
+    if row.get("outcome") != "PASSED" or row.get("exit_code") != 0:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_NOT_PASSED")
+    runner_command = str(row.get("runner_command") or "")
+    runner_command_sha256 = hashlib.sha256(runner_command.encode("utf-8")).hexdigest()
+    if not runner_command or row.get("runner_command_sha256") != runner_command_sha256:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_COMMAND_HASH_INVALID")
+    if row.get("test_source_sha256") != expected_test_hash or not expected_test_hash:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_TEST_SOURCE_MISMATCH")
+    if row.get("production_source_sha256") != expected_sources or not expected_sources:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_PRODUCTION_SOURCE_MISMATCH")
+    if row.get("diagnostic_output_sha256") != diagnostic_output_sha256:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_OUTPUT_MISMATCH")
+    unsigned = dict(row)
+    claimed_hash = str(unsigned.pop("receipt_sha256", ""))
+    try:
+        actual_hash = _canonical_sha256(unsigned)
+    except (TypeError, ValueError):
+        actual_hash = ""
+    if not claimed_hash or claimed_hash != actual_hash:
+        reasons.append("EXECUTED_CONTRACT_RECEIPT_HASH_INVALID")
+    return {
+        "valid": not reasons,
+        "run_id": run_id or None,
+        "rejection_reasons": list(dict.fromkeys(reasons)),
+        "receipt_sha256": claimed_hash or None,
+        "diagnostic_output_sha256": diagnostic_output_sha256,
+        "production_source_sha256": expected_sources,
+        "test_source_sha256": expected_test_hash or None,
+    }
 
 
 def _utc_now() -> str:
@@ -219,7 +340,15 @@ def _proof_atr_loser_bucket_quarantine() -> dict[str, Any]:
     }
 
 
-def build_phase7_exit_repair_status(*, repair_deployed_utc: str | None = None) -> dict[str, Any]:
+def build_phase7_exit_repair_status(
+    *,
+    repair_deployed_utc: str | None = None,
+    generated_utc: str | None = None,
+    evidence_run_id: str | None = None,
+    execution_receipt: Mapping[str, Any] | None = None,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    observed = generated_utc or _utc_now()
     deployed = repair_deployed_utc or _utc_now()
     proofs = [
         _proof_atr_stop_floor(),
@@ -229,24 +358,57 @@ def build_phase7_exit_repair_status(*, repair_deployed_utc: str | None = None) -
         _proof_model_reversal_precedes_atr_stop(),
         _proof_atr_loser_bucket_quarantine(),
     ]
-    passed = all(proof["passed"] for proof in proofs)
+    diagnostic_passed = all(proof["passed"] for proof in proofs)
+    for proof in proofs:
+        proof["evidence_class"] = "NONCANONICAL_DIAGNOSTIC_SYNTHETIC_SCENARIO"
+        proof["counts_as_a_plus_readiness"] = False
+    diagnostic_output_sha256 = _canonical_sha256(proofs)
+    resolved_root = repo_root or Path(__file__).resolve().parents[5]
+    receipt_validation = _receipt_validation(
+        receipt=execution_receipt,
+        evidence_run_id=evidence_run_id,
+        observed_utc=observed,
+        diagnostic_output_sha256=diagnostic_output_sha256,
+        repo_root=resolved_root,
+    )
+    # These examples are constructed in memory.  Even a source-bound receipt
+    # proves only that the code contract executed; it is not current paper
+    # runtime/outcome evidence and therefore cannot clear A+ readiness.
+    canonical_runtime_evidence_present = False
+    passed = bool(
+        diagnostic_passed
+        and receipt_validation["valid"]
+        and canonical_runtime_evidence_present
+    )
+    diagnostic_pass_conditions = {
+        "atr_stop_floor_scenario_passed": proofs[0]["passed"],
+        "stop_multiplier_by_regime_scenario_passed": proofs[1]["passed"],
+        "missing_atr_floor_fallback_scenario_passed": proofs[2]["passed"],
+        "mfe_protection_scenario_passed": proofs[3]["passed"],
+        "model_reversal_exit_quality_scenario_passed": proofs[4]["passed"],
+        "bucket_quarantine_for_atr_losers_scenario_passed": proofs[5]["passed"],
+    }
     pass_conditions = {
-        "atr_cluster_no_longer_irrecoverable_pre_repair_losses_excluded": passed,
-        "atr_stop_floor_active": proofs[0]["passed"],
-        "stop_multiplier_by_regime_active": proofs[1]["passed"],
-        "missing_atr_floor_fallback_active": proofs[2]["passed"],
-        "mfe_protection_active": proofs[3]["passed"],
-        "model_reversal_exit_quality_active": proofs[4]["passed"],
-        "bucket_quarantine_for_atr_losers_active": proofs[5]["passed"],
-        "paper_entry_freeze_clear_allowed_only_after_exit_repair_test_passes": passed,
+        "canonical_current_paper_exit_runtime_evidence_present": (
+            canonical_runtime_evidence_present
+        ),
+        "executed_contract_receipt_valid": receipt_validation["valid"],
+        "atr_cluster_no_longer_irrecoverable_pre_repair_losses_excluded": False,
+        "atr_stop_floor_active": False,
+        "stop_multiplier_by_regime_active": False,
+        "missing_atr_floor_fallback_active": False,
+        "mfe_protection_active": False,
+        "model_reversal_exit_quality_active": False,
+        "bucket_quarantine_for_atr_losers_active": False,
+        "paper_entry_freeze_clear_allowed_only_after_exit_repair_test_passes": False,
     }
     return {
-        "schema_version": "a_plus_phase7_exit_repair_status_v1",
+        "schema_version": "a_plus_phase7_exit_repair_status_v2",
         "goal_id": GOAL_ID,
-        "generated_utc": _utc_now(),
+        "generated_utc": observed,
         "repair_deployed_utc": deployed,
         "repair_test_passed": passed,
-        "status": "ATR_STOP_CLUSTER_REPAIR_READY" if passed else "ATR_STOP_CLUSTER_REPAIR_BLOCKED",
+        "status": "ATR_STOP_CLUSTER_REPAIR_BLOCKED_NONCANONICAL_EVIDENCE",
         "root_cause": "ATR stop cluster made the 50-trade gate irrecoverable before adaptive exit repair",
         "repairs": [
             "ATR stop floor",
@@ -257,6 +419,13 @@ def build_phase7_exit_repair_status(*, repair_deployed_utc: str | None = None) -
             "ATR-loser bucket quarantine",
         ],
         "behavioral_proofs": proofs,
+        "behavioral_proof_evidence_class": (
+            "NONCANONICAL_DIAGNOSTIC_SYNTHETIC_SCENARIOS"
+        ),
+        "behavioral_proofs_count_as_a_plus_readiness": False,
+        "diagnostic_pass_conditions": diagnostic_pass_conditions,
+        "diagnostic_pass_conditions_count_as_a_plus_readiness": False,
+        "executed_contract_receipt": receipt_validation,
         "pass_conditions": pass_conditions,
         "paper_entry_freeze_clear_allowed_by_exit_repair": passed,
         "paper_entry_freeze_mutated": False,
@@ -278,8 +447,17 @@ def write_phase7_exit_repair_artifacts(
     goal_dir: Path,
     public_dir: Path | None = None,
     repair_deployed_utc: str | None = None,
+    generated_utc: str | None = None,
+    evidence_run_id: str | None = None,
+    execution_receipt: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    status = build_phase7_exit_repair_status(repair_deployed_utc=repair_deployed_utc)
+    status = build_phase7_exit_repair_status(
+        repair_deployed_utc=repair_deployed_utc,
+        generated_utc=generated_utc,
+        evidence_run_id=evidence_run_id,
+        execution_receipt=execution_receipt,
+        repo_root=repo_root,
+    )
     adaptive_exit = {
         **status,
         "schema_version": "adaptive_exit_repair_status_v1",
@@ -288,7 +466,7 @@ def write_phase7_exit_repair_artifacts(
     mfe_status = {
         **status,
         "schema_version": "mfe_protection_status_v1",
-        "status": "MFE_PROTECTION_READY" if status["pass_conditions"]["mfe_protection_active"] else "MFE_PROTECTION_BLOCKED",
+        "status": "MFE_PROTECTION_BLOCKED_NONCANONICAL_EVIDENCE",
     }
     payloads = {
         "atr_stop_cluster_repair_status.json": status,

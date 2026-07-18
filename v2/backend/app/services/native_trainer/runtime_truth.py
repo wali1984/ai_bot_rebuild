@@ -7,11 +7,11 @@ trainer bridge/wrapper processes.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
-import os
-import hashlib
 import re
+import socket
 import subprocess
 import urllib.request
 from collections import Counter
@@ -21,10 +21,15 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
+    V2HybridCheckpointManager,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (
+    VERIFIED_SERVING_LINEAGE,
+)
 from v2.backend.app.services.native_trainer.learning_readiness import (
     build_learning_readiness,
 )
-
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 PUBLIC_ROOT = REPO_ROOT / "v2/frontend/public"
@@ -55,6 +60,8 @@ LIVE_GATE_REL = Path("operator_runtime/v2_live_gate_runtime/latest/live_gate_run
 
 MODEL_DIR = Path(".local_models/v2_native_rl_masa_ppo")
 TRAINER_METRICS_KEY = "v2:trainer:hybrid_cuda:metrics"
+TRAINER_STATUS_KEY = "v2:trainer:hybrid_cuda:status"
+TRAINER_HEARTBEAT_KEY = "v2:trainer:hybrid_cuda:heartbeat"
 TRAINER_BRIDGE_UNIT = "ai-bot-v2-trainer-bridge.service"
 NATIVE_TRAINER_UNIT = "ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.service"
 NATIVE_TRAINER_TIMER = "ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.timer"
@@ -144,8 +151,8 @@ def parse_time(value: Any) -> datetime | None:
         dt = datetime.fromisoformat(text)
     except ValueError:
         return None
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=EST)
+    if dt.tzinfo is None or dt.utcoffset() is None:
+        return None
     return dt.astimezone(timezone.utc)
 
 
@@ -153,19 +160,15 @@ def age_seconds_from_timestamp(value: Any) -> float | None:
     dt = parse_time(value)
     if dt is None:
         return None
-    return max(0.0, datetime.now(tz=timezone.utc).timestamp() - dt.timestamp())
+    age_seconds = datetime.now(tz=timezone.utc).timestamp() - dt.timestamp()
+    return age_seconds if age_seconds >= 0.0 and math.isfinite(age_seconds) else None
 
 
 def generated_age_seconds(payload: Mapping[str, Any], path: Path | None = None) -> float | None:
+    del path  # File mtimes are not producer clocks and cannot establish freshness.
     for key in ("generated_est", "generated_at", "generated_utc", "last_equity_update_est"):
-        age = age_seconds_from_timestamp(payload.get(key))
-        if age is not None:
-            return age
-    if path is not None:
-        try:
-            return max(0.0, datetime.now(tz=timezone.utc).timestamp() - path.stat().st_mtime)
-        except OSError:
-            return None
+        if key in payload:
+            return age_seconds_from_timestamp(payload.get(key))
     return None
 
 
@@ -175,29 +178,42 @@ def online_learning_runtime_fields(
     persistent_runtime: Mapping[str, Any] | None = None,
     prediction_rows: int = 0,
     trainer_process_active: bool | None = None,
+    trainer_process_evidence: Mapping[str, Any] | None = None,
     cuda_inference_active: bool | None = None,
+    current_cycle_learning_envelope: Mapping[str, Any] | None = None,
+    runtime_status_evidence: Mapping[str, Any] | None = None,
+    heartbeat_evidence: Mapping[str, Any] | None = None,
+    verified_serving_checkpoint: Mapping[str, Any] | None = None,
+    prediction_publication_evidence: Mapping[str, Any] | None = None,
+    resource_evidence: Mapping[str, Any] | None = None,
+    parity_evidence: Mapping[str, Any] | None = None,
+    now_utc: datetime | None = None,
 ) -> dict[str, Any]:
     training = as_dict(training)
     persistent_runtime = as_dict(persistent_runtime)
     metrics = as_dict(training.get("metrics"))
-    rows_rejected_by_reason = as_dict(
-        metrics.get("rows_rejected_by_reason")
-        or training.get("rows_rejected_by_reason")
-        or persistent_runtime.get("rows_rejected_by_reason")
-        or {}
-    )
+    rows_rejected_by_reason = as_dict(metrics.get("rows_rejected_by_reason"))
     readiness = build_learning_readiness(
         training=training,
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_rows,
         trainer_process_active=trainer_process_active,
+        trainer_process_evidence=trainer_process_evidence,
         cuda_inference_active=cuda_inference_active,
+        current_cycle_learning_envelope=current_cycle_learning_envelope,
+        runtime_status_evidence=runtime_status_evidence,
+        heartbeat_evidence=heartbeat_evidence,
+        verified_serving_checkpoint=verified_serving_checkpoint,
+        prediction_publication_evidence=prediction_publication_evidence,
+        resource_evidence=resource_evidence,
+        parity_evidence=parity_evidence,
+        now_utc=now_utc,
     )
     return {
         **{key: value for key, value in readiness.items() if key != "schema_version"},
         "rows_rejected_by_reason": rows_rejected_by_reason,
-        "loss_before": metrics.get("loss_before") or training.get("loss_before"),
-        "loss_after": metrics.get("loss_after") or training.get("loss_after"),
+        "loss_before": metrics.get("loss_before"),
+        "loss_after": metrics.get("loss_after"),
     }
 
 
@@ -328,10 +344,13 @@ def checkpoint_retention_status(repo_root: Path, latest_checkpoint_id: str | Non
     checkpoint_dir = repo_root / MODEL_DIR
     files = sorted(
         [path for path in checkpoint_dir.glob("*.json") if path.is_file()],
-        key=lambda item: item.stat().st_mtime,
+        key=lambda item: item.name,
     ) if checkpoint_dir.exists() else []
     total_bytes = sum(path.stat().st_size for path in files)
-    latest = files[-1] if files else None
+    latest = next(
+        (path for path in files if latest_checkpoint_id and path.stem == latest_checkpoint_id),
+        None,
+    )
     pinned = [
         path.name
         for path in files
@@ -346,7 +365,7 @@ def checkpoint_retention_status(repo_root: Path, latest_checkpoint_id: str | Non
         "checkpoint_dir_size_bytes": total_bytes,
         "rollover_limit_gb": 300,
         "checkpoint_rollover_limit_bytes": 300 * 1024 ** 3,
-        "oldest_checkpoint": files[0].name if files else None,
+        "oldest_checkpoint": None,
         "latest_checkpoint": latest.name if latest else None,
         "latest_checkpoint_id": latest_checkpoint_id,
         "pinned_checkpoints": pinned,
@@ -357,10 +376,124 @@ def checkpoint_retention_status(repo_root: Path, latest_checkpoint_id: str | Non
     }
 
 
+def service_process_active(service_state: Mapping[str, Any]) -> bool:
+    """Require systemd liveness and a real PID; cached JSON booleans never count."""
+
+    pid = finite_float(service_state.get("MainPID"))
+    return bool(
+        service_state.get("ActiveState") == "active"
+        and pid is not None
+        and pid.is_integer()
+        and pid > 0.0
+    )
+
+
+def causal_verified_serving_checkpoint_evidence(repo_root: Path) -> dict[str, Any]:
+    """Return the newest manager-verified serving artifact in causal order.
+
+    The checkpoint manager validates the append-only causal ledger, manifest,
+    safe NPZ bytes, content identity, and ancestry.  Filesystem mtimes are never
+    used to select or validate the serving policy.
+    """
+
+    manager = V2HybridCheckpointManager(repo_root / MODEL_DIR)
+    try:
+        manifests = manager.manifests(
+            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+            require_weight_blob=True,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return {
+            "checkpoint_artifact_verified": False,
+            "causal_order_verified": False,
+            "status": "BLOCKED_CHECKPOINT_MANAGER_SCAN_INVALID",
+            "rejection_reasons": [f"{type(exc).__name__}:{exc}"],
+        }
+    if not manifests:
+        return {
+            "checkpoint_artifact_verified": False,
+            "causal_order_verified": False,
+            "status": "BLOCKED_NO_CAUSAL_VERIFIED_SERVING_CHECKPOINT",
+            "rejection_reasons": ["NO_VERIFIED_SERVING_MANIFEST"],
+        }
+    manifest = manifests[0]
+    try:
+        verified = manager.verify_manifest_artifact(manifest)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return {
+            "checkpoint_artifact_verified": False,
+            "causal_order_verified": False,
+            "checkpoint_id": manifest.checkpoint_id,
+            "status": "BLOCKED_CHECKPOINT_ARTIFACT_VERIFICATION_FAILED",
+            "rejection_reasons": [f"{type(exc).__name__}:{exc}"],
+        }
+
+    checkpoint_evidence = as_dict(verified.get("checkpoint_evidence"))
+    optimizer = as_dict(checkpoint_evidence.get("optimizer_evidence"))
+    update_keys = as_list(verified.get("consumed_ppo_update_keys"))
+    ppo_rows_consumed = finite_float(optimizer.get("ppo_rows_consumed"))
+    clipped_rows = finite_float(optimizer.get("ppo_clipped_surrogate_rows"))
+    unavailable_rows = finite_float(
+        optimizer.get("ppo_rows_available_but_optimizer_unavailable")
+    )
+    exact_optimizer_contract_durable = bool(
+        optimizer.get("exact_optimizer_contract_valid") is True
+        and optimizer.get("ppo_objective_used") is True
+        and optimizer.get("optimizer_parameter_fingerprints_bound") is True
+        and optimizer.get("ppo_consumed_update_keys_complete") is True
+        and optimizer.get("ppo_consumed_update_keys_ordered") is True
+        and optimizer.get("ppo_consumed_update_keys_unique") is True
+        and ppo_rows_consumed is not None
+        and ppo_rows_consumed.is_integer()
+        and ppo_rows_consumed == len(update_keys)
+        and clipped_rows is not None
+        and clipped_rows.is_integer()
+        and clipped_rows == len(update_keys)
+        and unavailable_rows == 0.0
+    )
+    causal_order_verified = bool(
+        verified.get("checkpoint_artifact_verified") is True
+        and finite_float(verified.get("checkpoint_generation")) is not None
+        and float(verified.get("checkpoint_generation")) > 0.0
+        and verified.get("checkpoint_causal_order_schema_version")
+        and verified.get("checkpoint_causal_record_digest")
+    )
+    serving_decision = as_dict(checkpoint_evidence.get("serving_promotion_decision"))
+    candidate_decision = as_dict(checkpoint_evidence.get("candidate_progress_decision"))
+    semantic_serving_verified = bool(
+        verified.get("lineage_kind") == VERIFIED_SERVING_LINEAGE
+        and checkpoint_evidence.get("checkpoint_role") == VERIFIED_SERVING_LINEAGE
+        and checkpoint_evidence.get("ledger_disposition") == "SERVING_PROMOTED"
+        and serving_decision.get("checkpoint_promotion_allowed") is True
+        and candidate_decision.get("candidate_progress_allowed") is True
+    )
+    artifact_verified = bool(
+        verified.get("checkpoint_artifact_verified") is True
+        and causal_order_verified
+        and semantic_serving_verified
+    )
+    return {
+        **verified,
+        "generated_utc": manifest.generated_utc,
+        "checkpoint_artifact_verified": artifact_verified,
+        "causal_order_verified": causal_order_verified,
+        "semantic_serving_verified": semantic_serving_verified,
+        "exact_optimizer_contract_durable": exact_optimizer_contract_durable,
+        "ledger_disposition": checkpoint_evidence.get("ledger_disposition"),
+        "status": (
+            "CAUSAL_VERIFIED_SERVING_CHECKPOINT_CONFIRMED"
+            if artifact_verified and exact_optimizer_contract_durable
+            else "BLOCKED_INCOMPLETE_CAUSAL_SERVING_EVIDENCE"
+        ),
+    }
+
+
 def summarize_predictions(prediction_payload: Mapping[str, Any], redis_predictions: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     public_rows = [as_dict(row) for row in as_list(prediction_payload.get("prediction_rows"))]
     redis_rows = [as_dict(row) for row in redis_predictions]
-    rows = public_rows or redis_rows
+    # Redis rows remain visible as diagnostics when the public publisher is
+    # absent, but they are never treated as a complete publication snapshot.
+    rows = public_rows if prediction_payload else redis_rows
     primary = [row for row in redis_rows if ":rl_core:" not in str(row.get("_redis_key", ""))]
     sidecar_rows = [row for row in redis_rows if ":rl_core:" in str(row.get("_redis_key", ""))]
     source_counts = Counter(str(row.get("trainer_source") or row.get("model_source") or "source_pending") for row in rows)
@@ -384,37 +517,47 @@ def summarize_predictions(prediction_payload: Mapping[str, Any], redis_predictio
         if str(row.get("trainer_source") or "").startswith("V2_NATIVE")
         or str(row.get("trainer_source") or "").find("CUDA") >= 0
     )
-    expected_rows = int(
-        finite_float(prediction_payload.get("expected_prediction_count"))
-        or finite_float(prediction_payload.get("prediction_rows_count"))
-        or (len(symbols) * 5 if symbols else len(rows))
-        or 0
+    def declared_count(field_name: str, *, positive: bool = False) -> int | None:
+        value = finite_float(prediction_payload.get(field_name))
+        if value is None or not value.is_integer() or value < (1.0 if positive else 0.0):
+            return None
+        return int(value)
+
+    expected_rows = declared_count("expected_prediction_count", positive=True)
+    declared_rows = declared_count("prediction_rows_count", positive=True)
+    current_rows = declared_count("current_prediction_count", positive=True)
+    missing_rows = declared_count("missing_prediction_rows_count")
+    stale_rows = declared_count("stale_prediction_rows_count")
+    rows_all_current = bool(rows) and all(row.get("status") == "PRESENT_CURRENT" for row in rows)
+    grid_current = bool(
+        prediction_payload
+        and prediction_payload.get("publication_complete") is True
+        and expected_rows is not None
+        and declared_rows == expected_rows
+        and len(public_rows) == expected_rows
+        and current_rows == expected_rows
+        and missing_rows == 0
+        and stale_rows == 0
+        and rows_all_current
     )
-    current_rows = int(
-        finite_float(prediction_payload.get("current_prediction_count"))
-        or sum(1 for row in rows if row.get("status") == "PRESENT_CURRENT")
-        or (len(rows) if rows else 0)
-    )
-    missing_rows = int(
-        finite_float(prediction_payload.get("missing_prediction_rows_count"))
-        or sum(1 for row in rows if row.get("status") == "MISSING_TF_PREDICTION")
-        or 0
-    )
-    stale_rows = int(
-        finite_float(prediction_payload.get("stale_prediction_rows_count"))
-        or sum(1 for row in rows if row.get("status") == "STALE_TF_PREDICTION")
-        or 0
-    )
-    grid_current = bool(expected_rows > 0 and current_rows == expected_rows and missing_rows == 0 and stale_rows == 0)
     return {
         "prediction_rows": len(rows),
         "prediction_grid_rows": len(rows),
         "prediction_grid_expected_rows": expected_rows,
         "prediction_grid_current": grid_current,
+        "prediction_publication_complete": prediction_payload.get("publication_complete") is True,
+        "prediction_count_fields_complete": all(
+            value is not None
+            for value in (expected_rows, declared_rows, current_rows, missing_rows, stale_rows)
+        ),
         "current_prediction_count": current_rows,
         "missing_prediction_rows_count": missing_rows,
         "stale_prediction_rows_count": stale_rows,
-        "non_current_prediction_rows_count": max(0, expected_rows - current_rows),
+        "non_current_prediction_rows_count": (
+            max(0, expected_rows - current_rows)
+            if expected_rows is not None and current_rows is not None
+            else None
+        ),
         "coverage_status": prediction_payload.get("coverage_status"),
         "actionability_status": prediction_payload.get("actionability_status"),
         "missing_prediction_symbols": as_list(prediction_payload.get("missing_prediction_symbols")),
@@ -455,104 +598,178 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
     public = paths.public_root
     repo = paths.repo_root
     prediction_payload = as_dict(read_json(public / PREDICTION_STATUS_REL))
-    all_tf_payload = as_dict(read_json(public / ALL_TF_STATUS_REL))
+    read_json(public / ALL_TF_STATUS_REL)  # Legacy display source; not readiness evidence.
     runtime_truth = as_dict(read_json(public / RUNTIME_TRUTH_REL))
-    runtime_pages = as_dict(read_json(public / RUNTIME_PAGES_REL))
     portfolio = as_dict(read_json(public / PORTFOLIO_REL))
     paper_trial = as_dict(read_json(public / PAPER_TRIAL_REL))
     parity = as_dict(read_json(public / PARITY_REL))
     live_gate = as_dict(read_json(public / LIVE_GATE_REL))
     redis_client = connect_redis()
     trainer_metrics = as_dict(redis_json(redis_client, TRAINER_METRICS_KEY))
+    trainer_status = as_dict(redis_json(redis_client, TRAINER_STATUS_KEY))
+    trainer_heartbeat = as_dict(redis_json(redis_client, TRAINER_HEARTBEAT_KEY))
     redis_predictions = scan_redis_json(redis_client, "v2:prediction:*", limit=2500)
-    prediction_summary = summarize_predictions(prediction_payload or all_tf_payload, redis_predictions)
+    prediction_summary = summarize_predictions(prediction_payload, redis_predictions)
 
     training = as_dict(trainer_metrics.get("training"))
-    metrics = as_dict(training.get("metrics") or trainer_metrics.get("cuda_cpu_resource_utilization"))
-    resource = as_dict(trainer_metrics.get("cuda_cpu_resource_utilization")) or metrics
-    checkpoint = as_dict(trainer_metrics.get("checkpoint"))
     bridge_state = systemctl_show(TRAINER_BRIDGE_UNIT)
     trainer_service = systemctl_show(NATIVE_TRAINER_UNIT)
     trainer_timer = systemctl_show(NATIVE_TRAINER_TIMER)
     persistent_service = systemctl_show(PERSISTENT_TRAINER_UNIT)
     persistent_runtime = as_dict(read_json(public / PERSISTENT_RUNTIME_REL))
     persistent_resource = as_dict(read_json(public / PERSISTENT_RESOURCE_REL))
-    persistent_checkpoint = as_dict(read_json(public / PERSISTENT_CHECKPOINT_REL))
+    read_json(public / PERSISTENT_CHECKPOINT_REL)  # Historical telemetry only.
     paper_trial_guard = as_dict(read_json(public / PAPER_TRIAL_GUARD_REL))
     gpu_probe = gpu_status_from_nvidia_smi()
     mem = memory_status()
-    latest_checkpoint_id = str(checkpoint.get("checkpoint_id") or "").strip() or None
-    retention = persistent_checkpoint or checkpoint_retention_status(repo, latest_checkpoint_id)
+    verified_serving = causal_verified_serving_checkpoint_evidence(repo)
+    latest_checkpoint_id = str(verified_serving.get("checkpoint_id") or "").strip() or None
+    retention = checkpoint_retention_status(repo, latest_checkpoint_id)
 
     generated = est_now()
     trainer_source = "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_PAPER_SHADOW"
     model_source = "V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA"
-    training_steps_total = int(
-        finite_float(persistent_runtime.get("training_steps_total"))
-        or finite_float(training.get("training_steps"))
-        or 0
+    current_cycle_envelope = as_dict(
+        trainer_status.get("current_cycle_learning_envelope")
     )
-    training_payload_age = generated_age_seconds({"generated_est": prediction_payload.get("generated_est")})
-    training_steps_last_hour = int(
-        finite_float(persistent_runtime.get("training_steps_last_hour"))
-        or (training_steps_total if training_payload_age is not None and training_payload_age <= 3600 else 0)
+    prediction_publication_evidence = as_dict(
+        prediction_payload.get("current_cycle_prediction_publication_evidence")
     )
-    persistent_active = (
-        persistent_service.get("ActiveState") == "active"
-        or persistent_runtime.get("service_active") is True
+    prediction_source_exact_match = bool(
+        prediction_publication_evidence
+        and all(
+            prediction_payload.get(field_name)
+            == prediction_publication_evidence.get(field_name)
+            for field_name in (
+                "generated_utc",
+                "publication_complete",
+                "prediction_rows_count",
+                "expected_prediction_count",
+                "current_prediction_count",
+                "missing_prediction_rows_count",
+                "stale_prediction_rows_count",
+                "lineages_published",
+                "prediction_rows",
+            )
+        )
     )
+    resource_evidence = as_dict(
+        persistent_resource.get("current_cycle_resource_evidence")
+    )
+    resource = resource_evidence
+    parity_evidence = as_dict(parity.get("current_cycle_parity_evidence"))
+    training_steps_total_value = finite_float(
+        current_cycle_envelope.get("optimizer_steps_total")
+    )
+    training_steps_total = (
+        int(training_steps_total_value)
+        if training_steps_total_value is not None
+        and training_steps_total_value >= 0.0
+        and training_steps_total_value.is_integer()
+        else None
+    )
+    training_steps_last_hour_value = finite_float(
+        current_cycle_envelope.get("optimizer_steps_last_hour")
+    )
+    training_steps_last_hour = (
+        int(training_steps_last_hour_value)
+        if training_steps_last_hour_value is not None
+        and training_steps_last_hour_value >= 0.0
+        and training_steps_last_hour_value.is_integer()
+        else None
+    )
+    persistent_active = service_process_active(persistent_service)
+    scheduled_trainer_active = service_process_active(trainer_service)
+    active_trainer_services: list[tuple[str, Mapping[str, Any]]] = []
+    if persistent_active:
+        active_trainer_services.append((PERSISTENT_TRAINER_UNIT, persistent_service))
+    if scheduled_trainer_active:
+        active_trainer_services.append((NATIVE_TRAINER_UNIT, trainer_service))
+    actual_trainer_process_active = len(active_trainer_services) == 1
+    if actual_trainer_process_active:
+        active_service_unit, active_service_state = active_trainer_services[0]
+        active_process_id = int(float(active_service_state["MainPID"]))
+        trainer_process_evidence = {
+            "service_active": True,
+            "service_unit": active_service_unit,
+            "process_id": active_process_id,
+            "process_instance_id": f"{socket.gethostname()}:{active_process_id}",
+        }
+    else:
+        trainer_process_evidence = {}
+    observed_now = datetime.now(tz=timezone.utc)
+    live_cuda_probe_active = gpu_probe.get("available") is True
     online_learning = online_learning_runtime_fields(
         training=training,
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_summary["prediction_rows"],
-        trainer_process_active=(
-            persistent_active
-            or trainer_service.get("ActiveState") in {"active", "activating"}
-        ),
-        cuda_inference_active=bool(
-            training.get("cuda_active")
-            or persistent_resource.get("cuda_available")
-            or persistent_resource.get("cuda_active")
-        ),
+        trainer_process_active=actual_trainer_process_active,
+        trainer_process_evidence=trainer_process_evidence,
+        cuda_inference_active=live_cuda_probe_active,
+        current_cycle_learning_envelope=current_cycle_envelope,
+        runtime_status_evidence=trainer_status,
+        heartbeat_evidence=trainer_heartbeat,
+        verified_serving_checkpoint=verified_serving,
+        prediction_publication_evidence=prediction_publication_evidence,
+        resource_evidence=resource_evidence,
+        parity_evidence=parity_evidence,
+        now_utc=observed_now,
     )
     gpu_status = {
         "schema_version": "native_trainer_gpu_status_v1",
         "generated_est": generated,
-        "cuda_active": bool(training.get("cuda_active") or resource.get("cuda_available") or persistent_resource),
-        "gpu_name": persistent_resource.get("gpu_name") or gpu_probe.get("gpu_name") or resource.get("gpu_name") or training.get("gpu_name"),
-        "gpu_utilization_percent": persistent_resource.get("gpu_utilization_percent")
-        if persistent_resource
-        else (gpu_probe.get("gpu_utilization_percent") if gpu_probe.get("available") else resource.get("current_gpu_utilization")),
-        "vram_used_mb": persistent_resource.get("vram_used_mb")
-        if persistent_resource
-        else (gpu_probe.get("vram_used_mb") if gpu_probe.get("available") else resource.get("current_vram_used_mb") or training.get("vram_allocated_mb")),
-        "vram_total_mb": persistent_resource.get("vram_total_mb") or gpu_probe.get("vram_total_mb"),
+        "cuda_active": bool(
+            live_cuda_probe_active
+            and current_cycle_envelope.get("cuda_inference_status") == "ACTIVE"
+            and resource_evidence.get("cuda_active") is True
+            and resource_evidence.get("cuda_available") is True
+        ),
+        "gpu_name": gpu_probe.get("gpu_name") if live_cuda_probe_active else None,
+        "gpu_utilization_percent": (
+            gpu_probe.get("gpu_utilization_percent") if live_cuda_probe_active else None
+        ),
+        "vram_used_mb": gpu_probe.get("vram_used_mb") if live_cuda_probe_active else None,
+        "vram_total_mb": gpu_probe.get("vram_total_mb") if live_cuda_probe_active else None,
         "vram_reserved_mb": resource.get("vram_reserved_mb"),
-        "cpu_utilization_percent": persistent_resource.get("cpu_utilization_percent"),
-        "ram_used_gb": persistent_resource.get("ram_used_gb") or mem.get("ram_used_gb"),
-        "ram_total_gb": persistent_resource.get("ram_total_gb") or mem.get("ram_total_gb"),
-        "dataloader_workers": persistent_resource.get("dataloader_workers") or metrics.get("dataloader_workers") or resource.get("dataloader_workers"),
-        "pinned_memory": bool(persistent_resource.get("pinned_memory") or metrics.get("pinned_memory") or resource.get("pinned_memory")),
-        "amp_enabled": bool(persistent_resource.get("amp_enabled") or metrics.get("uses_amp") or metrics.get("mixed_precision_enabled") or resource.get("mixed_precision_enabled")),
-        "target_batch_size": persistent_resource.get("target_batch_size") or metrics.get("target_batch_size") or resource.get("target_batch_size"),
-        "actual_batch_size": persistent_resource.get("batch_size") or resource.get("actual_batch_size") or training.get("batch_size"),
-        "resource_bottleneck_reason": persistent_resource.get("bottleneck_reason")
-        or bottleneck_reason(gpu_probe, resource, trainer_service),
+        "cpu_utilization_percent": resource.get("cpu_utilization_percent"),
+        "ram_used_gb": mem.get("ram_used_gb"),
+        "ram_total_gb": mem.get("ram_total_gb"),
+        "dataloader_workers": resource.get("dataloader_workers"),
+        "pinned_memory": resource.get("pinned_memory") is True,
+        "amp_enabled": resource.get("amp_enabled") is True,
+        "target_batch_size": resource.get("target_batch_size"),
+        "actual_batch_size": resource.get("batch_size"),
+        "resource_bottleneck_reason": (
+            resource.get("bottleneck_reason")
+            if resource
+            else "BLOCKED_NO_IDENTITY_BOUND_CURRENT_RESOURCE_EVIDENCE"
+        ),
         "nvidia_smi_available": bool(gpu_probe.get("available")),
+        "resource_evidence_age_seconds": generated_age_seconds(resource_evidence),
+        "resource_evidence_identity_bound": bool(
+            resource_evidence
+            and resource_evidence.get("cycle_id") == current_cycle_envelope.get("cycle_id")
+            and resource_evidence.get("process_instance_id")
+            == current_cycle_envelope.get("process_instance_id")
+        ),
     }
     runtime = {
         "schema_version": "native_trainer_runtime_status_v1",
         "generated_est": generated,
-        "payload_age_seconds": 0,
-        "go_no_go": READY,
+        "payload_age_seconds": generated_age_seconds(current_cycle_envelope),
+        "go_no_go": (
+            READY if online_learning.get("canonical_readiness_status") == "READY" else BLOCKED
+        ),
+        "readiness_scope": "REPORT_ONLY_PAPER_SHADOW",
+        "live_execution_authorized": False,
         "trainer_source": trainer_source,
         "model_source": model_source,
         "checkpoint_id": latest_checkpoint_id,
-        "checkpoint_count": retention["checkpoint_count"],
-        "checkpoint_total_size_gb": retention.get("checkpoint_total_size_gb") or retention.get("total_size_gb"),
-        "checkpoint_dir_size_bytes": retention["checkpoint_dir_size_bytes"],
-        "checkpoint_rollover_limit_bytes": retention["checkpoint_rollover_limit_bytes"],
-        "checkpoint_rollover_status": retention["checkpoint_rollover_status"],
+        "checkpoint_count": retention.get("checkpoint_count"),
+        "checkpoint_total_size_gb": retention.get("checkpoint_total_size_gb"),
+        "checkpoint_dir_size_bytes": retention.get("checkpoint_dir_size_bytes"),
+        "checkpoint_rollover_limit_bytes": retention.get("checkpoint_rollover_limit_bytes"),
+        "checkpoint_rollover_status": retention.get("checkpoint_rollover_status"),
         "cuda_active": gpu_status["cuda_active"],
         "gpu_name": gpu_status["gpu_name"],
         "gpu_utilization_percent": gpu_status["gpu_utilization_percent"],
@@ -561,32 +778,45 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
         "cpu_utilization_percent": gpu_status["cpu_utilization_percent"],
         "ram_used_gb": gpu_status["ram_used_gb"],
         "ram_total_gb": gpu_status["ram_total_gb"],
-        "training_loop_active": persistent_active or trainer_service.get("ActiveState") in {"active", "activating"},
+        "training_loop_active": actual_trainer_process_active,
         "training_timer_active": trainer_timer.get("ActiveState") == "active",
         "continuous_training_enabled": persistent_active or trainer_timer.get("ActiveState") == "active",
         **online_learning,
         "persistent_trainer_service_active": persistent_active,
         "persistent_trainer_service_state": persistent_service,
-        "persistent_trainer_pid": persistent_runtime.get("pid"),
-        "persistent_trainer_uptime_seconds": persistent_runtime.get("uptime_seconds"),
+        "persistent_trainer_pid": (
+            int(float(persistent_service["MainPID"])) if persistent_active else None
+        ),
+        "persistent_trainer_uptime_seconds": (
+            persistent_runtime.get("uptime_seconds") if persistent_active else None
+        ),
         "trainer_service_state": trainer_service,
         "trainer_timer_state": trainer_timer,
         "training_steps_total": training_steps_total,
         "training_steps_last_hour": training_steps_last_hour,
-        "samples_per_second": persistent_resource.get("samples_per_second") or resource.get("tensor_rows_per_second"),
-        "predictions_per_second": persistent_resource.get("predictions_per_second") or resource.get("throughput_predictions_per_second"),
-        "training_steps_per_minute": persistent_resource.get("training_steps_per_minute") or resource.get("training_steps_per_minute"),
-        "batch_size": training.get("batch_size") or resource.get("actual_batch_size"),
+        "samples_per_second": resource.get("samples_per_second"),
+        "predictions_per_second": resource.get("predictions_per_second"),
+        "training_steps_per_minute": resource.get("training_steps_per_minute"),
+        "batch_size": resource.get("batch_size"),
         "target_batch_size": gpu_status["target_batch_size"],
         "dataloader_workers": gpu_status["dataloader_workers"],
         "pinned_memory": gpu_status["pinned_memory"],
         "amp_enabled": gpu_status["amp_enabled"],
-        "train_rows": training.get("train_rows"),
-        "validation_rows": training.get("validation_rows"),
+        "train_rows": current_cycle_envelope.get("train_rows"),
+        "validation_rows": current_cycle_envelope.get("validation_rows"),
         "prediction_rows": prediction_summary["prediction_rows"],
         "prediction_grid_rows": prediction_summary["prediction_grid_rows"],
         "prediction_grid_expected_rows": prediction_summary["prediction_grid_expected_rows"],
         "prediction_grid_current": prediction_summary["prediction_grid_current"],
+        "prediction_publication_complete": prediction_summary[
+            "prediction_publication_complete"
+        ],
+        "prediction_count_fields_complete": prediction_summary[
+            "prediction_count_fields_complete"
+        ],
+        "prediction_source_exactly_bound_to_current_cycle_evidence": (
+            prediction_source_exact_match
+        ),
         "current_prediction_count": prediction_summary["current_prediction_count"],
         "missing_prediction_rows_count": prediction_summary["missing_prediction_rows_count"],
         "stale_prediction_rows_count": prediction_summary["stale_prediction_rows_count"],
@@ -605,18 +835,24 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
         "trainer_bridge_state": bridge_state,
         "rl_core_primary_overwrites": prediction_summary["rl_core_primary_overwrites"],
         "rl_core_sidecar_rows": prediction_summary["rl_core_sidecar_rows"],
-        "parity_status": "FULL_FUNCTION_PARITY_BY_V2_OWNERSHIP_MODEL",
-        "hybrid_trainer_methods_inventoried": as_dict(parity.get("parity")).get("method_count", 324)
-        or 324,
-        "required_missing_parity_methods": as_dict(parity.get("parity")).get("required_missing_parity_methods", 0)
-        or 0,
-        "live_gate": live_gate.get("live_gate") or runtime_truth.get("live_gate"),
-        "trader_state": runtime_truth.get("trader_state") or runtime_pages.get("trader_state"),
-        "live_order_submit_blocker": runtime_truth.get("live_order_submit_blocker") or runtime_pages.get("live_order_submit_blocker"),
-        "paper_current_session_equity": portfolio.get("equity") or runtime_truth.get("paper_equity"),
-        "paper_current_session_pnl": portfolio.get("total_pnl_usd") or runtime_truth.get("paper_pnl"),
-        "paper_accepted_fills": portfolio.get("accepted_fill_total") or runtime_truth.get("accepted_paper_fills"),
-        "paper_open_positions": portfolio.get("open_positions_count") or runtime_truth.get("open_paper_positions"),
+        "parity_status": (
+            "FULL_FUNCTION_PARITY_VERIFIED"
+            if parity_evidence.get("parity_complete") is True
+            and parity_evidence.get("required_missing_parity_methods") == 0
+            and parity_evidence.get("status") == "FULL_FUNCTION_PARITY_VERIFIED"
+            else "BLOCKED_NO_CURRENT_IDENTITY_BOUND_PARITY_EVIDENCE"
+        ),
+        "hybrid_trainer_methods_inventoried": parity_evidence.get("method_count"),
+        "required_missing_parity_methods": parity_evidence.get(
+            "required_missing_parity_methods"
+        ),
+        "live_gate": live_gate.get("live_gate"),
+        "trader_state": runtime_truth.get("trader_state"),
+        "live_order_submit_blocker": runtime_truth.get("live_order_submit_blocker"),
+        "paper_current_session_equity": portfolio.get("equity"),
+        "paper_current_session_pnl": portfolio.get("total_pnl_usd"),
+        "paper_accepted_fills": portfolio.get("accepted_fill_total"),
+        "paper_open_positions": portfolio.get("open_positions_count"),
         "paper_threshold_trial": {
             "generated_est": paper_trial.get("generated_est"),
             "paper_allowed_before": as_dict(paper_trial.get("summary")).get("paper_allowed_before"),
@@ -634,15 +870,62 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
         "current_runtime_panel_source": "operator_runtime/v2_native_trainer/latest/native_trainer_runtime_status.json",
         "stale_burn_in_payload_as_current_runtime_allowed": False,
         "resource_bottleneck_reason": gpu_status["resource_bottleneck_reason"],
+        "current_cycle_learning_envelope_present": bool(current_cycle_envelope),
+        "current_cycle_id": current_cycle_envelope.get("cycle_id"),
+        "current_process_instance_id": current_cycle_envelope.get(
+            "process_instance_id"
+        ),
+        "trainer_status_source_age_seconds": generated_age_seconds(trainer_status),
+        "trainer_heartbeat_source_age_seconds": generated_age_seconds(
+            trainer_heartbeat
+        ),
+        "prediction_source_age_seconds": generated_age_seconds(
+            prediction_publication_evidence
+        ),
+        "parity_source_age_seconds": generated_age_seconds(parity_evidence),
+        "verified_serving_checkpoint_evidence": verified_serving,
+        "canonical_readiness_blockers": online_learning.get(
+            "readiness_blocking_reasons"
+        ),
     }
+    canonical_blockers = list(runtime.get("canonical_readiness_blockers") or ())
+    if not prediction_source_exact_match:
+        canonical_blockers.append(
+            "prediction_status_payload_not_exactly_bound_to_current_cycle_evidence"
+        )
+    if prediction_summary.get("prediction_grid_current") is not True:
+        canonical_blockers.append("prediction_status_payload_not_current_complete_grid")
+    canonical_blockers = list(dict.fromkeys(canonical_blockers))
+    aggregate_ready = bool(
+        not canonical_blockers
+        and online_learning.get("canonical_readiness_status") == "READY"
+    )
+    runtime.update(
+        {
+            "canonical_readiness_status": "READY" if aggregate_ready else "BLOCKED",
+            "trainer_learning_ready": aggregate_ready,
+            "go_no_go": READY if aggregate_ready else BLOCKED,
+            "canonical_readiness_blockers": canonical_blockers,
+        }
+    )
+    if not aggregate_ready:
+        runtime.update(
+            {
+                "online_learning_status": (
+                    "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+                ),
+                "effective_trainer_mode": "INFERENCE_ONLY",
+                "last_successful_weight_update_at": None,
+            }
+        )
     runtime["trainer"] = {
         "trainer_source": trainer_source,
         "model_source": model_source,
-        "checkpoint_id": latest_checkpoint_id,
+        "checkpoint_id": runtime["checkpoint_id"],
         "cuda_active": runtime["cuda_active"],
-        "model_device": training.get("device") or ("cuda:0" if runtime["cuda_active"] else "cpu"),
+        "model_device": "cuda:0" if runtime["cuda_active"] else None,
         "live_gate": runtime["live_gate"],
-        "live_symbols": live_gate.get("live_symbols") or [],
+        "live_symbols": as_list(live_gate.get("live_symbols")),
         "trainer_process_status": runtime["trainer_process_status"],
         "cuda_inference_status": runtime["cuda_inference_status"],
         "prediction_publication_status": runtime["prediction_publication_status"],
@@ -651,11 +934,15 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
         "last_successful_weight_update_at": runtime["last_successful_weight_update_at"],
         "legacy_hybrid_parity_claim": runtime["parity_status"],
         "training_batch_policy": {
-            "batch_covers_available_examples": as_dict(training.get("metrics")).get("batch_covers_available_examples"),
-            "available_examples": as_dict(training.get("metrics")).get("available_examples"),
-            "selected_examples": as_dict(training.get("metrics")).get("selected_examples"),
+            "batch_covers_available_examples": current_cycle_envelope.get(
+                "batch_covers_available_examples"
+            ),
+            "available_examples": current_cycle_envelope.get("available_examples"),
+            "selected_examples": current_cycle_envelope.get("selected_examples"),
         },
-        "parallel_environment_rollout": trainer_metrics.get("parallel_environment_rollout"),
+        "parallel_environment_rollout": current_cycle_envelope.get(
+            "parallel_environment_rollout"
+        ),
     }
     runtime["metrics"] = {
         "training": {
@@ -664,16 +951,22 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
             "training_steps": runtime["training_steps_total"],
             "train_rows": runtime["train_rows"],
             "validation_rows": runtime["validation_rows"],
-            "loss_before": training.get("loss_before"),
-            "loss_after": training.get("loss_after"),
+            "loss_before": current_cycle_envelope.get("loss_before"),
+            "loss_after": current_cycle_envelope.get("loss_after"),
             "cuda_active": runtime["cuda_active"],
-            "cuda_claim_verified": training.get("cuda_claim_verified"),
-            "metrics": training.get("metrics"),
+            "cuda_claim_verified": runtime["cuda_active"],
+            "metrics": current_cycle_envelope.get("training_metrics"),
         },
-        "parallel_environment_rollout": trainer_metrics.get("parallel_environment_rollout"),
-        "data_coverage_avg": trainer_metrics.get("data_coverage_avg"),
-        "missing_feature_count_total": trainer_metrics.get("missing_feature_count_total"),
-        "stale_feature_count_total": trainer_metrics.get("stale_feature_count_total"),
+        "parallel_environment_rollout": current_cycle_envelope.get(
+            "parallel_environment_rollout"
+        ),
+        "data_coverage_avg": current_cycle_envelope.get("data_coverage_avg"),
+        "missing_feature_count_total": current_cycle_envelope.get(
+            "missing_feature_count_total"
+        ),
+        "stale_feature_count_total": current_cycle_envelope.get(
+            "stale_feature_count_total"
+        ),
     }
     runtime["prediction_count"] = runtime["prediction_rows"]
     prediction_rows_for_website = [
@@ -833,14 +1126,28 @@ def build_semantic_validation(runtime: Mapping[str, Any], prediction_payload: Ma
     expected_rows = runtime.get("prediction_grid_rows")
     symbol_count = runtime.get("valid_symbol_count")
     tf_count = len(as_list(runtime.get("timeframes")))
+    payload_age = finite_float(runtime.get("payload_age_seconds"))
+    freshness_budget = finite_float(runtime.get("freshness_budget_seconds"))
+    optimizer_steps_this_cycle = finite_float(
+        runtime.get("optimizer_steps_this_cycle")
+    )
     assertions = [
         {
-            "assertion": "current_runtime_panel_payload_age_lte_5m",
-            "pass": (finite_float(runtime.get("payload_age_seconds")) or 0) <= 300,
+            "assertion": "current_runtime_panel_payload_within_cadence_budget",
+            "pass": bool(
+                payload_age is not None
+                and freshness_budget is not None
+                and freshness_budget > 0.0
+                and 0.0 <= payload_age <= freshness_budget
+            ),
         },
         {
             "assertion": "no_age_6d_current_panel",
-            "pass": True,
+            "pass": bool(
+                payload_age is not None
+                and freshness_budget is not None
+                and 0.0 <= payload_age <= freshness_budget
+            ),
         },
         {
             "assertion": "no_blocked_human_only_when_live_gate_approved",
@@ -852,12 +1159,17 @@ def build_semantic_validation(runtime: Mapping[str, Any], prediction_payload: Ma
         },
         {
             "assertion": "no_not_full_parity_when_required_missing_zero",
-            "pass": runtime.get("required_missing_parity_methods") == 0,
+            "pass": runtime.get("required_missing_parity_methods") == 0
+            and runtime.get("parity_status") == "FULL_FUNCTION_PARITY_VERIFIED",
         },
         {
             "assertion": "training_steps_2_allowed_only_if_current_runtime_heartbeat_confirms",
             "pass": runtime.get("training_steps_total") != 2
-            or (finite_float(runtime.get("training_steps_last_hour")) or 0) > 0,
+            or bool(
+                runtime.get("trainer_process_status") == "ACTIVE"
+                and optimizer_steps_this_cycle is not None
+                and optimizer_steps_this_cycle > 0.0
+            ),
         },
         {
             "assertion": "persistent_service_active_when_current_runtime_claims_continuous",
@@ -867,13 +1179,33 @@ def build_semantic_validation(runtime: Mapping[str, Any], prediction_payload: Ma
         {
             "assertion": "training_steps_increase_when_persistent_service_active",
             "pass": runtime.get("persistent_trainer_service_active") is not True
-            or (finite_float(runtime.get("training_steps_last_hour")) or 0) > 2,
+            or bool(
+                optimizer_steps_this_cycle is not None
+                and optimizer_steps_this_cycle > 0.0
+            ),
         },
         {
             "assertion": "resource_utilization_present_for_current_trainer",
-            "pass": runtime.get("gpu_name") is not None
+            "pass": runtime.get("cuda_active") is True
+            and runtime.get("gpu_name") is not None
             and runtime.get("vram_used_mb") is not None
             and runtime.get("ram_used_gb") is not None,
+        },
+        {
+            "assertion": "canonical_learning_readiness_ready",
+            "pass": runtime.get("canonical_readiness_status") == "READY"
+            and runtime.get("trainer_learning_ready") is True,
+        },
+        {
+            "assertion": "current_complete_prediction_publication",
+            "pass": runtime.get("prediction_publication_complete") is True
+            and runtime.get("prediction_count_fields_complete") is True
+            and runtime.get("prediction_grid_current") is True,
+        },
+        {
+            "assertion": "trainer_readiness_remains_report_only_live_blocked",
+            "pass": runtime.get("readiness_scope") == "REPORT_ONLY_PAPER_SHADOW"
+            and runtime.get("live_execution_authorized") is False,
         },
         {
             "assertion": "paper_threshold_trial_guard_not_active_after_drawdown_breach",
@@ -993,7 +1325,14 @@ def build_all_payloads(paths: NativeTrainerRuntimePaths | None = None) -> dict[s
     shell = build_global_shell_status(runtime)
     semantic = build_semantic_validation(runtime, prediction_payload)
     production = build_production_deploy_status(runtime)
-    blocked = bool(semantic["failed_assertions"]) or runtime.get("trainer_bridge_active") is True or runtime.get("rl_core_primary_overwrites", 0) != 0
+    blocked = bool(
+        semantic["failed_assertions"]
+        or runtime.get("go_no_go") != READY
+        or runtime.get("canonical_readiness_status") != "READY"
+        or runtime.get("trainer_learning_ready") is not True
+        or runtime.get("trainer_bridge_active") is True
+        or runtime.get("rl_core_primary_overwrites", 0) != 0
+    )
     go_no_go = BLOCKED if blocked else READY
     dashboard = {
         "schema_version": "v2_model_state_semantic_repair_operator_dashboard_v1",

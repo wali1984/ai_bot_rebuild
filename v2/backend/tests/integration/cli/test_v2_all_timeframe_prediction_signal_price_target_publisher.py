@@ -30,7 +30,8 @@ class _MemoryClient:
         self.store[key] = value
         return True
 
-    def scan_iter(self, match: str | None = None):
+    def scan_iter(self, match: str | None = None, count: int | None = None):
+        del count
         keys = list(self.store)
         if not match:
             yield from keys

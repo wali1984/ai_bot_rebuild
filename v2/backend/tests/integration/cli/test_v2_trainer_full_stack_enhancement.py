@@ -278,15 +278,18 @@ def test_all_runtime_symbols_enter_trainer_batch() -> None:
 # ---------------------------------------------------------------------------
 
 def test_feature_available_at_never_after_decision_time() -> None:
-    """masa_feature_cutoff after decision_time_est is future leakage and must
-    produce MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME rejection."""
+    """MASA cutoff after the canonical PPO decision clock is future leakage."""
     row: dict[str, Any] = {
+        "mtf_snapshot_id": "mtf-snapshot-1",
+        "mtf_snapshot_valid": True,
+        "feature_cutoff": "2026-06-16T01:00:00+00:00",
+        "available_at": "2026-06-16T01:00:00+00:00",
+        "decision_time": "2026-06-16T01:00:00+00:00",
         "masa_feature_cutoff": "2026-06-16T02:00:00+00:00",
         "ppo_feature_cutoff": "2026-06-16T01:00:00+00:00",
-        "decision_time_est": "2026-06-16T01:00:00+00:00",
     }
     reasons = _extra_contract_rejection_reasons(row)
-    assert "MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME" in reasons, (
+    assert "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME" in reasons, (
         f"Future-leaking masa_feature_cutoff must be flagged; got reasons: {reasons}"
     )
 
@@ -294,12 +297,16 @@ def test_feature_available_at_never_after_decision_time() -> None:
 def test_feature_available_at_matching_decision_time_is_clean() -> None:
     """When masa_feature_cutoff equals decision_time the sample is clean."""
     row: dict[str, Any] = {
+        "mtf_snapshot_id": "mtf-snapshot-1",
+        "mtf_snapshot_valid": True,
+        "feature_cutoff": "2026-06-16T01:00:00+00:00",
+        "available_at": "2026-06-16T01:00:00+00:00",
+        "decision_time": "2026-06-16T01:00:00+00:00",
         "masa_feature_cutoff": "2026-06-16T01:00:00+00:00",
         "ppo_feature_cutoff": "2026-06-16T01:00:00+00:00",
-        "decision_time_est": "2026-06-16T01:00:00+00:00",
     }
     reasons = _extra_contract_rejection_reasons(row)
-    assert "MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME" not in reasons
+    assert "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME" not in reasons
 
 
 # ---------------------------------------------------------------------------

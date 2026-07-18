@@ -9,28 +9,40 @@ paths.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+import fcntl
 import hashlib
 import json
 import math
 import os
 import signal
+import socket
+import sqlite3
 import subprocess
 import threading
 import time
 from collections import deque
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
+from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive import (
+    default_archive_root as default_behavior_receipt_archive_root,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
-    default_archive_root,
+    default_archive_root as default_trusted_replay_archive_root,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     iter_snapshots,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
+    CheckpointManifest,
     V2HybridCheckpointManager,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (
+    VERIFIED_SERVING_LINEAGE,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE,
@@ -56,9 +68,13 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
     ENV_PPO_LEARNING_RATE_MAX,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
+    _verified_serving_checkpoint_evidence,
     run_hybrid_trainer_cycle,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state import (
+    PPO_CONSUMPTION_LEDGER_SCHEMA_VERSION,
+)
 from v2.backend.app.services.native_trainer.learning_readiness import (
     GLOBAL_READINESS_ARTIFACT,
     build_learning_readiness,
@@ -73,7 +89,6 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (
     resolve_symbols,
     resolve_symbols_with_provenance,
 )
-
 
 READY = "V2_PERSISTENT_CUDA_TRAINER_RESOURCE_UTILIZATION_AND_PAPER_DRAWDOWN_GUARD_READY"
 BLOCKED = "V2_PERSISTENT_CUDA_TRAINER_RESOURCE_UTILIZATION_AND_PAPER_DRAWDOWN_GUARD_BLOCKED"
@@ -105,6 +120,7 @@ DEFAULT_HOLDOUT_CALIBRATION_SCAN_LIMIT = 100_000
 DEFAULT_HOLDOUT_CALIBRATION_EVAL_LIMIT = 512
 DEFAULT_HOLDOUT_CALIBRATION_MIN_INTERVAL_SECONDS = 900
 _HOLDOUT_EXAMPLE_CACHE: dict[str, Any] = {}
+CANONICAL_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
 @dataclass(frozen=True)
@@ -134,6 +150,14 @@ class PersistentTrainerPaths:
     @property
     def model_dir(self) -> Path:
         return self.repo_root / MODEL_DIR_REL
+
+    @property
+    def trusted_replay_archive_root(self) -> Path:
+        return default_trusted_replay_archive_root(self.repo_root).resolve()
+
+    @property
+    def behavior_receipt_archive_root(self) -> Path:
+        return default_behavior_receipt_archive_root(self.repo_root).resolve()
 
 
 def est_now() -> str:
@@ -194,6 +218,13 @@ def finite_float(value: Any) -> float | None:
     return None
 
 
+def _first_present_value(*values: Any) -> Any:
+    for value in values:
+        if value not in (None, ""):
+            return value
+    return None
+
+
 def _percentile(values: Iterable[float], q: float) -> float | None:
     ordered = sorted(float(value) for value in values if math.isfinite(float(value)))
     if not ordered:
@@ -228,8 +259,8 @@ def parse_runtime_time(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -357,7 +388,12 @@ def _trusted_feedback_metric_rows(rows: Iterable[Mapping[str, Any]]) -> dict[str
         else:
             rejected["missing_confidence_or_binary_outcome"] = rejected.get("missing_confidence_or_binary_outcome", 0) + 1
         expected = finite_float(row.get("expected_move_after_cost_bps"))
-        realized = finite_float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps"))
+        realized = finite_float(
+            _first_present_value(
+                row.get("realized_net_pnl_bps"),
+                row.get("realized_pnl_bps"),
+            )
+        )
         if expected is not None and realized is not None:
             expected_move_rows.append({"expected": expected, "realized": realized})
         else:
@@ -557,7 +593,7 @@ def _trusted_replay_holdout_examples(
             "examples": [],
             "rows_rejected_by_reason": {"holdout_window_missing": 1},
         }
-    archive_root = default_archive_root(repo_root)
+    archive_root = default_trusted_replay_archive_root(repo_root).resolve()
     cache_key = hashlib.sha256(
         json.dumps(
             {
@@ -753,26 +789,96 @@ def build_trusted_replay_holdout_calibration(
         }
     input_dim = len(examples[0].tensor.model_vector)
     checkpoint_manager = V2HybridCheckpointManager(Path(model_dir))
-    manifest_checkpoint = checkpoint_manager.latest_manifest(input_dim=input_dim)
-    if manifest_checkpoint is None or not manifest_checkpoint.weight_blob_written or not manifest_checkpoint.weight_file_path:
+    try:
+        serving_manifests = checkpoint_manager.manifests(
+            input_dim=input_dim,
+            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+            require_weight_blob=True,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return {
             "schema_version": "trusted_replay_holdout_calibration_status_v1",
             "generated_utc": generated_utc,
-            "status": "BLOCKED_NO_COMPATIBLE_CHECKPOINT_WEIGHT_BLOB",
+            "status": "BLOCKED_CHECKPOINT_MANIFEST_SCAN_INVALID",
             "confidence_outcome_join_available": False,
             "holdout_window": as_dict(manifest.get("holdout_window")),
             "manifest_path": manifest.get("manifest_path"),
             "manifest_holdout_rows": manifest_rows,
             "evaluated_rows": 0,
-            "reason": "latest compatible checkpoint manifest has no safe npz weight blob",
+            "reason": f"serving checkpoint manifest scan failed closed: {type(exc).__name__}",
         }
-    weight_path = Path(str(manifest_checkpoint.weight_file_path))
-    if not weight_path.is_absolute():
-        weight_path = Path(repo_root) / weight_path
+    manifest_checkpoint = serving_manifests[0] if serving_manifests else None
+    if manifest_checkpoint is None:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_NO_VERIFIED_SERVING_CHECKPOINT_WEIGHT_BLOB",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "reason": "no compatible verified-serving checkpoint manifest has a safe npz weight blob",
+        }
+    if manifest_checkpoint.lineage_kind != VERIFIED_SERVING_LINEAGE:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_LINEAGE_INVALID",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "reason": "holdout evaluation requires VERIFIED_SERVING_POLICY lineage",
+        }
+    try:
+        artifact_verification = checkpoint_manager.verify_manifest_artifact(
+            manifest_checkpoint
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_ARTIFACT_VERIFICATION_ERROR",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "reason": f"serving checkpoint artifact verification failed closed: {type(exc).__name__}",
+        }
+    if (
+        not isinstance(artifact_verification, Mapping)
+        or artifact_verification.get("checkpoint_artifact_verified") is not True
+    ):
+        artifact_verification = as_dict(artifact_verification)
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_ARTIFACT_VERIFICATION_FAILED",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "checkpoint_artifact_rejection_reasons": list(
+                artifact_verification.get(
+                    "artifact_verification_rejection_reasons", ()
+                )
+            ),
+            "reason": "selected serving checkpoint artifact did not pass non-mutating verification",
+        }
     model = V2HybridPolicyModel(input_dim=input_dim)
     try:
-        load_result = model.load_weight_blob(weight_path)
-    except Exception as exc:  # noqa: BLE001
+        load_result = checkpoint_manager.load_latest_weights(
+            model,
+            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
         return {
             "schema_version": "trusted_replay_holdout_calibration_status_v1",
             "generated_utc": generated_utc,
@@ -781,8 +887,67 @@ def build_trusted_replay_holdout_calibration(
             "holdout_window": as_dict(manifest.get("holdout_window")),
             "manifest_path": manifest.get("manifest_path"),
             "checkpoint_id": manifest_checkpoint.checkpoint_id,
-            "checkpoint_path": str(weight_path),
             "reason": f"checkpoint load failed: {type(exc).__name__}",
+        }
+    if not isinstance(load_result, Mapping):
+        load_result = {}
+    if (
+        load_result.get("checkpoint_id") != manifest_checkpoint.checkpoint_id
+        or load_result.get("latest_checkpoint_loadable") is not True
+        or load_result.get("model_state_restored") is not True
+    ):
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_WEIGHT_BLOB_LOAD_FAILED",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "checkpoint_load_status": load_result.get("load_status"),
+            "reason": "checkpoint manager did not restore the selected serving checkpoint",
+        }
+    try:
+        serving_semantics_valid, serving_semantic_reasons = (
+            _verified_serving_checkpoint_evidence(
+                load_result,
+                expected_checkpoint_id=manifest_checkpoint.checkpoint_id,
+            )
+        )
+    except (RuntimeError, TypeError, ValueError):
+        serving_semantics_valid = False
+        serving_semantic_reasons = (
+            "serving_checkpoint_semantic_verifier_failed_closed",
+        )
+    if not serving_semantics_valid:
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_SERVING_SEMANTICS_INVALID",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "checkpoint_serving_semantic_rejection_reasons": list(
+                serving_semantic_reasons
+            ),
+            "reason": "selected checkpoint is not a semantically verified serving policy",
+        }
+    weight_path = Path(str(load_result.get("resolved_weight_file_path") or ""))
+    if not weight_path.is_absolute() or not weight_path.is_file():
+        return {
+            "schema_version": "trusted_replay_holdout_calibration_status_v1",
+            "generated_utc": generated_utc,
+            "status": "BLOCKED_CHECKPOINT_WEIGHT_PATH_INVALID",
+            "confidence_outcome_join_available": False,
+            "holdout_window": as_dict(manifest.get("holdout_window")),
+            "manifest_path": manifest.get("manifest_path"),
+            "manifest_holdout_rows": manifest_rows,
+            "evaluated_rows": 0,
+            "checkpoint_id": manifest_checkpoint.checkpoint_id,
+            "reason": "verified checkpoint manager did not resolve an extant absolute weight path",
         }
 
     calibration_rows: list[dict[str, float]] = []
@@ -1256,7 +1421,12 @@ def build_trainer_quality_artifact(*, generated_utc: str) -> dict[str, Any]:
     missing_expected_move = missing_confidence = 0
     groups: dict[str, dict[str, Any]] = {}
     for row in rows:
-        realized = finite_float(row.get("realized_net_pnl_bps") or row.get("realized_pnl_bps"))
+        realized = finite_float(
+            _first_present_value(
+                row.get("realized_net_pnl_bps"),
+                row.get("realized_pnl_bps"),
+            )
+        )
         if realized is None:
             continue
         realized_values.append(realized)
@@ -1519,6 +1689,183 @@ def record_cycle_state(
     return updated
 
 
+_CHECKPOINT_CAUSAL_LEDGER_NAME = ".checkpoint-causal-order.jsonl"
+_CHECKPOINT_CAUSAL_LOCK_NAME = ".checkpoint-causal-order.lock"
+
+
+@dataclass(frozen=True)
+class _CheckpointRetentionGroup:
+    manager: V2HybridCheckpointManager
+    manifest: CheckpointManifest
+    manifest_path: Path
+    weight_path: Path
+    raw_manifest: dict[str, Any]
+    verification: dict[str, Any]
+
+
+def _sha256_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_hex(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(
+        character in "0123456789abcdef" for character in text
+    )
+
+
+def _checkpoint_retention_order_key(
+    group: _CheckpointRetentionGroup,
+) -> tuple[int, int, datetime, str]:
+    generation = group.manifest.checkpoint_generation
+    if generation > 0:
+        return (
+            1,
+            generation,
+            datetime.min.replace(tzinfo=timezone.utc),
+            group.manifest.checkpoint_id,
+        )
+    generated = parse_runtime_time(group.manifest.generated_utc)
+    if generated is None:
+        raise ValueError("legacy_checkpoint_generated_utc_invalid")
+    return (0, 0, generated, group.manifest.checkpoint_id)
+
+
+def _ppo_retention_ledger_state(ledger_path: Path) -> dict[str, Any]:
+    """Read and independently verify terminal PPO checkpoint bindings."""
+
+    sibling_files = tuple(
+        path
+        for path in (
+            ledger_path,
+            Path(f"{ledger_path}-wal"),
+            Path(f"{ledger_path}-shm"),
+        )
+        if path.is_file()
+    )
+    if not ledger_path.exists():
+        reasons = (
+            ["PPO_LEDGER_PRIMARY_MISSING_WITH_SIDECAR"] if sibling_files else []
+        )
+        return {
+            "integrity_verified": not reasons,
+            "integrity_rejection_reasons": reasons,
+            "pending_claims": set(),
+            "attempt_rows": [],
+            "ledger_files": sibling_files,
+        }
+    reasons: list[str] = []
+    attempts: list[dict[str, Any]] = []
+    pending_claims: set[str] = set()
+    try:
+        connection = sqlite3.connect(
+            f"file:{ledger_path.resolve()}?mode=ro",
+            uri=True,
+        )
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA query_only=ON")
+            quick_check = connection.execute("PRAGMA quick_check").fetchone()
+            if quick_check is None or str(quick_check[0]).lower() != "ok":
+                reasons.append("PPO_LEDGER_SQLITE_QUICK_CHECK_FAILED")
+            table_names = {
+                str(row[0])
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            required_tables = {"metadata", "ppo_attempts", "ppo_claims"}
+            if not required_tables.issubset(table_names):
+                reasons.append("PPO_LEDGER_REQUIRED_TABLE_MISSING")
+            else:
+                metadata = {
+                    str(row[0]): str(row[1])
+                    for row in connection.execute("SELECT key, value FROM metadata")
+                }
+                attempts = [
+                    dict(row)
+                    for row in connection.execute(
+                        "SELECT * FROM ppo_attempts ORDER BY sequence ASC"
+                    )
+                ]
+                pending_claims = {
+                    str(row[0])
+                    for row in connection.execute(
+                        "SELECT update_key FROM ppo_claims"
+                    )
+                }
+                if (
+                    metadata.get("schema_version")
+                    != PPO_CONSUMPTION_LEDGER_SCHEMA_VERSION
+                ):
+                    reasons.append("PPO_LEDGER_SCHEMA_VERSION_MISMATCH")
+                try:
+                    row_count = int(metadata.get("row_count", ""))
+                except (TypeError, ValueError, OverflowError):
+                    row_count = -1
+                if row_count != len(attempts):
+                    reasons.append("PPO_LEDGER_ROW_COUNT_MISMATCH")
+                previous_chain_hash = "0" * 64
+                semantic_fields = (
+                    "sequence",
+                    "update_key",
+                    "receipt_hash",
+                    "finalized_outcome_digest",
+                    "parent_policy_fingerprint",
+                    "child_policy_fingerprint",
+                    "disposition",
+                    "checkpoint_id",
+                    "checkpoint_path",
+                    "checkpoint_sha256",
+                    "training_partition_digest",
+                    "recorded_utc",
+                    "previous_chain_hash",
+                )
+                for expected_sequence, row in enumerate(attempts, start=1):
+                    if row.get("sequence") != expected_sequence:
+                        reasons.append("PPO_LEDGER_SEQUENCE_GAP")
+                        break
+                    if row.get("previous_chain_hash") != previous_chain_hash:
+                        reasons.append("PPO_LEDGER_PREVIOUS_CHAIN_MISMATCH")
+                        break
+                    semantic = {field: row.get(field) for field in semantic_fields}
+                    try:
+                        observed_chain_hash = hashlib.sha256(
+                            json.dumps(
+                                semantic,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                                ensure_ascii=True,
+                                allow_nan=False,
+                            ).encode("utf-8")
+                        ).hexdigest()
+                    except (TypeError, ValueError, OverflowError):
+                        observed_chain_hash = ""
+                    if row.get("chain_hash") != observed_chain_hash:
+                        reasons.append("PPO_LEDGER_CHAIN_HASH_MISMATCH")
+                        break
+                    previous_chain_hash = observed_chain_hash
+                if metadata.get("chain_tip") != previous_chain_hash:
+                    reasons.append("PPO_LEDGER_CHAIN_TIP_MISMATCH")
+                if any(not _sha256_hex(update_key) for update_key in pending_claims):
+                    reasons.append("PPO_LEDGER_PENDING_UPDATE_KEY_INVALID")
+        finally:
+            connection.close()
+    except (OSError, sqlite3.DatabaseError):
+        reasons.append("PPO_LEDGER_UNREADABLE")
+    return {
+        "integrity_verified": not reasons,
+        "integrity_rejection_reasons": sorted(set(reasons)),
+        "pending_claims": pending_claims,
+        "attempt_rows": attempts,
+        "ledger_files": sibling_files,
+    }
+
+
 def checkpoint_retention_status(
     *,
     paths: PersistentTrainerPaths,
@@ -1529,93 +1876,571 @@ def checkpoint_retention_status(
 ) -> dict[str, Any]:
     checkpoint_dir = paths.model_dir
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted(
-        [
-            path
-            for path in checkpoint_dir.glob("v2_hybrid_ckpt_*")
-            if path.is_file()
-            and (path.name.endswith(".json") or path.name.endswith(".weights.npz"))
-        ],
-        key=lambda path: path.stat().st_mtime,
+    candidate_dir = checkpoint_dir / "non_serving_training_candidates"
+    rejected_dir = checkpoint_dir / "rejected_optimizer_attempts"
+    store_dirs = (checkpoint_dir, candidate_dir, rejected_dir)
+    for store_dir in store_dirs:
+        store_dir.mkdir(parents=True, exist_ok=True)
+    managers = tuple(
+        (store_dir, V2HybridCheckpointManager(store_dir))
+        for store_dir in store_dirs
     )
-    effective_latest_checkpoint_id = latest_checkpoint_id
-    latest_checkpoint_id_source = "caller" if latest_checkpoint_id else None
-    if not effective_latest_checkpoint_id:
-        for metadata_path in reversed(
-            [path for path in files if path.name.endswith(".json")]
-        ):
-            payload = as_dict(read_json(metadata_path))
-            candidate_id = str(payload.get("checkpoint_id") or metadata_path.stem)
-            weight_path = checkpoint_dir / f"{candidate_id}.weights.npz"
-            if payload.get("weight_blob_written") is True and weight_path.is_file():
-                effective_latest_checkpoint_id = candidate_id
-                latest_checkpoint_id_source = "newest_complete_checkpoint_artifact"
-                break
-    pinned_names: set[str] = set()
-    if effective_latest_checkpoint_id:
-        pinned_names.update(
-            path.name
-            for path in files
-            if effective_latest_checkpoint_id in path.name
-        )
-    if best_checkpoint_id:
-        pinned_names.update(path.name for path in files if best_checkpoint_id in path.name)
-    for path in files:
-        payload = as_dict(read_json(path))
-        if payload.get("pinned") is True or payload.get("best_checkpoint") is True:
-            pinned_names.add(path.name)
-    limit_bytes = int(rollover_limit_gb) * 1024**3
-    deleted: list[str] = []
-    total_bytes = sum(path.stat().st_size for path in files)
-    if apply_rollover and total_bytes > limit_bytes:
-        for path in files:
-            if total_bytes <= limit_bytes:
-                break
-            if path.name in pinned_names:
-                continue
+    scan_rejection_reasons: list[str] = []
+
+    # Let the checkpoint owner recover only its narrowly-proven torn JSONL tail
+    # before retention takes the global writer lock. Every other causal damage
+    # remains a hard, no-deletion blocker.
+    for store_dir, manager in managers:
+        try:
+            manager.manifests()
+        except (OSError, RuntimeError, TypeError, ValueError):
+            scan_rejection_reasons.append(
+                f"CHECKPOINT_PREFLIGHT_SCAN_INVALID:{store_dir.name}"
+            )
+
+    lock_path = checkpoint_dir / _CHECKPOINT_CAUSAL_LOCK_NAME
+    causal_ledger_path = checkpoint_dir / _CHECKPOINT_CAUSAL_LEDGER_NAME
+    groups: list[_CheckpointRetentionGroup] = []
+    observed_artifacts: list[Path] = []
+    incomplete_artifacts: set[str] = set()
+    with lock_path.open("a+b") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            for store_dir in store_dirs:
+                staging_root = store_dir / ".checkpoint_retention_delete_staging"
+                if staging_root.exists():
+                    scan_rejection_reasons.append(
+                        f"CHECKPOINT_DELETE_STAGING_NOT_EMPTY:{store_dir.name}"
+                    )
+                for path in store_dir.glob("v2_hybrid_ckpt_*"):
+                    if path.is_symlink() or not path.is_file():
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_ARTIFACT_TYPE_INVALID:{path.name}"
+                        )
+                        continue
+                    if not (
+                        path.name.endswith(".json")
+                        or path.name.endswith(".weights.npz")
+                    ):
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_ARTIFACT_SUFFIX_INVALID:{path.name}"
+                        )
+                        continue
+                    observed_artifacts.append(path)
+
+            if not scan_rejection_reasons:
+                seen_checkpoint_ids: set[str] = set()
+                expected_artifacts: set[Path] = set()
+                for store_dir, manager in managers:
+                    try:
+                        manifests = manager.manifests()
+                    except (OSError, RuntimeError, TypeError, ValueError):
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_MANIFEST_SCAN_INVALID:{store_dir.name}"
+                        )
+                        continue
+                    for checkpoint_manifest in manifests:
+                        checkpoint_id = checkpoint_manifest.checkpoint_id
+                        if checkpoint_id in seen_checkpoint_ids:
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_ID_AMBIGUOUS:{checkpoint_id}"
+                            )
+                            continue
+                        seen_checkpoint_ids.add(checkpoint_id)
+                        manifest_path = store_dir / f"{checkpoint_id}.json"
+                        weight_path = store_dir / f"{checkpoint_id}.weights.npz"
+                        expected_artifacts.update((manifest_path, weight_path))
+                        if not manifest_path.is_file() or not weight_path.is_file():
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_PAIR_INCOMPLETE:{checkpoint_id}"
+                            )
+                            for path in (manifest_path, weight_path):
+                                if path.exists():
+                                    incomplete_artifacts.add(
+                                        str(path.relative_to(checkpoint_dir))
+                                    )
+                            continue
+                        try:
+                            raw_manifest = json.loads(
+                                manifest_path.read_text(encoding="utf-8")
+                            )
+                            verification = manager.verify_manifest_artifact(
+                                checkpoint_manifest
+                            )
+                        except (OSError, RuntimeError, TypeError, ValueError):
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_ARTIFACT_VERIFY_ERROR:{checkpoint_id}"
+                            )
+                            continue
+                        if not isinstance(raw_manifest, dict):
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_MANIFEST_NOT_OBJECT:{checkpoint_id}"
+                            )
+                            continue
+                        if verification.get("checkpoint_artifact_verified") is not True:
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_ARTIFACT_INVALID:{checkpoint_id}"
+                            )
+                            continue
+                        resolved_weight = verification.get(
+                            "resolved_weight_file_path"
+                        )
+                        try:
+                            resolved_matches = (
+                                Path(str(resolved_weight)).resolve(strict=True)
+                                == weight_path.resolve(strict=True)
+                            )
+                        except OSError:
+                            resolved_matches = False
+                        if not resolved_matches:
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_WEIGHT_PATH_INVALID:{checkpoint_id}"
+                            )
+                            continue
+                        try:
+                            group = _CheckpointRetentionGroup(
+                                manager=manager,
+                                manifest=checkpoint_manifest,
+                                manifest_path=manifest_path,
+                                weight_path=weight_path,
+                                raw_manifest=raw_manifest,
+                                verification=dict(verification),
+                            )
+                            _checkpoint_retention_order_key(group)
+                        except (TypeError, ValueError, OverflowError):
+                            scan_rejection_reasons.append(
+                                f"CHECKPOINT_CAUSAL_ORDER_INVALID:{checkpoint_id}"
+                            )
+                            continue
+                        groups.append(group)
+                unexpected = set(observed_artifacts) - expected_artifacts
+                if unexpected:
+                    incomplete_artifacts.update(
+                        str(path.relative_to(checkpoint_dir))
+                        for path in unexpected
+                    )
+                    scan_rejection_reasons.append(
+                        "CHECKPOINT_ORPHAN_ARTIFACT_PRESENT"
+                    )
+
+            ledger_path = candidate_dir / "ppo_consumption.sqlite3"
+            ledger_state = _ppo_retention_ledger_state(ledger_path)
+            if ledger_state.get("integrity_verified") is not True:
+                scan_rejection_reasons.extend(
+                    str(reason)
+                    for reason in ledger_state.get(
+                        "integrity_rejection_reasons", []
+                    )
+                )
+            pending_claims = set(ledger_state.get("pending_claims") or ())
+            attempt_rows = list(ledger_state.get("attempt_rows") or ())
+            ledger_files = list(ledger_state.get("ledger_files") or ())
+            group_by_id = {
+                group.manifest.checkpoint_id: group for group in groups
+            }
+            terminal_checkpoint_groups: set[str] = set()
+            for row in attempt_rows:
+                checkpoint_id_value = row.get("checkpoint_id")
+                checkpoint_path_value = row.get("checkpoint_path")
+                checkpoint_sha_value = row.get("checkpoint_sha256")
+                bindings = (
+                    checkpoint_id_value,
+                    checkpoint_path_value,
+                    checkpoint_sha_value,
+                )
+                if all(value in (None, "") for value in bindings):
+                    continue
+                if any(value in (None, "") for value in bindings):
+                    scan_rejection_reasons.append(
+                        "PPO_TERMINAL_CHECKPOINT_BINDING_PARTIAL"
+                    )
+                    continue
+                checkpoint_id = str(checkpoint_id_value)
+                checkpoint_sha = str(checkpoint_sha_value)
+                group = group_by_id.get(checkpoint_id)
+                if (
+                    Path(checkpoint_id).name != checkpoint_id
+                    or group is None
+                    or not _sha256_hex(checkpoint_sha)
+                ):
+                    scan_rejection_reasons.append(
+                        f"PPO_TERMINAL_CHECKPOINT_IDENTITY_INVALID:{checkpoint_id}"
+                    )
+                    continue
+                try:
+                    ledger_weight_path = Path(
+                        str(checkpoint_path_value)
+                    ).resolve(strict=True)
+                    expected_weight_path = group.weight_path.resolve(strict=True)
+                    observed_sha = _sha256_path(expected_weight_path)
+                except OSError:
+                    scan_rejection_reasons.append(
+                        f"PPO_TERMINAL_CHECKPOINT_ARTIFACT_UNREADABLE:{checkpoint_id}"
+                    )
+                    continue
+                if (
+                    ledger_weight_path != expected_weight_path
+                    or checkpoint_sha != observed_sha
+                    or checkpoint_sha != group.manifest.weight_file_sha256
+                    or row.get("child_policy_fingerprint")
+                    != group.manifest.model_parameter_fingerprint
+                ):
+                    scan_rejection_reasons.append(
+                        f"PPO_TERMINAL_CHECKPOINT_BINDING_MISMATCH:{checkpoint_id}"
+                    )
+                    continue
+                terminal_checkpoint_groups.add(checkpoint_id)
+
+            children_by_parent: dict[str, set[str]] = {}
+            for group in groups:
+                parent_id = group.manifest.parent_checkpoint_id
+                if parent_id is None:
+                    continue
+                if parent_id not in group_by_id:
+                    scan_rejection_reasons.append(
+                        f"CHECKPOINT_PARENT_MISSING:{group.manifest.checkpoint_id}"
+                    )
+                    continue
+                children_by_parent.setdefault(parent_id, set()).add(
+                    group.manifest.checkpoint_id
+                )
+
+            ordered_groups = sorted(groups, key=_checkpoint_retention_order_key)
+            serving_groups = [
+                group
+                for group in ordered_groups
+                if group.manifest_path.parent == checkpoint_dir
+                and group.manifest.lineage_kind == "VERIFIED_SERVING_POLICY"
+            ]
+            candidate_groups = [
+                group
+                for group in ordered_groups
+                if group.manifest_path.parent == candidate_dir
+                and group.manifest.lineage_kind
+                == "NON_SERVING_TRAINING_CANDIDATE"
+            ]
+            active_serving_id = (
+                serving_groups[-1].manifest.checkpoint_id
+                if serving_groups
+                else None
+            )
+            latest_candidate_id = (
+                candidate_groups[-1].manifest.checkpoint_id
+                if candidate_groups
+                else None
+            )
+            effective_latest_checkpoint_id = latest_checkpoint_id
+            latest_checkpoint_id_source = "caller" if latest_checkpoint_id else None
+            if not effective_latest_checkpoint_id and active_serving_id:
+                effective_latest_checkpoint_id = active_serving_id
+                latest_checkpoint_id_source = (
+                    "newest_validated_causal_serving_checkpoint"
+                )
+            if latest_checkpoint_id and latest_checkpoint_id not in group_by_id:
+                scan_rejection_reasons.append(
+                    "CALLER_LATEST_CHECKPOINT_NOT_IN_VALIDATED_SCAN"
+                )
+            if best_checkpoint_id and best_checkpoint_id not in group_by_id:
+                scan_rejection_reasons.append(
+                    "OPERATOR_BEST_CHECKPOINT_NOT_IN_VALIDATED_SCAN"
+                )
+
+            control_files = [
+                path
+                for path in (
+                    causal_ledger_path,
+                    lock_path,
+                    *ledger_files,
+                )
+                if path.is_file()
+            ]
+
+            def relative_name(path: Path) -> str:
+                return str(path.relative_to(checkpoint_dir))
+
+            pinned_names: set[str] = {
+                relative_name(path) for path in control_files
+            }
+            pinned_reasons: dict[str, list[str]] = {}
+            for path in control_files:
+                reason = (
+                    "CHECKPOINT_CAUSAL_ORDER_CONTROL"
+                    if path in {causal_ledger_path, lock_path}
+                    else "PPO_CONSUMPTION_LEDGER"
+                )
+                pinned_reasons.setdefault(relative_name(path), []).append(reason)
+
+            def pin_group(group: _CheckpointRetentionGroup, reason: str) -> None:
+                for artifact in (group.manifest_path, group.weight_path):
+                    name = relative_name(artifact)
+                    pinned_names.add(name)
+                    pinned_reasons.setdefault(name, []).append(reason)
+
+            def pin_parent_chain(checkpoint_id: str, reason: str) -> None:
+                visited: set[str] = set()
+                current_id: str | None = checkpoint_id
+                depth = 0
+                while current_id is not None:
+                    if current_id in visited:
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_PARENT_CYCLE:{checkpoint_id}"
+                        )
+                        return
+                    visited.add(current_id)
+                    group = group_by_id.get(current_id)
+                    if group is None:
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_PINNED_PARENT_MISSING:{current_id}"
+                        )
+                        return
+                    pin_group(
+                        group,
+                        reason if depth == 0 else f"{reason}_ANCESTOR",
+                    )
+                    current_id = group.manifest.parent_checkpoint_id
+                    depth += 1
+
+            if active_serving_id:
+                pin_parent_chain(active_serving_id, "ACTIVE_VERIFIED_SERVING")
+            if latest_candidate_id:
+                pin_parent_chain(
+                    latest_candidate_id,
+                    "LATEST_NON_SERVING_CANDIDATE",
+                )
+            if latest_checkpoint_id and latest_checkpoint_id in group_by_id:
+                pin_parent_chain(latest_checkpoint_id, "CALLER_LATEST_CHECKPOINT")
+            if best_checkpoint_id and best_checkpoint_id in group_by_id:
+                pin_parent_chain(best_checkpoint_id, "OPERATOR_BEST_CHECKPOINT")
+            for group in groups:
+                checkpoint_id = group.manifest.checkpoint_id
+                for flag in ("pinned", "best_checkpoint"):
+                    if flag in group.raw_manifest and not isinstance(
+                        group.raw_manifest.get(flag), bool
+                    ):
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_MANIFEST_PIN_FLAG_INVALID:{checkpoint_id}"
+                        )
+                if (
+                    group.raw_manifest.get("pinned") is True
+                    or group.raw_manifest.get("best_checkpoint") is True
+                ):
+                    pin_parent_chain(checkpoint_id, "MANIFEST_PIN")
+                consumed_keys = set(group.manifest.consumed_ppo_update_keys)
+                if any(not _sha256_hex(value) for value in consumed_keys):
+                    scan_rejection_reasons.append(
+                        f"CHECKPOINT_CONSUMED_PPO_KEY_INVALID:{checkpoint_id}"
+                    )
+                if consumed_keys & pending_claims:
+                    pin_parent_chain(
+                        checkpoint_id,
+                        "PENDING_PPO_CLAIM_RECONCILIATION",
+                    )
+            for checkpoint_id in terminal_checkpoint_groups:
+                pin_parent_chain(
+                    checkpoint_id,
+                    "TERMINAL_PPO_ATTEMPT_DURABLE_ARTIFACT",
+                )
+
+            scan_rejection_reasons = sorted(set(scan_rejection_reasons))
+            scan_verified = not scan_rejection_reasons
+            limit_bytes = int(rollover_limit_gb) * 1024**3
+            deleted: list[str] = []
+
+            def extant_size() -> int:
+                paths_to_count = [
+                    path
+                    for path in (*observed_artifacts, *control_files)
+                    if path.is_file()
+                ]
+                return sum(path.stat().st_size for path in paths_to_count)
+
+            total_bytes = extant_size()
+            deleted_group_ids: set[str] = set()
             if (
-                effective_latest_checkpoint_id
-                and effective_latest_checkpoint_id in path.name
+                scan_verified
+                and apply_rollover
+                and total_bytes > limit_bytes
             ):
-                continue
-            size = path.stat().st_size
-            try:
-                path.unlink()
-            except OSError:
-                continue
-            deleted.append(path.name)
-            total_bytes -= size
-    remaining = sorted(
-        [path for path in files if path.exists()],
-        key=lambda path: path.stat().st_mtime,
+                for group in ordered_groups:
+                    if total_bytes <= limit_bytes:
+                        break
+                    checkpoint_id = group.manifest.checkpoint_id
+                    artifacts = (group.manifest_path, group.weight_path)
+                    artifact_names = [relative_name(path) for path in artifacts]
+                    if any(name in pinned_names for name in artifact_names):
+                        continue
+                    retained_children = children_by_parent.get(
+                        checkpoint_id, set()
+                    ) - deleted_group_ids
+                    if retained_children:
+                        continue
+                    staging_dir = (
+                        group.manifest_path.parent
+                        / ".checkpoint_retention_delete_staging"
+                        / checkpoint_id
+                    )
+                    staged: list[tuple[Path, Path]] = []
+                    try:
+                        pair_size = sum(path.stat().st_size for path in artifacts)
+                        staging_dir.mkdir(parents=True, exist_ok=False)
+                        for artifact in artifacts:
+                            destination = staging_dir / artifact.name
+                            artifact.replace(destination)
+                            staged.append((artifact, destination))
+                    except OSError:
+                        for original, staged_path in reversed(staged):
+                            try:
+                                staged_path.replace(original)
+                            except OSError:
+                                pass
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_PAIR_STAGE_FAILED:{checkpoint_id}"
+                        )
+                        break
+                    unlink_failed = False
+                    for _original, staged_path in staged:
+                        try:
+                            staged_path.unlink()
+                        except OSError:
+                            unlink_failed = True
+                    try:
+                        staging_dir.rmdir()
+                        staging_dir.parent.rmdir()
+                    except OSError:
+                        unlink_failed = True
+                    if unlink_failed:
+                        scan_rejection_reasons.append(
+                            f"CHECKPOINT_PAIR_DELETE_INCOMPLETE:{checkpoint_id}"
+                        )
+                        break
+                    deleted.extend(artifact_names)
+                    deleted_group_ids.add(checkpoint_id)
+                    total_bytes -= pair_size
+
+            remaining_groups = [
+                group
+                for group in ordered_groups
+                if group.manifest_path.is_file() and group.weight_path.is_file()
+            ]
+            remaining_artifacts = [
+                path for path in observed_artifacts if path.is_file()
+            ]
+            total_bytes = extant_size()
+            latest_group = remaining_groups[-1] if remaining_groups else None
+            oldest_group = remaining_groups[0] if remaining_groups else None
+            rollover_blocked = bool(
+                apply_rollover and total_bytes > limit_bytes
+            )
+            if scan_rejection_reasons:
+                rollover_status = "ROLLOVER_BLOCKED_SCAN_INVALID"
+            elif deleted:
+                rollover_status = (
+                    "ROLLOVER_APPLIED"
+                    if not rollover_blocked
+                    else "ROLLOVER_PARTIAL_PARENT_OR_PIN_PROTECTED"
+                )
+            elif rollover_blocked:
+                rollover_status = "ROLLOVER_BLOCKED_PINNED_OR_PARENT_PROTECTED"
+            else:
+                rollover_status = "BELOW_LIMIT_NO_ACTION"
+            status_manifest = {
+                "schema_version": (
+                    "native_cuda_trainer_checkpoint_retention_manifest_v3"
+                ),
+                "generated_est": est_now(),
+                "checkpoint_dir": str(MODEL_DIR_REL),
+                "checkpoint_count": len(remaining_artifacts),
+                "checkpoint_pair_count": len(remaining_groups),
+                "checkpoint_total_size_gb": round(total_bytes / 1024**3, 6),
+                "total_size_gb": round(total_bytes / 1024**3, 6),
+                "checkpoint_dir_size_bytes": total_bytes,
+                "checkpoint_rollover_limit_gb": int(rollover_limit_gb),
+                "rollover_limit_gb": int(rollover_limit_gb),
+                "checkpoint_rollover_limit_bytes": limit_bytes,
+                "oldest_checkpoint": (
+                    relative_name(oldest_group.manifest_path)
+                    if oldest_group
+                    else None
+                ),
+                "latest_checkpoint": (
+                    relative_name(latest_group.manifest_path)
+                    if latest_group
+                    else None
+                ),
+                "latest_checkpoint_id": effective_latest_checkpoint_id,
+                "latest_checkpoint_id_source": latest_checkpoint_id_source,
+                "active_verified_serving_checkpoint_id": active_serving_id,
+                "best_checkpoint": best_checkpoint_id,
+                "pinned_checkpoints": sorted(pinned_names),
+                "pinned_checkpoint_reasons": {
+                    key: sorted(set(value))
+                    for key, value in sorted(pinned_reasons.items())
+                },
+                "latest_non_serving_candidate_id": latest_candidate_id,
+                "checkpoint_ordering": (
+                    "CAUSAL_GENERATION_THEN_STRICT_LEGACY_GENERATED_UTC"
+                ),
+                "filesystem_mtime_used_for_ordering": False,
+                "checkpoint_retention_scan_verified": not scan_rejection_reasons,
+                "checkpoint_retention_scan_rejection_reasons": sorted(
+                    set(scan_rejection_reasons)
+                ),
+                "checkpoint_causal_ledger_path": (
+                    relative_name(causal_ledger_path)
+                    if causal_ledger_path.is_file()
+                    else None
+                ),
+                "checkpoint_causal_lock_path": relative_name(lock_path),
+                "ppo_consumption_ledger_path": (
+                    relative_name(ledger_path) if ledger_path.is_file() else None
+                ),
+                "ppo_consumption_ledger_pinned": ledger_path.is_file(),
+                "ppo_consumption_ledger_integrity_verified": (
+                    ledger_state.get("integrity_verified") is True
+                ),
+                "terminal_ppo_attempt_count": len(attempt_rows),
+                "terminal_checkpoint_reference_count": len(
+                    terminal_checkpoint_groups
+                ),
+                "terminal_checkpoint_bindings_verified": bool(
+                    ledger_state.get("integrity_verified") is True
+                    and not any(
+                        reason.startswith("PPO_TERMINAL_")
+                        for reason in scan_rejection_reasons
+                    )
+                ),
+                "pending_ppo_claim_count": (
+                    len(pending_claims)
+                    if ledger_state.get("integrity_verified") is True
+                    else None
+                ),
+                "pending_ppo_claim_state_verified": (
+                    ledger_state.get("integrity_verified") is True
+                ),
+                "complete_pair_deletion_only": True,
+                "incomplete_pairs_fail_closed": True,
+                "parent_chain_holes_fail_closed": True,
+                "pinned_parent_chains_preserved": True,
+                "incomplete_checkpoint_artifacts": sorted(
+                    incomplete_artifacts
+                ),
+                "deleted_checkpoints": deleted,
+                "rollover_action_taken": (
+                    "DELETED_OLDEST_CAUSAL_NON_PINNED_LEAF"
+                    if deleted
+                    else "NONE"
+                ),
+                "checkpoint_rollover_status": rollover_status,
+                "never_delete_latest_checkpoint": True,
+                "never_delete_pinned_high_performing_checkpoint": True,
+            }
+        finally:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+    write_json(
+        checkpoint_dir / "checkpoint_retention_manifest.json",
+        status_manifest,
     )
-    total_bytes = sum(path.stat().st_size for path in remaining)
-    latest = remaining[-1].name if remaining else None
-    manifest = {
-        "schema_version": "native_cuda_trainer_checkpoint_retention_manifest_v1",
-        "generated_est": est_now(),
-        "checkpoint_dir": str(MODEL_DIR_REL),
-        "checkpoint_count": len(remaining),
-        "checkpoint_total_size_gb": round(total_bytes / 1024**3, 6),
-        "total_size_gb": round(total_bytes / 1024**3, 6),
-        "checkpoint_dir_size_bytes": total_bytes,
-        "checkpoint_rollover_limit_gb": int(rollover_limit_gb),
-        "rollover_limit_gb": int(rollover_limit_gb),
-        "checkpoint_rollover_limit_bytes": limit_bytes,
-        "oldest_checkpoint": remaining[0].name if remaining else None,
-        "latest_checkpoint": latest,
-        "latest_checkpoint_id": effective_latest_checkpoint_id,
-        "latest_checkpoint_id_source": latest_checkpoint_id_source,
-        "best_checkpoint": best_checkpoint_id,
-        "pinned_checkpoints": sorted(pinned_names),
-        "deleted_checkpoints": deleted,
-        "rollover_action_taken": "DELETED_OLDEST_NON_PINNED" if deleted else "NONE",
-        "checkpoint_rollover_status": "ROLLOVER_APPLIED" if deleted else "BELOW_LIMIT_NO_ACTION",
-        "never_delete_latest_checkpoint": True,
-        "never_delete_pinned_high_performing_checkpoint": True,
-    }
-    write_json(checkpoint_dir / "checkpoint_retention_manifest.json", manifest)
-    return manifest
+    return status_manifest
 
 
 def classify_fill_source(row: Mapping[str, Any]) -> str:
@@ -1816,7 +2641,53 @@ def build_resource_status(
     cpu = cpu_utilization_percent()
     training = as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {}
     nested_training_metrics = as_dict(training.get("metrics"))
-    resource = as_dict(as_dict(getattr(trainer_result, "status", {})).get("cuda_cpu_resource_utilization"))
+    result_status = as_dict(getattr(trainer_result, "status", {}))
+    resource = as_dict(result_status.get("cuda_cpu_resource_utilization"))
+    envelope = as_dict(result_status.get("current_cycle_learning_envelope"))
+    source_cycle_resource = as_dict(
+        result_status.get("current_cycle_resource_evidence")
+    )
+    service_state = systemctl_show(PERSISTENT_UNIT)
+    service_pid = int(finite_float(service_state.get("MainPID")) or 0)
+    expected_instance_id = f"{socket.gethostname()}:{os.getpid()}"
+    resource_rejection_reasons: list[str] = []
+    if not envelope:
+        resource_rejection_reasons.append("CURRENT_CYCLE_ENVELOPE_MISSING")
+    if (
+        source_cycle_resource.get("cycle_id") != envelope.get("cycle_id")
+        or source_cycle_resource.get("process_instance_id")
+        != envelope.get("process_instance_id")
+    ):
+        resource_rejection_reasons.append("CURRENT_CYCLE_RESOURCE_IDENTITY_MISMATCH")
+    if source_cycle_resource.get("process_instance_id") != expected_instance_id:
+        resource_rejection_reasons.append("CURRENT_CYCLE_RESOURCE_PROCESS_MISMATCH")
+    if (
+        service_state.get("ActiveState") != "active"
+        or service_pid <= 0
+        or service_pid != os.getpid()
+    ):
+        resource_rejection_reasons.append("SYSTEMD_MAINPID_NOT_CURRENT_PROCESS")
+    if gpu.get("available") is not True:
+        resource_rejection_reasons.append("CURRENT_NVIDIA_SMI_REVALIDATION_FAILED")
+    if source_cycle_resource.get("cuda_available") is not True:
+        resource_rejection_reasons.append("CURRENT_CYCLE_CUDA_AVAILABLE_NOT_TRUE")
+    if source_cycle_resource.get("cuda_active") is not True:
+        resource_rejection_reasons.append("CURRENT_CYCLE_CUDA_ACTIVE_NOT_TRUE")
+    resource_rejection_reasons = list(dict.fromkeys(resource_rejection_reasons))
+    current_cycle_resource_evidence = {
+        **source_cycle_resource,
+        "cuda_available": bool(
+            not resource_rejection_reasons
+            and source_cycle_resource.get("cuda_available") is True
+        ),
+        "cuda_active": bool(
+            not resource_rejection_reasons
+            and source_cycle_resource.get("cuda_active") is True
+        ),
+        "systemd_main_pid": service_pid or None,
+        "systemd_process_reverified": not resource_rejection_reasons,
+        "resource_revalidation_rejection_reasons": resource_rejection_reasons,
+    }
     vram_used = finite_float(gpu.get("vram_used_mb")) or finite_float(resource.get("current_vram_used_mb"))
     vram_total = finite_float(gpu.get("vram_total_mb")) or finite_float(resource.get("vram_total_mb"))
     current_gpu_utilization = finite_float(gpu.get("gpu_utilization_percent"))
@@ -1964,6 +2835,7 @@ def build_resource_status(
         "resource_target_logic": tuning,
         "persistent_cycles_total": persistent_state.get("cycle_index"),
         "training_blocker_reason": training_blocker_reason or None,
+        "current_cycle_resource_evidence": current_cycle_resource_evidence,
     }
 
 
@@ -2225,6 +3097,15 @@ def online_learning_runtime_fields(
     prediction_rows: int = 0,
     trainer_process_active: bool | None = None,
     cuda_inference_active: bool | None = None,
+    trainer_process_evidence: Mapping[str, Any] | None = None,
+    current_cycle_learning_envelope: Mapping[str, Any] | None = None,
+    runtime_status_evidence: Mapping[str, Any] | None = None,
+    heartbeat_evidence: Mapping[str, Any] | None = None,
+    verified_serving_checkpoint: Mapping[str, Any] | None = None,
+    prediction_publication_evidence: Mapping[str, Any] | None = None,
+    resource_evidence: Mapping[str, Any] | None = None,
+    parity_evidence: Mapping[str, Any] | None = None,
+    now_utc: datetime | None = None,
 ) -> dict[str, Any]:
     training = as_dict(training)
     latest_training_metrics = as_dict(latest_training_metrics)
@@ -2255,7 +3136,16 @@ def online_learning_runtime_fields(
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_rows,
         trainer_process_active=trainer_process_active,
+        trainer_process_evidence=trainer_process_evidence,
         cuda_inference_active=cuda_inference_active,
+        current_cycle_learning_envelope=current_cycle_learning_envelope,
+        runtime_status_evidence=runtime_status_evidence,
+        heartbeat_evidence=heartbeat_evidence,
+        verified_serving_checkpoint=verified_serving_checkpoint,
+        prediction_publication_evidence=prediction_publication_evidence,
+        resource_evidence=resource_evidence,
+        parity_evidence=parity_evidence,
+        now_utc=now_utc,
     )
     return {
         **{key: value for key, value in readiness.items() if key != "schema_version"},
@@ -2320,12 +3210,72 @@ def build_persistent_runtime_status(
         if service_active
         else "OFFLINE"
     )
+    redis_client = connect_redis()
+    redis_trainer_status = as_dict(
+        redis_json(redis_client, "v2:trainer:hybrid_cuda:status")
+    )
+    runtime_status_evidence = redis_trainer_status or (
+        status
+        if as_dict(status.get("status_publication")).get(
+            "publication_complete"
+        )
+        is True
+        else {}
+    )
+    heartbeat_evidence = as_dict(
+        redis_json(redis_client, "v2:trainer:hybrid_cuda:heartbeat")
+    ) or as_dict(status.get("current_cycle_heartbeat_evidence"))
+    current_cycle_envelope = as_dict(
+        runtime_status_evidence.get("current_cycle_learning_envelope")
+    )
+    prediction_publication_evidence = as_dict(
+        prediction_public.get("current_cycle_prediction_publication_evidence")
+    )
+    parity_dashboard = as_dict(
+        read_json(
+            paths.public_root
+            / (
+                "v2_native_hybrid_trainer_full_function_parity_and_paper_reverify/"
+                "latest/operator_dashboard_payload.json"
+            )
+        )
+    )
+    parity_evidence = as_dict(
+        parity_dashboard.get("current_cycle_parity_evidence")
+    )
+    resource_evidence = as_dict(resource.get("current_cycle_resource_evidence"))
+    verified_serving_evidence = as_dict(
+        status.get("current_cycle_verified_serving_checkpoint_evidence")
+    )
+    process_evidence = (
+        {
+            "service_active": True,
+            "service_unit": PERSISTENT_UNIT,
+            "process_id": service_pid,
+            "process_instance_id": f"{socket.gethostname()}:{service_pid}",
+        }
+        if current_process_is_service_main
+        else {}
+    )
     online_learning = online_learning_runtime_fields(
         training=training,
         latest_training_metrics=latest_training_metrics,
         persistent_state=persistent_state,
         prediction_rows=prediction_rows,
-        trainer_process_active=True,
+        trainer_process_active=current_process_is_service_main,
+        trainer_process_evidence=process_evidence,
+        cuda_inference_active=bool(
+            resource_evidence.get("cuda_available") is True
+            and resource_evidence.get("cuda_active") is True
+        ),
+        current_cycle_learning_envelope=current_cycle_envelope,
+        runtime_status_evidence=runtime_status_evidence,
+        heartbeat_evidence=heartbeat_evidence,
+        verified_serving_checkpoint=verified_serving_evidence,
+        prediction_publication_evidence=prediction_publication_evidence,
+        resource_evidence=resource_evidence,
+        parity_evidence=parity_evidence,
+        now_utc=datetime.now(tz=timezone.utc),
     )
     legacy_runtime_config = legacy_grade_runtime_config(
         symbols=symbol_scope.get("training_symbols") or [],
@@ -2357,6 +3307,19 @@ def build_persistent_runtime_status(
         "last_batch_age_seconds": heartbeat_age_seconds,
         "last_prediction_age_seconds": heartbeat_age_seconds,
         **online_learning,
+        "current_cycle_learning_envelope": current_cycle_envelope,
+        "current_cycle_prediction_publication_evidence": (
+            prediction_publication_evidence
+        ),
+        "current_cycle_resource_evidence": resource_evidence,
+        "current_cycle_parity_evidence": parity_evidence,
+        "current_cycle_verified_serving_checkpoint_evidence": (
+            verified_serving_evidence
+        ),
+        "trainer_process_evidence": process_evidence,
+        "actual_systemd_mainpid_bound_to_cycle_process": (
+            current_process_is_service_main
+        ),
         "last_training_blocker_reason": persistent_state.get("last_training_blocker_reason"),
         "training_steps_total": persistent_state.get("training_steps_total", 0),
         "training_steps_last_minute": sum(int(finite_float(event.get("training_steps")) or 0) for event in last_minute_events),
@@ -2493,7 +3456,18 @@ def publish_training_cycle_heartbeat(
         latest_training_metrics=latest_training_metrics,
         persistent_state=state,
         prediction_rows=prediction_rows,
-        trainer_process_active=True,
+        trainer_process_active=current_process_is_service_main,
+        trainer_process_evidence=(
+            {
+                "service_active": True,
+                "service_unit": PERSISTENT_UNIT,
+                "process_id": service_pid,
+                "process_instance_id": f"{socket.gethostname()}:{service_pid}",
+            }
+            if current_process_is_service_main
+            else {}
+        ),
+        cuda_inference_active=False,
     )
     payload = {
         **existing,
@@ -2536,8 +3510,12 @@ def publish_training_cycle_heartbeat(
         "paper_actionability_block_reason_counts": paper_actionability_block_reasons,
         "trainer_source": TRAINER_SOURCE,
         "heartbeat_age_seconds": 0,
-        "worker_health_status": "HEALTHY",
-        "trainer_liveness_status": "HEALTHY",
+        "worker_health_status": (
+            "HEALTHY" if current_process_is_service_main else "OFFLINE"
+        ),
+        "trainer_liveness_status": (
+            "HEALTHY" if current_process_is_service_main else "OFFLINE"
+        ),
         "legacy_grade_runtime_config": legacy_runtime_config,
         "legacy_runtime_effective_config": as_dict(legacy_runtime_config.get("effective_config")),
         "legacy_runtime_coverage_mode": legacy_runtime_config.get("coverage_mode"),
@@ -2581,8 +3559,12 @@ def publish_training_cycle_heartbeat(
             "paper_actionability_blocked_rows_count": paper_actionability_blocked,
             "paper_actionability_block_reason_counts": paper_actionability_block_reasons,
             "training_steps_total": payload.get("training_steps_total"),
-            "trainer_liveness_status": "HEALTHY",
-            "worker_health_status": "HEALTHY",
+            "trainer_liveness_status": (
+                "HEALTHY" if current_process_is_service_main else "OFFLINE"
+            ),
+            "worker_health_status": (
+                "HEALTHY" if current_process_is_service_main else "OFFLINE"
+            ),
         },
     )
     return payload
@@ -2888,8 +3870,12 @@ RESIDENT_VRAM_TARGET_HIGH_FRACTION = 0.75
 RESIDENT_STEPS_MULTIPLIER_MIN = 1
 RESIDENT_STEPS_MULTIPLIER_MAX = 4
 RESIDENT_TRAIN_STEPS_HARD_CEILING = 128
-RESIDENT_DATA_STARVED_ROW_FLOOR = 2048
-RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA = 0.02
+_COMPARABLE_VALIDATION_REGRESSION_REASONS = frozenset(
+    {
+        "CANDIDATE_VALIDATION_LOSS_REGRESSED",
+        "CANDIDATE_VALIDATION_EDGE_LCB_REGRESSED",
+    }
+)
 
 
 def _adaptive_gpu_controller_enabled() -> bool:
@@ -2910,28 +3896,34 @@ _PREFETCH_QUEUE: deque = deque()
 _PREFETCH_LOCK = threading.Lock()
 _PREFETCH_THREAD: threading.Thread | None = None
 _PREFETCH_STOP = threading.Event()
+_PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT: Path | None = None
 _PREFETCH_CHUNK_ROWS = 2_048
 _PREFETCH_IDLE_SLEEP_SECONDS = 10.0
 
 
-def _prefetch_backfill_worker() -> None:
+def _prefetch_backfill_worker(
+    *,
+    trusted_replay_archive_root: Path,
+    stop_event: threading.Event,
+) -> None:
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
         V2HybridTrainerDataLoader,
     )
 
     loader = None
-    while not _PREFETCH_STOP.is_set():
+    while not stop_event.is_set():
         try:
             with _PREFETCH_LOCK:
                 queued = len(_PREFETCH_QUEUE)
             buffered = len(_REPLAY_BUFFER)
             capacity = int(_REPLAY_BUFFER.maxlen or 0)
             if capacity and buffered + queued >= capacity:
-                _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+                stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
                 continue
             if loader is None:
                 loader = V2HybridTrainerDataLoader(
-                    io=V2OnlyJsonIO(client=connect_redis())
+                    io=V2OnlyJsonIO(client=connect_redis()),
+                    trusted_replay_archive_root=trusted_replay_archive_root,
                 )
             examples = loader.load_trusted_replay_examples(
                 limit=_PREFETCH_CHUNK_ROWS, backfill=True
@@ -2940,19 +3932,34 @@ def _prefetch_backfill_worker() -> None:
                 with _PREFETCH_LOCK:
                     _PREFETCH_QUEUE.extend(examples)
             else:
-                _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+                stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
         except Exception:
             loader = None
-            _PREFETCH_STOP.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
+            stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
 
 
-def _ensure_prefetch_thread_started() -> None:
-    global _PREFETCH_THREAD
+def _ensure_prefetch_thread_started(*, trusted_replay_archive_root: Path) -> None:
+    global _PREFETCH_STOP, _PREFETCH_THREAD, _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT
+    resolved_archive_root = Path(trusted_replay_archive_root).expanduser().resolve()
     if _PREFETCH_THREAD is not None and _PREFETCH_THREAD.is_alive():
-        return
-    _PREFETCH_STOP.clear()
+        if _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT == resolved_archive_root:
+            return
+        _PREFETCH_STOP.set()
+        _PREFETCH_THREAD.join(timeout=5.0)
+        if _PREFETCH_THREAD.is_alive():
+            raise RuntimeError("trusted replay prefetch root change could not stop prior worker")
+    if _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT != resolved_archive_root:
+        with _PREFETCH_LOCK:
+            _PREFETCH_QUEUE.clear()
+        _REPLAY_BUFFER.clear()
+    _PREFETCH_STOP = threading.Event()
+    _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT = resolved_archive_root
     _PREFETCH_THREAD = threading.Thread(
         target=_prefetch_backfill_worker,
+        kwargs={
+            "trusted_replay_archive_root": resolved_archive_root,
+            "stop_event": _PREFETCH_STOP,
+        },
         name="v2-trainer-backfill-prefetch",
         daemon=True,
     )
@@ -2988,6 +3995,7 @@ def adaptive_gpu_saturation_decision(
     oom_occurred: bool,
     checkpoint_promotion_rejected: bool = False,
     checkpoint_promotion_reason: str | None = None,
+    validation_regression_reasons: Iterable[str] = (),
     validation_loss_delta: float | None = None,
     overfit_gap_warning: bool = False,
 ) -> dict[str, Any]:
@@ -3003,24 +4011,31 @@ def adaptive_gpu_saturation_decision(
     vram_fraction = None
     if vram_reserved_mb is not None and vram_total_mb:
         vram_fraction = float(vram_reserved_mb) / float(vram_total_mb)
+    observed_regression_reasons = tuple(
+        sorted(
+            {
+                str(reason)
+                for reason in validation_regression_reasons
+                if str(reason) in _COMPARABLE_VALIDATION_REGRESSION_REASONS
+            }
+        )
+    )
+    reason_coded_validation_regression = bool(observed_regression_reasons)
     validation_regressed = bool(
-        validation_loss_delta is not None
-        and float(validation_loss_delta) > RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA
+        accepted_rows > 0 and reason_coded_validation_regression
     )
     if oom_occurred:
         classification = "OOM_BACKOFF"
         multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
         oom_events += 1
-    elif checkpoint_promotion_rejected or validation_regressed:
-        # Back off GPU intensity only on a GENUINE promotion rejection or a real
-        # validation regression. The advisory overfit_gap_warning must NOT halve
-        # steps on its own: when it fired every cycle (miscalibrated absolute
-        # threshold) it pinned steps_multiplier at MIN forever, starving the RTX
-        # (gpu_time_share ~0.4, ~160 steps/hr) and blocking the CPU-prep-bottleneck
-        # epoch-raise below. It is retained in telemetry, not as a backoff trigger.
-        classification = "VALIDATION_CHECKPOINT_BACKOFF"
+    elif validation_regressed:
+        # Only a reason-coded regression on comparable untouched validation
+        # evidence is an actuation signal. Generic promotion rejection includes
+        # PIT gaps, starvation, missing confidence evidence, and persistence
+        # failures; none proves that doing less optimizer work improves quality.
+        classification = "COMPARABLE_VALIDATION_REGRESSION_BACKOFF"
         multiplier = max(RESIDENT_STEPS_MULTIPLIER_MIN, multiplier // 2)
-    elif accepted_rows < RESIDENT_DATA_STARVED_ROW_FLOOR:
+    elif accepted_rows <= 0:
         classification = "DATA_STARVED_NOT_GPU_CONFIG_BLOCKED"
     elif vram_fraction is not None and vram_fraction > RESIDENT_VRAM_TARGET_HIGH_FRACTION:
         classification = "VRAM_AT_TARGET_HOLD"
@@ -3042,15 +4057,23 @@ def adaptive_gpu_saturation_decision(
         "vram_fraction": round(vram_fraction, 6) if vram_fraction is not None else None,
         "vram_target_high_fraction": RESIDENT_VRAM_TARGET_HIGH_FRACTION,
         "accepted_rows": int(accepted_rows),
-        "data_starved_row_floor": RESIDENT_DATA_STARVED_ROW_FLOOR,
+        "data_starved": accepted_rows <= 0,
+        "data_starvation_actuation_rule": "accepted_rows_gt_0",
         "data_loader_time_ms": data_loader_time_ms,
         "gpu_train_time_ms": gpu_train_time_ms,
         "oom_events": oom_events,
         "checkpoint_promotion_rejected": bool(checkpoint_promotion_rejected),
         "checkpoint_promotion_reason": checkpoint_promotion_reason,
         "validation_loss_delta": validation_loss_delta,
-        "validation_loss_backoff_delta": RESIDENT_VALIDATION_LOSS_BACKOFF_DELTA,
+        "validation_loss_delta_actuation_used": False,
         "validation_regressed": validation_regressed,
+        "reason_coded_validation_regression_observed": (
+            reason_coded_validation_regression
+        ),
+        "validation_regression_actuation_requires_accepted_rows_gt_0": True,
+        "comparable_validation_regression_reasons": list(
+            observed_regression_reasons
+        ),
         "overfit_gap_warning": bool(overfit_gap_warning),
         "artificial_load_added": False,
         "per_step_batch_freeze_cap_unchanged": RESIDENT_MAX_BATCH_SIZE,
@@ -3075,6 +4098,14 @@ def update_gpu_saturation_controller(
 ) -> dict[str, Any]:
     state = _read_gpu_saturation_state(client)
     promotion = checkpoint_promotion if isinstance(checkpoint_promotion, Mapping) else {}
+    candidate_progress = as_dict(
+        nested_training_metrics.get("candidate_progress_decision")
+    )
+    regression_reason_candidates = [
+        *as_list(candidate_progress.get("candidate_progress_rejection_reasons")),
+        *as_list(promotion.get("checkpoint_promotion_rejection_reasons")),
+        *as_list(nested_training_metrics.get("checkpoint_promotion_rejection_reasons")),
+    ]
     decision = adaptive_gpu_saturation_decision(
         state=state,
         accepted_rows=int(finite_float(nested_training_metrics.get("accepted_training_rows")) or 0),
@@ -3095,6 +4126,7 @@ def update_gpu_saturation_controller(
             )
             or None
         ),
+        validation_regression_reasons=regression_reason_candidates,
         validation_loss_delta=finite_float(nested_training_metrics.get("validation_loss_delta")),
         overfit_gap_warning=nested_training_metrics.get("overfit_gap_warning") is True,
     )
@@ -3114,6 +4146,7 @@ def run_native_training_cycle(
     paths: PersistentTrainerPaths,
     max_rows: int,
     risk_caps_configured: bool,
+    interval_seconds: int = LEGACY_RUNTIME_DEFAULT_PREDICTION_LOOP_SECONDS,
 ) -> Any:
     client = connect_redis()
     io = V2OnlyJsonIO(client=client)
@@ -3136,9 +4169,11 @@ def run_native_training_cycle(
             ),
         )
         train_steps = min(RESIDENT_TRAIN_STEPS_HARD_CEILING, train_steps * multiplier)
+    expected_cycle_cadence_seconds = max(1, min(300, int(interval_seconds)))
     config = HybridTrainerConfig(
         symbols=symbols,
         timeframes=tuple(DEFAULT_TIMEFRAMES),
+        model_dir=paths.model_dir,
         max_training_rows_per_cycle=int(max_rows),
         # Cap batch_size independently of max_rows. A batch equal to a very
         # large max_rows can run one oversized native CUDA op that the SIGALRM
@@ -3148,16 +4183,146 @@ def run_native_training_cycle(
         train_steps=train_steps,
         rollout_n_steps=int(effective_config.get("n_steps") or DEFAULT_ROLLOUT_N_STEPS),
         rollout_max_envs=int(effective_config.get("n_envs") or DEFAULT_ROLLOUT_MAX_ENVS),
+        expected_cycle_cadence_seconds=expected_cycle_cadence_seconds,
         risk_caps_configured=bool(risk_caps_configured),
     )
-    _ensure_prefetch_thread_started()
+    _ensure_prefetch_thread_started(
+        trusted_replay_archive_root=paths.trusted_replay_archive_root,
+    )
     return run_hybrid_trainer_cycle(
         config=config,
         io=io,
         publish=True,
         replay_buffer=_REPLAY_BUFFER,
         prefetched_backfill_examples=_drain_prefetched_backfill_examples(),
+        trusted_replay_archive_root=paths.trusted_replay_archive_root,
+        behavior_receipt_archive_root=paths.behavior_receipt_archive_root,
     )
+
+
+def dashboard_runtime_readiness_blockers(
+    *,
+    persistent: Mapping[str, Any],
+    checkpoint: Mapping[str, Any],
+    trainer_result: Any | None,
+    now_utc: datetime | None = None,
+) -> list[str]:
+    """Return fail-closed blockers for the operator dashboard readiness gate.
+
+    Resource availability is telemetry, not proof of learning or serving. A
+    READY gate requires fresh evidence from this cycle, a semantically verified
+    serving checkpoint, current prediction publication, and durable learning.
+    """
+
+    blockers: list[str] = []
+
+    def block(reason: str) -> None:
+        if reason not in blockers:
+            blockers.append(reason)
+
+    if persistent.get("service_active") is not True:
+        block("PERSISTENT_TRAINER_SERVICE_NOT_ACTIVE")
+    if persistent.get("training_loop_active") is not True:
+        block("PERSISTENT_TRAINING_LOOP_NOT_ACTIVE")
+    if persistent.get("trainer_liveness_status") != "HEALTHY":
+        block("TRAINER_LIVENESS_NOT_HEALTHY")
+    if persistent.get("worker_health_status") != "HEALTHY":
+        block("TRAINER_WORKER_NOT_HEALTHY")
+    if persistent.get("trainer_process_status") != "ACTIVE":
+        block("TRAINER_PROCESS_NOT_ACTIVE")
+    if persistent.get("cuda_inference_status") != "ACTIVE":
+        block("CUDA_INFERENCE_NOT_ACTIVE")
+    if persistent.get("prediction_publication_status") != "ACTIVE":
+        block("PREDICTION_PUBLICATION_NOT_ACTIVE")
+    if persistent.get("prediction_grid_current") is not True:
+        block("PREDICTION_GRID_NOT_CURRENT")
+    if persistent.get("trainer_learning_ready") is not True:
+        block("TRAINER_LEARNING_NOT_READY")
+    if persistent.get("online_learning_status") != "WEIGHTS_UPDATING":
+        block("ONLINE_LEARNING_NOT_WEIGHTS_UPDATING")
+    if persistent.get("checkpoint_weight_blob_written") is not True:
+        block("CHECKPOINT_WEIGHT_BLOB_NOT_WRITTEN")
+    if persistent.get("checkpoint_reload_verified") is not True:
+        block("CHECKPOINT_RELOAD_NOT_VERIFIED")
+
+    effective_config = as_dict(persistent.get("legacy_runtime_effective_config"))
+    cadence_seconds = finite_float(effective_config.get("prediction_loop_seconds"))
+    if cadence_seconds is None or cadence_seconds <= 0.0:
+        block("TRAINER_RUNTIME_CADENCE_EVIDENCE_MISSING")
+        freshness_budget_seconds = None
+    else:
+        freshness_budget_seconds = cadence_seconds * 3.0
+    observed_now = now_utc or datetime.now(tz=timezone.utc)
+    if observed_now.tzinfo is None or observed_now.utcoffset() is None:
+        raise ValueError("dashboard readiness now_utc must be timezone-aware")
+    observed_now = observed_now.astimezone(timezone.utc)
+
+    def require_current_clock(value: Any, *, missing: str, stale: str) -> None:
+        parsed = parse_runtime_time(value)
+        if parsed is None:
+            block(missing)
+            return
+        age_seconds = (observed_now - parsed.astimezone(timezone.utc)).total_seconds()
+        if (
+            freshness_budget_seconds is None
+            or age_seconds < 0.0
+            or age_seconds > freshness_budget_seconds
+        ):
+            block(stale)
+
+    require_current_clock(
+        persistent.get("generated_utc"),
+        missing="TRAINER_RUNTIME_GENERATED_CLOCK_MISSING",
+        stale="TRAINER_RUNTIME_STATUS_STALE",
+    )
+    heartbeat_age = finite_float(persistent.get("heartbeat_age_seconds"))
+    if heartbeat_age is None:
+        block("TRAINER_HEARTBEAT_AGE_MISSING")
+    elif (
+        freshness_budget_seconds is None
+        or heartbeat_age < 0.0
+        or heartbeat_age > freshness_budget_seconds
+    ):
+        block("TRAINER_HEARTBEAT_STALE")
+
+    if checkpoint.get("checkpoint_retention_scan_verified") is not True:
+        block("CHECKPOINT_RETENTION_SCAN_NOT_VERIFIED")
+    active_serving_id = str(
+        checkpoint.get("active_verified_serving_checkpoint_id") or ""
+    )
+    if not active_serving_id:
+        block("ACTIVE_VERIFIED_SERVING_CHECKPOINT_MISSING")
+
+    if trainer_result is None:
+        block("CURRENT_TRAINER_RESULT_MISSING")
+        return blockers
+    result_status = as_dict(getattr(trainer_result, "status", {}))
+    result_metrics = as_dict(getattr(trainer_result, "metrics", {}))
+    if result_status.get("trainer_process_status") != "ACTIVE_CURRENT_CYCLE":
+        block("CURRENT_CYCLE_TRAINER_PROCESS_NOT_ACTIVE")
+    if result_status.get("cuda_inference_status") != "ACTIVE":
+        block("CURRENT_CYCLE_CUDA_INFERENCE_NOT_ACTIVE")
+    if result_status.get("prediction_publication_status") != "ACTIVE":
+        block("CURRENT_CYCLE_PREDICTION_PUBLICATION_NOT_ACTIVE")
+    require_current_clock(
+        result_status.get("generated_utc"),
+        missing="CURRENT_CYCLE_GENERATED_CLOCK_MISSING",
+        stale="CURRENT_CYCLE_RUNTIME_EVIDENCE_STALE",
+    )
+    result_checkpoint_id = str(result_status.get("checkpoint_id") or "")
+    if not result_checkpoint_id or result_checkpoint_id != active_serving_id:
+        block("CURRENT_CYCLE_CHECKPOINT_NOT_ACTIVE_VERIFIED_SERVING")
+    checkpoint_reload = as_dict(result_metrics.get("checkpoint_reload"))
+    try:
+        serving_verified, _serving_reasons = _verified_serving_checkpoint_evidence(
+            checkpoint_reload,
+            expected_checkpoint_id=result_checkpoint_id,
+        )
+    except (RuntimeError, TypeError, ValueError):
+        serving_verified = False
+    if not serving_verified:
+        block("CURRENT_CYCLE_SERVING_CHECKPOINT_SEMANTICS_NOT_VERIFIED")
+    return blockers
 
 
 def publish_persistent_payloads(
@@ -3175,9 +4340,11 @@ def publish_persistent_payloads(
     generated_utc = utc_now()
     portfolio = as_dict(read_json(paths.public_root / PORTFOLIO_REL))
     live_runtime = as_dict(read_json(paths.public_root / "operator_runtime/v2_runtime_truth/latest/operator_runtime_truth.json"))
-    blockers: list[str] = []
-    if not persistent.get("training_loop_active"):
-        blockers.append("PERSISTENT_TRAINING_LOOP_NOT_ACTIVE")
+    blockers = dashboard_runtime_readiness_blockers(
+        persistent=persistent,
+        checkpoint=checkpoint,
+        trainer_result=trainer_result,
+    )
     if systemctl_show(LEGACY_BRIDGE_UNIT).get("UnitFileState") != "masked":
         blockers.append("TRAINER_BRIDGE_NOT_MASKED")
     if guard.get("status") == "TRIAL_ACTIVE" and (finite_float(attribution.get("delta")) or 0.0) < TRIAL_DRAWDOWN_DELTA_THRESHOLD_USD:
@@ -3400,13 +4567,124 @@ def publish_persistent_payloads(
         latest_training_metrics = _with_current_feedback_rejection_counts(latest_training_metrics)
     else:
         latest_training_metrics = latest_training_metrics_from_current_feedback(fail_closed=True)
-    online_learning = online_learning_runtime_fields(
-        training=as_dict(as_dict(getattr(trainer_result, "metrics", {})).get("training")) if trainer_result is not None else {},
-        latest_training_metrics=latest_training_metrics,
-        persistent_state=persistent,
-        prediction_rows=current_prediction_rows,
-        trainer_process_active=True,
+    # ``build_persistent_runtime_status`` already evaluated the canonical
+    # envelope against Redis TTL evidence, the public complete grid, current
+    # CUDA/parity attestations, and the actual systemd MainPID.  Re-running the
+    # legacy compatibility call here would discard those identities and could
+    # join stale counters into a different answer.
+    online_learning = {
+        key: persistent.get(key)
+        for key in (
+            "canonical_readiness_status",
+            "trainer_learning_ready",
+            "trainer_process_status",
+            "cuda_inference_status",
+            "prediction_publication_status",
+            "offline_replay_learning_status",
+            "online_paper_learning_status",
+            "online_learning_status",
+            "effective_trainer_mode",
+            "allowed_effective_trainer_modes",
+            "cycle_id",
+            "process_instance_id",
+            "expected_cycle_cadence_seconds",
+            "freshness_budget_seconds",
+            "last_successful_weight_update_at",
+            "trusted_rows_loaded",
+            "trusted_replay_rows_loaded",
+            "feedback_rows_entered_batch",
+            "optimizer_steps_this_cycle",
+            "optimizer_steps_last_hour",
+            "optimizer_steps_total",
+            "parameter_hash_before",
+            "parameter_hash_after",
+            "weight_delta_norm",
+            "checkpoint_weight_blob_written",
+            "checkpoint_path",
+            "checkpoint_id",
+            "parent_checkpoint_id",
+            "parent_policy_fingerprint",
+            "candidate_policy_fingerprint",
+            "checkpoint_hash",
+            "checkpoint_reload_verified",
+            "requirement_checks",
+            "readiness_blocking_reasons",
+            "rows_rejected_by_reason",
+            "loss_before",
+            "loss_after",
+        )
+    }
+    persistent_cycle_envelope = as_dict(
+        persistent.get("current_cycle_learning_envelope")
     )
+    canonical_persistent_evidence_present = bool(
+        persistent.get("canonical_readiness_status") in {"READY", "BLOCKED"}
+        and persistent_cycle_envelope
+        and persistent_cycle_envelope.get("cycle_id")
+        and persistent_cycle_envelope.get("process_instance_id")
+    )
+    if not canonical_persistent_evidence_present:
+        current_feedback_metrics = as_dict(
+            as_dict(latest_training_metrics).get("metrics")
+        )
+        # Do not let absent present-cycle evidence inherit counters or READY
+        # labels from the prior operator artifact.  Zero here means the current
+        # fail-closed feedback scan admitted no rows; historical totals remain
+        # available only in their explicitly historical telemetry fields.
+        online_learning.update(
+            {
+                "canonical_readiness_status": "BLOCKED",
+                "trainer_learning_ready": False,
+                "trainer_process_status": (
+                    "BLOCKED_NO_CURRENT_CYCLE_PROCESS_EVIDENCE"
+                ),
+                "cuda_inference_status": (
+                    "BLOCKED_NO_CURRENT_CYCLE_CUDA_EVIDENCE"
+                ),
+                "prediction_publication_status": (
+                    "BLOCKED_NO_CURRENT_COMPLETE_PREDICTION_PUBLICATION"
+                ),
+                "offline_replay_learning_status": (
+                    "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+                ),
+                "online_paper_learning_status": (
+                    "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+                ),
+                "online_learning_status": (
+                    "BLOCKED_NO_COHERENT_CURRENT_CYCLE_LEARNING_ENVELOPE"
+                ),
+                "effective_trainer_mode": "INFERENCE_ONLY",
+                "last_successful_weight_update_at": None,
+                "trusted_rows_loaded": int(
+                    finite_float(
+                        current_feedback_metrics.get("trusted_rows_loaded")
+                    )
+                    or 0
+                ),
+                "trusted_replay_rows_loaded": 0,
+                "feedback_rows_entered_batch": int(
+                    finite_float(
+                        current_feedback_metrics.get(
+                            "feedback_rows_entered_batch"
+                        )
+                    )
+                    or 0
+                ),
+                "optimizer_steps_this_cycle": 0,
+                "optimizer_steps_last_hour": 0,
+                "rows_rejected_by_reason": dict(
+                    as_dict(
+                        current_feedback_metrics.get(
+                            "rows_rejected_by_reason"
+                        )
+                    )
+                ),
+                "requirement_checks": {},
+                "readiness_blocking_reasons": [
+                    "CURRENT_CYCLE_LEARNING_ENVELOPE_MISSING"
+                ],
+            }
+        )
     current_result_status = as_dict(getattr(trainer_result, "status", {})) if trainer_result is not None else {}
     current_metric_fields = as_dict(as_dict(latest_training_metrics).get("metrics"))
     active_checkpoint_path = first_non_empty(
@@ -3464,6 +4742,24 @@ def publish_persistent_payloads(
         "legacy_runtime_effective_config": persistent.get("legacy_runtime_effective_config"),
         "legacy_runtime_coverage_mode": persistent.get("legacy_runtime_coverage_mode"),
         **online_learning,
+        "current_cycle_learning_envelope": persistent.get(
+            "current_cycle_learning_envelope"
+        ),
+        "current_cycle_prediction_publication_evidence": persistent.get(
+            "current_cycle_prediction_publication_evidence"
+        ),
+        "current_cycle_resource_evidence": persistent.get(
+            "current_cycle_resource_evidence"
+        ),
+        "current_cycle_parity_evidence": persistent.get(
+            "current_cycle_parity_evidence"
+        ),
+        "current_cycle_verified_serving_checkpoint_evidence": persistent.get(
+            "current_cycle_verified_serving_checkpoint_evidence"
+        ),
+        "actual_systemd_mainpid_bound_to_cycle_process": persistent.get(
+            "actual_systemd_mainpid_bound_to_cycle_process"
+        ),
         **symbol_scope,
         "prediction_grid_current": prediction_grid_current,
         "persistent_trainer_service_active": persistent.get("service_active"),
@@ -3702,13 +4998,27 @@ def publish_persistent_payloads(
     trusted_replay_dataset = as_dict(
         read_json(paths.repo_root / "goal_state" / TRUSTED_REPLAY_GOAL_ID / "trusted_replay_dataset_status.json")
     ) or as_dict(read_json(paths.operator_dir / "trusted_replay_dataset_status.json"))
-    goal_blockers: list[str] = []
-    if not trusted_replay_dataset.get("trusted_replay_rows_requirement_met"):
-        goal_blockers.append("trusted_replay_rows_below_10000")
-    if not trusted_replay_dataset.get("symbol_count_requirement_met"):
-        goal_blockers.append("trusted_replay_symbol_count_below_50")
-    if trusted_replay_dataset.get("all_required_timeframes_present") is not True:
-        goal_blockers.append("trusted_replay_missing_required_timeframes")
+    # Historical 10k-row / 50-symbol bootstrap milestones remain visible for
+    # provenance, but they are not market-adaptive learning or serving proof and
+    # therefore cannot make this goal READY or BLOCKED. Runtime readiness is
+    # derived from current causal evidence above.
+    legacy_bootstrap_milestones = {
+        "readiness_actuation_used": False,
+        "trusted_replay_rows": trusted_replay_dataset.get("trusted_replay_rows"),
+        "trusted_replay_rows_requirement_met": trusted_replay_dataset.get(
+            "trusted_replay_rows_requirement_met"
+        ),
+        "symbol_count": trusted_replay_dataset.get("symbol_count"),
+        "symbol_count_requirement_met": trusted_replay_dataset.get(
+            "symbol_count_requirement_met"
+        ),
+        "all_required_timeframes_present": trusted_replay_dataset.get(
+            "all_required_timeframes_present"
+        ),
+    }
+    goal_blockers: list[str] = [
+        f"runtime_readiness:{reason}" for reason in blockers
+    ]
     if merged_runtime.get("online_learning_status") != "WEIGHTS_UPDATING":
         goal_blockers.append("online_learning_not_weights_updating")
     if merged_runtime.get("checkpoint_reload_verified") is not True:
@@ -3735,6 +5045,8 @@ def publish_persistent_payloads(
         "status": f"{TRUSTED_REPLAY_GOAL_ID}_{'READY' if goal_ready else 'BLOCKED'}",
         "ready": goal_ready,
         "blockers": goal_blockers,
+        "readiness_basis": "CURRENT_CAUSAL_RUNTIME_EVIDENCE_NOT_STATIC_BOOTSTRAP_COUNTS",
+        "legacy_bootstrap_milestones": legacy_bootstrap_milestones,
     }
     write_json(current_runtime_path, merged_runtime)
     write_learning_readiness_artifact(paths.operator_dir / GLOBAL_READINESS_ARTIFACT, readiness_artifact)
@@ -3780,6 +5092,7 @@ def publish_persistent_payloads(
                     f"- Parameter hash changed: `{merged_runtime.get('parameter_hash_before') != merged_runtime.get('parameter_hash_after')}`",
                     f"- Checkpoint reload verified: `{merged_runtime.get('checkpoint_reload_verified')}`",
                     f"- Online paper learning: `{merged_runtime.get('online_paper_learning_status')}`",
+                    "- Legacy 10k-row / 50-symbol bootstrap milestones are telemetry only and do not actuate readiness.",
                     f"- Remaining blockers: `{', '.join(goal_go_no_go['blockers']) or 'none'}`",
                 ]
             ),
@@ -3795,6 +5108,7 @@ def run_one_persistent_cycle(
     max_rows: int = DEFAULT_MAX_TRAINING_ROWS_PER_CYCLE,
     risk_caps_configured: bool = True,
     run_training: bool = True,
+    interval_seconds: int = LEGACY_RUNTIME_DEFAULT_PREDICTION_LOOP_SECONDS,
 ) -> dict[str, Any]:
     training_blocker_reason: str | None = None
     cuda_oom_occurred = False
@@ -3813,6 +5127,7 @@ def run_one_persistent_cycle(
                     paths=paths,
                     max_rows=max_rows,
                     risk_caps_configured=risk_caps_configured,
+                    interval_seconds=interval_seconds,
                 )
     except NativeCycleTimeout:
         trainer_result = None
@@ -3823,6 +5138,9 @@ def run_one_persistent_cycle(
             trainer_result = None
             training_blocker_reason = "CUDA_OOM_BACKOFF"
             cuda_oom_occurred = True
+        elif msg.strip() == "no prediction examples built":
+            trainer_result = None
+            training_blocker_reason = "NO_PREDICTION_EXAMPLES_BUILT"
         elif not ("no trusted examples built" in msg or "min() arg is an empty sequence" in msg):
             raise
         else:
@@ -3907,7 +5225,7 @@ def run_one_persistent_cycle(
 
 def persistent_loop_main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_native_cuda_trainer_persistent_loop")
-    parser.add_argument("--repo-root", type=Path, default=Path.cwd())
+    parser.add_argument("--repo-root", type=Path, default=CANONICAL_REPO_ROOT)
     parser.add_argument(
         "--interval-seconds",
         type=int,
@@ -3924,6 +5242,7 @@ def persistent_loop_main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-training", action="store_true", help="Publish status without running a trainer cycle.")
     args = parser.parse_args(argv)
     paths = PersistentTrainerPaths(repo_root=args.repo_root.resolve())
+    interval_seconds = max(1, min(300, int(args.interval_seconds)))
     cycles = 0
     while True:
         payloads = run_one_persistent_cycle(
@@ -3931,6 +5250,7 @@ def persistent_loop_main(argv: list[str] | None = None) -> int:
             max_rows=args.max_rows,
             risk_caps_configured=True,
             run_training=not args.no_training,
+            interval_seconds=interval_seconds,
         )
         dashboard = as_dict(payloads.get("operator_dashboard_payload.json"))
         print(
@@ -3959,7 +5279,7 @@ def persistent_loop_main(argv: list[str] | None = None) -> int:
             minimum=0,
             maximum=300,
         )
-        sleep_s = max(1, int(args.interval_seconds)) if blockers else post_training_pause_s
+        sleep_s = interval_seconds if blockers else post_training_pause_s
         if sleep_s:
             time.sleep(sleep_s)
 

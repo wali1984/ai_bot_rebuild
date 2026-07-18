@@ -2,54 +2,91 @@
 
 This service is V2-only and paper/shadow-only. It may read and write
 ``v2:*`` Redis keys, but it refuses every non-V2 key and never touches an
-exchange, live/canary state, leverage, margin, legacy Redis, or Redis trim.
+exchange, live/canary state, leverage, margin, or legacy Redis.  Guardian PIT
+observations are committed to a durable archive before their Redis list is
+treated as a bounded hot cache.
 """
 from __future__ import annotations
 
+import base64
+import copy
 import datetime as dt
 import hashlib
 import json
 import math
 import os
+import sqlite3
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 from zoneinfo import ZoneInfo
 
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
-    V2HybridTrainerDataLoader,
+from v2.backend.app.services.continuous_edge_guardian.pit_prediction_counter import (
+    guardian_pit_archive_consumption_status,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
-from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
-    SnapshotArchiveError,
-    load_snapshot as load_durable_feature_snapshot,
+from v2.backend.app.services.durable_paper_evidence_archive import (
+    ARCHIVE_SCHEMA_VERSION,
+    ArchiveCandidate,
+    ArchiveIdentityConflictError,
+    DurablePaperEvidenceArchive,
+    stable_sha256,
 )
-from v2.backend.app.services.v2_symbol_runtime_universe import (
-    BASELINE_25_SYMBOLS,
-    is_valid_runtime_symbol,
-    resolve_symbols_with_provenance,
-)
+from v2.backend.app.services.feature_lineage_masks import canonical_feature_lineage
 from v2.backend.app.services.live_gate.runtime_execution_state import (
     LIVE_GATE_ENABLED,
     validate_runtime_execution_state,
 )
-from v2.backend.app.services.feature_lineage_masks import canonical_feature_lineage
 from v2.backend.app.services.market_state_integrity.contracts import IntegrityThresholds
 from v2.backend.app.services.market_state_integrity.scoring import score_market_state
+from v2.backend.app.services.native_trainer.current_cycle_evidence import (
+    CURRENT_PARITY_EVIDENCE_SCHEMA,
+    build_current_cycle_parity_attestation,
+    build_current_cycle_prediction_publication_evidence,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    SnapshotArchiveError,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    load_snapshot as load_durable_feature_snapshot,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
+    V2HybridTrainerDataLoader,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.paper_trade_management.adaptive_cost_model import (
     CostEstimate,
     after_cost_for_action,
     estimate_round_trip_cost_bps,
     publish_cost_estimate,
 )
-
+from v2.backend.app.services.ordinary_paper_admission import (
+    OrdinaryPaperAdmissionResult,
+    claims_ordinary_paper_admission,
+    copy_ordinary_paper_provenance,
+    revalidate_ordinary_paper_transport,
+)
+from v2.backend.app.services.v2_symbol_runtime_universe import (
+    BASELINE_25_SYMBOLS,
+    is_valid_runtime_symbol,
+    resolve_symbols_with_provenance,
+)
 
 SERVICE_ID = "v2_all_timeframe_prediction_signal_price_target_publisher"
 GATE_READY = "V2_ALL_SYMBOL_ALL_TIMEFRAME_FEATURE_TRAINER_SIGNAL_GPU_PARITY_READY"
 GATE_BLOCKED = "V2_ALL_SYMBOL_ALL_TIMEFRAME_FEATURE_TRAINER_SIGNAL_GPU_PARITY_BLOCKED"
 LIVE_GATE = "blocked_human_only"
 GUARDIAN_PIT_OBSERVATION_LIST_KEY = "v2:guardian:pit_prediction_observations"
+GUARDIAN_PIT_ARCHIVE_STREAM_ID = "v2_guardian_pit_prediction_observations_unique_v1"
+DEFAULT_GUARDIAN_PIT_ARCHIVE_REL = Path(
+    ".local_data/v2_guardian/pit_prediction_observations.sqlite3"
+)
+DEFAULT_GUARDIAN_PIT_HOT_MAX_ROWS = 100_000
+DEFAULT_GUARDIAN_PIT_MIGRATION_BATCH_ROWS = 10_000
+GUARDIAN_PIT_HOT_MAX_ROWS_ENV = "V2_GUARDIAN_PIT_HOT_MAX_ROWS"
+GUARDIAN_PIT_MIGRATION_BATCH_ROWS_ENV = "V2_GUARDIAN_PIT_MIGRATION_BATCH_ROWS"
+GUARDIAN_PIT_ARCHIVE_PATH_ENV = "V2_GUARDIAN_PIT_ARCHIVE_PATH"
 REQUIRED_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 DEFAULT_STALE_SECONDS = 900
 EST = ZoneInfo("America/New_York")
@@ -1433,8 +1470,8 @@ class StoreAudit:
     writes_succeeded: int = 0
     writes_failed: int = 0
     old_redis_write_attempts: int = 0
-    keys_written: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
+    keys_written: list[str] = dataclass_field(default_factory=list)
+    errors: list[str] = dataclass_field(default_factory=list)
 
 
 class V2KeyValueStore:
@@ -1466,6 +1503,37 @@ class V2KeyValueStore:
             return body
         return None
 
+    def get_json_with_ttl(self, key: str) -> tuple[dict[str, Any] | None, int | None]:
+        """Transactionally read one expiring V2 object and its remaining TTL."""
+
+        if not key.startswith("v2:"):
+            raise ValueError(f"non_v2_read_rejected:{key}")
+        self.audit.reads_attempted += 1
+        if self.client is None:
+            return None, None
+        try:
+            pipe = self.client.pipeline(transaction=True)
+            pipe.get(key)
+            pipe.ttl(key)
+            raw, ttl_seconds = pipe.execute()
+        except Exception as exc:  # noqa: BLE001
+            self.audit.errors.append(
+                f"get_with_ttl_failed:{key}:{type(exc).__name__}"
+            )
+            return None, None
+        if raw is None:
+            return None, int(ttl_seconds) if isinstance(ttl_seconds, int) else None
+        if isinstance(raw, (bytes, bytearray)):
+            raw = raw.decode("utf-8")
+        try:
+            body = json.loads(raw)
+        except (TypeError, ValueError):
+            return None, int(ttl_seconds) if isinstance(ttl_seconds, int) else None
+        if not isinstance(body, dict):
+            return None, int(ttl_seconds) if isinstance(ttl_seconds, int) else None
+        self.audit.reads_succeeded += 1
+        return body, int(ttl_seconds) if isinstance(ttl_seconds, int) else None
+
     def get_value(self, key: str) -> Any | None:
         if not key.startswith("v2:"):
             raise ValueError(f"non_v2_read_rejected:{key}")
@@ -1490,7 +1558,13 @@ class V2KeyValueStore:
             return body
         return None
 
-    def set_json(self, key: str, payload: Mapping[str, Any]) -> bool:
+    def set_json(
+        self,
+        key: str,
+        payload: Mapping[str, Any],
+        *,
+        ex_seconds: int | None = None,
+    ) -> bool:
         self.audit.writes_attempted += 1
         if not key.startswith("v2:"):
             self.audit.old_redis_write_attempts += 1
@@ -1502,7 +1576,13 @@ class V2KeyValueStore:
             self.audit.errors.append(f"no_client:{key}")
             return False
         try:
-            self.client.set(key, json.dumps(payload, sort_keys=True, default=str))
+            encoded = json.dumps(payload, sort_keys=True, default=str)
+            if ex_seconds is None:
+                self.client.set(key, encoded)
+            else:
+                if int(ex_seconds) <= 0:
+                    raise ValueError("expiry_must_be_positive")
+                self.client.set(key, encoded, ex=int(ex_seconds))
         except Exception as exc:  # noqa: BLE001
             self.audit.writes_failed += 1
             self.audit.errors.append(f"set_failed:{key}:{type(exc).__name__}")
@@ -1531,6 +1611,70 @@ class V2KeyValueStore:
         except Exception as exc:  # noqa: BLE001
             self.audit.writes_failed += 1
             self.audit.errors.append(f"rpush_failed:{key}:{type(exc).__name__}")
+            return False
+        self.audit.writes_succeeded += 1
+        self.audit.keys_written.append(key)
+        return True
+
+    def list_length(self, key: str) -> int | None:
+        if not key.startswith("v2:"):
+            raise ValueError(f"non_v2_read_rejected:{key}")
+        self.audit.reads_attempted += 1
+        if self.client is None or not hasattr(self.client, "llen"):
+            self.audit.errors.append(f"llen_unavailable:{key}")
+            return None
+        try:
+            length = int(self.client.llen(key))
+        except Exception as exc:  # noqa: BLE001
+            self.audit.errors.append(f"llen_failed:{key}:{type(exc).__name__}")
+            return None
+        self.audit.reads_succeeded += 1
+        return max(0, length)
+
+    def list_range(self, key: str, start: int, stop: int) -> list[str | bytes] | None:
+        if not key.startswith("v2:"):
+            raise ValueError(f"non_v2_read_rejected:{key}")
+        self.audit.reads_attempted += 1
+        if self.client is None or not hasattr(self.client, "lrange"):
+            self.audit.errors.append(f"lrange_unavailable:{key}")
+            return None
+        try:
+            values = self.client.lrange(key, int(start), int(stop))
+        except Exception as exc:  # noqa: BLE001
+            self.audit.errors.append(f"lrange_failed:{key}:{type(exc).__name__}")
+            return None
+        decoded: list[str | bytes] = []
+        for value in values or []:
+            if isinstance(value, (bytes, bytearray)):
+                raw_bytes = bytes(value)
+                try:
+                    decoded.append(raw_bytes.decode("utf-8"))
+                except UnicodeDecodeError:
+                    decoded.append(raw_bytes)
+            else:
+                decoded.append(str(value))
+        self.audit.reads_succeeded += 1
+        return decoded
+
+    def trim_list_to_latest(self, key: str, max_rows: int) -> bool:
+        """Bound a Redis hot cache; callers must archive rows first."""
+
+        self.audit.writes_attempted += 1
+        if not key.startswith("v2:"):
+            self.audit.old_redis_write_attempts += 1
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"blocked_non_v2_key:{key}")
+            return False
+        if self.client is None or not hasattr(self.client, "ltrim"):
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"ltrim_unavailable:{key}")
+            return False
+        bounded_max = max(1, int(max_rows))
+        try:
+            self.client.ltrim(key, -bounded_max, -1)
+        except Exception as exc:  # noqa: BLE001
+            self.audit.writes_failed += 1
+            self.audit.errors.append(f"ltrim_failed:{key}:{type(exc).__name__}")
             return False
         self.audit.writes_succeeded += 1
         self.audit.keys_written.append(key)
@@ -1670,6 +1814,7 @@ def adaptive_after_cost_recompute(
     trainer_block_reasons: Iterable[Any],
     cost_estimate: CostEstimate | None,
     min_edge_after_cost_bps: float = ADAPTIVE_COST_MIN_EDGE_AFTER_COST_BPS,
+    scale_free_ordinary_paper: bool = False,
 ) -> dict[str, Any]:
     """Recompute after-cost edge under the symbol-adaptive cost model.
 
@@ -1702,6 +1847,7 @@ def adaptive_after_cost_recompute(
         "cost_regate_pass": False,
         "cost_regate_reasons_cleared": [],
         "adaptive_edge_narrow_blocked": False,
+        "scale_free_ordinary_paper": bool(scale_free_ordinary_paper),
         "min_edge_after_cost_bps": float(min_edge_after_cost_bps),
         "adaptive_cost_model": None,
     }
@@ -1727,7 +1873,10 @@ def adaptive_after_cost_recompute(
     aligned = (normalized_action == "long" and adaptive_after > 0.0) or (
         normalized_action == "short" and adaptive_after < 0.0
     )
-    meets_min_edge = abs(adaptive_after) >= float(min_edge_after_cost_bps)
+    meets_min_edge = bool(
+        scale_free_ordinary_paper
+        or abs(adaptive_after) >= float(min_edge_after_cost_bps)
+    )
 
     if trainer_paper_fill_allowed is True:
         # Narrowing: trainer allowed under flat cost, adaptive evidence says no.
@@ -1774,6 +1923,7 @@ def build_prediction_row(
     expected_after_cost = to_float(prediction.get("expected_move_after_cost_bps"))
     last_price, price_field = extract_last_price(price_payload or {})
     action = str(prediction.get("selected_action") or as_dict(prediction.get("raw_output")).get("side") or "hold")
+    ordinary_paper_claimed = claims_ordinary_paper_admission(prediction)
     adaptive_cost = adaptive_after_cost_recompute(
         action=action,
         expected_move_bps=expected_move,
@@ -1785,6 +1935,7 @@ def build_prediction_row(
             or prediction.get("block_reasons")
         ),
         cost_estimate=cost_estimate,
+        scale_free_ordinary_paper=ordinary_paper_claimed,
     )
     expected_after_cost = adaptive_cost["expected_move_after_cost_bps_effective"]
     target = price_targets(last_price, expected_move, expected_after_cost, action)
@@ -1953,14 +2104,41 @@ def build_prediction_row(
         paper_actionable_order = False
     if not paper_actionable_order:
         paper_gate_block_reasons.append("NON_ACTIONABLE_EXPECTED_MOVE_OR_ACTION")
-    if integrity["valid_for_prediction"] is not True:
-        paper_gate_block_reasons.append("MARKET_STATE_INVALID_FOR_PREDICTION")
-    if integrity["valid_for_paper"] is not True:
-        paper_gate_block_reasons.append("MARKET_STATE_INVALID_FOR_PAPER")
+    market_state_reasons = [
+        str(reason)
+        for reason in integrity["market_state_reject_reasons"]
+        if reason
+    ]
+    continuous_market_reasons = {
+        "LATENCY_ABOVE_GATE",
+        "MAJOR_SOURCE_DISAGREEMENT",
+    }
+    structural_market_reasons = [
+        reason
+        for reason in market_state_reasons
+        if reason not in continuous_market_reasons
+    ]
+    integrity_score = to_float(integrity.get("market_state_integrity_score"))
+    ordinary_integrity_structurally_valid = bool(
+        integrity.get("market_state_id")
+        and integrity_score is not None
+        and 0.0 < integrity_score <= 100.0
+        and not structural_market_reasons
+    )
+    if ordinary_paper_claimed:
+        paper_gate_block_reasons.extend(structural_market_reasons)
+        if not ordinary_integrity_structurally_valid:
+            paper_gate_block_reasons.append("MARKET_STATE_STRUCTURALLY_INVALID_FOR_ORDINARY_PAPER")
+    else:
+        if integrity["valid_for_prediction"] is not True:
+            paper_gate_block_reasons.append("MARKET_STATE_INVALID_FOR_PREDICTION")
+        if integrity["valid_for_paper"] is not True:
+            paper_gate_block_reasons.append("MARKET_STATE_INVALID_FOR_PAPER")
     if status not in CURRENT_PREDICTION_STATUSES and missing_reason:
         paper_gate_block_reasons.append(missing_reason)
     paper_gate_block_reasons.extend(temporal_block_reasons)
-    paper_gate_block_reasons.extend(str(reason) for reason in integrity["market_state_reject_reasons"])
+    if not ordinary_paper_claimed:
+        paper_gate_block_reasons.extend(market_state_reasons)
     paper_gate_block_reasons = sorted(set(reason for reason in paper_gate_block_reasons if reason))
     trainer_paper_fill_allowed_effective = (
         prediction.get("paper_fill_allowed") is True
@@ -1973,16 +2151,28 @@ def build_prediction_row(
     paper_fill_allowed = (
         trainer_paper_fill_allowed_effective
         and status in CURRENT_PREDICTION_STATUSES
-        and integrity["valid_for_prediction"] is True
-        and integrity["valid_for_paper"] is True
+        and (
+            ordinary_integrity_structurally_valid
+            if ordinary_paper_claimed
+            else (
+                integrity["valid_for_prediction"] is True
+                and integrity["valid_for_paper"] is True
+            )
+        )
         and paper_actionable_order
         and not temporal_block_reasons
     )
     routes_to_orchestrator = (
         trainer_routes_to_orchestrator_effective
         and status in CURRENT_PREDICTION_STATUSES
-        and integrity["valid_for_risk"] is True
-        and integrity["valid_for_orchestrator"] is True
+        and (
+            ordinary_integrity_structurally_valid
+            if ordinary_paper_claimed
+            else (
+                integrity["valid_for_risk"] is True
+                and integrity["valid_for_orchestrator"] is True
+            )
+        )
         and paper_actionable_order
         and not temporal_block_reasons
     )
@@ -2019,7 +2209,20 @@ def build_prediction_row(
         "model_source": model_source,
         "model_version": model_version,
         "checkpoint_id": checkpoint_id,
+        "cycle_id": prediction.get("cycle_id"),
+        "process_instance_id": prediction.get("process_instance_id"),
+        "candidate_policy_fingerprint": prediction.get(
+            "candidate_policy_fingerprint"
+        ),
         "source_hashes": source_hashes,
+        **copy_ordinary_paper_provenance(prediction),
+        "ordinary_paper_derived_lane_claimed": ordinary_paper_claimed,
+        "ordinary_paper_derived_lane_integrity_structurally_valid": (
+            ordinary_integrity_structurally_valid
+        ),
+        "ordinary_paper_derived_lane_continuous_market_reasons": sorted(
+            set(market_state_reasons).intersection(continuous_market_reasons)
+        ),
         "feature_vector_hash": (
             prediction.get("feature_vector_hash")
             or prediction.get("input_feature_hash")
@@ -2858,6 +3061,7 @@ def build_signal_from_row(
     row: Mapping[str, Any],
     existing_signal: Mapping[str, Any] | None = None,
     live_context: Mapping[str, Any] | None = None,
+    ordinary_assessment: OrdinaryPaperAdmissionResult | None = None,
 ) -> dict[str, Any]:
     existing = as_dict(existing_signal)
     context = as_dict(live_context)
@@ -2880,6 +3084,42 @@ def build_signal_from_row(
         or row.get("paper_fill_block_reasons")
         or row.get("block_reasons")
     )
+    ordinary_paper_claimed = bool(
+        claims_ordinary_paper_admission(row)
+        or claims_ordinary_paper_admission(existing)
+    )
+    ordinary_transport_accepted = bool(
+        ordinary_assessment is not None and ordinary_assessment.accepted
+    )
+    ordinary_risk_allowed = str(existing.get("risk_action") or "").lower() in {
+        "allow",
+        "approved",
+    }
+    ordinary_provenance = copy_ordinary_paper_provenance(row)
+    ordinary_provenance.update(copy_ordinary_paper_provenance(existing))
+    if ordinary_assessment is not None and ordinary_assessment.claimed:
+        ordinary_provenance.update(ordinary_assessment.transport_payload())
+    if ordinary_paper_claimed:
+        paper_fill_allowed = bool(
+            paper_fill_allowed
+            and ordinary_transport_accepted
+            and ordinary_risk_allowed
+        )
+        if not ordinary_transport_accepted:
+            paper_gate_block_reasons.extend(
+                f"ORDINARY_PAPER_TRANSPORT:{reason}"
+                for reason in (
+                    ordinary_assessment.rejection_reasons
+                    if ordinary_assessment is not None
+                    and ordinary_assessment.claimed
+                    else ("ordinary_paper_transport_not_revalidated",)
+                )
+            )
+        if not ordinary_risk_allowed:
+            paper_gate_block_reasons.append("ORDINARY_PAPER_RISK_ACTION_NOT_ALLOW")
+        paper_gate_block_reasons = sorted(
+            set(str(reason) for reason in paper_gate_block_reasons if reason)
+        )
     market_state_reject_reasons = as_list(row.get("market_state_reject_reasons"))
     # For shorts, negative after_cost = positive trade edge (price expected to fall).
     # Normalize to a signed-edge-is-positive check before actionability classification.
@@ -2969,6 +3209,12 @@ def build_signal_from_row(
         "model_version": row.get("model_version"),
         "checkpoint_id": row.get("checkpoint_id"),
         "source_hashes": as_dict(row.get("source_hashes")),
+        **ordinary_provenance,
+        "ordinary_paper_derived_lane_claimed": ordinary_paper_claimed,
+        "ordinary_paper_derived_lane_transport_accepted": (
+            ordinary_transport_accepted
+        ),
+        "ordinary_paper_derived_lane_risk_action": existing.get("risk_action"),
         "feature_vector_hash": row.get("feature_vector_hash"),
         "input_feature_hash": row.get("input_feature_hash"),
         "source_timestamp_hash": row.get("source_timestamp_hash"),
@@ -3133,6 +3379,32 @@ def _by_prediction_id(rows: Iterable[Any]) -> dict[str, dict[str, Any]]:
         if prediction_id:
             out[prediction_id] = item
     return out
+
+
+def _ordinary_transport_assessment(
+    store: V2KeyValueStore,
+    payload: Mapping[str, Any],
+    *,
+    expected_identity: Mapping[str, Any],
+) -> OrdinaryPaperAdmissionResult:
+    evidence = payload.get("ordinary_paper_admission_evidence")
+    evidence = evidence if isinstance(evidence, Mapping) else {}
+    replay_key = str(evidence.get("replay_snapshot_key") or "")
+    source_key = str(evidence.get("source_redis_key") or "")
+    replay_snapshot, replay_ttl = (
+        store.get_json_with_ttl(replay_key) if replay_key else (None, None)
+    )
+    source_prediction, source_ttl = (
+        store.get_json_with_ttl(source_key) if source_key else (None, None)
+    )
+    return revalidate_ordinary_paper_transport(
+        payload,
+        replay_snapshot=replay_snapshot,
+        replay_snapshot_observed_ttl_seconds=replay_ttl,
+        source_prediction=source_prediction,
+        source_prediction_observed_ttl_seconds=source_ttl,
+        expected_identity=expected_identity,
+    )
 
 
 def _find_by_symbol_or_id(rows: Iterable[Any], symbol: str, source_id: str | None) -> dict[str, Any]:
@@ -3544,7 +3816,24 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
             after_cost,
             action,
         )
-        risk = risk_gateway_by_prediction.get(source_id or "") or risk_by_symbol.get(symbol, {})
+        ordinary_paper_claimed = claims_ordinary_paper_admission(signal)
+        risk = risk_gateway_by_prediction.get(source_id or "")
+        if not risk and not ordinary_paper_claimed:
+            risk = risk_by_symbol.get(symbol, {})
+        risk = risk or {}
+        ordinary_paper_claimed = bool(
+            ordinary_paper_claimed or claims_ordinary_paper_admission(risk)
+        )
+        ordinary_assessment: OrdinaryPaperAdmissionResult | None = None
+        if ordinary_paper_claimed:
+            transport_source = (
+                risk if claims_ordinary_paper_admission(risk) else signal
+            )
+            ordinary_assessment = _ordinary_transport_assessment(
+                store,
+                transport_source,
+                expected_identity=signal,
+            )
         intent = _find_by_symbol_or_id(paper_intents, symbol, source_id)
         shadow = _find_by_symbol_or_id(shadow_rows, symbol, source_id)
         accepted = _find_by_symbol_or_id(accepted_rows, symbol, source_id)
@@ -3586,7 +3875,22 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
             accepted
             or intent.get("paper_fill_allowed")
             or signal.get("paper_fill_allowed")
+            or (
+                ordinary_paper_claimed
+                and (
+                    signal.get("upstream_paper_fill_allowed") is True
+                    or signal.get("ordinary_paper_fill_allowed") is True
+                )
+            )
         )
+        if ordinary_paper_claimed:
+            paper_fill_allowed = bool(
+                paper_fill_allowed
+                and ordinary_assessment is not None
+                and ordinary_assessment.accepted
+                and str(risk.get("risk_action") or "").lower()
+                in {"allow", "approved"}
+            )
         # Enforce: no actionable fill without complete upstream lineage.
         if paper_fill_allowed and (not risk_decision_id or not orchestrator_decision_id):
             paper_fill_allowed = False
@@ -3601,6 +3905,30 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
         risk_state = "VISIBLE" if risk else "RISK_DECISION_MISSING"
         blocked_reason = None
         paper_fill_gate_block_reasons = as_list(signal.get("paper_fill_gate_block_reasons"))
+        ordinary_provenance = copy_ordinary_paper_provenance(signal)
+        ordinary_provenance.update(copy_ordinary_paper_provenance(risk))
+        if ordinary_assessment is not None and ordinary_assessment.claimed:
+            ordinary_provenance.update(ordinary_assessment.transport_payload())
+        if ordinary_paper_claimed and not paper_fill_allowed:
+            ordinary_reasons = (
+                ordinary_assessment.rejection_reasons
+                if ordinary_assessment is not None and ordinary_assessment.claimed
+                else ("ordinary_paper_transport_not_revalidated",)
+            )
+            paper_fill_gate_block_reasons.extend(
+                f"ORDINARY_PAPER_TRANSPORT:{reason}"
+                for reason in ordinary_reasons
+            )
+            if str(risk.get("risk_action") or "").lower() not in {
+                "allow",
+                "approved",
+            }:
+                paper_fill_gate_block_reasons.append(
+                    "ORDINARY_PAPER_RISK_ACTION_NOT_ALLOW"
+                )
+            paper_fill_gate_block_reasons = sorted(
+                set(str(reason) for reason in paper_fill_gate_block_reasons if reason)
+            )
         if missing_thesis_timeframe:
             paper_fill_gate_block_reasons = sorted(set(
                 paper_fill_gate_block_reasons + [MISSING_THESIS_TIMEFRAME_BLOCK_REASON]
@@ -3655,6 +3983,13 @@ def build_runtime_paper_signal_rows(store: V2KeyValueStore, live_context: Mappin
                 "action": action,
                 "selected_action": action,
                 "feature_snapshot_id": feature_snapshot_id,
+                **ordinary_provenance,
+                "ordinary_paper_derived_lane_claimed": ordinary_paper_claimed,
+                "ordinary_paper_derived_lane_transport_accepted": bool(
+                    ordinary_assessment is not None
+                    and ordinary_assessment.accepted
+                ),
+                "ordinary_paper_derived_lane_risk_action": risk.get("risk_action"),
                 "last_price": last_price,
                 "price_target": targets.get("price_target"),
                 "price_target_after_cost": targets.get("price_target_after_cost"),
@@ -3734,7 +4069,12 @@ def build_signal_status(
     }
     # Pre-build risk index so all-TF grid rows can resolve a risk decision for their symbol
     # even when no per-(symbol,timeframe) signal has been persisted yet.
-    risk_by_symbol_for_grid = _by_symbol(_list_from_store(store, "v2:risk:decisions"))
+    risk_rows_for_grid = _list_from_store(store, "v2:risk:decisions")
+    risk_by_symbol_for_grid = _by_symbol(risk_rows_for_grid)
+    risk_by_prediction_for_grid = _by_prediction_id(risk_rows_for_grid)
+    risk_gateway_by_prediction_for_grid = _by_prediction_id(
+        _list_from_store(store, "v2:risk:gateway:decisions")
+    )
     all_timeframe_visible_count = 0
     for row in rows:
         if row.get("status") != "PRESENT_CURRENT":
@@ -3747,9 +4087,32 @@ def build_signal_status(
         if existing is None:
             existing = store.get_json(f"v2:signals:paper:{row['symbol']}")
         compat_existing = lineage_compatible_existing_signal(row, existing)
+        ordinary_paper_claimed = claims_ordinary_paper_admission(row)
+        exact_risk_entry = (
+            risk_gateway_by_prediction_for_grid.get(str(row.get("prediction_id") or ""))
+            or risk_by_prediction_for_grid.get(str(row.get("prediction_id") or ""))
+            or {}
+        )
+        ordinary_assessment: OrdinaryPaperAdmissionResult | None = None
+        if ordinary_paper_claimed:
+            transport_source = (
+                exact_risk_entry
+                if claims_ordinary_paper_admission(exact_risk_entry)
+                else compat_existing
+            )
+            ordinary_assessment = _ordinary_transport_assessment(
+                store,
+                transport_source,
+                expected_identity=row,
+            )
+            if exact_risk_entry:
+                compat_existing = {
+                    **compat_existing,
+                    **copy.deepcopy(exact_risk_entry),
+                }
         # Inject real risk IDs from global decision index when the compatible existing has none.
         # Applied after lineage_compatible_existing_signal so prediction_id filtering runs first.
-        if not compat_existing.get("risk_decision_id"):
+        if not ordinary_paper_claimed and not compat_existing.get("risk_decision_id"):
             sym = str(row.get("symbol") or "").upper()
             risk_entry = risk_by_symbol_for_grid.get(sym, {})
             if risk_entry:
@@ -3767,6 +4130,7 @@ def build_signal_status(
                 row,
                 compat_existing,
                 live_context=context,
+                ordinary_assessment=ordinary_assessment,
             )
         )
         all_timeframe_visible_count += 1
@@ -4390,6 +4754,181 @@ def normalize_cuda_prediction_status_counts(cuda_prediction_status: Mapping[str,
     return status
 
 
+def build_public_current_cycle_prediction_evidence(
+    *,
+    store: V2KeyValueStore,
+    cuda_prediction_status: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Revalidate the public grid against the canonical trainer-cycle proof."""
+
+    trainer_status = as_dict(store.get_json("v2:trainer:hybrid_cuda:status"))
+    envelope = as_dict(trainer_status.get("current_cycle_learning_envelope"))
+    source = as_dict(
+        trainer_status.get("current_cycle_prediction_publication_evidence")
+    )
+    rows = [as_dict(row) for row in as_list(cuda_prediction_status.get("prediction_rows"))]
+    expected_value = to_float(source.get("expected_prediction_count"))
+    observed_expected_value = to_float(
+        cuda_prediction_status.get("expected_prediction_count")
+    )
+    expected = (
+        int(expected_value)
+        if expected_value is not None
+        and expected_value.is_integer()
+        and expected_value > 0
+        else int(observed_expected_value)
+        if observed_expected_value is not None
+        and observed_expected_value.is_integer()
+        and observed_expected_value > 0
+        else 0
+    )
+    lineages_value = to_float(source.get("lineages_published"))
+    lineages = (
+        int(lineages_value)
+        if lineages_value is not None and lineages_value.is_integer()
+        else 0
+    )
+    cycle_id = str(envelope.get("cycle_id") or "")
+    instance_id = str(envelope.get("process_instance_id") or "")
+    checkpoint_id = str(envelope.get("checkpoint_id") or "")
+    fingerprint = str(envelope.get("candidate_policy_fingerprint") or "")
+    generated_utc = str(source.get("generated_utc") or "")
+    evidence = build_current_cycle_prediction_publication_evidence(
+        rows=rows,
+        expected_prediction_count=expected,
+        lineages_published=lineages,
+        cycle_id=cycle_id,
+        process_instance_id=instance_id,
+        checkpoint_id=checkpoint_id,
+        candidate_policy_fingerprint=fingerprint,
+        generated_utc=generated_utc,
+        publication_attempted=bool(
+            source.get("publication_complete") is True
+            and trainer_status.get("status_publication_status") == "ACTIVE"
+        ),
+    )
+    reasons = list(evidence.get("publication_rejection_reasons") or ())
+    if not envelope or trainer_status.get("current_cycle_learning_envelope") != envelope:
+        reasons.append("TRAINER_CURRENT_CYCLE_ENVELOPE_MISSING")
+    if (
+        source.get("cycle_id") != cycle_id
+        or source.get("process_instance_id") != instance_id
+        or source.get("checkpoint_id") != checkpoint_id
+        or source.get("candidate_policy_fingerprint") != fingerprint
+    ):
+        reasons.append("TRAINER_PREDICTION_EVIDENCE_ENVELOPE_IDENTITY_MISMATCH")
+    source_scopes = sorted(
+        (
+            str(row.get("symbol") or ""),
+            str(row.get("timeframe") or ""),
+            str(row.get("status") or ""),
+            str(row.get("cycle_id") or ""),
+            str(row.get("process_instance_id") or ""),
+            str(row.get("checkpoint_id") or ""),
+            str(row.get("candidate_policy_fingerprint") or ""),
+        )
+        for row in as_list(source.get("prediction_rows"))
+        if isinstance(row, Mapping)
+    )
+    public_scopes = sorted(
+        (
+            str(row.get("symbol") or ""),
+            str(row.get("timeframe") or ""),
+            str(row.get("status") or ""),
+            str(row.get("cycle_id") or ""),
+            str(row.get("process_instance_id") or ""),
+            str(row.get("checkpoint_id") or ""),
+            str(row.get("candidate_policy_fingerprint") or ""),
+        )
+        for row in rows
+    )
+    if source_scopes != public_scopes:
+        reasons.append("PUBLIC_PREDICTION_GRID_DIFFERS_FROM_TRAINER_PUBLICATION")
+    reasons = list(dict.fromkeys(reasons))
+    evidence.update(
+        {
+            "publication_complete": not reasons,
+            "publication_rejection_reasons": reasons,
+            # runtime_truth deliberately verifies exact equality between this
+            # evidence and the public payload, so retain the fully enriched
+            # public rows rather than substituting count-only summaries.
+            "prediction_rows": rows,
+            "trainer_source_evidence_reverified": True,
+        }
+    )
+    return evidence
+
+
+def build_public_current_cycle_parity_evidence(
+    *,
+    store: V2KeyValueStore,
+    repo_root: Path,
+) -> dict[str, Any]:
+    """Attest parity now and bind it to the current trainer envelope."""
+
+    trainer_status = as_dict(store.get_json("v2:trainer:hybrid_cuda:status"))
+    envelope = as_dict(trainer_status.get("current_cycle_learning_envelope"))
+    source = as_dict(trainer_status.get("current_cycle_parity_evidence"))
+    cycle_id = str(envelope.get("cycle_id") or "")
+    instance_id = str(envelope.get("process_instance_id") or "")
+    generated_utc = (
+        dt.datetime.now(tz=dt.timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    if not cycle_id or not instance_id:
+        return {
+            "schema_version": CURRENT_PARITY_EVIDENCE_SCHEMA,
+            "generated_utc": generated_utc,
+            "cycle_id": cycle_id or None,
+            "process_instance_id": instance_id or None,
+            "parity_complete": False,
+            "required_missing_parity_methods": 1,
+            "method_count": 0,
+            "status": "FULL_FUNCTION_PARITY_BLOCKED",
+            "revalidated_this_cycle": False,
+            "revalidation_rejection_reasons": [
+                "TRAINER_CURRENT_CYCLE_ENVELOPE_MISSING"
+            ],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+    evidence = build_current_cycle_parity_attestation(
+        repo_root=repo_root,
+        cycle_id=cycle_id,
+        process_instance_id=instance_id,
+        generated_utc=generated_utc,
+    )
+    reasons = list(evidence.get("revalidation_rejection_reasons") or ())
+    if (
+        source.get("cycle_id") != cycle_id
+        or source.get("process_instance_id") != instance_id
+        or source.get("parity_complete") is not True
+        or source.get("status") != "FULL_FUNCTION_PARITY_VERIFIED"
+    ):
+        reasons.append("TRAINER_CURRENT_CYCLE_PARITY_ATTESTATION_MISSING_OR_MIXED")
+    if source.get("source_attestation_digest") != evidence.get(
+        "source_attestation_digest"
+    ):
+        reasons.append("TRAINER_PARITY_SOURCE_DIGEST_CHANGED_OR_MISMATCHED")
+    reasons = list(dict.fromkeys(reasons))
+    evidence.update(
+        {
+            "parity_complete": not reasons,
+            "required_missing_parity_methods": 0 if not reasons else len(reasons),
+            "status": (
+                "FULL_FUNCTION_PARITY_VERIFIED"
+                if not reasons
+                else "FULL_FUNCTION_PARITY_BLOCKED"
+            ),
+            "revalidation_rejection_reasons": reasons,
+            "trainer_source_attestation_reverified": True,
+        }
+    )
+    return evidence
+
+
 def build_expected_move_price_target_remediation_status(
     *,
     expected_move_status: Mapping[str, Any],
@@ -4519,7 +5058,42 @@ def build_resource_utilization_status(store: V2KeyValueStore) -> dict[str, Any]:
     )
     smi = _nvidia_smi_probe()
     cpu_count = os.cpu_count() or 1
-    cuda_available = bool(resource.get("cuda_available") or trainer_status.get("cuda_active") or smi)
+    envelope = as_dict(trainer_status.get("current_cycle_learning_envelope"))
+    source_resource = as_dict(
+        trainer_status.get("current_cycle_resource_evidence")
+    )
+    resource_rejection_reasons: list[str] = []
+    if not envelope:
+        resource_rejection_reasons.append("CURRENT_CYCLE_ENVELOPE_MISSING")
+    if (
+        source_resource.get("cycle_id") != envelope.get("cycle_id")
+        or source_resource.get("process_instance_id")
+        != envelope.get("process_instance_id")
+    ):
+        resource_rejection_reasons.append("CURRENT_CYCLE_RESOURCE_IDENTITY_MISMATCH")
+    if source_resource.get("cuda_available") is not True:
+        resource_rejection_reasons.append("CURRENT_CYCLE_CUDA_AVAILABLE_NOT_TRUE")
+    if source_resource.get("cuda_active") is not True:
+        resource_rejection_reasons.append("CURRENT_CYCLE_CUDA_ACTIVE_NOT_TRUE")
+    if not smi:
+        resource_rejection_reasons.append("CURRENT_NVIDIA_SMI_REVALIDATION_FAILED")
+    if trainer_status.get("status_publication_status") != "ACTIVE":
+        resource_rejection_reasons.append("CURRENT_TRAINER_STATUS_PUBLICATION_NOT_ACTIVE")
+    resource_rejection_reasons = list(dict.fromkeys(resource_rejection_reasons))
+    current_cycle_resource_evidence = {
+        **source_resource,
+        "cuda_available": bool(
+            not resource_rejection_reasons
+            and source_resource.get("cuda_available") is True
+        ),
+        "cuda_active": bool(
+            not resource_rejection_reasons
+            and source_resource.get("cuda_active") is True
+        ),
+        "all_timeframe_resource_revalidation_complete": not resource_rejection_reasons,
+        "resource_revalidation_rejection_reasons": resource_rejection_reasons,
+    }
+    cuda_available = current_cycle_resource_evidence["cuda_available"]
     payload = {
         "schema_version": "v2_cuda_cpu_resource_utilization_upgrade_status_v1",
         "generated_est": est_now(),
@@ -4527,6 +5101,8 @@ def build_resource_utilization_status(store: V2KeyValueStore) -> dict[str, Any]:
         "live_symbols": [],
         "execution_live_symbols": [],
         "cuda_available": cuda_available,
+        "cuda_active": current_cycle_resource_evidence["cuda_active"],
+        "current_cycle_resource_evidence": current_cycle_resource_evidence,
         "gpu_name": resource.get("gpu_name") or smi.get("gpu_name"),
         "current_gpu_utilization": smi.get("current_gpu_utilization") if smi else resource.get("current_gpu_utilization"),
         "current_vram_used_mb": smi.get("current_vram_used_mb") if smi else resource.get("current_vram_used_mb"),
@@ -4557,6 +5133,7 @@ def build_resource_utilization_status(store: V2KeyValueStore) -> dict[str, Any]:
         blockers.append("ACTUAL_BATCH_SIZE_MISSING")
     if payload["throughput_predictions_per_second"] is None:
         blockers.append("PREDICTION_THROUGHPUT_MISSING")
+    blockers.extend(resource_rejection_reasons)
     payload["blockers"] = blockers
     payload["status"] = "CUDA_CPU_RESOURCE_UTILIZATION_UPGRADE_READY" if not blockers else "CUDA_CPU_RESOURCE_UTILIZATION_UPGRADE_BLOCKED_OR_PARTIAL"
     return payload
@@ -4802,6 +5379,25 @@ def retire_stale_routeable_prediction_keys(
     return retired
 
 
+def _explicit_evidence_timestamp(value: Any) -> str | None:
+    """Canonicalize only timezone-explicit evidence clocks."""
+
+    # The publisher-wide parser intentionally interprets naive operational
+    # timestamps in EST.  That convenience is not an admissible PIT provenance
+    # contract because a replay on a different host could reinterpret it.
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            parsed = dt.datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
+    return iso_utc(value)
+
+
 def guardian_pit_observation_payload(row: Mapping[str, Any]) -> dict[str, Any] | None:
     if row.get("status") not in CURRENT_PREDICTION_STATUSES:
         return None
@@ -4812,17 +5408,35 @@ def guardian_pit_observation_payload(row: Mapping[str, Any]) -> dict[str, Any] |
         return None
     if row.get("prediction_temporal_block_reasons"):
         return None
-    feature_cutoff = iso_utc(row.get("feature_cutoff"))
-    decision_time = iso_utc(row.get("decision_time") or row.get("generated_est"))
-    available_at = iso_utc(row.get("available_at"))
-    if feature_cutoff is None or decision_time is None:
+    feature_cutoff = _explicit_evidence_timestamp(row.get("feature_cutoff"))
+    decision_time = _explicit_evidence_timestamp(row.get("decision_time"))
+    available_at = _explicit_evidence_timestamp(row.get("available_at"))
+    candle_close_time = _explicit_evidence_timestamp(row.get("candle_close_time"))
+    generated_at = _explicit_evidence_timestamp(row.get("generated_est"))
+    if (
+        feature_cutoff is None
+        or decision_time is None
+        or available_at is None
+        or candle_close_time is None
+        or generated_at is None
+        or row.get("candle_closed_confirmed") is not True
+    ):
         return None
     feature_dt = parse_ts(feature_cutoff)
     decision_dt = parse_ts(decision_time)
     available_dt = parse_ts(available_at)
-    if feature_dt is not None and decision_dt is not None and feature_dt > decision_dt:
+    candle_close_dt = parse_ts(candle_close_time)
+    generated_dt = parse_ts(generated_at)
+    if feature_dt is None or decision_dt is None or feature_dt >= decision_dt:
         return None
-    if available_dt is not None and decision_dt is not None and available_dt > decision_dt:
+    if available_dt is None or not (feature_dt <= available_dt <= decision_dt):
+        return None
+    if candle_close_dt is None or candle_close_dt != feature_dt:
+        return None
+    if generated_dt is None or generated_dt < decision_dt:
+        return None
+    selected_action = str(row.get("selected_action") or "").strip().lower()
+    if selected_action not in {"long", "short", "hold", "no_trade", "flat", "none"}:
         return None
     return {
         "schema_version": "v2_guardian_pit_prediction_observation_append_v1",
@@ -4832,11 +5446,13 @@ def guardian_pit_observation_payload(row: Mapping[str, Any]) -> dict[str, Any] |
         "prediction_id": prediction_id,
         "symbol": symbol,
         "timeframe": timeframe,
-        "selected_action": row.get("selected_action"),
+        "selected_action": selected_action,
         "decision_time": decision_time,
         "feature_cutoff": feature_cutoff,
         "available_at": available_at,
-        "generated_at": iso_utc(row.get("generated_est")) or decision_time,
+        "candle_close_time": candle_close_time,
+        "candle_closed_confirmed": True,
+        "generated_at": generated_at,
         "feature_vector_hash": row.get("feature_vector_hash"),
         "future_labels_used_as_features": False,
         "counts_as_a_grade_evidence": False,
@@ -4850,21 +5466,492 @@ def guardian_pit_observation_payload(row: Mapping[str, Any]) -> dict[str, Any] |
     }
 
 
-def append_guardian_pit_observations(store: V2KeyValueStore, prediction_rows: Iterable[Mapping[str, Any]]) -> int:
+def _guardian_pit_record_id(payload: Mapping[str, Any]) -> str:
+    identity = {
+        "prediction_id": payload.get("prediction_id"),
+        "source_redis_key": payload.get("source_redis_key") or payload.get("redis_key"),
+    }
+    if not identity["prediction_id"] or not identity["source_redis_key"]:
+        raise ValueError("guardian_pit_stable_identity_missing")
+    return "guardian_pit:" + stable_sha256(identity)
+
+
+def _guardian_pit_archive_candidate(
+    payload: Mapping[str, Any],
+    *,
+    fallback_sort_index: int = 0,
+) -> ArchiveCandidate:
+    record_id = _guardian_pit_record_id(payload)
+    decision_time = iso_utc(
+        payload.get("decision_time")
+        or payload.get("generated_at")
+        or payload.get("feature_cutoff")
+    )
+    sort_key = (
+        f"{decision_time}|{record_id}"
+        if decision_time is not None
+        else f"0000-00-00T00:00:00.000Z|{fallback_sort_index:020d}|{record_id}"
+    )
+    return ArchiveCandidate(
+        record_id=record_id,
+        sort_key=sort_key,
+        payload=dict(payload),
+    )
+
+
+def _guardian_legacy_archive_candidate(
+    raw: str | bytes,
+    *,
+    list_index: int,
+) -> ArchiveCandidate:
+    raw_bytes = raw if isinstance(raw, bytes) else raw.encode("utf-8")
+    raw_text: str | None
+    try:
+        raw_text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raw_text = None
+
+    def reject_nonfinite(token: str) -> None:
+        raise ValueError(f"non_finite_json_constant:{token}")
+
+    try:
+        decoded = (
+            json.loads(raw_text, parse_constant=reject_nonfinite)
+            if raw_text is not None
+            else None
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        decoded = None
+    required_false_flags = (
+        "future_labels_used_as_features",
+        "counts_as_a_grade_evidence",
+        "counts_as_a_plus",
+        "counts_as_live_ready",
+        "places_real_order",
+        "routes_to_live",
+        "test_order_submitted",
+        "leverage_mutation",
+        "margin_mode_mutation",
+    )
+    legacy_is_valid = False
+    if isinstance(decoded, Mapping):
+        feature_cutoff = _explicit_evidence_timestamp(decoded.get("feature_cutoff"))
+        available_at = _explicit_evidence_timestamp(decoded.get("available_at"))
+        decision_time = _explicit_evidence_timestamp(decoded.get("decision_time"))
+        candle_close_time = _explicit_evidence_timestamp(decoded.get("candle_close_time"))
+        generated_at = _explicit_evidence_timestamp(decoded.get("generated_at"))
+        feature_dt = parse_ts(feature_cutoff)
+        available_dt = parse_ts(available_at)
+        decision_dt = parse_ts(decision_time)
+        candle_close_dt = parse_ts(candle_close_time)
+        generated_dt = parse_ts(generated_at)
+        selected_action = str(decoded.get("selected_action") or "").strip().lower()
+        legacy_is_valid = bool(
+            decoded.get("schema_version")
+            == "v2_guardian_pit_prediction_observation_append_v1"
+            and decoded.get("producer") == SERVICE_ID
+            and decoded.get("source")
+            == "all_timeframe_prediction_signal_price_target_publisher"
+            and decoded.get("prediction_id")
+            and (decoded.get("source_redis_key") or decoded.get("redis_key"))
+            and decoded.get("symbol")
+            and decoded.get("timeframe") in REQUIRED_TIMEFRAMES
+            and selected_action
+            in {"long", "short", "hold", "no_trade", "flat", "none"}
+            and decoded.get("candle_closed_confirmed") is True
+            and feature_dt is not None
+            and available_dt is not None
+            and decision_dt is not None
+            and candle_close_dt is not None
+            and generated_dt is not None
+            and feature_dt < decision_dt
+            and feature_dt <= available_dt <= decision_dt
+            and candle_close_dt == feature_dt
+            and decision_dt <= generated_dt
+            and all(decoded.get(field) is False for field in required_false_flags)
+        )
+    if legacy_is_valid:
+        return _guardian_pit_archive_candidate(
+            decoded,
+            fallback_sort_index=list_index,
+        )
+    wrapper = {
+        "schema_version": "guardian_pit_invalid_legacy_redis_record_archive_v1",
+        "source_redis_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+        "legacy_list_index": list_index,
+        "raw_redis_value_utf8": raw_text,
+        "raw_redis_value_base64": (
+            None if raw_text is not None else base64.b64encode(raw_bytes).decode("ascii")
+        ),
+        "raw_redis_value_sha256": hashlib.sha256(raw_bytes).hexdigest(),
+        "quarantine_reason": "INVALID_OR_UNTRUSTED_LEGACY_REDIS_RECORD",
+        "valid_guardian_observation": False,
+        "counts_as_a_grade_evidence": False,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+        "places_real_order": False,
+        "routes_to_live": False,
+    }
+    raw_hash = stable_sha256(wrapper)
+    return ArchiveCandidate(
+        record_id=f"guardian_pit_invalid:{list_index:020d}:{raw_hash}",
+        sort_key=f"0000-00-00T00:00:00.000Z|{list_index:020d}|{raw_hash}",
+        payload=wrapper,
+    )
+
+
+def append_guardian_pit_observations(
+    store: V2KeyValueStore,
+    prediction_rows: Iterable[Mapping[str, Any]],
+    *,
+    archive_path: Path,
+    hot_cache_max_rows: int = DEFAULT_GUARDIAN_PIT_HOT_MAX_ROWS,
+    migration_batch_rows: int = DEFAULT_GUARDIAN_PIT_MIGRATION_BATCH_ROWS,
+) -> dict[str, Any]:
+    """Archive first, then append/compact the Redis Guardian hot cache.
+
+    A pre-existing unbounded list is migrated in bounded batches.  ``LTRIM``
+    is forbidden until the durable migration cursor covers the entire list
+    observed before the current cycle.  Newly produced rows are also archived
+    before they are appended, so completing migration and compacting in one
+    cycle cannot create an evidence gap.
+    """
+
+    hot_limit = max(1, int(hot_cache_max_rows))
+    migration_limit = max(1, int(migration_batch_rows))
+    archive = DurablePaperEvidenceArchive(
+        archive_path,
+        stream_id=GUARDIAN_PIT_ARCHIVE_STREAM_ID,
+    )
+    length_before = store.list_length(GUARDIAN_PIT_OBSERVATION_LIST_KEY)
+    migration_cursor_before = int(archive.metadata("redis_legacy_migration_cursor", "0") or 0)
+    migration_cursor_after = migration_cursor_before
+    migration_complete = archive.metadata("redis_legacy_migration_complete", "false") == "true"
+    migration_rows_read = 0
+    migration_inserted_rows = 0
+    migration_duplicate_rows = 0
+    migration_identity_conflicts = 0
+    migration_error: str | None = None
+
+    if length_before is None:
+        migration_error = "REDIS_LIST_LENGTH_UNAVAILABLE"
+    elif not migration_complete:
+        if migration_cursor_before > length_before:
+            migration_error = "REDIS_LIST_SHRANK_BEFORE_DURABLE_MIGRATION_COMPLETED"
+        else:
+            migration_stop = min(length_before, migration_cursor_before + migration_limit) - 1
+            raw_rows = (
+                []
+                if migration_stop < migration_cursor_before
+                else store.list_range(
+                    GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+                    migration_cursor_before,
+                    migration_stop,
+                )
+            )
+            if raw_rows is None:
+                migration_error = "REDIS_LEGACY_MIGRATION_RANGE_UNAVAILABLE"
+            else:
+                migration_rows_read = len(raw_rows)
+                migration_candidates = [
+                    _guardian_legacy_archive_candidate(
+                        raw,
+                        list_index=migration_cursor_before + index,
+                    )
+                    for index, raw in enumerate(raw_rows)
+                ]
+                try:
+                    migration_result, migration_complete = (
+                        archive.append_migration_batch(
+                            migration_candidates,
+                            expected_cursor=migration_cursor_before,
+                            new_cursor=(
+                                migration_cursor_before + migration_rows_read
+                            ),
+                            observed_redis_length=length_before,
+                        )
+                    )
+                except ArchiveIdentityConflictError as exc:
+                    migration_identity_conflicts = len(exc.record_ids)
+                    migration_error = "DURABLE_ARCHIVE_IDENTITY_CONFLICT"
+                else:
+                    migration_inserted_rows = migration_result.inserted_rows
+                    migration_duplicate_rows = migration_result.duplicate_rows
+                    migration_cursor_after = migration_cursor_before + migration_rows_read
+
+    payloads = [
+        payload
+        for row in prediction_rows
+        if (payload := guardian_pit_observation_payload(row)) is not None
+    ]
+    new_candidates = [_guardian_pit_archive_candidate(payload) for payload in payloads]
+    new_archive_result = archive.append_unique(
+        new_candidates,
+        queue_hot_cache_delivery=True,
+    )
+    inserted_record_ids = set(new_archive_result.inserted_record_ids)
+    occurrence_candidates = (
+        new_candidates
+        if migration_complete
+        else [
+            candidate
+            for candidate in new_candidates
+            if candidate.record_id not in inserted_record_ids
+        ]
+    )
+    # A newly inserted row is appended below and an in-progress migration will
+    # count that Redis occurrence when its cursor reaches it.  Re-observed
+    # duplicate identities are not appended, so count those producer events
+    # now.  After migration is complete every event is counted immediately.
+    new_occurrence_result = archive.append_unique(
+        occurrence_candidates,
+        count_occurrences=True,
+    )
+    archive_ready_for_new_rows = (
+        new_archive_result.identity_conflicts == 0
+        and new_occurrence_result.identity_conflicts == 0
+    )
     appended = 0
-    for row in prediction_rows:
-        payload = guardian_pit_observation_payload(row)
-        if payload is None:
-            continue
-        if store.rpush_json(GUARDIAN_PIT_OBSERVATION_LIST_KEY, payload):
+    delivery_failures = 0
+    delivery_acknowledged = 0
+    if migration_error is None and archive_ready_for_new_rows:
+        delivered_record_ids: list[str] = []
+        delivery_batch_limit = max(1, migration_limit, len(new_candidates))
+        for pending in archive.pending_hot_cache_deliveries(delivery_batch_limit):
+            payload = pending.get("payload")
+            if not isinstance(payload, Mapping) or not store.rpush_json(
+                GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+                payload,
+            ):
+                delivery_failures += 1
+                # Preserve stable delivery order.  Later records stay durable
+                # in the outbox and retry after the first failed record.
+                break
+            delivered_record_ids.append(str(pending["record_id"]))
             appended += 1
-    return appended
+        delivery_acknowledged = archive.acknowledge_hot_cache_deliveries(
+            delivered_record_ids
+        )
+        if delivery_acknowledged != len(delivered_record_ids):
+            raise RuntimeError("guardian_hot_cache_delivery_acknowledgement_mismatch")
+
+    pending_deliveries_after = archive.pending_hot_cache_delivery_count()
+
+    archive_integrity: dict[str, Any] = {}
+    archive_integrity_error: str | None = None
+    try:
+        archive_integrity = archive.verify_integrity()
+    except (OSError, ValueError, sqlite3.DatabaseError) as exc:
+        archive_integrity_error = f"DURABLE_ARCHIVE_INTEGRITY_FAILED:{type(exc).__name__}"
+    archive_integrity_verified = archive_integrity.get("integrity_verified") is True
+
+    archive_consumer_status = (
+        guardian_pit_archive_consumption_status(archive_path)
+        if archive_integrity_verified
+        else {
+            "status": "BLOCKED_DURABLE_GUARDIAN_PIT_ARCHIVE_CONSUMPTION",
+            "block_reasons": [
+                archive_integrity_error or "DURABLE_ARCHIVE_INTEGRITY_NOT_VERIFIED"
+            ],
+            "archive_consumption_complete_verified": False,
+            "redis_hot_cache_trim_safe": False,
+        }
+    )
+    archive_consumption_complete = (
+        archive_consumer_status.get("archive_consumption_complete_verified") is True
+    )
+    trim_gate_reasons: list[str] = []
+    if not migration_complete:
+        trim_gate_reasons.append("LEGACY_REDIS_MIGRATION_NOT_COMPLETE")
+    if migration_error is not None:
+        trim_gate_reasons.append(f"LEGACY_REDIS_MIGRATION_ERROR:{migration_error}")
+    if not archive_ready_for_new_rows:
+        trim_gate_reasons.append("NEW_ARCHIVE_IDENTITY_CONFLICT")
+    if delivery_failures:
+        trim_gate_reasons.append("HOT_CACHE_DELIVERY_FAILED")
+    if pending_deliveries_after:
+        trim_gate_reasons.append("HOT_CACHE_DELIVERY_OUTBOX_NOT_EMPTY")
+    if not archive_integrity_verified:
+        trim_gate_reasons.append(
+            archive_integrity_error or "DURABLE_ARCHIVE_INTEGRITY_NOT_VERIFIED"
+        )
+    if not archive_consumption_complete:
+        trim_gate_reasons.append("DURABLE_ARCHIVE_CONSUMER_NOT_CAUGHT_UP")
+    redis_hot_cache_trim_safe = not trim_gate_reasons
+
+    length_after_append = store.list_length(GUARDIAN_PIT_OBSERVATION_LIST_KEY)
+    trim_performed = False
+    trim_succeeded = False
+    if (
+        redis_hot_cache_trim_safe
+        and length_after_append is not None
+        and length_after_append > hot_limit
+    ):
+        trim_performed = True
+        trim_succeeded = store.trim_list_to_latest(
+            GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+            hot_limit,
+        )
+    length_after = store.list_length(GUARDIAN_PIT_OBSERVATION_LIST_KEY)
+    archive_total = archive.total_unique_rows()
+    hot_cache_bounded = (
+        migration_complete
+        and migration_error is None
+        and archive_ready_for_new_rows
+        and delivery_failures == 0
+        and pending_deliveries_after == 0
+        and archive_integrity_verified
+        and length_after is not None
+        and length_after <= hot_limit
+        and (not trim_performed or trim_succeeded)
+    )
+    status = (
+        "DURABLE_ARCHIVE_READY_REDIS_BOUNDED_HOT_CACHE"
+        if hot_cache_bounded
+        else (
+            "LEGACY_REDIS_MIGRATION_IN_PROGRESS_NO_TRIM_ALLOWED"
+            if migration_error is None and not migration_complete
+            else (
+                "DURABLE_ARCHIVE_CONSUMER_CATCHUP_REQUIRED_NO_TRIM_ALLOWED"
+                if (
+                    migration_complete
+                    and migration_error is None
+                    and archive_ready_for_new_rows
+                    and delivery_failures == 0
+                    and pending_deliveries_after == 0
+                    and archive_integrity_verified
+                    and not archive_consumption_complete
+                )
+                else "DURABLE_ARCHIVE_OR_HOT_CACHE_FAIL_CLOSED"
+            )
+        )
+    )
+    return {
+        "schema_version": "guardian_pit_durable_archive_hot_cache_status_v1",
+        "status": status,
+        "archive_schema_version": ARCHIVE_SCHEMA_VERSION,
+        "durable_archive_path": str(archive_path),
+        "durable_archive_stream_id": GUARDIAN_PIT_ARCHIVE_STREAM_ID,
+        "durable_archive_total_unique_rows": archive_total,
+        "durable_archive_total_observations": new_occurrence_result.total_occurrences,
+        "durable_archive_storage_contract": (
+            "CONTENT_ADDRESSED_UNIQUE_PAYLOADS_WITH_EXACT_OCCURRENCE_COUNTS"
+        ),
+        "duplicate_occurrence_order_preserved": False,
+        "guardian_consumer_deduplicates_observations_by_prediction_identity": True,
+        "durable_archive_unique_record_chain_sha256": archive.metadata(
+            "archive_chain_sha256",
+            "",
+        ),
+        "durable_archive_integrity": archive_integrity,
+        "durable_archive_integrity_verified": archive_integrity_verified,
+        "durable_archive_integrity_error": archive_integrity_error,
+        "durable_archive_consumer_status": archive_consumer_status,
+        "durable_archive_consumption_complete_verified": (
+            archive_consumption_complete
+        ),
+        "new_payload_candidates": len(payloads),
+        "new_archive_inserted_unique_rows": new_archive_result.inserted_rows,
+        "new_archive_duplicate_rows": new_archive_result.duplicate_rows,
+        "new_archive_identity_conflicts": new_archive_result.identity_conflicts,
+        "new_archive_observations_recorded": new_occurrence_result.occurrence_rows_recorded,
+        "new_archive_identity_conflict_ids": list(new_archive_result.identity_conflict_ids),
+        "new_archive_hot_cache_deliveries_queued": (
+            new_archive_result.queued_hot_cache_deliveries
+        ),
+        "new_hot_cache_appends": appended,
+        "hot_cache_delivery_acknowledged": delivery_acknowledged,
+        "hot_cache_delivery_failures": delivery_failures,
+        "hot_cache_pending_deliveries_after_cycle": pending_deliveries_after,
+        "hot_cache_delivery_contract": (
+            "SQLITE_TRANSACTIONAL_OUTBOX_AT_LEAST_ONCE_REDIS_DELIVERY"
+        ),
+        "hot_cache_duplicate_delivery_after_crash_is_safe": True,
+        "legacy_migration_rows_read_this_cycle": migration_rows_read,
+        "legacy_migration_archive_inserted_rows_this_cycle": migration_inserted_rows,
+        "legacy_migration_archive_duplicate_rows_this_cycle": migration_duplicate_rows,
+        "legacy_migration_identity_conflicts_this_cycle": migration_identity_conflicts,
+        "legacy_migration_cursor_before": migration_cursor_before,
+        "legacy_migration_cursor_after": migration_cursor_after,
+        "legacy_migration_observed_redis_rows_before_cycle": length_before,
+        "legacy_migration_complete": migration_complete,
+        "legacy_migration_error": migration_error,
+        "redis_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+        "redis_role": "BOUNDED_HOT_CACHE_NOT_APPEND_ONLY_DURABLE_EVIDENCE",
+        "redis_hot_cache_max_rows": hot_limit,
+        "redis_hot_cache_rows_before_cycle": length_before,
+        "redis_hot_cache_rows_after_append": length_after_append,
+        "redis_hot_cache_rows_after_cycle": length_after,
+        "redis_hot_cache_rows_evicted_after_archive": (
+            max(0, int(length_after_append) - int(length_after))
+            if length_after_append is not None and length_after is not None
+            else None
+        ),
+        "redis_hot_cache_trim_performed": trim_performed,
+        "redis_hot_cache_trim_succeeded": trim_succeeded if trim_performed else None,
+        "redis_hot_cache_trim_safe": redis_hot_cache_trim_safe,
+        "redis_hot_cache_trim_gate_reasons": sorted(set(trim_gate_reasons)),
+        "redis_hot_cache_bounded": hot_cache_bounded,
+        "archive_write_precedes_redis_hot_append": True,
+        "trim_forbidden_until_legacy_archive_migration_complete": True,
+        "trim_forbidden_until_archive_integrity_verified": True,
+        "trim_forbidden_until_archive_consumer_caught_up": True,
+        "counts_as_a_grade_evidence": False,
+        "counts_as_a_plus": False,
+        "counts_as_live_ready": False,
+        "paper_only": True,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+    }
 
 
-def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any], signal_status: Mapping[str, Any]) -> dict[str, Any]:
+def _ordinary_signal_publish_ttl_seconds(
+    store: V2KeyValueStore,
+    signal: Mapping[str, Any],
+) -> int | None:
+    if not claims_ordinary_paper_admission(signal):
+        return None
+    if (
+        signal.get("ordinary_paper_derived_lane_transport_accepted") is not True
+        or signal.get("paper_fill_allowed") is not True
+    ):
+        return 0
+    assessment = _ordinary_transport_assessment(
+        store,
+        signal,
+        expected_identity=signal,
+    )
+    if not assessment.accepted or not isinstance(assessment.evidence, Mapping):
+        return 0
+    source_key = str(assessment.evidence.get("source_redis_key") or "")
+    replay_key = str(assessment.evidence.get("replay_snapshot_key") or "")
+    _source, source_ttl = store.get_json_with_ttl(source_key)
+    _replay, replay_ttl = store.get_json_with_ttl(replay_key)
+    if (
+        source_ttl is None
+        or source_ttl <= 0
+        or replay_ttl is None
+        or replay_ttl <= 0
+    ):
+        return 0
+    return min(int(source_ttl), int(replay_ttl))
+
+
+def publish_v2_keys(
+    store: V2KeyValueStore,
+    prediction_status: Mapping[str, Any],
+    signal_status: Mapping[str, Any],
+    *,
+    guardian_archive_path: Path | None = None,
+    guardian_hot_cache_max_rows: int | None = None,
+    guardian_migration_batch_rows: int | None = None,
+) -> dict[str, Any]:
     blocker_writes = 0
     blocker_suppressed = 0
     signal_writes = 0
+    ordinary_signal_publish_suppressed = 0
     integrity_writes = 0
     retired_stale_prediction_writes = 0
     guardian_pit_observation_appends = 0
@@ -4910,21 +5997,80 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
         protected_current_prediction_keys=protected_current_prediction_keys,
         stale_seconds=int(prediction_status.get("stale_threshold_seconds") or DEFAULT_STALE_SECONDS),
     )
-    latest_by_symbol: dict[str, dict[str, Any]] = {}
+    latest_by_symbol: dict[str, tuple[dict[str, Any], int | None]] = {}
     for signal in as_list(signal_status.get("published_signals")):
         item = as_dict(signal)
         symbol = str(item.get("symbol") or "")
         timeframe = str(item.get("timeframe") or "")
-        if symbol and timeframe and store.set_json(signal_paper_key(symbol, timeframe), item):
+        signal_ttl = _ordinary_signal_publish_ttl_seconds(store, item)
+        if signal_ttl == 0:
+            ordinary_signal_publish_suppressed += 1
+            continue
+        if symbol and timeframe and store.set_json(
+            signal_paper_key(symbol, timeframe),
+            item,
+            ex_seconds=signal_ttl,
+        ):
             signal_writes += 1
         if symbol and (symbol not in latest_by_symbol or timeframe == "1m"):
-            latest_by_symbol[symbol] = item
-    for symbol, signal in latest_by_symbol.items():
-        if store.set_json(signal_latest_key(symbol), signal):
+            latest_by_symbol[symbol] = (item, signal_ttl)
+    for symbol, (signal, signal_ttl) in latest_by_symbol.items():
+        if store.set_json(
+            signal_latest_key(symbol), signal, ex_seconds=signal_ttl
+        ):
             signal_writes += 1
-    guardian_pit_observation_appends = append_guardian_pit_observations(
-        store,
-        as_list(prediction_status.get("prediction_rows")),
+    configured_archive_path = guardian_archive_path or Path(
+        os.getenv(GUARDIAN_PIT_ARCHIVE_PATH_ENV, str(DEFAULT_GUARDIAN_PIT_ARCHIVE_REL))
+    )
+    configured_hot_max = (
+        int(guardian_hot_cache_max_rows)
+        if guardian_hot_cache_max_rows is not None
+        else int(os.getenv(GUARDIAN_PIT_HOT_MAX_ROWS_ENV, str(DEFAULT_GUARDIAN_PIT_HOT_MAX_ROWS)))
+    )
+    configured_migration_batch = (
+        int(guardian_migration_batch_rows)
+        if guardian_migration_batch_rows is not None
+        else int(
+            os.getenv(
+                GUARDIAN_PIT_MIGRATION_BATCH_ROWS_ENV,
+                str(DEFAULT_GUARDIAN_PIT_MIGRATION_BATCH_ROWS),
+            )
+        )
+    )
+    try:
+        guardian_archive_hot_cache = append_guardian_pit_observations(
+            store,
+            as_list(prediction_status.get("prediction_rows")),
+            archive_path=configured_archive_path,
+            hot_cache_max_rows=configured_hot_max,
+            migration_batch_rows=configured_migration_batch,
+        )
+    except Exception as exc:  # noqa: BLE001 - never trim or append after archive failure
+        guardian_archive_hot_cache = {
+            "schema_version": "guardian_pit_durable_archive_hot_cache_status_v1",
+            "status": "DURABLE_ARCHIVE_OR_HOT_CACHE_FAIL_CLOSED",
+            "error_type": type(exc).__name__,
+            "error_message": str(exc),
+            "durable_archive_path": str(configured_archive_path),
+            "redis_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+            "redis_role": "BOUNDED_HOT_CACHE_NOT_APPEND_ONLY_DURABLE_EVIDENCE",
+            "new_hot_cache_appends": 0,
+            "redis_hot_cache_max_rows": max(1, configured_hot_max),
+            "redis_hot_cache_bounded": False,
+            "archive_write_precedes_redis_hot_append": True,
+            "trim_forbidden_until_legacy_archive_migration_complete": True,
+            "counts_as_a_grade_evidence": False,
+            "counts_as_a_plus": False,
+            "counts_as_live_ready": False,
+            "paper_only": True,
+            "places_real_order": False,
+            "routes_to_live": False,
+        }
+        store.audit.errors.append(
+            f"guardian_pit_archive_hot_cache_failed:{type(exc).__name__}"
+        )
+    guardian_pit_observation_appends = int(
+        guardian_archive_hot_cache.get("new_hot_cache_appends") or 0
     )
     return {
         "redis_writes_performed": store.audit.writes_succeeded > 0,
@@ -4933,8 +6079,11 @@ def publish_v2_keys(store: V2KeyValueStore, prediction_status: Mapping[str, Any]
         "market_state_integrity_key_writes": integrity_writes,
         "retired_stale_prediction_key_writes": retired_stale_prediction_writes,
         "signal_key_writes": signal_writes,
+        "ordinary_signal_publish_suppressed": ordinary_signal_publish_suppressed,
         "guardian_pit_observation_appends": guardian_pit_observation_appends,
         "guardian_pit_observation_list_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+        "guardian_pit_observation_list_role": "BOUNDED_HOT_CACHE_NOT_APPEND_ONLY_DURABLE_EVIDENCE",
+        "guardian_pit_archive_hot_cache": guardian_archive_hot_cache,
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": list(store.audit.keys_written),
         "errors": list(store.audit.errors),
@@ -4954,7 +6103,9 @@ def safety() -> dict[str, Any]:
         "margin_mode_changed": False,
         "writes_legacy_redis": False,
         "writes_old_redis": False,
-        "redis_trim_performed": False,
+        "redis_durable_evidence_deleted": False,
+        "redis_guardian_list_role": "BOUNDED_HOT_CACHE_NOT_DURABLE_ARCHIVE",
+        "redis_hot_cache_compaction_requires_durable_archive": True,
         "legacy_restart_performed": False,
         "raw_credentials_exposed": False,
     }
@@ -5178,14 +6329,91 @@ def build_packet(
         prediction_rows=prediction_rows if feature_parity_from_prediction_rows else None,
     )
     cuda_prediction_status = normalize_cuda_prediction_status_counts(build_cuda_prediction_status(prediction_status))
+    current_cycle_prediction_evidence = build_public_current_cycle_prediction_evidence(
+        store=store,
+        cuda_prediction_status=cuda_prediction_status,
+    )
+    current_cycle_parity_evidence = build_public_current_cycle_parity_evidence(
+        store=store,
+        repo_root=paths.repo_root,
+    )
+    prediction_status["current_cycle_prediction_publication_evidence"] = (
+        current_cycle_prediction_evidence
+    )
+    feature_parity_status["current_cycle_parity_evidence"] = (
+        current_cycle_parity_evidence
+    )
+    for field_name in (
+        "generated_utc",
+        "publication_complete",
+        "expected_prediction_count",
+        "prediction_rows_count",
+        "current_prediction_count",
+        "missing_prediction_rows_count",
+        "stale_prediction_rows_count",
+        "lineages_published",
+        "prediction_rows",
+    ):
+        cuda_prediction_status[field_name] = current_cycle_prediction_evidence.get(
+            field_name
+        )
+    cuda_prediction_status["current_cycle_prediction_publication_evidence"] = (
+        current_cycle_prediction_evidence
+    )
+    if current_cycle_prediction_evidence.get("publication_complete") is not True:
+        cuda_prediction_status["status"] = (
+            "ALL_SYMBOL_ALL_TIMEFRAME_CUDA_PREDICTIONS_BLOCKED_OR_PARTIAL"
+        )
+        prediction_status["status"] = "ALL_TIMEFRAME_PREDICTIONS_BLOCKED"
+        prediction_status["implementation_tasks"] = sorted(
+            set(
+                [
+                    *as_list(prediction_status.get("implementation_tasks")),
+                    *[
+                        "current_cycle_prediction_evidence:"
+                        + str(reason)
+                        for reason in as_list(
+                            current_cycle_prediction_evidence.get(
+                                "publication_rejection_reasons"
+                            )
+                        )
+                    ],
+                ]
+            )
+        )
     signal_status = build_signal_status(prediction_rows, store, live_context=live_context)
-    redis_publish_audit = publish_v2_keys(store, prediction_status, signal_status) if write_redis else {
+    configured_guardian_archive = os.getenv(GUARDIAN_PIT_ARCHIVE_PATH_ENV)
+    guardian_archive_path = (
+        Path(configured_guardian_archive)
+        if configured_guardian_archive
+        else paths.repo_root / DEFAULT_GUARDIAN_PIT_ARCHIVE_REL
+    )
+    redis_publish_audit = publish_v2_keys(
+        store,
+        prediction_status,
+        signal_status,
+        guardian_archive_path=guardian_archive_path,
+    ) if write_redis else {
         "redis_writes_performed": False,
         "blocker_prediction_key_writes": 0,
         "retired_stale_prediction_key_writes": 0,
         "signal_key_writes": 0,
         "guardian_pit_observation_appends": 0,
         "guardian_pit_observation_list_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+        "guardian_pit_observation_list_role": "BOUNDED_HOT_CACHE_NOT_APPEND_ONLY_DURABLE_EVIDENCE",
+        "guardian_pit_archive_hot_cache": {
+            "schema_version": "guardian_pit_durable_archive_hot_cache_status_v1",
+            "status": "REDIS_WRITE_DISABLED_ARCHIVE_NOT_MUTATED",
+            "durable_archive_path": str(guardian_archive_path),
+            "redis_key": GUARDIAN_PIT_OBSERVATION_LIST_KEY,
+            "redis_role": "BOUNDED_HOT_CACHE_NOT_APPEND_ONLY_DURABLE_EVIDENCE",
+            "counts_as_a_grade_evidence": False,
+            "counts_as_a_plus": False,
+            "counts_as_live_ready": False,
+            "paper_only": True,
+            "places_real_order": False,
+            "routes_to_live": False,
+        },
         "old_redis_write_attempts": store.audit.old_redis_write_attempts,
         "keys_written": [],
         "errors": [],
@@ -5226,7 +6454,9 @@ def build_packet(
         feature_parity_status=feature_parity_status,
     )
     ready = (
-        prediction_status["blocker_count"] == 0
+        current_cycle_prediction_evidence.get("publication_complete") is True
+        and current_cycle_parity_evidence.get("parity_complete") is True
+        and prediction_status["blocker_count"] == 0
         and expected_move_status["expected_move_missing_count"] == 0
         and price_status["invalid_or_missing_count"] == 0
         and signal_status["signal_count"] > 0
@@ -5334,7 +6564,9 @@ def render_report(payloads: Mapping[str, Any], go_no_go: str) -> str:
         f"- website_board_status: `{summary.get('website_board_status')}`\n",
         f"- production_truth_status: `{summary.get('production_truth_status')}`\n\n",
         "## Safety\n\n",
-        "No live/canary enable, no order/test-order/cancel/modify, no leverage/margin mutation, no old Redis write, no legacy restart, no Redis trim.\n",
+        "No live/canary enable, no order/test-order/cancel/modify, no leverage/margin mutation, "
+        "no old Redis write, and no legacy restart. Guardian Redis history is only a bounded hot "
+        "cache; compaction is gated on prior durable archive coverage.\n",
     ]
     blockers = as_list(dashboard.get("blockers"))
     if blockers:
@@ -5385,5 +6617,21 @@ def write_outputs(paths: PublisherPaths, result: RunResult) -> RunResult:
             path = base / filename
             atomic_write_json(path, payload)
             written.append(path)
+    # runtime_truth consumes the established parity dashboard path.  Preserve
+    # its durable matrix/report fields while replacing only the current-cycle
+    # attestation after this publisher has re-read and re-parsed the sources.
+    parity_dashboard_path = paths.repo_root / (
+        "v2/frontend/public/"
+        "v2_native_hybrid_trainer_full_function_parity_and_paper_reverify/"
+        "latest/operator_dashboard_payload.json"
+    )
+    parity_dashboard = as_dict(read_json(parity_dashboard_path))
+    parity_dashboard["current_cycle_parity_evidence"] = as_dict(
+        result.payloads["unified_feature_parity_all_symbols_status.json"].get(
+            "current_cycle_parity_evidence"
+        )
+    )
+    atomic_write_json(parity_dashboard_path, parity_dashboard)
+    written.append(parity_dashboard_path)
     result.paths_written.extend(written)
     return result

@@ -15,22 +15,35 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder i
 )
 
 _NAMES = [n for n, _ in FEATURE_SPEC]
+DECISION_TIME = "2026-07-18T12:00:00Z"
+AVAILABLE_AT = "2026-07-18T11:59:59Z"
+
+
+def _causal(payload: dict) -> dict:
+    return {**payload, "available_at": AVAILABLE_AT}
 
 
 def _live_payloads() -> dict:
     """Payloads mimicking the LIVE prediction path (families read from Redis)."""
     return {
-        "fvg": {"fvg_size_bps": 42.0, "fvg_fill_percent": 0.25},
-        "vwap_features": {"vwap_slope": 0.5},
-        "cvd_features": {"cvd_slope": -1.5},
-        "market_structure": {"structure_trend_state": 1.0},
-        "features_ta_full": {"indicators": {"ta_ADX": 27.5, "rsi_14": 61.0}},
+        "fvg": _causal({"fvg_size_bps": 42.0, "fvg_fill_percent": 0.25}),
+        "vwap_features": _causal({"vwap_slope": 0.5}),
+        "cvd_features": _causal({"cvd_slope": -1.5}),
+        "market_structure": _causal({"structure_trend_state": 1.0}),
+        "features_ta_full": _causal(
+            {"indicators": {"ta_ADX": 27.5, "rsi_14": 61.0}}
+        ),
     }
 
 
 def test_tensor_view_round_trips_through_archive_features() -> None:
     b = V2UnifiedFeatureTensorBuilder()
-    live = b.build(symbol="BTCUSDT", timeframe="1m", payloads=_live_payloads())
+    live = b.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads=_live_payloads(),
+    )
 
     # What the publisher now archives: tensor view merged under trust-row features.
     tensor_view = {
@@ -44,15 +57,20 @@ def test_tensor_view_round_trips_through_archive_features() -> None:
     # dict as every payload; mimic the ones the extraction digs into.
     flat = dict(archived_features)
     replay_payloads = {
-        "features_latest": {"features": flat},
-        "fvg": flat,
-        "vwap_features": flat,
-        "cvd_features": flat,
-        "market_structure": flat,
-        "features_ta": {"indicators": flat},
-        "features_ta_full": {"features": flat},
+        "features_latest": _causal({"features": flat}),
+        "fvg": _causal(flat),
+        "vwap_features": _causal(flat),
+        "cvd_features": _causal(flat),
+        "market_structure": _causal(flat),
+        "features_ta": _causal({"indicators": flat}),
+        "features_ta_full": _causal({"features": flat}),
     }
-    replayed = b.build(symbol="BTCUSDT", timeframe="1m", payloads=replay_payloads)
+    replayed = b.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads=replay_payloads,
+    )
 
     for feature, expected in (
         ("fvg_size_bps", 42.0),
@@ -78,7 +96,12 @@ def test_publisher_merges_tensor_view_into_snapshot_features() -> None:
     )
 
     b = V2UnifiedFeatureTensorBuilder()
-    tensor = b.build(symbol="BTCUSDT", timeframe="1m", payloads=_live_payloads())
+    tensor = b.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads=_live_payloads(),
+    )
     example = TrainingExample(
         symbol="BTCUSDT",
         timeframe="1m",
@@ -102,6 +125,7 @@ def test_publisher_merges_tensor_view_into_snapshot_features() -> None:
             model_id="unit_model",
             masa_score=0.0,
             logits=(0.0,) * 7,
+            calibration={},
         )
 
     snapshot, _reasons = _trusted_replay_snapshot(

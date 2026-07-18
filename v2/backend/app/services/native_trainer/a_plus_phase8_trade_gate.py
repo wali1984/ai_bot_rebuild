@@ -1,3 +1,5 @@
+"""Synthetic A+ evaluator contract tests with no paper or runtime authority."""
+
 from __future__ import annotations
 
 import json
@@ -8,12 +10,41 @@ from typing import Any, Mapping
 
 from v2.backend.app.services.a_plus_trade_gate.service import CHECKS, evaluate_a_plus_candidate
 
-
 GOAL_ID = "V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
+EVIDENCE_SCOPE = "SYNTHETIC_CONTRACT_TEST_ONLY"
+CONTRACT_TEST_PASSED = "CONTRACT_TEST_PASSED_NON_RUNTIME"
+CONTRACT_TEST_FAILED = "CONTRACT_TEST_FAILED"
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _non_runtime_evidence_boundary(generated_utc: str) -> dict[str, Any]:
+    return {
+        "evidence_scope": EVIDENCE_SCOPE,
+        "contract_test_only": True,
+        "canonical_current_cycle_contract_consumed": False,
+        "canonical_current_cycle_contract_verified": False,
+        "canonical_runtime_ready": False,
+        "serving_authorized": False,
+        "a_plus_authorized": False,
+        "paper_authorized": False,
+        "live_authorized": False,
+        "live_execution_authorized": False,
+        "routes_to_paper": False,
+        "routes_to_live": False,
+        "paper_only": True,
+        "producer_clock_field": "generated_utc",
+        "artifact_generated_at": generated_utc,
+        "artifact_persistence": "OVERWRITTEN_NON_EXPIRING_JSON_SNAPSHOT",
+        "artifact_ttl_enforced": False,
+        "artifact_expires_at": None,
+        "artifact_freshness_authoritative": False,
+        "runtime_authority_block_reason": (
+            "SYNTHETIC_CANDIDATE_MATRIX_DOES_NOT_AUTHORIZE_A_PLUS_OR_RUNTIME"
+        ),
+    }
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -110,14 +141,20 @@ def _copy_candidate(candidate: Mapping[str, Any]) -> dict[str, Any]:
 def _evaluate(label: str, candidate: Mapping[str, Any]) -> dict[str, Any]:
     result = evaluate_a_plus_candidate(**candidate)
     return {
+        "evidence_scope": EVIDENCE_SCOPE,
+        "synthetic_fixture": True,
+        "eligible_as_runtime_candidate": False,
+        "canonical_a_plus_authorized": False,
+        "paper_authorized": False,
+        "live_authorized": False,
         "label": label,
         "symbol": result["symbol"],
         "timeframe": result["timeframe"],
         "side": result["side"],
         "strategy_id": result["strategy_id"],
-        "a_plus": result["a_plus"],
-        "paper_tradeable": result["paper_tradeable"],
-        "live_candidate_eligible": result["live_candidate_eligible"],
+        "contract_evaluator_a_plus": result["a_plus"],
+        "contract_evaluator_paper_tradeable": result["paper_tradeable"],
+        "contract_evaluator_live_candidate_eligible": result["live_candidate_eligible"],
         "failed_checks": result["failed_checks"],
         "missing_evidence_checks": result["missing_evidence_checks"],
         "passed_check_count": result["passed_check_count"],
@@ -233,10 +270,19 @@ def build_phase8_a_plus_gate_artifacts() -> dict[str, Any]:
     reject_counter: Counter[str] = Counter()
     for row in rejected:
         reject_counter.update(str(check) for check in row["failed_checks"])
-    no_non_a_plus_live = all(row["live_candidate_eligible"] is False for row in rejected)
-    rejection_proofs_passed = all(row["a_plus"] is False and row["expected_failed_check_present"] for row in rejected)
-    accepted_passed = accepted["a_plus"] is True and accepted["paper_tradeable"] is True
-    pass_conditions = {
+    no_non_a_plus_live = all(
+        row["contract_evaluator_live_candidate_eligible"] is False for row in rejected
+    )
+    rejection_proofs_passed = all(
+        row["contract_evaluator_a_plus"] is False
+        and row["expected_failed_check_present"]
+        for row in rejected
+    )
+    accepted_passed = (
+        accepted["contract_evaluator_a_plus"] is True
+        and accepted["contract_evaluator_paper_tradeable"] is True
+    )
+    contract_test_conditions = {
         "a_plus_candidate_positive_path_exists": accepted_passed,
         "all_required_checks_present": set(CHECKS) == set(accepted["checks"]),
         "all_required_checks_can_fail_closed": rejection_proofs_passed,
@@ -245,19 +291,26 @@ def build_phase8_a_plus_gate_artifacts() -> dict[str, Any]:
         "places_real_order_false": accepted["places_real_order"] is False and all(row["places_real_order"] is False for row in rejected),
         "writes_legacy_redis_false": accepted["writes_legacy_redis"] is False and all(row["writes_legacy_redis"] is False for row in rejected),
     }
+    contract_tests_passed = all(contract_test_conditions.values())
+    boundary = _non_runtime_evidence_boundary(now)
     status = {
-        "schema_version": "a_plus_trade_gate_status_v1",
+        "schema_version": "a_plus_trade_gate_contract_status_v2",
         "goal_id": GOAL_ID,
         "generated_utc": now,
-        "status": "A_PLUS_ZERO_TOLERANCE_GATE_READY" if all(pass_conditions.values()) else "A_PLUS_ZERO_TOLERANCE_GATE_BLOCKED",
+        **boundary,
+        "status": CONTRACT_TEST_PASSED if contract_tests_passed else CONTRACT_TEST_FAILED,
+        "contract_tests_passed": contract_tests_passed,
         "required_checks": list(CHECKS),
-        "accepted_candidate_count": 1 if accepted_passed else 0,
+        "synthetic_contract_acceptance_count": 1 if accepted_passed else 0,
+        "canonical_a_plus_candidate_count": 0,
         "rejected_case_count": len(rejected),
-        "pass_conditions": pass_conditions,
-        "gate_is_hard_entry_condition": True,
+        "contract_test_conditions": contract_test_conditions,
+        "production_gate_evaluated": False,
+        "contract_under_test": "evaluate_a_plus_candidate",
+        "contract_gate_semantics_fail_closed": True,
         "fail_closed": True,
-        "paper_tradeable_requires_a_plus": True,
-        "live_candidate_requires_a_plus": True,
+        "contract_paper_tradeable_requires_a_plus": True,
+        "contract_live_candidate_requires_a_plus": True,
         "live_gate": "blocked_human_only",
         "places_real_order": False,
         "test_order_submitted": False,
@@ -268,19 +321,22 @@ def build_phase8_a_plus_gate_artifacts() -> dict[str, Any]:
     return {
         "status": status,
         "candidate_matrix": {
-            "schema_version": "a_plus_candidate_matrix_v1",
+            "schema_version": "a_plus_synthetic_contract_candidate_matrix_v2",
             "goal_id": GOAL_ID,
             "generated_utc": now,
+            **boundary,
             "accepted_candidates": [accepted],
             "rejected_candidates": rejected,
+            "canonical_a_plus_candidate_count": 0,
             "live_gate": "blocked_human_only",
             "places_real_order": False,
             "writes_legacy_redis": False,
         },
         "rejected_reason_matrix": {
-            "schema_version": "a_plus_rejected_reason_matrix_v1",
+            "schema_version": "a_plus_synthetic_rejected_reason_matrix_v2",
             "goal_id": GOAL_ID,
             "generated_utc": now,
+            **boundary,
             "rejected_reason_counts": dict(sorted(reject_counter.items())),
             "rejected_case_count": len(rejected),
             "all_rejections_fail_closed": rejection_proofs_passed and no_non_a_plus_live,

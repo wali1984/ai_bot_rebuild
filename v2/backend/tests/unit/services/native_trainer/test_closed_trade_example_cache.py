@@ -8,14 +8,15 @@ while returning identical examples, and that the env kill-switch disables it.
 """
 from __future__ import annotations
 
-import importlib
-
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as dl
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     V2HybridTrainerDataLoader,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    build_archive_record,
 )
 
 from tests.unit.services.native_trainer.test_hybrid_trainer_feedback_labels import (
@@ -56,11 +57,48 @@ def _loader(io: _CountingIO) -> V2HybridTrainerDataLoader:
 
 
 def _payloads() -> dict[str, object]:
+    source_snapshot = _paper_exploration_snapshot()
+    feedback = _paper_exploration_feedback()
+    features = dict(source_snapshot["features"])
+    snapshot = build_archive_record(
+        snapshot_id=source_snapshot["feature_snapshot_id"],
+        symbol=source_snapshot["symbol"],
+        timeframe=source_snapshot["timeframe"],
+        feature_cutoff=source_snapshot["feature_cutoff"],
+        decision_time=feedback["decision_time"],
+        available_at=source_snapshot["available_at"],
+        mtf_snapshot_id=feedback["mtf_snapshot_id"],
+        features=features,
+        missing_mask={name: False for name in features},
+        stale_mask={name: False for name in features},
+        source_availability={name: True for name in features},
+        source_hashes={"features": "hash"},
+        created_at=source_snapshot["generated_at"],
+        extra={
+            "candle_close_time": source_snapshot["candle_close_time"],
+            "candle_closed_confirmed": source_snapshot[
+                "candle_closed_confirmed"
+            ],
+        },
+    )
+    snapshot_hash = snapshot["content_sha256"]
+    feedback.update(
+        {
+            "entry_feature_snapshot": snapshot,
+            "durable_feature_snapshot_archive_content_sha256": snapshot_hash,
+            "feature_snapshot_content_sha256": snapshot_hash,
+            "entry_feature_snapshot_content_sha256": snapshot_hash,
+            "source_hashes": {
+                "features": "hash",
+                "feature_snapshot_content_sha256": snapshot_hash,
+            },
+        }
+    )
     return {
         "v2:trainer:feedback:outcomes": [],
         "v2:trainer:feedback:counterfactuals": [],
-        SOURCE_KEY: [_paper_exploration_feedback()],
-        SNAPSHOT_KEY: _paper_exploration_snapshot(),
+        SOURCE_KEY: [feedback],
+        SNAPSHOT_KEY: snapshot,
     }
 
 
@@ -105,9 +143,9 @@ def test_changed_row_rebuilds_and_does_not_serve_stale(monkeypatch) -> None:
 
     _load(_CountingIO(_payloads()))
     # A row with a different realized outcome hashes differently -> rebuild.
-    changed = dict(_paper_exploration_feedback())
-    changed["realized_net_pnl_bps"] = 999.0
     payloads = _payloads()
+    changed = dict(payloads[SOURCE_KEY][0])
+    changed["realized_net_pnl_bps"] = 999.0
     payloads[SOURCE_KEY] = [changed]
     io = _CountingIO(payloads)
     _load(io)

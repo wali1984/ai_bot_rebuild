@@ -1,3 +1,5 @@
+"""Legacy execution-packet diagnostic with no runtime or order authority."""
+
 from __future__ import annotations
 
 import json
@@ -8,13 +10,43 @@ from typing import Any, Mapping
 
 from v2.backend.app.services.a_plus_trade_gate.service import A_PLUS_GATE_STATUS_REDIS_KEY
 
-
 GOAL_ID = "V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
 PAPER_INTENTS_REDIS_KEY = "v2:paper:intents"
+EVIDENCE_SCOPE = "LEGACY_NON_CANONICAL_DIAGNOSTIC"
+DIAGNOSTIC_PACKET_COMPLETE = (
+    "DIAGNOSTIC_PACKET_COMPLETE_CANONICAL_RUNTIME_CONTRACT_NOT_CONSUMED"
+)
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _non_runtime_evidence_boundary(generated_utc: str) -> dict[str, Any]:
+    return {
+        "evidence_scope": EVIDENCE_SCOPE,
+        "contract_test_only": False,
+        "canonical_current_cycle_contract_consumed": False,
+        "canonical_current_cycle_contract_verified": False,
+        "canonical_runtime_ready": False,
+        "serving_authorized": False,
+        "a_plus_authorized": False,
+        "paper_authorized": False,
+        "live_authorized": False,
+        "live_execution_authorized": False,
+        "routes_to_paper": False,
+        "routes_to_live": False,
+        "paper_only": True,
+        "producer_clock_field": "generated_utc",
+        "artifact_generated_at": generated_utc,
+        "artifact_persistence": "OVERWRITTEN_NON_EXPIRING_JSON_SNAPSHOT",
+        "artifact_ttl_enforced": False,
+        "artifact_expires_at": None,
+        "artifact_freshness_authoritative": False,
+        "runtime_authority_block_reason": (
+            "CANONICAL_IDENTITY_BOUND_CURRENT_CYCLE_RUNTIME_CONTRACT_NOT_CONSUMED"
+        ),
+    }
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -137,7 +169,11 @@ def _extract_candidate_fields(candidate: Mapping[str, Any]) -> dict[str, Any]:
     stop_distance_bps = _positive(_nested_first(candidate, "stop_distance_bps", "stop_loss_bps", "atr_stop_bps"))
     take_profit_bps = _positive(_nested_first(candidate, "take_profit_bps", "profit_target_bps"))
     stop_plan = {
-        "status": "READY" if stop_distance_bps is not None else "MISSING_STOP_DISTANCE",
+        "status": (
+            "DIAGNOSTIC_FIELDS_COMPLETE"
+            if stop_distance_bps is not None
+            else "MISSING_STOP_DISTANCE"
+        ),
         "stop_distance_bps": stop_distance_bps,
         "stop_loss_bps": _positive(_nested_first(candidate, "stop_loss_bps")),
         "stop_price": _positive(_nested_first(candidate, "stop_price", "stop_loss_price")),
@@ -145,7 +181,12 @@ def _extract_candidate_fields(candidate: Mapping[str, Any]) -> dict[str, Any]:
         "source": "runtime_candidate",
     }
     take_profit_reduce_plan = {
-        "status": "READY" if take_profit_bps is not None or _positive(_nested_first(candidate, "take_profit_price")) is not None else "MISSING_TAKE_PROFIT",
+        "status": (
+            "DIAGNOSTIC_FIELDS_COMPLETE"
+            if take_profit_bps is not None
+            or _positive(_nested_first(candidate, "take_profit_price")) is not None
+            else "MISSING_TAKE_PROFIT"
+        ),
         "take_profit_bps": take_profit_bps,
         "take_profit_price": _positive(_nested_first(candidate, "take_profit_price", "take_profit_reference")),
         "take_profit_structure": _first_present(_nested_first(candidate, "take_profit_structure")),
@@ -186,20 +227,25 @@ def _missing_required_fields(fields: Mapping[str, Any]) -> list[str]:
             missing.append(name)
     if _as_mapping(fields.get("liquidation_buffer")).get("liquidation_buffer_bps") is None:
         missing.append("liquidation_buffer.liquidation_buffer_bps")
-    if _as_mapping(fields.get("stop_plan")).get("status") != "READY":
+    if _as_mapping(fields.get("stop_plan")).get("status") != "DIAGNOSTIC_FIELDS_COMPLETE":
         missing.append("stop_plan")
-    if _as_mapping(fields.get("take_profit_reduce_plan")).get("status") != "READY":
+    if (
+        _as_mapping(fields.get("take_profit_reduce_plan")).get("status")
+        != "DIAGNOSTIC_FIELDS_COMPLETE"
+    ):
         missing.append("take_profit_reduce_plan")
     return missing
 
 
 def _base_packet(now: str) -> dict[str, Any]:
     return {
-        "schema_version": "real_trader_one_flip_readiness_packet_v2",
+        "schema_version": "legacy_execution_packet_diagnostic_v3",
         "goal_id": GOAL_ID,
         "generated_utc": now,
+        **_non_runtime_evidence_boundary(now),
         "live_gate": "blocked_human_only",
         "operator_flip_required": True,
+        "operator_flip_sufficient": False,
         "selected_A_plus_candidate": None,
         "selected_A_plus_candidate_source": None,
         "symbol": None,
@@ -227,9 +273,12 @@ def _base_packet(now: str) -> dict[str, Any]:
             "orders_must_be_reduce_only": True,
         },
         "why_allowed": [],
-        "why_blocked_until_operator_flip": [
+        "diagnostic_observations": [],
+        "why_not_authorized": [
+            "canonical identity-bound current-cycle runtime contract is not consumed",
+            "legacy A+ status and paper intents are diagnostic inputs only",
             "live_gate is blocked_human_only",
-            "operator must explicitly enable the transport submit gate",
+            "operator flip alone is insufficient to authorize execution",
             "agents may not submit real or test orders",
             "agents may not mutate exchange leverage or margin mode",
         ],
@@ -256,6 +305,8 @@ def build_phase9_one_flip_readiness_packet(
     packet["runtime_a_plus_gate_status"] = {
         "source_key": A_PLUS_GATE_STATUS_REDIS_KEY,
         "available": isinstance(runtime_status, Mapping),
+        "source_contract_authoritative": False,
+        "canonical_current_cycle_contract_consumed": False,
         "generated_utc": runtime_status.get("generated_utc") if isinstance(runtime_status, Mapping) else None,
         "evaluated_candidates": runtime_status.get("evaluated_candidates") if isinstance(runtime_status, Mapping) else None,
         "a_plus_candidates": runtime_status.get("a_plus_candidates") if isinstance(runtime_status, Mapping) else None,
@@ -267,6 +318,12 @@ def build_phase9_one_flip_readiness_packet(
         synthetic_count = len(accepted) if isinstance(accepted, list) else 0
     packet["phase8_synthetic_candidate_reference"] = {
         "available": isinstance(phase8_candidate_matrix, Mapping),
+        "evidence_scope": (
+            phase8_candidate_matrix.get("evidence_scope")
+            if isinstance(phase8_candidate_matrix, Mapping)
+            else None
+        ),
+        "contract_test_only": True,
         "accepted_candidate_count": synthetic_count,
         "used_as_real_live_candidate": False,
     }
@@ -296,7 +353,9 @@ def build_phase9_one_flip_readiness_packet(
                 status_row.get("strategy_id"),
             ),
             "bucket_key": status_row.get("bucket_key"),
-            "a_plus": True,
+            "legacy_gate_a_plus_observation": True,
+            "canonical_a_plus_authorized": False,
+            "eligible_as_runtime_candidate": False,
             "failed_checks": list(status_row.get("failed_checks") or []),
             "missing_evidence_checks": list(status_row.get("missing_evidence_checks") or []),
             "passed_check_count": status_row.get("passed_check_count"),
@@ -308,18 +367,19 @@ def build_phase9_one_flip_readiness_packet(
             packet["status"] = "BLOCKED_A_PLUS_CANDIDATE_MISSING_EXECUTION_SIZING_OR_EXIT_PLAN"
             packet["why_no_candidate"] = None
         else:
-            packet["status"] = "ONE_FLIP_PACKET_READY_OPERATOR_BLOCKED"
-            packet["why_allowed"] = [
-                "runtime candidate passed all A+ gate checks",
-                "execution sizing fields are present",
-                "stop and take-profit/reduce plans are present",
-                "live transport remains operator-blocked",
+            packet["status"] = DIAGNOSTIC_PACKET_COMPLETE
+            packet["diagnostic_observations"] = [
+                "legacy runtime candidate reports all A+ gate checks passed",
+                "diagnostic execution sizing fields are present",
+                "diagnostic stop and take-profit/reduce plans are present",
             ]
             packet["why_no_candidate"] = None
 
-    packet["pass_conditions"] = {
-        "current_runtime_a_plus_candidate_present": bool(runtime_rows),
-        "selected_candidate_is_real_runtime_a_plus": packet["selected_A_plus_candidate_source"]
+    packet["diagnostic_conditions"] = {
+        "legacy_runtime_a_plus_candidate_observed": bool(runtime_rows),
+        "selected_candidate_matches_legacy_runtime_a_plus_observation": packet[
+            "selected_A_plus_candidate_source"
+        ]
         in {A_PLUS_GATE_STATUS_REDIS_KEY, PAPER_INTENTS_REDIS_KEY},
         "phase8_synthetic_not_used_as_live_candidate": packet["phase8_synthetic_candidate_reference"][
             "used_as_real_live_candidate"
@@ -327,6 +387,16 @@ def build_phase9_one_flip_readiness_packet(
         is False,
         "execution_and_exit_fields_complete": not packet.get("missing_required_fields"),
         "operator_flip_required": packet["operator_flip_required"] is True,
+        "operator_flip_sufficient_false": packet["operator_flip_sufficient"] is False,
+        "canonical_current_cycle_contract_consumed_false": packet[
+            "canonical_current_cycle_contract_consumed"
+        ]
+        is False,
+        "canonical_runtime_ready_false": packet["canonical_runtime_ready"] is False,
+        "serving_authorized_false": packet["serving_authorized"] is False,
+        "a_plus_authorized_false": packet["a_plus_authorized"] is False,
+        "paper_authorized_false": packet["paper_authorized"] is False,
+        "live_authorized_false": packet["live_authorized"] is False,
         "live_gate_blocked_human_only": packet["live_gate"] == "blocked_human_only",
         "order_submitted_false": packet["order_submitted"] is False,
         "test_order_submitted_false": packet["test_order_submitted"] is False,

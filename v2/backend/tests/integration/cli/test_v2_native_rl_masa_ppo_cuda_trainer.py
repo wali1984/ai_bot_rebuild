@@ -1,7 +1,6 @@
 """Integration tests for V2 native RL/MASA/PPO CUDA trainer package."""
 from __future__ import annotations
 
-import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -18,10 +17,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint impor
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
     ACTION_LABELS,
     LIVE_GATE_BLOCKED,
-    PAPER_SIGNAL_TIMEFRAME_KEY_TEMPLATE,
-    RISK_DECISIONS_KEY,
     TRAINER_SOURCE,
-    TRAINER_CORE_PAPER_SHADOW_GO_NO_GO,
     HybridTrainerConfig,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
@@ -34,7 +30,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
     V2HybridPolicyModel,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.publisher import (
-    is_publishable,
     native_risk_decision_from_orchestrator,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
@@ -44,6 +39,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import (
     V2OnlyJsonIO,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    build_archive_record,
 )
 
 REPO = Path(__file__).resolve().parents[5]
@@ -176,6 +174,7 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
     decision_time = "2026-06-11T12:05:00Z"
     generated_at = "2026-06-11T12:05:00Z"
     available_at = "2026-06-11T12:04:59Z"
+    causal_source_clock = {"available_at": available_at}
     candle_open_time = "2026-06-11T12:04:00Z"
     candle_close_time = "2026-06-11T12:04:00Z"
     base_close_times = {
@@ -260,9 +259,36 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
             feature_snapshot = json.loads(client.store[f"v2:features:latest:{symbol}:{tf}"])
             feature_snapshot["symbol"] = symbol
             feature_snapshot["timeframe"] = tf
+            archived_feature_snapshot = build_archive_record(
+                snapshot_id=feature_snapshot["feature_snapshot_id"],
+                symbol=symbol,
+                timeframe=tf,
+                feature_cutoff=feature_snapshot["feature_cutoff"],
+                decision_time=feature_snapshot["decision_time"],
+                available_at=feature_snapshot["available_at"],
+                mtf_snapshot_id=f"mtf_{symbol}_{tf}",
+                features=dict(feature_snapshot["features"]),
+                missing_mask={
+                    name: False for name in feature_snapshot["features"]
+                },
+                stale_mask={
+                    name: False for name in feature_snapshot["features"]
+                },
+                source_availability={
+                    name: True for name in feature_snapshot["features"]
+                },
+                source_hashes={"feature_vector_hash": f"hash_{symbol}_{tf}"},
+                created_at=feature_snapshot["generated_at"],
+                extra={
+                    "candle_open_time": feature_snapshot["candle_open_time"],
+                    "candle_close_time": feature_snapshot["candle_close_time"],
+                    "candle_closed_confirmed": True,
+                    "feature_freshness_state": "CURRENT",
+                },
+            )
             client.set(
                 f"v2:features:snapshot:{feature_snapshot['feature_snapshot_id']}",
-                json.dumps(feature_snapshot),
+                json.dumps(archived_feature_snapshot),
             )
 
             client.set(
@@ -314,6 +340,7 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                 f"v2:market:long_short:{symbol}",
                 json.dumps(
                     {
+                        **causal_source_clock,
                         "long_short_ratio": 1.5,
                         "long_account_ratio": 0.6,
                         "short_account_ratio": 0.4,
@@ -350,6 +377,7 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                 f"v2:altdata:public_intel:symbol:{symbol}",
                 json.dumps(
                     {
+                        **causal_source_clock,
                         "score": 0.5,
                         "public_intel_score": 0.5,
                         "defillama_score": 0.48,
@@ -368,6 +396,7 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                 f"v2:altdata:whale_walls:symbol:{symbol}",
                 json.dumps(
                     {
+                        **causal_source_clock,
                         "whale_wall_score": 0.8,
                         "whale_bid_pressure_score": 0.85,
                         "whale_ask_pressure_score": 0.22,
@@ -386,6 +415,7 @@ def _seed(client: _MemoryClient, *, symbols=("BTCUSDT",), timeframes=("1m",)) ->
                 f"v2:altdata:symbol_score:{symbol}",
                 json.dumps(
                     {
+                        **causal_source_clock,
                         "altdata_symbol_score": 0.5,
                         "provider_availability_score": 1.0,
                         "altdata_freshness_score": 1.0,
@@ -610,6 +640,27 @@ def _trainer_feedback_row(
     }
 
 
+def _bind_feedback_to_snapshot(
+    client: _MemoryClient,
+    row: dict[str, object],
+) -> dict[str, object]:
+    snapshot_id = str(row["entry_feature_snapshot_id"])
+    snapshot = json.loads(client.store[f"v2:features:snapshot:{snapshot_id}"])
+    snapshot_hash = str(snapshot["content_sha256"])
+    bound = dict(row)
+    source_hashes = dict(bound.get("source_hashes") or {})
+    source_hashes["feature_snapshot_content_sha256"] = snapshot_hash
+    bound.update(
+        {
+            "durable_feature_snapshot_archive_content_sha256": snapshot_hash,
+            "feature_snapshot_content_sha256": snapshot_hash,
+            "entry_feature_snapshot_content_sha256": snapshot_hash,
+            "source_hashes": source_hashes,
+        }
+    )
+    return bound
+
+
 def _seed_trainer_feedback(
     client: _MemoryClient,
     *,
@@ -619,12 +670,19 @@ def _seed_trainer_feedback(
 ) -> None:
     client.set(
         "v2:trainer:feedback:outcomes",
-        json.dumps([_trainer_feedback_row(symbol=symbol, timeframe=timeframe, realized_pnl_bps=realized_pnl_bps)]),
+        json.dumps(
+            [
+                _bind_feedback_to_snapshot(
+                    client,
+                    _trainer_feedback_row(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        realized_pnl_bps=realized_pnl_bps,
+                    ),
+                )
+            ]
+        ),
     )
-
-
-def _sha256_file(path: str) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def test_native_trainer_saves_and_loads_npz_weight_blob(tmp_path: Path) -> None:
@@ -720,6 +778,7 @@ def test_tensor_loader_reads_symbol_scoped_liquidity_zone_keys() -> None:
         "v2:market:liquidity_zones:BTCUSDT",
         json.dumps(
             {
+                "available_at": "2026-06-11T12:04:59Z",
                 "liquidity_zone_above": 105.0,
                 "liquidity_zone_below": 95.0,
                 "distance_to_liquidity_zone_bps": 250.0,
@@ -772,7 +831,9 @@ def test_model_forward_emits_masa_ppo_heads_and_cuda_truth() -> None:
         assert out.device.startswith("cuda")
 
 
-def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> None:
+def test_runtime_blocks_unverified_model_and_writes_honest_artifacts(
+    tmp_path: Path,
+) -> None:
     client = _MemoryClient()
     _seed(client, symbols=("BTCUSDT", "ETHUSDT"), timeframes=("1m",))
     model_dir = Path(".local_models/test_hybrid_cuda_pytest")
@@ -790,9 +851,9 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
         publish=True,
         trusted_replay_archive_root=tmp_path / "empty_archive",
     )
-    assert result.go_no_go == TRAINER_CORE_PAPER_SHADOW_GO_NO_GO
-    assert len(result.predictions) == 2
-    assert len(result.lineages) == 2
+    assert result.go_no_go == "V2_NATIVE_RL_MASA_PPO_CUDA_TRAINER_BLOCKED"
+    assert result.predictions == []
+    assert result.lineages == []
     assert (
         result.status["legacy_hybrid_parity_claim"]
         == "V2_FULL_FUNCTION_PARITY_BY_NATIVE_TRAINER_AND_V2_RUNTIME_OWNERSHIP"
@@ -805,42 +866,17 @@ def test_runtime_publishes_predictions_lineage_and_artifacts(tmp_path: Path) -> 
     assert result.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
     assert result.metrics["training"]["metrics"]["selected_examples"] == 0
     assert result.metrics["training"]["metrics"]["learning_update_lane"] == "blocked"
+    assert result.status["runtime_readiness_status"] == "BLOCKED"
+    assert result.status["trainer_learning_ready"] is False
+    assert result.status["runtime_readiness_blockers"]
+    assert result.status["prediction_publication_status"] == (
+        "SUPPRESSED_REJECTED_CANDIDATE_NO_VERIFIED_RESTORE"
+    )
+    assert result.status["status_publication_status"] == "FAILED"
     assert result.metrics["parallel_environment_rollout"]["covers_all_loaded_examples"] is True
     assert result.metrics["parallel_environment_rollout"]["envs_instantiated"] == 2
-    for payload in result.predictions:
-        assert payload["trainer_source"] == TRAINER_SOURCE
-        assert payload["live_gate"] == LIVE_GATE_BLOCKED
-        assert payload["live_symbols"] == []
-        assert payload["signal_id"] == "sig_" + payload["prediction_id"]
-        assert payload["generated_utc"].endswith("Z")
-        assert payload["generated_at"] == payload["generated_utc"]
-        assert payload["decision_time"] == payload["generated_utc"]
-        assert payload["available_at"] == "2026-06-11T12:04:59Z"
-        assert payload["feature_decision_time"] == "2026-06-11T12:05:00Z"
-        assert payload["model_version"] == payload["model_source"]
-        assert payload["source_hashes"]["feature_vector_hash"] == payload["feature_vector_hash"]
-        assert payload["entry_feature_snapshot_id"] == payload["feature_snapshot_id"]
-        assert payload["entry_feature_snapshot"]["features"]["orderbook_depth_usd"] == 500000.0
-        assert payload["liquidity_context"]["source"] == "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
-        assert payload["liquidation_context"]["source"] == "V2_HYBRID_CUDA_TRAINER_ENTRY_FEATURES"
-        assert payload["liquidation_context"]["liquidation_strength"] == 0.4
-        assert payload["microstructure_context"]["depth_imbalance"] == 0.15
-        assert payload["oi_funding_context"]["long_short_ratio"] == 1.5
-        assert payload["public_intel_context"]["news_attention_score"] == 0.33
-        assert payload["liquidation_engine_context_status"] == "LIQUIDATION_ENGINE_CONTEXT_READY"
-        assert payload["premium_ingestor_context_status"] == "PREMIUM_CONTEXT_READY"
-        assert payload["premium_ingestor_missing_contexts"] == []
-        assert is_publishable(payload)
-    assert "v2:prediction:BTCUSDT:1m" in client.store
-    assert f"v2:replay:snapshots:{result.predictions[0]['prediction_id']}" in client.store
-    assert RISK_DECISIONS_KEY in client.store
-    signal_key = PAPER_SIGNAL_TIMEFRAME_KEY_TEMPLATE.format(symbol="BTCUSDT", timeframe="1m")
-    assert signal_key in client.store
-    per_tf_signal = json.loads(client.store[signal_key])
-    assert per_tf_signal["prediction_id"] == result.predictions[0]["prediction_id"]
-    assert per_tf_signal["signal_id"] == result.predictions[0]["signal_id"]
-    assert per_tf_signal["paper_intent_id"].startswith("pei_")
-    assert per_tf_signal["paper_ledger_id"].startswith("pt_")
+    assert result.status["model_serving_allowed"] is False
+    assert "v2:prediction:BTCUSDT:1m" not in client.store
     assert result.metrics["cuda_cpu_resource_utilization"]["actual_batch_size"] == 4
     written = write_runtime_artifacts(paths=default_paths(tmp_path), result=result)
     required = {
@@ -909,7 +945,7 @@ def test_runtime_reports_quarantined_feedback_rejection_counts(tmp_path: Path) -
     }
 
 
-def test_runtime_publishes_blocked_prediction_without_replay_snapshot_write() -> None:
+def test_runtime_suppresses_unverified_blocked_prediction_and_replay_snapshot() -> None:
     client = _MemoryClient()
     _seed(client, symbols=("BTCUSDT",), timeframes=("1m",))
     for key in list(client.store):
@@ -927,21 +963,15 @@ def test_runtime_publishes_blocked_prediction_without_replay_snapshot_write() ->
 
     result = run_hybrid_trainer_cycle(config=config, io=V2OnlyJsonIO(client=client), publish=True)
 
-    assert len(result.predictions) == 1
-    payload = result.predictions[0]
-    assert payload["replay_snapshot_ready"] is False
-    assert payload["paper_fill_allowed"] is False
-    assert payload["routes_to_orchestrator"] is False
-    assert "replay_snapshot:ALL_TIMEFRAME_CANDLE_TIMESTAMPS_MISSING" in payload["paper_fill_gate_block_reasons"]
+    assert result.predictions == []
+    assert result.lineages == []
+    assert result.status["prediction_suppressed_count"] == 1
+    assert result.status["prediction_publication_status"] == (
+        "SUPPRESSED_REJECTED_CANDIDATE_NO_VERIFIED_RESTORE"
+    )
     prediction_key = "v2:prediction:BTCUSDT:1m"
-    assert prediction_key in client.store
-    published = json.loads(client.store[prediction_key])
-    assert published["generated_utc"].endswith("Z")
-    assert published["generated_at"] == published["generated_utc"]
-    assert published["signal_id"] == payload["signal_id"]
-    assert published["model_version"] == published["model_source"]
-    assert published["source_hashes"]["feature_vector_hash"] == published["feature_vector_hash"]
-    assert f"v2:replay:snapshots:{payload['prediction_id']}" not in client.store
+    assert prediction_key not in client.store
+    assert not any(key.startswith("v2:replay:snapshots:") for key in client.store)
     shutil.rmtree(model_dir, ignore_errors=True)
 
 
@@ -979,8 +1009,10 @@ def test_runtime_replay_buffer_waits_for_closed_trade_feedback(tmp_path: Path) -
     assert second.metrics["training"]["metrics"]["selected_examples"] == 0
     assert first.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
     assert second.metrics["training"]["metrics"]["trusted_rows_loaded"] == 0
-    assert len(first.predictions) == 2
-    assert len(second.predictions) == 2
+    assert first.predictions == []
+    assert second.predictions == []
+    assert first.status["prediction_suppressed_count"] == 2
+    assert second.status["prediction_suppressed_count"] == 2
     assert second.status["replay_buffer_size"] == 0
     assert second.status["prediction_examples_built"] == 2
     assert len(replay_buffer) == 0
@@ -1002,7 +1034,9 @@ def test_feedback_row_changes_training_batch() -> None:
     assert with_feedback.trust_row["learning_mode"] == "outcome_supervised"
 
 
-def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
+def test_feedback_optimizer_update_is_not_promoted_without_pit_validation_split(
+    tmp_path: Path,
+) -> None:
     client = _MemoryClient()
     # Alternate long/short/long/short/long so that dropping ANY 1 row still leaves
     # mixed direction in the 3-row training split.  With validation_fraction=0.2:
@@ -1014,11 +1048,11 @@ def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
         "v2:trainer:feedback:outcomes",
         json.dumps(
             [
-                _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=55.0),
-                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=-50.0),
-                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=60.0),
-                _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=-45.0),
-                _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=40.0),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=55.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=-50.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=60.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=-45.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=40.0)),
             ]
         ),
     )
@@ -1038,19 +1072,32 @@ def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
         publish=False,
         trusted_replay_archive_root=tmp_path / "empty_archive",
     )
-    first_weight_path = first.metrics["checkpoint"]["weight_file_path"]
-    first_hash = _sha256_file(first_weight_path)
+    first_training = first.metrics["training"]["metrics"]
+    assert first_training["optimizer_steps_this_cycle"] == 2
+    assert first_training["parameter_hash_before"] != first_training[
+        "parameter_hash_after"
+    ]
+    assert first_training["weight_delta_norm"] > 0.0
+    assert first_training["validation_split_reason"] == (
+        "DISTINCT_CHRONOLOGICAL_BOUNDARY_UNAVAILABLE"
+    )
+    assert first.metrics["checkpoint"]["weight_blob_written"] is False
+    assert first.metrics["checkpoint"]["weight_file_path"] is None
+    assert first.metrics["checkpoint_promotion"]["checkpoint_promotion_allowed"] is False
+    assert "SERVING_VALIDATION_SPLIT_PIT_UNSAFE" in first.metrics[
+        "checkpoint_promotion"
+    ]["checkpoint_promotion_rejection_reasons"]
 
     # Cycle 2: invert all signs so the gradient direction flips.
     client.set(
         "v2:trainer:feedback:outcomes",
         json.dumps(
             [
-                _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=-55.0),
-                _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=50.0),
-                _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=-60.0),
-                _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=45.0),
-                _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=-40.0),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="BTCUSDT", timeframe="1m", realized_pnl_bps=-55.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="ETHUSDT", timeframe="1m", realized_pnl_bps=50.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="SOLUSDT", timeframe="1m", realized_pnl_bps=-60.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="BNBUSDT", timeframe="1m", realized_pnl_bps=45.0)),
+                _bind_feedback_to_snapshot(client, _trainer_feedback_row(symbol="XRPUSDT", timeframe="1m", realized_pnl_bps=-40.0)),
             ]
         ),
     )
@@ -1060,20 +1107,17 @@ def test_checkpoint_updates_after_feedback(tmp_path: Path) -> None:
         publish=False,
         trusted_replay_archive_root=tmp_path / "empty_archive",
     )
-    second_weight_path = second.metrics["checkpoint"]["weight_file_path"]
+    second_training = second.metrics["training"]["metrics"]
 
-    # Allow ≥3 in case up to 2 examples fail to load (the alternating pattern ensures
-    # any 3 of 5 rows still cover mixed direction in the training split).
-    assert first.metrics["training"]["metrics"]["selected_examples"] >= 3
-    assert second.metrics["training"]["metrics"]["selected_examples"] >= 3
-    assert first.metrics["training"]["metrics"]["policy_action_single_direction_guard_active"] is False
-    assert second.metrics["training"]["metrics"]["policy_action_single_direction_guard_active"] is False
-    assert first.metrics["training"]["metrics"]["policy_action_supervision_strategy"] == "raw_action_labels"
-    assert second.metrics["training"]["metrics"]["policy_action_supervision_strategy"] == "raw_action_labels"
-    assert first.metrics["training"]["metrics"]["expected_move_single_direction_guard_active"] is False
-    assert second.metrics["training"]["metrics"]["expected_move_single_direction_guard_active"] is False
-    assert second.metrics["checkpoint_load"]["model_state_restored"] is True
-    assert _sha256_file(second_weight_path) != first_hash
+    for training in (first_training, second_training):
+        assert training["selected_examples"] == 5
+        assert training["policy_action_single_direction_guard_active"] is False
+        assert training["policy_action_supervision_strategy"] == "raw_action_labels"
+        assert training["expected_move_single_direction_guard_active"] is False
+        assert training["optimizer_steps_this_cycle"] == 2
+    assert second.metrics["checkpoint_load"]["model_state_restored"] is False
+    assert second.metrics["checkpoint"]["weight_blob_written"] is False
+    assert second.metrics["checkpoint_promotion"]["checkpoint_promotion_allowed"] is False
 
 
 def test_single_direction_feedback_does_not_force_prediction_after_guard(tmp_path: Path) -> None:
@@ -1121,12 +1165,9 @@ def test_single_direction_feedback_does_not_force_prediction_after_guard(tmp_pat
         assert training_metrics["expected_move_single_direction_guard_active"] is True
         assert training_metrics["expected_move_labels_neutralized_count"] == 1
         assert training_metrics["expected_move_training_target_mean_bps"] == 0.0
-        assert result.predictions[0]["confidence_source"] == "REAL_MODEL"
-        assert result.predictions[0]["selected_action"] in ACTION_LABELS
-    assert positive.predictions[0]["selected_action"] == negative.predictions[0]["selected_action"]
-    assert positive.predictions[0]["expected_move_after_cost_bps"] == pytest.approx(
-        negative.predictions[0]["expected_move_after_cost_bps"]
-    )
+        assert result.predictions == []
+        assert result.status["prediction_suppressed_count"] == 1
+        assert result.status["model_serving_allowed"] is False
 
 
 def test_v2_only_io_rejects_old_redis_write() -> None:

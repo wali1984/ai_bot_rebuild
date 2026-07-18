@@ -27,6 +27,10 @@ ACTION_INDEX = {label: i for i, label in enumerate(ACTION_LABELS)}
 ACTION_COUNT = len(ACTION_LABELS)
 
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+# Legacy observability baselines.  The ordinary native trainer PAPER lane emits
+# these values for compatibility/diagnostics only; they do not authorize a fill,
+# orchestrator handoff, or risk handoff.  Immutable PIT/trust/accounting facts
+# remain fail-closed and finite positive evidence is weighted continuously.
 DEFAULT_MIN_DATA_COVERAGE_PERCENT = 70.0
 DEFAULT_MIN_CONFIDENCE_CALIBRATED = 0.55
 DEFAULT_MIN_EDGE_AFTER_COST_BPS = 4.0
@@ -35,6 +39,7 @@ DEFAULT_BATCH_SIZE = 32768
 DEFAULT_ROLLOUT_N_STEPS = 512
 DEFAULT_ROLLOUT_MAX_ENVS = 256
 DEFAULT_PARALLEL_ENV_WORKERS = 32
+DEFAULT_EXPECTED_CYCLE_CADENCE_SECONDS = 60
 
 REDIS_HEARTBEAT_KEY = "v2:trainer:hybrid_cuda:heartbeat"
 REDIS_STATUS_KEY = "v2:trainer:hybrid_cuda:status"
@@ -98,6 +103,7 @@ class HybridTrainerConfig:
     symbols: tuple[str, ...] = field(default_factory=lambda: tuple(resolve_symbols()))
     timeframes: tuple[str, ...] = DEFAULT_TIMEFRAMES
     model_dir: Path = Path(".local_models/v2_native_rl_masa_ppo")
+    # Compatibility telemetry only for the native PAPER proposal lane.
     min_data_coverage_percent: float = DEFAULT_MIN_DATA_COVERAGE_PERCENT
     min_confidence_calibrated: float = DEFAULT_MIN_CONFIDENCE_CALIBRATED
     min_edge_after_cost_bps: float = DEFAULT_MIN_EDGE_AFTER_COST_BPS
@@ -111,12 +117,15 @@ class HybridTrainerConfig:
     rollout_n_steps: int = DEFAULT_ROLLOUT_N_STEPS
     rollout_max_envs: int = DEFAULT_ROLLOUT_MAX_ENVS
     parallel_env_workers: int = DEFAULT_PARALLEL_ENV_WORKERS
+    expected_cycle_cadence_seconds: int = DEFAULT_EXPECTED_CYCLE_CADENCE_SECONDS
     allow_weight_artifact_write: bool = True
     risk_caps_configured: bool = False
     live_gate: str = LIVE_GATE_BLOCKED
     live_symbols: tuple[str, ...] = field(default_factory=tuple)
 
     def validate_safety(self) -> None:
+        if self.expected_cycle_cadence_seconds <= 0:
+            raise ValueError("expected_cycle_cadence_seconds must be positive")
         if self.live_gate != LIVE_GATE_BLOCKED:
             raise ValueError("live_gate must stay blocked_human_only")
         if self.live_symbols:

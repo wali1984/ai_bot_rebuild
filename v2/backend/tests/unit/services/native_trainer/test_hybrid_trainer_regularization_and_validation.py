@@ -10,6 +10,10 @@ These lock in the three edge-recovery changes:
 """
 from __future__ import annotations
 
+import math
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
@@ -18,6 +22,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
     ENV_PPO_LEARNING_RATE_MAX,
     V2HybridPPOTrainer,
     overfit_gap_threshold,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_state import (
+    candidate_progress_decision,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FeatureTensorRecord
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import TrainingExample
@@ -43,7 +50,13 @@ def _tensor(index: int, value: float | None = None) -> FeatureTensorRecord:
     )
 
 
-def _example(index: int, action_index: int, *, expected: float | None = None) -> TrainingExample:
+def _example(
+    index: int,
+    action_index: int,
+    *,
+    expected: float | None = None,
+    decision_time: str = "2026-06-19T00:01:00Z",
+) -> TrainingExample:
     expected_bps = (
         float(expected)
         if expected is not None
@@ -81,8 +94,8 @@ def _example(index: int, action_index: int, *, expected: float | None = None) ->
             "decision_cutoff": "2026-06-19T00:00:00Z",
             "available_at": "2026-06-19T00:00:00Z",
             "source_available_time": "2026-06-19T00:00:00Z",
-            "decision_time": "2026-06-19T00:01:00Z",
-            "decision_time_est": "2026-06-19T00:01:00Z",
+            "decision_time": decision_time,
+            "decision_time_est": decision_time,
             "features": {"ret_pct": 0.0},
             "selected_action": selected_action,
             "model_version": "unit_model_v1",
@@ -114,9 +127,13 @@ def _example(index: int, action_index: int, *, expected: float | None = None) ->
 
 def _mixed_rows(n: int) -> list[TrainingExample]:
     rows: list[TrainingExample] = []
+    base = datetime(2026, 6, 19, 0, 1, tzinfo=timezone.utc)
     for i in range(n):
         action = (1, 2, 0)[i % 3]
-        rows.append(_example(i, action))
+        decision_time = (base + timedelta(minutes=10 * i)).isoformat(
+            timespec="seconds"
+        ).replace("+00:00", "Z")
+        rows.append(_example(i, action, decision_time=decision_time))
     return rows
 
 
@@ -223,6 +240,236 @@ def test_validation_split_is_evaluated_out_of_sample() -> None:
     assert isinstance(result.metrics["validation_supervised_loss_before"], float)
     assert isinstance(result.metrics["validation_loss_delta"], float)
     assert isinstance(result.metrics["validation_improved"], bool)
+    assert result.metrics["validation_split_pit_safe"] is True
+    assert result.metrics["validation_policy_edge_status"] == "VALID"
+    assert result.metrics["validation_policy_edge_evidence_valid"] is True
+    assert result.metrics["validation_policy_edge_rows_evaluated"] == result.validation_rows
+    assert isinstance(
+        result.metrics["validation_policy_edge_lower_confidence_bound_bps"],
+        float,
+    )
+
+
+def test_validation_tensor_nonfinite_fails_closed_without_fabricated_metrics() -> None:
+    row = _example(1, 1, expected=12.0)
+    invalid = replace(row, tensor=_tensor(1, value=math.nan))
+    model = V2HybridPolicyModel(input_dim=len(row.tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+    trainer = V2HybridPPOTrainer(model=model)
+
+    supervised = trainer._validation_supervised_loss([invalid])  # noqa: SLF001
+    policy_edge = trainer._validation_policy_edge([invalid])  # noqa: SLF001
+
+    assert supervised["validation_supervised_loss_status"] == (
+        "NONFINITE_VALIDATION_SUPERVISED_INPUT"
+    )
+    assert supervised["validation_supervised_loss"] is None
+    assert supervised["validation_supervised_nonfinite_input_value_count"] == 1
+    assert policy_edge["validation_policy_edge_status"] == (
+        "NONFINITE_VALIDATION_POLICY_EDGE_INPUT"
+    )
+    assert policy_edge["validation_policy_edge_evidence_valid"] is False
+    assert policy_edge["validation_policy_edge_after_cost_bps"] is None
+    assert policy_edge["validation_policy_edge_nonfinite_input_value_count"] == 1
+
+
+def test_validation_label_nonfinite_fails_closed_without_fabricated_loss() -> None:
+    row = _example(1, 1, expected=12.0)
+    invalid = replace(
+        row,
+        label_expected_move_after_cost_bps=math.nan,
+    )
+    model = V2HybridPolicyModel(input_dim=len(row.tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+    trainer = V2HybridPPOTrainer(model=model)
+
+    supervised = trainer._validation_supervised_loss([invalid])  # noqa: SLF001
+    policy_edge = trainer._validation_policy_edge([invalid])  # noqa: SLF001
+
+    assert supervised["validation_supervised_loss_status"] == (
+        "NONFINITE_VALIDATION_SUPERVISED_LABEL"
+    )
+    assert supervised["validation_supervised_loss"] is None
+    assert supervised["validation_supervised_nonfinite_label_value_count"] == 1
+    assert policy_edge["validation_policy_edge_status"] == (
+        "NONFINITE_AFTER_COST_LABEL"
+    )
+    assert policy_edge["validation_policy_edge_evidence_valid"] is False
+    assert policy_edge["validation_policy_edge_nonfinite_label_rows"] == 1
+
+
+@pytest.mark.parametrize("head_name", ("logits", "expected_move"))
+def test_validation_forward_output_nonfinite_blocks_candidate_progress(
+    monkeypatch: pytest.MonkeyPatch,
+    head_name: str,
+) -> None:
+    row = _example(1, 1, expected=12.0)
+    model = V2HybridPolicyModel(input_dim=len(row.tensor.model_vector))
+    if not model.torch_available:
+        pytest.skip("torch unavailable")
+    assert model.net is not None
+    original_forward = model.net.forward
+
+    def nonfinite_forward(batch):  # noqa: ANN001, ANN202
+        outputs = dict(original_forward(batch))
+        corrupted = outputs[head_name].clone()
+        corrupted.reshape(-1)[0] = float("inf")
+        outputs[head_name] = corrupted
+        return outputs
+
+    monkeypatch.setattr(model.net, "forward", nonfinite_forward)
+    trainer = V2HybridPPOTrainer(model=model)
+
+    supervised = trainer._validation_supervised_loss([row])  # noqa: SLF001
+    policy_edge = trainer._validation_policy_edge([row])  # noqa: SLF001
+    decision = candidate_progress_decision(
+        {
+            "validation_split_pit_safe": True,
+            "validation_rows": 1,
+            "optimizer_steps_this_cycle": 1,
+            "parameter_hash_before": "a" * 64,
+            "parameter_hash_after": "b" * 64,
+            "validation_supervised_loss_before": 1.0,
+            "validation_supervised_loss": supervised[
+                "validation_supervised_loss"
+            ],
+        }
+    )
+
+    assert supervised["validation_supervised_loss_status"] == (
+        "NONFINITE_VALIDATION_SUPERVISED_OUTPUT"
+    )
+    assert supervised["validation_supervised_loss"] is None
+    assert supervised["validation_supervised_nonfinite_output_value_count"] == 1
+    assert policy_edge["validation_policy_edge_status"] == (
+        "NONFINITE_VALIDATION_POLICY_EDGE_OUTPUT"
+    )
+    assert policy_edge["validation_policy_edge_evidence_valid"] is False
+    assert policy_edge["validation_policy_edge_nonfinite_output_value_count"] == 1
+    assert decision["candidate_progress_allowed"] is False
+    assert "CANDIDATE_VALIDATION_LOSS_UNAVAILABLE" in decision[
+        "candidate_progress_rejection_reasons"
+    ]
+
+
+def test_validation_split_is_chronological_keeps_ties_and_purges_label_overlap() -> None:
+    rows = [
+        _example(0, 1, decision_time="2026-06-19T00:01:00Z"),
+        _example(1, 2, decision_time="2026-06-19T00:07:00Z"),
+        _example(2, 1, decision_time="2026-06-19T00:11:00Z"),
+        _example(3, 2, decision_time="2026-06-19T00:11:00Z"),
+    ]
+
+    training, validation, metrics = V2HybridPPOTrainer._chronological_purged_split(  # noqa: SLF001
+        list(reversed(rows)),
+        validation_fraction=0.25,
+    )
+
+    assert [row.tensor.tensor_id for row in training] == ["tensor_0"]
+    assert {row.tensor.tensor_id for row in validation} == {"tensor_2", "tensor_3"}
+    assert metrics["validation_split_purged_training_rows"] == 1
+    assert metrics["validation_split_pit_safe"] is True
+    assert metrics["validation_split_temporal_overlap"] is False
+    assert metrics["validation_split_label_overlap"] is False
+    assert (
+        metrics["validation_split_training_label_available_at_max"]
+        < metrics["validation_split_validation_start_decision_time"]
+    )
+
+
+def test_validation_split_missing_label_horizon_fails_closed_but_keeps_learning_rows() -> None:
+    valid = _example(0, 1, decision_time="2026-06-19T00:01:00Z")
+    invalid_source = _example(1, 2, decision_time="2026-06-19T00:11:00Z")
+    invalid_trust = dict(invalid_source.trust_row or {})
+    invalid_targets = dict(invalid_trust.get("outcome_targets") or {})
+    invalid_targets.pop("holding_period", None)
+    invalid_trust["outcome_targets"] = invalid_targets
+    invalid = TrainingExample(
+        symbol=invalid_source.symbol,
+        timeframe=invalid_source.timeframe,
+        tensor=invalid_source.tensor,
+        label_action_index=invalid_source.label_action_index,
+        label_expected_move_after_cost_bps=(
+            invalid_source.label_expected_move_after_cost_bps
+        ),
+        payload_keys=invalid_source.payload_keys,
+        row_classification=invalid_source.row_classification,
+        trust_row=invalid_trust,
+    )
+
+    training, validation, metrics = V2HybridPPOTrainer._chronological_purged_split(  # noqa: SLF001
+        [invalid, valid],
+        validation_fraction=0.5,
+    )
+
+    assert len(training) == 2
+    assert validation == []
+    assert metrics["validation_split_pit_safe"] is False
+    assert metrics["validation_split_reason"] == "LABEL_TIMING_MISSING_OR_INVALID"
+    assert metrics["validation_split_label_timing_invalid_rows"] == 1
+
+
+def test_validation_split_rejects_naive_decision_clock_without_utc_coercion() -> None:
+    valid = _example(0, 1, decision_time="2026-06-19T00:01:00Z")
+    naive = _example(1, 2, decision_time="2026-06-19T00:11:00")
+
+    training, validation, metrics = V2HybridPPOTrainer._chronological_purged_split(  # noqa: SLF001
+        [naive, valid],
+        validation_fraction=0.5,
+    )
+
+    assert training == [naive, valid]
+    assert validation == []
+    assert metrics["validation_split_pit_safe"] is False
+    assert metrics["validation_split_reason"] == "DECISION_TIME_MISSING_OR_INVALID"
+    assert metrics["validation_split_decision_time_invalid_rows"] == 1
+
+
+def test_training_observation_cutoff_rejects_future_label_availability() -> None:
+    source = _example(0, 1)
+    trust_row = dict(source.trust_row or {})
+    trust_row["outcome_available_at"] = "2099-01-01T00:00:00Z"
+    future_label = TrainingExample(
+        symbol=source.symbol,
+        timeframe=source.timeframe,
+        tensor=source.tensor,
+        label_action_index=source.label_action_index,
+        label_expected_move_after_cost_bps=(
+            source.label_expected_move_after_cost_bps
+        ),
+        payload_keys=source.payload_keys,
+        row_classification=source.row_classification,
+        trust_row=trust_row,
+        label_available_at="2099-01-01T00:00:00Z",
+    )
+    trainer = V2HybridPPOTrainer(
+        model=V2HybridPolicyModel(input_dim=1),
+        training_observed_at="2026-07-18T10:00:00Z",
+    )
+
+    plan = trainer.plan_exact_ppo_optimizer_attempts([future_label])
+
+    assert plan["trusted_rows"] == []
+    assert plan["rejection_metrics"]["training_observed_at"] == (
+        "2026-07-18T10:00:00.000000Z"
+    )
+    assert plan["rejection_metrics"]["training_rejection_reason_counts"] == {
+        "LABEL_AVAILABLE_AT_AFTER_TRAINING_OBSERVED_AT": 1,
+        "OUTCOME_AVAILABLE_AT_AFTER_TRAINING_OBSERVED_AT": 1,
+    }
+
+
+def test_training_observation_cutoff_rejects_naive_clock() -> None:
+    with pytest.raises(
+        ValueError,
+        match="training_observed_at_must_be_aware_utc",
+    ):
+        V2HybridPPOTrainer(
+            model=V2HybridPolicyModel(input_dim=1),
+            training_observed_at="2026-07-18T10:00:00",
+        )
 
 
 def test_overfit_gap_threshold_scales_with_loss_magnitude(

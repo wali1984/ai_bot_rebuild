@@ -223,12 +223,28 @@ def _trade_outcome(value_bps: float) -> str:
     return "WIN" if value_bps > 0 else "LOSS"
 
 
-def _target_action(value_bps: float, threshold_bps: float) -> str:
-    if value_bps >= threshold_bps:
-        return "long"
-    if value_bps <= -threshold_bps:
-        return "short"
-    return "hold"
+def _target_action_from_net_edges(
+    *,
+    long_net_bps: float,
+    short_net_bps: float,
+    threshold_bps: float,
+) -> str:
+    """Choose only a direction whose own after-cost PnL clears the threshold.
+
+    Costs are subtracted from both counterfactual sides. They must never be
+    added to a negative raw market return, which can flip a small down move into
+    a fabricated profitable long label.
+    """
+    threshold = abs(float(threshold_bps))
+    best_net = max(long_net_bps, short_net_bps)
+    if best_net <= 0.0 or best_net < threshold:
+        return "hold"
+    return "long" if long_net_bps >= short_net_bps else "short"
+
+
+def _normalized_action(value: Any) -> str | None:
+    action = str(value or "").strip().lower()
+    return action if action in {"long", "short", "hold"} else None
 
 
 def replay_rejection_reasons(
@@ -301,9 +317,48 @@ def build_trusted_replay_row(
     if missing_horizons:
         return None, [f"FUTURE_CANDLE_HORIZON_MISSING_{name.upper()}" for name in missing_horizons]
 
-    raw_after_cost = returns["15m"]
-    after_cost = raw_after_cost - abs(round_trip_cost_bps) if raw_after_cost > 0 else raw_after_cost + abs(round_trip_cost_bps)
-    target_action = _target_action(after_cost, action_threshold_bps)
+    raw_return_15m_bps = returns["15m"]
+    parsed_cost_bps = finite_float(round_trip_cost_bps)
+    parsed_action_threshold_bps = finite_float(action_threshold_bps)
+    if parsed_cost_bps is None:
+        return None, ["ROUND_TRIP_COST_BPS_INVALID"]
+    if parsed_action_threshold_bps is None:
+        return None, ["ACTION_THRESHOLD_BPS_INVALID"]
+    costs_bps = abs(parsed_cost_bps)
+    long_net_bps = raw_return_15m_bps - costs_bps
+    short_net_bps = -raw_return_15m_bps - costs_bps
+    target_action = _target_action_from_net_edges(
+        long_net_bps=long_net_bps,
+        short_net_bps=short_net_bps,
+        threshold_bps=parsed_action_threshold_bps,
+    )
+    counterfactual_target_net_bps = (
+        long_net_bps
+        if target_action == "long"
+        else short_net_bps
+        if target_action == "short"
+        else 0.0
+    )
+    # Compatibility label: signed by the observed market direction, but only
+    # non-zero when that direction is profitable after costs. This preserves
+    # DOWN as negative and UP as positive without allowing costs to flip sign.
+    after_cost = (
+        counterfactual_target_net_bps
+        if target_action == "long"
+        else -counterfactual_target_net_bps
+        if target_action == "short"
+        else 0.0
+    )
+    selected_action = _normalized_action(snapshot.get("selected_action"))
+    actual_behavior_net_bps = (
+        long_net_bps
+        if selected_action == "long"
+        else short_net_bps
+        if selected_action == "short"
+        else 0.0
+        if selected_action == "hold"
+        else None
+    )
     highs = [
         _candle_price(candle, "high", "high_price", "h")
         for candle in future_candles
@@ -318,8 +373,13 @@ def build_trusted_replay_row(
     lows = [value for value in lows if value is not None]
     mfe = ((max(highs) - entry_price) / entry_price) * 10_000.0 if highs else max(0.0, after_cost)
     mae = ((min(lows) - entry_price) / entry_price) * 10_000.0 if lows else min(0.0, after_cost)
-    directional = _directional_outcome(after_cost)
-    trade_outcome = _trade_outcome(abs(after_cost) if target_action in {"long", "short"} else 0.0)
+    directional = _directional_outcome(raw_return_15m_bps)
+    trade_outcome = _trade_outcome(counterfactual_target_net_bps)
+    actual_behavior_trade_outcome = (
+        _trade_outcome(actual_behavior_net_bps)
+        if actual_behavior_net_bps is not None
+        else None
+    )
     value_baseline = finite_float(snapshot.get("policy_value") or snapshot.get("value_baseline")) or 0.0
     reward = after_cost / 100.0
     feature_names = sorted(str(name) for name in features.keys())
@@ -372,12 +432,29 @@ def build_trusted_replay_row(
         "source_hashes": dict(snapshot.get("source_hashes") or {}),
         "model_version": snapshot.get("model_version") or "trusted_replay_labeler_v1",
         "checkpoint_id": snapshot.get("checkpoint_id") or "trusted_replay_no_prior_checkpoint",
-        "selected_action": snapshot.get("selected_action"),
+        "selected_action": selected_action,
+        "selected_action_raw": snapshot.get("selected_action"),
         "target_action": target_action,
         "future_return_5m_bps": returns["5m"],
         "future_return_15m_bps": returns["15m"],
         "future_return_1h_bps": returns["1h"],
         "future_return_4h_bps": returns["4h"],
+        "raw_future_return_15m_bps": raw_return_15m_bps,
+        "round_trip_cost_bps": costs_bps,
+        "counterfactual_long_net_pnl_bps": long_net_bps,
+        "counterfactual_short_net_pnl_bps": short_net_bps,
+        "counterfactual_target_net_pnl_bps": counterfactual_target_net_bps,
+        "counterfactual_action_was_profitable": counterfactual_target_net_bps > 0.0,
+        "counterfactual_trade_outcome": trade_outcome,
+        "counterfactual_label_source": "FINALIZED_CANDLES_BEST_AFTER_COST_SIDE",
+        "actual_behavior_net_pnl_bps": actual_behavior_net_bps,
+        "actual_behavior_trade_outcome": actual_behavior_trade_outcome,
+        "actual_behavior_outcome_available": selected_action is not None,
+        "actual_behavior_action_was_profitable": (
+            actual_behavior_net_bps > 0.0
+            if actual_behavior_net_bps is not None
+            else None
+        ),
         "future_return_after_cost_bps": after_cost,
         "directional_outcome": directional,
         "trade_outcome": trade_outcome,
@@ -387,7 +464,7 @@ def build_trusted_replay_row(
         "value_baseline": value_baseline,
         "advantage": reward - value_baseline,
         "advantage_source": "realized_after_cost_reward_minus_value_baseline",
-        "realized_reward_source": "future_return_after_cost_bps_from_finalized_candles",
+        "realized_reward_source": "counterfactual_target_after_cost_from_finalized_candles",
         "uses_expected_move_as_realized_reward": False,
         "future_labels_not_in_feature_tensor": True,
         "outcome_targets": {
@@ -395,11 +472,24 @@ def build_trusted_replay_row(
             "realized_net_pnl_usd": 0.0,
             "directional_outcome": directional,
             "trade_outcome": trade_outcome,
-            "selected_action": snapshot.get("selected_action"),
+            "selected_action": selected_action,
             "target_action": target_action,
-            "action_was_profitable": target_action in {"long", "short"},
+            "action_was_profitable": counterfactual_target_net_bps > 0.0,
+            "outcome_target_type": "COUNTERFACTUAL_BEST_ACTION",
+            "counterfactual_long_net_pnl_bps": long_net_bps,
+            "counterfactual_short_net_pnl_bps": short_net_bps,
+            "counterfactual_target_net_pnl_bps": counterfactual_target_net_bps,
+            "counterfactual_label_source": "FINALIZED_CANDLES_BEST_AFTER_COST_SIDE",
+            "actual_behavior_net_pnl_bps": actual_behavior_net_bps,
+            "actual_behavior_trade_outcome": actual_behavior_trade_outcome,
+            "actual_behavior_outcome_available": selected_action is not None,
+            "actual_behavior_action_was_profitable": (
+                actual_behavior_net_bps > 0.0
+                if actual_behavior_net_bps is not None
+                else None
+            ),
             "holding_period": HORIZON_SECONDS["15m"],
-            "fees": abs(round_trip_cost_bps),
+            "fees": costs_bps,
             "slippage": None,
             "funding": features.get("funding_rate"),
             "MFE": mfe,

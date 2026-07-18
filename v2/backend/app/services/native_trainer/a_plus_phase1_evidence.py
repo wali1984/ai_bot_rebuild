@@ -1,8 +1,10 @@
-"""A+ goal Phase 1 evidence for trainer online learning.
+"""Legacy A+ Phase 1 trainer-learning diagnostics.
 
 This module is intentionally read-only with respect to Redis and exchange
 state. It builds goal artifacts from current trainer feedback, CUDA trainer
-metrics, and local checkpoint blobs.
+metrics, and local checkpoint blobs. Those mutable inputs are not the
+canonical identity-bound current-cycle runtime contract, so the artifacts are
+non-authoritative diagnostics even when every local condition is observed.
 """
 from __future__ import annotations
 
@@ -14,8 +16,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-
 GOAL_ID = "V2_A_PLUS_LIVE_READY_TRAINER_EDGE_REPAIR_AND_ZERO_TOLERANCE_TRADE_GATE"
+
+EVIDENCE_SCOPE = "LEGACY_NON_CANONICAL_DIAGNOSTIC"
+DIAGNOSTIC_COMPLETE = "LEGACY_DIAGNOSTIC_EVIDENCE_COMPLETE_NON_CANONICAL"
+DIAGNOSTIC_INCOMPLETE = "LEGACY_DIAGNOSTIC_EVIDENCE_INCOMPLETE"
 
 FEEDBACK_KEY = "v2:trainer:feedback:outcomes"
 FEEDBACK_QUARANTINE_KEY = "v2:trainer:feedback:outcomes:quarantine"
@@ -62,6 +67,41 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _non_runtime_evidence_boundary(generated_utc: str) -> dict[str, Any]:
+    """Make the legacy artifact's lack of runtime authority machine-readable.
+
+    Phase 1 reads mutable ``latest`` Redis payloads and local checkpoint paths.
+    It does not consume the canonical, identity-bound current-cycle runtime
+    contract, so even a complete diagnostic must never authorize readiness,
+    serving, A+ classification, paper routing, or live execution.
+    """
+
+    return {
+        "evidence_scope": EVIDENCE_SCOPE,
+        "contract_test_only": False,
+        "canonical_current_cycle_contract_consumed": False,
+        "canonical_current_cycle_contract_verified": False,
+        "canonical_runtime_ready": False,
+        "serving_authorized": False,
+        "a_plus_authorized": False,
+        "paper_authorized": False,
+        "live_authorized": False,
+        "live_execution_authorized": False,
+        "routes_to_paper": False,
+        "routes_to_live": False,
+        "paper_only": True,
+        "producer_clock_field": "generated_utc",
+        "artifact_generated_at": generated_utc,
+        "artifact_persistence": "OVERWRITTEN_NON_EXPIRING_JSON_SNAPSHOT",
+        "artifact_ttl_enforced": False,
+        "artifact_expires_at": None,
+        "artifact_freshness_authoritative": False,
+        "runtime_authority_block_reason": (
+            "CANONICAL_IDENTITY_BOUND_CURRENT_CYCLE_RUNTIME_CONTRACT_NOT_CONSUMED"
+        ),
+    }
 
 
 def as_dict(value: Any) -> dict[str, Any]:
@@ -476,16 +516,17 @@ def build_a_plus_phase1_trainer_artifacts(
         and metrics.get("prediction_count", 0) > 0
     )
 
-    ready_conditions = {
+    diagnostic_conditions = {
         "consumable_feedback_rows_gt_0": feedback["consumable_feedback_rows"] > 0,
         "trusted_rows_loaded_gt_0": metrics["trusted_rows_loaded"] > 0,
         "weights_updated": weights_updated,
         "checkpoint_weight_blob_updated": checkpoint_weight_blob_updated,
     }
-    missing_evidence = [name for name, passed in ready_conditions.items() if not passed]
+    missing_evidence = [name for name, passed in diagnostic_conditions.items() if not passed]
     base = {
         "goal_id": GOAL_ID,
         "generated_utc": generated,
+        **_non_runtime_evidence_boundary(generated),
         "live_gate": "blocked_human_only",
         "places_real_order": False,
         "test_order_submitted": False,
@@ -497,8 +538,12 @@ def build_a_plus_phase1_trainer_artifacts(
 
     trainer_feedback_consumption = {
         **base,
-        "schema_version": "trainer_feedback_consumption_status_v2",
-        "status": "READY" if ready_conditions["consumable_feedback_rows_gt_0"] else "BLOCKED_NO_CONSUMABLE_FEEDBACK",
+        "schema_version": "trainer_feedback_consumption_status_v3",
+        "status": (
+            "DIAGNOSTIC_FEEDBACK_CONTRACT_OBSERVED_NON_CANONICAL"
+            if diagnostic_conditions["consumable_feedback_rows_gt_0"]
+            else "DIAGNOSTIC_BLOCKED_NO_CONSUMABLE_FEEDBACK"
+        ),
         **feedback,
         "source_feedback_key": FEEDBACK_KEY,
         "source_closed_trades_key": CLOSED_TRADES_KEY,
@@ -512,7 +557,7 @@ def build_a_plus_phase1_trainer_artifacts(
     }
     trainer_weight_update_proof = {
         **base,
-        "schema_version": "trainer_weight_update_proof_v2",
+        "schema_version": "trainer_weight_update_proof_v3",
         "status": "WEIGHTS_UPDATED" if weights_updated else "BLOCKED_NO_WEIGHT_MUTATION_PROOF",
         "weights_updated": weights_updated,
         "weight_update_key_before": metrics.get("parameter_hash_before"),
@@ -537,7 +582,7 @@ def build_a_plus_phase1_trainer_artifacts(
     }
     trainer_checkpoint_update_proof = {
         **base,
-        "schema_version": "trainer_checkpoint_update_proof_v2",
+        "schema_version": "trainer_checkpoint_update_proof_v3",
         "status": "CHECKPOINT_WEIGHT_BLOB_UPDATED" if checkpoint_weight_blob_updated else "BLOCKED_NO_CHECKPOINT_BLOB_UPDATE_PROOF",
         "checkpoint_weight_blob_updated": checkpoint_weight_blob_updated,
         "checkpoint_hash_matches_metrics": checkpoint_hash_matches_metrics,
@@ -565,14 +610,18 @@ def build_a_plus_phase1_trainer_artifacts(
     }
     trainer_online_learning_repair_status = {
         **base,
-        "schema_version": "trainer_online_learning_repair_status_v2",
-        "status": "REPAIRED_AND_RUNTIME_CONFIRMED" if all(ready_conditions.values()) else "BLOCKED_EVIDENCE_INCOMPLETE",
+        "schema_version": "trainer_online_learning_repair_status_v3",
+        "status": (
+            DIAGNOSTIC_COMPLETE
+            if all(diagnostic_conditions.values())
+            else DIAGNOSTIC_INCOMPLETE
+        ),
         "online_learning_status": metrics.get("online_learning_status"),
         "effective_trainer_mode": metrics.get("effective_trainer_mode"),
         "learning_update_lane": metrics.get("learning_update_lane"),
         "last_successful_weight_update_at": metrics.get("last_successful_weight_update_at"),
-        "ready_conditions": ready_conditions,
-        "missing_evidence": missing_evidence,
+        "diagnostic_conditions": diagnostic_conditions,
+        "missing_diagnostic_evidence": missing_evidence,
         "consumable_feedback_rows": feedback.get("consumable_feedback_rows"),
         "trusted_rows_loaded": metrics.get("trusted_rows_loaded"),
         "feedback_rows_entered_batch": metrics.get("feedback_rows_entered_batch"),
@@ -634,8 +683,9 @@ def write_a_plus_phase1_trainer_artifacts(
     return {
         "goal_id": GOAL_ID,
         "status": readiness["status"],
-        "ready_conditions": readiness["ready_conditions"],
-        "missing_evidence": readiness["missing_evidence"],
+        "diagnostic_conditions": readiness["diagnostic_conditions"],
+        "missing_diagnostic_evidence": readiness["missing_diagnostic_evidence"],
+        **_non_runtime_evidence_boundary(str(readiness["generated_utc"])),
         "written": written,
         "places_real_order": False,
         "test_order_submitted": False,

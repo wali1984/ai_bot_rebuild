@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
 )
@@ -12,8 +13,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
 )
-from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
-
 
 ISO_CLOSE = "2026-06-11T00:01:00Z"
 ISO_DECISION = "2026-06-11T00:01:01Z"
@@ -25,6 +24,11 @@ class FakeModel:
     torch = None
     input_dim = 1
     device = "cpu"
+    model_id = "historical-missing-mask-test"
+    _fallback_weights = [0.0, 0.0, 0.0]
+
+    def set_confidence_calibration_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        return state
 
     def forward(self, _tensor: Any) -> SimpleNamespace:
         return SimpleNamespace(action_probabilities=[1.0, 0.0, 0.0], expected_move_bps=0.0)
@@ -112,7 +116,41 @@ def _example(**overrides: Any) -> TrainingExample:
     )
 
 
-def test_historical_replay_missing_mask_admitted_for_training_only() -> None:
+def test_historical_optional_event_missing_mask_with_lineage_is_training_only() -> None:
+    trainer = V2HybridPPOTrainer(model=FakeModel())
+
+    result = trainer.train(
+        [
+            _example(
+                row_source="trusted_replay_archive",
+                update_lane="OUTCOME_SUPERVISED_TRUSTED_REPLAY",
+                trainer_feedback_source="V2_DURABLE_FEATURE_SNAPSHOT_TRUSTED_REPLAY",
+                row_classification="MISSING_MASKED",
+                missing_feature_names=["liquidation_event_missing"],
+                missing_feature_count=1,
+                safe_to_train_with_missing_mask=True,
+                safe_missing_mask_training_scope="HISTORICAL_REPLAY_ONLY",
+                feature_family_introduced_after_snapshot_time=True,
+                source_availability={"ohlcv": {"available_at": ISO_CLOSE}},
+                source_availability_recorded=True,
+                lineage_mask_present=True,
+                classification_mask_present=True,
+                historical_replay_row=True,
+                trusted_replay_row=True,
+            )
+        ],
+        batch_size=4,
+    )
+
+    assert result.status != "NO_TRUSTED_TRAINING_ROWS"
+    assert result.train_rows == 1
+    reasons = result.metrics["training_rejection_reason_counts"]
+    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in reasons
+    assert "ROW_CLASSIFICATION_MISSING_MASKED" not in reasons
+    assert result.metrics["trusted_replay_rows_loaded"] == 1
+
+
+def test_historical_critical_family_missing_mask_cannot_self_attest_safety() -> None:
     trainer = V2HybridPPOTrainer(model=FakeModel())
 
     result = trainer.train(
@@ -138,12 +176,13 @@ def test_historical_replay_missing_mask_admitted_for_training_only() -> None:
         batch_size=4,
     )
 
-    assert result.status != "NO_TRUSTED_TRAINING_ROWS"
-    assert result.train_rows == 1
-    reasons = result.metrics["training_rejection_reason_counts"]
-    assert "MISSING_CRITICAL_FEATURE_FAMILY" not in reasons
-    assert "ROW_CLASSIFICATION_MISSING_MASKED" not in reasons
-    assert result.metrics["trusted_replay_rows_loaded"] == 1
+    assert result.status == "NO_TRUSTED_TRAINING_ROWS"
+    assert result.metrics["training_rejection_reason_counts"] == {
+        "MISSING_CRITICAL_FEATURE_FAMILY": 1,
+        "ROW_CLASSIFICATION_MISSING_MASKED": 1,
+    }
+    diagnostic = result.metrics["training_rejection_family_diagnostics"][0]
+    assert diagnostic["unsafe_to_train_reason"] == "CRITICAL_FEATURE_FAMILY_MISSING"
 
 
 def test_historical_replay_missing_mask_still_rejects_stale_features() -> None:

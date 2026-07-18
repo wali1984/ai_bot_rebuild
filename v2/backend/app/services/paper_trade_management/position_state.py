@@ -1,13 +1,508 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 from .accounting import coerce_float, pnl_bps, pnl_usd
-
+from .generation_identity import POSITION_ID_VERSION, entry_generation_identity
 
 ADAPTIVE_CAPITAL_POLICY_VERSION = "ADAPTIVE_CAPITAL_ALLOCATOR_V1"
+PAPER_ENTRY_COST_ACCOUNTING_VERSION = "PAPER_ENTRY_COST_BASIS_V1"
+PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION = (
+    "PAPER_OPEN_POSITION_RECONSTRUCTION_V2"
+)
+_BINANCE_USDM_BRACKET_SOURCE = (
+    "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET"
+)
+_KNOWN_BINANCE_USDM_ENVIRONMENTS = frozenset({"mainnet", "testnet"})
+_SHA256_HEX_CHARS = frozenset("0123456789abcdef")
+
+_PAPER_POSITION_RECONSTRUCTION_FIELDS = (
+    "position_reconstruction_schema_version",
+    "position_reconstruction_generated_at",
+    "position_id",
+    "legacy_position_id",
+    "position_generation_id",
+    "position_id_version",
+    "entry_generation_time_utc",
+    "symbol",
+    "side",
+    "net_quantity",
+    "avg_entry_price",
+    "gross_notional_usd",
+    "allocated_margin_usd",
+    "effective_leverage",
+    "recommended_leverage",
+    "leverage_source",
+    "recommended_margin_mode",
+    "margin_mode_simulated",
+    "adaptive_allocation",
+    "maintenance_margin_rate",
+    "maintenance_margin_cum",
+    "maintenance_margin_notional_usd",
+    "maintenance_bracket_id",
+    "maintenance_bracket_maint_margin_ratio",
+    "maintenance_bracket_cum",
+    "maintenance_bracket_max_initial_leverage",
+    "maintenance_bracket_evidence_hash",
+    "maintenance_bracket_evidence_checksum_sha256",
+    "maintenance_bracket_evidence_hmac_sha256",
+    "maintenance_bracket_binding",
+    "maintenance_bracket_environment_id",
+    "maintenance_bracket_key_id",
+    "maintenance_bracket_source",
+    "maintenance_bracket_available_at",
+    "maintenance_bracket_expires_at",
+    "maintenance_bracket_consumer_observed_at",
+    "maintenance_bracket_prevalidated",
+    "maintenance_bracket_evidence_status",
+    "maintenance_bracket_evidence_reason",
+    "liquidation_price_estimate",
+    "liquidation_buffer_bps",
+    "opened_est",
+    "source_fill_ids",
+    "realized_pnl",
+    "entry_cost_accounting_version",
+    "entry_fees_incurred_usd",
+    "entry_fees_remaining_usd",
+    "entry_fees_allocated_to_closes_usd",
+    "entry_fee_fallback_bps_per_side",
+    "entry_slippage_incurred_usd",
+    "entry_slippage_remaining_usd",
+    "entry_slippage_allocated_to_closes_usd",
+    "entry_slippage_fallback_bps_per_side",
+    "entry_fee_cost_sources",
+    "entry_slippage_cost_sources",
+    "entry_cost_basis_status",
+    "position_state",
+    "paper_only",
+    "places_real_order",
+)
+PAPER_POSITION_RECONSTRUCTION_PERSISTENCE_FIELDS = (
+    *_PAPER_POSITION_RECONSTRUCTION_FIELDS,
+    "position_reconstruction_hash",
+)
+
+
+def _paper_position_reconstruction_material(row: dict[str, Any]) -> dict[str, Any]:
+    """Return the canonical, content-addressed persisted-position material."""
+
+    material = {
+        field_name: row.get(field_name)
+        for field_name in _PAPER_POSITION_RECONSTRUCTION_FIELDS
+    }
+    material["symbol"] = str(material.get("symbol") or "").upper()
+    material["side"] = str(material.get("side") or "").lower()
+    for field_name in (
+        "net_quantity",
+        "avg_entry_price",
+        "gross_notional_usd",
+        "allocated_margin_usd",
+        "effective_leverage",
+        "recommended_leverage",
+        "maintenance_margin_rate",
+        "maintenance_margin_cum",
+        "maintenance_margin_notional_usd",
+        "maintenance_bracket_id",
+        "maintenance_bracket_maint_margin_ratio",
+        "maintenance_bracket_cum",
+        "maintenance_bracket_max_initial_leverage",
+        "liquidation_price_estimate",
+        "liquidation_buffer_bps",
+        "realized_pnl",
+        "entry_fees_incurred_usd",
+        "entry_fees_remaining_usd",
+        "entry_fees_allocated_to_closes_usd",
+        "entry_fee_fallback_bps_per_side",
+        "entry_slippage_incurred_usd",
+        "entry_slippage_remaining_usd",
+        "entry_slippage_allocated_to_closes_usd",
+        "entry_slippage_fallback_bps_per_side",
+    ):
+        material[field_name] = coerce_float(material.get(field_name))
+    for field_name in (
+        "source_fill_ids",
+        "entry_fee_cost_sources",
+        "entry_slippage_cost_sources",
+    ):
+        raw = material.get(field_name)
+        material[field_name] = (
+            [str(value) for value in raw if value not in (None, "")]
+            if isinstance(raw, list | tuple)
+            else []
+        )
+    # Missing maintenance evidence and explicitly non-prevalidated evidence
+    # are the same fail-closed state. Normalizing the tri-state prevents a
+    # harmless ``None`` -> ``False`` restore from changing the content hash.
+    material["maintenance_bracket_prevalidated"] = (
+        material.get("maintenance_bracket_prevalidated") is True
+    )
+    return material
+
+
+def paper_position_reconstruction_hash(row: dict[str, Any]) -> str | None:
+    """Hash exact open-position identity, capital, risk, fills, and costs."""
+
+    try:
+        canonical = json.dumps(
+            _paper_position_reconstruction_material(row),
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
+        return None
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def validate_paper_position_reconstruction(
+    row: dict[str, Any],
+    *,
+    observed_at: Any = None,
+) -> list[str]:
+    """Validate a persisted open snapshot before it can recreate economics.
+
+    This is an integrity/conservation envelope, not an authentication claim.
+    Legacy rows without it may still supply non-economic context, but they can
+    never restore a partially consumed position or its remaining entry basis.
+    """
+
+    reasons: list[str] = []
+    if (
+        row.get("position_reconstruction_schema_version")
+        != PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_SCHEMA_VERSION_INVALID")
+    supplied_hash = str(row.get("position_reconstruction_hash") or "")
+    computed_hash = paper_position_reconstruction_hash(row)
+    if not _is_lower_sha256_hex(supplied_hash):
+        reasons.append("POSITION_RECONSTRUCTION_HASH_INVALID")
+    elif computed_hash != supplied_hash:
+        reasons.append("POSITION_RECONSTRUCTION_HASH_MISMATCH")
+    for field_name in (
+        "position_id",
+        "position_generation_id",
+        "entry_generation_time_utc",
+        "position_reconstruction_generated_at",
+    ):
+        if row.get(field_name) in (None, ""):
+            reasons.append(
+                f"POSITION_RECONSTRUCTION_{field_name.upper()}_MISSING"
+            )
+    entry_time = parse_aware_utc(row.get("entry_generation_time_utc"))
+    opened_time = parse_aware_utc(row.get("opened_est"))
+    reconstruction_time = parse_aware_utc(
+        row.get("position_reconstruction_generated_at")
+    )
+    observed_time = (
+        parse_aware_utc(observed_at) if observed_at not in (None, "") else None
+    )
+    if entry_time is None:
+        reasons.append("POSITION_RECONSTRUCTION_ENTRY_TIME_NOT_AWARE_UTC")
+    if opened_time is None:
+        reasons.append("POSITION_RECONSTRUCTION_OPENED_TIME_NOT_AWARE")
+    if reconstruction_time is None:
+        reasons.append("POSITION_RECONSTRUCTION_GENERATED_TIME_NOT_AWARE_UTC")
+    if observed_at not in (None, "") and observed_time is None:
+        reasons.append("POSITION_RECONSTRUCTION_OBSERVED_TIME_NOT_AWARE_UTC")
+    if (
+        entry_time is not None
+        and reconstruction_time is not None
+        and entry_time > reconstruction_time
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_ENTRY_AFTER_GENERATED_TIME")
+    if (
+        opened_time is not None
+        and reconstruction_time is not None
+        and opened_time > reconstruction_time
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_OPENED_AFTER_GENERATED_TIME")
+    if (
+        entry_time is not None
+        and opened_time is not None
+        and entry_time > opened_time
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_ENTRY_AFTER_OPENED_TIME")
+    if (
+        reconstruction_time is not None
+        and observed_time is not None
+        and reconstruction_time > observed_time
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_GENERATED_AFTER_OBSERVED_TIME")
+    if row.get("position_id_version") != POSITION_ID_VERSION:
+        reasons.append("POSITION_RECONSTRUCTION_POSITION_ID_VERSION_INVALID")
+    if str(row.get("symbol") or "").strip().upper() == "":
+        reasons.append("POSITION_RECONSTRUCTION_SYMBOL_MISSING")
+    if str(row.get("side") or "").strip().lower() not in {
+        "long",
+        "short",
+        "buy",
+        "sell",
+    }:
+        reasons.append("POSITION_RECONSTRUCTION_SIDE_INVALID")
+    quantity = coerce_float(row.get("net_quantity"))
+    entry_price = coerce_float(row.get("avg_entry_price"))
+    gross_notional = coerce_float(row.get("gross_notional_usd"))
+    allocated_margin = coerce_float(row.get("allocated_margin_usd"))
+    effective_leverage = coerce_float(row.get("effective_leverage"))
+    recommended_leverage = coerce_float(row.get("recommended_leverage"))
+    realized_pnl = coerce_float(row.get("realized_pnl"))
+    if quantity is None or not math.isfinite(quantity) or quantity <= 0.0:
+        reasons.append("POSITION_RECONSTRUCTION_NET_QUANTITY_INVALID")
+    if entry_price is None or not math.isfinite(entry_price) or entry_price <= 0.0:
+        reasons.append("POSITION_RECONSTRUCTION_AVG_ENTRY_PRICE_INVALID")
+    if (
+        gross_notional is None
+        or not math.isfinite(gross_notional)
+        or gross_notional <= 0.0
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_GROSS_NOTIONAL_INVALID")
+    if (
+        allocated_margin is None
+        or not math.isfinite(allocated_margin)
+        or allocated_margin <= 0.0
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_ALLOCATED_MARGIN_INVALID")
+    if (
+        effective_leverage is None
+        or not math.isfinite(effective_leverage)
+        or effective_leverage < 1.0
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_EFFECTIVE_LEVERAGE_INVALID")
+    if (
+        recommended_leverage is None
+        or not math.isfinite(recommended_leverage)
+        or recommended_leverage < 1.0
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_RECOMMENDED_LEVERAGE_INVALID")
+    if (
+        quantity is not None
+        and math.isfinite(quantity)
+        and quantity > 0.0
+        and entry_price is not None
+        and math.isfinite(entry_price)
+        and entry_price > 0.0
+        and gross_notional is not None
+        and math.isfinite(gross_notional)
+        and not _accounting_values_match(
+            gross_notional,
+            abs(quantity * entry_price),
+        )
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_GROSS_NOTIONAL_IDENTITY_INVALID")
+    if (
+        gross_notional is not None
+        and math.isfinite(gross_notional)
+        and gross_notional > 0.0
+        and allocated_margin is not None
+        and math.isfinite(allocated_margin)
+        and allocated_margin > 0.0
+        and effective_leverage is not None
+        and math.isfinite(effective_leverage)
+        and effective_leverage >= 1.0
+        and not _accounting_values_match(
+            allocated_margin,
+            gross_notional / effective_leverage,
+        )
+    ):
+        reasons.append("POSITION_RECONSTRUCTION_MARGIN_LEVERAGE_IDENTITY_INVALID")
+    if str(row.get("margin_mode_simulated") or "").strip().lower() not in {
+        "isolated",
+        "isolated_paper_simulated",
+    }:
+        reasons.append("POSITION_RECONSTRUCTION_MARGIN_MODE_NOT_ISOLATED")
+
+    allocation = row.get("adaptive_allocation")
+    if allocation not in (None, {}):
+        if not isinstance(allocation, dict):
+            reasons.append("POSITION_RECONSTRUCTION_ADAPTIVE_ALLOCATION_INVALID")
+        else:
+            allocation_effective = coerce_float(
+                allocation.get("effective_leverage")
+            )
+            allocation_margin = coerce_float(allocation.get("allocated_margin_usd"))
+            allocation_notional = coerce_float(allocation.get("gross_notional_usd"))
+            for field_name, allocation_value, position_value in (
+                (
+                    "EFFECTIVE_LEVERAGE",
+                    allocation_effective,
+                    effective_leverage,
+                ),
+                ("ALLOCATED_MARGIN", allocation_margin, allocated_margin),
+                ("GROSS_NOTIONAL", allocation_notional, gross_notional),
+            ):
+                if allocation_value is not None and not _accounting_values_match(
+                    allocation_value,
+                    position_value,
+                ):
+                    reasons.append(
+                        "POSITION_RECONSTRUCTION_ADAPTIVE_ALLOCATION_"
+                        f"{field_name}_MISMATCH"
+                    )
+            model_inputs = allocation.get("model_inputs")
+            model_inputs = model_inputs if isinstance(model_inputs, dict) else {}
+            risk_envelope = model_inputs.get("risk_envelope")
+            risk_envelope = risk_envelope if isinstance(risk_envelope, dict) else {}
+            decision_time_cap = coerce_float(
+                risk_envelope.get("max_effective_leverage")
+            )
+            if (
+                bool(risk_envelope)
+                and
+                effective_leverage is not None
+                and math.isfinite(effective_leverage)
+                and effective_leverage > 1.0
+                and (
+                    decision_time_cap is None
+                    or not math.isfinite(decision_time_cap)
+                    or effective_leverage > decision_time_cap + 1e-9
+                )
+            ):
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_EFFECTIVE_LEVERAGE_EXCEEDS_"
+                    "DECISION_TIME_ENVELOPE"
+                )
+            selected_leverage = coerce_float(model_inputs.get("selected_leverage"))
+            if (
+                selected_leverage is not None
+                and not _accounting_values_match(
+                    selected_leverage,
+                    effective_leverage,
+                )
+            ):
+                reasons.append(
+                    "POSITION_RECONSTRUCTION_SELECTED_LEVERAGE_MISMATCH"
+                )
+            permitted_values = model_inputs.get("permitted_leverage_values")
+            if isinstance(permitted_values, list | tuple) and effective_leverage is not None:
+                permitted = [
+                    parsed
+                    for value in permitted_values
+                    if (parsed := coerce_float(value)) is not None
+                    and math.isfinite(parsed)
+                    and parsed >= 1.0
+                ]
+                if not permitted or not any(
+                    _accounting_values_match(value, effective_leverage)
+                    for value in permitted
+                ):
+                    reasons.append(
+                        "POSITION_RECONSTRUCTION_EFFECTIVE_LEVERAGE_NOT_PERMITTED"
+                    )
+
+    bracket_max_leverage = coerce_float(
+        row.get("maintenance_bracket_max_initial_leverage")
+    )
+    if (
+        bracket_max_leverage is not None
+        and effective_leverage is not None
+        and math.isfinite(effective_leverage)
+        and effective_leverage > bracket_max_leverage + 1e-9
+    ):
+        reasons.append(
+            "POSITION_RECONSTRUCTION_EFFECTIVE_LEVERAGE_EXCEEDS_BRACKET"
+        )
+    if realized_pnl is None or not math.isfinite(realized_pnl):
+        reasons.append("POSITION_RECONSTRUCTION_REALIZED_PNL_INVALID")
+    source_ids = row.get("source_fill_ids")
+    normalized_source_ids = (
+        [str(value) for value in source_ids if value not in (None, "")]
+        if isinstance(source_ids, list | tuple)
+        else []
+    )
+    if not normalized_source_ids:
+        reasons.append("POSITION_RECONSTRUCTION_SOURCE_FILL_IDS_MISSING")
+    elif len(normalized_source_ids) != len(set(normalized_source_ids)):
+        reasons.append("POSITION_RECONSTRUCTION_SOURCE_FILL_IDS_DUPLICATED")
+    if row.get("entry_cost_accounting_version") != PAPER_ENTRY_COST_ACCOUNTING_VERSION:
+        reasons.append("POSITION_RECONSTRUCTION_ENTRY_COST_VERSION_INVALID")
+    for prefix in ("entry_fees", "entry_slippage"):
+        raw_supplied = (
+            row.get(f"{prefix}_incurred_usd"),
+            row.get(f"{prefix}_remaining_usd"),
+            row.get(f"{prefix}_allocated_to_closes_usd"),
+        )
+        incurred, remaining, allocated = (
+            coerce_float(value) for value in raw_supplied
+        )
+        supplied = (incurred, remaining, allocated)
+        if any(
+            raw_value not in (None, "") and parsed_value is None
+            for raw_value, parsed_value in zip(
+                raw_supplied,
+                supplied,
+                strict=True,
+            )
+        ):
+            reasons.append(
+                f"POSITION_RECONSTRUCTION_{prefix.upper()}_LEDGER_INVALID"
+            )
+        pristine_missing_basis = (
+            incurred is None
+            and remaining is None
+            and (allocated is None or allocated == 0.0)
+        )
+        if not pristine_missing_basis and any(value is not None for value in supplied):
+            if any(
+                value is None or not math.isfinite(value) or value < 0.0
+                for value in supplied
+            ):
+                reasons.append(
+                    f"POSITION_RECONSTRUCTION_{prefix.upper()}_LEDGER_INCOMPLETE"
+                )
+            elif not math.isclose(
+                float(incurred),
+                float(remaining) + float(allocated),
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                reasons.append(
+                    f"POSITION_RECONSTRUCTION_{prefix.upper()}_CONSERVATION_FAILED"
+                )
+        if allocated is not None and allocated > 0.0 and (
+            incurred is None or remaining is None
+        ):
+            reasons.append(
+                f"POSITION_RECONSTRUCTION_{prefix.upper()}_PARTIAL_BASIS_MISSING"
+            )
+    for field_name in (
+        "entry_fee_fallback_bps_per_side",
+        "entry_slippage_fallback_bps_per_side",
+    ):
+        raw_value = row.get(field_name)
+        parsed_value = coerce_float(raw_value)
+        if raw_value not in (None, "") and (
+            parsed_value is None
+            or not math.isfinite(parsed_value)
+            or parsed_value < 0.0
+        ):
+            reasons.append(
+                f"POSITION_RECONSTRUCTION_{field_name.upper()}_INVALID"
+            )
+    for field_name in (
+        "entry_fee_cost_sources",
+        "entry_slippage_cost_sources",
+    ):
+        if not isinstance(row.get(field_name), list | tuple):
+            reasons.append(
+                f"POSITION_RECONSTRUCTION_{field_name.upper()}_INVALID"
+            )
+    if str(row.get("entry_cost_basis_status") or "").strip() == "":
+        reasons.append("POSITION_RECONSTRUCTION_ENTRY_COST_BASIS_STATUS_MISSING")
+    if row.get("position_state") != "OPEN_POSITION":
+        reasons.append("POSITION_RECONSTRUCTION_STATE_NOT_OPEN")
+    if row.get("paper_only") is not True or row.get("places_real_order") is not False:
+        reasons.append("POSITION_RECONSTRUCTION_PAPER_SAFETY_INVALID")
+    return list(dict.fromkeys(reasons))
+
+
+def _is_lower_sha256_hex(value: Any) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(char in _SHA256_HEX_CHARS for char in text)
 
 
 def utc_now_iso() -> str:
@@ -23,6 +518,25 @@ def parse_utc(value: Any) -> datetime | None:
         return None
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def parse_aware_utc(value: Any) -> datetime | None:
+    """Parse an explicitly timezone-aware timestamp.
+
+    Maintenance-bracket evidence is account-bound risk evidence.  Unlike the
+    legacy display helpers above, a naive timestamp must never be assumed to
+    be UTC when deciding whether that evidence was available or expired.
+    """
+
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -118,14 +632,57 @@ def _nested_first_number(mapping: dict[str, Any] | None, *keys: str) -> float | 
     return first_number(*(mapping.get(key) for key in keys))
 
 
-def _liquidation_estimate(*, side: str, entry_price: float, leverage: float | None, maintenance_rate: float) -> float | None:
-    if entry_price <= 0 or leverage is None or leverage <= 0:
+def _liquidation_estimate(
+    *,
+    side: str,
+    entry_price: float,
+    quantity: float,
+    allocated_margin: float,
+    maintenance_rate: float,
+    maintenance_cum: float,
+) -> float | None:
+    """Estimate isolated-paper liquidation using one whole-position bracket.
+
+    This is intentionally *not* a weighted per-fill calculation.  ``cum`` is
+    Binance's cumulative maintenance deduction for the selected notional
+    bracket.  The estimate solves isolated equity == bracket maintenance for
+    the current net position; fees and funding remain outside this estimate.
+    """
+
+    if (
+        entry_price <= 0
+        or quantity <= 0
+        or allocated_margin <= 0
+        or not 0.0 < maintenance_rate < 1.0
+        or maintenance_cum < 0
+    ):
         return None
-    # Paper-only futures approximation. At 1x there is effectively no useful
-    # liquidation estimate for long cash-like exposure, so clamp at zero.
     if side == "long":
-        return max(0.0, entry_price * (1.0 - (1.0 / leverage) + maintenance_rate))
-    return entry_price * (1.0 + (1.0 / leverage) - maintenance_rate)
+        numerator = quantity * entry_price - allocated_margin - maintenance_cum
+        denominator = quantity * (1.0 - maintenance_rate)
+        return max(0.0, numerator / denominator)
+    numerator = quantity * entry_price + allocated_margin + maintenance_cum
+    denominator = quantity * (1.0 + maintenance_rate)
+    return numerator / denominator
+
+
+def _liquidation_buffer_bps(*, side: str, entry_price: float, liquidation_price: float | None) -> float | None:
+    if entry_price <= 0 or liquidation_price is None or liquidation_price < 0:
+        return None
+    if side == "long":
+        distance = entry_price - liquidation_price
+    else:
+        distance = liquidation_price - entry_price
+    return max(0.0, distance / entry_price * 10000.0)
+
+
+def _accounting_values_match(left: float | None, right: float | None) -> bool:
+    if left is None or right is None:
+        return left is right
+    return math.isclose(float(left), float(right), rel_tol=1e-9, abs_tol=1e-8)
+
+
+_MAINTENANCE_EVIDENCE_UNSET = object()
 
 
 @dataclass
@@ -136,6 +693,10 @@ class PaperNetPosition:
     net_quantity: float
     avg_entry_price: float
     opened_est: str
+    legacy_position_id: str | None = None
+    position_generation_id: str | None = None
+    position_id_version: str | None = None
+    entry_generation_time_utc: str | None = None
     source_signal_id: str | None = None
     prediction_id: str | None = None
     preemptive_decision_id: str | None = None
@@ -149,6 +710,7 @@ class PaperNetPosition:
     trainer_source: str | None = None
     timeframe: str | None = None
     feature_snapshot_id: str | None = None
+    feature_tensor_id: str | None = None
     decision_id: str | None = None
     mtf_snapshot_id: str | None = None
     feature_cutoff: str | None = None
@@ -181,7 +743,11 @@ class PaperNetPosition:
     paper_risk_controller_exploration_eligible: bool | None = None
     bootstrap_exploration: bool | None = None
     bootstrap_overridden_blockers: list[Any] | None = None
+    action_labels: list[Any] | None = None
+    raw_action_logits: list[Any] | None = None
+    raw_action_probabilities: list[Any] | None = None
     selected_action_probability: float | None = None
+    selected_action_index: int | None = None
     expected_move_bps: float | None = None
     action_probabilities: Any | None = None
     policy_value: float | None = None
@@ -192,6 +758,29 @@ class PaperNetPosition:
     rollout_id: str | None = None
     trajectory_index: int | None = None
     ppo_on_policy_entry_fields_present: bool | None = None
+    ppo_on_policy_ineligible_reason: str | None = None
+    behavior_action_index: int | None = None
+    behavior_action: str | None = None
+    behavior_action_mask: list[Any] | None = None
+    behavior_action_source: str | None = None
+    behavior_policy_sampling_mode: str | None = None
+    behavior_policy_distribution_contract: str | None = None
+    behavior_policy_fingerprint: str | None = None
+    behavior_policy_checkpoint_hash: str | None = None
+    behavior_policy_receipt: dict[str, Any] | None = None
+    behavior_policy_receipt_hash: str | None = None
+    behavior_policy_receipt_key: str | None = None
+    behavior_policy_receipt_write_success: bool | None = None
+    on_policy_action_receipt_valid: bool | None = None
+    on_policy_sampling_selected: bool | None = None
+    on_policy_sampling_requested: bool | None = None
+    on_policy_sampling_plan_hash: str | None = None
+    on_policy_sampling_plan_input_hash: str | None = None
+    on_policy_sampling_lane: str | None = None
+    on_policy_sampling_evidence_class: str | None = None
+    on_policy_sampling_counts_as_a_plus_evidence: bool | None = None
+    on_policy_sampling_routes_to_live: bool | None = None
+    strategy_supply_hypothesis: bool | None = None
     entry_policy_fields_source: str | None = None
     paper_learning_lane: str | None = None
     prediction_score_source: str | None = None
@@ -245,7 +834,9 @@ class PaperNetPosition:
     adaptive_capital_policy_version: str | None = None
     policy_activated_at: str | None = None
     gross_notional_usd: float | None = None
+    gross_notional_usd_upstream: float | None = None
     allocated_margin_usd: float | None = None
+    allocated_margin_usd_upstream: float | None = None
     effective_leverage: float | None = None
     recommended_leverage: float | None = None
     leverage_source: str | None = None
@@ -253,9 +844,33 @@ class PaperNetPosition:
     leverage_exploration: bool | None = None
     recommended_margin_mode: str | None = None
     margin_mode_simulated: str | None = None
+    maintenance_margin_rate: float | None = None
+    maintenance_margin_cum: float | None = None
     maintenance_margin_estimate: float | None = None
+    maintenance_margin_notional_usd: float | None = None
+    maintenance_margin_mark_price: float | None = None
+    maintenance_margin_mark_time: str | None = None
+    maintenance_bracket_id: Any | None = None
+    maintenance_bracket_maint_margin_ratio: Any | None = None
+    maintenance_bracket_cum: Any | None = None
+    maintenance_bracket_max_initial_leverage: float | None = None
+    maintenance_bracket_evidence_hash: str | None = None
+    maintenance_bracket_evidence_checksum_sha256: str | None = None
+    maintenance_bracket_evidence_hmac_sha256: str | None = None
+    maintenance_bracket_binding: Any | None = None
+    maintenance_bracket_environment_id: str | None = None
+    maintenance_bracket_key_id: str | None = None
+    maintenance_bracket_source: str | None = None
+    maintenance_bracket_available_at: str | None = None
+    maintenance_bracket_expires_at: str | None = None
+    maintenance_bracket_consumer_observed_at: str | None = None
+    maintenance_bracket_prevalidated: bool | None = None
+    maintenance_bracket_evidence_status: str | None = None
+    maintenance_bracket_evidence_reason: str | None = None
     liquidation_price_estimate: float | None = None
     liquidation_buffer_bps: float | None = None
+    capital_accounting_reconciled: bool = False
+    capital_accounting_reconciliation_reasons: list[str] = field(default_factory=list)
     risk_budget_usd: float | None = None
     risk_budget_source: str | None = None
     stop_distance_bps: float | None = None
@@ -335,6 +950,23 @@ class PaperNetPosition:
     fee_bps: float | None = None
     fee_bps_source: str | None = None
     fee_bps_configured_schedule: bool | None = None
+    # Entry execution costs are a consumed cost basis, separate from the
+    # allocator's expectation fields above.  They are denominated in USD and
+    # allocated pro-rata only after a close row has passed every lifecycle
+    # admission check.  This makes sequential partial closes conservative and
+    # exactly conserving; a rejected close cannot silently spend the basis.
+    entry_cost_accounting_version: str = PAPER_ENTRY_COST_ACCOUNTING_VERSION
+    entry_fees_incurred_usd: float | None = None
+    entry_fees_remaining_usd: float | None = None
+    entry_fees_allocated_to_closes_usd: float = 0.0
+    entry_fee_fallback_bps_per_side: float | None = None
+    entry_slippage_incurred_usd: float | None = None
+    entry_slippage_remaining_usd: float | None = None
+    entry_slippage_allocated_to_closes_usd: float = 0.0
+    entry_slippage_fallback_bps_per_side: float | None = None
+    entry_fee_cost_sources: list[str] = field(default_factory=list)
+    entry_slippage_cost_sources: list[str] = field(default_factory=list)
+    entry_cost_basis_status: str = "MISSING_ENTRY_COST_BASIS"
     holding_period_funding_bps: float | None = None
     holding_period_funding_source: str | None = None
     partial_fill_count: int | None = None
@@ -394,17 +1026,922 @@ class PaperNetPosition:
     def notional(self) -> float:
         return abs(self.net_quantity * self.avg_entry_price)
 
-    def apply_same_side_fill(self, *, fill_id: str, quantity: float, price: float) -> None:
+    def entry_cost_allocation(
+        self,
+        *,
+        close_quantity: float,
+        fallback_fee_bps_per_side: float,
+        fallback_slippage_bps_per_side: float,
+    ) -> dict[str, Any]:
+        """Return (without consuming) entry costs attributable to a close.
+
+        Complete entry-time evidence is allocated from the remaining USD cost
+        basis.  Legacy/incomplete positions use the lifecycle's explicitly
+        per-side fallback rates on the close-specific entry notional and are
+        marked fallback, so downstream training evidence can fail closed.
+        """
+
+        if self.net_quantity <= 0.0 or close_quantity <= 0.0:
+            raise ValueError("INVALID_ENTRY_COST_CLOSE_QUANTITY")
+        quantity = min(float(close_quantity), float(self.net_quantity))
+        allocation_fraction = min(1.0, quantity / float(self.net_quantity))
+        is_final_close = math.isclose(
+            quantity,
+            float(self.net_quantity),
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+        entry_notional_usd = abs(quantity * self.avg_entry_price)
+
+        if self.entry_fees_remaining_usd is None:
+            entry_fee_usd = (
+                entry_notional_usd
+                * max(0.0, float(fallback_fee_bps_per_side))
+                / 10000.0
+            )
+            fee_source = "LIFECYCLE_PER_SIDE_FEE_FALLBACK"
+            fee_fallback = True
+        else:
+            entry_fee_usd = (
+                float(self.entry_fees_remaining_usd)
+                if is_final_close
+                else float(self.entry_fees_remaining_usd) * allocation_fraction
+            )
+            fee_source = "+".join(self.entry_fee_cost_sources) or "ENTRY_USD_COST_BASIS"
+            fee_fallback = bool(
+                self.entry_fee_fallback_bps_per_side is not None
+                or any("FALLBACK" in source for source in self.entry_fee_cost_sources)
+            )
+
+        if self.entry_slippage_remaining_usd is None:
+            entry_slippage_usd = (
+                entry_notional_usd
+                * max(0.0, float(fallback_slippage_bps_per_side))
+                / 10000.0
+            )
+            slippage_source = "LIFECYCLE_PER_SIDE_SLIPPAGE_FALLBACK"
+            slippage_fallback = True
+        else:
+            entry_slippage_usd = (
+                float(self.entry_slippage_remaining_usd)
+                if is_final_close
+                else float(self.entry_slippage_remaining_usd) * allocation_fraction
+            )
+            slippage_source = (
+                "+".join(self.entry_slippage_cost_sources)
+                or "ENTRY_USD_SLIPPAGE_COST_BASIS"
+            )
+            slippage_fallback = bool(
+                self.entry_slippage_fallback_bps_per_side is not None
+                or any(
+                    "FALLBACK" in source
+                    for source in self.entry_slippage_cost_sources
+                )
+            )
+
+        return {
+            "entry_cost_accounting_version": self.entry_cost_accounting_version,
+            "entry_cost_allocation_method": (
+                "PRO_RATA_BY_CLOSED_QUANTITY_WITH_FINAL_CLOSE_REMAINDER"
+            ),
+            "entry_cost_allocation_fraction_of_pre_close_position": allocation_fraction,
+            "entry_cost_pre_close_quantity": float(self.net_quantity),
+            "entry_cost_closed_quantity": quantity,
+            "entry_cost_is_final_close": is_final_close,
+            "entry_fee_usd": max(0.0, entry_fee_usd),
+            "entry_fee_source": fee_source,
+            "entry_fee_fallback": fee_fallback,
+            "entry_fee_fallback_bps_per_side": (
+                max(
+                    0.0,
+                    float(
+                        self.entry_fee_fallback_bps_per_side
+                        if self.entry_fee_fallback_bps_per_side is not None
+                        else fallback_fee_bps_per_side
+                    ),
+                )
+                if fee_fallback
+                else None
+            ),
+            "entry_slippage_usd": max(0.0, entry_slippage_usd),
+            "entry_slippage_source": slippage_source,
+            "entry_slippage_fallback": slippage_fallback,
+            "entry_slippage_fallback_bps_per_side": (
+                max(
+                    0.0,
+                    float(
+                        self.entry_slippage_fallback_bps_per_side
+                        if self.entry_slippage_fallback_bps_per_side is not None
+                        else fallback_slippage_bps_per_side
+                    ),
+                )
+                if slippage_fallback
+                else None
+            ),
+            "entry_cost_basis_status": self.entry_cost_basis_status,
+        }
+
+    def consume_entry_cost_allocation(self, allocation: dict[str, Any]) -> None:
+        """Consume a previously calculated allocation after close admission."""
+
+        if (
+            allocation.get("entry_cost_accounting_version")
+            != self.entry_cost_accounting_version
+        ):
+            raise ValueError("ENTRY_COST_ACCOUNTING_VERSION_MISMATCH")
+        expected = self.entry_cost_allocation(
+            close_quantity=float(allocation.get("entry_cost_closed_quantity") or 0.0),
+            fallback_fee_bps_per_side=float(
+                allocation.get("entry_fee_fallback_bps_per_side") or 0.0
+            ),
+            fallback_slippage_bps_per_side=float(
+                allocation.get("entry_slippage_fallback_bps_per_side") or 0.0
+            ),
+        )
+        for cost_field in ("entry_fee_usd", "entry_slippage_usd"):
+            if allocation.get(cost_field) is None or not math.isclose(
+                float(allocation[cost_field]),
+                float(expected[cost_field]),
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    f"ENTRY_COST_ALLOCATION_MISMATCH:{cost_field}"
+                )
+
+        # Validate both prospective ledgers before mutating either one.  This
+        # keeps fee and slippage consumption atomic and enforces the accounting
+        # invariant incurred = remaining + allocated across every partial close.
+        updates: dict[str, tuple[float, float, float]] = {}
+        if self.entry_fees_remaining_usd is None:
+            fallback_bps = coerce_float(
+                allocation.get("entry_fee_fallback_bps_per_side")
+            )
+            if fallback_bps is None or fallback_bps < 0.0:
+                raise ValueError("ENTRY_FEE_FALLBACK_RATE_MISSING")
+            if self.entry_fees_allocated_to_closes_usd != 0.0:
+                raise ValueError("ENTRY_FEE_PARTIAL_LEDGER_MISSING_REMAINING_BASIS")
+            full_fee_basis = (
+                float(self.net_quantity)
+                * float(self.avg_entry_price)
+                * fallback_bps
+                / 10000.0
+            )
+            consumed_fee = float(allocation["entry_fee_usd"])
+            next_fee_remaining = max(0.0, full_fee_basis - consumed_fee)
+            if not math.isclose(
+                full_fee_basis,
+                next_fee_remaining + consumed_fee,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError("ENTRY_FEE_FALLBACK_BASIS_CONSERVATION_FAILED")
+            updates["fee"] = (
+                full_fee_basis,
+                next_fee_remaining,
+                consumed_fee,
+            )
+        else:
+            if self.entry_fees_incurred_usd is None:
+                raise ValueError("ENTRY_FEE_COST_BASIS_INCURRED_MISSING")
+            consumed_fee = float(allocation["entry_fee_usd"])
+            next_fee_remaining = max(
+                0.0,
+                float(self.entry_fees_remaining_usd) - consumed_fee,
+            )
+            next_fee_allocated = (
+                float(self.entry_fees_allocated_to_closes_usd) + consumed_fee
+            )
+            if not math.isclose(
+                float(self.entry_fees_incurred_usd),
+                next_fee_remaining + next_fee_allocated,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError("ENTRY_FEE_COST_BASIS_CONSERVATION_FAILED")
+            updates["fee"] = (
+                float(self.entry_fees_incurred_usd),
+                next_fee_remaining,
+                next_fee_allocated,
+            )
+        if self.entry_slippage_remaining_usd is None:
+            fallback_bps = coerce_float(
+                allocation.get("entry_slippage_fallback_bps_per_side")
+            )
+            if fallback_bps is None or fallback_bps < 0.0:
+                raise ValueError("ENTRY_SLIPPAGE_FALLBACK_RATE_MISSING")
+            if self.entry_slippage_allocated_to_closes_usd != 0.0:
+                raise ValueError(
+                    "ENTRY_SLIPPAGE_PARTIAL_LEDGER_MISSING_REMAINING_BASIS"
+                )
+            full_slippage_basis = (
+                float(self.net_quantity)
+                * float(self.avg_entry_price)
+                * fallback_bps
+                / 10000.0
+            )
+            consumed_slippage = float(allocation["entry_slippage_usd"])
+            next_slippage_remaining = max(
+                0.0, full_slippage_basis - consumed_slippage
+            )
+            if not math.isclose(
+                full_slippage_basis,
+                next_slippage_remaining + consumed_slippage,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(
+                    "ENTRY_SLIPPAGE_FALLBACK_BASIS_CONSERVATION_FAILED"
+                )
+            updates["slippage"] = (
+                full_slippage_basis,
+                next_slippage_remaining,
+                consumed_slippage,
+            )
+        else:
+            if self.entry_slippage_incurred_usd is None:
+                raise ValueError("ENTRY_SLIPPAGE_COST_BASIS_INCURRED_MISSING")
+            consumed_slippage = float(allocation["entry_slippage_usd"])
+            next_slippage_remaining = max(
+                0.0,
+                float(self.entry_slippage_remaining_usd) - consumed_slippage,
+            )
+            next_slippage_allocated = (
+                float(self.entry_slippage_allocated_to_closes_usd)
+                + consumed_slippage
+            )
+            if not math.isclose(
+                float(self.entry_slippage_incurred_usd),
+                next_slippage_remaining + next_slippage_allocated,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError("ENTRY_SLIPPAGE_COST_BASIS_CONSERVATION_FAILED")
+            updates["slippage"] = (
+                float(self.entry_slippage_incurred_usd),
+                next_slippage_remaining,
+                next_slippage_allocated,
+            )
+
+        if "fee" in updates:
+            (
+                self.entry_fees_incurred_usd,
+                self.entry_fees_remaining_usd,
+                self.entry_fees_allocated_to_closes_usd,
+            ) = updates["fee"]
+            if allocation.get("entry_fee_fallback") is True:
+                self.entry_fee_fallback_bps_per_side = float(
+                    allocation["entry_fee_fallback_bps_per_side"]
+                )
+                self.entry_fee_cost_sources = list(
+                    dict.fromkeys(
+                        [
+                            *self.entry_fee_cost_sources,
+                            str(allocation.get("entry_fee_source")),
+                        ]
+                    )
+                )
+        if "slippage" in updates:
+            (
+                self.entry_slippage_incurred_usd,
+                self.entry_slippage_remaining_usd,
+                self.entry_slippage_allocated_to_closes_usd,
+            ) = updates["slippage"]
+            if allocation.get("entry_slippage_fallback") is True:
+                self.entry_slippage_fallback_bps_per_side = float(
+                    allocation["entry_slippage_fallback_bps_per_side"]
+                )
+                self.entry_slippage_cost_sources = list(
+                    dict.fromkeys(
+                        [
+                            *self.entry_slippage_cost_sources,
+                            str(allocation.get("entry_slippage_source")),
+                        ]
+                    )
+                )
+        if (
+            self.entry_fee_fallback_bps_per_side is not None
+            or self.entry_slippage_fallback_bps_per_side is not None
+        ):
+            self.entry_cost_basis_status = (
+                "COMPLETE_MATERIALIZED_FALLBACK_ENTRY_COST_BASIS"
+            )
+
+    def _sync_adaptive_allocation_capital(self) -> None:
+        # ``adaptive_allocation`` is immutable upstream decision provenance.
+        # Current/aggregated capital is emitted in the position's top-level
+        # canonical fields; rewriting the allocator record would destroy the
+        # original recommendation and break historical audit compatibility.
+        return
+
+    def _maintenance_bracket_is_usable(self) -> bool:
+        return str(self.maintenance_bracket_evidence_status or "").startswith("READY")
+
+    def _set_maintenance_unknown(self, *, status: str, reason: str) -> None:
+        """Invalidate active risk math while retaining prior lineage for audit."""
+
+        self.maintenance_margin_rate = None
+        self.maintenance_margin_cum = None
+        self.maintenance_margin_estimate = None
+        self.liquidation_price_estimate = None
+        self.liquidation_buffer_bps = None
+        self.maintenance_bracket_evidence_status = status
+        self.maintenance_bracket_evidence_reason = reason
+        self.capital_accounting_reconciled = True
+        self.capital_accounting_reconciliation_reasons = list(
+            dict.fromkeys([*self.capital_accounting_reconciliation_reasons, reason])
+        )
+
+    def _capture_maintenance_bracket_lineage(self, evidence: dict[str, Any]) -> None:
+        raw_ratio = first_present(
+            evidence.get("maint_margin_ratio"),
+            evidence.get("maintMarginRatio"),
+            evidence.get("maintenance_margin_rate"),
+        )
+        raw_cum = first_present(
+            evidence.get("cum"),
+            evidence.get("maintenance_margin_cum"),
+        )
+        self.maintenance_bracket_id = first_present(
+            evidence.get("bracket_id"),
+            evidence.get("selected_bracket"),
+            evidence.get("bracket"),
+        )
+        self.maintenance_bracket_maint_margin_ratio = raw_ratio
+        self.maintenance_bracket_cum = raw_cum
+        self.maintenance_bracket_max_initial_leverage = first_number(
+            evidence.get("max_initial_leverage"),
+            evidence.get("initialLeverage"),
+        )
+        checksum = first_present(
+            evidence.get("evidence_checksum"),
+            evidence.get("evidence_checksum_sha256"),
+            evidence.get("evidence_sha256"),
+        )
+        self.maintenance_bracket_evidence_hash = first_present(
+            evidence.get("evidence_hash"),
+            checksum,
+        )
+        self.maintenance_bracket_evidence_checksum_sha256 = (
+            str(checksum) if checksum not in (None, "") else None
+        )
+        hmac_value = first_present(
+            evidence.get("hmac"),
+            evidence.get("evidence_hmac"),
+            evidence.get("evidence_hmac_sha256"),
+        )
+        self.maintenance_bracket_evidence_hmac_sha256 = (
+            str(hmac_value) if hmac_value not in (None, "") else None
+        )
+        self.maintenance_bracket_binding = first_present(
+            evidence.get("binding"),
+            evidence.get("evidence_binding"),
+            evidence.get("account_binding_id"),
+        )
+        environment_id = evidence.get("environment_id")
+        self.maintenance_bracket_environment_id = (
+            str(environment_id) if environment_id not in (None, "") else None
+        )
+        key_id = evidence.get("key_id")
+        self.maintenance_bracket_key_id = (
+            str(key_id) if key_id not in (None, "") else None
+        )
+        source = evidence.get("source")
+        self.maintenance_bracket_source = (
+            str(source) if source not in (None, "") else None
+        )
+        self.maintenance_bracket_available_at = (
+            str(evidence.get("available_at"))
+            if evidence.get("available_at") not in (None, "")
+            else None
+        )
+        self.maintenance_bracket_expires_at = (
+            str(evidence.get("expires_at"))
+            if evidence.get("expires_at") not in (None, "")
+            else None
+        )
+        observed_at = evidence.get("consumer_observed_at")
+        self.maintenance_bracket_consumer_observed_at = (
+            str(observed_at) if observed_at not in (None, "") else None
+        )
+        self.maintenance_bracket_prevalidated = evidence.get("prevalidated") is True
+
+    def apply_maintenance_bracket_evidence(
+        self,
+        evidence: dict[str, Any] | None,
+        *,
+        mark_price: float,
+        mark_time: str,
+    ) -> None:
+        """Apply prevalidated account-bound evidence to the whole net position.
+
+        The lifecycle still validates the evidence's structural and temporal
+        envelope.  Missing, future-dated, expired, unbound, or malformed
+        evidence makes maintenance and liquidation unknown; it never falls
+        back to a constant maintenance rate.
+        """
+
+        mark = coerce_float(mark_price)
+        if mark is None or not math.isfinite(mark) or mark <= 0:
+            self.maintenance_margin_notional_usd = None
+            self.maintenance_margin_mark_price = None
+            self.maintenance_margin_mark_time = None
+            self._set_maintenance_unknown(
+                status="MARK_PRICE_INVALID",
+                reason="MAINTENANCE_MARK_PRICE_INVALID_FAIL_CLOSED",
+            )
+            return
+        self.maintenance_margin_notional_usd = abs(self.net_quantity) * mark
+        self.maintenance_margin_mark_price = mark
+        self.maintenance_margin_mark_time = mark_time
+        if not isinstance(evidence, dict):
+            self._set_maintenance_unknown(
+                status="MISSING_FOR_CURRENT_MARK",
+                reason="MAINTENANCE_BRACKET_EVIDENCE_MISSING_FOR_CURRENT_MARK",
+            )
+            return
+
+        self._capture_maintenance_bracket_lineage(evidence)
+        mark_dt = parse_aware_utc(mark_time)
+        available_dt = parse_aware_utc(self.maintenance_bracket_available_at)
+        expires_dt = parse_aware_utc(self.maintenance_bracket_expires_at)
+        observed_dt = parse_aware_utc(self.maintenance_bracket_consumer_observed_at)
+        ratio = coerce_float(self.maintenance_bracket_maint_margin_ratio)
+        cum = coerce_float(self.maintenance_bracket_cum)
+        max_leverage = coerce_float(self.maintenance_bracket_max_initial_leverage)
+        binding_present = self.maintenance_bracket_binding not in (None, "", {}, [])
+        checksum = self.maintenance_bracket_evidence_checksum_sha256
+        evidence_hmac = self.maintenance_bracket_evidence_hmac_sha256
+        evidence_hash = self.maintenance_bracket_evidence_hash
+        environment_id = self.maintenance_bracket_environment_id
+        key_id = self.maintenance_bracket_key_id
+        binding_text = str(self.maintenance_bracket_binding or "")
+        required_missing = [
+            name
+            for name, present in (
+                ("prevalidated", evidence.get("prevalidated") is True),
+                ("bracket_id", self.maintenance_bracket_id not in (None, "")),
+                ("evidence_hash", self.maintenance_bracket_evidence_hash not in (None, "")),
+                ("evidence_checksum_sha256", checksum not in (None, "")),
+                ("evidence_hmac_sha256", evidence_hmac not in (None, "")),
+                ("binding", binding_present),
+                ("environment_id", environment_id not in (None, "")),
+                ("key_id", key_id not in (None, "")),
+                ("source", self.maintenance_bracket_source not in (None, "")),
+                ("mark_time", mark_dt is not None),
+                ("available_at", available_dt is not None),
+                ("expires_at", expires_dt is not None),
+                ("consumer_observed_at", observed_dt is not None),
+            )
+            if not present
+        ]
+        provenance_invalid = (
+            not _is_lower_sha256_hex(checksum)
+            or not _is_lower_sha256_hex(evidence_hmac)
+            or evidence_hash != checksum
+            or environment_id not in _KNOWN_BINANCE_USDM_ENVIRONMENTS
+            or not binding_text.startswith(f"{environment_id}:")
+            or len(binding_text.split(":")) != 3
+            or not isinstance(key_id, str)
+            or not key_id.strip()
+            or self.maintenance_bracket_source != _BINANCE_USDM_BRACKET_SOURCE
+        )
+        numeric_invalid = (
+            ratio is None
+            or not math.isfinite(ratio)
+            or not 0.0 < ratio < 1.0
+            or cum is None
+            or not math.isfinite(cum)
+            or cum < 0.0
+            or max_leverage is None
+            or not math.isfinite(max_leverage)
+            or max_leverage < 1.0
+        )
+        if required_missing or numeric_invalid or provenance_invalid:
+            detail = (
+                ",".join(required_missing)
+                if required_missing
+                else (
+                    "numeric_fields" if numeric_invalid else "provenance_fields"
+                )
+            )
+            self._set_maintenance_unknown(
+                status="INVALID",
+                reason=f"MAINTENANCE_BRACKET_EVIDENCE_INVALID:{detail}",
+            )
+            return
+        assert (
+            mark_dt is not None
+            and available_dt is not None
+            and expires_dt is not None
+            and observed_dt is not None
+        )
+        if available_dt >= expires_dt:
+            self._set_maintenance_unknown(
+                status="INVALID_TIMESTAMP_ORDER",
+                reason="MAINTENANCE_BRACKET_AVAILABLE_NOT_BEFORE_EXPIRY",
+            )
+            return
+        if available_dt > mark_dt:
+            self._set_maintenance_unknown(
+                status="FUTURE_AT_MARK",
+                reason="MAINTENANCE_BRACKET_AVAILABLE_AFTER_MARK_TIME",
+            )
+            return
+        if expires_dt <= mark_dt:
+            self._set_maintenance_unknown(
+                status="STALE_AT_MARK",
+                reason="MAINTENANCE_BRACKET_EXPIRED_AT_MARK_TIME",
+            )
+            return
+        if observed_dt < available_dt or observed_dt > mark_dt:
+            self._set_maintenance_unknown(
+                status="INVALID_CONSUMER_OBSERVED_AT",
+                reason="MAINTENANCE_BRACKET_CONSUMER_OBSERVED_AT_INVALID",
+            )
+            return
+
+        self.maintenance_margin_rate = ratio
+        self.maintenance_margin_cum = cum
+        self.maintenance_bracket_evidence_status = "READY"
+        self.maintenance_bracket_evidence_reason = None
+        self.recompute_capital_accounting()
+
+    def _copy_maintenance_bracket_from(self, source: PaperNetPosition) -> None:
+        for field_name in (
+            "maintenance_margin_rate",
+            "maintenance_margin_cum",
+            "maintenance_bracket_id",
+            "maintenance_bracket_maint_margin_ratio",
+            "maintenance_bracket_cum",
+            "maintenance_bracket_max_initial_leverage",
+            "maintenance_bracket_evidence_hash",
+            "maintenance_bracket_evidence_checksum_sha256",
+            "maintenance_bracket_evidence_hmac_sha256",
+            "maintenance_bracket_binding",
+            "maintenance_bracket_environment_id",
+            "maintenance_bracket_key_id",
+            "maintenance_bracket_source",
+            "maintenance_bracket_available_at",
+            "maintenance_bracket_expires_at",
+            "maintenance_bracket_consumer_observed_at",
+            "maintenance_bracket_prevalidated",
+        ):
+            setattr(self, field_name, getattr(source, field_name))
+
+    def recompute_capital_accounting(self) -> None:
+        """Reconcile entry-basis capital and mark-basis maintenance separately."""
+        gross_notional = self.notional
+        leverage = coerce_float(self.effective_leverage)
+        if gross_notional <= 0 or leverage is None or leverage < 1.0:
+            raise ValueError("INVALID_CURRENT_POSITION_CAPITAL_INPUTS")
+        simulated_margin_mode = str(
+            self.margin_mode_simulated or "isolated_paper_simulated"
+        ).strip().lower()
+        if simulated_margin_mode not in {"isolated", "isolated_paper_simulated"}:
+            self.margin_mode_simulated = "isolated_paper_simulated"
+            reason = (
+                "CROSS_MARGIN_SIMULATION_DOWNGRADED_NO_ACCOUNT_WIDE_"
+                "LIQUIDATION_MODEL"
+            )
+            if reason not in self.capital_accounting_reconciliation_reasons:
+                self.capital_accounting_reconciliation_reasons.append(reason)
+            self.capital_accounting_reconciled = True
+        allocated_margin = gross_notional / leverage
+        self.gross_notional_usd = gross_notional
+        self.allocated_margin_usd = allocated_margin
+        self.effective_leverage = leverage
+        maintenance_rate = coerce_float(self.maintenance_margin_rate)
+        maintenance_cum = coerce_float(self.maintenance_margin_cum)
+        maintenance_notional = coerce_float(self.maintenance_margin_notional_usd)
+        if (
+            not self._maintenance_bracket_is_usable()
+            or
+            maintenance_rate is None
+            or not math.isfinite(maintenance_rate)
+            or not 0.0 < maintenance_rate < 1.0
+            or maintenance_cum is None
+            or not math.isfinite(maintenance_cum)
+            or maintenance_cum < 0.0
+            or maintenance_notional is None
+            or not math.isfinite(maintenance_notional)
+            or maintenance_notional <= 0.0
+        ):
+            self._set_maintenance_unknown(
+                status=self.maintenance_bracket_evidence_status or "UNUSABLE",
+                reason=(
+                    self.maintenance_bracket_evidence_reason
+                    or "MAINTENANCE_BRACKET_EVIDENCE_UNUSABLE_FAIL_CLOSED"
+                ),
+            )
+            self._sync_adaptive_allocation_capital()
+            return
+        maintenance_amount = max(
+            0.0,
+            maintenance_notional * maintenance_rate - maintenance_cum,
+        )
+        liquidation_price = _liquidation_estimate(
+            side=self.side,
+            entry_price=self.avg_entry_price,
+            quantity=abs(self.net_quantity),
+            allocated_margin=allocated_margin,
+            maintenance_rate=maintenance_rate,
+            maintenance_cum=maintenance_cum,
+        )
+        if liquidation_price is None:
+            self._set_maintenance_unknown(
+                status="LIQUIDATION_ESTIMATE_FAILED",
+                reason="LIQUIDATION_PRICE_RECOMPUTE_FAILED_FAIL_CLOSED",
+            )
+            self._sync_adaptive_allocation_capital()
+            return
+        self.maintenance_margin_estimate = maintenance_amount
+        self.liquidation_price_estimate = liquidation_price
+        self.liquidation_buffer_bps = _liquidation_buffer_bps(
+            side=self.side,
+            entry_price=self.avg_entry_price,
+            liquidation_price=liquidation_price,
+        )
+        self._sync_adaptive_allocation_capital()
+
+    def apply_same_side_fill(
+        self,
+        *,
+        fill_id: str,
+        quantity: float,
+        price: float,
+        incoming_position: PaperNetPosition | None = None,
+    ) -> None:
+        """Aggregate a validated same-side fill without stale capital fields.
+
+        The caller must provide the canonical position derived from the incoming
+        fill.  Missing or internally inconsistent capital evidence fails before
+        this position is mutated.
+        """
+        if incoming_position is None:
+            raise ValueError("MISSING_INCOMING_POSITION_CAPITAL_EVIDENCE")
+        if incoming_position.symbol != self.symbol or incoming_position.side != self.side:
+            raise ValueError("INCOMING_POSITION_IDENTITY_MISMATCH")
+        if quantity <= 0 or price <= 0:
+            raise ValueError("INVALID_SAME_SIDE_FILL_QUANTITY_OR_PRICE")
         prior_qty = self.net_quantity
         new_qty = prior_qty + quantity
         if new_qty <= 0:
-            return
-        self.avg_entry_price = ((self.avg_entry_price * prior_qty) + (price * quantity)) / new_qty
+            raise ValueError("INVALID_SAME_SIDE_NET_QUANTITY")
+
+        prior_notional = self.notional
+        incoming_notional = abs(quantity * price)
+        prior_leverage = coerce_float(self.effective_leverage)
+        incoming_leverage = coerce_float(incoming_position.effective_leverage)
+        prior_margin = coerce_float(self.allocated_margin_usd)
+        incoming_margin = coerce_float(incoming_position.allocated_margin_usd)
+        if (
+            prior_notional <= 0
+            or incoming_notional <= 0
+            or prior_leverage is None
+            or incoming_leverage is None
+            or prior_leverage < 1.0
+            or incoming_leverage < 1.0
+            or prior_margin is None
+            or incoming_margin is None
+            or prior_margin <= 0
+            or incoming_margin <= 0
+        ):
+            raise ValueError("INVALID_SAME_SIDE_CAPITAL_EVIDENCE")
+        if not _accounting_values_match(prior_margin * prior_leverage, prior_notional):
+            raise ValueError("EXISTING_POSITION_MARGIN_LEVERAGE_MISMATCH")
+        if not _accounting_values_match(
+            incoming_margin * incoming_leverage,
+            incoming_notional,
+        ):
+            raise ValueError("INCOMING_FILL_MARGIN_LEVERAGE_MISMATCH")
+
+        def cost_ledger_state(
+            *,
+            label: str,
+            incurred: float | None,
+            remaining: float | None,
+            allocated: float | None,
+        ) -> str:
+            parsed_incurred = coerce_float(incurred)
+            parsed_remaining = coerce_float(remaining)
+            parsed_allocated = coerce_float(allocated)
+            if parsed_allocated is None:
+                parsed_allocated = 0.0
+            values = (parsed_incurred, parsed_remaining, parsed_allocated)
+            if any(
+                value is not None and (not math.isfinite(value) or value < 0.0)
+                for value in values
+            ):
+                raise ValueError(f"{label}_ENTRY_COST_LEDGER_INVALID")
+            if (
+                parsed_incurred is None
+                and parsed_remaining is None
+                and parsed_allocated == 0.0
+            ):
+                return "PRISTINE_MISSING"
+            if parsed_incurred is None or parsed_remaining is None:
+                raise ValueError(f"{label}_ENTRY_COST_LEDGER_INCOMPLETE")
+            if not math.isclose(
+                parsed_incurred,
+                parsed_remaining + parsed_allocated,
+                rel_tol=1e-12,
+                abs_tol=1e-12,
+            ):
+                raise ValueError(f"{label}_ENTRY_COST_LEDGER_NOT_CONSERVED")
+            return "COMPLETE"
+
+        for label, current_values, incoming_values in (
+            (
+                "FEE",
+                (
+                    self.entry_fees_incurred_usd,
+                    self.entry_fees_remaining_usd,
+                    self.entry_fees_allocated_to_closes_usd,
+                ),
+                (
+                    incoming_position.entry_fees_incurred_usd,
+                    incoming_position.entry_fees_remaining_usd,
+                    incoming_position.entry_fees_allocated_to_closes_usd,
+                ),
+            ),
+            (
+                "SLIPPAGE",
+                (
+                    self.entry_slippage_incurred_usd,
+                    self.entry_slippage_remaining_usd,
+                    self.entry_slippage_allocated_to_closes_usd,
+                ),
+                (
+                    incoming_position.entry_slippage_incurred_usd,
+                    incoming_position.entry_slippage_remaining_usd,
+                    incoming_position.entry_slippage_allocated_to_closes_usd,
+                ),
+            ),
+        ):
+            current_state = cost_ledger_state(
+                label=f"EXISTING_{label}",
+                incurred=current_values[0],
+                remaining=current_values[1],
+                allocated=current_values[2],
+            )
+            incoming_state = cost_ledger_state(
+                label=f"INCOMING_{label}",
+                incurred=incoming_values[0],
+                remaining=incoming_values[1],
+                allocated=incoming_values[2],
+            )
+            if current_state != incoming_state:
+                raise ValueError(
+                    f"MIXED_{label}_ENTRY_COST_BASIS_WOULD_DESTROY_EXACT_LEDGER"
+                )
+
+        def combine_complete_usd(
+            current: float | None,
+            incoming: float | None,
+        ) -> float | None:
+            if current is None or incoming is None:
+                return None
+            return max(0.0, float(current)) + max(0.0, float(incoming))
+
+        aggregate_entry_fees_incurred = combine_complete_usd(
+            self.entry_fees_incurred_usd,
+            incoming_position.entry_fees_incurred_usd,
+        )
+        aggregate_entry_fees_remaining = combine_complete_usd(
+            self.entry_fees_remaining_usd,
+            incoming_position.entry_fees_remaining_usd,
+        )
+        aggregate_entry_slippage_incurred = combine_complete_usd(
+            self.entry_slippage_incurred_usd,
+            incoming_position.entry_slippage_incurred_usd,
+        )
+        aggregate_entry_slippage_remaining = combine_complete_usd(
+            self.entry_slippage_remaining_usd,
+            incoming_position.entry_slippage_remaining_usd,
+        )
+
+        total_notional = prior_notional + incoming_notional
+        total_margin = prior_margin + incoming_margin
+        aggregate_leverage = total_notional / total_margin
+        prior_recommended = coerce_float(self.recommended_leverage)
+        incoming_recommended = coerce_float(incoming_position.recommended_leverage)
+        aggregate_recommended = None
+        if (
+            prior_recommended is not None
+            and incoming_recommended is not None
+            and prior_recommended > 0
+            and incoming_recommended > 0
+        ):
+            recommended_margin = (
+                prior_notional / prior_recommended
+                + incoming_notional / incoming_recommended
+            )
+            if recommended_margin > 0:
+                aggregate_recommended = total_notional / recommended_margin
+
+        new_avg_entry = (
+            (self.avg_entry_price * prior_qty) + (price * quantity)
+        ) / new_qty
+        self.avg_entry_price = new_avg_entry
         self.net_quantity = new_qty
+        self.gross_notional_usd = total_notional
+        self.allocated_margin_usd = total_margin
+        self.effective_leverage = aggregate_leverage
+        self.entry_fees_incurred_usd = aggregate_entry_fees_incurred
+        self.entry_fees_remaining_usd = aggregate_entry_fees_remaining
+        self.entry_fees_allocated_to_closes_usd += (
+            incoming_position.entry_fees_allocated_to_closes_usd
+        )
+        self.entry_slippage_incurred_usd = aggregate_entry_slippage_incurred
+        self.entry_slippage_remaining_usd = aggregate_entry_slippage_remaining
+        self.entry_slippage_allocated_to_closes_usd += (
+            incoming_position.entry_slippage_allocated_to_closes_usd
+        )
+        self.entry_fee_cost_sources = list(
+            dict.fromkeys(
+                [
+                    *self.entry_fee_cost_sources,
+                    *incoming_position.entry_fee_cost_sources,
+                ]
+            )
+        )
+        self.entry_slippage_cost_sources = list(
+            dict.fromkeys(
+                [
+                    *self.entry_slippage_cost_sources,
+                    *incoming_position.entry_slippage_cost_sources,
+                ]
+            )
+        )
+        self.entry_cost_basis_status = (
+            "COMPLETE_ENTRY_FEE_AND_SLIPPAGE_USD_BASIS"
+            if (
+                aggregate_entry_fees_remaining is not None
+                and aggregate_entry_slippage_remaining is not None
+            )
+            else "INCOMPLETE_ENTRY_FEE_OR_SLIPPAGE_USD_BASIS"
+        )
+        if aggregate_recommended is not None:
+            self.recommended_leverage = aggregate_recommended
+        self.capital_accounting_reconciled = bool(
+            self.capital_accounting_reconciled
+            or incoming_position.capital_accounting_reconciled
+        )
+        self.capital_accounting_reconciliation_reasons = list(
+            dict.fromkeys(
+                [
+                    *self.capital_accounting_reconciliation_reasons,
+                    *incoming_position.capital_accounting_reconciliation_reasons,
+                    "SAME_SIDE_CAPITAL_RECOMPUTED_FROM_EXECUTED_FILLS",
+                    "SAME_SIDE_MAINTENANCE_NEVER_WEIGHTED_PER_FILL",
+                ]
+            )
+        )
+        # Until the next whole-position mark selects the exact tier, retain
+        # only the more conservative of two complete fill-bound brackets.
+        self.maintenance_margin_notional_usd = abs(new_qty) * price
+        self.maintenance_margin_mark_price = price
+        self.maintenance_margin_mark_time = first_present(
+            incoming_position.entry_generation_time_utc,
+            incoming_position.opened_est,
+        )
+        if self._maintenance_bracket_is_usable() and incoming_position._maintenance_bracket_is_usable():
+            candidates = (self, incoming_position)
+
+            def maintenance_for(candidate: PaperNetPosition) -> float:
+                rate = coerce_float(candidate.maintenance_margin_rate) or 0.0
+                cum_value = coerce_float(candidate.maintenance_margin_cum) or 0.0
+                return max(0.0, self.maintenance_margin_notional_usd * rate - cum_value)
+
+            selected = max(
+                candidates,
+                key=lambda candidate: (
+                    maintenance_for(candidate),
+                    coerce_float(candidate.maintenance_margin_rate) or 0.0,
+                ),
+            )
+            self._copy_maintenance_bracket_from(selected)
+            self.maintenance_bracket_evidence_status = "READY_CONSERVATIVE_SAME_SIDE_FILL"
+            self.maintenance_bracket_evidence_reason = (
+                "CONSERVATIVE_FILL_BRACKET_PENDING_WHOLE_POSITION_MARK_RESELECTION"
+            )
+        else:
+            self._set_maintenance_unknown(
+                status="SAME_SIDE_FILL_EVIDENCE_INCOMPLETE",
+                reason="SAME_SIDE_FILL_MAINTENANCE_BRACKET_EVIDENCE_INCOMPLETE",
+            )
+        self.recompute_capital_accounting()
         if fill_id not in self.fill_ids:
             self.fill_ids.append(fill_id)
 
-    def update_mark(self, *, mark_price: float | None, mark_time: str) -> None:
+    def update_mark(
+        self,
+        *,
+        mark_price: float | None,
+        mark_time: str,
+        maintenance_bracket_evidence: dict[str, Any] | None | object = _MAINTENANCE_EVIDENCE_UNSET,
+    ) -> None:
         if mark_price is None or mark_price <= 0:
             return
         self.last_mark_price = mark_price
@@ -430,6 +1967,22 @@ class PaperNetPosition:
             self.mae_bps = max(self.mae_bps, adverse_delta / self.avg_entry_price * 10000.0)
         self.mfe_usd = max(self.mfe_usd, favorable_delta * self.net_quantity)
         self.mae_usd = max(self.mae_usd, adverse_delta * self.net_quantity)
+        if maintenance_bracket_evidence is not _MAINTENANCE_EVIDENCE_UNSET:
+            self.apply_maintenance_bracket_evidence(
+                maintenance_bracket_evidence
+                if isinstance(maintenance_bracket_evidence, dict)
+                else None,
+                mark_price=mark_price,
+                mark_time=mark_time,
+            )
+        elif self._maintenance_bracket_is_usable():
+            # Internal close/path updates may repeat the same externally
+            # validated mark. They may update the price basis, but cannot
+            # introduce or resurrect maintenance evidence.
+            self.maintenance_margin_notional_usd = abs(self.net_quantity) * mark_price
+            self.maintenance_margin_mark_price = mark_price
+            self.maintenance_margin_mark_time = mark_time
+            self.recompute_capital_accounting()
 
     def record_trailing_state(
         self,
@@ -470,6 +2023,122 @@ class PaperNetPosition:
             entry_price=self.avg_entry_price,
             exit_price=self.last_mark_price,
         )
+
+    def reconstruction_envelope(self, *, generated_utc: str) -> dict[str, Any]:
+        """Return the versioned content hash required for restart restoration."""
+
+        material = {
+            "position_reconstruction_schema_version": (
+                PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION
+            ),
+            "position_reconstruction_generated_at": generated_utc,
+            "position_id": self.position_id,
+            "legacy_position_id": self.legacy_position_id,
+            "position_generation_id": self.position_generation_id,
+            "position_id_version": self.position_id_version,
+            "entry_generation_time_utc": self.entry_generation_time_utc,
+            "symbol": self.symbol,
+            "side": self.side,
+            "net_quantity": round(self.net_quantity, 12),
+            "avg_entry_price": self.avg_entry_price,
+            "gross_notional_usd": self.notional,
+            "allocated_margin_usd": (
+                self.notional
+                / max(1.0, float(self.effective_leverage or 1.0))
+            ),
+            "effective_leverage": self.effective_leverage,
+            "recommended_leverage": self.recommended_leverage,
+            "leverage_source": self.leverage_source,
+            "recommended_margin_mode": self.recommended_margin_mode,
+            "margin_mode_simulated": self.margin_mode_simulated,
+            "adaptive_allocation": self.adaptive_allocation,
+            "maintenance_margin_rate": self.maintenance_margin_rate,
+            "maintenance_margin_cum": self.maintenance_margin_cum,
+            "maintenance_margin_notional_usd": (
+                self.maintenance_margin_notional_usd
+            ),
+            "maintenance_bracket_id": self.maintenance_bracket_id,
+            "maintenance_bracket_maint_margin_ratio": (
+                self.maintenance_bracket_maint_margin_ratio
+            ),
+            "maintenance_bracket_cum": self.maintenance_bracket_cum,
+            "maintenance_bracket_max_initial_leverage": (
+                self.maintenance_bracket_max_initial_leverage
+            ),
+            "maintenance_bracket_evidence_hash": (
+                self.maintenance_bracket_evidence_hash
+            ),
+            "maintenance_bracket_evidence_checksum_sha256": (
+                self.maintenance_bracket_evidence_checksum_sha256
+            ),
+            "maintenance_bracket_evidence_hmac_sha256": (
+                self.maintenance_bracket_evidence_hmac_sha256
+            ),
+            "maintenance_bracket_binding": self.maintenance_bracket_binding,
+            "maintenance_bracket_environment_id": (
+                self.maintenance_bracket_environment_id
+            ),
+            "maintenance_bracket_key_id": self.maintenance_bracket_key_id,
+            "maintenance_bracket_source": self.maintenance_bracket_source,
+            "maintenance_bracket_available_at": (
+                self.maintenance_bracket_available_at
+            ),
+            "maintenance_bracket_expires_at": (
+                self.maintenance_bracket_expires_at
+            ),
+            "maintenance_bracket_consumer_observed_at": (
+                self.maintenance_bracket_consumer_observed_at
+            ),
+            "maintenance_bracket_prevalidated": (
+                self.maintenance_bracket_prevalidated
+            ),
+            "maintenance_bracket_evidence_status": (
+                self.maintenance_bracket_evidence_status
+            ),
+            "maintenance_bracket_evidence_reason": (
+                self.maintenance_bracket_evidence_reason
+            ),
+            "liquidation_price_estimate": self.liquidation_price_estimate,
+            "liquidation_buffer_bps": self.liquidation_buffer_bps,
+            "opened_est": self.opened_est,
+            "source_fill_ids": list(self.fill_ids),
+            "realized_pnl": self.realized_pnl,
+            "entry_cost_accounting_version": self.entry_cost_accounting_version,
+            "entry_fees_incurred_usd": self.entry_fees_incurred_usd,
+            "entry_fees_remaining_usd": self.entry_fees_remaining_usd,
+            "entry_fees_allocated_to_closes_usd": (
+                self.entry_fees_allocated_to_closes_usd
+            ),
+            "entry_fee_fallback_bps_per_side": (
+                self.entry_fee_fallback_bps_per_side
+            ),
+            "entry_slippage_incurred_usd": self.entry_slippage_incurred_usd,
+            "entry_slippage_remaining_usd": self.entry_slippage_remaining_usd,
+            "entry_slippage_allocated_to_closes_usd": (
+                self.entry_slippage_allocated_to_closes_usd
+            ),
+            "entry_slippage_fallback_bps_per_side": (
+                self.entry_slippage_fallback_bps_per_side
+            ),
+            "entry_fee_cost_sources": list(self.entry_fee_cost_sources),
+            "entry_slippage_cost_sources": list(
+                self.entry_slippage_cost_sources
+            ),
+            "entry_cost_basis_status": self.entry_cost_basis_status,
+            "position_state": "OPEN_POSITION",
+            "paper_only": True,
+            "places_real_order": False,
+        }
+        reconstruction_hash = paper_position_reconstruction_hash(material)
+        if reconstruction_hash is None:
+            raise ValueError("PAPER_POSITION_RECONSTRUCTION_HASH_FAILED")
+        return {
+            "position_reconstruction_schema_version": (
+                PAPER_POSITION_RECONSTRUCTION_SCHEMA_VERSION
+            ),
+            "position_reconstruction_generated_at": generated_utc,
+            "position_reconstruction_hash": reconstruction_hash,
+        }
 
     def to_payload(self, *, generated_utc: str) -> dict[str, Any]:
         allocation = self.adaptive_allocation if isinstance(self.adaptive_allocation, dict) else {}
@@ -533,8 +2202,32 @@ class PaperNetPosition:
             "leverage_mutated_is_false": True,
             "margin_mutated_is_false": True,
         }
+        maintenance_bracket_evidence = {
+            "prevalidated": self.maintenance_bracket_prevalidated,
+            "bracket_id": self.maintenance_bracket_id,
+            "maint_margin_ratio": self.maintenance_bracket_maint_margin_ratio,
+            "cum": self.maintenance_bracket_cum,
+            "max_initial_leverage": self.maintenance_bracket_max_initial_leverage,
+            "evidence_hash": self.maintenance_bracket_evidence_hash,
+            "evidence_checksum_sha256": self.maintenance_bracket_evidence_checksum_sha256,
+            "evidence_hmac_sha256": self.maintenance_bracket_evidence_hmac_sha256,
+            "binding": self.maintenance_bracket_binding,
+            "environment_id": self.maintenance_bracket_environment_id,
+            "key_id": self.maintenance_bracket_key_id,
+            "source": self.maintenance_bracket_source,
+            "available_at": self.maintenance_bracket_available_at,
+            "expires_at": self.maintenance_bracket_expires_at,
+            "consumer_observed_at": self.maintenance_bracket_consumer_observed_at,
+            "status": self.maintenance_bracket_evidence_status,
+            "reason": self.maintenance_bracket_evidence_reason,
+        }
         return {
+            **self.reconstruction_envelope(generated_utc=generated_utc),
             "position_id": self.position_id,
+            "legacy_position_id": self.legacy_position_id,
+            "position_generation_id": self.position_generation_id,
+            "position_id_version": self.position_id_version,
+            "entry_generation_time_utc": self.entry_generation_time_utc,
             "symbol": self.symbol,
             "side": self.side,
             "net_quantity": round(self.net_quantity, 12),
@@ -546,26 +2239,25 @@ class PaperNetPosition:
             "notional": self.notional,
             "gross_notional": self.notional,
             "adaptive_allocation": self.adaptive_allocation,
+            "adaptive_allocation_accounting_scope": (
+                "UPSTREAM_ENTRY_ALLOCATION_PROVENANCE"
+                if isinstance(self.adaptive_allocation, dict)
+                else None
+            ),
             "adaptive_capital_policy_version": adaptive_capital_policy_version,
             "policy_activated_at": policy_activated_at,
-            "gross_notional_usd": self.gross_notional_usd if self.gross_notional_usd is not None else self.notional,
-            # Margin invariant through partial closes: the isolated-margin
-            # simulation releases margin as quantity nets down, so live margin
-            # caps at current notional / leverage instead of the stale
-            # entry-time figure (observed: margin $64.68 against a
-            # post-netting $8.76 notional). Entry-time margin stays for audit.
+            "gross_notional_usd": self.notional,
+            "gross_notional_accounting_basis": (
+                "ABS_NET_QUANTITY_X_AVERAGE_EXECUTED_ENTRY_PRICE"
+            ),
+            # Canonical paper invariant for both full and partially-netted
+            # positions: gross_notional == allocated_margin * leverage.
             "allocated_margin_usd": (
-                round(self.notional / max(1.0, float(self.effective_leverage or 1.0)), 8)
-                if (
-                    self.notional is not None
-                    and self.notional > 0
-                    and self.allocated_margin_usd is not None
-                    and self.allocated_margin_usd
-                    > self.notional / max(1.0, float(self.effective_leverage or 1.0))
-                )
-                else self.allocated_margin_usd
+                self.notional / max(1.0, float(self.effective_leverage or 1.0))
             ),
             "allocated_margin_usd_at_entry": self.allocated_margin_usd,
+            "gross_notional_usd_upstream": self.gross_notional_usd_upstream,
+            "allocated_margin_usd_upstream": self.allocated_margin_usd_upstream,
             "effective_leverage": self.effective_leverage,
             "recommended_leverage": self.recommended_leverage,
             "leverage_source": self.leverage_source,
@@ -573,9 +2265,56 @@ class PaperNetPosition:
             "leverage_exploration": self.leverage_exploration,
             "recommended_margin_mode": self.recommended_margin_mode,
             "margin_mode_simulated": self.margin_mode_simulated,
+            "maintenance_margin_rate": self.maintenance_margin_rate,
+            "maintenance_margin_cum": self.maintenance_margin_cum,
             "maintenance_margin_estimate": self.maintenance_margin_estimate,
+            "maintenance_margin_notional_usd": self.maintenance_margin_notional_usd,
+            "maintenance_margin_mark_price": self.maintenance_margin_mark_price,
+            "maintenance_margin_mark_time": self.maintenance_margin_mark_time,
+            "maintenance_margin_formula": "MAX(0,ABS_NET_QUANTITY_X_FRESH_MARK_X_MAINT_MARGIN_RATIO_MINUS_CUM)",
+            "maintenance_bracket_evidence": maintenance_bracket_evidence,
+            "maintenance_bracket_id": self.maintenance_bracket_id,
+            "maintenance_bracket_maint_margin_ratio": self.maintenance_bracket_maint_margin_ratio,
+            "maintenance_bracket_cum": self.maintenance_bracket_cum,
+            "maintenance_bracket_max_initial_leverage": self.maintenance_bracket_max_initial_leverage,
+            "maintenance_bracket_evidence_hash": self.maintenance_bracket_evidence_hash,
+            "maintenance_bracket_evidence_checksum_sha256": self.maintenance_bracket_evidence_checksum_sha256,
+            "maintenance_bracket_evidence_hmac_sha256": self.maintenance_bracket_evidence_hmac_sha256,
+            "maintenance_bracket_binding": self.maintenance_bracket_binding,
+            "maintenance_bracket_environment_id": self.maintenance_bracket_environment_id,
+            "maintenance_bracket_key_id": self.maintenance_bracket_key_id,
+            "maintenance_bracket_source": self.maintenance_bracket_source,
+            "maintenance_bracket_available_at": self.maintenance_bracket_available_at,
+            "maintenance_bracket_expires_at": self.maintenance_bracket_expires_at,
+            "maintenance_bracket_consumer_observed_at": self.maintenance_bracket_consumer_observed_at,
+            "maintenance_bracket_prevalidated": self.maintenance_bracket_prevalidated,
+            "maintenance_bracket_evidence_status": self.maintenance_bracket_evidence_status,
+            "maintenance_bracket_evidence_reason": self.maintenance_bracket_evidence_reason,
             "liquidation_price_estimate": self.liquidation_price_estimate,
             "liquidation_buffer_bps": self.liquidation_buffer_bps,
+            "capital_accounting_reconciled": self.capital_accounting_reconciled,
+            "capital_accounting_reconciliation_reasons": list(
+                self.capital_accounting_reconciliation_reasons
+            ),
+            "current_capital_accounting": {
+                "gross_notional_usd": self.notional,
+                "allocated_margin_usd": (
+                    self.notional / max(1.0, float(self.effective_leverage or 1.0))
+                ),
+                "effective_leverage": self.effective_leverage,
+                "entry_capital_invariant": (
+                    "GROSS_NOTIONAL_USD_EQUALS_ALLOCATED_MARGIN_USD_X_EFFECTIVE_LEVERAGE"
+                ),
+                "maintenance_margin_rate": self.maintenance_margin_rate,
+                "maintenance_margin_cum": self.maintenance_margin_cum,
+                "maintenance_margin_notional_usd": self.maintenance_margin_notional_usd,
+                "maintenance_margin_estimate": self.maintenance_margin_estimate,
+                "liquidation_price_estimate": self.liquidation_price_estimate,
+                "liquidation_buffer_bps": self.liquidation_buffer_bps,
+                "accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION",
+                "entry_capital_accounting_scope": "CURRENT_EXECUTED_PAPER_POSITION_ENTRY_BASIS",
+                "maintenance_accounting_scope": "WHOLE_NET_POSITION_FRESH_MARK_BASIS",
+            },
             "risk_budget_usd": self.risk_budget_usd,
             "risk_budget_source": self.risk_budget_source,
             "stop_distance_bps": self.stop_distance_bps,
@@ -635,6 +2374,7 @@ class PaperNetPosition:
             "checkpoint_id": self.checkpoint_id,
             "checkpoint_id_source": self.checkpoint_id_source,
             "entry_prediction_snapshot": self.entry_prediction_snapshot,
+            "feature_tensor_id": self.feature_tensor_id,
             "risk_decision_record_key": self.risk_decision_record_key,
             "risk_decision_record_hash": self.risk_decision_record_hash,
             "risk_decision_record_resolved": self.risk_decision_record_resolved,
@@ -661,7 +2401,11 @@ class PaperNetPosition:
             ),
             "bootstrap_exploration": self.bootstrap_exploration,
             "bootstrap_overridden_blockers": self.bootstrap_overridden_blockers,
+            "action_labels": self.action_labels,
+            "raw_action_logits": self.raw_action_logits,
+            "raw_action_probabilities": self.raw_action_probabilities,
             "selected_action_probability": self.selected_action_probability,
+            "selected_action_index": self.selected_action_index,
             "expected_move_bps": self.expected_move_bps,
             "expected_move_after_cost_bps": self.expected_move_after_cost_bps,
             "action_probabilities": self.action_probabilities,
@@ -675,6 +2419,41 @@ class PaperNetPosition:
             "ppo_on_policy_entry_fields_present": (
                 self.ppo_on_policy_entry_fields_present
             ),
+            "ppo_on_policy_ineligible_reason": self.ppo_on_policy_ineligible_reason,
+            "behavior_action_index": self.behavior_action_index,
+            "behavior_action": self.behavior_action,
+            "behavior_action_mask": self.behavior_action_mask,
+            "behavior_action_source": self.behavior_action_source,
+            "behavior_policy_sampling_mode": self.behavior_policy_sampling_mode,
+            "behavior_policy_distribution_contract": (
+                self.behavior_policy_distribution_contract
+            ),
+            "behavior_policy_fingerprint": self.behavior_policy_fingerprint,
+            "behavior_policy_checkpoint_hash": self.behavior_policy_checkpoint_hash,
+            "behavior_policy_receipt": self.behavior_policy_receipt,
+            "behavior_policy_receipt_hash": self.behavior_policy_receipt_hash,
+            "behavior_policy_receipt_key": self.behavior_policy_receipt_key,
+            "behavior_policy_receipt_write_success": (
+                self.behavior_policy_receipt_write_success
+            ),
+            "on_policy_action_receipt_valid": self.on_policy_action_receipt_valid,
+            "on_policy_sampling_selected": self.on_policy_sampling_selected,
+            "on_policy_sampling_requested": self.on_policy_sampling_requested,
+            "on_policy_sampling_plan_hash": self.on_policy_sampling_plan_hash,
+            "on_policy_sampling_plan_input_hash": (
+                self.on_policy_sampling_plan_input_hash
+            ),
+            "on_policy_sampling_lane": self.on_policy_sampling_lane,
+            "on_policy_sampling_evidence_class": (
+                self.on_policy_sampling_evidence_class
+            ),
+            "on_policy_sampling_counts_as_a_plus_evidence": (
+                self.on_policy_sampling_counts_as_a_plus_evidence
+            ),
+            "on_policy_sampling_routes_to_live": (
+                self.on_policy_sampling_routes_to_live
+            ),
+            "strategy_supply_hypothesis": self.strategy_supply_hypothesis,
             "entry_policy_fields_source": self.entry_policy_fields_source,
             "paper_learning_lane": self.paper_learning_lane,
             "prediction_score_source": self.prediction_score_source,
@@ -807,6 +2586,28 @@ class PaperNetPosition:
             "fee_bps": self.fee_bps,
             "fee_bps_source": self.fee_bps_source,
             "fee_bps_configured_schedule": self.fee_bps_configured_schedule,
+            "entry_cost_accounting_version": self.entry_cost_accounting_version,
+            "entry_fees_incurred_usd": self.entry_fees_incurred_usd,
+            "entry_fees_remaining_usd": self.entry_fees_remaining_usd,
+            "entry_fees_allocated_to_closes_usd": (
+                self.entry_fees_allocated_to_closes_usd
+            ),
+            "entry_fee_fallback_bps_per_side": (
+                self.entry_fee_fallback_bps_per_side
+            ),
+            "entry_slippage_incurred_usd": self.entry_slippage_incurred_usd,
+            "entry_slippage_remaining_usd": self.entry_slippage_remaining_usd,
+            "entry_slippage_allocated_to_closes_usd": (
+                self.entry_slippage_allocated_to_closes_usd
+            ),
+            "entry_slippage_fallback_bps_per_side": (
+                self.entry_slippage_fallback_bps_per_side
+            ),
+            "entry_fee_cost_sources": list(self.entry_fee_cost_sources),
+            "entry_slippage_cost_sources": list(
+                self.entry_slippage_cost_sources
+            ),
+            "entry_cost_basis_status": self.entry_cost_basis_status,
             "holding_period_funding_bps": self.holding_period_funding_bps,
             "holding_period_funding_source": self.holding_period_funding_source,
             "partial_fill_count": self.partial_fill_count,
@@ -879,6 +2680,160 @@ class PaperNetPosition:
         }
 
 
+def maintenance_bracket_evidence_from_payload(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Recover the normalized lifecycle evidence mapping from a persisted row."""
+
+    if not isinstance(payload, dict):
+        return None
+    allocation = (
+        payload.get("adaptive_allocation")
+        if isinstance(payload.get("adaptive_allocation"), dict)
+        else {}
+    )
+    def normalize(value: dict[str, Any]) -> dict[str, Any]:
+        checksum = first_present(
+            value.get("evidence_checksum_sha256"),
+            value.get("content_checksum_sha256"),
+        )
+        return {
+            "prevalidated": value.get("prevalidated") is True,
+            "bracket_id": first_present(
+                value.get("bracket_id"),
+                value.get("selected_bracket"),
+                value.get("bracket"),
+            ),
+            "maint_margin_ratio": first_present(
+                value.get("maint_margin_ratio"),
+                value.get("maintenance_margin_rate"),
+                value.get("maintMarginRatio"),
+            ),
+            "cum": first_present(
+                value.get("cum"),
+                value.get("maintenance_margin_cum"),
+            ),
+            "max_initial_leverage": first_present(
+                value.get("max_initial_leverage"),
+                value.get("initialLeverage"),
+            ),
+            "evidence_hash": first_present(
+                value.get("evidence_hash"),
+                checksum,
+            ),
+            "evidence_checksum_sha256": checksum,
+            "evidence_hmac_sha256": first_present(
+                value.get("evidence_hmac_sha256"),
+                value.get("evidence_hmac"),
+            ),
+            "binding": first_present(
+                value.get("binding"),
+                value.get("credential_binding_id"),
+                value.get("account_binding_id"),
+            ),
+            "environment_id": first_present(
+                value.get("environment_id"),
+                value.get("exchange_environment"),
+            ),
+            "key_id": first_present(
+                value.get("key_id"),
+                value.get("evidence_auth_key_id"),
+            ),
+            "source": value.get("source"),
+            "available_at": value.get("available_at"),
+            "expires_at": value.get("expires_at"),
+            "consumer_observed_at": value.get("consumer_observed_at"),
+        }
+
+    for container in (payload, allocation):
+        for key in (
+            "maintenance_bracket_evidence",
+            "paper_maintenance_margin_bracket_evidence",
+        ):
+            value = container.get(key)
+            if isinstance(value, dict):
+                return normalize(value)
+
+    bracket_id = first_present(
+        payload.get("maintenance_bracket_id"),
+        allocation.get("maintenance_bracket_id"),
+    )
+    if bracket_id in (None, ""):
+        return None
+    return {
+        "prevalidated": first_present(
+            payload.get("maintenance_bracket_prevalidated"),
+            allocation.get("maintenance_bracket_prevalidated"),
+        )
+        is True,
+        "bracket_id": bracket_id,
+        "maint_margin_ratio": first_present(
+            payload.get("maintenance_bracket_maint_margin_ratio"),
+            payload.get("maintenance_margin_rate"),
+            allocation.get("maintenance_bracket_maint_margin_ratio"),
+            allocation.get("maintenance_margin_rate"),
+        ),
+        "cum": first_present(
+            payload.get("maintenance_bracket_cum"),
+            payload.get("maintenance_margin_cum"),
+            allocation.get("maintenance_bracket_cum"),
+            allocation.get("maintenance_margin_cum"),
+        ),
+        "max_initial_leverage": first_present(
+            payload.get("maintenance_bracket_max_initial_leverage"),
+            allocation.get("maintenance_bracket_max_initial_leverage"),
+        ),
+        "evidence_hash": first_present(
+            payload.get("maintenance_bracket_evidence_hash"),
+            payload.get("maintenance_bracket_evidence_checksum_sha256"),
+            allocation.get("maintenance_bracket_evidence_hash"),
+            allocation.get("maintenance_bracket_evidence_checksum_sha256"),
+        ),
+        "evidence_checksum_sha256": first_present(
+            payload.get("maintenance_bracket_evidence_checksum_sha256"),
+            allocation.get("maintenance_bracket_evidence_checksum_sha256"),
+        ),
+        "evidence_hmac_sha256": first_present(
+            payload.get("maintenance_bracket_evidence_hmac_sha256"),
+            allocation.get("maintenance_bracket_evidence_hmac_sha256"),
+        ),
+        "binding": first_present(
+            payload.get("maintenance_bracket_binding"),
+            payload.get("maintenance_bracket_account_binding_id"),
+            allocation.get("maintenance_bracket_binding"),
+            allocation.get("maintenance_bracket_account_binding_id"),
+        ),
+        "environment_id": first_present(
+            payload.get("maintenance_bracket_environment_id"),
+            allocation.get("maintenance_bracket_environment_id"),
+        ),
+        "key_id": first_present(
+            payload.get("maintenance_bracket_key_id"),
+            allocation.get("maintenance_bracket_key_id"),
+        ),
+        "source": first_present(
+            payload.get("maintenance_bracket_source"),
+            payload.get("maintenance_margin_rate_source"),
+            allocation.get("maintenance_bracket_source"),
+            allocation.get("maintenance_margin_rate_source"),
+        ),
+        "available_at": first_present(
+            payload.get("maintenance_bracket_available_at"),
+            payload.get("maintenance_margin_evidence_available_at"),
+            allocation.get("maintenance_bracket_available_at"),
+            allocation.get("maintenance_margin_evidence_available_at"),
+        ),
+        "expires_at": first_present(
+            payload.get("maintenance_bracket_expires_at"),
+            allocation.get("maintenance_bracket_expires_at"),
+        ),
+        "consumer_observed_at": first_present(
+            payload.get("maintenance_bracket_consumer_observed_at"),
+            allocation.get("maintenance_bracket_consumer_observed_at"),
+        ),
+    }
+
+
 def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantity: float, price: float) -> PaperNetPosition:
     symbol = str(fill.get("symbol") or "").upper()
     entry_time_utc = (
@@ -886,6 +2841,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         or utc_iso_from_any(fill.get("generated_utc"))
         or utc_iso_from_any(fill.get("entry_price_utc"))
         or utc_iso_from_any(fill.get("fill_time_est"))
+        or utc_iso_from_any(fill.get("entry_generation_time_utc"))
+        or utc_iso_from_any(fill.get("entry_time"))
+        or utc_iso_from_any(fill.get("opened_est"))
         or utc_now_iso()
     )
     # Convert all candidate timestamp sources to Eastern Time before storing in _est field.
@@ -895,7 +2853,19 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         or utc_to_est_iso(entry_time_utc)
         or entry_time_utc
     )
-    allocation = fill.get("adaptive_allocation") if isinstance(fill.get("adaptive_allocation"), dict) else {}
+    raw_allocation = (
+        fill.get("adaptive_allocation")
+        if isinstance(fill.get("adaptive_allocation"), dict)
+        else {}
+    )
+    allocation = dict(raw_allocation)
+    if isinstance(raw_allocation.get("model_inputs"), dict):
+        allocation["model_inputs"] = dict(raw_allocation["model_inputs"])
+    allocation_model_inputs = (
+        allocation.get("model_inputs")
+        if isinstance(allocation.get("model_inputs"), dict)
+        else {}
+    )
     leverage_recommendation = (
         fill.get("leverage_recommendation")
         if isinstance(fill.get("leverage_recommendation"), dict)
@@ -909,20 +2879,71 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         leverage_recommendation.get("leverage"),
         1.0,
     )
-    effective_leverage = first_number(
+    executed_leverage = first_number(
         fill.get("effective_leverage"),
         fill.get("leverage"),
-        recommended_leverage,
-        1.0,
     )
-    effective_leverage = max(1.0, effective_leverage or 1.0)
-    allocated_margin = first_number(fill.get("allocated_margin_usd"), allocation.get("allocated_margin_usd"))
-    if allocated_margin is None and effective_leverage > 0:
-        allocated_margin = gross_notional / effective_leverage
-    maintenance_rate = first_number(fill.get("maintenance_margin_rate"), allocation.get("maintenance_margin_rate"), 0.005) or 0.005
-    maintenance_margin = first_number(fill.get("maintenance_margin_estimate"), allocation.get("maintenance_margin_estimate"))
-    if maintenance_margin is None:
-        maintenance_margin = gross_notional * max(0.0, maintenance_rate)
+    effective_leverage = max(1.0, executed_leverage or 1.0)
+    effective_leverage_source = (
+        str(fill.get("leverage_source"))
+        if executed_leverage is not None and fill.get("leverage_source")
+        else (
+            "EXECUTED_FILL_EFFECTIVE_LEVERAGE"
+            if executed_leverage is not None
+            else "FAIL_CLOSED_1X_EXECUTED_LEVERAGE_MISSING"
+        )
+    )
+    gross_notional_upstream = first_number(
+        fill.get("gross_notional_usd"),
+        allocation.get("gross_notional_usd"),
+        fill.get("notional_usd"),
+        fill.get("notional_usdt"),
+        fill.get("notional"),
+    )
+    allocated_margin_upstream = first_number(
+        fill.get("allocated_margin_usd"),
+        allocation.get("allocated_margin_usd"),
+    )
+    allocated_margin = gross_notional / effective_leverage
+    bracket_evidence = maintenance_bracket_evidence_from_payload(fill)
+    # A bare rate is not sufficient maintenance evidence.  The active values
+    # are populated only by the complete, account-bound bracket contract below.
+    maintenance_rate = None
+    maintenance_cum = None
+    maintenance_margin_upstream = first_number(
+        fill.get("maintenance_margin_estimate"),
+        allocation.get("maintenance_margin_estimate"),
+    )
+    maintenance_margin = None
+    liquidation_price_upstream = first_number(
+        fill.get("liquidation_price_estimate"),
+        allocation.get("liquidation_price_estimate"),
+    )
+    liquidation_price = None
+    liquidation_buffer_upstream = first_number(
+        fill.get("liquidation_buffer_bps"),
+        allocation.get("liquidation_buffer_bps"),
+    )
+    liquidation_buffer = _liquidation_buffer_bps(
+        side=side,
+        entry_price=price,
+        liquidation_price=liquidation_price,
+    )
+    reconciliation_reasons: list[str] = []
+    if bracket_evidence is None:
+        reconciliation_reasons.append(
+            "MAINTENANCE_BRACKET_EVIDENCE_MISSING_FAIL_CLOSED"
+        )
+    for reason, upstream, canonical in (
+        ("GROSS_NOTIONAL_RECOMPUTED_FROM_EXECUTED_QTY_PRICE", gross_notional_upstream, gross_notional),
+        ("ALLOCATED_MARGIN_RECOMPUTED_FROM_NOTIONAL_LEVERAGE", allocated_margin_upstream, allocated_margin),
+        ("MAINTENANCE_MARGIN_RECOMPUTED_FROM_EXECUTED_NOTIONAL", maintenance_margin_upstream, maintenance_margin),
+        ("LIQUIDATION_PRICE_RECOMPUTED_FROM_EXECUTED_POSITION", liquidation_price_upstream, liquidation_price),
+        ("LIQUIDATION_BUFFER_RECOMPUTED_FROM_LIQUIDATION_PRICE", liquidation_buffer_upstream, liquidation_buffer),
+    ):
+        if upstream is not None and not _accounting_values_match(upstream, canonical):
+            reconciliation_reasons.append(reason)
+
     risk_budget_pct = first_number(allocation.get("risk_budget_pct_of_equity"), allocation.get("risk_budget_pct"))
     allocation_equity = _nested_first_number(allocation.get("model_inputs"), "equity")
     risk_budget = first_number(fill.get("risk_budget_usd"), allocation.get("risk_budget_usd"))
@@ -943,8 +2964,82 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
     expected_slippage_usd = first_number(fill.get("expected_slippage_usd"))
     if expected_slippage_usd is None and expected_slippage_bps is not None:
         expected_slippage_usd = gross_notional * max(0.0, expected_slippage_bps) / 10000.0
-    allocation_model_inputs = allocation.get("model_inputs") if isinstance(allocation.get("model_inputs"), dict) else {}
     expected_fees_usd = first_number(fill.get("expected_fees_usd"), allocation.get("expected_fees_usd"))
+    entry_fee_bps = first_number(
+        fill.get("actual_fee_bps"),
+        fill.get("fee_bps"),
+        fill.get("taker_fee_bps"),
+        fill.get("expected_fee_bps"),
+    )
+    entry_fee_usd = first_number(
+        fill.get("entry_fee_usd"),
+        fill.get("actual_entry_fee_usd"),
+        fill.get("actual_fees_usd"),
+        fill.get("fee_usd"),
+        fill.get("fee_usdt"),
+    )
+    entry_fee_source = None
+    if entry_fee_usd is not None:
+        entry_fee_source = str(
+            first_present(
+                fill.get("entry_fee_source"),
+                fill.get("actual_fee_source"),
+                "PAPER_FILL_EXPLICIT_ENTRY_FEE_USD",
+            )
+        )
+    elif entry_fee_bps is not None:
+        entry_fee_usd = gross_notional * max(0.0, entry_fee_bps) / 10000.0
+        entry_fee_source = str(
+            first_present(
+                fill.get("fee_bps_source"),
+                "PAPER_FILL_PER_SIDE_FEE_BPS_X_ENTRY_NOTIONAL",
+            )
+        )
+    elif expected_fees_usd is not None:
+        # The adaptive allocator's expected_fees_usd is one entry/exit side:
+        # allocator.py computes notional * per-side fee_bps / 10_000.
+        entry_fee_usd = max(0.0, expected_fees_usd)
+        entry_fee_source = "ADAPTIVE_ALLOCATOR_EXPECTED_ENTRY_FEE_USD_PER_SIDE"
+
+    entry_slippage_usd = first_number(
+        fill.get("entry_slippage_usd"),
+        fill.get("actual_entry_slippage_usd"),
+        fill.get("actual_slippage_usd"),
+        fill.get("realized_slippage_usd"),
+    )
+    entry_slippage_source = None
+    if entry_slippage_usd is not None:
+        entry_slippage_source = str(
+            first_present(
+                fill.get("entry_slippage_source"),
+                fill.get("realized_slippage_source"),
+                fill.get("expected_slippage_source"),
+                "PAPER_FILL_EXPLICIT_ENTRY_SLIPPAGE_USD",
+            )
+        )
+    elif expected_slippage_usd is not None:
+        entry_slippage_usd = max(0.0, expected_slippage_usd)
+        entry_slippage_source = str(
+            first_present(
+                fill.get("expected_slippage_source"),
+                "PAPER_FILL_EXPECTED_ENTRY_SLIPPAGE_USD_PER_SIDE",
+            )
+        )
+    elif expected_slippage_bps is not None:
+        entry_slippage_usd = (
+            gross_notional * max(0.0, expected_slippage_bps) / 10000.0
+        )
+        entry_slippage_source = str(
+            first_present(
+                fill.get("expected_slippage_source"),
+                "PAPER_FILL_PER_SIDE_SLIPPAGE_BPS_X_ENTRY_NOTIONAL",
+            )
+        )
+    entry_cost_basis_status = (
+        "COMPLETE_ENTRY_FEE_AND_SLIPPAGE_USD_BASIS"
+        if entry_fee_usd is not None and entry_slippage_usd is not None
+        else "INCOMPLETE_ENTRY_FEE_OR_SLIPPAGE_USD_BASIS"
+    )
     expected_funding_bps = first_number(
         fill.get("expected_funding_bps"),
         fill.get("funding_bps"),
@@ -1038,6 +3133,41 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
     )
     if not isinstance(action_probabilities, (dict, list, tuple)):
         action_probabilities = None
+    action_labels = first_present(
+        fill.get("action_labels"),
+        allocation.get("action_labels"),
+        allocation_model_inputs.get("action_labels"),
+    )
+    if not isinstance(action_labels, (list, tuple)):
+        action_labels = None
+    raw_action_logits = first_present(
+        fill.get("raw_action_logits"),
+        allocation.get("raw_action_logits"),
+        allocation_model_inputs.get("raw_action_logits"),
+    )
+    if not isinstance(raw_action_logits, (list, tuple)):
+        raw_action_logits = None
+    raw_action_probabilities = first_present(
+        fill.get("raw_action_probabilities"),
+        allocation.get("raw_action_probabilities"),
+        allocation_model_inputs.get("raw_action_probabilities"),
+    )
+    if not isinstance(raw_action_probabilities, (list, tuple)):
+        raw_action_probabilities = None
+    behavior_action_mask = first_present(
+        fill.get("behavior_action_mask"),
+        allocation.get("behavior_action_mask"),
+        allocation_model_inputs.get("behavior_action_mask"),
+    )
+    if not isinstance(behavior_action_mask, (list, tuple)):
+        behavior_action_mask = None
+    behavior_policy_receipt = first_present(
+        fill.get("behavior_policy_receipt"),
+        allocation.get("behavior_policy_receipt"),
+        allocation_model_inputs.get("behavior_policy_receipt"),
+    )
+    if not isinstance(behavior_policy_receipt, dict):
+        behavior_policy_receipt = None
     provider_hashes = (
         fill.get("provider_hashes")
         if isinstance(fill.get("provider_hashes"), dict)
@@ -1139,6 +3269,16 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocation.get("selected_action_probability"),
         allocation_model_inputs.get("selected_action_probability"),
     )
+    selected_action_index_raw = first_number(
+        fill.get("selected_action_index"),
+        allocation.get("selected_action_index"),
+        allocation_model_inputs.get("selected_action_index"),
+    )
+    behavior_action_index_raw = first_number(
+        fill.get("behavior_action_index"),
+        allocation.get("behavior_action_index"),
+        allocation_model_inputs.get("behavior_action_index"),
+    )
     policy_value = first_number(
         fill.get("policy_value"),
         fill.get("value_estimate"),
@@ -1183,6 +3323,43 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         allocation.get("ppo_on_policy_entry_fields_present"),
         allocation_model_inputs.get("ppo_on_policy_entry_fields_present"),
     )
+    behavior_policy_receipt_write_success = first_present(
+        fill.get("behavior_policy_receipt_write_success"),
+        allocation.get("behavior_policy_receipt_write_success"),
+        allocation_model_inputs.get("behavior_policy_receipt_write_success"),
+    )
+    on_policy_action_receipt_valid = first_present(
+        fill.get("on_policy_action_receipt_valid"),
+        allocation.get("on_policy_action_receipt_valid"),
+        allocation_model_inputs.get("on_policy_action_receipt_valid"),
+    )
+    on_policy_sampling_selected = first_present(
+        fill.get("on_policy_sampling_selected"),
+        allocation.get("on_policy_sampling_selected"),
+        allocation_model_inputs.get("on_policy_sampling_selected"),
+    )
+    on_policy_sampling_requested = first_present(
+        fill.get("on_policy_sampling_requested"),
+        allocation.get("on_policy_sampling_requested"),
+        allocation_model_inputs.get("on_policy_sampling_requested"),
+    )
+    on_policy_sampling_counts_as_a_plus_evidence = first_present(
+        fill.get("on_policy_sampling_counts_as_a_plus_evidence"),
+        allocation.get("on_policy_sampling_counts_as_a_plus_evidence"),
+        allocation_model_inputs.get(
+            "on_policy_sampling_counts_as_a_plus_evidence"
+        ),
+    )
+    on_policy_sampling_routes_to_live = first_present(
+        fill.get("on_policy_sampling_routes_to_live"),
+        allocation.get("on_policy_sampling_routes_to_live"),
+        allocation_model_inputs.get("on_policy_sampling_routes_to_live"),
+    )
+    strategy_supply_hypothesis = first_present(
+        fill.get("strategy_supply_hypothesis"),
+        allocation.get("strategy_supply_hypothesis"),
+        allocation_model_inputs.get("strategy_supply_hypothesis"),
+    )
     entry_policy_fields_source = first_present(
         fill.get("entry_policy_fields_source"),
         allocation.get("entry_policy_fields_source"),
@@ -1212,13 +3389,25 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         else "MISSING_ENTRY_PREDICTION_SCORE_FIELDS:" + ",".join(missing_score_fields)
     )
     is_hedge_child = bool(fill.get("hedge_intent") is True and fill.get("hedge_parent_id"))
-    return PaperNetPosition(
-        position_id=f"paper_pos_{symbol}_hedge" if is_hedge_child else f"paper_pos_{symbol}",
+    generation = entry_generation_identity(
+        fill,
+        source_identity_override=fill_id,
+    )
+    legacy_position_id = (
+        f"paper_pos_{symbol}_hedge" if is_hedge_child else f"paper_pos_{symbol}"
+    )
+    position_id = f"{legacy_position_id}_{generation.generation_id[:16]}"
+    position = PaperNetPosition(
+        position_id=position_id,
         symbol=symbol,
         side=side,
         net_quantity=quantity,
         avg_entry_price=price,
         opened_est=opened,
+        legacy_position_id=legacy_position_id,
+        position_generation_id=generation.generation_id,
+        position_id_version=POSITION_ID_VERSION,
+        entry_generation_time_utc=generation.entry_time_utc,
         source_signal_id=fill.get("signal_id"),
         prediction_id=fill.get("prediction_id") or fill.get("source_prediction_id"),
         preemptive_decision_id=first_present(
@@ -1247,6 +3436,11 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         feature_snapshot_id=(
             fill.get("feature_snapshot_id")
             or fill.get("entry_feature_snapshot_id")
+        ),
+        feature_tensor_id=first_present(
+            fill.get("feature_tensor_id"),
+            allocation.get("feature_tensor_id"),
+            allocation_model_inputs.get("feature_tensor_id"),
         ),
         decision_id=fill.get("decision_id") or fill.get("orchestrator_decision_id"),
         mtf_snapshot_id=fill.get("mtf_snapshot_id"),
@@ -1313,7 +3507,21 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
             allocation_model_inputs.get("bootstrap_exploration"),
         ),
         bootstrap_overridden_blockers=bootstrap_overridden_blockers,
+        action_labels=list(action_labels) if action_labels is not None else None,
+        raw_action_logits=(
+            list(raw_action_logits) if raw_action_logits is not None else None
+        ),
+        raw_action_probabilities=(
+            list(raw_action_probabilities)
+            if raw_action_probabilities is not None
+            else None
+        ),
         selected_action_probability=selected_action_probability,
+        selected_action_index=(
+            int(selected_action_index_raw)
+            if selected_action_index_raw is not None
+            else None
+        ),
         expected_move_bps=expected_move_bps,
         action_probabilities=(
             list(action_probabilities)
@@ -1332,6 +3540,121 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         ppo_on_policy_entry_fields_present=(
             bool(ppo_on_policy_entry_fields_present)
             if ppo_on_policy_entry_fields_present is not None
+            else None
+        ),
+        ppo_on_policy_ineligible_reason=first_present(
+            fill.get("ppo_on_policy_ineligible_reason"),
+            allocation.get("ppo_on_policy_ineligible_reason"),
+            allocation_model_inputs.get("ppo_on_policy_ineligible_reason"),
+        ),
+        behavior_action_index=(
+            int(behavior_action_index_raw)
+            if behavior_action_index_raw is not None
+            else None
+        ),
+        behavior_action=first_present(
+            fill.get("behavior_action"),
+            allocation.get("behavior_action"),
+            allocation_model_inputs.get("behavior_action"),
+        ),
+        behavior_action_mask=(
+            list(behavior_action_mask)
+            if behavior_action_mask is not None
+            else None
+        ),
+        behavior_action_source=first_present(
+            fill.get("behavior_action_source"),
+            allocation.get("behavior_action_source"),
+            allocation_model_inputs.get("behavior_action_source"),
+        ),
+        behavior_policy_sampling_mode=first_present(
+            fill.get("behavior_policy_sampling_mode"),
+            allocation.get("behavior_policy_sampling_mode"),
+            allocation_model_inputs.get("behavior_policy_sampling_mode"),
+        ),
+        behavior_policy_distribution_contract=first_present(
+            fill.get("behavior_policy_distribution_contract"),
+            allocation.get("behavior_policy_distribution_contract"),
+            allocation_model_inputs.get("behavior_policy_distribution_contract"),
+        ),
+        behavior_policy_fingerprint=first_present(
+            fill.get("behavior_policy_fingerprint"),
+            allocation.get("behavior_policy_fingerprint"),
+            allocation_model_inputs.get("behavior_policy_fingerprint"),
+        ),
+        behavior_policy_checkpoint_hash=first_present(
+            fill.get("behavior_policy_checkpoint_hash"),
+            allocation.get("behavior_policy_checkpoint_hash"),
+            allocation_model_inputs.get("behavior_policy_checkpoint_hash"),
+        ),
+        behavior_policy_receipt=(
+            dict(behavior_policy_receipt)
+            if behavior_policy_receipt is not None
+            else None
+        ),
+        behavior_policy_receipt_hash=first_present(
+            fill.get("behavior_policy_receipt_hash"),
+            allocation.get("behavior_policy_receipt_hash"),
+            allocation_model_inputs.get("behavior_policy_receipt_hash"),
+        ),
+        behavior_policy_receipt_key=first_present(
+            fill.get("behavior_policy_receipt_key"),
+            allocation.get("behavior_policy_receipt_key"),
+            allocation_model_inputs.get("behavior_policy_receipt_key"),
+        ),
+        behavior_policy_receipt_write_success=(
+            bool(behavior_policy_receipt_write_success)
+            if behavior_policy_receipt_write_success is not None
+            else None
+        ),
+        on_policy_action_receipt_valid=(
+            bool(on_policy_action_receipt_valid)
+            if on_policy_action_receipt_valid is not None
+            else None
+        ),
+        on_policy_sampling_selected=(
+            bool(on_policy_sampling_selected)
+            if on_policy_sampling_selected is not None
+            else None
+        ),
+        on_policy_sampling_requested=(
+            bool(on_policy_sampling_requested)
+            if on_policy_sampling_requested is not None
+            else None
+        ),
+        on_policy_sampling_plan_hash=first_present(
+            fill.get("on_policy_sampling_plan_hash"),
+            allocation.get("on_policy_sampling_plan_hash"),
+            allocation_model_inputs.get("on_policy_sampling_plan_hash"),
+        ),
+        on_policy_sampling_plan_input_hash=first_present(
+            fill.get("on_policy_sampling_plan_input_hash"),
+            allocation.get("on_policy_sampling_plan_input_hash"),
+            allocation_model_inputs.get("on_policy_sampling_plan_input_hash"),
+        ),
+        on_policy_sampling_lane=first_present(
+            fill.get("on_policy_sampling_lane"),
+            allocation.get("on_policy_sampling_lane"),
+            allocation_model_inputs.get("on_policy_sampling_lane"),
+        ),
+        on_policy_sampling_evidence_class=first_present(
+            fill.get("on_policy_sampling_evidence_class"),
+            allocation.get("on_policy_sampling_evidence_class"),
+            allocation_model_inputs.get("on_policy_sampling_evidence_class"),
+        ),
+        on_policy_sampling_counts_as_a_plus_evidence=(
+            bool(on_policy_sampling_counts_as_a_plus_evidence)
+            if on_policy_sampling_counts_as_a_plus_evidence is not None
+            else None
+        ),
+        on_policy_sampling_routes_to_live=(
+            bool(on_policy_sampling_routes_to_live)
+            if on_policy_sampling_routes_to_live is not None
+            else None
+        ),
+        strategy_supply_hypothesis=(
+            bool(strategy_supply_hypothesis)
+            if strategy_supply_hypothesis is not None
             else None
         ),
         entry_policy_fields_source=entry_policy_fields_source,
@@ -1461,18 +3784,12 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         adaptive_capital_policy_version=adaptive_capital_policy_version,
         policy_activated_at=policy_activated_at,
         gross_notional_usd=gross_notional,
+        gross_notional_usd_upstream=gross_notional_upstream,
         allocated_margin_usd=allocated_margin,
+        allocated_margin_usd_upstream=allocated_margin_upstream,
         effective_leverage=effective_leverage,
         recommended_leverage=recommended_leverage,
-        leverage_source=(
-            str(fill.get("leverage_source"))
-            if fill.get("leverage_source")
-            else (
-                str(fill.get("fast_path_leverage_source"))
-                if fill.get("fast_path_leverage_source")
-                else None
-            )
-        ),
+        leverage_source=effective_leverage_source,
         leverage_recommendation_tier=(
             str(fill.get("leverage_recommendation_tier"))
             if fill.get("leverage_recommendation_tier")
@@ -1491,18 +3808,16 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
                 "isolated_paper_simulated",
             )
         ),
+        maintenance_margin_rate=maintenance_rate,
+        maintenance_margin_cum=maintenance_cum,
         maintenance_margin_estimate=maintenance_margin,
-        liquidation_price_estimate=first_number(
-            fill.get("liquidation_price_estimate"),
-            allocation.get("liquidation_price_estimate"),
-            _liquidation_estimate(
-                side=side,
-                entry_price=price,
-                leverage=effective_leverage,
-                maintenance_rate=max(0.0, maintenance_rate),
-            ),
-        ),
-        liquidation_buffer_bps=first_number(fill.get("liquidation_buffer_bps"), allocation.get("liquidation_buffer_bps")),
+        maintenance_margin_notional_usd=gross_notional,
+        maintenance_margin_mark_price=price,
+        maintenance_margin_mark_time=entry_time_utc,
+        liquidation_price_estimate=liquidation_price,
+        liquidation_buffer_bps=liquidation_buffer,
+        capital_accounting_reconciled=bool(reconciliation_reasons),
+        capital_accounting_reconciliation_reasons=list(reconciliation_reasons),
         risk_budget_usd=risk_budget,
         risk_budget_source=risk_budget_source or ("provided" if risk_budget is not None else None),
         stop_distance_bps=first_number(fill.get("stop_distance_bps"), allocation.get("stop_distance_bps")),
@@ -1611,11 +3926,42 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         else None,
         maker_taker_probability_source=fill.get("maker_taker_probability_source"),
         fee_schedule=fill.get("fee_schedule") if isinstance(fill.get("fee_schedule"), dict) else None,
-        fee_bps=first_number(fill.get("fee_bps")),
+        fee_bps=entry_fee_bps,
         fee_bps_source=fill.get("fee_bps_source"),
         fee_bps_configured_schedule=fill.get("fee_bps_configured_schedule")
         if isinstance(fill.get("fee_bps_configured_schedule"), bool)
         else None,
+        entry_fees_incurred_usd=(
+            max(0.0, entry_fee_usd) if entry_fee_usd is not None else None
+        ),
+        entry_fees_remaining_usd=(
+            max(0.0, entry_fee_usd) if entry_fee_usd is not None else None
+        ),
+        entry_fee_fallback_bps_per_side=first_number(
+            fill.get("entry_fee_fallback_bps_per_side")
+        ),
+        entry_slippage_incurred_usd=(
+            max(0.0, entry_slippage_usd)
+            if entry_slippage_usd is not None
+            else None
+        ),
+        entry_slippage_remaining_usd=(
+            max(0.0, entry_slippage_usd)
+            if entry_slippage_usd is not None
+            else None
+        ),
+        entry_slippage_fallback_bps_per_side=first_number(
+            fill.get("entry_slippage_fallback_bps_per_side")
+        ),
+        entry_fee_cost_sources=(
+            [entry_fee_source] if entry_fee_source is not None else []
+        ),
+        entry_slippage_cost_sources=(
+            [entry_slippage_source]
+            if entry_slippage_source is not None
+            else []
+        ),
+        entry_cost_basis_status=entry_cost_basis_status,
         holding_period_funding_bps=first_number(fill.get("holding_period_funding_bps")),
         holding_period_funding_source=fill.get("holding_period_funding_source"),
         partial_fill_count=int(first_number(fill.get("partial_fill_count"), fill.get("fill_count")) or 0)
@@ -1692,3 +4038,9 @@ def position_from_fill(fill: dict[str, Any], *, fill_id: str, side: str, quantit
         last_mark_price=price,
         last_mark_est=opened,  # initial mark uses same EST-converted open time
     )
+    position.apply_maintenance_bracket_evidence(
+        bracket_evidence,
+        mark_price=price,
+        mark_time=entry_time_utc,
+    )
+    return position
