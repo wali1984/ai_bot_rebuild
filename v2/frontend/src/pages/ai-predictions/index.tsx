@@ -1166,10 +1166,23 @@ export default function AIPredictionsPage(): JSX.Element {
 
   return (
     <div data-testid="page-ai-predictions" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh' }}>
+      style={{ background: 'var(--bg-base)', minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
+
+      {/* Ambient depth — indigo cast to match the AI theme, gives glass colour. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background:
+            'radial-gradient(46% 30% at 14% 0%, rgba(99,102,241,0.16), transparent 70%), radial-gradient(38% 32% at 90% 6%, rgba(124,92,255,0.10), transparent 72%)',
+        }}
+      />
 
       {/* Header — distinct purple/indigo theme vs signals blue */}
-      <div style={{ padding: '16px 20px 12px', background: 'var(--bg-panel)', borderBottom: '2px solid rgba(99,102,241,0.2)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '16px 20px 12px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '2px solid rgba(99,102,241,0.2)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -1253,29 +1266,29 @@ export default function AIPredictionsPage(): JSX.Element {
       </div>
 
       {/* Prediction analytics charts — action mix, confidence & accuracy by timeframe */}
-      <div style={{ padding: '12px 16px 0' }}>
-        <section style={{ background: 'var(--bg-panel)', border: '1px solid rgba(99,102,241,0.18)', borderRadius: 12, padding: '14px 16px' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '12px 16px 0' }}>
+        <section className="glass glass-sheen" style={{ border: '1px solid rgba(99,102,241,0.18)', padding: '14px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <span style={{ fontSize: 16 }}>🧠</span>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Prediction Analytics</h2>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{rows.length} live predictions</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
-            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <div className="glass" style={{ padding: '10px 12px' }}>
               <ChartFrame title="Action mix" subtitle="long / short / hold" height={150}>
                 {actionDist.length
                   ? <><Donut data={actionDist} height={150} centerValue={String(actionDist.reduce((s, d) => s + d.value, 0))} centerLabel="preds" /><DonutLegend data={actionDist} /></>
                   : <EmptyChartAI label="No predictions yet" />}
               </ChartFrame>
             </div>
-            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <div className="glass" style={{ padding: '10px 12px' }}>
               <ChartFrame title="Avg calibrated confidence" subtitle="by timeframe" height={150}>
                 {confByTf.length
                   ? <MetricBars data={confByTf} height={150} suffix="%" domainMax={100} colorFn={pctThresholdColor} />
                   : <EmptyChartAI label="No confidence data" />}
               </ChartFrame>
             </div>
-            <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+            <div className="glass" style={{ padding: '10px 12px' }}>
               <ChartFrame title="Accuracy by timeframe" subtitle="evaluated outcomes" height={150}>
                 {accByTf.length
                   ? <MetricBars data={accByTf} height={150} suffix="%" domainMax={100} colorFn={pctThresholdColor} />
