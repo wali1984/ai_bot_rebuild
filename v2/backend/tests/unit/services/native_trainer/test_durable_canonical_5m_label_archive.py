@@ -146,6 +146,209 @@ def test_append_and_indexed_range_read_are_transaction_and_pit_verified(
     assert proof["range_sha256"]
 
 
+def test_exact_tail_transaction_attestation_binds_one_all_inserted_batch(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    candles = [_candle(0), _candle(1), _candle(2)]
+    appended = archive.append_candles(candles)
+
+    proof = archive.attest_exact_tail_transaction(candles)
+
+    assert proof["status"] == (
+        "VERIFIED_CANONICAL_5M_EXACT_TAIL_TRANSACTION"
+    )
+    assert proof["transaction_scope_verified"] is True
+    assert proof["archive_integrity_verified"] is False
+    assert proof["terminal_full_integrity_verification_required"] is True
+    assert proof["transaction_id"] == appended.transaction_id
+    assert proof["attempted_rows"] == 3
+    assert proof["inserted_rows"] == 3
+    assert proof["duplicate_rows"] == 0
+    assert proof["expected_batch_sha256"] == appended.batch_sha256
+    assert proof["append_receipt_sha256"] == (
+        appended.append_receipt_sha256
+    )
+    assert proof["postcommit_readback_receipt_sha256"]
+    assert proof["transaction_attestation_sha256"]
+    assert [row["candle_id"] for row in proof["transaction_bindings"]] == [
+        row["candle_id"] for row in candles
+    ]
+    assert proof["rejection_reasons"] == []
+    attestation_keys = (
+        "schema_version",
+        "archive_schema_version",
+        "archive_path",
+        "status",
+        "transaction_scope_verified",
+        "archive_integrity_verified",
+        "transaction_id",
+        "expected_batch_sha256",
+        "expected_bindings_sha256",
+        "transaction_bindings",
+        "attempted_rows",
+        "inserted_rows",
+        "duplicate_rows",
+        "append_receipt_sha256",
+        "postcommit_readback_receipt_sha256",
+        "archive_total_unique_rows",
+        "archive_chain_sha256",
+        "transaction_is_current_tail",
+        "terminal_full_integrity_verification_required",
+        "rejection_reasons",
+    )
+    attestation_material = {key: proof[key] for key in attestation_keys}
+    assert hashlib.sha256(
+        json.dumps(
+            attestation_material,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
+    ).hexdigest() == proof["transaction_attestation_sha256"]
+
+
+def test_exact_tail_transaction_attestation_rejects_mixed_or_stale_scope(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    first = _candle(0)
+    second = _candle(1)
+    archive.append_candles([first])
+    archive.append_candles([second])
+
+    mixed = archive.attest_exact_tail_transaction([first, second])
+    stale = archive.attest_exact_tail_transaction([first])
+
+    assert mixed["transaction_scope_verified"] is False
+    assert "LABEL_ARCHIVE_EXACT_TAIL_TRANSACTION_ROW_COUNT_MISMATCH" in (
+        mixed["rejection_reasons"]
+    )
+    assert stale["transaction_scope_verified"] is False
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_CURRENT_TAIL" in stale[
+        "rejection_reasons"
+    ]
+
+
+def test_exact_tail_transaction_attestation_rejects_later_duplicate_receipt(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    candle = _candle(0)
+    archive.append_candles([candle])
+    archive.append_candles([candle])
+
+    proof = archive.attest_exact_tail_transaction([candle])
+
+    assert proof["transaction_scope_verified"] is False
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_LATEST_RECEIPT" in proof[
+        "rejection_reasons"
+    ]
+
+
+def test_exact_tail_transaction_attestation_rejects_changed_expected_bytes(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    stored = _candle(0)
+    changed = _candle(0, raw_suffix="changed-provenance")
+    archive.append_candles([stored])
+
+    proof = archive.attest_exact_tail_transaction([changed])
+
+    assert proof["transaction_scope_verified"] is False
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_PAYLOAD_MISMATCH" in proof[
+        "rejection_reasons"
+    ]
+    assert "LABEL_ARCHIVE_EXACT_TRANSACTION_BATCH_MISMATCH" in proof[
+        "rejection_reasons"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("trigger", "statement", "expected_reason"),
+    (
+        (
+            "canonical_5m_receipts_no_update",
+            "UPDATE canonical_5m_append_receipts "
+            "SET batch_sha256 = '" + ("0" * 64) + "'",
+            "LABEL_ARCHIVE_EXACT_TRANSACTION_BATCH_MISMATCH",
+        ),
+        (
+            "canonical_5m_postcommit_receipts_no_update",
+            "UPDATE canonical_5m_postcommit_readback_receipts "
+            "SET inserted_identities_sha256 = '" + ("0" * 64) + "'",
+            "LABEL_ARCHIVE_EXACT_TRANSACTION_POSTCOMMIT_BINDING_MISMATCH",
+        ),
+        (
+            "canonical_5m_candles_no_update",
+            "UPDATE canonical_5m_candles "
+            "SET record_chain_sha256 = '" + ("0" * 64) + "'",
+            "LABEL_ARCHIVE_EXACT_TRANSACTION_FINAL_CHAIN_MISMATCH",
+        ),
+    ),
+)
+def test_exact_tail_transaction_attestation_rejects_tampered_evidence(
+    tmp_path: Path,
+    trigger: str,
+    statement: str,
+    expected_reason: str,
+) -> None:
+    path = tmp_path / "labels.sqlite3"
+    archive = DurableCanonical5mLabelArchive(path)
+    candle = _candle(0)
+    archive.append_candles([candle])
+    with sqlite3.connect(path) as connection:
+        connection.execute(f"DROP TRIGGER {trigger}")
+        connection.execute(statement)
+        connection.commit()
+
+    proof = archive.attest_exact_tail_transaction([candle])
+
+    assert proof["transaction_scope_verified"] is False
+    assert expected_reason in proof["rejection_reasons"]
+
+
+def test_exact_tail_transaction_attestation_recovers_postcommit_crash_gap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+    candles = [_candle(0), _candle(1)]
+
+    def crash_after_transaction_a(**_kwargs: object) -> None:
+        raise RuntimeError("injected_exact_tail_transaction_crash")
+
+    monkeypatch.setattr(
+        archive,
+        "_verify_committed_transaction",
+        crash_after_transaction_a,
+    )
+    with pytest.raises(RuntimeError, match="exact_tail_transaction_crash"):
+        archive.append_candles(candles)
+    monkeypatch.undo()
+
+    proof = archive.attest_exact_tail_transaction(candles)
+
+    assert proof["status"] == (
+        "VERIFIED_CANONICAL_5M_EXACT_TAIL_TRANSACTION"
+    )
+    assert proof["postcommit_recovery"]["recovered_transactions"] == 1
+    assert proof["transaction_scope_verified"] is True
+    assert archive.verify_integrity()["archive_integrity_verified"] is True
+
+
+def test_exact_tail_transaction_attestation_rejects_empty_input(
+    tmp_path: Path,
+) -> None:
+    archive = DurableCanonical5mLabelArchive(tmp_path / "labels.sqlite3")
+
+    with pytest.raises(
+        Canonical5mArchiveError,
+        match="exact_tail_transaction_attestation_rows_empty",
+    ):
+        archive.attest_exact_tail_transaction([])
+
+
 def test_empty_archive_initialization_is_deterministic_and_crash_retry_safe(
     tmp_path: Path,
 ) -> None:

@@ -40,6 +40,9 @@ COVERAGE_PROOF_SCHEMA_VERSION = (
 EMPTY_INITIALIZATION_RECEIPT_SCHEMA_VERSION = (
     "durable_canonical_finalized_5m_label_archive_empty_initialization_v1"
 )
+EXACT_TAIL_TRANSACTION_ATTESTATION_SCHEMA_VERSION = (
+    "durable_canonical_finalized_5m_label_archive_exact_tail_transaction_v1"
+)
 LABEL_PATH_PROOF_SCHEMA_VERSION = (
     "durable_canonical_finalized_5m_trainer_label_path_proof_v1"
 )
@@ -1544,6 +1547,424 @@ class DurableCanonical5mLabelArchive:
             "pending_transactions": len(pending),
             "recovered_transactions": len(pending),
         }
+
+    def attest_exact_tail_transaction(
+        self,
+        candles: Iterable[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        """Prove one exact all-inserted append is the current archive tail.
+
+        This narrow proof closes the crash gap where an append transaction
+        committed but its caller did not durably record the returned receipt.
+        It is intentionally not a substitute for ``verify_integrity``: callers
+        must hold their archive-writer lease, must have proven the identities
+        absent before the append, and must run one terminal full verification.
+        """
+
+        validated_rows = self._bounded_validated_rows(candles)
+        if not validated_rows:
+            raise Canonical5mArchiveError(
+                "exact_tail_transaction_attestation_rows_empty"
+            )
+        expected_batch_sha256 = stable_sha256(
+            [
+                {
+                    "symbol": row["symbol"],
+                    "candle_close_time_ms": row["close_time_ms"],
+                    "candle_id": row["candle_id"],
+                    "content_sha256": row["content_sha256"],
+                    "market_fact_sha256": row["market_fact_sha256"],
+                }
+                for row in validated_rows
+            ]
+        )
+        expected_bindings = [
+            {
+                "symbol": str(row["symbol"]),
+                "candle_close_time_ms": int(row["close_time_ms"]),
+                "candle_id": str(row["candle_id"]),
+                "content_sha256": str(row["content_sha256"]),
+                "market_fact_sha256": str(row["market_fact_sha256"]),
+            }
+            for row in validated_rows
+        ]
+        proof: dict[str, Any] = {
+            "schema_version": (
+                EXACT_TAIL_TRANSACTION_ATTESTATION_SCHEMA_VERSION
+            ),
+            "archive_schema_version": ARCHIVE_SCHEMA_VERSION,
+            "archive_path": str(self.path),
+            "status": "BLOCKED_CANONICAL_5M_EXACT_TAIL_TRANSACTION_UNVERIFIED",
+            "transaction_scope_verified": False,
+            "archive_integrity_verified": False,
+            "terminal_full_integrity_verification_required": True,
+            "expected_rows": len(validated_rows),
+            "expected_batch_sha256": expected_batch_sha256,
+            "expected_bindings_sha256": stable_sha256(expected_bindings),
+            "transaction_id": None,
+            "append_receipt_sha256": None,
+            "postcommit_readback_receipt_sha256": None,
+            "transaction_attestation_sha256": None,
+            "rejection_reasons": [],
+        }
+        try:
+            recovery = self.recover_pending_postcommit_readbacks()
+        except (
+            OSError,
+            sqlite3.Error,
+            Canonical5mArchiveError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            proof["rejection_reasons"] = [
+                "LABEL_ARCHIVE_POSTCOMMIT_RECOVERY_FAILED:"
+                f"{type(exc).__name__}"
+            ]
+            return proof
+        proof["postcommit_recovery"] = recovery
+
+        reasons: list[str] = []
+        transaction_id: str | None = None
+        transaction_rows: list[sqlite3.Row] = []
+        receipt: sqlite3.Row | None = None
+        postcommit: sqlite3.Row | None = None
+        metadata: dict[str, str] = {}
+        connection: sqlite3.Connection | None = None
+        try:
+            connection = self._connect_write()
+            # A reserved writer lock keeps the tail snapshot stable while the
+            # exact transaction, receipts, and metadata are cross-checked.
+            connection.execute("BEGIN IMMEDIATE")
+            metadata = self._metadata(connection)
+            if metadata.get("archive_schema_version") != ARCHIVE_SCHEMA_VERSION:
+                reasons.append("LABEL_ARCHIVE_SCHEMA_VERSION_MISMATCH")
+            if metadata.get("retention_policy") != RETENTION_POLICY:
+                reasons.append("LABEL_ARCHIVE_RETENTION_POLICY_MISMATCH")
+            if metadata.get("automatic_pruning_enabled") != "false":
+                reasons.append("LABEL_ARCHIVE_AUTOMATIC_PRUNING_ENABLED")
+
+            first_expected = validated_rows[0]
+            first_match = connection.execute(
+                """
+                SELECT append_transaction_id
+                FROM canonical_5m_candles
+                WHERE symbol = ? AND candle_close_time_ms = ?
+                """,
+                (
+                    first_expected["symbol"],
+                    first_expected["close_time_ms"],
+                ),
+            ).fetchone()
+            if first_match is None:
+                reasons.append(
+                    "LABEL_ARCHIVE_EXACT_TAIL_TRANSACTION_ROWS_MISSING"
+                )
+            else:
+                transaction_id = str(first_match["append_transaction_id"])
+                transaction_rows = list(
+                    connection.execute(
+                        """
+                        SELECT sequence, symbol, candle_close_time_ms,
+                               candle_open_time_ms, available_at_ms, candle_id,
+                               raw_payload_hash, market_fact_sha256,
+                               content_sha256, payload_json,
+                               previous_chain_sha256, record_chain_sha256,
+                               append_transaction_id
+                        FROM canonical_5m_candles
+                        WHERE append_transaction_id = ?
+                        ORDER BY sequence ASC
+                        LIMIT ?
+                        """,
+                        (transaction_id, MAX_APPEND_ROWS + 1),
+                    )
+                )
+                if len(transaction_rows) != len(validated_rows):
+                    reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TAIL_TRANSACTION_ROW_COUNT_MISMATCH"
+                    )
+
+            if len(transaction_rows) == len(validated_rows):
+                sequences = [int(row["sequence"]) for row in transaction_rows]
+                if sequences != list(
+                    range(sequences[0], sequences[0] + len(sequences))
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TAIL_TRANSACTION_SEQUENCE_GAP"
+                    )
+                latest = connection.execute(
+                    """
+                    SELECT sequence, record_chain_sha256
+                    FROM canonical_5m_candles
+                    ORDER BY sequence DESC
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if (
+                    latest is None
+                    or int(latest["sequence"]) != sequences[-1]
+                    or str(latest["record_chain_sha256"])
+                    != str(transaction_rows[-1]["record_chain_sha256"])
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_CURRENT_TAIL"
+                    )
+                if (
+                    metadata.get("archive_chain_sha256")
+                    != str(transaction_rows[-1]["record_chain_sha256"])
+                ):
+                    reasons.append(
+                        "LABEL_ARCHIVE_EXACT_TRANSACTION_FINAL_CHAIN_MISMATCH"
+                    )
+                predecessor = connection.execute(
+                    """
+                    SELECT record_chain_sha256
+                    FROM canonical_5m_candles
+                    WHERE sequence < ?
+                    ORDER BY sequence DESC
+                    LIMIT 1
+                    """,
+                    (sequences[0],),
+                ).fetchone()
+                expected_previous_chain = (
+                    str(predecessor["record_chain_sha256"])
+                    if predecessor is not None
+                    else _GENESIS_CHAIN_SHA256
+                )
+                for stored, expected in zip(
+                    transaction_rows,
+                    validated_rows,
+                    strict=True,
+                ):
+                    try:
+                        stored_payload = json.loads(str(stored["payload_json"]))
+                        stored_validated = (
+                            validate_canonical_finalized_5m_candle(
+                                stored_payload
+                            )
+                        )
+                    except (TypeError, ValueError, Canonical5mValidationError):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_PAYLOAD_INVALID"
+                        )
+                        continue
+                    exact_columns = (
+                        str(stored["symbol"]) == str(expected["symbol"])
+                        and int(stored["candle_close_time_ms"])
+                        == int(expected["close_time_ms"])
+                        and int(stored["candle_open_time_ms"])
+                        == int(expected["open_time_ms"])
+                        and int(stored["available_at_ms"])
+                        == int(expected["available_at_ms"])
+                        and str(stored["candle_id"])
+                        == str(expected["candle_id"])
+                        and str(stored["raw_payload_hash"])
+                        == str(expected["raw_payload_hash"])
+                        and str(stored["market_fact_sha256"])
+                        == str(expected["market_fact_sha256"])
+                        and str(stored["content_sha256"])
+                        == str(expected["content_sha256"])
+                        and str(stored["payload_json"])
+                        == str(expected["payload_json"])
+                        and str(stored["append_transaction_id"])
+                        == transaction_id
+                        and stored_validated["content_sha256"]
+                        == expected["content_sha256"]
+                    )
+                    if not exact_columns:
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_PAYLOAD_MISMATCH"
+                        )
+                    if (
+                        str(stored["previous_chain_sha256"])
+                        != expected_previous_chain
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_CHAIN_LINK_MISMATCH"
+                        )
+                    expected_record_chain = self._record_chain_sha256(
+                        previous_chain_sha256=expected_previous_chain,
+                        validated=expected,
+                        append_transaction_id=str(transaction_id),
+                    )
+                    if (
+                        str(stored["record_chain_sha256"])
+                        != expected_record_chain
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_CHAIN_FORMULA_MISMATCH"
+                        )
+                    expected_previous_chain = expected_record_chain
+
+            if transaction_id is not None:
+                receipt = connection.execute(
+                    """
+                    SELECT rowid AS receipt_rowid, transaction_id,
+                           receipt_schema_version,
+                           batch_sha256, attempted_rows, inserted_rows,
+                           duplicate_rows, total_unique_rows,
+                           archive_chain_sha256, receipt_sha256, receipt_json,
+                           commit_prepared_at, precommit_readback_verified
+                    FROM canonical_5m_append_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (transaction_id,),
+                ).fetchone()
+                if receipt is None:
+                    reasons.append("LABEL_ARCHIVE_APPEND_RECEIPT_MISSING")
+                else:
+                    reasons.extend(
+                        self._append_receipt_rejection_reasons(receipt)
+                    )
+                    latest_receipt_rowid = int(
+                        connection.execute(
+                            "SELECT MAX(rowid) FROM canonical_5m_append_receipts"
+                        ).fetchone()[0]
+                    )
+                    if int(receipt["receipt_rowid"]) != latest_receipt_rowid:
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_LATEST_RECEIPT"
+                        )
+                    if str(receipt["batch_sha256"]) != expected_batch_sha256:
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_BATCH_MISMATCH"
+                        )
+                    if (
+                        int(receipt["attempted_rows"]) != len(validated_rows)
+                        or int(receipt["inserted_rows"])
+                        != len(validated_rows)
+                        or int(receipt["duplicate_rows"]) != 0
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_COUNTS_MISMATCH"
+                        )
+                    if (
+                        str(receipt["total_unique_rows"])
+                        != metadata.get("total_unique_rows")
+                        or str(receipt["archive_chain_sha256"])
+                        != metadata.get("archive_chain_sha256")
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_NOT_METADATA_TAIL"
+                        )
+
+                postcommit = connection.execute(
+                    """
+                    SELECT transaction_id, readback_schema_version,
+                           append_receipt_sha256, inserted_rows,
+                           inserted_identities_sha256,
+                           readback_receipt_sha256,
+                           readback_receipt_json, postcommit_readback_at
+                    FROM canonical_5m_postcommit_readback_receipts
+                    WHERE transaction_id = ?
+                    """,
+                    (transaction_id,),
+                ).fetchone()
+                if postcommit is None:
+                    reasons.append(
+                        "LABEL_ARCHIVE_POSTCOMMIT_READBACK_RECEIPT_MISSING"
+                    )
+                else:
+                    reasons.extend(
+                        self._postcommit_receipt_rejection_reasons(postcommit)
+                    )
+                    identities = [
+                        (
+                            str(row["symbol"]),
+                            int(row["candle_close_time_ms"]),
+                            str(row["content_sha256"]),
+                        )
+                        for row in transaction_rows
+                    ]
+                    if (
+                        receipt is None
+                        or str(postcommit["append_receipt_sha256"])
+                        != str(receipt["receipt_sha256"])
+                        or int(postcommit["inserted_rows"])
+                        != len(validated_rows)
+                        or str(postcommit["inserted_identities_sha256"])
+                        != self._inserted_identities_sha256(identities)
+                    ):
+                        reasons.append(
+                            "LABEL_ARCHIVE_EXACT_TRANSACTION_POSTCOMMIT_BINDING_MISMATCH"
+                        )
+            connection.commit()
+        except (
+            OSError,
+            sqlite3.Error,
+            Canonical5mArchiveError,
+            TypeError,
+            ValueError,
+            KeyError,
+        ) as exc:
+            if connection is not None:
+                try:
+                    connection.rollback()
+                except sqlite3.Error:
+                    pass
+            reasons.append(
+                "LABEL_ARCHIVE_EXACT_TAIL_TRANSACTION_READ_FAILED:"
+                f"{type(exc).__name__}"
+            )
+        finally:
+            if connection is not None:
+                connection.close()
+
+        proof["transaction_id"] = transaction_id
+        proof["rejection_reasons"] = sorted(set(reasons))
+        if reasons or receipt is None or postcommit is None:
+            return proof
+        transaction_bindings = [
+            {
+                "sequence": int(row["sequence"]),
+                "symbol": str(row["symbol"]),
+                "candle_close_time_ms": int(row["candle_close_time_ms"]),
+                "candle_id": str(row["candle_id"]),
+                "content_sha256": str(row["content_sha256"]),
+                "market_fact_sha256": str(row["market_fact_sha256"]),
+            }
+            for row in transaction_rows
+        ]
+        attestation_material = {
+            "schema_version": (
+                EXACT_TAIL_TRANSACTION_ATTESTATION_SCHEMA_VERSION
+            ),
+            "archive_schema_version": ARCHIVE_SCHEMA_VERSION,
+            "archive_path": str(self.path),
+            "status": "VERIFIED_CANONICAL_5M_EXACT_TAIL_TRANSACTION",
+            "transaction_scope_verified": True,
+            "archive_integrity_verified": False,
+            "transaction_id": transaction_id,
+            "expected_batch_sha256": expected_batch_sha256,
+            "expected_bindings_sha256": stable_sha256(expected_bindings),
+            "transaction_bindings": transaction_bindings,
+            "attempted_rows": int(receipt["attempted_rows"]),
+            "inserted_rows": int(receipt["inserted_rows"]),
+            "duplicate_rows": int(receipt["duplicate_rows"]),
+            "append_receipt_sha256": str(receipt["receipt_sha256"]),
+            "postcommit_readback_receipt_sha256": str(
+                postcommit["readback_receipt_sha256"]
+            ),
+            "archive_total_unique_rows": int(
+                metadata["total_unique_rows"]
+            ),
+            "archive_chain_sha256": metadata["archive_chain_sha256"],
+            "transaction_is_current_tail": True,
+            "terminal_full_integrity_verification_required": True,
+            "rejection_reasons": [],
+        }
+        proof.update(attestation_material)
+        proof.update(
+            {
+                "status": "VERIFIED_CANONICAL_5M_EXACT_TAIL_TRANSACTION",
+                "transaction_scope_verified": True,
+                "archive_integrity_verified": False,
+                "transaction_attestation_sha256": stable_sha256(
+                    attestation_material
+                ),
+                "rejection_reasons": [],
+            }
+        )
+        return proof
 
     def verified_range(
         self,
