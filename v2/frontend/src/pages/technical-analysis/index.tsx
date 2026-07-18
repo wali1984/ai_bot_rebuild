@@ -124,7 +124,7 @@ export default function TechnicalAnalysisPage(): JSX.Element {
           <section style={{ marginBottom: 24 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)' }}>Feature Pipeline</h2>
             <KPIGrid columns={3}>
-              <MetricCard label="Classification" value={fpData.classification ?? fpData.trainer_status ?? '—'} freshness={ta.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale'} />
+              <MetricCard label="Classification" value={fpData.classification ?? fpData.trainer_status ?? '—'} freshness={fp.envelope.freshness_status === 'fresh' ? 'fresh' : 'stale'} />
               <MetricCard label="Predictions Built" value={(fpData.snapshots_built ?? fpData.count)?.toString() ?? '—'} />
               <MetricCard label="Feature Coverage" value={fpData.data_coverage != null ? `${fpData.data_coverage.toFixed(1)}%` : (fpData.feature_count != null ? `${fpData.feature_count} feats` : '—')} />
             </KPIGrid>
