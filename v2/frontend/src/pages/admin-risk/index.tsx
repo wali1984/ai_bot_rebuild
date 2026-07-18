@@ -116,10 +116,10 @@ function RiskRuntimeTruthPanel(): JSX.Element {
   const rows = [
     { label: 'Liquidation buffer', value: usd(hedge?.portfolio_liquidation_buffer_usd), tone: 'ok' },
     { label: 'Hedge state', value: statusText(hedge?.hedge_state), tone: hedge?.hedge_state && hedge.hedge_state !== 'NO_HEDGE' ? 'warn' : 'info' },
-    { label: 'Squeeze risk', value: squeezeCanBlock ? 'sweep risk can block or reduce' : statusText(preemptive?.advanced_indicator_status), tone: squeezeCanBlock ? 'warn' : 'info' },
+    { label: 'Sweep risk', value: squeezeCanBlock ? 'sweep risk can block or reduce' : statusText(preemptive?.advanced_indicator_status), tone: squeezeCanBlock ? 'warn' : 'info' },
     { label: 'Kill switch', value: risk?.kill_switch_active ? 'active' : 'not active', tone: risk?.kill_switch_active ? 'warn' : 'ok' },
     { label: 'Maintenance margin', value: usd(hedge?.maintenance_margin_estimate_usd), tone: 'info' },
-    { label: 'ADL risk', value: statusText(hedge?.margin_call_risk), tone: hedge?.margin_call_risk === 'LOW' ? 'ok' : 'warn' },
+    { label: 'Margin-call risk', value: statusText(hedge?.margin_call_risk), tone: hedge?.margin_call_risk === 'LOW' ? 'ok' : 'warn' },
     { label: 'Hedge required score', value: provider?.altdata_hedge_required_score != null ? provider.altdata_hedge_required_score.toFixed(2) : 'not reported', tone: (provider?.altdata_hedge_required_score ?? 0) > 0.5 ? 'warn' : 'info' },
     { label: 'Approval state', value: liveBlocked ? `blocked: ${liveGateText(risk?.live_gate)}` : 'live route reported', tone: liveBlocked ? 'warn' : 'error' },
   ];

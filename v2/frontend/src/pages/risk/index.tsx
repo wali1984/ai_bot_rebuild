@@ -114,7 +114,7 @@ export default function RiskPage(): JSX.Element {
           </p>
           <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--text-primary)' }}>Risk Runtime Truth</h1>
           <p style={{ margin: '6px 0 0', maxWidth: 760, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.45 }}>
-            Trader-safe read-only view of liquidation buffer, hedge state, squeeze risk, kill switch, exchange permissions, signed-read status, and operator approval state.
+            Trader-safe read-only view of liquidation buffer, hedge state, sweep risk, kill switch, exchange permissions, live-ready status, and operator approval state.
           </p>
         </div>
         <div style={{ padding: '8px 10px', borderRadius: 7, border: `1px solid ${liveBlocked ? SC.warn : SC.error}66`, color: liveBlocked ? SC.warn : SC.error, fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800 }}>
@@ -136,15 +136,15 @@ export default function RiskPage(): JSX.Element {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
           <MetricCard label="Liquidation buffer" value={usd(hedge?.portfolio_liquidation_buffer_usd)} tone="ok" />
           <MetricCard label="Hedge state" value={statusText(hedge?.hedge_state)} tone={hedge?.hedge_state && hedge.hedge_state !== 'NO_HEDGE' ? 'warn' : 'info'} />
-          <MetricCard label="Squeeze risk" value={squeezeCanBlock ? 'sweep risk can block or reduce' : statusText(preemptive?.advanced_indicator_status)} tone={squeezeCanBlock ? 'warn' : 'info'} />
+          <MetricCard label="Sweep risk" value={squeezeCanBlock ? 'sweep risk can block or reduce' : statusText(preemptive?.advanced_indicator_status)} tone={squeezeCanBlock ? 'warn' : 'info'} />
           <MetricCard label="Kill switch" value={risk?.kill_switch_active ? 'active' : 'not active'} tone={risk?.kill_switch_active ? 'warn' : 'ok'} />
           <MetricCard label="Cross-margin buffer" value={usd(hedge?.cross_margin_available_buffer_usd)} tone="info" />
           <MetricCard label="Maintenance margin" value={usd(hedge?.maintenance_margin_estimate_usd)} tone="info" />
-          <MetricCard label="ADL risk" value={statusText(hedge?.margin_call_risk)} tone={hedge?.margin_call_risk === 'LOW' ? 'ok' : 'warn'} />
+          <MetricCard label="Margin-call risk" value={statusText(hedge?.margin_call_risk)} tone={hedge?.margin_call_risk === 'LOW' ? 'ok' : 'warn'} />
           <MetricCard label="Hedge required score" value={scoreText(hedgeScore)} tone={(hedgeScore ?? 0) > 0.5 ? 'warn' : 'info'} />
           <MetricCard label="Risk state" value={statusText(risk?.risk_state ?? risk?.risk_classification)} tone={risk?.fail_closed ? 'warn' : 'info'} />
           <MetricCard label="Operator approval" value={liveBlocked ? `blocked: ${liveGateText(risk?.live_gate)}` : 'live route reported'} tone={liveBlocked ? 'warn' : 'error'} />
-          <MetricCard label="Signed-read status" value={boolStatus(risk?.real_trader_readiness?.live_ready, 'ready', 'not live-ready')} tone={risk?.real_trader_readiness?.live_ready ? 'error' : 'info'} />
+          <MetricCard label="Live-ready status" value={boolStatus(risk?.real_trader_readiness?.live_ready, 'ready', 'not live-ready')} tone={risk?.real_trader_readiness?.live_ready ? 'error' : 'info'} />
           <MetricCard label="Exchange permissions" value={risk?.places_real_order === true || risk?.routes_to_live === true ? 'routes to live reported' : 'read-only or blocked'} tone={risk?.places_real_order === true || risk?.routes_to_live === true ? 'error' : 'ok'} />
         </div>
 
