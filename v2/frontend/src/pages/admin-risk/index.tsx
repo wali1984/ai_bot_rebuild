@@ -126,7 +126,7 @@ function RiskRuntimeTruthPanel(): JSX.Element {
   const toneColor = (tone: string): string => tone === 'ok' ? SC.ok : tone === 'warn' ? SC.warn : tone === 'error' ? SC.error : SC.info;
 
   return (
-    <section data-testid="risk-runtime-truth-panel" style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+    <section data-testid="risk-runtime-truth-panel" className="glass" style={{ padding: '12px 14px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 10 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>Risk Runtime Truth</h2>
@@ -166,7 +166,7 @@ export default function AdminRiskPage(): JSX.Element {
   const decisionsTotal = heartbeat?.decisions_processed_total ?? 0;
 
   return (
-    <div data-testid="admin-risk-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-risk-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -185,7 +185,7 @@ export default function AdminRiskPage(): JSX.Element {
           { label: 'DECISIONS TOTAL', value: decisionsTotal.toLocaleString() },
           { label: 'FAIL CLOSED', value: raw?.fail_closed ? 'YES' : 'NO', accent: raw?.fail_closed ? SC.warn : SC.ok },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
@@ -253,7 +253,7 @@ export default function AdminRiskPage(): JSX.Element {
             </table>
           </div>
         ) : (
-          <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', color: 'var(--text-muted)', fontSize: 12 }}>
+          <div className="glass" style={{ padding: '12px 14px', color: 'var(--text-muted)', fontSize: 12 }}>
             No recent decisions in Redis. Risk gateway heartbeat: {heartbeat?.finished_at ? relativeAge(heartbeat.finished_at) : 'no data'}.
           </div>
         )
@@ -261,7 +261,7 @@ export default function AdminRiskPage(): JSX.Element {
 
       {tab === 'Profile' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Active Risk Profile</div>
             {profile ? (
               <>
@@ -274,7 +274,7 @@ export default function AdminRiskPage(): JSX.Element {
               </>
             ) : <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No active profile data</div>}
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Heartbeat</div>
             {[['Decisions Total', decisionsTotal.toLocaleString()], ['Last At', heartbeat?.finished_at ? relativeAge(heartbeat.finished_at) : '—']].map(([l, v]) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--line-soft)', gap: 8 }}>
@@ -333,7 +333,7 @@ export default function AdminRiskPage(): JSX.Element {
             { label: 'Heartbeat received', done: !!heartbeat?.finished_at },
             { label: 'No decisions with allow+live_blocked=false', done: decisions.filter(d => d.risk_action === 'allow' && !d.live_blocked).length === 0 },
           ].map(({ label, done }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <div key={label} className="glass" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px' }}>
               <span style={{ fontSize: 13, color: done ? SC.ok : SC.warn, fontWeight: 700 }}>{done ? '✓' : '○'}</span>
               <span style={{ fontSize: 12, color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}>{label}</span>
               <span style={{ marginLeft: 'auto', fontSize: 10, fontFamily: 'var(--font-mono)', color: done ? SC.ok : SC.warn }}>{done ? 'PASS' : 'PENDING'}</span>

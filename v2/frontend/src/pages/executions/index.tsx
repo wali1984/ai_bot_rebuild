@@ -36,10 +36,10 @@ export default function ExecutionsPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 48 }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(8px)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Executions</h1>
@@ -70,7 +70,7 @@ export default function ExecutionsPage(): JSX.Element {
             { label: 'Capital Status', value: capitalStatus?.status ?? '—', color: adaptiveStatusColor(capitalStatus?.status) },
             { label: 'Source', value: executionSource },
           ].map((item) => (
-            <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+            <div key={item.label} className="glass" style={{ padding: '12px 14px' }}>
               <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
               <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word', display: 'block' }}>{item.value}</span>
             </div>
@@ -94,7 +94,7 @@ export default function ExecutionsPage(): JSX.Element {
           Executions ({executions.length})
         </h2>
         {executions.length === 0 ? (
-          <div style={{ padding: '28px', textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+          <div className="glass" style={{ padding: '28px', textAlign: 'center' }}>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
               No execution records. Live order submission is disabled.
             </p>

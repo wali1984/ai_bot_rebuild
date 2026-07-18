@@ -30,7 +30,7 @@ export default function AdminDataPage(): JSX.Element {
   const pipeline = pe.data;
 
   return (
-    <div data-testid="admin-data-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-data-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -48,7 +48,7 @@ export default function AdminDataPage(): JSX.Element {
           { label: 'SYMBOLS', value: String(pipeline?.symbols?.length ?? '—') },
           { label: 'RUN TYPES', value: String(pipeline?.allowed_run_types?.length ?? '—') },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 16, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
@@ -82,7 +82,7 @@ export default function AdminDataPage(): JSX.Element {
             ))}
           </div>
         ) : (
-          <div style={{ padding: '14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', color: 'var(--text-muted)', fontSize: 12 }}>
+          <div className="glass" style={{ padding: '14px', color: 'var(--text-muted)', fontSize: 12 }}>
             No data surfaces returned from <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{SURFACES_ENDPOINT}</span>
           </div>
         )
@@ -90,7 +90,7 @@ export default function AdminDataPage(): JSX.Element {
 
       {tab === 'Pipeline' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Gate & Control</div>
             <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: pipeline?.live_gate?.includes('blocked') ? SC.error : SC.ok, marginBottom: 8 }}>
               {pipeline?.live_gate?.toUpperCase() || '—'}
@@ -99,7 +99,7 @@ export default function AdminDataPage(): JSX.Element {
               {(pipeline?.allowed_run_types || []).map(rt => <Chip key={rt} label={rt.replace(/_/g, ' ')} color={SC.info} />)}
             </div>
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Symbol Universe ({pipeline?.symbols?.length ?? 0})</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, maxHeight: 200, overflowY: 'auto' }}>
               {(pipeline?.symbols || []).slice(0, 40).map(s => (
@@ -112,7 +112,7 @@ export default function AdminDataPage(): JSX.Element {
       )}
 
       {tab === 'Monitors' && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
             Monitor registry available via <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>/api/v2/admin/monitoring/routes</span>. Wire monitor heartbeats here to show active/broken/unused monitor scripts.
           </div>

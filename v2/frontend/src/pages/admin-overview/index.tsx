@@ -100,7 +100,7 @@ export default function AdminOverviewPage(): JSX.Element {
   const riskSvc = services.find(s => s.id === 'risk-gateway');
 
   return (
-    <div data-testid="admin-overview-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-overview-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       {/* Global red banner: a service down after auto-heal, or supervisor stale */}
       <SelfHealingBanner />
@@ -122,7 +122,7 @@ export default function AdminOverviewPage(): JSX.Element {
           { label: 'INCIDENTS', value: String(incidents.length), accent: incidents.length > 0 ? SC.error : SC.ok },
           { label: 'LIVE TRADING', value: sd?.live_trading_enabled ? 'ENABLED' : 'BLOCKED', accent: sd?.live_trading_enabled ? SC.error : SC.warn },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 16, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
@@ -149,7 +149,7 @@ export default function AdminOverviewPage(): JSX.Element {
         />
         {/* Market stream row from /api/v2/status — shown alongside service grid */}
         {services.length > 0 && stream && (
-          <div style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ marginTop: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px' }}>
             <Dot status={stream.status === 'stale' ? 'warn' : stream.status || 'unknown'} />
             <div style={{ flex: 1 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Market Stream</span>
@@ -168,7 +168,7 @@ export default function AdminOverviewPage(): JSX.Element {
       {d && (d.trainer || d.risk || d.pipeline) && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
           {d.trainer && (
-            <div style={{ padding: '14px 16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <div className="glass" style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>ML / Trainer</div>
               <KV label="State" value={d.trainer.state || '—'} accent={d.trainer.state?.includes('ACTIVE') ? SC.ok : SC.warn} mono />
               <KV label="Checkpoint" value={d.trainer.checkpoint_id ? `…${d.trainer.checkpoint_id.slice(-12)}` : '—'} mono />
@@ -177,7 +177,7 @@ export default function AdminOverviewPage(): JSX.Element {
             </div>
           )}
           {d.risk && (
-            <div style={{ padding: '14px 16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <div className="glass" style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Risk Gateway</div>
               <KV label="Profile" value={d.risk.profile_name || '—'} />
               <KV label="Live Blocked" value={d.risk.live_blocked !== false ? 'YES' : 'NO'} accent={d.risk.live_blocked !== false ? SC.error : SC.ok} mono />
@@ -186,7 +186,7 @@ export default function AdminOverviewPage(): JSX.Element {
             </div>
           )}
           {d.pipeline && (
-            <div style={{ padding: '14px 16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+            <div className="glass" style={{ padding: '14px 16px' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pipeline</div>
               <KV label="Gate" value={d.pipeline.live_gate?.replace(/_/g, ' ') || '—'} accent={d.pipeline.live_gate?.includes('blocked') ? SC.error : SC.ok} mono />
               <KV label="Symbols" value={`${d.pipeline.symbol_count ?? 0} active`} mono />

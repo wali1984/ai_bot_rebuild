@@ -36,7 +36,7 @@ function Row({ label, value }: { label: string; value: string | number | null | 
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ padding: 16, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+    <div className="glass" style={{ padding: 16 }}>
       {children}
     </div>
   );
@@ -297,7 +297,7 @@ export default function AdminToolsPage(): JSX.Element {
   const current = resourceMap[tab];
 
   return (
-    <div data-testid="admin-tools-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div data-testid="admin-tools-page" style={{ display: 'flex', flexDirection: 'column', gap: 20, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Developer Tools</h1>

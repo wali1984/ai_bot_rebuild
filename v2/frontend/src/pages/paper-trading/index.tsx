@@ -483,10 +483,7 @@ function KpiStrip({
       marginBottom: 16,
     }}>
       {kpis.map(({ label, value, color }) => (
-        <div key={label} style={{
-          background: 'var(--bg-panel)',
-          border: '1px solid var(--border)',
-          borderRadius: 8,
+        <div key={label} className="glass" style={{
           padding: '10px 14px',
         }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -585,11 +582,8 @@ function PositionsTab({ positions }: { positions: PaperPosition[] }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
         {sorted.map((pos, i) => (
-          <article key={pos.position_id ?? i} style={{
+          <article key={pos.position_id ?? i} className="glass" style={{
             minWidth: 0,
-            background: 'var(--bg-panel)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
             padding: '14px 16px',
           }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
@@ -676,9 +670,8 @@ function HistoryTab({
   return (
     <div>
       {/* Equity curve */}
-      <div style={{
-        background: 'var(--bg-panel)', border: '1px solid var(--border)',
-        borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+      <div className="glass" style={{
+        padding: '12px 16px', marginBottom: 16,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -694,9 +687,8 @@ function HistoryTab({
 
       {/* Close reason breakdown */}
       {sortedReasons.length > 0 && (
-        <div style={{
-          background: 'var(--bg-panel)', border: '1px solid var(--border)',
-          borderRadius: 8, padding: '12px 16px', marginBottom: 16,
+        <div className="glass" style={{
+          padding: '12px 16px', marginBottom: 16,
         }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Exit Reason Breakdown
@@ -757,11 +749,8 @@ function HistoryTab({
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
         {filtered.map((t, i) => (
-          <article key={t.close_id ?? i} style={{
+          <article key={t.close_id ?? i} className="glass" style={{
             minWidth: 0,
-            background: 'var(--bg-panel)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
             padding: '14px 16px',
             boxShadow: t.winner ? 'inset 3px 0 0 rgba(34,197,94,0.75)' : 'inset 3px 0 0 rgba(239,68,68,0.75)',
           }}>
@@ -828,7 +817,7 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-      <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px' }}>
+      <div className="glass" style={{ padding: '16px' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Risk Profile — {riskProfile.profile_id ?? 'Unknown'}
         </div>
@@ -847,7 +836,7 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Intent Gate stats */}
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 8, padding: '16px' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             Intent Gate Statistics
           </div>
@@ -1021,7 +1010,7 @@ export default function PaperTradingPage(): JSX.Element {
 
   return (
     <div style={{
-      background: 'var(--bg-base)',
+      background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)',
       minHeight: '100vh',
       padding: '16px 20px',
       color: 'var(--text-primary)',

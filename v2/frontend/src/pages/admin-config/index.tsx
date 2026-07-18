@@ -29,7 +29,7 @@ export default function AdminConfigPage(): JSX.Element {
   const pipeline = pe.data;
 
   return (
-    <div data-testid="admin-config-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-config-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>

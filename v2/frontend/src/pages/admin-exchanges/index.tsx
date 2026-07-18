@@ -31,7 +31,7 @@ export default function AdminExchangesPage(): JSX.Element {
   const exchanges = data?.exchanges || [];
 
   return (
-    <div data-testid="admin-exchanges-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-exchanges-page" style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -50,7 +50,7 @@ export default function AdminExchangesPage(): JSX.Element {
             { label: 'STREAM', value: data.stream_stale ? 'STALE' : 'LIVE', accent: data.stream_stale ? SC.warn : SC.ok },
             { label: 'STREAM LAG', value: data.stream_lag_ms != null ? `${Math.round(data.stream_lag_ms / 1000)}s` : '—' },
           ].map(({ label, value, accent }) => (
-            <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
             </div>
@@ -80,7 +80,7 @@ export default function AdminExchangesPage(): JSX.Element {
       ) : exchanges.length > 0 ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 12 }}>
           {exchanges.map(ex => (
-            <div key={ex.id} data-testid={`exchange-card-${ex.id}`} style={{ padding: 16, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div key={ex.id} data-testid={`exchange-card-${ex.id}`} className="glass" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>{ex.name}</div>
@@ -118,7 +118,7 @@ export default function AdminExchangesPage(): JSX.Element {
           ))}
         </div>
       ) : (
-        <div style={{ padding: '14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '14px' }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>No exchange data</div>
           <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: SC.info }}>{EXCHANGES_ENDPOINT}</div>
         </div>

@@ -34,7 +34,7 @@ export default function AdminReportsPage(): JSX.Element {
   const data = envelope.data;
 
   return (
-    <div data-testid="admin-reports-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div data-testid="admin-reports-page" style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Reports</h1>

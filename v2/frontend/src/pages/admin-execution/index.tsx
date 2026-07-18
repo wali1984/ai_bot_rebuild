@@ -40,7 +40,7 @@ export default function AdminExecutionPage(): JSX.Element {
   const gateBlocked = r?.live_blocked !== false || f?.live_gate?.includes('blocked');
 
   return (
-    <div data-testid="admin-execution-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-execution-page" style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -58,7 +58,7 @@ export default function AdminExecutionPage(): JSX.Element {
           { label: 'FILLS', value: String(fills.length || f?.fill_count || 0) },
           { label: 'PAPER MODE', value: f?.paper_mode !== false ? 'YES' : 'NO', accent: f?.paper_mode !== false ? SC.ok : SC.error },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
@@ -125,7 +125,7 @@ export default function AdminExecutionPage(): JSX.Element {
             </table>
           </div>
         ) : (
-          <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', color: 'var(--text-muted)', fontSize: 12 }}>
+          <div className="glass" style={{ padding: '12px 14px', color: 'var(--text-muted)', fontSize: 12 }}>
             No fills recorded. Paper mode active — fills appear here after risk gateway allows paper executions.
           </div>
         )
@@ -133,7 +133,7 @@ export default function AdminExecutionPage(): JSX.Element {
 
       {tab === 'Gate' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Execution Gate State</div>
             {[
               ['Mode', (f?.mode || 'paper').toUpperCase()],
@@ -148,7 +148,7 @@ export default function AdminExecutionPage(): JSX.Element {
               </div>
             ))}
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Latest Risk Decision</div>
             {r?.data?.latest_gateway_result ? (
               [

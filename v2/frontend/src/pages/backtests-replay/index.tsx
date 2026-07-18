@@ -250,10 +250,10 @@ export default function BacktestsReplayPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: '#0d1117', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), #0d1117', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}
     >
       {/* ── Header ── */}
-      <div style={{ padding: '14px 20px', background: '#131720', borderBottom: '1px solid #1e2435', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
+      <div style={{ padding: '14px 20px', background: 'color-mix(in oklch, #131720 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid #1e2435', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', flexShrink: 0 }}>
         <Link to="/backtests" style={{ fontSize: 12, color: '#4b5563', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
           ← Backtests
         </Link>
@@ -326,7 +326,7 @@ export default function BacktestsReplayPage(): JSX.Element {
         {/* Right panel */}
         <div style={{ gridColumn: 2, gridRow: '1 / 3', background: '#131720', borderLeft: '1px solid #1e2435', padding: 16, overflow: 'auto' }}>
           {/* Current bar info */}
-          <div style={{ marginBottom: 16, padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435' }}>
+          <div className="glass" style={{ marginBottom: 16, padding: '12px 14px' }}>
             <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Current Bar</div>
             {currentBar ? (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -354,7 +354,7 @@ export default function BacktestsReplayPage(): JSX.Element {
           </div>
 
           {/* Session stats */}
-          <div style={{ marginBottom: 16, padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435' }}>
+          <div className="glass" style={{ marginBottom: 16, padding: '12px 14px' }}>
             <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Session Stats</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div>
@@ -377,7 +377,7 @@ export default function BacktestsReplayPage(): JSX.Element {
           </div>
 
           {/* Replay engine status */}
-          <div style={{ padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435', marginBottom: 16 }}>
+          <div className="glass" style={{ padding: '12px 14px', marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Replay Engine</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 11, color: replayEnv.data?.last_run ? '#26c281' : '#f59e0b', fontFamily: 'monospace' }}>
@@ -397,7 +397,7 @@ export default function BacktestsReplayPage(): JSX.Element {
           </div>
 
           {/* Backtest results + out-of-sample generalization */}
-          <div data-testid="backtest-results-card" style={{ padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435', marginBottom: 16 }}>
+          <div data-testid="backtest-results-card" className="glass" style={{ padding: '12px 14px', marginBottom: 16 }}>
             <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Backtest &amp; Generalization</div>
             {backtestEnv.data?.available && backtestEnv.data.policy_backtest ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -433,7 +433,7 @@ export default function BacktestsReplayPage(): JSX.Element {
           </div>
 
           {/* Candle resource status */}
-          <div style={{ padding: '12px 14px', background: '#0d1117', borderRadius: 8, border: '1px solid #1e2435' }}>
+          <div className="glass" style={{ padding: '12px 14px' }}>
             <div style={{ fontSize: 10, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Candle Stream</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>

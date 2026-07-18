@@ -53,7 +53,7 @@ function APlusGatePanel({ gate }: { gate: APlusGateBlock | null }): JSX.Element 
   const maxRejection = rejections.length ? rejections[0][1] : 1;
   const preview = gate?.candidate_matrix_preview ?? [];
   return (
-    <div data-testid="admin-a-plus-gate-panel" style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+    <div data-testid="admin-a-plus-gate-panel" className="glass" style={{ padding: '16px' }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>
         A+ Entry Gate — rejection funnel
       </div>
@@ -113,7 +113,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
   const allowedTypes = p?.allowed_run_types || [];
 
   return (
-    <div data-testid="admin-orchestration-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-orchestration-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -132,7 +132,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
           { label: 'EXECUTION', value: p?.trader_execution_enabled ? 'ENABLED' : 'BLOCKED', accent: p?.trader_execution_enabled ? SC.error : SC.warn },
           { label: 'EXCHANGE ACTION', value: p?.exchange_action_taken ? 'YES' : 'NO', accent: p?.exchange_action_taken ? SC.error : SC.ok },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 15, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
@@ -165,7 +165,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
 
       {tab === 'Orchestrator' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pipeline Status</div>
             {loading && !p ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading…</div> : p ? (
               [
@@ -185,7 +185,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
               ))
             ) : <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No pipeline data</div>}
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Allowed Run Types</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {allowedTypes.length > 0 ? allowedTypes.map(rt => (
@@ -224,7 +224,7 @@ export default function AdminOrchestrationPage(): JSX.Element {
       )}
 
       {tab === 'Control' && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Pipeline Control</div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Pipeline run controls (trainer_cycle, replay, backtest, full_pipeline) are triggered via <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>POST /api/v2/pipeline/run</span>. Implement control buttons here after operator approval gate is confirmed.</div>
         </div>

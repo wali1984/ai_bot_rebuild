@@ -106,7 +106,7 @@ export default function RiskPage(): JSX.Element {
   const hedgeScore = provider?.altdata_hedge_required_score ?? provider?.confluence_hedge_required_score;
 
   return (
-    <main data-testid="page-risk" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '18px clamp(14px, 2vw, 28px)' }}>
+    <main data-testid="page-risk" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '18px clamp(14px, 2vw, 28px)', background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
       <section style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -122,7 +122,7 @@ export default function RiskPage(): JSX.Element {
         </div>
       </section>
 
-      <section data-testid="risk-runtime-truth-panel" style={{ padding: 14, borderRadius: 8, background: 'var(--bg-panel)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <section data-testid="risk-runtime-truth-panel" className="glass" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Risk Runtime Truth</h2>

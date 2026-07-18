@@ -33,7 +33,7 @@ const REPLAY_SUMMARY_PATH = '/historical_30d_replay_and_paper_proof/latest/histo
 
 function StatCard({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }): JSX.Element {
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+    <div className="glass" style={{ padding: '16px 18px' }}>
       <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{label}</span>
       <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', marginBottom: sub ? 4 : 0 }}>{value}</span>
       {sub && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</span>}
@@ -73,10 +73,10 @@ export default function ReplayPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 64 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 64 }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Replay</h1>
@@ -132,7 +132,7 @@ export default function ReplayPage(): JSX.Element {
         {summary && (
           <div style={{ marginBottom: 24 }}>
             <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Historical 30-Day Proof</h2>
-            <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '18px 20px' }}>
+            <div className="glass" style={{ padding: '18px 20px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 14 }}>
                 {[
                   { label: 'Generated at', value: summary.generated_at ?? '—' },
@@ -163,7 +163,7 @@ export default function ReplayPage(): JSX.Element {
           <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Replay Capabilities</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
             {REPLAY_CAPABILITIES.map((cap) => (
-              <div key={cap.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
+              <div key={cap.label} className="glass" style={{ padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{cap.label}</span>
                   <span style={{
@@ -182,7 +182,7 @@ export default function ReplayPage(): JSX.Element {
         </div>
 
         {/* Replay readiness gate */}
-        <div style={{ padding: '18px 20px', borderRadius: 'var(--radius)', border: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
+        <div className="glass" style={{ padding: '18px 20px' }}>
           <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)' }}>Readiness Gate</h3>
           <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
             Interactive replay will be unblocked when: (1) The replay engine writes verified Redis keys with event counts and hashes,

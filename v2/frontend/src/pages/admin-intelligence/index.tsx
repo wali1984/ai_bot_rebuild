@@ -212,7 +212,7 @@ export default function AdminIntelligencePage(): JSX.Element {
       : '-';
 
   return (
-    <div data-testid="admin-intelligence-page" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="admin-intelligence-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
 
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -231,14 +231,14 @@ export default function AdminIntelligencePage(): JSX.Element {
           { label: 'WIN RATE 30D', value: winRateLabel },
           { label: 'EPISODES', value: episodesLabel },
         ].map(({ label, value, accent }) => (
-          <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
             <span style={{ fontSize: 16, fontWeight: 700, color: accent || 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{value}</span>
           </div>
         ))}
       </div>
 
-      <div id="enterprise-ai-data-plane" style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+      <div id="enterprise-ai-data-plane" className="glass" style={{ padding: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', marginBottom: 10 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Enterprise AI Data Plane</div>
           <Chip label={aiContractReady ? 'READY' : 'PARTIAL'} color={aiContractReady ? SC.ok : SC.warn} />
@@ -273,7 +273,7 @@ export default function AdminIntelligencePage(): JSX.Element {
 
       {tab === 'Model' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Checkpoint</div>
             {loading && !t ? <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Loading…</div> : t ? (
               <>
@@ -297,7 +297,7 @@ export default function AdminIntelligencePage(): JSX.Element {
               </div>
             )}
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Drift & Quality</div>
             <Field label="Drift Watches" value={t?.drift_watch_count != null ? String(t.drift_watch_count) : '—'} mono />
             <Field label="Drift Alarms" value={t?.drift_alarm_count != null ? String(t.drift_alarm_count) : '—'} mono accent={t?.drift_alarm_count ? SC.warn : undefined} />
@@ -305,7 +305,7 @@ export default function AdminIntelligencePage(): JSX.Element {
             <Field label="Episodes Total" value={t?.episodes_total != null ? t.episodes_total.toLocaleString() : '—'} mono />
             <Field label="Promo Min Role" value={t?.promotion_min_role || '—'} mono />
           </div>
-          <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Paper Runtime Trainer Quality</div>
             <Field label="Runtime status" value={trainerQuality?.status || 'TRAINER_MODEL_QUALITY_RUNTIME_STATUS_UNAVAILABLE'} mono full accent={trainerQuality?.quality_metrics_current ? SC.ok : SC.warn} />
             <Field label="Weights update" value={flagText(trainerQuality?.weights_update)} mono accent={trainerQuality?.weights_update ? SC.ok : SC.warn} />
@@ -325,7 +325,7 @@ export default function AdminIntelligencePage(): JSX.Element {
       )}
 
       {tab === 'Predictions' && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Latest Gateway Decision</div>
           {latestDecision ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -345,13 +345,13 @@ export default function AdminIntelligencePage(): JSX.Element {
       )}
 
       {tab === 'Signals' && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Signal stream data requires <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>/api/v2/signals</span> endpoint. Wire signal publisher to populate this tab.</div>
         </div>
       )}
 
       {tab === 'Risk Checks' && latestDecision?.required_blocks_checked && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+        <div className="glass" style={{ padding: '16px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Required Blocks Checked ({latestDecision.required_blocks_checked.length})</div>
           <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
             {latestDecision.required_blocks_checked.map(b => <Chip key={b} label={b} color={SC.info} />)}
@@ -365,7 +365,7 @@ export default function AdminIntelligencePage(): JSX.Element {
         </div>
       )}
       {tab === 'Risk Checks' && !latestDecision?.required_blocks_checked && (
-        <div style={{ padding: '16px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', color: 'var(--text-muted)', fontSize: 12 }}>
+        <div className="glass" style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 12 }}>
           No risk check data available. Risk gateway result pending.
         </div>
       )}
