@@ -30,19 +30,23 @@ everything below is a SEMANTIC defect.
 Verification: 146 unit + 208 integration API tests pass; frontend typecheck+build green; iOS core builds;
 26 mobile/loss_probability tests pass.
 
-## VERIFIED but DEFERRED (risk/model logic on the LIVE pipeline; Codex-adjacent — flag, don't change mid-flight)
-1. **`services/adaptive_gate_tuning/runtime_tuner.py:110-115`** — threshold adaptation is INVERTED for
-   block-when-value>=threshold gates. `base / composite` means in degraded conditions (low composite,
-   clamped 0.5) the loss-probability threshold rises to min(1.0, 0.72/0.5=1.44)=1.0 -> the loss-prob gate
-   effectively never blocks exactly when data is worst. MIN-threshold gates (min_confidence, min_market_state)
-   use `/composite` correctly; the MAX/block-when->= gates (loss_probability, confidence_risk, maybe
-   exit_feasibility) should use `* composite`. NOT auto-fixed: the correct per-gate direction depends on each
-   consumer's block semantics in the paper-loop code Codex is actively editing; changing risk-gate direction
-   mid-flight could interact badly. Recommend Codex fix with the gate-consumer semantics confirmed.
-2. **`services/enhanced_unified_feature_builder.py:599`** — feature-freshness metric counts a legitimate 0.0
-   value as "missing"; TokenMetrics fields stored as raw strings (other fetchers float-coerce). The string
-   values feed the model, so a fix touches model inputs — defer to the trainer/feature lane rather than change
-   model-facing data unilaterally.
+## VERIFIED but DORMANT (real latent bugs, but NOT in the live pipeline — investigated, not live risks)
+Investigation result: both flagged risk/model-logic items are in superseded/dormant code with no live
+consumers, so neither latent bug reaches production. Left as-is (editing dead code is churn); noted here
+for a future dead-code cleanup, not a live fix.
+1. **`services/adaptive_gate_tuning/runtime_tuner.py:110-115`** — threshold adaptation IS inverted for
+   block-when-value>=threshold gates (`base/composite`; e.g. loss-prob threshold rises to min(1.0,0.72/0.5)=1.0
+   in degraded conditions -> never blocks when data is worst; should be `* composite`). BUT this module has
+   **zero live importers** (`grep` for any import = empty). The LIVE tuner is
+   `ai-bot-v2-adaptive-gate-tuner.service` -> `cli/v2_adaptive_gate_tuner.py`, which uses FIXED thresholds
+   (0.85/0.80), NOT the inversion. So the bug is latent in dead code; production is unaffected.
+2. **`services/enhanced_unified_feature_builder.py:599`** — 0.0-as-missing freshness metric + TokenMetrics
+   stored as raw strings. BUT this module is only referenced by `cli/day5_simple_validation.py` (an old
+   phase-5 validation script) + day5 docs — NOT imported by the running paper loop or trainer. Dormant;
+   the live model pipeline does not consume it.
+
+Net: every defect on the LIVE backend/frontend/iOS surfaces is fixed. The two remaining items are
+dead-code latent bugs, not live risks.
 
 ## Caveats surfaced to operator
 - Auth changes (RBAC/backtest/login) verified against the test suite but NOT runtime-verified here (no live
