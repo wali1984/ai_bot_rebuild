@@ -61,6 +61,18 @@ SHUTDOWN_READINESS_TAKEOVER_STATE_FILE = pathlib.Path(
     "claude_worklog/final_readiness/codex_shutdown_readiness_takeover/latest/codex_shutdown_takeover_status.json"
 )
 
+# These are poll observations, not state transitions.  Persisting one record per
+# task on every daemon pass amplified a stable non-drift lock into ~0.9 GiB/day
+# of duplicate JSONL.  ``queue_status.json`` remains the current, exact owner of
+# the lock/skipped-task projection; the append-only stream keeps durable state
+# transitions only.
+NON_DURABLE_POLL_EVENTS = frozenset(
+    {
+        "task_skipped_by_non_drift_governor_lock",
+        "task_not_selected_by_non_drift_governor_lock",
+    }
+)
+
 AUTONOMOUS_CONTROL_PLANE_DIR = pathlib.Path("claude_worklog/autonomous_control_plane")
 PLANNER_INPUT_PACKET_FILE = PLANNER_DIR / "PLANNER_INPUT_PACKET.md"
 PLANNER_DECISION_FILE = PLANNER_DIR / "PLANNER_DECISION.md"
@@ -237,12 +249,15 @@ def write_json(path: pathlib.Path, payload: Dict[str, Any]) -> None:
     os.replace(tmp, path)
 
 
-def append_event(event: Dict[str, Any]) -> None:
+def append_event(event: Dict[str, Any]) -> bool:
+    if str(event.get("event") or "") in NON_DURABLE_POLL_EVENTS:
+        return False
     EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = dict(event)
     payload.setdefault("ts", now_iso())
     with EVENTS_FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    return True
 
 
 def load_json(path: pathlib.Path) -> Dict[str, Any]:
@@ -2431,6 +2446,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
     human_attention_tasks: List[Dict[str, Any]] = []
     final_live_gate_tasks: List[Dict[str, Any]] = []
     non_blocking_decision_packets: List[Dict[str, Any]] = []
+    non_drift_skipped_task_ids: List[str] = []
 
     for _, t in tasks:
         tid = str(t.get("task_id", ""))
@@ -2504,6 +2520,7 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
                   "superseded_by_evidence"}:
             continue
         if not lock_allowed:
+            non_drift_skipped_task_ids.append(tid)
             append_event({
                 "event": "task_skipped_by_non_drift_governor_lock",
                 "task_id": tid,
@@ -2533,6 +2550,9 @@ def write_health_and_queue(current: Dict[str, Any]) -> None:
         "non_drift_selected_primary_task": lock.get("selected_primary_task") if lock else None,
         "non_drift_support_lane_policy": lock.get("support_lane_policy") if lock else None,
         "non_drift_current_primary_blockers": lock.get("current_primary_blockers", []) if lock else [],
+        "non_drift_skipped_task_count": len(non_drift_skipped_task_ids),
+        "non_drift_skipped_task_sample": sorted(non_drift_skipped_task_ids)[:25],
+        "non_drift_poll_events_persisted_to_append_only_log": False,
         "current_running_task": running,
         "blocked_quota": blocked_quota,
         "stale_running_count": len(stale_running_tasks),

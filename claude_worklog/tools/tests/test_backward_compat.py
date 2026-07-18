@@ -132,6 +132,30 @@ class TestCodexNonInteractiveLaunch:
             "do work",
         ]
 
+    def test_agent_supervisor_does_not_persist_per_poll_non_drift_noise(
+        self,
+        tmp_path: Path,
+    ):
+        mod = _import_wrapper("claude_worklog/tools/agent_supervisor.py")
+        mod.EVENTS_FILE = tmp_path / "events.jsonl"
+
+        assert mod.append_event(
+            {
+                "event": "task_skipped_by_non_drift_governor_lock",
+                "task_id": "task-1",
+            }
+        ) is False
+        assert mod.append_event(
+            {
+                "event": "task_not_selected_by_non_drift_governor_lock",
+                "task_id": "task-1",
+            }
+        ) is False
+        assert mod.append_event({"event": "task_completed", "task_id": "task-1"}) is True
+
+        rows = [json.loads(line) for line in mod.EVENTS_FILE.read_text(encoding="utf-8").splitlines()]
+        assert [row["event"] for row in rows] == ["task_completed"]
+
     def test_codex_review_runner_commands_use_non_interactive_flags(self):
         mod = _import_wrapper("claude_worklog/tools/v2_codex_review_runner.py")
         executor = {"binary": "/usr/bin/codex"}
