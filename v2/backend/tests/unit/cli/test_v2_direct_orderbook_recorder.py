@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -24,6 +25,33 @@ class FakeRedis:
         self.write_calls.append((key, ex))
         self.store[key] = value
         return True
+
+
+def _binance_usdm_symbol_filter_row(symbol: str) -> dict[str, object]:
+    normalized = symbol.upper()
+    return {
+        "symbol": normalized,
+        "status": "TRADING",
+        "contractType": "PERPETUAL",
+        "baseAsset": normalized.removesuffix("USDT"),
+        "quoteAsset": "USDT",
+        "filters": [
+            {"filterType": "MIN_NOTIONAL", "notional": "5"},
+            {
+                "filterType": "LOT_SIZE",
+                "minQty": "1",
+                "maxQty": "1000000",
+                "stepSize": "1",
+            },
+            {
+                "filterType": "MARKET_LOT_SIZE",
+                "minQty": "1",
+                "maxQty": "1000000",
+                "stepSize": "1",
+            },
+            {"filterType": "PRICE_FILTER", "tickSize": "0.0001"},
+        ],
+    }
 
 
 def test_snapshot_seed_limit_reserves_budget_for_live_updates() -> None:
@@ -651,6 +679,11 @@ def test_exchange_both_filters_unsupported_symbols_when_status_enabled(monkeypat
 
 def test_fetch_binance_snapshot_rejects_empty_book(monkeypatch) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
 
     class FakeResponse:
         def __enter__(self):
@@ -710,24 +743,13 @@ def test_fetch_binance_snapshot_uses_websocket_cache_before_rest(monkeypatch) ->
 
 def test_fetch_provider_symbol_support_uses_binance_cache_before_exchangeinfo(monkeypatch) -> None:
     monkeypatch.delenv("BINANCE_REST_FALLBACK_ALLOWED", raising=False)
-
-    def fake_urlopen(request, *args, **kwargs):
-        url = getattr(request, "full_url", str(request))
-        if "fapi.binance.com" in url:
-            pytest.fail("Binance exchangeInfo REST fallback should not run when cache covers symbol")
-        class FakeResponse:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, exc_type, exc, tb):
-                return False
-
-            def read(self):
-                return b'{"data":[]}'
-
-        return FakeResponse()
-
-    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        recorder.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail(
+            "cached Binance-only metadata must not issue any external HTTP request"
+        ),
+    )
     redis = FakeRedis(
         {
             "v2:exchange:symbol_filters:IPUSDT": json.dumps(
@@ -742,7 +764,11 @@ def test_fetch_provider_symbol_support_uses_binance_cache_before_exchangeinfo(mo
         }
     )
 
-    support = recorder.fetch_provider_symbol_support(["IPUSDT"], redis_client=redis)
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        include_kucoin=False,
+    )
 
     assert support["binance_cache_primary_count"] == 1
     assert support["binance"]["IPUSDT"]["orderbook_supported"] is True
@@ -751,6 +777,11 @@ def test_fetch_provider_symbol_support_uses_binance_cache_before_exchangeinfo(mo
 
 def test_fetch_provider_symbol_support_can_seed_filter_cache_from_rest_fallback(monkeypatch) -> None:
     monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
 
     class FakeResponse:
         def __init__(self, body: bytes):
@@ -765,30 +796,22 @@ def test_fetch_provider_symbol_support_can_seed_filter_cache_from_rest_fallback(
         def read(self):
             return self._body
 
+    requested_urls: list[str] = []
+
     def fake_urlopen(request, *args, **kwargs):
         url = getattr(request, "full_url", str(request))
+        requested_urls.append(url)
         if "fapi.binance.com" in url:
             return FakeResponse(
                 json.dumps(
                     {
                         "symbols": [
-                            {
-                                "symbol": "IPUSDT",
-                                "status": "TRADING",
-                                "contractType": "PERPETUAL",
-                                "baseAsset": "IP",
-                                "quoteAsset": "USDT",
-                                "filters": [
-                                    {"filterType": "MIN_NOTIONAL", "notional": "5"},
-                                    {"filterType": "LOT_SIZE", "minQty": "1", "stepSize": "1"},
-                                    {"filterType": "PRICE_FILTER", "tickSize": "0.0001"},
-                                ],
-                            }
+                            _binance_usdm_symbol_filter_row("IPUSDT")
                         ]
                     }
                 ).encode()
             )
-        return FakeResponse(b'{"data":[]}')
+        pytest.fail(f"Binance-only symbol-filter seed issued unrelated HTTP: {url}")
 
     monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
     redis = FakeRedis({})
@@ -797,6 +820,7 @@ def test_fetch_provider_symbol_support_can_seed_filter_cache_from_rest_fallback(
         ["IPUSDT"],
         redis_client=redis,
         seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
     )
 
     seed = support["symbol_filter_cache_seed"]
@@ -809,6 +833,390 @@ def test_fetch_provider_symbol_support_can_seed_filter_cache_from_rest_fallback(
     assert seed["write_errors"] == []
     assert "v2:exchange:symbol_filters:IPUSDT" in redis.store
     assert support["binance"]["IPUSDT"]["transport"] == "rest_fallback"
+    assert requested_urls == [f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"]
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is not None
+
+
+def test_symbol_filter_seed_materializes_later_shard_exact_key(monkeypatch) -> None:
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
+    rows = [
+        _binance_usdm_symbol_filter_row("AAAUSDT"),
+        _binance_usdm_symbol_filter_row("BBBUSDT"),
+    ]
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"symbols": rows}).encode()
+
+    def fake_urlopen(request, *_args, **_kwargs):
+        requested_urls.append(getattr(request, "full_url", str(request)))
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+    redis = FakeRedis({})
+
+    first = recorder.fetch_provider_symbol_support(
+        ["AAAUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+    second = recorder.fetch_provider_symbol_support(
+        ["BBBUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+    cached = recorder.fetch_provider_symbol_support(
+        ["BBBUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    assert first["symbol_filter_cache_seed"]["missing_symbols"] == ["AAAUSDT"]
+    assert second["binance_cache_primary_count"] == 1
+    assert second["symbol_filter_cache_seed"]["missing_symbols"] == ["BBBUSDT"]
+    assert f"v2:exchange:symbol_filters:BBBUSDT" in redis.store
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "BBBUSDT",
+    ) is not None
+    assert cached["symbol_filter_cache_seed"]["missing_symbols"] == []
+    assert cached["symbol_filter_cache_seed"]["attempted"] is False
+    assert requested_urls == [
+        f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
+        f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
+    ]
+
+
+def test_symbol_filter_seed_refreshes_valid_still_present_key_when_due(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
+    cached_row = _binance_usdm_symbol_filter_row("IPUSDT")
+    refreshed_row = json.loads(json.dumps(cached_row))
+    next(
+        row
+        for row in refreshed_row["filters"]
+        if row.get("filterType") == "MIN_NOTIONAL"
+    )["notional"] = "7"
+    redis = FakeRedis({})
+    fetched_at = (
+        datetime.now(timezone.utc)
+        - timedelta(
+            seconds=recorder.SYMBOL_FILTER_CACHE_REFRESH_SECONDS + 1
+        )
+    ).isoformat()
+    assert recorder._safe_symbol_filter_cache_set(
+        redis,
+        "v2:exchange:symbol_filters:IPUSDT",
+        cached_row,
+        fetched_at=fetched_at,
+    ) is True
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"symbols": [refreshed_row]}).encode()
+
+    def fake_urlopen(request, *_args, **_kwargs):
+        requested_urls.append(getattr(request, "full_url", str(request)))
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    seed = support["symbol_filter_cache_seed"]
+    assert seed["missing_symbols"] == []
+    assert seed["refresh_due_symbols"] == ["IPUSDT"]
+    assert seed["refresh_target_symbols"] == ["IPUSDT"]
+    assert seed["attempted"] is True
+    assert "v2:exchange:symbol_filters:IPUSDT" in seed["written_keys"]
+    assert requested_urls == [f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"]
+    refreshed = recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    )
+    assert refreshed is not None
+    assert next(
+        row
+        for row in refreshed["filters"]
+        if row.get("filterType") == "MIN_NOTIONAL"
+    )["notional"] == "7"
+
+
+def test_symbol_filter_seed_does_not_fetch_when_exact_key_is_fresh(
+    monkeypatch,
+) -> None:
+    redis = FakeRedis({})
+    assert recorder._safe_symbol_filter_cache_set(
+        redis,
+        "v2:exchange:symbol_filters:IPUSDT",
+        _binance_usdm_symbol_filter_row("IPUSDT"),
+    ) is True
+    monkeypatch.setattr(
+        recorder.urllib.request,
+        "urlopen",
+        lambda *_args, **_kwargs: pytest.fail(
+            "fresh exact filter evidence must not issue an HTTP request"
+        ),
+    )
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    seed = support["symbol_filter_cache_seed"]
+    assert seed["canonical_exact_fresh_symbols"] == ["IPUSDT"]
+    assert seed["refresh_due_symbols"] == []
+    assert seed["refresh_target_symbols"] == []
+    assert seed["attempted"] is False
+
+
+@pytest.mark.parametrize(
+    "cache_key",
+    (
+        "v2:exchange:symbol_filters",
+        "v2:symbol_filters:IPUSDT",
+        "v2:exchange:symbol_filters:IPUSDT",
+    ),
+)
+def test_symbol_filter_seed_does_not_accept_shared_legacy_or_unstamped_coverage(
+    monkeypatch,
+    cache_key,
+) -> None:
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
+    row = _binance_usdm_symbol_filter_row("IPUSDT")
+    cached_payload = {"symbols": [row]} if cache_key.endswith("symbol_filters") else row
+    redis = FakeRedis({cache_key: json.dumps(cached_payload)})
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"symbols": [row]}).encode()
+
+    def fake_urlopen(request, *_args, **_kwargs):
+        requested_urls.append(getattr(request, "full_url", str(request)))
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    assert support["binance_cache_primary_count"] == 1
+    assert support["binance_canonical_exact_cache_count"] == 0
+    assert support["symbol_filter_cache_seed"]["missing_symbols"] == ["IPUSDT"]
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is not None
+    assert requested_urls == [f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"]
+
+
+@pytest.mark.parametrize("invalid_notional_contract", ("dual", "notional_only"))
+def test_symbol_filter_seed_replaces_non_usdm_notional_filter_contract(
+    monkeypatch,
+    invalid_notional_contract,
+) -> None:
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
+    valid_row = _binance_usdm_symbol_filter_row("IPUSDT")
+    invalid_row = json.loads(json.dumps(valid_row))
+    if invalid_notional_contract == "dual":
+        invalid_row["filters"].append(
+            {
+                "filterType": "NOTIONAL",
+                "minNotional": "5",
+                "applyMinToMarket": True,
+            }
+        )
+    else:
+        invalid_row["filters"] = [
+            {
+                **row,
+                "filterType": (
+                    "NOTIONAL"
+                    if row.get("filterType") == "MIN_NOTIONAL"
+                    else row.get("filterType")
+                ),
+            }
+            for row in invalid_row["filters"]
+        ]
+    redis = FakeRedis({})
+    assert recorder._safe_symbol_filter_cache_set(
+        redis,
+        "v2:exchange:symbol_filters:IPUSDT",
+        invalid_row,
+    ) is True
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is None
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"symbols": [valid_row]}).encode()
+
+    def fake_urlopen(request, *_args, **_kwargs):
+        requested_urls.append(getattr(request, "full_url", str(request)))
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    assert support["symbol_filter_cache_seed"]["missing_symbols"] == ["IPUSDT"]
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is not None
+    assert requested_urls == [f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"]
+
+
+@pytest.mark.parametrize(
+    "malformation",
+    (
+        "zero",
+        "nan",
+        "garbage",
+        "alias_conflict",
+    ),
+)
+def test_symbol_filter_seed_repairs_malformed_numeric_exact_cache(
+    monkeypatch,
+    malformation,
+) -> None:
+    monkeypatch.setattr(
+        recorder,
+        "require_binance_rest_fallback",
+        lambda **_kwargs: {"request_allowed": True},
+    )
+    valid_row = _binance_usdm_symbol_filter_row("IPUSDT")
+    invalid_row = json.loads(json.dumps(valid_row))
+    market_filter = next(
+        row
+        for row in invalid_row["filters"]
+        if row.get("filterType") == "MARKET_LOT_SIZE"
+    )
+    min_notional_filter = next(
+        row
+        for row in invalid_row["filters"]
+        if row.get("filterType") == "MIN_NOTIONAL"
+    )
+    if malformation == "zero":
+        market_filter["maxQty"] = "0"
+    elif malformation == "nan":
+        market_filter["stepSize"] = "NaN"
+    elif malformation == "garbage":
+        min_notional_filter["notional"] = "not-a-number"
+    else:
+        invalid_row["min_qty"] = "2"
+
+    redis = FakeRedis({})
+    assert recorder._safe_symbol_filter_cache_set(
+        redis,
+        "v2:exchange:symbol_filters:IPUSDT",
+        invalid_row,
+    ) is True
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is None
+    requested_urls: list[str] = []
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return json.dumps({"symbols": [valid_row]}).encode()
+
+    def fake_urlopen(request, *_args, **_kwargs):
+        requested_urls.append(getattr(request, "full_url", str(request)))
+        return FakeResponse()
+
+    monkeypatch.setattr(recorder.urllib.request, "urlopen", fake_urlopen)
+
+    support = recorder.fetch_provider_symbol_support(
+        ["IPUSDT"],
+        redis_client=redis,
+        seed_cache_from_rest_fallback=True,
+        include_kucoin=False,
+    )
+
+    assert support["symbol_filter_cache_seed"]["missing_symbols"] == ["IPUSDT"]
+    assert recorder._validated_canonical_symbol_filter_cache_payload(
+        redis,
+        "IPUSDT",
+    ) is not None
+    assert requested_urls == [f"{recorder.BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo"]
 
 
 def test_fetch_kucoin_snapshot_rejects_error_payload(monkeypatch) -> None:
@@ -859,6 +1267,73 @@ def test_parse_args_rejects_out_of_range_shard_index() -> None:
     assert args.shard_index == 3
     assert args.shard_count == 4
     assert args.replay_capture is True
+
+
+def test_parse_args_requires_redis_write_for_symbol_filter_seed() -> None:
+    with pytest.raises(SystemExit):
+        recorder.parse_args(["--seed-symbol-filter-cache-from-rest-fallback"])
+
+    args = recorder.parse_args(
+        [
+            "--write-redis",
+            "--seed-symbol-filter-cache-from-rest-fallback",
+        ]
+    )
+
+    assert args.write_redis is True
+    assert args.seed_symbol_filter_cache_from_rest_fallback is True
+
+
+def test_run_once_seeds_metadata_without_status_mode_using_write_client(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    redis = FakeRedis({})
+    captured: dict[str, object] = {}
+
+    def fake_support(
+        symbols,
+        *,
+        redis_client=None,
+        seed_cache_from_rest_fallback=False,
+        include_kucoin=True,
+    ):
+        captured["symbols"] = list(symbols)
+        captured["redis_client"] = redis_client
+        captured["seed"] = seed_cache_from_rest_fallback
+        captured["include_kucoin"] = include_kucoin
+        return {
+            "binance": {"IPUSDT": {"orderbook_supported": True}},
+            "kucoin": {},
+        }
+
+    async def fake_binance_ws(**_kwargs):
+        return []
+
+    monkeypatch.setattr(recorder, "_resolved_symbols", lambda _args: ["IPUSDT"])
+    monkeypatch.setattr(recorder, "_redis_client", lambda _enabled: redis)
+    monkeypatch.setattr(recorder, "fetch_provider_symbol_support", fake_support)
+    monkeypatch.setattr(recorder, "_run_binance_ws", fake_binance_ws)
+    args = recorder.parse_args(
+        [
+            "--write-redis",
+            "--seed-symbol-filter-cache-from-rest-fallback",
+            "--replay-root",
+            str(tmp_path / "replay"),
+        ]
+    )
+
+    result = recorder._run_once(args)
+
+    assert captured == {
+        "symbols": ["IPUSDT"],
+        "redis_client": redis,
+        "seed": True,
+        "include_kucoin": False,
+    }
+    assert result["provider_symbol_support"]["binance"]["IPUSDT"][
+        "orderbook_supported"
+    ] is True
 
 
 def test_resolved_symbols_shards_resolver_universe(monkeypatch) -> None:

@@ -76,7 +76,13 @@ def utc_now_iso() -> str:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8")
+    serialized = json.dumps(payload, indent=2, sort_keys=True, default=str) + "\n"
+    temporary_path = path.with_name(f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp")
+    try:
+        temporary_path.write_text(serialized, encoding="utf-8")
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def _normalize_symbols(symbols: Iterable[Any]) -> list[str]:
@@ -148,7 +154,10 @@ def filter_symbols_by_provider_support(
             "filtered_symbols": [],
             "provider_symbol_support": {},
         }
-    provider_symbol_support = fetch_provider_symbol_support(normalized)
+    provider_symbol_support = fetch_provider_symbol_support(
+        normalized,
+        include_kucoin=exchange in {"kucoin", "both"},
+    )
     supported = supported_symbols_for_exchange(normalized, provider_symbol_support, exchange)
     filtered = [symbol for symbol in normalized if symbol not in set(supported)]
     return supported, {
@@ -338,6 +347,7 @@ def build_supervision_plan(
     direct_shard_max_messages: int = 25000,
     direct_shard_replay_capture: bool = False,
     direct_shard_partial_depth_levels: str = "20",
+    seed_binance_symbol_filter_cache_from_rest_fallback: bool = False,
 ) -> dict[str, Any]:
     # Full-universe shard mode (fixes the frozen 16-symbol static-batch gap):
     # instead of pinning per-child --symbols lists snapshotted at supervisor
@@ -383,6 +393,8 @@ def build_supervision_plan(
             "--freshness-stale-bound-ms",
             str(float(freshness_stale_bound_ms)),
             "--loop",
+            "--loop-log-mode",
+            "compact",
             "--loop-max-runs",
             str(max(0, int(direct_loop_max_runs))),
             "--interval-seconds",
@@ -396,6 +408,8 @@ def build_supervision_plan(
         ]
         if not direct_shard_replay_capture:
             command.append("--no-replay-capture")
+        if seed_binance_symbol_filter_cache_from_rest_fallback:
+            command.append("--seed-symbol-filter-cache-from-rest-fallback")
         if binance_include_book_ticker:
             command.append("--binance-include-book-ticker")
         if binance_include_diff_depth:
@@ -421,6 +435,8 @@ def build_supervision_plan(
             "--freshness-stale-bound-ms",
             str(float(freshness_stale_bound_ms)),
             "--loop",
+            "--loop-log-mode",
+            "compact",
             "--loop-max-runs",
             str(max(0, int(direct_loop_max_runs))),
             "--interval-seconds",
@@ -432,6 +448,11 @@ def build_supervision_plan(
             "--replay-root",
             str(replay_root),
         ]
+        if (
+            exchange == "binance"
+            and seed_binance_symbol_filter_cache_from_rest_fallback
+        ):
+            command.append("--seed-symbol-filter-cache-from-rest-fallback")
         if binance_include_book_ticker:
             command.append("--binance-include-book-ticker")
         if binance_include_diff_depth:
@@ -458,6 +479,8 @@ def build_supervision_plan(
         "--ttl-seconds",
         str(max(1, int(monitor_ttl_seconds))),
         "--loop",
+        "--loop-log-mode",
+        "compact",
         "--loop-max-runs",
         str(max(0, int(monitor_loop_max_runs))),
         "--interval-seconds",
@@ -500,6 +523,9 @@ def build_supervision_plan(
         "estimated_binance_stream_count": stream_count,
         "binance_include_book_ticker": bool(binance_include_book_ticker),
         "binance_include_diff_depth": bool(binance_include_diff_depth),
+        "seed_binance_symbol_filter_cache_from_rest_fallback": bool(
+            seed_binance_symbol_filter_cache_from_rest_fallback
+        ),
         "direct_uses_redis_freshness_check": True,
         "direct_exchange": "binance" if not kucoin_batches else "binance+kucoin",
         "monitor_exchanges": monitor_exchanges,
@@ -690,6 +716,28 @@ def _managed_child_snapshot(child: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _bounded_health_samples(
+    *,
+    first_health_sample: dict[str, Any] | None,
+    latest_health_sample: dict[str, Any] | None,
+    health_sample_count: int,
+) -> list[dict[str, Any]]:
+    """Retain constant-space lifecycle endpoints for operator telemetry.
+
+    A managed-until-stopped process previously accumulated every five-second
+    sample and rewrote the complete history to every rolling JSON status file.
+    Keeping the first and latest samples preserves lifecycle attribution while
+    making both memory and rolling-status write volume independent of uptime.
+    """
+
+    count = max(0, int(health_sample_count))
+    if count == 0 or first_health_sample is None:
+        return []
+    if count == 1 or latest_health_sample is None:
+        return [first_health_sample]
+    return [first_health_sample, latest_health_sample]
+
+
 def _write_managed_running_status(
     *,
     paths: Iterable[Path],
@@ -702,12 +750,19 @@ def _write_managed_running_status(
     restart_exited_children: bool,
     run_until_stopped: bool,
     children: list[dict[str, Any]],
-    health_samples: list[dict[str, Any]],
+    first_health_sample: dict[str, Any] | None,
+    latest_health_sample: dict[str, Any] | None,
+    health_sample_count: int,
     log_root: Path,
 ) -> int:
     target_paths = list(paths)
     if not target_paths:
         return 0
+    bounded_health_samples = _bounded_health_samples(
+        first_health_sample=first_health_sample,
+        latest_health_sample=latest_health_sample,
+        health_sample_count=health_sample_count,
+    )
     run_result = {
         "managed_run": True,
         "status": "MANAGED_RUN_RUNNING",
@@ -717,7 +772,11 @@ def _write_managed_running_status(
         "restart_exited_children": bool(restart_exited_children),
         "run_until_stopped": bool(run_until_stopped),
         "started_child_count": len(children),
-        "health_samples": health_samples,
+        "health_history_policy": "first_and_latest_only_constant_space",
+        "health_sample_count": max(0, int(health_sample_count)),
+        "health_samples_retained": len(bounded_health_samples),
+        "health_samples_dropped": max(0, int(health_sample_count) - len(bounded_health_samples)),
+        "health_samples": bounded_health_samples,
         "child_results": [_managed_child_snapshot(child) for child in children],
         "log_root": str(log_root),
     }
@@ -780,7 +839,9 @@ def run_managed_supervision(
             }
         )
 
-    health_samples: list[dict[str, Any]] = []
+    first_health_sample: dict[str, Any] | None = None
+    latest_health_sample: dict[str, Any] | None = None
+    health_sample_count = 0
     rolling_status_write_count = 0
     stopped_by_request = False
     try:
@@ -823,7 +884,11 @@ def run_managed_supervision(
                         "restart_count": int(child.get("restart_count") or 0),
                     }
                 )
-            health_samples.append({"sampled_at": utc_now_iso(), "children": sample_children})
+            health_sample = {"sampled_at": utc_now_iso(), "children": sample_children}
+            health_sample_count += 1
+            if first_health_sample is None:
+                first_health_sample = health_sample
+            latest_health_sample = health_sample
             rolling_status_write_count += _write_managed_running_status(
                 paths=rolling_status_paths,
                 symbols=rolling_status_symbols or [],
@@ -835,7 +900,9 @@ def run_managed_supervision(
                 restart_exited_children=restart_exited_children,
                 run_until_stopped=run_until_stopped,
                 children=children,
-                health_samples=health_samples,
+                first_health_sample=first_health_sample,
+                latest_health_sample=latest_health_sample,
+                health_sample_count=health_sample_count,
                 log_root=log_root,
             )
             if deadline is None:
@@ -869,6 +936,11 @@ def run_managed_supervision(
                 "parsed_json_tail": _parse_last_json(stdout_tail),
             }
         )
+    bounded_health_samples = _bounded_health_samples(
+        first_health_sample=first_health_sample,
+        latest_health_sample=latest_health_sample,
+        health_sample_count=health_sample_count,
+    )
     return {
         "status": "MANAGED_RUN_STOPPED" if stopped_by_request else "MANAGED_RUN_COMPLETED",
         "started_at": started_at,
@@ -879,7 +951,11 @@ def run_managed_supervision(
         "run_until_stopped": bool(run_until_stopped),
         "stopped_by_request": bool(stopped_by_request),
         "started_child_count": len(children),
-        "health_samples": health_samples,
+        "health_history_policy": "first_and_latest_only_constant_space",
+        "health_sample_count": health_sample_count,
+        "health_samples_retained": len(bounded_health_samples),
+        "health_samples_dropped": max(0, health_sample_count - len(bounded_health_samples)),
+        "health_samples": bounded_health_samples,
         "child_results": child_results,
         "rolling_status_write_count": rolling_status_write_count,
     }
@@ -984,6 +1060,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--binance-speed", choices=("100ms", "250ms", "500ms"), default="250ms")
     parser.add_argument("--binance-include-book-ticker", action="store_true")
     parser.add_argument("--binance-include-diff-depth", action="store_true")
+    parser.add_argument(
+        "--seed-binance-symbol-filter-cache-from-rest-fallback",
+        action="store_true",
+        help=(
+            "Pass the public exchangeInfo symbol-filter seed and periodic refresh "
+            "option to Binance recorder children only. The child also requires "
+            "--write-redis."
+        ),
+    )
     parser.add_argument("--direct-max-messages", type=int, default=600)
     parser.add_argument(
         "--direct-binance-shard-count",
@@ -1107,6 +1192,9 @@ def main(argv: list[str] | None = None) -> int:
         direct_shard_max_messages=int(args.direct_shard_max_messages),
         direct_shard_replay_capture=bool(args.direct_shard_replay_capture),
         direct_shard_partial_depth_levels=str(args.direct_shard_partial_depth_levels),
+        seed_binance_symbol_filter_cache_from_rest_fallback=bool(
+            args.seed_binance_symbol_filter_cache_from_rest_fallback
+        ),
     )
     plan["kucoin_provider_filter_status"] = kucoin_provider_filter_status
     run_result = None

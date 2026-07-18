@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
 
 from v2.backend.app.cli import v2_microstructure_runtime_supervisor as supervisor
 
@@ -55,12 +54,15 @@ def test_supervision_plan_batches_direct_recorder_with_safe_defaults(tmp_path) -
     for command in plan["direct_commands"]:
         assert "--write-redis" in command
         assert "--verify-redis-freshness" in command
+        assert command[command.index("--loop-log-mode") + 1] == "compact"
         assert "--binance-include-book-ticker" not in command
         assert "--binance-include-diff-depth" not in command
         assert command[command.index("--loop-max-runs") + 1] == "0"
         assert "create_order" not in " ".join(command)
     assert "--write-status" in plan["monitor_command"]
     assert "--write-redis" in plan["monitor_command"]
+    monitor_log_mode = plan["monitor_command"].index("--loop-log-mode") + 1
+    assert plan["monitor_command"][monitor_log_mode] == "compact"
     assert plan["monitor_command"][plan["monitor_command"].index("--loop-max-runs") + 1] == "0"
     assert plan["monitor_exchanges"] == "binance"
 
@@ -91,6 +93,41 @@ def test_supervision_plan_keeps_book_ticker_opt_in(tmp_path) -> None:
     assert "--binance-include-book-ticker" in plan["direct_commands"][0]
 
 
+def test_supervision_plan_seeds_filters_only_on_binance_children(tmp_path) -> None:
+    plan = supervisor.build_supervision_plan(
+        symbols=["ETHUSDT"],
+        python_executable="/venv/python",
+        replay_root=tmp_path / "replay",
+        batch_size=8,
+        direct_max_messages=10,
+        direct_loop_max_runs=1,
+        direct_interval_seconds=0.0,
+        direct_venue_timeout_seconds=30.0,
+        direct_ws_close_timeout_seconds=1.0,
+        freshness_stale_bound_ms=1500.0,
+        binance_speed="250ms",
+        binance_include_book_ticker=False,
+        binance_include_diff_depth=False,
+        monitor_loop_max_runs=1,
+        monitor_interval_seconds=0.0,
+        monitor_ttl_seconds=60,
+        monitor_timeframe="1m",
+        monitor_exchanges="binance,kucoin",
+        kucoin_symbols=["ETHUSDT"],
+        seed_binance_symbol_filter_cache_from_rest_fallback=True,
+    )
+
+    commands_by_exchange = {
+        command[command.index("--exchange") + 1]: command
+        for command in plan["direct_commands"]
+    }
+    seed_flag = "--seed-symbol-filter-cache-from-rest-fallback"
+    assert seed_flag in commands_by_exchange["binance"]
+    assert seed_flag not in commands_by_exchange["kucoin"]
+    assert seed_flag not in plan["monitor_command"]
+    assert plan["seed_binance_symbol_filter_cache_from_rest_fallback"] is True
+
+
 def test_filter_symbols_by_provider_support_excludes_publicly_unsupported(monkeypatch) -> None:
     support = {
         "binance": {
@@ -99,7 +136,13 @@ def test_filter_symbols_by_provider_support_excludes_publicly_unsupported(monkey
         }
     }
 
-    monkeypatch.setattr(supervisor, "fetch_provider_symbol_support", lambda symbols: support)
+    fetch_calls: list[dict[str, object]] = []
+
+    def fake_fetch(symbols, **kwargs):
+        fetch_calls.append({"symbols": list(symbols), **kwargs})
+        return support
+
+    monkeypatch.setattr(supervisor, "fetch_provider_symbol_support", fake_fetch)
     monkeypatch.setattr(
         supervisor,
         "supported_symbols_for_exchange",
@@ -118,6 +161,7 @@ def test_filter_symbols_by_provider_support_excludes_publicly_unsupported(monkey
     assert status["provider_symbol_support"] == support
     assert status["places_real_order"] is False
     assert status["transfer_or_withdrawal"] is False
+    assert fetch_calls == [{"symbols": ["ETHUSDT", "IPUSDT"], "include_kucoin": False}]
 
 
 def test_inspect_runtime_owner_processes_flags_provider_filtered_active_symbol() -> None:
@@ -256,6 +300,9 @@ def test_run_managed_supervision_logs_health_and_stops_children(monkeypatch, tmp
     assert terminated == [1001, 1002]
     assert result["started_child_count"] == 2
     assert result["health_samples"]
+    assert result["health_sample_count"] >= len(result["health_samples"])
+    assert result["health_samples_retained"] <= 2
+    assert result["health_history_policy"] == "first_and_latest_only_constant_space"
     assert all(child["running_after_stop"] is False for child in result["child_results"])
     assert all(child["returncode"] == -15 for child in result["child_results"])
 
@@ -364,6 +411,62 @@ def test_run_managed_supervision_writes_running_status(monkeypatch, tmp_path) ->
     assert managed_payload["status"] == "MANAGED_RUN_RUNNING"
 
 
+def test_running_status_health_history_is_constant_space_and_atomic(tmp_path) -> None:
+    status_path = tmp_path / "status.json"
+    first_sample = {
+        "sampled_at": "2026-07-18T00:00:00.000Z",
+        "children": [{"name": "direct", "pid": 101, "running": True}],
+    }
+    latest_sample = {
+        "sampled_at": "2026-07-18T06:00:00.000Z",
+        "children": [{"name": "direct", "pid": 202, "running": True}],
+    }
+
+    assert supervisor._write_managed_running_status(
+        paths=(status_path,),
+        symbols=["ETHUSDT"],
+        symbol_source="explicit",
+        plan={"direct_commands": [], "monitor_command": []},
+        started_at="2026-07-18T00:00:00.000Z",
+        duration_seconds=21_600.0,
+        health_interval_seconds=5.0,
+        restart_exited_children=True,
+        run_until_stopped=True,
+        children=[],
+        first_health_sample=first_sample,
+        latest_health_sample=latest_sample,
+        health_sample_count=2,
+        log_root=tmp_path / "logs",
+    ) == 1
+    small_count_size = status_path.stat().st_size
+
+    assert supervisor._write_managed_running_status(
+        paths=(status_path,),
+        symbols=["ETHUSDT"],
+        symbol_source="explicit",
+        plan={"direct_commands": [], "monitor_command": []},
+        started_at="2026-07-18T00:00:00.000Z",
+        duration_seconds=21_600.0,
+        health_interval_seconds=5.0,
+        restart_exited_children=True,
+        run_until_stopped=True,
+        children=[],
+        first_health_sample=first_sample,
+        latest_health_sample=latest_sample,
+        health_sample_count=1_000_000,
+        log_root=tmp_path / "logs",
+    ) == 1
+
+    payload = json.loads(status_path.read_text(encoding="utf-8"))
+    run_result = payload["run_result"]
+    assert run_result["health_sample_count"] == 1_000_000
+    assert run_result["health_samples"] == [first_sample, latest_sample]
+    assert run_result["health_samples_retained"] == 2
+    assert run_result["health_samples_dropped"] == 999_998
+    assert status_path.stat().st_size <= small_count_size + 64
+    assert list(tmp_path.glob(".status.json.*.tmp")) == []
+
+
 def test_run_managed_supervision_until_stopped_uses_stop_callback(monkeypatch, tmp_path) -> None:
     terminated: list[int] = []
     sleep_calls: list[float] = []
@@ -453,7 +556,7 @@ def test_main_can_write_provider_filtered_plan_status(monkeypatch, tmp_path, cap
     monkeypatch.setattr(
         supervisor,
         "fetch_provider_symbol_support",
-        lambda symbols: {
+        lambda symbols, **_kwargs: {
             "binance": {
                 "ETHUSDT": {"orderbook_supported": True, "status": "TRADING"},
                 "IPUSDT": {"orderbook_supported": False, "status": "SETTLING"},
@@ -681,6 +784,7 @@ def test_supervision_plan_shard_mode_replaces_binance_batches(tmp_path, monkeypa
         binance_shard_count=4,
         direct_shard_max_messages=25000,
         direct_shard_replay_capture=False,
+        seed_binance_symbol_filter_cache_from_rest_fallback=True,
     )
 
     assert plan["direct_binance_shard_mode"] is True
@@ -699,6 +803,7 @@ def test_supervision_plan_shard_mode_replaces_binance_batches(tmp_path, monkeypa
         assert command[command.index("--binance-partial-depth-levels") + 1] == "20"
         assert command[command.index("--max-messages") + 1] == "25000"
         assert "--write-redis" in command
+        assert "--seed-symbol-filter-cache-from-rest-fallback" in command
         assert "--verify-redis-freshness" in command
         assert command[command.index("--loop-max-runs") + 1] == "0"
     # KuCoin cross-venue children keep explicit batches and replay capture.
@@ -709,6 +814,7 @@ def test_supervision_plan_shard_mode_replaces_binance_batches(tmp_path, monkeypa
     ]
     assert len(kucoin_commands) == 1
     assert "--no-replay-capture" not in kucoin_commands[0]
+    assert "--seed-symbol-filter-cache-from-rest-fallback" not in kucoin_commands[0]
     assert kucoin_commands[0][kucoin_commands[0].index("--symbols") + 1] == "ETHUSDT,SOLUSDT"
     # Stream estimate covers the full resolver universe (one depth20 stream per
     # symbol in shard mode), not the supervisor symbol list.
@@ -742,3 +848,4 @@ def test_supervision_plan_shard_mode_disabled_by_default(tmp_path) -> None:
     for command in plan["direct_commands"]:
         assert "--shard-count" not in command
         assert "--no-replay-capture" not in command
+        assert "--seed-symbol-filter-cache-from-rest-fallback" not in command

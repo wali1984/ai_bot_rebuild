@@ -5,6 +5,10 @@ After=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+# Public, credential-free Binance USD-M exchangeInfo is enabled only for this
+# paper-microstructure supervisor. Recorder children still require the explicit
+# seed flag and never submit, cancel, or modify orders.
+Environment=BINANCE_REST_FALLBACK_ALLOWED=true
 ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-microstructure-runtime-supervisor'
 # 2026-07-17 orderbook depth coverage fix: --direct-binance-shard-count 4 replaces
 # the frozen paper-candidate --symbols batches (16 symbols, no BTC/ETH/SOL) with 4
@@ -17,7 +21,7 @@ ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_sa
 # KuCoin cross-venue children keep paper-candidate batches + replay capture.
 # --direct-shard-max-messages 25000 sets per-connection run length (~3 min)
 # = universe re-resolution cadence.
-ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_microstructure_runtime_supervisor --paper-candidates --filter-provider-supported-symbols --run-managed --managed-until-stopped --restart-exited-children --direct-loop-max-runs 0 --direct-interval-seconds 0.5 --direct-max-messages 600 --direct-binance-shard-count 4 --direct-shard-max-messages 25000 --direct-shard-partial-depth-levels 20 --binance-speed 250ms >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-microstructure-runtime-supervisor.log 2>&1'
+ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_microstructure_runtime_supervisor --paper-candidates --filter-provider-supported-symbols --seed-binance-symbol-filter-cache-from-rest-fallback --run-managed --managed-until-stopped --restart-exited-children --direct-loop-max-runs 0 --direct-interval-seconds 0.5 --direct-max-messages 600 --direct-binance-shard-count 4 --direct-shard-max-messages 25000 --direct-shard-partial-depth-levels 20 --binance-speed 250ms >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-microstructure-runtime-supervisor.log 2>&1'
 Restart=always
 RestartSec=15
 # Periodic full refresh so the KuCoin cross-venue paper-candidate subset and the

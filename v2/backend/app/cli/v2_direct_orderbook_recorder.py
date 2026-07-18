@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
+import math
 import sys
 import time
 import urllib.parse
 import urllib.request
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -64,6 +67,10 @@ KUCOIN_BULLET_PUBLIC_BY_TRADE_TYPE = {
 NEW_REDIS_PREFIX = "v2:orderbook:"
 REDIS_TTL_SECONDS = 30
 SYMBOL_FILTER_CACHE_TTL_SECONDS = 24 * 60 * 60
+# Refresh the public exchangeInfo evidence well before its Redis expiry so a
+# still-present exact-symbol key cannot freeze venue filters for a full day.
+# This is metadata collection cadence only; it is not a trading/risk threshold.
+SYMBOL_FILTER_CACHE_REFRESH_SECONDS = 15 * 60
 STATUS_WORKER_ID = "v2_direct_orderbook_recorder"
 
 
@@ -118,6 +125,7 @@ def _safe_symbol_filter_cache_set(
     payload: dict[str, Any],
     *,
     ttl_seconds: int = SYMBOL_FILTER_CACHE_TTL_SECONDS,
+    fetched_at: str | None = None,
 ) -> bool:
     if client is None:
         return False
@@ -133,8 +141,234 @@ def _safe_symbol_filter_cache_set(
     )
     if key not in allowed_exact and not key.startswith(allowed_prefixes):
         raise ValueError(f"refused_non_symbol_filter_redis_key:{key}")
-    client.set(key, json.dumps(payload, sort_keys=True, separators=(",", ":")), ex=int(ttl_seconds))
+    source_material = dict(payload)
+    source_hash = hashlib.sha256(
+        json.dumps(
+            source_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    ingested_at = utc_now_iso()
+    stamped_payload = {
+        **source_material,
+        "_cache_schema_version": "binance_usdm_symbol_filter_cache_v1",
+        "_cache_source": "BINANCE_FAPI_V1_EXCHANGE_INFO_REST_FALLBACK",
+        "_cache_source_endpoint": "GET /fapi/v1/exchangeInfo",
+        "_cache_writer": "v2_direct_orderbook_recorder",
+        "_cache_source_payload_hash": source_hash,
+        "_cache_fetched_at": fetched_at or ingested_at,
+        "_cache_ingested_at": ingested_at,
+        "_cache_available_at": ingested_at,
+        "_cache_ttl_seconds": int(ttl_seconds),
+        "_cache_network_fallback_operator_enabled": True,
+        "_cache_paper_only_metadata": True,
+        "_cache_places_real_order": False,
+    }
+    client.set(
+        key,
+        json.dumps(stamped_payload, sort_keys=True, separators=(",", ":")),
+        ex=int(ttl_seconds),
+    )
     return True
+
+
+def _parse_aware_utc_cache_time(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _finite_positive_filter_number(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(parsed) or parsed <= 0.0:
+        return None
+    return parsed
+
+
+def _validated_canonical_symbol_filter_cache_payload(
+    client: Any,
+    symbol: str,
+) -> dict[str, Any] | None:
+    """Return only a trustworthy producer-stamped exact-symbol cache row."""
+
+    normalized = str(symbol or "").upper()
+    key = f"v2:exchange:symbol_filters:{normalized}"
+    payload = _read_json_payload(client, key)
+    if not isinstance(payload, Mapping):
+        return None
+    if str(payload.get("symbol") or "").upper() != normalized:
+        return None
+    if str(payload.get("status") or "").upper() != "TRADING":
+        return None
+    if str(payload.get("contractType") or "").upper() != "PERPETUAL":
+        return None
+    if str(payload.get("quoteAsset") or "").upper() != "USDT":
+        return None
+    expected_metadata = {
+        "_cache_schema_version": "binance_usdm_symbol_filter_cache_v1",
+        "_cache_source": "BINANCE_FAPI_V1_EXCHANGE_INFO_REST_FALLBACK",
+        "_cache_source_endpoint": "GET /fapi/v1/exchangeInfo",
+        "_cache_writer": "v2_direct_orderbook_recorder",
+        "_cache_network_fallback_operator_enabled": True,
+        "_cache_paper_only_metadata": True,
+        "_cache_places_real_order": False,
+    }
+    if any(payload.get(field) != value for field, value in expected_metadata.items()):
+        return None
+    source_material = {
+        str(field): value
+        for field, value in payload.items()
+        if not str(field).startswith("_cache_")
+    }
+    try:
+        source_hash = hashlib.sha256(
+            json.dumps(
+                source_material,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+                allow_nan=False,
+            ).encode("utf-8")
+        ).hexdigest()
+    except (TypeError, ValueError):
+        return None
+    if payload.get("_cache_source_payload_hash") != source_hash:
+        return None
+    declared_ttl = payload.get("_cache_ttl_seconds")
+    if (
+        isinstance(declared_ttl, bool)
+        or not isinstance(declared_ttl, (int, float))
+        or not 0 < float(declared_ttl) <= 24 * 60 * 60
+    ):
+        return None
+    cache_times = [
+        _parse_aware_utc_cache_time(payload.get(field))
+        for field in (
+            "_cache_fetched_at",
+            "_cache_ingested_at",
+            "_cache_available_at",
+        )
+    ]
+    if any(value is None for value in cache_times):
+        return None
+    fetched_at, ingested_at, available_at = cache_times
+    assert fetched_at is not None and ingested_at is not None and available_at is not None
+    observed_at = datetime.now(timezone.utc)
+    if not fetched_at <= ingested_at <= available_at <= observed_at:
+        return None
+    if (observed_at - fetched_at).total_seconds() > float(declared_ttl):
+        return None
+    if hasattr(client, "ttl"):
+        try:
+            if int(client.ttl(key)) <= 0:
+                return None
+        except Exception:
+            return None
+    filters = payload.get("filters")
+    if not isinstance(filters, list):
+        return None
+    filter_types = [
+        str(row.get("filterType") or "")
+        for row in filters
+        if isinstance(row, Mapping)
+    ]
+    if len(filter_types) != len(filters) or len(filter_types) != len(set(filter_types)):
+        return None
+    if filter_types.count("LOT_SIZE") != 1:
+        return None
+    if filter_types.count("MARKET_LOT_SIZE") != 1:
+        return None
+    if filter_types.count("MIN_NOTIONAL") != 1:
+        return None
+    if filter_types.count("NOTIONAL") != 0:
+        return None
+    filters_by_type = {
+        str(row.get("filterType") or ""): row
+        for row in filters
+        if isinstance(row, Mapping)
+    }
+    market_lot_size = filters_by_type["MARKET_LOT_SIZE"]
+    min_notional_filter = filters_by_type["MIN_NOTIONAL"]
+    market_min_qty = _finite_positive_filter_number(
+        market_lot_size.get("minQty")
+    )
+    market_step_size = _finite_positive_filter_number(
+        market_lot_size.get("stepSize")
+    )
+    market_max_qty = _finite_positive_filter_number(
+        market_lot_size.get("maxQty")
+    )
+    min_notional = _finite_positive_filter_number(
+        min_notional_filter.get("notional")
+    )
+    if any(
+        value is None
+        for value in (
+            market_min_qty,
+            market_step_size,
+            market_max_qty,
+            min_notional,
+        )
+    ):
+        return None
+    assert market_min_qty is not None and market_max_qty is not None
+    if market_max_qty < market_min_qty:
+        return None
+    alias_contract = (
+        ("min_qty", market_min_qty),
+        ("minQty", market_min_qty),
+        ("step_size", market_step_size),
+        ("stepSize", market_step_size),
+        ("max_qty", market_max_qty),
+        ("maxQty", market_max_qty),
+        ("min_notional", min_notional),
+        ("minNotional", min_notional),
+        ("min_notional_usdt", min_notional),
+    )
+    for alias, expected in alias_contract:
+        if alias not in payload:
+            continue
+        alias_value = _finite_positive_filter_number(payload.get(alias))
+        if alias_value is None or not math.isclose(
+            alias_value,
+            expected,
+            rel_tol=1e-12,
+            abs_tol=0.0,
+        ):
+            return None
+    return dict(payload)
+
+
+def _canonical_symbol_filter_cache_refresh_due(
+    payload: Mapping[str, Any],
+    *,
+    observed_at: datetime | None = None,
+) -> bool:
+    """Return true when valid public metadata should be fetched again."""
+
+    fetched_at = _parse_aware_utc_cache_time(payload.get("_cache_fetched_at"))
+    if fetched_at is None:
+        return True
+    observed = observed_at or datetime.now(timezone.utc)
+    if observed.tzinfo is None or observed.utcoffset() is None:
+        return True
+    age_seconds = (observed.astimezone(timezone.utc) - fetched_at).total_seconds()
+    return age_seconds >= float(SYMBOL_FILTER_CACHE_REFRESH_SECONDS)
 
 
 def _write_status_json(path: Path, payload: dict[str, Any]) -> None:
@@ -886,12 +1120,21 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--seed-symbol-filter-cache-from-rest-fallback",
         action="store_true",
         help=(
-            "When Binance WebSocket/cache metadata is missing and "
-            "BINANCE_REST_FALLBACK_ALLOWED=true, seed v2:exchange:symbol_filters* "
-            "from the public exchangeInfo fallback for later cache-primary reads."
+            "When BINANCE_REST_FALLBACK_ALLOWED=true, seed missing or invalid "
+            "v2:exchange:symbol_filters* evidence and periodically refresh valid "
+            "exact-symbol rows from public exchangeInfo."
         ),
     )
     parser.add_argument("--loop", action="store_true")
+    parser.add_argument(
+        "--loop-log-mode",
+        choices=("compact", "full", "silent"),
+        default="compact",
+        help=(
+            "Loop stdout contract. 'compact' emits bounded scalar telemetry; "
+            "the full per-symbol evidence remains in Redis/status artifacts."
+        ),
+    )
     parser.add_argument("--interval-seconds", type=float, default=1.0)
     parser.add_argument("--loop-max-runs", type=int, default=0)
     parser.add_argument("--plan-only", action="store_true")
@@ -926,6 +1169,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     args = parser.parse_args(argv)
+    if (
+        args.seed_symbol_filter_cache_from_rest_fallback
+        and not args.write_redis
+    ):
+        parser.error(
+            "--seed-symbol-filter-cache-from-rest-fallback requires --write-redis"
+        )
     if int(args.shard_count or 0) > 0 and not (0 <= int(args.shard_index) < int(args.shard_count)):
         parser.error("--shard-index must be in [0, --shard-count)")
     try:
@@ -1139,19 +1389,48 @@ def fetch_provider_symbol_support(
     timeout: float = 12.0,
     redis_client: Any = None,
     seed_cache_from_rest_fallback: bool = False,
+    include_kucoin: bool = True,
 ) -> dict[str, Any]:
     normalized_symbols = sorted({str(symbol).upper() for symbol in symbols if symbol})
     cached_binance, cached_symbols = _binance_symbol_support_from_cache(
         normalized_symbols,
         redis_client=redis_client,
     )
+    canonical_exact_payloads = (
+        {
+            symbol: payload
+            for symbol in normalized_symbols
+            if (
+                payload := _validated_canonical_symbol_filter_cache_payload(
+                    redis_client,
+                    symbol,
+                )
+            )
+            is not None
+        }
+        if seed_cache_from_rest_fallback
+        else {}
+    )
+    canonical_exact_cached_symbols = set(canonical_exact_payloads)
+    refresh_due_symbols = {
+        symbol
+        for symbol, payload in canonical_exact_payloads.items()
+        if _canonical_symbol_filter_cache_refresh_due(payload)
+    }
+    canonical_exact_fresh_symbols = (
+        canonical_exact_cached_symbols - refresh_due_symbols
+    )
     support: dict[str, Any] = {
         "generated_at": utc_now_iso(),
         "source": "public_exchange_metadata_cache_primary_rest_fallback_only",
         "binance_endpoint": f"{BINANCE_FAPI_BASE}/fapi/v1/exchangeInfo",
         "binance_cache_primary_count": len(cached_symbols),
+        "binance_canonical_exact_cache_count": len(
+            canonical_exact_cached_symbols
+        ),
         "binance_rest_fallback_allowed": binance_rest_fallback_allowed(),
         "kucoin_endpoint": "https://api-futures.kucoin.com/api/v1/contracts/active",
+        "kucoin_fetch_enabled": bool(include_kucoin),
         "binance": dict(cached_binance),
         "kucoin": {},
         "fetch_errors": [],
@@ -1166,18 +1445,54 @@ def fetch_provider_symbol_support(
             "written_keys": [],
             "write_errors": [],
             "ttl_seconds": SYMBOL_FILTER_CACHE_TTL_SECONDS,
+            "refresh_interval_seconds": SYMBOL_FILTER_CACHE_REFRESH_SECONDS,
             "transport": "rest_fallback_to_websocket_cache_seed",
+            "coverage_contract": (
+                "validated_canonical_exact_key_and_refresh_cadence"
+            ),
+            "canonical_exact_covered_symbols": sorted(
+                canonical_exact_cached_symbols
+            ),
+            "canonical_exact_fresh_symbols": sorted(
+                canonical_exact_fresh_symbols
+            ),
+            "refresh_due_symbols": sorted(refresh_due_symbols),
         },
     }
-    missing_binance_symbols = [symbol for symbol in normalized_symbols if symbol not in cached_symbols]
+    coverage_symbols = (
+        canonical_exact_fresh_symbols
+        if seed_cache_from_rest_fallback
+        else cached_symbols
+    )
+    covered_for_missing_status = (
+        canonical_exact_cached_symbols
+        if seed_cache_from_rest_fallback
+        else cached_symbols
+    )
+    missing_binance_symbols = [
+        symbol
+        for symbol in normalized_symbols
+        if symbol not in covered_for_missing_status
+    ]
+    refresh_target_symbols = [
+        symbol for symbol in normalized_symbols if symbol not in coverage_symbols
+    ]
+    support["symbol_filter_cache_seed"]["missing_symbols"] = list(
+        missing_binance_symbols
+    )
+    support["symbol_filter_cache_seed"]["refresh_target_symbols"] = list(
+        refresh_target_symbols
+    )
     try:
-        if not missing_binance_symbols:
+        if not refresh_target_symbols:
             raise StopIteration("BINANCE_SYMBOL_METADATA_CACHE_COVERED_ALL_SYMBOLS")
         try:
             require_binance_rest_fallback(
                 endpoint="/fapi/v1/exchangeInfo",
-                fallback_reason="symbol_filter_cache_missing_for_requested_symbols",
-                role="symbol_metadata_cache_seed_recovery",
+                fallback_reason=(
+                    "symbol_filter_cache_missing_or_periodic_refresh_due"
+                ),
+                role="symbol_metadata_cache_seed_and_periodic_refresh",
             )
         except RuntimeError as exc:
             message = str(exc).replace(
@@ -1193,6 +1508,7 @@ def fetch_provider_symbol_support(
         )
         with urllib.request.urlopen(req, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
+        exchange_info_fetched_at = utc_now_iso()
         by_symbol = {str(row.get("symbol") or "").upper(): row for row in payload.get("symbols") or []}
         if seed_cache_from_rest_fallback and redis_client is not None and isinstance(payload, dict):
             seed_status = support["symbol_filter_cache_seed"]
@@ -1202,18 +1518,28 @@ def fetch_provider_symbol_support(
                 ("v2:exchange:symbol_filters", payload),
             ):
                 try:
-                    if _safe_symbol_filter_cache_set(redis_client, key, cache_payload):
+                    if _safe_symbol_filter_cache_set(
+                        redis_client,
+                        key,
+                        cache_payload,
+                        fetched_at=exchange_info_fetched_at,
+                    ):
                         seed_status["written_keys"].append(key)
                 except Exception as exc:  # noqa: BLE001
                     seed_status["write_errors"].append(f"{key}:{type(exc).__name__}")
-        for symbol in missing_binance_symbols:
+        for symbol in refresh_target_symbols:
             row = by_symbol.get(symbol)
             status = str((row or {}).get("status") or "MISSING")
             contract_type = str((row or {}).get("contractType") or "")
             if seed_cache_from_rest_fallback and redis_client is not None and isinstance(row, dict):
                 key = f"v2:exchange:symbol_filters:{symbol}"
                 try:
-                    if _safe_symbol_filter_cache_set(redis_client, key, row):
+                    if _safe_symbol_filter_cache_set(
+                        redis_client,
+                        key,
+                        row,
+                        fetched_at=exchange_info_fetched_at,
+                    ):
                         support["symbol_filter_cache_seed"]["written_keys"].append(key)
                 except Exception as exc:  # noqa: BLE001
                     support["symbol_filter_cache_seed"]["write_errors"].append(
@@ -1234,7 +1560,7 @@ def fetch_provider_symbol_support(
         pass
     except Exception as exc:  # noqa: BLE001
         support["fetch_errors"].append({"exchange": "binance", "error": f"{type(exc).__name__}:{exc}"})
-        for symbol in missing_binance_symbols:
+        for symbol in refresh_target_symbols:
             support["binance"].setdefault(symbol, {
                 "provider_symbol": symbol,
                 "listed": None,
@@ -1243,6 +1569,8 @@ def fetch_provider_symbol_support(
                 "source": "binance_symbol_metadata_missing_rest_fallback_unavailable",
                 "transport": "missing",
             })
+    if not include_kucoin:
+        return support
     try:
         req = urllib.request.Request(
             "https://api-futures.kucoin.com/api/v1/contracts/active",
@@ -1282,16 +1610,20 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
     requested_symbols = _resolved_symbols(args)
     redis_read_client = _redis_client(bool(args.write_redis or args.write_status or args.plan_only or args.verify_redis_freshness))
     redis_client = redis_read_client if args.write_redis else None
-    if args.write_status or args.plan_only:
+    seed_symbol_filter_cache = bool(
+        getattr(args, "seed_symbol_filter_cache_from_rest_fallback", False)
+    )
+    if args.write_status or args.plan_only or seed_symbol_filter_cache:
         try:
             provider_symbol_support = fetch_provider_symbol_support(
                 requested_symbols,
-                redis_client=redis_read_client,
-                seed_cache_from_rest_fallback=bool(
-                    args.seed_symbol_filter_cache_from_rest_fallback
-                ),
+                redis_client=(redis_client if seed_symbol_filter_cache else redis_read_client),
+                seed_cache_from_rest_fallback=seed_symbol_filter_cache,
+                include_kucoin=args.exchange in {"kucoin", "both"},
             )
         except TypeError:
+            if seed_symbol_filter_cache:
+                raise
             provider_symbol_support = fetch_provider_symbol_support(requested_symbols)
     else:
         provider_symbol_support = {}
@@ -1457,6 +1789,70 @@ def _run_once(args: argparse.Namespace, *, loop_run_index: int | None = None) ->
     return run_status
 
 
+def _loop_log_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return constant-size loop telemetry for long-lived supervisors.
+
+    The authoritative per-symbol/orderbook evidence is already persisted by
+    ``_run_once``. Repeating those large maps on stdout made each supervised
+    recorder append hundreds of kilobytes per cycle and forced the runtime
+    supervisor to rewrite the same material into rolling IDE-visible status
+    files. Preserve operational and safety truth without duplicating payloads.
+    """
+
+    freshness = payload.get("redis_freshness_check")
+    freshness = freshness if isinstance(freshness, Mapping) else {}
+    run_errors = payload.get("run_errors")
+    run_errors = run_errors if isinstance(run_errors, list) else []
+    return {
+        "schema_version": "v2_direct_orderbook_recorder_loop_log_v1",
+        "worker_id": payload.get("worker_id"),
+        "started_at": payload.get("started_at"),
+        "finished_at": payload.get("finished_at"),
+        "loop": payload.get("loop"),
+        "loop_run_index": payload.get("loop_run_index"),
+        "exchange": payload.get("exchange"),
+        "symbol_count": payload.get("symbol_count"),
+        "requested_symbol_count": payload.get("requested_symbol_count"),
+        "provider_filtered_symbol_count": len(
+            payload.get("provider_filtered_symbols") or []
+        ),
+        "shard_index": payload.get("shard_index"),
+        "shard_count": payload.get("shard_count"),
+        "processed_messages": payload.get("processed_messages"),
+        "processed_exchanges": list(payload.get("processed_exchanges") or []),
+        "direct_binance_active": payload.get("direct_binance_active"),
+        "direct_kucoin_active": payload.get("direct_kucoin_active"),
+        "redis_enabled": payload.get("redis_enabled"),
+        "redis_available": payload.get("redis_available"),
+        "redis_freshness": {
+            key: freshness.get(key)
+            for key in (
+                "enabled",
+                "status",
+                "redis_available",
+                "symbols_checked",
+                "fresh_symbol_count",
+                "missing_symbol_count",
+                "stale_symbol_count",
+                "invalid_payload_count",
+                "read_error_count",
+                "stale_bound_ms",
+            )
+            if key in freshness
+        },
+        "run_error_count": len(run_errors),
+        "run_errors_sample": run_errors[:3],
+        "replay_capture": payload.get("replay_capture"),
+        "old_redis_writes": payload.get("old_redis_writes"),
+        "places_real_order": payload.get("places_real_order"),
+        "test_orders": payload.get("test_orders"),
+        "leverage_mutation": payload.get("leverage_mutation"),
+        "margin_mode_mutation": payload.get("margin_mode_mutation"),
+        "transfer_or_withdrawal": payload.get("transfer_or_withdrawal"),
+        "live_gate": payload.get("live_gate"),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.loop:
@@ -1468,7 +1864,16 @@ def main(argv: list[str] | None = None) -> int:
     while max_runs <= 0 or run_index < max_runs:
         run_index += 1
         payload = _run_once(args, loop_run_index=run_index)
-        print(json.dumps(payload, sort_keys=True, separators=(",", ":")), flush=True)
+        if args.loop_log_mode != "silent":
+            output = (
+                payload
+                if args.loop_log_mode == "full"
+                else _loop_log_payload(payload)
+            )
+            print(
+                json.dumps(output, sort_keys=True, separators=(",", ":")),
+                flush=True,
+            )
         if max_runs > 0 and run_index >= max_runs:
             break
         time.sleep(interval_seconds)

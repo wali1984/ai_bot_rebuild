@@ -1,0 +1,63 @@
+# Generated/runtime trees. Keep Cursor's extension indexers on source, tests,
+# and human documentation; these paths are reproducible, archived, or already
+# excluded from VS Code file watching/search in .vscode/settings.json.
+.git/
+.claude/worktrees/
+.codex/test_*/
+.venv/
+.venv-pytsst/
+.local_data/
+.local_models/
+.local_scratch/
+.local_secrets/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+legacy_reference/
+# Keep human handoff Markdown searchable while excluding the measured bulk
+# machine-output trees that dominate this directory (roughly 31 GB today).
+claude_worklog/agent_supervisor/
+claude_worklog/chat_history/
+claude_worklog/continuous_monitoring/
+claude_worklog/coverage/
+claude_worklog/final_readiness/
+claude_worklog/monitoring/
+claude_worklog/trainer_atlas/*.json
+goal_state/
+logs/
+raw_evidence/
+screenshots/
+
+v2/runtime/
+v2/legacy_owned_runtime/
+v2/legacy_preserved/
+v2/artifacts/
+v2/screenshots/
+v2/claude_worklog/
+v2/v2/
+v2/backend/claude_worklog/
+v2/backend/v2/
+v2/frontend/artifacts/
+v2/frontend/dist/
+v2/frontend/node_modules/
+v2/frontend/public/
+v2/frontend/test-results/
+v2/node_modules/
+
+**/__pycache__/
+**/node_modules/
+**/*.pyc
+**/*.pyo
+**/*.log
+**/*.jsonl
+**/*.ndjson
+**/*.db
+**/*.db-wal
+**/*.db-shm
+
+docs/system_audit_2026_master/atlas/*.json
+pipeline_trust_evidence*/
+pipeline_trust_quarantine/
+quarantine_pipeline_trust_stale_records/
+recorded_state_verification*/
