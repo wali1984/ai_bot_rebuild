@@ -129,6 +129,72 @@ surviving finding was INDEPENDENTLY re-verified against raw source before any ed
   (in-code rationale: data-plane keys carry TTLs, so key existence implies recent refresh). Overriding it
   would risk false STALE alarms. Left as-is.
 
+## PASS 3 (frontend pages + non-Codex backend) — workflow wf_af8ada77 (62 agents, adversarially verified, 0 errors)
+Scoped to skip all 81 Codex-in-flight files. 21 confirmed fix-now findings; 16 FIXED, 4 deferred, 1 flagged.
+
+### FIXED + committed
+- **3b (27dc266a58) GROSS->NET PnL truth + admin privilege-boundary**
+  - market_contracts.py get_paper_status equity_curve + per-trade -> NET (gross curve read -10.42 vs net
+    -14.41, ~28% under-report, flipped net-losers green); _redis_accuracy_status/_pnl_windows totals +
+    profit_factor -> NET (gross + sign-flipped rows corrupted PF vs the net-based winner flag).
+  - mobile.py _compact_position realized_pnl prefers NET (iOS Positions matched the net account headline).
+  - auth_rbac.py create_user/update_user: reject granting a role above the actor's rank, block modifying a
+    higher-ranked target, require step-up MFA for password reset (parity with set_user_activation). 82 auth
+    RBAC integration tests pass.
+  - admin.py /audit/chain: require_auth -> operator (any self-registered viewer could read the admin chain).
+- **3c (4ba62d6f87) backtest run/results/status wiring + iOS admin actor id**
+  - strategy-backtesting run sends symbol/timeframe/lookback as QUERY params (backend reads Query not body ->
+    every run silently used BTCUSDT/1h/100); normalize /backtest/results list shape+units (summary.*/params.*
+    PERCENT -> flat FRACTION so fmtPct is right) so cards stop rendering '-'; poller accepts 'complete'.
+  - mobile.py admin/summary actor user_id: actor.get('user_id') (always '') -> 'id' (iOS audit #4).
+- **3d (7ac2ec5830)** useRealtimeResource stale_or_incomplete branch stamps freshness_status='stale' on the
+  preserved last-good payload (was inheriting the previous 'fresh' across every page using the shared hook).
+- **3e (d47042f524)** stop mislabeling stale/fabricated as healthy: admin-exchanges real stream_source;
+  admin-war-room live-canary safety cards tone reflects danger (was hardcoded green even if live routing
+  enabled / real order attempted); audit-ledger 'Immutable' only when backend asserts it; system-health
+  Redis-feed tone tracks feed freshness; mission-control Market freshness from marketEnv (was array length).
+- **3f (cb2209195f)** technical-analysis Feature Pipeline card freshness from its own fp resource (was ta).
+
+### DEFERRED (needs a prerequisite before it can be fixed safely)
+- **24h-change heuristic for >100% movers** (markets/market/market-intelligence fmtPct/ChangeBar/changeColor/
+  avgChange + lib/tradeFormatters.ts formatPercent). The `Math.abs(n)<=1 ? n*100 : n` guard renders any
+  |move|>100% 100x too small. My pass-3 backend fix (change_24h /100) already fixed the COMMON (<100%) case.
+  Dropping the guard to always *100 is only safe once ALL change fields are confirmed fractions — market/index
+  fmtPct also renders signal.confidence, and change_1h/change_4h backend units are unverified. Prereq: make the
+  backend emit change_1h/4h/24h consistently as fractions, THEN drop the frontend guard. Not a live-money page.
+
+### FLAGGED (risk activation — operator/Codex decision, not a silent fix)
+- **v2_portfolio_cascade_guard_loop.py:155** independently re-confirms the earlier cross_margin_liquidation
+  flag: paper positions carry `net_quantity` but _position_rows only reads positionAmt/position_amt/qty, so
+  every row is dropped -> portfolio worst-case liquidation-breach protection is permanently inert. Fixing it
+  ACTIVATES a force-CLOSE path consumed by Codex's lifecycle.py, so it stays operator/Codex-gated.
+
+## iOS / watchOS Swift audit HANDOFF -> Codex Agent 2 — workflow wf_f89981d3 (53 agents, 0 errors)
+24 confirmed findings. I fixed the ONE backend contract bug (mobile.py:2716, above). The rest are Swift in
+Agent 2's exclusive redesign lane and NOT build-verifiable on this Linux host, so they are handed off (exact
+patches below), not committed by me. Prioritized:
+- **HIGH AuthManager.swift:115-116** — /api/auth/me returns `{"user": {...}}` (auth_rbac.py:352) but iOS decodes
+  a FLAT MeResponse{id,email,role} -> decode throws -> token deleted -> LOGGED OUT ON EVERY COLD START despite a
+  valid session. Fix: decode a wrapper `struct MeResponse { let user: UserPayload }`; read me.user.*.
+- **MED AIBotV2Core/AuthManager.swift:89-90** — login/me decode UserPayload.user_id but safe_user emits "id"
+  (users.py:293) -> CLI `aibot login` always fails. Fix: rename user_id -> id (or CodingKeys map to "id").
+- **HIGH AdminDashboardView.swift:282 & :363** — `URL(string: appState.baseURL + "/admin")!` (and /audit-ledger)
+  force-unwrap a URL built from the user-editable base URL -> a pasted space/invalid char crashes the Admin /
+  Audit-Ledger screens. Fix: `if let u = URL(string: ...)` guard, mirroring RiskControlView.swift:266.
+- **HIGH WatchSyncCenter.swift:84** — dashboard/positions/alerts snapshot vars written on @MainActor but read
+  from WCSession bg-queue delegate callbacks (no lock/@MainActor) -> COW retain/release race -> EXC_BAD_ACCESS.
+  Fix: hop to DispatchQueue.main before publishCurrentSnapshot()/handleWatchMessage, or guard with a serial queue.
+- **MED WebSocketClient.swift:73/75** — @Observable state mutated off-main + URLSession delegate retain-cycle
+  (session never invalidated). Fix: @MainActor hops + invalidateAndCancel on disconnect.
+- **MED NotificationManager.swift:21** — @Observable state off @MainActor (data race). Fix: @MainActor.
+- **MED ActivityViewModel.swift:19** — realized-PnL/win-rate from MobilePosition.realized_pnl which was GROSS
+  (now NET after my mobile.py:1739 fix — verify the iOS side once the backend deploys).
+- **MED TokenStore.swift:23/63 (+LOW :24)** — plaintext JWT on Linux (credentials.json) despite a Keychain
+  claim; `.first!` force-unwrap. Fix: Keychain on Apple + guard the optional.
+- **LOW stale-labeling** IngestorsViewModel:177 / PredictionsViewModel:95 / PositionsView:335 ("MARKS LIVE"
+  hardcoded) / WatchApp:47 / WatchConnectivityManager:43 — badges/timestamps assert Live/fresh off local poll
+  receipt, not feed freshness (same class as the web stale-labeling fixes; Agent 2 to align on the redesign).
+
 ## Caveats surfaced to operator
 - Auth changes (RBAC/backtest/login) verified against the test suite but NOT runtime-verified here (no live
   login/cookie flow) — operator should confirm login + pipeline control + backtest still work after deploy.
