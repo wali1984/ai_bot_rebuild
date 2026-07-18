@@ -47,11 +47,14 @@
 }
 
 .trader-panel {
+  position: relative;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-panel) 96%, black);
-  box-shadow: 0 14px 40px color-mix(in oklch, black 24%, transparent);
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 14px;
+  background: var(--glass-bg, color-mix(in oklch, var(--bg-panel) 96%, black));
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  backdrop-filter: blur(16px) saturate(135%);
+  box-shadow: 0 14px 40px color-mix(in oklch, black 26%, transparent);
 }
 
 .trader-panel__header {
@@ -79,14 +82,60 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 
+/* Uniform card size: every KPI card is the same height and scrolls internally
+   if its content exceeds — no stretched cards, no blank space (operator rule). */
 .trader-metric-card {
+  position: relative;
   min-width: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-elevated);
+  height: 104px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--glass-border, var(--border));
+  border-radius: 12px;
+  background: var(--glass-bg, var(--bg-elevated));
+  -webkit-backdrop-filter: blur(14px) saturate(135%);
+  backdrop-filter: blur(14px) saturate(135%);
   padding: 12px 14px;
+  box-shadow: 0 8px 24px color-mix(in oklch, black 20%, transparent);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+
+/* Sheen — a faint light line across the top edge reads as a glass surface. */
+.trader-metric-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--glass-accent, 124, 92, 255), 0.5), transparent);
+  pointer-events: none;
+}
+
+.trader-metric-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--glass-accent, 124, 92, 255), 0.4);
+  box-shadow: 0 12px 30px color-mix(in oklch, black 28%, transparent),
+    0 0 0 1px rgba(var(--glass-accent, 124, 92, 255), 0.14);
+}
+
+/* Thin, unobtrusive scrollbar for the rare card whose content overflows. */
+.trader-metric-card::-webkit-scrollbar {
+  width: 5px;
+}
+.trader-metric-card::-webkit-scrollbar-thumb {
+  background: rgba(var(--glass-accent, 124, 92, 255), 0.3);
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trader-metric-card {
+    transition: none;
+  }
+  .trader-metric-card:hover {
+    transform: none;
+  }
 }
 
 .trader-metric-card__label {

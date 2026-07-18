@@ -3,6 +3,7 @@ import { useTradeTerminal } from '../../hooks/useTradeTerminal';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { AdaptiveCapitalTelemetryPanel } from '../../components/trading/AdaptiveCapitalTelemetryPanel';
+import { SectionLabel } from '../../components/layout/SectionLabel';
 import { CanonicalMetricCard, CanonicalMetricValue } from '../../components/data/CanonicalMetric';
 import { EquityAreaChart, PnLBars, Donut, DonutLegend, RadialGauge, ChartFrame } from '../../components/charts/NervyxCharts';
 import { buildEquityCharts } from '../../components/charts/nervyxChartTheme';
@@ -153,7 +154,7 @@ function PositionEvidenceCard({
   const markStale = row.mark_price_stale === true;
 
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+    <div className="glass glass-hover" style={{ padding: '16px 18px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12 }}>
         <span style={{ minWidth: 0, fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-mono)', overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>
           {canonical ? <CanonicalMetricValue metric={metric('position.symbol')} /> : String(row.symbol ?? 'Unknown')}
@@ -304,10 +305,22 @@ export default function PortfolioPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}
+      style={{ background: 'var(--bg-base)', paddingBottom: 48, position: 'relative', overflow: 'hidden' }}
     >
+      {/* Ambient depth — gives the frosted panels colour to refract. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background:
+            'radial-gradient(46% 32% at 16% 0%, rgba(124,92,255,0.13), transparent 70%), radial-gradient(40% 34% at 92% 8%, rgba(45,212,191,0.09), transparent 72%)',
+        }}
+      />
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Portfolio</h1>
@@ -323,7 +336,8 @@ export default function PortfolioPage(): JSX.Element {
       </div>
 
       {/* KPI row */}
-      <div style={{ padding: '16px 24px' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '16px 24px' }}>
+        <SectionLabel hint={state.trader.accountScopeLabel}>Account · at a glance</SectionLabel>
         <div className="trader-metric-grid">
           <CanonicalMetricCard label="Equity" metric={accountMetric('account.equity')} />
           <CanonicalMetricCard
@@ -342,25 +356,69 @@ export default function PortfolioPage(): JSX.Element {
             metric={riskMetric}
             emptyText="Fail-closed: no current risk record"
           />
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>1D PnL Window</span>
-            <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)', overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{formatAdaptiveMoney(oneDay?.realized_pnl_usd)}</span>
+          <div className="trader-metric-card">
+            <span className="trader-metric-card__label">1D PnL Window</span>
+            <span className="trader-metric-card__value" style={{ fontSize: 18, color: (oneDay?.realized_pnl_usd ?? 0) >= 0 ? 'var(--buy)' : 'var(--sell)' }}>{formatAdaptiveMoney(oneDay?.realized_pnl_usd)}</span>
           </div>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '14px 16px' }}>
-            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Capital Productivity</span>
-            <span style={{ display: 'block', fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', color: adaptiveStatusColor(capitalStatus?.status), overflowWrap: 'anywhere', wordBreak: 'break-word', lineHeight: 1.15 }}>{capitalStatusText(capitalStatus?.status)}</span>
+          <div className="trader-metric-card">
+            <span className="trader-metric-card__label">Capital Productivity</span>
+            <span className="trader-metric-card__value" style={{ fontSize: 15, color: adaptiveStatusColor(capitalStatus?.status) }}>{capitalStatusText(capitalStatus?.status)}</span>
           </div>
         </div>
       </div>
 
-      {/* Performance charts — real closed-trade equity curve, per-trade PnL, win/loss, accuracy */}
-      <div style={{ padding: '0 24px 16px' }}>
-        <section style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <span style={{ fontSize: 16 }}>📈</span>
-            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Performance</h2>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{charts.trades} closed paper trades</span>
+      {/* Positions — what the trader is holding right now, surfaced directly under the KPIs */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 16px' }}>
+        <SectionLabel hint={`${openPositions.length} open · ${runtimeData?.summary?.closed_trade_count ?? closedPositions.length} closed`}>Positions</SectionLabel>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-panel)' }}>
+            {positionTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setPositionTab(tab.key)}
+                style={{
+                  border: 'none',
+                  borderRight: tab.key === 'historical' ? 'none' : '1px solid var(--border)',
+                  background: positionTab === tab.key ? 'color-mix(in oklch, var(--accent) 16%, transparent)' : 'transparent',
+                  color: positionTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
+                  fontSize: 12,
+                  fontWeight: positionTab === tab.key ? 700 : 500,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label} <span style={{ fontFamily: 'var(--font-mono)', opacity: 0.75 }}>{tab.count}</span>
+              </button>
+            ))}
           </div>
+        </div>
+        {selectedPositions.length === 0 ? (
+          <div className="glass" style={{ padding: '28px', textAlign: 'center' }}>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+              No {positionTab} position evidence available for the current account.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+            {selectedPositions.map((row, i) => (
+              <PositionEvidenceCard
+                key={`${positionTab}-${String(row.position_id ?? row.close_id ?? row.id ?? i)}`}
+                row={row}
+                mode={positionTab}
+                traderState={traderSnapshot}
+                canonical={positionTab === 'open' && canonicalOpenAvailable}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Performance charts — real closed-trade equity curve, per-trade PnL, win/loss, accuracy */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 16px' }}>
+        <SectionLabel hint={`${charts.trades} closed paper trades`}>Performance</SectionLabel>
+        <section className="glass glass-sheen" style={{ padding: '14px 16px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 14 }}>
             <div style={{ background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
               <ChartFrame title="Equity curve" subtitle="cumulative · paper" height={200}>
@@ -394,9 +452,15 @@ export default function PortfolioPage(): JSX.Element {
         </section>
       </div>
 
-      <PortfolioCanonicalPnlPanel />
+      {/* Capital & accounting internals — dense reconciliation surfaces, kept last */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 4px' }}>
+        <SectionLabel>Capital &amp; accounting internals</SectionLabel>
+      </div>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <PortfolioCanonicalPnlPanel />
+      </div>
 
-      <div style={{ padding: '0 24px 16px' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 16px' }}>
         <AdaptiveCapitalTelemetryPanel
           payload={adaptiveCapital.data}
           title="Capital Productivity + PnL + Accuracy"
@@ -407,8 +471,8 @@ export default function PortfolioPage(): JSX.Element {
       </div>
 
       {/* Account scope */}
-      <div style={{ padding: '0 24px 16px' }}>
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '0 24px 16px' }}>
+        <div className="glass" style={{ padding: '16px 18px' }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Account Scope</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
             <KV label="Trader" value={state.trader.displayName} />
@@ -419,56 +483,6 @@ export default function PortfolioPage(): JSX.Element {
             <KV label="Source" value={source} />
           </div>
         </div>
-      </div>
-
-      {/* Position evidence */}
-      <div style={{ padding: '0 24px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-            Position Evidence
-          </h2>
-          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--bg-panel)' }}>
-            {positionTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setPositionTab(tab.key)}
-                style={{
-                  border: 'none',
-                  borderRight: tab.key === 'historical' ? 'none' : '1px solid var(--border)',
-                  background: positionTab === tab.key ? 'color-mix(in oklch, var(--accent) 16%, transparent)' : 'transparent',
-                  color: positionTab === tab.key ? 'var(--text-primary)' : 'var(--text-muted)',
-                  fontSize: 12,
-                  fontWeight: positionTab === tab.key ? 700 : 500,
-                  padding: '8px 12px',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {tab.label} <span style={{ fontFamily: 'var(--font-mono)', opacity: 0.75 }}>{tab.count}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-        {selectedPositions.length === 0 ? (
-          <div style={{ padding: '28px', textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
-              No {positionTab} position evidence available for the current account.
-            </p>
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-            {selectedPositions.map((row, i) => (
-              <PositionEvidenceCard
-                key={`${positionTab}-${String(row.position_id ?? row.close_id ?? row.id ?? i)}`}
-                row={row}
-                mode={positionTab}
-                traderState={traderSnapshot}
-                canonical={positionTab === 'open' && canonicalOpenAvailable}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)' }}>
