@@ -10,8 +10,9 @@ import json
 import os
 import sys
 import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from v2.backend.app.services.microstructure_trust.cross_venue_confirmation import (
     evaluate_cross_venue_confirmation,
@@ -789,6 +790,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--write-redis", action="store_true")
     parser.add_argument("--write-status", action="store_true")
     parser.add_argument("--loop", action="store_true")
+    parser.add_argument(
+        "--loop-log-mode",
+        choices=("compact", "full", "silent"),
+        default="compact",
+        help=(
+            "Loop stdout contract. 'compact' emits bounded scalar telemetry; "
+            "the full per-symbol evidence remains in Redis/status artifacts."
+        ),
+    )
     parser.add_argument("--interval-seconds", type=float, default=1.0)
     parser.add_argument("--loop-max-runs", type=int, default=0)
     parser.add_argument("--plan-only", action="store_true")
@@ -796,6 +806,70 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ttl-seconds", type=int, default=REDIS_TTL_SECONDS)
     parser.add_argument("--replay-root", default=str(DEFAULT_REPLAY_ROOT))
     return parser.parse_args(argv)
+
+
+def _loop_log_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return bounded loop telemetry without copying per-symbol evidence.
+
+    The monitor persists the authoritative full rows before this function is
+    called.  Logging those same rows every two seconds created multi-gigabyte
+    stdout files and put the operator/IDE host under avoidable disk pressure.
+    """
+
+    trust_rows = [
+        row for row in (payload.get("trust_rows") or []) if isinstance(row, Mapping)
+    ]
+    scores = [
+        value
+        for row in trust_rows
+        if (value := _float(row.get("microstructure_trust_score"))) is not None
+    ]
+    low_trust_rows = sum(
+        1
+        for row in trust_rows
+        if (_float(row.get("microstructure_trust_score")) or 0.0)
+        < (_float(row.get("adaptive_minimum")) or 0.65)
+    )
+    feed_summary = payload.get("feed_summary")
+    if not isinstance(feed_summary, Mapping):
+        feed_summary = {}
+    redis_keys = payload.get("redis_keys_written")
+    status_files = payload.get("status_files_written")
+    return {
+        "schema_version": "v2_microstructure_feed_quality_monitor_loop_log_v1",
+        "worker_id": payload.get("worker_id"),
+        "goal_id": payload.get("goal_id"),
+        "started_at": payload.get("started_at"),
+        "finished_at": payload.get("finished_at"),
+        "loop": True,
+        "loop_run_index": payload.get("loop_run_index"),
+        "interval_seconds": payload.get("interval_seconds"),
+        "loop_max_runs": payload.get("loop_max_runs"),
+        "timeframe": payload.get("timeframe"),
+        "exchanges": list(payload.get("exchanges") or []),
+        "symbols_count": len(payload.get("symbols") or []),
+        "trust_rows_count": len(trust_rows),
+        "low_trust_rows": low_trust_rows,
+        "final_a_plus_eligible_rows": sum(
+            1 for row in trust_rows if row.get("final_a_plus_eligible") is True
+        ),
+        "minimum_trust_score": min(scores) if scores else None,
+        "maximum_trust_score": max(scores) if scores else None,
+        "feed_rows_count": int(_float(feed_summary.get("rows")) or 0),
+        "redis_enabled": payload.get("redis_enabled"),
+        "redis_available": payload.get("redis_available"),
+        "redis_keys_written_count": len(redis_keys) if isinstance(redis_keys, list) else 0,
+        "status_files_written_count": len(status_files) if isinstance(status_files, list) else 0,
+        "live_gate": payload.get("live_gate"),
+        "places_real_order": payload.get("places_real_order"),
+        "test_orders": payload.get("test_orders"),
+        "cancel_or_modify_order": payload.get("cancel_or_modify_order"),
+        "leverage_mutation": payload.get("leverage_mutation"),
+        "margin_mode_mutation": payload.get("margin_mode_mutation"),
+        "transfer_or_withdrawal": payload.get("transfer_or_withdrawal"),
+        "old_redis_writes": payload.get("old_redis_writes"),
+        "redis_trim": payload.get("redis_trim"),
+    }
 
 
 def run_once(
@@ -899,7 +973,12 @@ def main(argv: list[str] | None = None) -> int:
         payload["interval_seconds"] = float(args.interval_seconds)
         payload["loop_max_runs"] = max_runs
         if args.loop:
-            print(json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str), flush=True)
+            if args.loop_log_mode != "silent":
+                output = payload if args.loop_log_mode == "full" else _loop_log_payload(payload)
+                print(
+                    json.dumps(output, sort_keys=True, separators=(",", ":"), default=str),
+                    flush=True,
+                )
         else:
             print(json.dumps(payload, indent=2, sort_keys=True, default=str))
             break

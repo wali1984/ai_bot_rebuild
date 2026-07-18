@@ -418,3 +418,47 @@ def test_microstructure_monitor_loop_mode_runs_bounded_cycles(monkeypatch, tmp_p
     assert [row["loop_run_index"] for row in outputs] == [1, 2]
     assert all(row["loop"] is True for row in outputs)
     assert all(row["places_real_order"] is False for row in outputs)
+    assert all(
+        row["schema_version"] == "v2_microstructure_feed_quality_monitor_loop_log_v1"
+        for row in outputs
+    )
+    assert all(row["symbols_count"] == 1 for row in outputs)
+    assert all("symbols" not in row for row in outputs)
+    assert all("trust_rows" not in row for row in outputs)
+
+
+def test_microstructure_monitor_full_loop_log_mode_is_explicit(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    monkeypatch.setattr(
+        monitor,
+        "run_once",
+        lambda **kwargs: {
+            "schema_version": "v2_microstructure_feed_quality_monitor_run_v1",
+            "symbols": kwargs["symbols"],
+            "trust_rows": [{"symbol": "BTCUSDT"}],
+            "feed_summary": {"rows": 0},
+            "places_real_order": False,
+        },
+    )
+
+    assert monitor.main(
+        [
+            "--symbols",
+            "BTCUSDT",
+            "--loop",
+            "--loop-max-runs",
+            "1",
+            "--loop-log-mode",
+            "full",
+            "--interval-seconds",
+            "0",
+            "--replay-root",
+            str(tmp_path),
+        ]
+    ) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["schema_version"] == "v2_microstructure_feed_quality_monitor_run_v1"
+    assert output["symbols"] == ["BTCUSDT"]
+    assert output["trust_rows"] == [{"symbol": "BTCUSDT"}]

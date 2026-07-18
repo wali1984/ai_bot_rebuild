@@ -6,7 +6,7 @@ Wants=network-online.target ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.timer
 [Service]
 Type=oneshot
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
-Environment=PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 Environment=LIVE_GATE=blocked_human_only
 ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-native-ppo-masa-continuous-training-guard'
 ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_ppo_masa_continuous_training_guard --once'

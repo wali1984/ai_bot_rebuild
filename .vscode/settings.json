@@ -127,8 +127,7 @@
     "**/pipeline_trust_evidence*/**": true,
     "**/pipeline_trust_quarantine/**": true,
     "**/quarantine_pipeline_trust_stale_records/**": true,
-    "**/recorded_state_verification*/**": true,
-    "**/*.json": false
+    "**/recorded_state_verification*/**": true
   },
   "python.analysis.exclude": [
     ".venv/**",

@@ -6,7 +6,7 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment=LIVE_GATE=blocked_human_only
-Environment=PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_rl_masa_ppo_cuda_trainer_loop --cycles 1 --write-artifacts --risk-caps-configured'
 StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.log
 StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-native-rl-masa-ppo-cuda-trainer-loop.err

@@ -1,0 +1,6 @@
+[Unit]
+Description=Rotate bounded V2 trainer and high-rate paper-shadow monitor logs
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/logrotate --state %h/.local/state/ai-bot-v2-trainer-logrotate.state "/home/wali/Desktop/AI BOT REBUILD/tools/native_cuda_trainer_logrotate.conf"
