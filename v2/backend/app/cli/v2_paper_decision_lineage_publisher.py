@@ -47,13 +47,33 @@ def _get_json(r, key: str):
     return None
 
 
+def _scan_keys(r, pattern: str, cap: int = 5000) -> list:
+    """Bounded cursor SCAN (never blocking KEYS) on the shared ~634K-key store."""
+    keys: list = []
+    try:
+        cursor = 0
+        while True:
+            cursor, batch = r.scan(cursor=cursor, match=pattern, count=1000)
+            keys.extend(batch)
+            if cursor == 0 or len(keys) >= cap:
+                break
+    except Exception:
+        return keys
+    return keys
+
+
 def run_once() -> dict:
     r = _connect_redis()
 
-    # Collect prediction keys
-    prediction_keys = r.keys(f"{V2_REDIS_PREFIX}prediction:*:1m") if r else []
+    # Collect prediction keys (bounded SCAN + one pipelined TTL batch)
+    prediction_keys = _scan_keys(r, f"{V2_REDIS_PREFIX}prediction:*:1m") if r else []
     prediction_count = len(prediction_keys)
-    fresh_prediction_keys = [k for k in prediction_keys if r.ttl(k) > 0] if r else []
+    fresh_prediction_keys = []
+    if r and prediction_keys:
+        _pipe = r.pipeline()
+        for _k in prediction_keys:
+            _pipe.ttl(_k)
+        fresh_prediction_keys = [k for k, ttl in zip(prediction_keys, _pipe.execute()) if (ttl or 0) > 0]
 
     # Sample predictions
     sample_predictions: list[dict] = []
@@ -90,7 +110,7 @@ def run_once() -> dict:
     paper_signals = _get_json(r, f"{V2_REDIS_PREFIX}signals:paper") if r else None
 
     # Shadow outcomes
-    shadow_outcome_keys = r.keys(f"{V2_REDIS_PREFIX}paper:shadow_outcome:*") if r else []
+    shadow_outcome_keys = _scan_keys(r, f"{V2_REDIS_PREFIX}paper:shadow_outcome:*") if r else []
 
     lineage_pipeline = {
         "step_1_trainer_predictions": {
@@ -171,8 +191,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.loop:
         while True:
-            payload = run_once()
-            write_payload(payload, args.out)
+            # Never let one bad cycle crash the loop (Restart=always churn).
+            try:
+                payload = run_once()
+                write_payload(payload, args.out)
+            except Exception as exc:  # noqa: BLE001
+                print(json.dumps({"error": "run_once_failed", "detail": str(exc)[:200]}))
             time.sleep(max(5, args.interval_seconds))
     payload = run_once()
     write_payload(payload, args.out)

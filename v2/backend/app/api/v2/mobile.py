@@ -1368,7 +1368,13 @@ def _mobile_paper_charts(r: Any, max_points: int = 60) -> dict[str, Any]:
     curve: list[dict[str, Any]] = []
     wins = losses = 0
     for row in ordered:
-        pnl = _safe_float(row.get("realized_pnl_usd"))
+        # Prefer canonical NET after-cost PnL; realized_pnl_usd is the gross
+        # (pre-cost) alias and overstates equity + miscounts net-losers as wins.
+        pnl = _safe_float(row.get("realized_net_pnl_usd"))
+        if pnl is None:
+            pnl = _safe_float(row.get("realized_net_pnl"))
+        if pnl is None:
+            pnl = _safe_float(row.get("realized_pnl_usd"))
         if pnl is None:
             pnl = _safe_float(row.get("realized_pnl")) or 0.0
         cumulative += pnl

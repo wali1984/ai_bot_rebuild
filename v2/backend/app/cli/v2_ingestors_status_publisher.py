@@ -459,8 +459,21 @@ def run_once() -> dict:
             (f"{V2_REDIS_PREFIX}symbol_universe:dynamic_*", "dynamic_symbol_universe"),
         ]:
             try:
-                keys = r.keys(pat)
-                fresh = sum(1 for k in keys if r.ttl(k) > 0)
+                # Bounded SCAN + one pipelined TTL batch per pattern — never
+                # blocking KEYS / per-key TTL fan-out on the ~634K-key store.
+                keys: list[str] = []
+                cursor = 0
+                while True:
+                    cursor, batch = r.scan(cursor=cursor, match=pat, count=1000)
+                    keys.extend(batch)
+                    if cursor == 0 or len(keys) >= 3000:
+                        break
+                fresh = 0
+                if keys:
+                    _pipe = r.pipeline()
+                    for _k in keys:
+                        _pipe.ttl(_k)
+                    fresh = sum(1 for ttl in _pipe.execute() if (ttl or 0) > 0)
                 freshness[label] = {"total": len(keys), "fresh_ttl_positive": fresh}
             except Exception:
                 freshness[label] = {"total": 0, "fresh_ttl_positive": 0}

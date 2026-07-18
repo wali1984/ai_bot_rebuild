@@ -45,11 +45,21 @@ def run_once() -> dict:
 
     if r:
         try:
-            ta_keys = r.keys(f"{V2_REDIS_PREFIX}technical_analysis:*")
-            for k in ta_keys:
-                ttl = r.ttl(k)
-                if ttl > 0:
-                    ta_fresh.append(k)
+            # Bounded SCAN (never blocking KEYS) + a single pipelined TTL batch,
+            # not N sequential round-trips, on the ~634K-key shared store.
+            cursor = 0
+            while True:
+                cursor, batch = r.scan(
+                    cursor=cursor, match=f"{V2_REDIS_PREFIX}technical_analysis:*", count=1000
+                )
+                ta_keys.extend(batch)
+                if cursor == 0 or len(ta_keys) >= 5000:
+                    break
+            if ta_keys:
+                _pipe = r.pipeline()
+                for _k in ta_keys:
+                    _pipe.ttl(_k)
+                ta_fresh = [k for k, ttl in zip(ta_keys, _pipe.execute()) if (ttl or 0) > 0]
             raw_btc = r.get(f"{V2_REDIS_PREFIX}technical_analysis:BTCUSDT:1m")
             if raw_btc:
                 try:

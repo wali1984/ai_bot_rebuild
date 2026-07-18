@@ -299,7 +299,18 @@ async def _lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Construct the FastAPI app. No startup side effects beyond router/middleware
     registration and the middleware-order assertion."""
-    app = FastAPI(title="NERVYX ONE", version="0.0.0", docs_url="/api/docs", lifespan=_lifespan)
+    # Info-disclosure hardening: expose Swagger/ReDoc/OpenAPI only outside
+    # production (the full schema lists live-gate/admin paths). Underlying
+    # endpoints still enforce RBAC; this just hides the schema in prod.
+    _prod = os.environ.get("ALPHAFORGE_ENV", "").strip().lower() in {"prod", "production"}
+    app = FastAPI(
+        title="NERVYX ONE",
+        version="0.0.0",
+        docs_url=None if _prod else "/api/docs",
+        redoc_url=None if _prod else "/api/redoc",
+        openapi_url=None if _prod else "/openapi.json",
+        lifespan=_lifespan,
+    )
     _register_middleware(app)
     _register_routers(app)
     _register_health_aliases(app)

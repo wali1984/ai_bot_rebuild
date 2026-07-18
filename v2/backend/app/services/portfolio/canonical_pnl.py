@@ -50,8 +50,11 @@ def _source_lag_seconds(payloads: list[Mapping[str, Any]]) -> float | None:
                 break
     if not timestamps:
         return None
-    newest = max(timestamps)
-    return round(max(0.0, (datetime.now(UTC) - newest).total_seconds()), 3)
+    # Lag off the OLDEST contributing source, not the newest — otherwise a fresh
+    # secondary key (e.g. paper:session) masks a stalled equity source
+    # (portfolio:state) and stale equity is reported as 'fresh'.
+    oldest = min(timestamps)
+    return round(max(0.0, (datetime.now(UTC) - oldest).total_seconds()), 3)
 
 
 def _json_object(raw: Any) -> dict[str, Any]:

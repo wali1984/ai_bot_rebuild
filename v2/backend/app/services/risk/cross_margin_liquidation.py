@@ -134,7 +134,11 @@ def build_portfolio_liquidation_snapshot(
         shocked_maint = sum(
             max(
                 0.0,
-                r["notional_usd"] * (1.0 + btc_move * _beta(r["symbol"]) * (1 if r["side"] == "long" else -1)),
+                # Maintenance scales with |notional|, which moves by (1 + shock)
+                # for the symbol regardless of side. The side sign belongs only
+                # in _shock_pnl — applying it here under-estimated SHORT
+                # maintenance in an up-shock and withheld a protective close.
+                r["notional_usd"] * (1.0 + btc_move * _beta(r["symbol"])),
             ) * r["maintenance_margin_rate"]
             for r in rows
         )
