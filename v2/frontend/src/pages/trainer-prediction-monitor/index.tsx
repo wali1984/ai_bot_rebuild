@@ -119,8 +119,7 @@ function AccuracyBadge({ cell }: { cell: SignalPredictionAccuracyCell | null }):
 
 function KPICard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }): JSX.Element {
   return (
-    <div style={{
-      background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+    <div className="glass" style={{
       padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
     }}>
       <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
@@ -140,7 +139,7 @@ function TrainerStatusPanel({ trainer }: { trainer: TrainerStatus | null }): JSX
     return 'var(--warn)';
   };
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+    <div className="glass" style={{ padding: '16px 18px' }}>
       <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Trainer Status</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 12 }}>
         {[
@@ -259,10 +258,10 @@ export default function AIPredictionsPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 48 }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)', marginBottom: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>AI Predictions</h1>
@@ -323,7 +322,7 @@ export default function AIPredictionsPage(): JSX.Element {
       {/* Feature importance */}
       <div style={{ padding: '0 24px 24px' }}>
         <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Feature Importance</h2>
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px 18px' }}>
+        <div className="glass" style={{ padding: '16px 18px' }}>
           {loading && !data ? <LoadingSkeleton rows={4} /> : <FeatureImportanceBar items={data?.feature_importance ?? []} />}
         </div>
       </div>
@@ -332,7 +331,7 @@ export default function AIPredictionsPage(): JSX.Element {
       {data && (
         <div style={{ padding: '0 24px 24px' }}>
           <h2 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Evidence</h2>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '16px' }}>
+          <div className="glass" style={{ padding: '16px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
               {[
                 ['Source', data.source ?? '/api/v2/ai/predictions'],

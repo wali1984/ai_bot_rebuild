@@ -35,11 +35,10 @@ export default function PermanentMigrationPage(): ReactElement {
         <>
           <section
             data-testid="permanent-migration-simple-summary"
+            className="glass"
             style={{
               padding: 12,
               marginBottom: 12,
-              backgroundColor: 'rgba(255,255,255,0.04)',
-              borderRadius: 8,
             }}
           >
             <p style={{ margin: 0, fontSize: '1.1rem' }}>
