@@ -18,6 +18,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     content_sha256,
     load_snapshot,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
     profitability_target_from_trust_row,
 )
@@ -465,7 +468,8 @@ def test_counterfactual_excursion_missing_path_price_fails_closed() -> None:
     row, reasons = _build_replay(_snapshot(), candles=candles)
 
     assert row is None
-    assert reasons == ["LABEL_CANDLE_HIGH_MISSING_OR_INVALID"]
+    assert "LABEL_CANDLE_HIGH_MISSING_OR_INVALID" in reasons
+    assert "LABEL_CANDLE_OHLCV_CANONICAL_COPY_MISMATCH" in reasons
 
 
 def test_4h_snapshot_uses_canonical_5m_candle_for_15m_target() -> None:
@@ -531,6 +535,60 @@ def test_canonical_5m_label_available_after_observation_fails_closed() -> None:
     assert reasons == [
         "CANONICAL_5M_LABEL_AVAILABLE_AFTER_TRAINING_OBSERVED_AT"
     ]
+
+
+@pytest.mark.parametrize(
+    ("case", "reason"),
+    (
+        ("wss_backfill_flag", "LABEL_CANDLE_WSS_BACKFILL_STATE_INVALID"),
+        ("exchange_case", "LABEL_CANDLE_EXCHANGE_MISMATCH"),
+        ("candle_id_whitespace", "LABEL_CANDLE_ID_NOT_CANONICAL"),
+        (
+            "optional_ohlcv_copy",
+            "LABEL_CANDLE_OHLCV_CANONICAL_COPY_MISMATCH",
+        ),
+    ),
+)
+def test_frontier_replay_uses_same_strict_canonical_validator(
+    case: str,
+    reason: str,
+) -> None:
+    candles = _candles()
+    candle = candles[5]
+    if case == "wss_backfill_flag":
+        candle["is_backfilled"] = True
+    elif case == "exchange_case":
+        candle["exchange"] = "BINANCE"
+        candle["candle_id"] = canonical_candle_id(candle)
+    elif case == "candle_id_whitespace":
+        candle["candle_id"] = f" {candle['candle_id']} "
+    else:
+        candle["taker_buy_base_vol"] = 1.0
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is None
+    assert reason in reasons
+
+
+def test_replay_row_preserves_microsecond_decision_lineage_under_v2_contract() -> None:
+    exact_decision = "2026-06-22T00:01:00.999600Z"
+
+    row, reasons = _build_replay(
+        _snapshot(decision_time=exact_decision),
+    )
+
+    assert row is not None, reasons
+    assert row["decision_time"] == exact_decision
+    assert row["decision_time_est"] == exact_decision
+    assert row["decision_time_epoch_us"] % 1_000_000 == 999_600
+    assert row["training_observed_at"].endswith(".000000Z")
+    assert row["training_observed_at_epoch_us"]
+    assert row["trusted_replay_label_candle_contract_version"].endswith(
+        "_v2"
+    )
+    assert row["trusted_replay_label_horizon_lateness_us"]
+    assert row["trusted_replay_label_horizon_target_epoch_us"]
 
 
 @pytest.mark.parametrize("training_observed_at", (None, "2026-06-22T05:00:00"))
@@ -601,6 +659,87 @@ def test_archive_only_bootstrap_blocks_without_durable_indexed_5m_labels(
     assert json.loads(published.read_text(encoding="utf-8"))[
         "historical_label_source_status"
     ] == "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED"
+
+
+def test_backfill_reads_only_verified_durable_canonical_5m_ranges(
+    tmp_path: Path,
+) -> None:
+    feature_archive_root = tmp_path / "feature-archive"
+    _append_archive_series(feature_archive_root, rows=1)
+    label_archive_path = tmp_path / "canonical-5m.sqlite3"
+    DurableCanonical5mLabelArchive(label_archive_path).append_candles(
+        _candles()
+    )
+    loader = V2HybridTrainerDataLoader(
+        trusted_replay_archive_root=feature_archive_root,
+        canonical_5m_label_archive_path=label_archive_path,
+    )
+
+    examples = loader.load_trusted_replay_examples(
+        limit=1,
+        backfill=True,
+        training_observed_at=TRAINING_OBSERVED_AT,
+    )
+
+    assert len(examples) == 1
+    trust_row = examples[0].trust_row or {}
+    source_lineage = trust_row["source_lineage"]
+    assert source_lineage["durable_canonical_5m_label_archive"] is True
+    assert source_lineage["durable_canonical_5m_label_path_sha256"]
+    assert str(trust_row["trusted_replay_label_candle_source_key"]).startswith(
+        f"durable_canonical_5m_label_archive:{label_archive_path}:"
+    )
+    status = loader.last_trusted_replay_backfill_scan
+    assert status["status"] == (
+        "VERIFIED_DURABLE_CANONICAL_5M_HISTORICAL_LABELS_LOADED"
+    )
+    assert status[
+        "durable_canonical_5m_label_archive_integrity_verified"
+    ] is True
+    assert status["durable_canonical_5m_label_ranges_verified"] == 1
+    assert status["same_timeframe_label_fallback_used"] is False
+    assert status["mutable_redis_history_used_for_historical_labels"] is False
+
+
+def test_backfill_preserves_cursor_until_durable_label_gap_is_filled(
+    tmp_path: Path,
+) -> None:
+    feature_archive_root = tmp_path / "feature-archive"
+    _append_archive_series(feature_archive_root, rows=1)
+    label_archive_path = tmp_path / "canonical-5m.sqlite3"
+    candles = _candles()
+    label_archive = DurableCanonical5mLabelArchive(label_archive_path)
+    label_archive.append_candles(candles[:-1])
+    loader = V2HybridTrainerDataLoader(
+        trusted_replay_archive_root=feature_archive_root,
+        canonical_5m_label_archive_path=label_archive_path,
+    )
+
+    waiting = loader.load_trusted_replay_examples(
+        limit=1,
+        backfill=True,
+        training_observed_at=TRAINING_OBSERVED_AT,
+    )
+
+    assert waiting == []
+    waiting_status = loader.last_trusted_replay_backfill_scan
+    assert waiting_status["status"] == (
+        "WAITING_FOR_DURABLE_CANONICAL_5M_LABEL_COVERAGE_RETRY"
+    )
+    assert waiting_status["cursor_offset"] == 0
+    assert waiting_status[
+        "cursor_preserved_for_retryable_archive_coverage"
+    ] is True
+
+    label_archive.append_candles([candles[-1]])
+    loaded = loader.load_trusted_replay_examples(
+        limit=1,
+        backfill=True,
+        training_observed_at=TRAINING_OBSERVED_AT,
+    )
+
+    assert len(loaded) == 1
+    assert loader.last_trusted_replay_backfill_scan["cursor_offset"] > 0
 
 
 def test_trusted_replay_loader_skips_critical_missing_rows(tmp_path: Path) -> None:

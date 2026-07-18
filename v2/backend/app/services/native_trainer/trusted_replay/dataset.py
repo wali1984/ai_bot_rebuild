@@ -18,6 +18,10 @@ from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VE
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     content_sha256 as archive_content_sha256,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    Canonical5mValidationError,
+    validate_canonical_finalized_5m_candle,
+)
 
 
 HORIZON_SECONDS: dict[str, int] = {
@@ -29,7 +33,7 @@ HORIZON_SECONDS: dict[str, int] = {
 TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME = "5m"
 TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS = 5 * 60 * 1000
 TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION = (
-    "v2_trusted_replay_canonical_finalized_5m_label_path_v1"
+    "v2_trusted_replay_canonical_finalized_5m_label_path_v2"
 )
 TRUSTED_REPLAY_LABEL_CANDLE_SOURCE_KEY_TEMPLATE = (
     "v2:market:ohlcv_closed:binance:{symbol}:5m"
@@ -121,6 +125,14 @@ def parse_utc(value: Any) -> datetime | None:
 
 def iso_utc(value: datetime) -> str:
     return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def iso_utc_exact(value: datetime) -> str:
+    return (
+        value.astimezone(timezone.utc)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def timeframe_seconds(timeframe: str) -> int:
@@ -236,11 +248,27 @@ def _candle_price(row: Mapping[str, Any], *names: str) -> float | None:
     return None
 
 
-def _canonical_timestamp_ms(value: Any) -> int | None:
-    parsed = parse_utc(value)
+def _timestamp_epoch_us(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value * (1_000 if abs(value) > 10_000_000_000 else 1_000_000)
+    parsed = value if isinstance(value, datetime) else parse_utc(value)
     if parsed is None:
         return None
-    return int(round(parsed.timestamp() * 1000.0))
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    normalized = parsed.astimezone(timezone.utc)
+    delta = normalized - datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return (
+        (delta.days * 86_400 + delta.seconds) * 1_000_000
+        + delta.microseconds
+    )
+
+
+def _canonical_timestamp_ms(value: Any) -> int | None:
+    epoch_us = _timestamp_epoch_us(value)
+    if epoch_us is None or epoch_us % 1_000 != 0:
+        return None
+    return epoch_us // 1_000
 
 
 def _canonical_5m_label_candle(
@@ -250,6 +278,13 @@ def _canonical_5m_label_candle(
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Validate one exact CanonicalCandle used as outcome evidence."""
 
+    try:
+        strict_canonical = validate_canonical_finalized_5m_candle(
+            row,
+            expected_symbol=str(symbol).upper(),
+        )
+    except Canonical5mValidationError as exc:
+        return None, list(exc.reasons)
     reasons: list[str] = []
     expected_symbol = str(symbol).upper()
     if str(row.get("symbol") or "").upper() != expected_symbol:
@@ -355,30 +390,7 @@ def _canonical_5m_label_candle(
     assert ingested_ms is not None
     assert available_ms is not None
     assert raw_payload_hash is not None
-    content_material = {
-        "candle_id": candle_id,
-        "symbol": expected_symbol,
-        "exchange": "binance",
-        "timeframe": TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME,
-        "candle_open_time_ms": open_ms,
-        "candle_close_time_ms": close_ms,
-        "event_time_ms": event_ms,
-        "ingested_at_ms": ingested_ms,
-        "available_at_ms": available_ms,
-        "source": row.get("source"),
-        "source_sequence_id": row.get("source_sequence_id"),
-        "raw_payload_hash": raw_payload_hash,
-        "is_backfilled": row.get("is_backfilled"),
-        "ohlcv": prices,
-    }
-    content_hash = hashlib.sha256(
-        json.dumps(
-            content_material,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    ).hexdigest()
+    content_hash = str(strict_canonical["content_sha256"])
     return {
         **dict(row),
         "_open_ms": open_ms,
@@ -396,6 +408,7 @@ def canonical_5m_label_evidence(
     symbol: str,
     decision_time: datetime,
     training_observed_at: datetime,
+    source_key: str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Resolve an exact, contiguous, PIT-observed 5m outcome path."""
 
@@ -424,24 +437,35 @@ def canonical_5m_label_evidence(
         by_close[close_ms] = candle
     if reasons:
         return None, sorted(set(reasons))
-    decision_ms = int(round(decision_time.timestamp() * 1000.0))
-    observed_ms = int(round(training_observed_at.timestamp() * 1000.0))
-    if observed_ms <= decision_ms:
+    decision_us = _timestamp_epoch_us(decision_time)
+    observed_us = _timestamp_epoch_us(training_observed_at)
+    if decision_us is None or observed_us is None:
+        return None, ["TRAINING_OR_DECISION_TIME_MISSING_OR_INVALID"]
+    decision_floor_ms = decision_us // 1_000
+    observed_floor_ms = observed_us // 1_000
+    if observed_us <= decision_us:
         return None, ["TRAINING_OBSERVED_AT_NOT_AFTER_DECISION_TIME"]
     ordered = [by_close[key] for key in sorted(by_close)]
-    future = [row for row in ordered if int(row["_close_ms"]) > decision_ms]
+    future = [
+        row
+        for row in ordered
+        if int(row["_close_ms"]) * 1_000 > decision_us
+    ]
     if not future:
         return None, ["NO_CANONICAL_5M_LABEL_CANDLES_AFTER_DECISION"]
 
     horizon_candles: dict[str, dict[str, Any]] = {}
     horizon_lateness_ms: dict[str, int] = {}
+    horizon_lateness_us: dict[str, int] = {}
+    horizon_target_epoch_us: dict[str, int] = {}
     for horizon, seconds in HORIZON_SECONDS.items():
-        target_ms = decision_ms + seconds * 1000
+        target_us = decision_us + seconds * 1_000_000
+        horizon_target_epoch_us[horizon] = target_us
         selected = next(
             (
                 row
                 for row in future
-                if int(row["_close_ms"]) >= target_ms
+                if int(row["_close_ms"]) * 1_000 >= target_us
             ),
             None,
         )
@@ -450,14 +474,15 @@ def canonical_5m_label_evidence(
                 f"CANONICAL_5M_HORIZON_MISSING_{horizon.upper()}"
             )
             continue
-        lateness_ms = int(selected["_close_ms"]) - target_ms
-        if lateness_ms >= TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS:
+        lateness_us = int(selected["_close_ms"]) * 1_000 - target_us
+        if lateness_us >= TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS * 1_000:
             reasons.append(
                 f"CANONICAL_5M_HORIZON_LATE_{horizon.upper()}"
             )
             continue
         horizon_candles[horizon] = selected
-        horizon_lateness_ms[horizon] = lateness_ms
+        horizon_lateness_us[horizon] = lateness_us
+        horizon_lateness_ms[horizon] = lateness_us // 1_000
     if reasons:
         return None, sorted(set(reasons))
 
@@ -470,9 +495,15 @@ def canonical_5m_label_evidence(
     if not path:
         return None, ["CANONICAL_5M_LABEL_PATH_EMPTY"]
     first = path[0]
+    expected_first_close_ms = (
+        ((decision_floor_ms + 1) // TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS + 1)
+        * TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS
+        - 1
+    )
     if not (
-        int(first["_open_ms"]) <= decision_ms + 1
-        and int(first["_close_ms"]) > decision_ms
+        int(first["_close_ms"]) == expected_first_close_ms
+        and int(first["_open_ms"]) * 1_000 <= decision_us + 1_000
+        and int(first["_close_ms"]) * 1_000 > decision_us
     ):
         reasons.append("CANONICAL_5M_LABEL_PATH_START_GAP")
     for prior, current in zip(path, path[1:]):
@@ -482,7 +513,7 @@ def canonical_5m_label_evidence(
     future_available = [
         row
         for row in path
-        if int(row["_available_ms"]) > observed_ms
+        if int(row["_available_ms"]) * 1_000 > observed_us
     ]
     if future_available:
         reasons.append(
@@ -493,12 +524,16 @@ def canonical_5m_label_evidence(
     excursion_path = [
         row
         for row in path
-        if int(row["_open_ms"]) >= decision_ms
+        if int(row["_open_ms"]) * 1_000 >= decision_us
     ]
     excluded_overlapping_candles = [
         row
         for row in path
-        if int(row["_open_ms"]) < decision_ms < int(row["_close_ms"])
+        if (
+            int(row["_open_ms"]) * 1_000
+            < decision_us
+            < int(row["_close_ms"]) * 1_000
+        )
     ]
     if not excursion_path:
         return None, ["CANONICAL_5M_POST_DECISION_EXCURSION_PATH_EMPTY"]
@@ -509,13 +544,21 @@ def canonical_5m_label_evidence(
     )
     evidence_material = {
         "contract_version": TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION,
-        "source_key": TRUSTED_REPLAY_LABEL_CANDLE_SOURCE_KEY_TEMPLATE.format(
-            symbol=str(symbol).upper()
+        "source_key": (
+            str(source_key).strip()
+            if source_key is not None and str(source_key).strip()
+            else TRUSTED_REPLAY_LABEL_CANDLE_SOURCE_KEY_TEMPLATE.format(
+                symbol=str(symbol).upper()
+            )
         ),
         "symbol": str(symbol).upper(),
-        "decision_time": iso_utc(decision_time),
-        "training_observed_at": iso_utc(training_observed_at),
-        "label_available_at": iso_utc(label_available_at),
+        "decision_time": iso_utc_exact(decision_time),
+        "decision_time_epoch_us": decision_us,
+        "decision_time_floor_ms": decision_floor_ms,
+        "training_observed_at": iso_utc_exact(training_observed_at),
+        "training_observed_at_epoch_us": observed_us,
+        "training_observed_at_floor_ms": observed_floor_ms,
+        "label_available_at": iso_utc_exact(label_available_at),
         "path_candles": [
             {
                 "candle_id": row["candle_id"],
@@ -534,6 +577,10 @@ def canonical_5m_label_evidence(
             for horizon, row in sorted(horizon_candles.items())
         },
         "horizon_lateness_ms": dict(sorted(horizon_lateness_ms.items())),
+        "horizon_lateness_us": dict(sorted(horizon_lateness_us.items())),
+        "horizon_target_epoch_us": dict(
+            sorted(horizon_target_epoch_us.items())
+        ),
         "excursion_scope": (
             "FULL_FINALIZED_5M_CANDLES_OPENING_AT_OR_AFTER_DECISION_TIME"
         ),
@@ -890,6 +937,7 @@ def build_trusted_replay_row(
     *,
     candles: Iterable[Mapping[str, Any]],
     training_observed_at: datetime | str | None = None,
+    label_candle_source_key: str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     candle_rows = [row for row in candles if isinstance(row, Mapping)]
     reasons = replay_rejection_reasons(snapshot, candles=candle_rows)
@@ -929,6 +977,7 @@ def build_trusted_replay_row(
         symbol=str(snapshot.get("symbol") or "").upper(),
         decision_time=decision_time,
         training_observed_at=observed_at,
+        source_key=label_candle_source_key,
     )
     if label_evidence is None:
         return None, label_reasons
@@ -983,6 +1032,9 @@ def build_trusted_replay_row(
         else None
     )
     label_available_at = label_evidence["label_available_at_datetime"]
+    label_available_epoch_us = _timestamp_epoch_us(label_available_at)
+    assert label_available_epoch_us is not None
+    label_available_ms = label_available_epoch_us // 1_000
     if label_available_at <= decision_time:
         return None, ["LABEL_AVAILABLE_AT_NOT_AFTER_DECISION_TIME"]
     label_horizon_seconds = (label_available_at - decision_time).total_seconds()
@@ -1111,20 +1163,21 @@ def build_trusted_replay_row(
         "mtf_snapshot_reject_reasons": [],
         "symbol": str(snapshot.get("symbol") or "").upper(),
         "timeframe": str(snapshot.get("timeframe") or ""),
-        "feature_cutoff": iso_utc(feature_cutoff),
-        "decision_time": iso_utc(decision_time),
-        "decision_time_est": iso_utc(decision_time),
-        "decision_cutoff_time_est": iso_utc(decision_time),
-        "generated_at": iso_utc(decision_time),
-        "generated_utc": iso_utc(decision_time),
-        "available_at": iso_utc(available_at),
-        "source_available_time": iso_utc(available_at),
-        "source_event_time_est": iso_utc(feature_cutoff),
-        "source_received_time_est": iso_utc(available_at),
+        "feature_cutoff": iso_utc_exact(feature_cutoff),
+        "decision_time": iso_utc_exact(decision_time),
+        "decision_time_epoch_us": label_evidence["decision_time_epoch_us"],
+        "decision_time_est": iso_utc_exact(decision_time),
+        "decision_cutoff_time_est": iso_utc_exact(decision_time),
+        "generated_at": iso_utc_exact(decision_time),
+        "generated_utc": iso_utc_exact(decision_time),
+        "available_at": iso_utc_exact(available_at),
+        "source_available_time": iso_utc_exact(available_at),
+        "source_event_time_est": iso_utc_exact(feature_cutoff),
+        "source_received_time_est": iso_utc_exact(available_at),
         "latency_ms": 0,
         "candle_closed_confirmed": True,
-        "candle_open_time": iso_utc(feature_cutoff - timedelta(seconds=timeframe_seconds(str(snapshot.get("timeframe") or "1m")))),
-        "candle_close_time": iso_utc(feature_cutoff),
+        "candle_open_time": iso_utc_exact(feature_cutoff - timedelta(seconds=timeframe_seconds(str(snapshot.get("timeframe") or "1m")))),
+        "candle_close_time": iso_utc_exact(feature_cutoff),
         "feature_freshness_state": "CURRENT",
         "trainer_consumable": True,
         "accepted_for_training": True,
@@ -1171,6 +1224,12 @@ def build_trusted_replay_row(
         "trusted_replay_label_horizon_lateness_ms": dict(
             label_evidence["horizon_lateness_ms"]
         ),
+        "trusted_replay_label_horizon_lateness_us": dict(
+            label_evidence["horizon_lateness_us"]
+        ),
+        "trusted_replay_label_horizon_target_epoch_us": dict(
+            label_evidence["horizon_target_epoch_us"]
+        ),
         "trusted_replay_excursion_scope": label_evidence[
             "excursion_scope"
         ],
@@ -1190,9 +1249,13 @@ def build_trusted_replay_row(
         "trusted_replay_excursion_predecision_overlap_excluded": (
             label_evidence["excursion_predecision_overlap_excluded"]
         ),
-        "training_observed_at": iso_utc(observed_at),
-        "label_available_at": iso_utc(label_available_at),
-        "outcome_available_at": iso_utc(label_available_at),
+        "training_observed_at": iso_utc_exact(observed_at),
+        "training_observed_at_epoch_us": label_evidence[
+            "training_observed_at_epoch_us"
+        ],
+        "label_available_at": iso_utc_exact(label_available_at),
+        "label_available_at_epoch_ms": label_available_ms,
+        "outcome_available_at": iso_utc_exact(label_available_at),
         "label_horizon_seconds": label_horizon_seconds,
         "outcome_horizon_seconds": label_horizon_seconds,
         "future_return_5m_bps": returns["5m"],
@@ -1276,8 +1339,9 @@ def build_trusted_replay_row(
                 else None
             ),
             "holding_period": HORIZON_SECONDS["15m"],
-            "label_available_at": iso_utc(label_available_at),
-            "outcome_available_at": iso_utc(label_available_at),
+            "label_available_at": iso_utc_exact(label_available_at),
+            "label_available_at_epoch_ms": label_available_ms,
+            "outcome_available_at": iso_utc_exact(label_available_at),
             "label_horizon_seconds": label_horizon_seconds,
             "label_candle_contract_version": (
                 TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION

@@ -37,6 +37,10 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
     REQUIRED_TRUST_ENVELOPE_FIELDS,
     audit_quality_rejection_reasons,
 )
+from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
+    DurableCanonical5mLabelArchive,
+    default_archive_path as default_canonical_5m_label_archive_path,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     default_archive_root,
@@ -45,6 +49,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     verify_record as verify_durable_feature_snapshot,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    HORIZON_SECONDS,
     build_trusted_replay_row,
     target_action_index,
 )
@@ -1022,6 +1027,7 @@ class V2HybridTrainerDataLoader:
         replay_bundle_paths: Iterable[Path] = (),
         trusted_replay_archive_root: Path | None = None,
         counterfactual_archive_path: Path | None = None,
+        canonical_5m_label_archive_path: Path | None = None,
     ) -> None:
         self.io = io or V2OnlyJsonIO(client=None)
         self.tensor_builder = tensor_builder or V2UnifiedFeatureTensorBuilder()
@@ -1030,10 +1036,17 @@ class V2HybridTrainerDataLoader:
         self.counterfactual_archive_path = Path(
             counterfactual_archive_path or DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH
         )
+        self.canonical_5m_label_archive_path = Path(
+            canonical_5m_label_archive_path
+            or default_canonical_5m_label_archive_path()
+        )
         self.last_trusted_replay_scan: dict[str, Any] = {}
         self.last_trusted_replay_backfill_scan: dict[str, Any] = {}
         self.last_prediction_grid_load: dict[str, Any] = {}
         self.last_closed_trade_load: dict[str, Any] = {}
+        self._canonical_5m_label_archive_integrity_proof: (
+            dict[str, Any] | None
+        ) = None
         # Request-scoped batch cache: load_snapshot_payloads primes this with a
         # single pipelined round-trip so the ~57 per-pair reads stop paying
         # sequential Redis latency (the dominant prediction-grid cost).
@@ -2210,30 +2223,114 @@ class V2HybridTrainerDataLoader:
     ) -> list[TrainingExample]:
         """Stream frontier-labelable snapshots from an oldest-first cursor.
 
-        Labels come only from the canonical finalized 5m Redis frontier and
-        are bounded by one explicit ``training_observed_at``.  Snapshots are
-        processed one at a time so a scan cannot retain thousands of large
-        feature payloads in memory.
-
-        ``backfill=True`` is deliberately blocked until the system has a
-        durable, time-indexed canonical 5m label archive.  Mutable short-lived
-        Redis history and same-timeframe feature snapshots are never used as
-        historical outcome evidence.
+        Frontier labels come from the canonical finalized 5m Redis working
+        set.  Historical ``backfill=True`` labels come only from a complete,
+        content-verified range in the durable time-indexed 5m archive.  Both
+        paths are bounded by one explicit ``training_observed_at`` and process
+        snapshots one at a time.  Mutable Redis history and same-timeframe
+        feature snapshots are never historical-label fallbacks.
         """
+        historical_label_archive: DurableCanonical5mLabelArchive | None = None
+        historical_archive_integrity: dict[str, Any] | None = None
         if backfill:
-            self.last_trusted_replay_backfill_scan = {
+            blocked_status = {
                 "backfill_lane": True,
-                "status": "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED",
                 "examples_built": 0,
                 "snapshots_scanned": 0,
                 "cursor_advanced": False,
+                "durable_canonical_5m_label_archive_path": str(
+                    self.canonical_5m_label_archive_path
+                ),
+                "durable_canonical_5m_label_archive_integrity_verified": False,
                 "same_timeframe_label_fallback_used": False,
                 "mutable_redis_history_used_for_historical_labels": False,
-                "rejection_reasons": {
-                    "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 1,
-                },
             }
-            return []
+            if not self.canonical_5m_label_archive_path.is_file():
+                blocked_status.update(
+                    {
+                        "status": (
+                            "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED"
+                        ),
+                        "durable_canonical_5m_label_archive_availability": (
+                            "MISSING"
+                        ),
+                        "rejection_reasons": {
+                            "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 1,
+                        },
+                    }
+                )
+                self.last_trusted_replay_backfill_scan = blocked_status
+                return []
+            historical_label_archive = DurableCanonical5mLabelArchive(
+                self.canonical_5m_label_archive_path
+            )
+            try:
+                cached_integrity = (
+                    self._canonical_5m_label_archive_integrity_proof
+                )
+                if (
+                    cached_integrity is not None
+                    and historical_label_archive.integrity_proof_is_current(
+                        cached_integrity
+                    )
+                ):
+                    historical_archive_integrity = cached_integrity
+                else:
+                    historical_archive_integrity = (
+                        historical_label_archive.verify_integrity()
+                    )
+                    if historical_archive_integrity.get(
+                        "archive_integrity_verified"
+                    ) is True:
+                        self._canonical_5m_label_archive_integrity_proof = (
+                            historical_archive_integrity
+                        )
+            except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+                blocked_status.update(
+                    {
+                        "status": (
+                            "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_"
+                            "INTEGRITY_CHECK_FAILED"
+                        ),
+                        "archive_integrity_error": type(exc).__name__,
+                        "rejection_reasons": {
+                            "DURABLE_INDEXED_5M_LABEL_ARCHIVE_INTEGRITY_"
+                            "CHECK_FAILED": 1,
+                        },
+                    }
+                )
+                self.last_trusted_replay_backfill_scan = blocked_status
+                return []
+            if (
+                historical_archive_integrity.get(
+                    "archive_integrity_verified"
+                )
+                is not True
+            ):
+                archive_reasons = list(
+                    historical_archive_integrity.get("rejection_reasons") or []
+                )
+                blocked_status.update(
+                    {
+                        "status": (
+                            "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_"
+                            "INTEGRITY_UNVERIFIED"
+                        ),
+                        "durable_canonical_5m_label_archive_integrity": (
+                            historical_archive_integrity
+                        ),
+                        "rejection_reasons": {
+                            str(reason): 1
+                            for reason in archive_reasons
+                        }
+                        or {
+                            "DURABLE_INDEXED_5M_LABEL_ARCHIVE_INTEGRITY_"
+                            "UNVERIFIED": 1,
+                        },
+                    }
+                )
+                self.last_trusted_replay_backfill_scan = blocked_status
+                return []
         observation_cutoff = _resolve_training_observed_at(training_observed_at)
         examples: list[TrainingExample] = []
         requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
@@ -2255,7 +2352,7 @@ class V2HybridTrainerDataLoader:
             cursor = 0
         if backfill:
             frontier_cursor = self._read_trusted_replay_cursor()
-            backfill_stop_offset = max(0, frontier_cursor)
+            backfill_stop_offset = max(0, frontier_cursor) or None
             if backfill_stop_offset and cursor >= backfill_stop_offset:
                 cursor = 0
                 epoch_wrapped = True
@@ -2264,6 +2361,8 @@ class V2HybridTrainerDataLoader:
         frontier_reached = False
         consumed_offset = cursor
         candle_cache: dict[str, tuple[Any, str]] = {}
+        durable_label_ranges_verified = 0
+        archive_coverage_retry_pending = False
 
         def _stream_labelable_snapshots() -> Iterable[tuple[int, dict[str, Any]]]:
             nonlocal scanned, frontier_reached
@@ -2290,22 +2389,78 @@ class V2HybridTrainerDataLoader:
 
         # The cursor advances only past snapshots whose build was attempted.
         for next_offset, snapshot in _stream_labelable_snapshots():
-            consumed_offset = next_offset
             symbol = str(snapshot.get("symbol") or "").upper()
             timeframe = str(snapshot.get("timeframe") or "")
             if not symbol or not timeframe:
                 rejections["symbol_or_timeframe_missing"] = rejections.get("symbol_or_timeframe_missing", 0) + 1
+                consumed_offset = next_offset
                 continue
-            if symbol not in candle_cache:
-                candle_cache[symbol] = self._read_trusted_replay_label_candles(
-                    symbol=symbol,
+            durable_label_path_proof: dict[str, Any] | None = None
+            if backfill:
+                assert historical_label_archive is not None
+                decision_time = _parse_iso_utc(snapshot.get("decision_time"))
+                if decision_time is None:
+                    rejections["DECISION_TIME_MISSING_OR_INVALID"] = (
+                        rejections.get(
+                            "DECISION_TIME_MISSING_OR_INVALID",
+                            0,
+                        )
+                        + 1
+                    )
+                    consumed_offset = next_offset
+                    continue
+                try:
+                    candle_rows, durable_label_path_proof = (
+                        historical_label_archive.verified_label_path(
+                            symbol=symbol,
+                            decision_time=decision_time,
+                            training_observed_at=observation_cutoff,
+                            horizon_seconds=HORIZON_SECONDS["4h"],
+                            archive_integrity_proof=(
+                                historical_archive_integrity
+                            ),
+                        )
+                    )
+                except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+                    reason = (
+                        "DURABLE_CANONICAL_5M_LABEL_RANGE_READ_FAILED:"
+                        f"{type(exc).__name__}"
+                    )
+                    rejections[reason] = rejections.get(reason, 0) + 1
+                    archive_coverage_retry_pending = True
+                    break
+                if candle_rows is None:
+                    for reason in (
+                        durable_label_path_proof.get("rejection_reasons")
+                        or ["DURABLE_CANONICAL_5M_LABEL_RANGE_UNVERIFIED"]
+                    ):
+                        rejections[str(reason)] = (
+                            rejections.get(str(reason), 0) + 1
+                        )
+                    archive_coverage_retry_pending = True
+                    break
+                durable_label_ranges_verified += 1
+                range_sha256 = str(
+                    durable_label_path_proof.get("label_path_sha256") or ""
                 )
-            candles, candle_key = candle_cache[symbol]
-            candle_rows = candles if isinstance(candles, list) else []
+                candle_key = (
+                    "durable_canonical_5m_label_archive:"
+                    f"{self.canonical_5m_label_archive_path}:"
+                    f"{range_sha256}"
+                )
+            else:
+                if symbol not in candle_cache:
+                    candle_cache[symbol] = (
+                        self._read_trusted_replay_label_candles(symbol=symbol)
+                    )
+                candles, candle_key = candle_cache[symbol]
+                candle_rows = candles if isinstance(candles, list) else []
+            consumed_offset = next_offset
             replay_row, reasons = build_trusted_replay_row(
                 snapshot,
                 candles=candle_rows,
                 training_observed_at=observation_cutoff,
+                label_candle_source_key=candle_key,
             )
             if replay_row is None:
                 for reason in reasons or ["trusted_replay_row_not_built"]:
@@ -2407,6 +2562,12 @@ class V2HybridTrainerDataLoader:
                         "feature_snapshot_id": snapshot.get("snapshot_id"),
                         "content_sha256": snapshot.get("content_sha256"),
                         "candle_source_key": candle_key,
+                        "durable_canonical_5m_label_archive": bool(backfill),
+                        "durable_canonical_5m_label_path_sha256": (
+                            durable_label_path_proof.get("label_path_sha256")
+                            if durable_label_path_proof is not None
+                            else None
+                        ),
                     },
                 }
             )
@@ -2485,6 +2646,15 @@ class V2HybridTrainerDataLoader:
             epoch_wrapped=epoch_wrapped,
         )
         scan_status = {
+            "status": (
+                "WAITING_FOR_DURABLE_CANONICAL_5M_LABEL_COVERAGE_RETRY"
+                if backfill and archive_coverage_retry_pending
+                else "VERIFIED_DURABLE_CANONICAL_5M_HISTORICAL_LABELS_LOADED"
+                if backfill and examples
+                else "DURABLE_CANONICAL_5M_HISTORICAL_LABELS_VERIFIED_NO_ROWS"
+                if backfill
+                else "CANONICAL_5M_REDIS_FRONTIER_SCAN_COMPLETE"
+            ),
             "cursor_offset": consumed_offset,
             "snapshots_scanned": scanned,
             "examples_built": len(examples),
@@ -2493,6 +2663,32 @@ class V2HybridTrainerDataLoader:
             "streaming_snapshot_processing": True,
             "maximum_resident_snapshot_rows": 1,
             "canonical_5m_label_symbols_cached": len(candle_cache),
+            "durable_canonical_5m_label_archive_path": (
+                str(self.canonical_5m_label_archive_path)
+                if backfill
+                else None
+            ),
+            "durable_canonical_5m_label_archive_integrity_verified": (
+                historical_archive_integrity is not None
+                and historical_archive_integrity.get(
+                    "archive_integrity_verified"
+                )
+                is True
+            ),
+            "durable_canonical_5m_label_archive_chain_sha256": (
+                historical_archive_integrity.get("archive_chain_sha256")
+                if historical_archive_integrity is not None
+                else None
+            ),
+            "durable_canonical_5m_label_ranges_verified": (
+                durable_label_ranges_verified
+            ),
+            "archive_coverage_retry_pending": archive_coverage_retry_pending,
+            "cursor_preserved_for_retryable_archive_coverage": (
+                archive_coverage_retry_pending
+            ),
+            "same_timeframe_label_fallback_used": False,
+            "mutable_redis_history_used_for_historical_labels": False,
             "rejection_reasons": dict(sorted(rejections.items(), key=lambda kv: -kv[1])[:15]),
         }
         if backfill:
