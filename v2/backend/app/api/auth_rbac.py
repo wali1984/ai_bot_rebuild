@@ -15,6 +15,7 @@ from app.api.v2._common import get_redis
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.security import (
+    ROLE_RANK,
     SESSION_COOKIE,
     cookie_samesite_value,
     cookie_secure_enabled,
@@ -542,6 +543,14 @@ async def create_user(
 ) -> dict[str, Any]:
     reason = _admin_mutation_reason(request.reason)
     requested = request.model_dump(exclude={"reason"})
+    # Privilege-boundary: an actor may never grant a role that outranks their own
+    # (blocks admin -> superadmin self-escalation via a minted account).
+    _actor_rank = ROLE_RANK.get(str(actor.get("role") or ""), 0)
+    if request.role and ROLE_RANK.get(request.role, 0) > _actor_rank:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="cannot_grant_role_above_own_rank",
+        )
     normalized_email = request.email.strip().lower()
     audit_event = append_admin_audit_event(
         {
@@ -572,6 +581,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     request: UpdateUserRequest,
+    step_up_code: str | None = Header(default=None, alias="X-AlphaForge-Step-Up-Code"),
     actor: UserRecord = Depends(require_admin),
     store: UserStore = Depends(get_user_store),
 ) -> dict[str, Any]:
@@ -580,6 +590,16 @@ async def update_user(
     target = store.get_user(user_id)
     if target is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user_not_found")
+    # Privilege-boundary: an actor may not grant a role above their own rank, may
+    # not modify a target that already outranks them, and password resets require
+    # step-up MFA (parity with set_user_activation, which the raw update bypassed).
+    _actor_rank = ROLE_RANK.get(str(actor.get("role") or ""), 0)
+    if request.role and ROLE_RANK.get(request.role, 0) > _actor_rank:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="cannot_grant_role_above_own_rank")
+    if ROLE_RANK.get(str(target.get("role") or ""), 0) > _actor_rank:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="cannot_modify_higher_ranked_user")
+    if "password" in updates:
+        verify_admin_step_up_code(step_up_code)
     safe_updated_fields = sorted(key for key in updates if key != "password")
     audit_event = append_admin_audit_event(
         {

@@ -1736,7 +1736,7 @@ def _compact_position(pos: dict[str, Any]) -> dict[str, Any]:
         "mark_price_age_seconds": _optional_float(pos.get("mark_price_age_seconds")),
         "mark_price_stale": bool(pos.get("mark_price_stale")),
         "unrealized_pnl": _optional_float(pos.get("unrealized_pnl")),
-        "realized_pnl": _safe_float(_first_present(pos.get("realized_pnl"), pos.get("realized_pnl_usd"))),
+        "realized_pnl": _safe_float(_first_present(pos.get("realized_net_pnl_usd"), pos.get("realized_net_pnl"), pos.get("realized_pnl"), pos.get("realized_pnl_usd"))),
         "opened_at": str(pos.get("opened_at") or pos.get("opened_utc") or pos.get("created_at") or ""),
         "closed_at": str(pos.get("closed_at") or pos.get("exit_price_utc") or pos.get("closed_utc") or ""),
         "close_reason": pos.get("close_reason") or pos.get("exit_reason"),

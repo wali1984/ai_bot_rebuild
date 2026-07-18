@@ -3097,9 +3097,19 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
     wins = [t for t in evaluated if t.get("winner")]
     losses = [t for t in evaluated if not t.get("winner")]
     win_rate = len(wins) / len(evaluated)
-    total_pnl = sum(float(t.get("realized_pnl_usd") or 0) for t in evaluated)
-    gross_profit = sum(float(t.get("realized_pnl_usd") or 0) for t in wins if t.get("realized_pnl_usd"))
-    gross_loss = abs(sum(float(t.get("realized_pnl_usd") or 0) for t in losses if t.get("realized_pnl_usd")))
+    # Use NET PnL (after fees+slippage) so totals and profit_factor are on the
+    # same basis as the NET-derived `winner` flag; gross sums here overstate PnL
+    # and let sign-flipped (gross-positive / net-negative) rows corrupt PF.
+    def _net_pnl(t: Any) -> float:
+        v = t.get("realized_net_pnl_usd")
+        if v is None:
+            v = t.get("realized_net_pnl")
+        if v is None:
+            v = t.get("realized_pnl_usd")
+        return float(v or 0)
+    total_pnl = sum(_net_pnl(t) for t in evaluated)
+    gross_profit = sum(_net_pnl(t) for t in wins)
+    gross_loss = abs(sum(_net_pnl(t) for t in losses))
 
     # Build by-timeframe breakdown from trades
     by_tf: dict[str, dict[str, Any]] = {}
@@ -3112,7 +3122,7 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
             by_tf[tf]["correct_count"] += 1
         else:
             by_tf[tf]["incorrect_count"] += 1
-        by_tf[tf]["realized_pnl_usd"] += float(t.get("realized_pnl_usd") or 0)
+        by_tf[tf]["realized_pnl_usd"] += _net_pnl(t)
     for tf, row in by_tf.items():
         c = row["evaluated_count"]
         row["accuracy"] = round(row["correct_count"] / c, 4) if c > 0 else None
@@ -12440,6 +12450,7 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                     "prediction_id": t.get("prediction_id") or (reasoning or {}).get("prediction_id"),
                     "decision_reasoning": reasoning,
                     "realized_pnl_usd": t.get("realized_pnl_usd"),
+                    "realized_net_pnl_usd": t.get("realized_net_pnl_usd") if t.get("realized_net_pnl_usd") is not None else t.get("realized_net_pnl"),
                     "realized_pnl_bps": t.get("realized_pnl_bps"),
                     "close_reason": t.get("close_reason") or t.get("exit_reason"),
                     "hold_time_seconds": t.get("hold_time_seconds"),
@@ -12458,7 +12469,13 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
             cumulative = 0.0
             equity_curve: list[dict[str, Any]] = []
             for t in trades_asc:
-                cumulative += float(t.get("realized_pnl_usd") or 0)
+                # Equity curve must track NET (after fees+slippage) to match the
+                # summary's realized_net_pnl_usd; gross overstates equity and can
+                # flip a net-loser row green.
+                _net_pnl = t.get("realized_net_pnl_usd")
+                if _net_pnl is None:
+                    _net_pnl = t.get("realized_pnl_usd")
+                cumulative += float(_net_pnl or 0)
                 equity_curve.append({
                     "t": t.get("exit_price_utc"),
                     "pnl": round(cumulative, 4),

@@ -564,7 +564,7 @@ async def get_admin_exchanges(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dic
 # ---------------------------------------------------------------------------
 
 @router.get("/audit/chain")
-async def get_admin_audit_chain(_: UserRecord = Depends(require_auth)) -> dict[str, Any]:
+async def get_admin_audit_chain(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
     now = _utc_now()
 
     entries: list[dict[str, Any]] = []
