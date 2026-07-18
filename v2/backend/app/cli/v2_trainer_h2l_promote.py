@@ -1,4 +1,4 @@
-"""Historical->Live (H2L) checkpoint promotion with a head-to-head validation gate.
+"""Historical-to-serving checkpoint comparison (legacy mutation quarantined).
 
 The online loop overfits its warm-checkpoint fine-tune (train down, validation
 flat/up), so it stays BLOCKED_NO_DURABLE_WEIGHT_UPDATE / INFERENCE_ONLY. The
@@ -7,23 +7,24 @@ legacy fix is the H2L transition: build a generalizing checkpoint offline
 refines from a model that already generalizes.
 
 Safety (this tool):
-- Head-to-head: scores the OFFLINE checkpoint and the current LIVE checkpoint on
-  the SAME held-out validation set, and REFUSES to promote unless the offline one
-  generalizes better by a margin. No promoting a worse model.
-- Architecture guard: both must load into the same model shape (input_dim +
-  hidden/residual from env). A mismatch aborts (never silently fresh-inits live).
-- Backs up the entire live checkpoint dir before promoting, so rollback is a copy.
-- Dry-run by default; only --confirm mutates the live checkpoint dir.
-- Paper/shadow only: never places an order, never routes to live trading, never
-  mutates leverage/margin. LIVE_GATE stays blocked_human_only.
+- Paper-only diagnostics may compare two integrity-verified, content-addressed,
+  causally ordered checkpoint artifacts on the same disjoint forward slice.
+- The legacy copy/write promotion path is quarantined. ``--confirm`` fails closed
+  before reading or writing either checkpoint directory. It cannot back up,
+  replace, or create serving artifacts.
+- Canonical candidate-vs-serving promotion belongs to the persistent trainer's
+  checkpoint lifecycle and must prove exact optimizer-ledger, ancestry,
+  calibration, and untouched-forward PIT/label-maturity evidence. This legacy
+  CLI does not possess that complete contract.
+- It never places an order, routes to live trading, restarts a service, or
+  mutates leverage/margin. LIVE_GATE stays ``blocked_human_only``.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
-import shutil
-import time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -35,6 +36,13 @@ from v2.backend.app.cli.v2_trainer_offline_batch_train import (
 
 DEFAULT_HELDOUT_CACHE = "claude_worklog/trainer_atlas/h2l_heldout_cache.pkl"
 DEFAULT_HELDOUT_OFFSET = int(os.getenv("V2_H2L_HELDOUT_OFFSET", "20000") or 20000)
+LEGACY_H2L_MUTATION_BLOCKER = "LEGACY_H2L_MUTATION_LANE_QUARANTINED"
+PROMOTION_CONTRACT_BLOCKERS = (
+    LEGACY_H2L_MUTATION_BLOCKER,
+    "CANONICAL_CANDIDATE_VS_SERVING_LIFECYCLE_UNPROVEN",
+    "UNTOUCHED_FORWARD_PIT_AND_LABEL_MATURITY_UNPROVEN",
+    "EXACT_OPTIMIZER_LEDGER_ANCESTRY_CALIBRATION_UNPROVEN",
+)
 
 
 def _example_identity(example: Any) -> str:
@@ -90,15 +98,6 @@ def load_h2l_heldout_examples(
         cache_path=cache_path,
         rebuild_cache=rebuild_cache,
     )
-    if cache_path and not rebuild_cache and len(examples) < requested and meta.get("cache_hit"):
-        examples, meta = load_or_build_examples(
-            symbols=symbols,
-            timeframes=timeframes,
-            limit=requested,
-            cache_path=cache_path,
-            rebuild_cache=True,
-        )
-        meta["rebuilt_cache_reason"] = "cached_rows_shorter_than_h2l_heldout_offset"
     if len(examples) <= offset and examples:
         # Supply shorter than the requested training prefix (fresh tail windows
         # legitimately yield fewer labelable rows than train_rows). The fixed
@@ -121,13 +120,78 @@ def load_h2l_heldout_examples(
             "h2l_requested_rows": requested,
             "h2l_heldout_rows": len(heldout_rows),
             "h2l_excluded_prefix_rows": len(excluded_rows),
+            "diagnostic_only": True,
+            "promotion_contract_verified": False,
+            "promotion_contract_blockers": list(PROMOTION_CONTRACT_BLOCKERS),
         }
     )
     return heldout_rows, excluded_rows, meta
 
 
+def _verified_checkpoint_metadata(checkpoint_dir: str) -> dict[str, Any]:
+    """Resolve one checkpoint only through the canonical causal verifier.
+
+    Filesystem order, modification time, arbitrary JSON, and architecture
+    fallbacks are deliberately not identity signals. The highest causal
+    generation returned by ``manifests`` must itself verify; corruption or
+    ambiguity is never skipped in favour of an older artifact.
+    """
+    from pathlib import Path as _P  # noqa: PLC0415
+
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (  # noqa: PLC0415
+        V2HybridCheckpointManager,
+    )
+
+    manager = V2HybridCheckpointManager(_P(checkpoint_dir))
+    try:
+        manifests = manager.manifests(require_weight_blob=True)
+    except Exception as exc:  # noqa: BLE001 - convert to stable fail-closed contract
+        raise RuntimeError("checkpoint_manifest_or_causal_ledger_invalid") from exc
+    if not manifests:
+        raise RuntimeError("checkpoint_verified_manifest_missing")
+    manifest = manifests[0]
+    try:
+        verification = manager.verify_manifest_artifact(manifest)
+    except Exception as exc:  # noqa: BLE001 - stable fail-closed diagnostic
+        raise RuntimeError("checkpoint_artifact_verification_failed") from exc
+    required = (
+        verification.get("checkpoint_artifact_verified") is True
+        and verification.get("checkpoint_identity_verified") is True
+        and verification.get("checkpoint_evidence_verified") is True
+        and verification.get("weight_file_sha256_verified") is True
+        and verification.get("model_parameter_fingerprint_verified") is True
+        and verification.get("checkpoint_id") == manifest.checkpoint_id
+        and isinstance(manifest.input_dim, int)
+        and manifest.input_dim > 0
+        and isinstance(manifest.checkpoint_generation, int)
+        and manifest.checkpoint_generation > 0
+        and isinstance(manifest.checkpoint_semantic_digest, str)
+        and len(manifest.checkpoint_semantic_digest) == 64
+        and isinstance(manifest.checkpoint_causal_record_digest, str)
+        and len(manifest.checkpoint_causal_record_digest) == 64
+        and bool(manifest.lineage_kind)
+    )
+    if not required:
+        raise RuntimeError(
+            "checkpoint_content_identity_or_lineage_unverified:"
+            + json.dumps(verification, sort_keys=True, default=str)
+        )
+    return {
+        "checkpoint_id": manifest.checkpoint_id,
+        "input_dim": manifest.input_dim,
+        "model_id": manifest.model_id,
+        "lineage_kind": manifest.lineage_kind,
+        "checkpoint_generation": manifest.checkpoint_generation,
+        "checkpoint_semantic_digest": manifest.checkpoint_semantic_digest,
+        "checkpoint_causal_record_digest": manifest.checkpoint_causal_record_digest,
+        "weight_file_sha256": verification.get("weight_file_sha256"),
+        "checkpoint_evidence_digest": verification.get("checkpoint_evidence_digest"),
+        "artifact_verified": True,
+    }
+
+
 def _score_checkpoint(checkpoint_dir: str, input_dim: int, rows: Sequence[Any]) -> dict[str, Any]:
-    """Load the latest checkpoint in ``checkpoint_dir`` and score held-out loss."""
+    """Load the exact verified causal checkpoint and score diagnostic loss."""
     from pathlib import Path as _P  # noqa: PLC0415
 
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (  # noqa: PLC0415
@@ -140,9 +204,37 @@ def _score_checkpoint(checkpoint_dir: str, input_dim: int, rows: Sequence[Any]) 
         V2HybridPPOTrainer,
     )
 
+    try:
+        identity = _verified_checkpoint_metadata(checkpoint_dir)
+    except RuntimeError as exc:
+        return {
+            "checkpoint_dir": checkpoint_dir,
+            "loaded": False,
+            "load_status": str(exc),
+            "validation_supervised_loss": None,
+        }
+    if identity["input_dim"] != input_dim:
+        return {
+            "checkpoint_dir": checkpoint_dir,
+            "loaded": False,
+            "load_status": "CHECKPOINT_INPUT_DIM_MISMATCH",
+            "checkpoint_identity": identity,
+            "validation_supervised_loss": None,
+        }
     model = V2HybridPolicyModel(input_dim=input_dim)
-    load = V2HybridCheckpointManager(_P(checkpoint_dir)).load_latest_weights(model)
-    if not (load.get("latest_checkpoint_loadable") and load.get("model_state_restored")):
+    load = V2HybridCheckpointManager(_P(checkpoint_dir)).load_latest_weights(
+        model,
+        allowed_lineage_kinds=frozenset({str(identity["lineage_kind"])}),
+    )
+    load_verified = (
+        load.get("latest_checkpoint_loadable") is True
+        and load.get("model_state_restored") is True
+        and load.get("checkpoint_identity_verified") is True
+        and load.get("checkpoint_evidence_verified") is True
+        and load.get("weight_file_sha256_verified") is True
+        and load.get("checkpoint_id") == identity["checkpoint_id"]
+    )
+    if not load_verified:
         return {
             "checkpoint_dir": checkpoint_dir,
             "loaded": False,
@@ -154,7 +246,8 @@ def _score_checkpoint(checkpoint_dir: str, input_dim: int, rows: Sequence[Any]) 
     return {
         "checkpoint_dir": checkpoint_dir,
         "loaded": True,
-        "checkpoint_id": load.get("latest_metadata_checkpoint_id") or load.get("checkpoint_id"),
+        "checkpoint_id": load.get("checkpoint_id"),
+        "checkpoint_identity": identity,
         "validation_supervised_loss": val.get("validation_supervised_loss"),
         "validation_rows_evaluated": val.get("validation_rows_evaluated"),
     }
@@ -169,8 +262,16 @@ def _returns_from_actions(rows: Sequence[Any], actions: Sequence[int]) -> list[f
     a losing directional call already nets negative). Pure/testable -- no torch.
     """
     returns: list[float] = []
-    for r, a in zip(rows, actions, strict=False):
-        move = float(getattr(r, "label_expected_move_after_cost_bps", 0.0) or 0.0)
+    if len(rows) != len(actions):
+        raise ValueError("H2L_ACTION_LABEL_CARDINALITY_MISMATCH")
+    for r, a in zip(rows, actions, strict=True):
+        raw_move = getattr(r, "label_expected_move_after_cost_bps", None)
+        try:
+            move = float(raw_move)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("H2L_MATURE_POST_COST_LABEL_MISSING") from exc
+        if not math.isfinite(move):
+            raise ValueError("H2L_MATURE_POST_COST_LABEL_NONFINITE")
         if a == 1:      # long
             returns.append(move)
         elif a == 2:    # short
@@ -203,11 +304,27 @@ def _candidate_risk_summary(
         risk_adjusted_summary,
     )
 
+    try:
+        identity = _verified_checkpoint_metadata(checkpoint_dir)
+    except RuntimeError as exc:
+        return {"loaded": False, "error": str(exc)}
+    if identity["input_dim"] != input_dim:
+        return {"loaded": False, "error": "CHECKPOINT_INPUT_DIM_MISMATCH"}
     model = V2HybridPolicyModel(input_dim=input_dim)
-    load = V2HybridCheckpointManager(_P(checkpoint_dir)).load_latest_weights(model)
-    loadable = load.get("latest_checkpoint_loadable") and load.get("model_state_restored")
+    load = V2HybridCheckpointManager(_P(checkpoint_dir)).load_latest_weights(
+        model,
+        allowed_lineage_kinds=frozenset({str(identity["lineage_kind"])}),
+    )
+    loadable = (
+        load.get("latest_checkpoint_loadable") is True
+        and load.get("model_state_restored") is True
+        and load.get("checkpoint_identity_verified") is True
+        and load.get("checkpoint_evidence_verified") is True
+        and load.get("weight_file_sha256_verified") is True
+        and load.get("checkpoint_id") == identity["checkpoint_id"]
+    )
     if not loadable or model.net is None:
-        return {"loaded": False}
+        return {"loaded": False, "load_status": load}
     net = model.net
     device = model.device
     returns: list[float] = []
@@ -225,10 +342,12 @@ def _candidate_risk_summary(
                 torch, list(rows), temporal=_temporal, seq_len=_seq_len,
                 window_lookup=_lookup, device="cpu",
             )
-            x = torch.nan_to_num(x, nan=0.0, posinf=1e6, neginf=-1e6).to(device=device)
+            if not bool(torch.isfinite(x).all().item()):
+                raise ValueError("H2L_HELDOUT_MODEL_VECTOR_NONFINITE")
+            x = x.to(device=device)
             actions = torch.argmax(net(x)["logits"], dim=-1).detach().cpu().tolist()
         returns = _returns_from_actions(rows, actions)
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:  # noqa: BLE001 - diagnostic fails closed
         return {"loaded": True, "error": str(exc)}
     summary = risk_adjusted_summary(returns)
     summary["loaded"] = True
@@ -241,7 +360,7 @@ def _float_or_none(value: Any) -> float | None:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
-    return parsed if parsed == parsed else None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _risk_gate_report(
@@ -251,10 +370,10 @@ def _risk_gate_report(
     min_sortino: float,
     max_cvar_loss_bps: float | None,
 ) -> dict[str, Any]:
-    """Promotion guard for WI-2 risk-adjusted H2L validation.
+    """Relative paired diagnostic; legacy absolute thresholds are ignored.
 
-    A checkpoint must not be promoted on lower supervised loss alone when its
-    out-of-sample actions have worse downside/tail behavior than the incumbent.
+    Only immutable evidence availability and candidate-vs-incumbent
+    non-regression are evaluated. This report never authorizes mutation.
     """
     failures: list[str] = []
     live_sortino = _float_or_none(live_risk.get("sortino_ratio"))
@@ -263,25 +382,29 @@ def _risk_gate_report(
     offline_cvar = _float_or_none(offline_risk.get("cvar"))
     offline_trades = int(offline_risk.get("trades") or 0)
 
+    if not live_risk.get("loaded"):
+        failures.append("LIVE_RISK_SUMMARY_UNAVAILABLE")
     if not offline_risk.get("loaded"):
         failures.append("OFFLINE_RISK_SUMMARY_UNAVAILABLE")
+    if live_risk.get("error"):
+        failures.append("LIVE_RISK_SUMMARY_ERROR")
     if offline_risk.get("error"):
         failures.append("OFFLINE_RISK_SUMMARY_ERROR")
     if offline_trades <= 0:
         failures.append("OFFLINE_POLICY_PRODUCED_NO_OUT_OF_SAMPLE_TRADES")
+    if int(live_risk.get("trades") or 0) <= 0:
+        failures.append("LIVE_POLICY_PRODUCED_NO_OUT_OF_SAMPLE_TRADES")
     if offline_sortino is None:
         failures.append("OFFLINE_SORTINO_UNAVAILABLE")
-    elif offline_sortino < float(min_sortino):
-        failures.append("OFFLINE_SORTINO_BELOW_MINIMUM")
+    if live_sortino is None:
+        failures.append("LIVE_SORTINO_UNAVAILABLE")
     if live_sortino is not None and offline_sortino is not None and offline_sortino < live_sortino:
         failures.append("OFFLINE_SORTINO_WORSE_THAN_LIVE")
 
-    if max_cvar_loss_bps is not None:
-        max_loss = abs(float(max_cvar_loss_bps))
-        if offline_cvar is None:
-            failures.append("OFFLINE_CVAR_UNAVAILABLE")
-        elif offline_cvar < -max_loss:
-            failures.append("OFFLINE_CVAR_TAIL_LOSS_EXCEEDS_LIMIT")
+    if offline_cvar is None:
+        failures.append("OFFLINE_CVAR_UNAVAILABLE")
+    if live_cvar is None:
+        failures.append("LIVE_CVAR_UNAVAILABLE")
     if live_cvar is not None and offline_cvar is not None and offline_cvar < live_cvar:
         failures.append("OFFLINE_CVAR_WORSE_THAN_LIVE")
 
@@ -289,97 +412,32 @@ def _risk_gate_report(
         "required": True,
         "passed": not failures,
         "failures": failures,
-        "min_sortino": float(min_sortino),
-        "max_cvar_loss_bps": max_cvar_loss_bps,
+        "legacy_static_min_sortino_ignored": float(min_sortino),
+        "legacy_static_max_cvar_loss_bps_ignored": max_cvar_loss_bps,
         "offline_sortino": offline_sortino,
         "live_sortino": live_sortino,
         "offline_cvar": offline_cvar,
         "live_cvar": live_cvar,
         "offline_trades": offline_trades,
         "live_trades": int(live_risk.get("trades") or 0),
-        "rule": (
-            "offline must meet min Sortino, produce OOS trades, stay within CVaR "
-            "limit when configured, and not be worse than live on Sortino/CVaR"
-        ),
+        "mutation_authorized": False,
+        "rule": "paired forward diagnostic must not regress live Sortino or CVaR",
     }
 
 
 def _backup_live_dir(live_dir: str) -> str:
-    src = Path(live_dir)
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    dst = src.parent / f"{src.name}_backup_{stamp}"
-    shutil.copytree(src, dst)
-    return str(dst)
+    del live_dir
+    raise RuntimeError(LEGACY_H2L_MUTATION_BLOCKER)
 
 
 def _promote(offline_dir: str, live_dir: str) -> dict[str, Any]:
-    """Copy the offline checkpoint's latest weights + manifest into the live dir.
-
-    Copies the offline weight blob(s) and re-points the live manifest at it. The
-    live dir is backed up by the caller first.
-    """
-    from pathlib import Path as _P  # noqa: PLC0415
-
-    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (  # noqa: PLC0415
-        V2HybridCheckpointManager,
-    )
-    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (  # noqa: PLC0415
-        V2HybridPolicyModel,
-    )
-
-    off = _P(offline_dir)
-    live = _P(live_dir)
-    # Load the offline model, then write it as a fresh live checkpoint (blob +
-    # manifest) via the live checkpoint manager so the manifest/lineage are valid.
-    model = V2HybridPolicyModel(input_dim=_infer_input_dim(offline_dir))
-    load = V2HybridCheckpointManager(off).load_latest_weights(model)
-    if not (load.get("latest_checkpoint_loadable") and load.get("model_state_restored")):
-        raise RuntimeError(
-            "refusing H2L promotion because offline checkpoint reload failed: "
-            + json.dumps(load, sort_keys=True, default=str)
-        )
-    import torch  # noqa: PLC0415
-
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
-    manifest = V2HybridCheckpointManager(live).write_checkpoint(
-        model=model,
-        input_dim=int(model.input_dim),
-        device=device,
-        cuda_active=torch.cuda.is_available(),
-        write_weight_blob=True,
-    )
-    return {
-        "promoted_checkpoint_id": getattr(manifest, "checkpoint_id", None)
-        or (manifest.get("checkpoint_id") if isinstance(manifest, dict) else None),
-        "live_dir": str(live),
-    }
+    del offline_dir, live_dir
+    raise RuntimeError(LEGACY_H2L_MUTATION_BLOCKER)
 
 
 def _infer_input_dim(checkpoint_dir: str) -> int:
-    """Read input_dim from the checkpoint dir's NEWEST manifest (mtime order).
-
-    Manifests accumulate across architecture generations in the same dir.
-    The previous alphabetical scan returned an arbitrary stale-arch manifest
-    (e.g. the 1832 slot after the 1908 feature-spec fork), which made H2L
-    build BOTH scoring models at the old width: each side then resolved the
-    same old-arch checkpoint, the fresh candidate was never scored, and every
-    run aborted with ABORT_NO_VALIDATION_SIGNAL. Newest mtime = the
-    just-saved candidate's manifest, which carries the true current width.
-    """
-    manifests = sorted(
-        Path(checkpoint_dir).glob("*.json"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    for j in manifests:
-        try:
-            data = json.loads(j.read_text())
-        except Exception:
-            continue
-        dim = data.get("input_dim") or data.get("__input_dim")
-        if dim:
-            return int(dim[0] if isinstance(dim, list) else dim)
-    return 1248
+    """Return only a causal, content-addressed, artifact-verified width."""
+    return int(_verified_checkpoint_metadata(checkpoint_dir)["input_dim"])
 
 
 def run_h2l(
@@ -394,44 +452,72 @@ def run_h2l(
     min_sortino: float = 0.0,
     max_cvar_loss_bps: float | None = None,
 ) -> dict[str, Any]:
-    input_dim = _infer_input_dim(offline_dir)
+    safety_posture: dict[str, Any] = {
+        "paper_only": True,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "serving_checkpoint_mutated": False,
+        "service_restart_attempted": False,
+        "live_gate": "blocked_human_only",
+        "promotion_mutation_authorized": False,
+        "promotion_contract_verified": False,
+        "promotion_contract_blockers": list(PROMOTION_CONTRACT_BLOCKERS),
+        "legacy_static_min_improvement_ignored": float(min_improvement),
+        "legacy_static_min_sortino_ignored": float(min_sortino),
+        "legacy_static_max_cvar_loss_bps_ignored": max_cvar_loss_bps,
+    }
+    # ``--confirm`` used to cross the serving mutation boundary. It is now a
+    # stable fail-closed request and is rejected before any checkpoint read,
+    # backup, write, or model construction occurs.
+    if confirm:
+        return {
+            "schema_version": "trainer_h2l_diagnostic_v2",
+            "held_out_rows": len(rows),
+            "confirmation_requested": True,
+            "decision": LEGACY_H2L_MUTATION_BLOCKER,
+            "promoted": False,
+            **safety_posture,
+        }
+    try:
+        input_dim = _infer_input_dim(offline_dir)
+    except RuntimeError as exc:
+        return {
+            "schema_version": "trainer_h2l_diagnostic_v2",
+            "held_out_rows": len(rows),
+            "confirmation_requested": False,
+            "decision": "ABORT_CHECKPOINT_CONTENT_IDENTITY_UNVERIFIED",
+            "checkpoint_identity_error": str(exc),
+            "promoted": False,
+            **safety_posture,
+        }
     overlap = _overlap_report(rows, excluded_rows or [])
     if overlap["overlap_count"] > 0:
         return {
-            "schema_version": "trainer_h2l_promotion_v1",
+            "schema_version": "trainer_h2l_diagnostic_v2",
             "input_dim": input_dim,
             "held_out_rows": len(rows),
             "heldout_overlap": overlap,
             "decision": "ABORT_HELDOUT_OVERLAPS_TRAINING_ROWS",
             "promoted": False,
-            "paper_only": True,
-            "places_real_order": False,
-            "routes_to_live": False,
-            "leverage_mutated": False,
-            "margin_mutated": False,
-            "live_gate": "blocked_human_only",
+            **safety_posture,
         }
     live_score = _score_checkpoint(live_dir, input_dim, rows)
     offline_score = _score_checkpoint(offline_dir, input_dim, rows)
     lv = live_score.get("validation_supervised_loss")
     ov = offline_score.get("validation_supervised_loss")
     report: dict[str, Any] = {
-        "schema_version": "trainer_h2l_promotion_v1",
+        "schema_version": "trainer_h2l_diagnostic_v2",
         "input_dim": input_dim,
         "held_out_rows": len(rows),
         "live": live_score,
         "offline": offline_score,
-        "min_improvement": float(min_improvement),
         "offline_loaded": offline_score.get("loaded"),
         "live_loaded": live_score.get("loaded"),
         "heldout_overlap": overlap,
-        # safety posture
-        "paper_only": True,
-        "places_real_order": False,
-        "routes_to_live": False,
-        "leverage_mutated": False,
-        "margin_mutated": False,
-        "live_gate": "blocked_human_only",
+        "confirmation_requested": False,
+        **safety_posture,
     }
     if not (offline_score.get("loaded") and live_score.get("loaded")):
         report["decision"] = "ABORT_CHECKPOINT_LOAD_FAILED_OR_SHAPE_MISMATCH"
@@ -443,8 +529,12 @@ def run_h2l(
         return report
     offline_better_by = lv - ov  # positive => offline has lower (better) held-out loss
     report["offline_better_by"] = round(offline_better_by, 6)
-    if offline_better_by < min_improvement:
-        report["decision"] = "REFUSE_OFFLINE_NOT_BETTER"
+    if not math.isfinite(float(offline_better_by)):
+        report["decision"] = "ABORT_NONFINITE_PAIRED_VALIDATION_SIGNAL"
+        report["promoted"] = False
+        return report
+    if offline_better_by <= 0.0:
+        report["decision"] = "DIAGNOSTIC_OFFLINE_RELATIVE_REGRESSION"
         report["promoted"] = False
         return report
     if require_risk_gate:
@@ -473,14 +563,8 @@ def run_h2l(
                 "reason": "require_risk_gate_false",
             }
         }
-    if not confirm:
-        report["decision"] = "DRY_RUN_OFFLINE_WINS_PASS_CONFIRM_TO_PROMOTE"
-        report["promoted"] = False
-        return report
-    report["backup_dir"] = _backup_live_dir(live_dir)
-    report["promotion"] = _promote(offline_dir, live_dir)
-    report["decision"] = "PROMOTED"
-    report["promoted"] = True
+    report["decision"] = "DIAGNOSTIC_OFFLINE_RELATIVE_NON_REGRESSION"
+    report["promoted"] = False
     return report
 
 
@@ -503,14 +587,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "so the H2L gate does not score against the offline-training prefix"
         ),
     )
-    p.add_argument("--min-improvement", type=float, default=0.0,
-                   help="offline held-out loss must be lower than live by at least this margin")
+    p.add_argument(
+        "--min-improvement",
+        type=float,
+        default=0.0,
+        help="legacy compatibility value; ignored and never authorizes mutation",
+    )
     p.add_argument(
         "--require-risk-gate",
         action=argparse.BooleanOptionalAction,
         default=os.getenv("V2_H2L_REQUIRE_RISK_GATE", "1").strip().lower()
         in {"1", "true", "yes", "on"},
-        help="require out-of-sample Sortino/CVaR gate before promotion",
+        help="include paired forward Sortino/CVaR non-regression diagnostics",
     )
     p.add_argument(
         "--min-sortino",
@@ -525,11 +613,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             if os.getenv("V2_H2L_MAX_CVAR_LOSS_BPS")
             else None
         ),
-        help="optional maximum allowed signed CVaR tail loss in bps, e.g. 25 blocks CVaR below -25",
+        help="legacy compatibility value; ignored by the paired diagnostic",
     )
     p.add_argument("--cache-path", default=DEFAULT_HELDOUT_CACHE)
     p.add_argument("--rebuild-cache", action="store_true")
-    p.add_argument("--confirm", action="store_true", help="actually promote (default is dry-run)")
+    p.add_argument(
+        "--confirm",
+        action="store_true",
+        help=f"fail closed with {LEGACY_H2L_MUTATION_BLOCKER}",
+    )
     p.add_argument("--output", default=None)
     return p.parse_args(argv)
 
@@ -538,6 +630,20 @@ def main(argv: list[str] | None = None) -> int:
     from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols  # noqa: PLC0415
 
     args = parse_args(argv)
+    if args.confirm:
+        report = run_h2l(
+            offline_dir=args.offline_dir,
+            live_dir=args.live_dir,
+            rows=[],
+            excluded_rows=[],
+            min_improvement=args.min_improvement,
+            confirm=True,
+            require_risk_gate=bool(args.require_risk_gate),
+            min_sortino=float(args.min_sortino),
+            max_cvar_loss_bps=args.max_cvar_loss_bps,
+        )
+        print(json.dumps(report, indent=2, default=str))
+        return 0
     rows, excluded_rows, load_meta = load_h2l_heldout_examples(
         symbols=resolve_symbols(explicit=args.symbols, smoke_test=args.smoke_test),
         timeframes=args.timeframes.split(","),

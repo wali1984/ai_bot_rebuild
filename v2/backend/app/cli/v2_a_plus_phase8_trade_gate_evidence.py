@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish A+ Phase 8 zero-tolerance trade-gate evidence artifacts."""
+"""Publish Phase 8 synthetic, non-runtime trade-gate contract tests."""
 from __future__ import annotations
 
 import argparse
@@ -7,12 +7,12 @@ import json
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "v2/backend"))
 
 from v2.backend.app.services.native_trainer.a_plus_phase8_trade_gate import (  # noqa: E402
+    CONTRACT_TEST_PASSED,
     GOAL_ID,
     write_phase8_a_plus_gate_artifacts,
 )
@@ -43,8 +43,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(status, indent=2, sort_keys=True))
     else:
-        print(json.dumps({"status": status["status"], "pass_conditions": status["pass_conditions"]}, sort_keys=True))
-    return 0 if status["status"] == "A_PLUS_ZERO_TOLERANCE_GATE_READY" else 2
+        print(
+            json.dumps(
+                {
+                    "status": status["status"],
+                    "contract_test_conditions": status["contract_test_conditions"],
+                    "canonical_runtime_ready": status["canonical_runtime_ready"],
+                },
+                sort_keys=True,
+            )
+        )
+    return 0 if status["status"] == CONTRACT_TEST_PASSED else 2
 
 
 if __name__ == "__main__":

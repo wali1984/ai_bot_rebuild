@@ -2,12 +2,13 @@
 
 Purpose
 -------
-The online streaming loop spends ~60s/cycle *building* 16k examples on the CPU
-and only ~17s training, so the RTX 5080 sits at <10% utilisation. This tool
-decouples the two: it builds a large trusted-example set from the replay archive
-**once**, caches it to disk, then runs many GPU gradient steps at a large batch
-size so the GPU actually saturates. It measures GPU utilisation and throughput so
-the speed-up is *verified*, not assumed.
+The online streaming loop spends most of its cycle building examples on the CPU.
+This tool decouples the two: it builds an isolated trusted-example view from the
+durable replay archive, then runs many GPU gradient steps at a large batch size.
+It measures GPU utilisation and throughput so the speed-up is verified, not
+assumed. Legacy Python-object example caches are deliberately ignored: the
+durable archive is rebuilt on every invocation instead of deserializing an
+untrusted executable object graph.
 
 Safety / boundaries
 --------------------
@@ -28,7 +29,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import pickle
 import threading
 import time
 from pathlib import Path
@@ -42,7 +42,9 @@ from v2.backend.app.cli.v2_trainer_offline_hyperparameter_sweep import (
 
 LIVE_CHECKPOINT_DIR = ".local_models/v2_native_rl_masa_ppo"
 DEFAULT_OFFLINE_DIR = ".local_models/v2_native_rl_masa_ppo_offline"
+# Compatibility-only CLI value. Files at this path are never read or written.
 DEFAULT_CACHE_PATH = "claude_worklog/trainer_atlas/offline_batch_example_cache.pkl"
+LEGACY_OBJECT_CACHE_BLOCKER = "LEGACY_OBJECT_CACHE_DESERIALIZATION_QUARANTINED"
 
 
 # ─────────────────────────────── GPU sampler ────────────────────────────────
@@ -247,40 +249,34 @@ def load_or_build_examples(
     cache_path: str | None,
     rebuild_cache: bool,
 ) -> tuple[list[Any], dict[str, Any]]:
-    """Load trusted examples, using a pickle cache to skip the slow archive build.
+    """Build trusted examples from an isolated durable-archive view.
 
-    Returns ``(examples, load_meta)``. The cache stores the actual
-    ``TrainingExample`` objects so subsequent runs pay ~0s instead of the ~60s
-    per-16k-rows archive/feature build the online loop pays every cycle.
+    ``cache_path`` and ``rebuild_cache`` remain accepted for installed-unit and
+    operator CLI compatibility.  The legacy cache contained executable Python
+    object graphs and therefore cannot be authenticated as immutable trainer
+    input.  It is never opened, decoded, overwritten, or deleted.  Telemetry
+    explicitly records that the durable archive was rebuilt instead.
 
     Reads go through an independent archive view (see
     ``build_independent_archive_view``) so the live trainer's replay cursor is
     never advanced.
     """
-    meta: dict[str, Any] = {"cache_path": cache_path, "cache_hit": False}
-    if cache_path and not rebuild_cache and Path(cache_path).exists():
-        started = time.perf_counter()
-        with open(cache_path, "rb") as fh:
-            examples = pickle.load(fh)
-        # Arch-fingerprint guard: a cache built under an older FEATURE_SPEC has
-        # the wrong model_vector width and silently poisons H2L with
-        # cross-arch aborts. Auto-invalidate instead of relying on manual purges.
-        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (  # noqa: PLC0415
-            FEATURE_SPEC,
-        )
-        expected_dim = len(FEATURE_SPEC) * 4
-        if examples and len(examples[0].tensor.model_vector) != expected_dim:
-            meta["cache_dim_mismatch_rebuild"] = {
-                "cached_dim": len(examples[0].tensor.model_vector),
-                "expected_dim": expected_dim,
-            }
-        else:
-            meta["cache_hit"] = True
-            meta["load_seconds"] = round(time.perf_counter() - started, 3)
-            meta["examples"] = len(examples)
-            return examples, meta
+    legacy_cache_present = bool(cache_path and Path(cache_path).is_file())
+    meta: dict[str, Any] = {
+        "cache_path": cache_path,
+        "cache_hit": False,
+        "cache_read_attempted": False,
+        "cache_write_attempted": False,
+        "legacy_object_cache_present": legacy_cache_present,
+        "legacy_object_cache_ignored": legacy_cache_present,
+        "legacy_object_cache_blocker": LEGACY_OBJECT_CACHE_BLOCKER,
+        "rebuild_cache_requested": bool(rebuild_cache),
+        "durable_archive_rebuilt": True,
+        "external_object_deserialization_used": False,
+    }
 
     import tempfile  # noqa: PLC0415
+
     from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (  # noqa: PLC0415
         default_archive_root,
     )
@@ -337,11 +333,6 @@ def load_or_build_examples(
             stagnation = 0
     meta["load_seconds"] = round(time.perf_counter() - started, 3)
     meta["examples"] = len(examples)
-    if cache_path and examples:
-        Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-        with open(cache_path, "wb") as fh:
-            pickle.dump(examples, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        meta["cache_written"] = True
     return examples, meta
 
 
@@ -475,15 +466,35 @@ def run_batch_training(
             os.environ["V2_TRAINER_DROPOUT"] = prev_dropout
 
     if from_checkpoint:
-        try:
-            from pathlib import Path as _P  # noqa: PLC0415
-            from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (  # noqa: PLC0415
-                V2HybridCheckpointManager,
-            )
+        from pathlib import Path as _P  # noqa: PLC0415
 
-            V2HybridCheckpointManager(_P(LIVE_CHECKPOINT_DIR)).load_latest_weights(model)
-        except Exception:  # pragma: no cover - warm start is best-effort
-            pass
+        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (  # noqa: PLC0415
+            V2HybridCheckpointManager,
+        )
+        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint_lifecycle import (  # noqa: PLC0415
+            VERIFIED_SERVING_LINEAGE,
+        )
+
+        warm_start = V2HybridCheckpointManager(
+            _P(LIVE_CHECKPOINT_DIR)
+        ).load_latest_weights(
+            model,
+            allowed_lineage_kinds=frozenset({VERIFIED_SERVING_LINEAGE}),
+        )
+        required_warm_start = (
+            warm_start.get("latest_checkpoint_loadable") is True
+            and warm_start.get("model_state_restored") is True
+            and warm_start.get("checkpoint_identity_verified") is True
+            and warm_start.get("checkpoint_evidence_verified") is True
+            and warm_start.get("weight_file_sha256_verified") is True
+            and warm_start.get("lineage_kind") == VERIFIED_SERVING_LINEAGE
+        )
+        if not required_warm_start:
+            raise ValueError(
+                "offline warm-start requires an integrity-verified canonical "
+                "serving checkpoint: "
+                + json.dumps(warm_start, sort_keys=True, default=str)
+            )
 
     trainer = V2HybridPPOTrainer(
         model=model,

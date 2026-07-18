@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from app.cli import v2_trainer_offline_batch_train as bt
 
 
@@ -59,6 +58,64 @@ def test_gpu_sampler_reports_gracefully_without_samples() -> None:
     report = sampler.report()
     assert report["samples"] == 0
     assert report["gpu_utilization_mean_pct"] is None
+
+
+def test_legacy_object_cache_is_never_deserialized_or_overwritten(
+    monkeypatch, tmp_path: Path
+) -> None:
+    from v2.backend.app.services.native_trainer import (
+        durable_feature_snapshot_archive as archive_mod,
+    )
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+        data_loader as data_loader_mod,
+    )
+
+    malicious = b"\x80\x04cos\nsystem\n(S'forbidden'\ntR."
+    cache = tmp_path / "legacy-cache.pkl"
+    cache.write_bytes(malicious)
+    archive = tmp_path / "archive"
+    archive.mkdir()
+    (archive / "manifest.jsonl").write_text("{}\n", encoding="utf-8")
+
+    example = object()
+
+    class FakeLoader:
+        def __init__(self, *, trusted_replay_archive_root):
+            assert trusted_replay_archive_root != archive
+
+        def load_training_examples(self, **_kwargs):
+            return []
+
+        def load_trusted_replay_examples(self, *, limit):
+            return [example] if limit else []
+
+    monkeypatch.setattr(archive_mod, "default_archive_root", lambda: archive)
+    monkeypatch.setattr(data_loader_mod, "V2HybridTrainerDataLoader", FakeLoader)
+
+    examples, meta = bt.load_or_build_examples(
+        symbols=["BTCUSDT"],
+        timeframes=["1m"],
+        limit=1,
+        cache_path=str(cache),
+        rebuild_cache=False,
+    )
+
+    assert examples == [example]
+    assert cache.read_bytes() == malicious
+    assert meta["cache_hit"] is False
+    assert meta["cache_read_attempted"] is False
+    assert meta["cache_write_attempted"] is False
+    assert meta["legacy_object_cache_ignored"] is True
+    assert meta["legacy_object_cache_blocker"] == bt.LEGACY_OBJECT_CACHE_BLOCKER
+    assert meta["external_object_deserialization_used"] is False
+
+
+def test_offline_batch_module_has_no_unsafe_object_cache_api() -> None:
+    source = Path(bt.__file__).read_text(encoding="utf-8")
+    assert "import pickle" not in source
+    assert "pickle.load(" not in source
+    assert "pickle.loads(" not in source
+    assert "pickle.dump(" not in source
 
 
 def test_run_batch_training_rejects_empty_examples() -> None:

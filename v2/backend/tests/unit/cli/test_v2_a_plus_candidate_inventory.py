@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import copy
 import fnmatch
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 from v2.backend.app.cli.v2_a_plus_candidate_inventory import (
     EXPLORATION_MATERIALIZATION_QUEUE_KEY,
@@ -140,6 +143,84 @@ class FakeRedis:
         for key in sorted(self.data):
             if fnmatch.fnmatch(key, match):
                 yield key
+
+
+def _install_canonical_decision_records(
+    client: FakeRedis,
+    row: dict,
+    *,
+    include_indexes: bool = True,
+    generated_utc: str | None = None,
+    expires_at: str | None = None,
+) -> None:
+    risk_decision_id = row["risk_decision_id"]
+    orchestrator_decision_id = row["orchestrator_decision_id"]
+    candidate_id = row["candidate_id"]
+    signal_id = row["signal_id"]
+    generated_utc = generated_utc or _past_iso(minutes=1)
+    expires_at = expires_at or _future_iso(seconds=600)
+    risk_key = f"v2:decision:risk:{risk_decision_id}"
+    orchestrator_key = f"v2:decision:orchestrator:{orchestrator_decision_id}"
+    client.data[risk_key] = {
+        "schema_version": "v2_per_id_risk_decision_record_v1",
+        "risk_decision_id": risk_decision_id,
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "candidate_id": candidate_id,
+        "signal_id": signal_id,
+        "prediction_id": row["prediction_id"],
+        "symbol": row["symbol"],
+        "timeframe": row["timeframe"],
+        "side": row["side"],
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "decision": "PASS",
+        "risk_action": "PASS",
+        "generated_utc": generated_utc,
+        "expires_at": expires_at,
+        "producer": "v2_risk_gateway_live_loop",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_gate": "blocked_human_only",
+    }
+    orchestrator_action = (
+        "proceed_long" if row["side"] == "long" else "proceed_short"
+    )
+    client.data[orchestrator_key] = {
+        "schema_version": "v2_per_id_orchestrator_decision_record_v1",
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "decision_id": orchestrator_decision_id,
+        "candidate_id": candidate_id,
+        "signal_id": signal_id,
+        "prediction_id": row["prediction_id"],
+        "symbol": row["symbol"],
+        "timeframe": row["timeframe"],
+        "side": row["side"],
+        "feature_vector_hash": row.get("feature_vector_hash"),
+        "decision": orchestrator_action,
+        "orchestrator_action": orchestrator_action,
+        "generated_utc": generated_utc,
+        "expires_at": expires_at,
+        "producer": "v2_orchestrator_arbitration_loop",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "live_gate": "blocked_human_only",
+    }
+    if not include_indexes:
+        return
+    index_payload = {
+        "schema_version": "v2_canonical_decision_index_v1",
+        "candidate_id": candidate_id,
+        "signal_id": signal_id,
+        "risk_decision_id": risk_decision_id,
+        "risk_decision_record_key": risk_key,
+        "orchestrator_decision_id": orchestrator_decision_id,
+        "orchestrator_decision_record_key": orchestrator_key,
+        "producer": "v2_risk_gateway_live_loop",
+        "owner_written_sentinel": True,
+    }
+    client.data[f"v2:decision:index:by_candidate:{candidate_id}"] = dict(index_payload)
+    client.data[f"v2:decision:index:by_signal:{signal_id}"] = dict(index_payload)
 
 
 class StrategySupplyRedis(FakeRedis):
@@ -372,6 +453,7 @@ class PaperExplorationRedis(FakeRedis):
                     "market_state_integrity_score": 91.0,
                     "trade_tape_confirmation_score": 0.87,
                     "provider_feature_hashes": {"binance": "hash-binance", "coinank": "hash-coinank"},
+                    "feature_vector_hash": "hash-paper-explore",
                     "provider_features_used": ["binance", "coinank"],
                     "bucket_evidence_count": 35,
                     "bucket_profit_factor": 1.3,
@@ -393,6 +475,10 @@ class PaperExplorationRedis(FakeRedis):
             "confidence_raw": 0.86,
             "confidence_calibrated": 0.84,
         }
+        _install_canonical_decision_records(
+            self,
+            self.data["v2:paper:preemptive_candidate_decision_matrix"]["rows"][0],
+        )
 
 
 class PaperExplorationStaleSourceRedis(PaperExplorationRedis):
@@ -1529,6 +1615,111 @@ def test_paper_risk_controller_exploration_inventory_is_paper_only(tmp_path: Pat
     assert result["summary"]["paper_risk_controller_exploration_paper_accepted_rows"] == 1
 
 
+def test_inventory_before_canonical_producers_cannot_create_or_index_decisions(
+    tmp_path: Path,
+) -> None:
+    client = PaperExplorationRedis()
+    for key in list(client.data):
+        if key.startswith("v2:decision:"):
+            client.data.pop(key)
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    assert not any(key.startswith("v2:decision:") for key in client.data)
+    row = next(row for row in result["rows"] if row["candidate_id"] == "cand-paper-explore")
+    assert row["canonical_decision_records_resolved"] is False
+    assert row["canonical_decision_request_only"] is True
+    assert row["non_executable_request_telemetry"] is True
+    assert row["paper_exploration_paper_fill_allowed"] is False
+    assert row["paper_exploration_materialization_queue_ready"] is False
+    assert row["paper_exploration_current_blocker"] == (
+        "CANONICAL_DECISION_PRODUCERS_PENDING"
+    )
+    status = result["summary"]["paper_exploration_materialization_queue_status"]
+    observer = status["canonical_decision_observer"]
+    assert observer["consumer_role"] == "READ_ONLY_CANONICAL_DECISION_OBSERVER"
+    assert observer["canonical_records_written"] == 0
+    assert observer["canonical_indexes_written"] == 0
+    assert observer["canonical_index_claimed"] is False
+    assert observer["request_telemetry_count"] == 1
+    assert status["queued_count"] == 0
+    assert status["canonical_executable_row_count"] == 0
+    assert status["canonical_decision_request_count"] == 1
+    assert status["exact_no_fill_reason"] == "CANONICAL_DECISION_PRODUCERS_PENDING"
+    queue = client.data[EXPLORATION_MATERIALIZATION_QUEUE_KEY]
+    assert queue["rows"] == []
+    assert queue["request_rows_executable"] is False
+    assert queue["request_rows"][0]["paper_fill_allowed"] is False
+    assert queue["request_rows"][0]["valid_for_paper"] is False
+    assert queue["request_rows"][0]["paper_signal"]["paper_fill_allowed"] is False
+    assert queue["request_rows"][0]["paper_signal"]["valid_for_paper"] is False
+
+
+def test_inventory_preserves_exact_canonical_producer_records_and_indexes(
+    tmp_path: Path,
+) -> None:
+    client = PaperExplorationRedis()
+    canonical_before = {
+        key: copy.deepcopy(value)
+        for key, value in client.data.items()
+        if key.startswith("v2:decision:")
+    }
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    canonical_after = {
+        key: value
+        for key, value in client.data.items()
+        if key.startswith("v2:decision:")
+    }
+    assert canonical_after == canonical_before
+    status = result["summary"]["paper_exploration_materialization_queue_status"]
+    assert status["canonical_executable_row_count"] == 1
+    assert status["canonical_decision_request_count"] == 0
+    assert status["canonical_decision_observer"]["risk_records_resolved"] == 1
+    assert status["canonical_decision_observer"]["orchestrator_records_resolved"] == 1
+    assert status["canonical_decision_observer"]["canonical_records_written"] == 0
+    assert status["canonical_decision_observer"]["canonical_indexes_written"] == 0
+    assert status["canonical_decision_observer"][
+        "canonical_namespace_cleanup_required"
+    ] is False
+
+
+def test_inventory_rejects_non_owner_record_without_overwriting_it(tmp_path: Path) -> None:
+    client = PaperExplorationRedis()
+    risk_key = "v2:decision:risk:risk-paper-explore"
+    client.data[risk_key]["producer"] = "v2_a_plus_candidate_inventory"
+    canonical_before = {
+        key: copy.deepcopy(value)
+        for key, value in client.data.items()
+        if key.startswith("v2:decision:")
+    }
+
+    result = build_inventory(client=client, output_dir=tmp_path, max_prediction_keys=20)
+
+    canonical_after = {
+        key: value
+        for key, value in client.data.items()
+        if key.startswith("v2:decision:")
+    }
+    assert canonical_after == canonical_before
+    row = next(row for row in result["rows"] if row["candidate_id"] == "cand-paper-explore")
+    assert row["canonical_decision_records_resolved"] is False
+    assert row["paper_exploration_paper_fill_allowed"] is False
+    assert "RISK_CANONICAL_DECISION_PRODUCER_MISMATCH" in row[
+        "canonical_decision_request_reasons"
+    ]
+    status = result["summary"]["paper_exploration_materialization_queue_status"]
+    assert status["queued_count"] == 0
+    assert status["canonical_decision_request_count"] == 1
+    assert status["canonical_decision_observer"][
+        "canonical_namespace_cleanup_required"
+    ] is True
+    assert status["canonical_decision_observer"][
+        "canonical_namespace_cleanup_policy"
+    ] == "OPERATOR_REVIEW_REQUIRED_INVENTORY_NEVER_OVERWRITES_OR_DELETES"
+
+
 def test_paper_exploration_short_unfavorable_signed_move_not_queued(tmp_path: Path) -> None:
     result = build_inventory(
         client=PaperExplorationShortUnfavorableRedis(),
@@ -1842,10 +2033,14 @@ def test_paper_exploration_broad_global_halt_stays_advisory(tmp_path: Path) -> N
     assert queue_status["active_rows"][0]["invariant_checks"]["routes_to_live_is_false"] is True
     per_id_store = queue_status["per_id_decision_store"]
     assert per_id_store["implemented"] is True
-    assert per_id_store["risk_records_written"] == 1
+    assert per_id_store["consumer_role"] == "READ_ONLY_CANONICAL_DECISION_OBSERVER"
+    assert per_id_store["risk_records_written"] == 0
     assert per_id_store["risk_records_resolved"] == 1
-    assert per_id_store["orchestrator_records_written"] == 1
+    assert per_id_store["orchestrator_records_written"] == 0
     assert per_id_store["orchestrator_records_resolved"] == 1
+    assert per_id_store["canonical_records_written"] == 0
+    assert per_id_store["canonical_indexes_written"] == 0
+    assert per_id_store["canonical_index_claimed"] is False
     assert per_id_store["missing_record_count"] == 0
     risk_key = "v2:decision:risk:risk-paper-explore"
     orchestrator_key = "v2:decision:orchestrator:orch-paper-explore"
@@ -1872,6 +2067,8 @@ def test_paper_exploration_broad_global_halt_stays_advisory(tmp_path: Path) -> N
     by_signal = client.data["v2:decision:index:by_signal:sig-paper-explore"]
     assert by_signal["risk_decision_id"] == "risk-paper-explore"
     assert by_signal["orchestrator_decision_id"] == "orch-paper-explore"
+    assert by_candidate["owner_written_sentinel"] is True
+    assert by_signal["owner_written_sentinel"] is True
     assert PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY not in client.data
 
 
@@ -1930,7 +2127,9 @@ def test_paper_exploration_mature_confidence_regime_halt_blocks_prequeue(
     assert result["summary"]["paper_exploration_materialization_queue_rows"] == 0
 
 
-def test_materialization_queue_preserves_unresolved_previous_rows(tmp_path: Path) -> None:
+def test_materialization_queue_quarantines_unresolved_previous_rows_as_requests(
+    tmp_path: Path,
+) -> None:
     client = PaperExplorationBroadGlobalHaltRedis()
     preserved_row = {
         "queue_id": "paper_exploration_materialize_preserved-candidate",
@@ -2017,38 +2216,28 @@ def test_materialization_queue_preserves_unresolved_previous_rows(tmp_path: Path
     queue_payload = client.data[EXPLORATION_MATERIALIZATION_QUEUE_KEY]
 
     assert queue_status["accepted_dry_run_rows"] == 1
-    assert queue_status["preserved_previous_queue_count"] == 1
-    assert queue_status["queued_count"] == 2
-    assert queue_status["per_id_decision_store"]["risk_records_resolved"] == 2
-    assert queue_status["per_id_decision_store"]["orchestrator_records_resolved"] == 2
-    assert queue_status["per_id_decision_store"]["missing_record_count"] == 0
+    assert queue_status["preserved_previous_queue_count"] == 0
+    assert queue_status["queued_count"] == 1
+    assert queue_status["per_id_decision_store"]["risk_records_resolved"] == 1
+    assert queue_status["per_id_decision_store"]["orchestrator_records_resolved"] == 1
+    assert queue_status["per_id_decision_store"]["missing_record_count"] == 2
     assert {row["candidate_id"] for row in queue_status["active_rows"]} == {
         "cand-paper-explore",
-        "preserved-candidate",
     }
-    preserved_status = next(
-        row
-        for row in queue_status["active_rows"]
-        if row["candidate_id"] == "preserved-candidate"
-    )
-    assert (
-        preserved_status["materialization_queue_preserved_from_previous_queue"]
-        is True
-    )
-    assert preserved_status["raw_safety_fields"]["routes_to_live"] is False
-    assert preserved_status["invariant_checks"]["routes_to_live_is_false"] is True
-    assert preserved_status["risk_decision_record_resolved"] is True
-    assert preserved_status["orchestrator_decision_record_resolved"] is True
+    assert queue_status["canonical_decision_request_count"] == 1
+    request = queue_status["canonical_decision_request_rows"][0]
+    assert request["candidate_id"] == "preserved-candidate"
+    assert request["canonical_decision_request_only"] is True
+    assert request["non_executable_request_telemetry"] is True
+    assert request["paper_fill_allowed"] is False
+    assert request["routes_to_live"] is False
     assert {row["candidate_id"] for row in queue_payload["rows"]} == {
         "cand-paper-explore",
-        "preserved-candidate",
     }
-    assert client.data["v2:decision:risk:rd-preserved-candidate"][
-        "candidate_id"
-    ] == "preserved-candidate"
-    assert client.data["v2:decision:orchestrator:dec-preserved-candidate"][
-        "candidate_id"
-    ] == "preserved-candidate"
+    assert queue_payload["request_rows"][0]["candidate_id"] == "preserved-candidate"
+    assert queue_payload["request_rows"][0]["valid_for_paper"] is False
+    assert "v2:decision:risk:rd-preserved-candidate" not in client.data
+    assert "v2:decision:orchestrator:dec-preserved-candidate" not in client.data
 
 
 def test_paper_exploration_materialization_queue_does_not_extend_source_expiry() -> None:
@@ -2169,6 +2358,12 @@ def test_materialization_queue_accepts_at_publish_time_without_extending_source_
         "liquidation_buffer_usd": 24.0,
         "current_price": 8.1,
     }
+    _install_canonical_decision_records(
+        client,
+        row,
+        generated_utc="2026-07-10T03:00:20.000Z",
+        expires_at="2026-07-10T05:00:20.000Z",
+    )
 
     status = _publish_materialization_queue(
         client,
@@ -2196,12 +2391,13 @@ def test_materialization_queue_accepts_at_publish_time_without_extending_source_
     assert queued["source_age_seconds_at_acceptance"] == 39
     assert status["per_id_decision_store"]["risk_records_resolved"] == 1
     assert status["per_id_decision_store"]["orchestrator_records_resolved"] == 1
-    assert client.data["v2:decision:risk:rd-visible-queue-time"][
-        "generated_utc"
-    ] == queue_published_at
+    assert status["per_id_decision_store"]["canonical_records_written"] == 0
+    assert client.data["v2:decision:risk:rd-visible-queue-time"]["producer"] == (
+        "v2_risk_gateway_live_loop"
+    )
     assert client.data["v2:decision:orchestrator:dec-visible-queue-time"][
-        "generated_utc"
-    ] == queue_published_at
+        "producer"
+    ] == "v2_orchestrator_arbitration_loop"
 
 
 def test_paper_exploration_stale_source_not_queued_and_gets_counterfactual(

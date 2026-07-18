@@ -1,4 +1,4 @@
-"""Scheduled offline historical pretrain + out-of-sample-gated H2L promotion.
+"""Scheduled offline historical pretrain diagnostics.
 
 Purpose (the GPU-utilisation answer): the online loop is data-build-bound and
 does NOT need to saturate the GPU. The heavy GPU work belongs in periodic OFFLINE
@@ -11,16 +11,19 @@ Flow (all paper/shadow, live gate stays blocked_human_only):
 1. Load a disjoint split from the archive: a training PREFIX + a held-out SUFFIX.
 2. Pretrain the real V2HybridPPOTrainer on the PREFIX (early-stop on best val),
    at the live architecture (hidden/residual from env), save to the offline dir.
-3. Head-to-head: score offline vs current live checkpoint on the DISJOINT held-out
-   suffix (out-of-sample). Refuse promotion unless offline generalises better.
-4. --auto-promote (default OFF): back up the live dir + promote if it won.
-   --auto-restart (default OFF): restart the trainer so it loads the promotion.
-   Default is evaluate-and-publish only (operator decides).
-5. Publish status to Redis + a worklog file.
+3. Head-to-head: score offline vs current serving checkpoint on the disjoint
+   held-out suffix as a paper-only diagnostic.
+4. Publish status to Redis + a worklog file.
 
-Guardrails honoured: no venv mutation (core torch only), env-gated, out-of-sample
-promotion only, never loosens a gate, no order/leverage/margin, stays inside
-native_trainer + cli/v2_trainer_offline_* surfaces.
+The installed legacy unit historically supplied ``--auto-promote`` and
+``--auto-restart``. Either flag now fails closed before data loading, training,
+checkpoint access, or service control. Serving mutation belongs exclusively to
+the canonical persistent trainer checkpoint lifecycle.
+
+Guardrails honoured: no venv mutation (core torch only), env-gated,
+out-of-sample comparison only, legacy promotion quarantined, never loosens a
+gate, no order/leverage/margin, stays inside native_trainer +
+cli/v2_trainer_offline_* surfaces.
 """
 from __future__ import annotations
 
@@ -29,20 +32,26 @@ import json
 import os
 import subprocess
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.cli.v2_trainer_h2l_promote import (
+    LEGACY_H2L_MUTATION_BLOCKER,
+    PROMOTION_CONTRACT_BLOCKERS,
+    load_h2l_heldout_examples,
+    run_h2l,
+)
 from v2.backend.app.cli.v2_trainer_offline_batch_train import (
     DEFAULT_OFFLINE_DIR,
     LIVE_CHECKPOINT_DIR,
     run_batch_training,
     save_offline_weights,
 )
-from v2.backend.app.cli.v2_trainer_h2l_promote import load_h2l_heldout_examples, run_h2l
 
 STATUS_REDIS_KEY = "v2:trainer:scheduled_pretrain:status"
-TRAINER_SERVICE = "ai-bot-v2-native-cuda-trainer-persistent.service"
+STATUS_TTL_ENV = "V2_TRAINER_SCHEDULED_PRETRAIN_STATUS_TTL_SECONDS"
+SCHEDULE_CADENCE_ENV = "V2_TRAINER_SCHEDULED_PRETRAIN_CADENCE_SECONDS"
 
 
 def _utc_now() -> str:
@@ -63,6 +72,23 @@ def _env_float_or_none(name: str) -> float | None:
     return float(raw)
 
 
+def _status_ttl_seconds() -> int:
+    """Expire the current diagnostic relative to its operational cadence."""
+    cadence_raw = os.getenv(SCHEDULE_CADENCE_ENV, "21600")
+    ttl_raw = os.getenv(STATUS_TTL_ENV)
+    try:
+        cadence_seconds = int(cadence_raw)
+    except (TypeError, ValueError):
+        cadence_seconds = 0
+    try:
+        ttl_seconds = int(ttl_raw) if ttl_raw not in (None, "") else cadence_seconds * 2
+    except (TypeError, ValueError):
+        ttl_seconds = 0
+    if cadence_seconds <= 0 or ttl_seconds <= 0:
+        raise ValueError("scheduled_pretrain_status_cadence_or_ttl_invalid")
+    return ttl_seconds
+
+
 def _gpu_free_vram_mb() -> float | None:
     """Free VRAM on GPU 0 via nvidia-smi; None when telemetry is unavailable."""
     try:
@@ -78,12 +104,31 @@ def _gpu_free_vram_mb() -> float | None:
 
 def _publish(status: dict[str, Any]) -> None:
     try:
-        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO  # noqa: PLC0415
+        from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import (
+            V2OnlyJsonIO,  # noqa: PLC0415
+        )
         from v2.backend.app.services.native_trainer.persistent_cuda_trainer_runtime import (  # noqa: PLC0415
             connect_redis,
         )
 
-        V2OnlyJsonIO(client=connect_redis()).set_json(STATUS_REDIS_KEY, status)
+        ttl_seconds = _status_ttl_seconds()
+        published_at = datetime.now(timezone.utc)
+        payload = {
+            **status,
+            "status_scope": "NONCANONICAL_SCHEDULED_PRETRAIN_DIAGNOSTIC",
+            "runtime_readiness_authority": False,
+            "serving_checkpoint_authority": False,
+            "published_utc": published_at.isoformat().replace("+00:00", "Z"),
+            "expires_at": (published_at + timedelta(seconds=ttl_seconds))
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "ttl_seconds": ttl_seconds,
+        }
+        V2OnlyJsonIO(client=connect_redis()).set_json_expiring(
+            STATUS_REDIS_KEY,
+            payload,
+            ex=ttl_seconds,
+        )
     except Exception:  # pragma: no cover - publish is best-effort telemetry
         pass
 
@@ -110,17 +155,44 @@ def run_scheduled_pretrain(
     max_cvar_loss_bps: float | None,
 ) -> dict[str, Any]:
     started = time.time()
-    # Refresh the example cache when it outlives the flywheel cadence: a frozen
-    # cache means every scheduled run retrains on the SAME rows forever, so newly
-    # archived (richer) frames never reach training -- and a feature-spec/arch
-    # change leaves a stale-dim cache that aborts H2L until manually purged.
-    cache_max_age_s = 6 * 3600.0
-    cache_file = Path(cache_path) if cache_path else None
-    cache_stale = bool(
-        cache_file is not None
-        and cache_file.exists()
-        and (time.time() - cache_file.stat().st_mtime) > cache_max_age_s
-    )
+    status: dict[str, Any] = {
+        "schema_version": "trainer_scheduled_pretrain_diagnostic_v2",
+        "generated_utc": _utc_now(),
+        "paper_only": True,
+        "places_real_order": False,
+        "routes_to_live": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "serving_checkpoint_mutated": False,
+        "service_restart_attempted": False,
+        "trainer_restarted": False,
+        "live_gate": "blocked_human_only",
+        "auto_promote_requested": bool(auto_promote),
+        "auto_restart_requested": bool(auto_restart),
+        "promotion_mutation_authorized": False,
+        "promotion_contract_verified": False,
+        "promotion_contract_blockers": list(PROMOTION_CONTRACT_BLOCKERS),
+        "require_risk_diagnostic": bool(require_risk_gate),
+        "require_risk_gate": bool(require_risk_gate),
+        "legacy_static_min_improvement_ignored": float(min_improvement),
+        "legacy_static_min_sortino_ignored": float(min_sortino),
+        "legacy_static_max_cvar_loss_bps_ignored": max_cvar_loss_bps,
+    }
+    if auto_promote or auto_restart:
+        status.update(
+            {
+                "phase": LEGACY_H2L_MUTATION_BLOCKER,
+                "promoted": False,
+                "data_load_attempted": False,
+                "training_attempted": False,
+                "offline_checkpoint_write_attempted": False,
+                "serving_checkpoint_read_attempted": False,
+                "duration_seconds": round(time.time() - started, 3),
+            }
+        )
+        _publish(status)
+        return status
+
     # Disjoint split: PREFIX (train_rows) trains the model; SUFFIX (heldout_rows)
     # scores it out-of-sample. The offline pretrain must never see the held-out.
     heldout, training_prefix, split_meta = load_h2l_heldout_examples(
@@ -129,27 +201,22 @@ def run_scheduled_pretrain(
         limit=heldout_rows,
         heldout_offset=train_rows,
         cache_path=cache_path,
-        rebuild_cache=cache_stale,
+        rebuild_cache=True,
     )
-    split_meta = {**dict(split_meta or {}), "cache_rebuilt_for_age": cache_stale}
-    status: dict[str, Any] = {
-        "schema_version": "trainer_scheduled_pretrain_status_v1",
-        "generated_utc": _utc_now(),
+    split_meta = {
+        **dict(split_meta or {}),
+        "legacy_object_cache_read": False,
+        "durable_archive_rebuilt": True,
+    }
+    status.update({
         "training_prefix_rows": len(training_prefix),
         "heldout_rows": len(heldout),
         "split_meta": split_meta,
-        "paper_only": True,
-        "places_real_order": False,
-        "routes_to_live": False,
-        "leverage_mutated": False,
-        "margin_mutated": False,
-        "live_gate": "blocked_human_only",
-        "auto_promote": bool(auto_promote),
-        "auto_restart": bool(auto_restart),
-        "require_risk_gate": bool(require_risk_gate),
-        "min_sortino": float(min_sortino),
-        "max_cvar_loss_bps": max_cvar_loss_bps,
-    }
+        "data_load_attempted": True,
+        "training_attempted": False,
+        "offline_checkpoint_write_attempted": False,
+        "serving_checkpoint_read_attempted": False,
+    })
     if len(training_prefix) < max(64, batch_size // 4):
         status["phase"] = "ABORT_INSUFFICIENT_TRAINING_ROWS"
         _publish(status)
@@ -169,6 +236,7 @@ def run_scheduled_pretrain(
         return status
 
     # Phase 1: offline historical pretrain on the PREFIX (98% GPU on the archive).
+    status["training_attempted"] = True
     rep = run_batch_training(
         training_prefix,
         epochs=epochs,
@@ -195,6 +263,7 @@ def run_scheduled_pretrain(
         "rows_per_second": rep.get("rows_per_second"),
     }
     if model is not None:
+        status["offline_checkpoint_write_attempted"] = True
         status["pretrain"]["saved"] = save_offline_weights(model, offline_dir)
 
     # Phase 2: out-of-sample head-to-head + (gated) promotion.
@@ -204,28 +273,17 @@ def run_scheduled_pretrain(
         rows=heldout,
         excluded_rows=training_prefix,
         min_improvement=min_improvement,
-        confirm=bool(auto_promote),
+        confirm=False,
         require_risk_gate=bool(require_risk_gate),
         min_sortino=float(min_sortino),
         max_cvar_loss_bps=max_cvar_loss_bps,
     )
     status["head_to_head"] = h2l
-    status["promoted"] = bool(h2l.get("promoted"))
-
-    # Phase 3: gated restart so the resident trainer loads a promotion.
-    if status["promoted"] and auto_restart:
-        try:
-            r = subprocess.run(
-                ["systemctl", "--user", "restart", TRAINER_SERVICE],
-                capture_output=True, text=True, timeout=60, check=False,
-            )
-            status["trainer_restarted"] = r.returncode == 0
-        except Exception as exc:  # pragma: no cover
-            status["trainer_restarted"] = False
-            status["trainer_restart_error"] = str(exc)
+    status["serving_checkpoint_read_attempted"] = True
+    status["promoted"] = False
 
     status["duration_seconds"] = round(time.time() - started, 1)
-    status["phase"] = "COMPLETE"
+    status["phase"] = "COMPLETE_PAPER_DIAGNOSTIC_ONLY"
     _publish(status)
     return status
 
@@ -264,8 +322,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--offline-dir", default=DEFAULT_OFFLINE_DIR)
     p.add_argument("--live-dir", default=LIVE_CHECKPOINT_DIR)
     p.add_argument("--cache-path", default="claude_worklog/trainer_atlas/scheduled_pretrain_cache.pkl")
-    p.add_argument("--auto-promote", action="store_true", help="promote (with backup) if offline wins out-of-sample")
-    p.add_argument("--auto-restart", action="store_true", help="restart the trainer after a promotion")
+    p.add_argument(
+        "--auto-promote",
+        action="store_true",
+        help=f"fail closed with {LEGACY_H2L_MUTATION_BLOCKER}",
+    )
+    p.add_argument(
+        "--auto-restart",
+        action="store_true",
+        help=f"fail closed with {LEGACY_H2L_MUTATION_BLOCKER}",
+    )
     p.add_argument("--output", default=None)
     return p.parse_args(argv)
 

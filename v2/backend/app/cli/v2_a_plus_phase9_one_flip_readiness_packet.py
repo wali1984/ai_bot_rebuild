@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish A+ Phase 9 one-flip readiness packet evidence."""
+"""Publish the legacy Phase 9 non-authoritative execution diagnostic."""
 from __future__ import annotations
 
 import argparse
@@ -8,7 +8,6 @@ import os
 import sys
 from pathlib import Path
 from typing import Any
-
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
@@ -85,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
                     "selected_A_plus_candidate": packet["selected_A_plus_candidate"],
                     "missing_required_fields": packet.get("missing_required_fields"),
                     "live_gate": packet["live_gate"],
+                    "canonical_runtime_ready": packet["canonical_runtime_ready"],
+                    "operator_flip_sufficient": packet["operator_flip_sufficient"],
                     "order_submitted": packet["order_submitted"],
                     "test_order_submitted": packet["test_order_submitted"],
                 },

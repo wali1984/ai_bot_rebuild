@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Publish A+ Phase 1 trainer-learning evidence artifacts.
+"""Publish legacy A+ Phase 1 non-canonical trainer diagnostics.
 
-The command reads current V2 Redis/model evidence and writes JSON artifacts for
-the active A+ goal. It does not write Redis and does not touch exchange paths.
+The command reads V2 Redis/model evidence and writes non-expiring diagnostic
+JSON snapshots. These snapshots never authorize canonical runtime readiness,
+serving, paper routing, or live execution.
 """
 from __future__ import annotations
 
@@ -12,11 +13,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT))
 
 from v2.backend.app.services.native_trainer.a_plus_phase1_evidence import (  # noqa: E402
+    DIAGNOSTIC_COMPLETE,
     GOAL_ID,
     write_a_plus_phase1_trainer_artifacts,
 )
@@ -76,8 +77,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(status, indent=2, sort_keys=True))
     else:
-        print(json.dumps({"status": status["status"], "ready_conditions": status["ready_conditions"]}, sort_keys=True))
-    return 0 if status["status"] == "REPAIRED_AND_RUNTIME_CONFIRMED" else 2
+        print(
+            json.dumps(
+                {
+                    "status": status["status"],
+                    "diagnostic_conditions": status["diagnostic_conditions"],
+                    "canonical_runtime_ready": status["canonical_runtime_ready"],
+                },
+                sort_keys=True,
+            )
+        )
+    return 0 if status["status"] == DIAGNOSTIC_COMPLETE else 2
 
 
 if __name__ == "__main__":

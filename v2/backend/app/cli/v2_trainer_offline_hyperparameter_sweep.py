@@ -487,6 +487,7 @@ def main(argv: list[str] | None = None) -> int:
         timeframes=[t.strip().lower() for t in args.timeframes.split(",") if t.strip()],
         limit=args.limit,
         trusted_only=True,
+        closed_trade_only=True,
     )
     if not examples:
         print(json.dumps({"error": "no training examples loaded from replay", "offline_only": True}))

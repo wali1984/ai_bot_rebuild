@@ -4,7 +4,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from app.cli import v2_trainer_h2l_promote as h2l
 
 
@@ -23,27 +22,44 @@ def _patch_scores(monkeypatch, live_loss, offline_loss, loaded=True):
     monkeypatch.setattr(h2l, "_infer_input_dim", lambda d: 1248)
 
 
-def test_refuses_when_offline_not_better(monkeypatch) -> None:
+def test_diagnostic_reports_offline_relative_regression(monkeypatch) -> None:
     _patch_scores(monkeypatch, live_loss=70.0, offline_loss=72.0)  # offline worse
     r = h2l.run_h2l(offline_dir="x/offline", live_dir="x/live", rows=[1, 2, 3],
-                    min_improvement=1.0, confirm=True)
-    assert r["decision"] == "REFUSE_OFFLINE_NOT_BETTER"
+                    min_improvement=1.0, confirm=False)
+    assert r["decision"] == "DIAGNOSTIC_OFFLINE_RELATIVE_REGRESSION"
     assert r["promoted"] is False
+    assert r["promotion_mutation_authorized"] is False
 
 
 def test_dry_run_when_offline_better_but_not_confirmed(monkeypatch) -> None:
     _patch_scores(monkeypatch, live_loss=84.0, offline_loss=70.0)  # offline better
     r = h2l.run_h2l(offline_dir="x/offline", live_dir="x/live", rows=[1, 2, 3],
                     min_improvement=1.0, confirm=False)
-    assert r["decision"] == "DRY_RUN_OFFLINE_WINS_PASS_CONFIRM_TO_PROMOTE"
+    assert r["decision"] == "DIAGNOSTIC_OFFLINE_RELATIVE_NON_REGRESSION"
     assert r["promoted"] is False
     assert r["offline_better_by"] == 14.0
+    assert r["legacy_static_min_improvement_ignored"] == 1.0
+
+
+def test_static_improvement_floor_is_ignored_by_relative_diagnostic(monkeypatch) -> None:
+    _patch_scores(monkeypatch, live_loss=70.1, offline_loss=70.0)
+
+    report = h2l.run_h2l(
+        offline_dir="x/offline",
+        live_dir="x/live",
+        rows=[1],
+        min_improvement=1_000_000.0,
+        confirm=False,
+    )
+
+    assert report["decision"] == "DIAGNOSTIC_OFFLINE_RELATIVE_NON_REGRESSION"
+    assert report["promotion_mutation_authorized"] is False
 
 
 def test_aborts_on_load_failure(monkeypatch) -> None:
     _patch_scores(monkeypatch, live_loss=70.0, offline_loss=60.0, loaded=False)
     r = h2l.run_h2l(offline_dir="x/offline", live_dir="x/live", rows=[1],
-                    min_improvement=0.0, confirm=True)
+                    min_improvement=0.0, confirm=False)
     assert r["decision"] == "ABORT_CHECKPOINT_LOAD_FAILED_OR_SHAPE_MISMATCH"
     assert r["promoted"] is False
 
@@ -58,38 +74,48 @@ def test_safety_posture_fields_present(monkeypatch) -> None:
     assert r["live_gate"] == "blocked_human_only"
 
 
-def test_promote_refuses_if_offline_checkpoint_reload_fails(monkeypatch, tmp_path) -> None:
-    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (  # noqa: PLC0415
-        checkpoint as checkpoint_mod,
+def test_confirm_fails_before_any_checkpoint_read_or_mutation(monkeypatch) -> None:
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("quarantined confirmation must touch no checkpoint")
+
+    monkeypatch.setattr(h2l, "_infer_input_dim", forbidden)
+    monkeypatch.setattr(h2l, "_score_checkpoint", forbidden)
+    monkeypatch.setattr(h2l, "_backup_live_dir", forbidden)
+    monkeypatch.setattr(h2l, "_promote", forbidden)
+
+    report = h2l.run_h2l(
+        offline_dir="offline",
+        live_dir="live",
+        rows=[object()],
+        min_improvement=-999.0,
+        confirm=True,
     )
-    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (  # noqa: PLC0415
-        model as model_mod,
+
+    assert report["decision"] == h2l.LEGACY_H2L_MUTATION_BLOCKER
+    assert report["promoted"] is False
+    assert report["serving_checkpoint_mutated"] is False
+    assert report["service_restart_attempted"] is False
+    assert report["promotion_contract_verified"] is False
+
+
+def test_confirm_cli_fails_before_archive_load(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        h2l,
+        "load_h2l_heldout_examples",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("confirmation must not load the archive")
+        ),
     )
 
-    class FakeModel:
-        def __init__(self, *, input_dim):
-            self.input_dim = input_dim
+    assert h2l.main(["--confirm"]) == 0
+    assert h2l.LEGACY_H2L_MUTATION_BLOCKER in capsys.readouterr().out
 
-    class FakeCheckpointManager:
-        def __init__(self, _path):
-            pass
 
-        def load_latest_weights(self, _model):
-            return {
-                "latest_checkpoint_loadable": False,
-                "model_state_restored": False,
-                "load_status": "NO_COMPATIBLE_WEIGHT_BLOB_MANIFEST",
-            }
-
-        def write_checkpoint(self, **_kwargs):
-            raise AssertionError("promotion must not write if reload failed")
-
-    monkeypatch.setattr(h2l, "_infer_input_dim", lambda _path: 1248)
-    monkeypatch.setattr(model_mod, "V2HybridPolicyModel", FakeModel)
-    monkeypatch.setattr(checkpoint_mod, "V2HybridCheckpointManager", FakeCheckpointManager)
-
-    with pytest.raises(RuntimeError, match="offline checkpoint reload failed"):
+def test_legacy_promote_helper_is_unconditionally_quarantined(tmp_path) -> None:
+    with pytest.raises(RuntimeError, match=h2l.LEGACY_H2L_MUTATION_BLOCKER):
         h2l._promote(str(tmp_path / "offline"), str(tmp_path / "live"))  # noqa: SLF001
+
+    assert not (tmp_path / "live").exists()
 
 
 def _row(move):
@@ -103,10 +129,21 @@ def test_returns_from_actions_direction_mapping() -> None:
     assert h2l._returns_from_actions(rows, actions) == [10.0, -10.0, -4.0, 4.0]
 
 
-def test_returns_from_actions_missing_label_is_zero() -> None:
+def test_returns_from_actions_rejects_missing_label() -> None:
     rows = [SimpleNamespace(), _row(None), _row(5.0)]
-    # missing / None label -> 0.0 move; only the long trade contributes 5.0.
-    assert h2l._returns_from_actions(rows, [1, 2, 1]) == [0.0, -0.0, 5.0]
+    with pytest.raises(ValueError, match="H2L_MATURE_POST_COST_LABEL_MISSING"):
+        h2l._returns_from_actions(rows, [1, 2, 1])
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_returns_from_actions_rejects_nonfinite_mature_label(value) -> None:
+    with pytest.raises(ValueError, match="H2L_MATURE_POST_COST_LABEL_NONFINITE"):
+        h2l._returns_from_actions([_row(value)], [1])
+
+
+def test_returns_from_actions_rejects_cardinality_mismatch() -> None:
+    with pytest.raises(ValueError, match="H2L_ACTION_LABEL_CARDINALITY_MISMATCH"):
+        h2l._returns_from_actions([_row(1.0)], [])
 
 
 def test_returns_from_actions_all_flat_is_empty() -> None:
@@ -137,7 +174,7 @@ def test_aborts_when_heldout_rows_overlap_excluded_training_prefix(monkeypatch) 
         rows=[row],
         excluded_rows=[row],
         min_improvement=0.0,
-        confirm=True,
+        confirm=False,
     )
 
     assert r["decision"] == "ABORT_HELDOUT_OVERLAPS_TRAINING_ROWS"
@@ -196,7 +233,7 @@ def test_risk_gate_refuses_offline_with_worse_downside_even_when_loss_better(mon
         live_dir="x/live",
         rows=[1, 2, 3, 4, 5],
         min_improvement=1.0,
-        confirm=True,
+        confirm=False,
         require_risk_gate=True,
         min_sortino=0.0,
         max_cvar_loss_bps=50.0,
@@ -206,7 +243,6 @@ def test_risk_gate_refuses_offline_with_worse_downside_even_when_loss_better(mon
     assert r["decision"] == "REFUSE_RISK_ADJUSTED_PROMOTION_GATE"
     assert r["promoted"] is False
     assert "OFFLINE_SORTINO_WORSE_THAN_LIVE" in failures
-    assert "OFFLINE_CVAR_TAIL_LOSS_EXCEEDS_LIMIT" in failures
     assert "OFFLINE_CVAR_WORSE_THAN_LIVE" in failures
 
 
@@ -235,9 +271,12 @@ def test_risk_gate_passes_before_dry_run_promotion_decision(monkeypatch) -> None
         max_cvar_loss_bps=50.0,
     )
 
-    assert r["decision"] == "DRY_RUN_OFFLINE_WINS_PASS_CONFIRM_TO_PROMOTE"
+    assert r["decision"] == "DIAGNOSTIC_OFFLINE_RELATIVE_NON_REGRESSION"
     assert r["promoted"] is False
     assert r["risk_adjusted_validation"]["gate"]["passed"] is True
+    assert r["risk_adjusted_validation"]["gate"][
+        "legacy_static_max_cvar_loss_bps_ignored"
+    ] == 50.0
 
 
 def test_h2l_cli_requires_risk_gate_by_default(monkeypatch) -> None:
@@ -248,37 +287,87 @@ def test_h2l_cli_requires_risk_gate_by_default(monkeypatch) -> None:
     assert args.require_risk_gate is True
 
 
-def test_infer_input_dim_uses_newest_manifest_not_alphabetical(tmp_path) -> None:
-    """Regression: manifests accumulate across arch generations; the alphabetical
-    scan returned a stale-arch width (1832) even after a fresh 1908 candidate was
-    saved, so H2L scored both sides through the old arch slot and aborted every
-    run with ABORT_NO_VALIDATION_SIGNAL. Newest-mtime manifest must win."""
-    import json as _json
-    import os as _os
-
-    stale = tmp_path / "v2_hybrid_ckpt_28e95fec1b4b711ee41bf6a1.json"  # sorts FIRST
-    fresh = tmp_path / "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488.json"
-    stale.write_text(_json.dumps({"input_dim": 1832}))
-    fresh.write_text(_json.dumps({"input_dim": 1908}))
-    now = stale.stat().st_mtime
-    _os.utime(stale, (now - 3600, now - 3600))  # stale is an hour older
-    _os.utime(fresh, (now, now))
-    assert h2l._infer_input_dim(str(tmp_path)) == 1908
+def _verified_manifest(*, input_dim: int = 1908, checkpoint_id: str = "ckpt"):
+    return SimpleNamespace(
+        checkpoint_id=checkpoint_id,
+        input_dim=input_dim,
+        model_id="model",
+        lineage_kind="NON_SERVING_TRAINING_CANDIDATE",
+        checkpoint_generation=7,
+        checkpoint_semantic_digest="a" * 64,
+        checkpoint_causal_record_digest="b" * 64,
+    )
 
 
-def test_infer_input_dim_skips_manifests_without_dim(tmp_path) -> None:
-    """checkpoint_retention_manifest.json (no input_dim) may be the newest file;
-    it must be skipped, not treated as the candidate manifest."""
-    import json as _json
-    import os as _os
+def _verified_report(manifest):
+    return {
+        "checkpoint_artifact_verified": True,
+        "checkpoint_identity_verified": True,
+        "checkpoint_evidence_verified": True,
+        "weight_file_sha256_verified": True,
+        "model_parameter_fingerprint_verified": True,
+        "checkpoint_id": manifest.checkpoint_id,
+        "weight_file_sha256": "c" * 64,
+        "checkpoint_evidence_digest": "d" * 64,
+    }
 
-    manifest = tmp_path / "v2_hybrid_ckpt_4260cdcc506bf3393b2ac488.json"
-    retention = tmp_path / "checkpoint_retention_manifest.json"
-    manifest.write_text(_json.dumps({"input_dim": 1908}))
-    retention.write_text(_json.dumps({"retained": []}))
-    now = retention.stat().st_mtime
-    _os.utime(manifest, (now - 60, now - 60))  # retention manifest is newest
-    assert h2l._infer_input_dim(str(tmp_path)) == 1908
+
+def test_infer_input_dim_uses_causal_verified_manifest_not_mtime(monkeypatch) -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+        checkpoint as checkpoint_mod,
+    )
+
+    selected = _verified_manifest(input_dim=1908, checkpoint_id="causal-latest")
+    older = _verified_manifest(input_dim=1832, checkpoint_id="causal-older")
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def manifests(self, *, require_weight_blob):
+            assert require_weight_blob is True
+            return (selected, older)
+
+        def verify_manifest_artifact(self, manifest):
+            assert manifest is selected
+            return _verified_report(manifest)
+
+    monkeypatch.setattr(checkpoint_mod, "V2HybridCheckpointManager", FakeManager)
+
+    assert h2l._infer_input_dim("ignored") == 1908
+
+
+def test_infer_input_dim_rejects_arbitrary_json_and_mtime(tmp_path) -> None:
+    manifest = tmp_path / "v2_hybrid_ckpt_arbitrary.json"
+    manifest.write_text('{"input_dim": 1908}', encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="checkpoint_manifest_or_causal_ledger_invalid"):
+        h2l._infer_input_dim(str(tmp_path))
+
+
+def test_infer_input_dim_rejects_failed_artifact_verification(monkeypatch) -> None:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+        checkpoint as checkpoint_mod,
+    )
+
+    manifest = _verified_manifest()
+
+    class FakeManager:
+        def __init__(self, _path):
+            pass
+
+        def manifests(self, *, require_weight_blob):
+            return (manifest,)
+
+        def verify_manifest_artifact(self, _manifest):
+            report = _verified_report(manifest)
+            report["weight_file_sha256_verified"] = False
+            return report
+
+    monkeypatch.setattr(checkpoint_mod, "V2HybridCheckpointManager", FakeManager)
+
+    with pytest.raises(RuntimeError, match="identity_or_lineage_unverified"):
+        h2l._infer_input_dim("ignored")
 
 
 def test_heldout_proportional_split_when_supply_below_offset(monkeypatch) -> None:

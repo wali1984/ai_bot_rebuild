@@ -14,9 +14,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
 
 THIS_FILE = Path(__file__).resolve()
 REPO_ROOT = THIS_FILE.parents[4]
@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from v2.backend.app.services.native_trainer.dataset_builder import (  # noqa: E402
     V2OnlyReader,
+    _index_labels_by_snapshot,
     build_dataset_for_universe,
     build_quality_report,
     build_rows_from_replay_bundles,
@@ -32,7 +33,6 @@ from v2.backend.app.services.native_trainer.dataset_builder import (  # noqa: E4
     default_replay_bundles_path,
     emit_dataset_artifacts,
     load_label_rows,
-    _index_labels_by_snapshot,
 )
 
 
@@ -80,18 +80,26 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(args.repo_root).resolve()
     paths = default_dataset_paths(repo_root)
     replay_bundles_path = default_replay_bundles_path(repo_root)
+    training_observed_at = datetime.now(timezone.utc)
 
     reader = V2OnlyReader(client=None) if args.no_redis else _try_localhost_reader()
-    labels = load_label_rows(replay_bundles_path, max_rows=args.max_label_rows)
+    labels = load_label_rows(
+        replay_bundles_path,
+        max_rows=args.max_label_rows,
+        training_observed_at=training_observed_at,
+    )
     label_index = _index_labels_by_snapshot(labels)
     build_result = build_dataset_for_universe(
         reader=reader,
         label_rows_by_snapshot=label_index,
+        training_observed_at=training_observed_at,
     )
     # Augment with rows derived directly from V2 replay-outcome bundles
     # (which carry orchestrator-decision features + after-cost labels).
     replay_rows = build_rows_from_replay_bundles(
-        replay_bundles_path, max_rows=args.max_label_rows,
+        replay_bundles_path,
+        max_rows=args.max_label_rows,
+        training_observed_at=training_observed_at,
     )
     build_result.rows.extend(replay_rows)
     quality = build_quality_report(build_result.rows)

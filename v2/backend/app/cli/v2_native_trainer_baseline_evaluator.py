@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -40,14 +41,14 @@ from v2.backend.app.services.native_trainer.dataset_builder import (  # noqa: E4
     DatasetBuildResult,
     DatasetRow,
     V2OnlyReader,
+    _extract_feature_vector,  # noqa: F401  (used by row reconstruction tests)
+    _index_labels_by_snapshot,
     build_dataset_for_universe,
     build_quality_report,
     build_rows_from_replay_bundles,
     default_dataset_paths,
     default_replay_bundles_path,
     load_label_rows,
-    _extract_feature_vector,  # noqa: F401  (used by row reconstruction tests)
-    _index_labels_by_snapshot,
 )
 from v2.backend.app.services.native_trainer.packet import (  # noqa: E402
     default_packet_paths,
@@ -120,6 +121,23 @@ def _row_from_dict(d: dict[str, Any]) -> DatasetRow:
         ),
         bundle_generated_at=d.get("bundle_generated_at"),
         source_event_time=d.get("source_event_time"),
+        source_received_time=d.get("source_received_time"),
+        source_available_time=d.get("source_available_time"),
+        label_id=d.get("label_id"),
+        outcome_id=d.get("outcome_id"),
+        label_digest=d.get("label_digest"),
+        outcome_digest=d.get("outcome_digest"),
+        label_available_at=d.get("label_available_at"),
+        outcome_generated_at=d.get("outcome_generated_at"),
+        outcome_available_at=d.get("outcome_available_at"),
+        outcome_window=d.get("outcome_window"),
+        label_horizon_start=d.get("label_horizon_start"),
+        label_horizon_end=d.get("label_horizon_end"),
+        label_horizon_seconds=d.get("label_horizon_seconds"),
+        outcome_finalized=d.get("outcome_finalized"),
+        label_finalized=d.get("label_finalized"),
+        training_observed_at=d.get("training_observed_at"),
+        label_reject_reasons=list(d.get("label_reject_reasons") or []),
     )
 
 
@@ -197,15 +215,23 @@ def main(argv: list[str] | None = None) -> int:
     replay_bundles_path = default_replay_bundles_path(repo_root)
 
     if args.rebuild_dataset:
+        training_observed_at = datetime.now(timezone.utc)
         reader = V2OnlyReader(client=None) if args.no_redis else _try_localhost_reader()
-        labels = load_label_rows(replay_bundles_path, max_rows=args.max_label_rows)
+        labels = load_label_rows(
+            replay_bundles_path,
+            max_rows=args.max_label_rows,
+            training_observed_at=training_observed_at,
+        )
         label_index = _index_labels_by_snapshot(labels)
         build_result = build_dataset_for_universe(
             reader=reader,
             label_rows_by_snapshot=label_index,
+            training_observed_at=training_observed_at,
         )
         replay_rows = build_rows_from_replay_bundles(
-            replay_bundles_path, max_rows=args.max_label_rows,
+            replay_bundles_path,
+            max_rows=args.max_label_rows,
+            training_observed_at=training_observed_at,
         )
         build_result.rows.extend(replay_rows)
         quality = build_quality_report(build_result.rows)

@@ -27,6 +27,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="v2/frontend/public/operator_runtime/a_plus_phase7_exit_repair/latest",
     )
     parser.add_argument("--repair-deployed-utc", default=None)
+    parser.add_argument("--generated-utc", default=None)
+    parser.add_argument("--evidence-run-id", default=None)
+    parser.add_argument(
+        "--execution-receipt",
+        default=None,
+        help="Explicit JSON receipt from the external Phase 7 contract-test runner.",
+    )
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
 
@@ -40,11 +47,23 @@ def main(argv: list[str] | None = None) -> int:
     public_dir = Path(args.public_dir) if args.public_dir else None
     if public_dir is not None and not public_dir.is_absolute():
         public_dir = repo_root / public_dir
+    execution_receipt = None
+    if args.execution_receipt:
+        receipt_path = Path(args.execution_receipt)
+        if not receipt_path.is_absolute():
+            receipt_path = repo_root / receipt_path
+        loaded = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError("phase7_execution_receipt_must_be_json_object")
+        execution_receipt = loaded
     status = write_phase7_exit_repair_artifacts(
         repo_root=repo_root,
         goal_dir=goal_dir,
         public_dir=public_dir,
         repair_deployed_utc=args.repair_deployed_utc,
+        generated_utc=args.generated_utc,
+        evidence_run_id=args.evidence_run_id,
+        execution_receipt=execution_receipt,
     )
     if args.json:
         print(json.dumps(status, indent=2, sort_keys=True))

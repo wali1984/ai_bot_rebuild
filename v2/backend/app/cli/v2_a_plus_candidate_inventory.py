@@ -2,26 +2,24 @@
 
 This command reads runtime Redis payloads, writes inventory artifacts, and
 publishes paper-only exploration materialization queue records. It does not
-submit orders or mutate exchange state.
+submit orders or mutate exchange state. Canonical risk/orchestrator decision
+records and indexes are producer-owned inputs: inventory only observes them.
 """
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import math
 import os
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from v2.backend.app.domain.orchestrator_decision import (
-    DECISION_ACTION_OPEN_LONG,
-    DECISION_ACTION_OPEN_SHORT,
-)
 from v2.backend.app.domain.trainer_prediction_output import (
     PREDICTION_DIRECTION_FLAT,
     PREDICTION_DIRECTION_LONG,
@@ -323,10 +321,6 @@ def _decision_record_key(kind: str, decision_id: Any) -> str:
     return f"v2:decision:{kind}:{decision_id}"
 
 
-def _decision_index_key(kind: str, identity: Any) -> str:
-    return f"v2:decision:index:by_{kind}:{identity}"
-
-
 def _decision_record_matches_row(
     record: Mapping[str, Any],
     row: Mapping[str, Any],
@@ -342,175 +336,158 @@ def _decision_record_matches_row(
     timeframe = str(row.get("timeframe") or "")
     if timeframe and str(record.get("timeframe") or "") != timeframe:
         return False
-    candidate_id = _first_present(row.get("candidate_id"), row.get("prediction_id"))
-    record_candidate_id = record.get("candidate_id")
-    if candidate_id and record_candidate_id not in (None, "", candidate_id):
+    for field in ("signal_id", "prediction_id"):
+        row_value = row.get(field)
+        if row_value not in (None, "") and str(record.get(field) or "") != str(row_value):
+            return False
+    candidate_ids = {
+        str(value)
+        for value in (row.get("candidate_id"), row.get("prediction_id"))
+        if value not in (None, "")
+    }
+    if candidate_ids and str(record.get("candidate_id") or "") not in candidate_ids:
+        return False
+    row_feature_hash = _first_present(
+        row.get("feature_vector_hash"), row.get("input_feature_hash")
+    )
+    record_feature_hash = _first_present(
+        record.get("feature_vector_hash"), record.get("input_feature_hash")
+    )
+    if (row_feature_hash not in (None, "") or record_feature_hash not in (None, "")) and str(
+        row_feature_hash or ""
+    ) != str(record_feature_hash or ""):
         return False
     return True
 
 
-def _paper_exploration_risk_decision_record(
+def _strict_aware_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(timezone.utc)
+
+
+def _canonical_decision_record_rejection_reason(
+    record: Mapping[str, Any],
     row: Mapping[str, Any],
     *,
-    generated_utc: str,
-) -> dict[str, Any] | None:
-    risk_decision_id = _first_present(
-        row.get("risk_decision_id"),
-        row.get("paper_exploration_risk_decision_id"),
-    )
-    if not risk_decision_id:
-        return None
-    existing_record = _as_dict(row.get("risk_decision_record"))
-    risk_action = str(
-        _first_present(
-            row.get("risk_action"),
-            row.get("risk_decision"),
-            existing_record.get("risk_action"),
-            "PASS",
-        )
-        or "PASS"
-    )
-    reasons = _as_list(
-        _first_present(
-            row.get("risk_block_reasons"),
-            row.get("risk_controller_block_reasons"),
-            existing_record.get("risk_block_reasons"),
-            existing_record.get("reasons"),
-        )
-    )
-    return {
-        **existing_record,
-        "schema_version": "paper_exploration_per_id_risk_decision_v1",
-        "record_kind": "risk_decision",
-        "record_source": "v2_a_plus_candidate_inventory_materialization_queue",
-        "risk_decision_id": str(risk_decision_id),
-        "candidate_id": _first_present(row.get("candidate_id"), row.get("prediction_id")),
-        "signal_id": row.get("signal_id"),
-        "prediction_id": row.get("prediction_id"),
-        "symbol": row.get("symbol"),
-        "timeframe": row.get("timeframe"),
-        "side": row.get("side"),
-        "decision": risk_action,
-        "risk_action": risk_action,
-        "status": "RECORDED_FOR_PAPER_EXPLORATION",
-        "reasons": reasons,
-        "risk_block_reasons": reasons,
-        "max_loss_usd": _first_present(row.get("expected_max_loss_usd"), row.get("max_loss_usd")),
-        "liquidation_buffer_usd": _first_present(
-            row.get("liquidation_buffer_usd"),
-            row.get("expected_liquidation_buffer_usd"),
-        ),
-        "position_limit": _first_present(
-            row.get("recommended_notional_usd"),
-            row.get("target_notional_usd"),
-            row.get("target_notional_usdt"),
-        ),
-        "feature_vector_hash": row.get("feature_vector_hash"),
-        "feature_cutoff": row.get("feature_cutoff"),
-        "available_at": row.get("available_at"),
-        "decision_time": row.get("decision_time"),
-        "created_at": generated_utc,
-        "generated_utc": generated_utc,
-        "expires_at": row.get("expires_at"),
-        "model_version": _first_present(row.get("model_version"), "strategy_supply_paper_exploration"),
-        "checkpoint_hash": _first_present(row.get("checkpoint_hash"), row.get("checkpoint_id")),
-        "provider_hashes": _first_present(
-            row.get("provider_hashes"),
-            row.get("provider_feature_hashes"),
-            row.get("source_hashes"),
-        ),
-        "paper_only": True,
-        "routes_to_live": False,
-        "places_real_order": False,
-        "order_submitted": False,
-        "test_order_submitted": False,
-        "leverage_mutated": False,
-        "margin_mutated": False,
-    }
+    kind: str,
+    id_field: str,
+    decision_id: Any,
+    expected_schema: str,
+    expected_producer: str,
+    observed_at: datetime,
+) -> str | None:
+    if not record:
+        return f"{kind.upper()}_CANONICAL_DECISION_RECORD_MISSING"
+    if str(record.get("schema_version") or "") != expected_schema:
+        return f"{kind.upper()}_CANONICAL_DECISION_SCHEMA_MISMATCH"
+    if str(record.get("producer") or "") != expected_producer:
+        return f"{kind.upper()}_CANONICAL_DECISION_PRODUCER_MISMATCH"
+    if not _decision_record_matches_row(
+        record,
+        row,
+        id_field=id_field,
+        decision_id=decision_id,
+    ):
+        return f"{kind.upper()}_CANONICAL_DECISION_IDENTITY_MISMATCH"
+    if (
+        record.get("paper_only") is not True
+        or record.get("routes_to_live") is not False
+        or record.get("places_real_order") is not False
+    ):
+        return f"{kind.upper()}_CANONICAL_DECISION_SAFETY_CONTRACT_MISMATCH"
+    side = str(row.get("side") or "").strip().lower()
+    if kind == "risk":
+        action = str(
+            _first_present(record.get("risk_action"), record.get("decision")) or ""
+        ).strip().lower()
+        if action not in {"allow", "pass", "approve"}:
+            return "RISK_CANONICAL_DECISION_NOT_ALLOWING"
+    else:
+        action = str(
+            _first_present(record.get("orchestrator_action"), record.get("decision"))
+            or ""
+        ).strip().lower()
+        allowed_actions = {
+            "allow",
+            "pass",
+            "approve",
+            "open_long",
+            "open_short",
+            "proceed_long",
+            "proceed_short",
+        }
+        if action not in allowed_actions:
+            return "ORCHESTRATOR_CANONICAL_DECISION_NOT_ALLOWING"
+        if action in {"open_long", "proceed_long"} and side != "long":
+            return "ORCHESTRATOR_CANONICAL_DECISION_DIRECTION_MISMATCH"
+        if action in {"open_short", "proceed_short"} and side != "short":
+            return "ORCHESTRATOR_CANONICAL_DECISION_DIRECTION_MISMATCH"
+    generated_at = _strict_aware_utc(record.get("generated_utc"))
+    expires_at = _strict_aware_utc(record.get("expires_at"))
+    if (
+        generated_at is None
+        or expires_at is None
+        or generated_at > observed_at
+        or expires_at <= generated_at
+    ):
+        return f"{kind.upper()}_CANONICAL_DECISION_CLOCK_INVALID"
+    if expires_at <= observed_at:
+        return f"{kind.upper()}_CANONICAL_DECISION_RECORD_EXPIRED"
+    return None
 
 
-def _paper_exploration_orchestrator_decision_record(
-    row: Mapping[str, Any],
+def _mark_materialization_request_only(
+    row: dict[str, Any],
     *,
-    generated_utc: str,
-) -> dict[str, Any] | None:
-    orchestrator_decision_id = _first_present(
-        row.get("orchestrator_decision_id"),
-        row.get("paper_exploration_orchestrator_decision_id"),
-    )
-    if not orchestrator_decision_id:
-        return None
-    existing_record = _as_dict(row.get("orchestrator_decision_record"))
-    orchestrator_action = str(
-        _first_present(
-            row.get("orchestrator_action"),
-            row.get("orchestrator_decision"),
-            existing_record.get("decision_action"),
-            existing_record.get("input_decision_action"),
-            "PASS",
-        )
-        or "PASS"
-    )
-    reasons = _as_list(
-        _first_present(
-            row.get("orchestrator_block_reasons"),
-            existing_record.get("orchestrator_block_reasons"),
-            existing_record.get("reasons"),
-        )
-    )
-    return {
-        **existing_record,
-        "schema_version": "paper_exploration_per_id_orchestrator_decision_v1",
-        "record_kind": "orchestrator_decision",
-        "record_source": "v2_a_plus_candidate_inventory_materialization_queue",
-        "orchestrator_decision_id": str(orchestrator_decision_id),
-        "decision_id": str(orchestrator_decision_id),
-        "candidate_id": _first_present(row.get("candidate_id"), row.get("prediction_id")),
-        "signal_id": row.get("signal_id"),
-        "prediction_id": row.get("prediction_id"),
-        "symbol": row.get("symbol"),
-        "timeframe": row.get("timeframe"),
-        "side": row.get("side"),
-        "decision": orchestrator_action,
-        "orchestrator_action": orchestrator_action,
-        "input_decision_action": orchestrator_action,
-        "route": "PAPER_RISK_CONTROLLER_EXPLORATION",
-        "status": "RECORDED_FOR_PAPER_EXPLORATION",
-        "reasons": reasons,
-        "orchestrator_block_reasons": reasons,
-        "feature_vector_hash": row.get("feature_vector_hash"),
-        "feature_cutoff": row.get("feature_cutoff"),
-        "available_at": row.get("available_at"),
-        "decision_time": row.get("decision_time"),
-        "created_at": generated_utc,
-        "generated_utc": generated_utc,
-        "expires_at": row.get("expires_at"),
-        "model_version": _first_present(row.get("model_version"), "strategy_supply_paper_exploration"),
-        "checkpoint_hash": _first_present(row.get("checkpoint_hash"), row.get("checkpoint_id")),
-        "provider_hashes": _first_present(
-            row.get("provider_hashes"),
-            row.get("provider_feature_hashes"),
-            row.get("source_hashes"),
-        ),
-        "paper_only": True,
-        "routes_to_live": False,
-        "places_real_order": False,
-        "order_submitted": False,
-        "test_order_submitted": False,
-        "leverage_mutated": False,
-        "margin_mutated": False,
-    }
+    reasons: Iterable[str],
+) -> None:
+    exact_reasons = list(dict.fromkeys(str(reason) for reason in reasons if reason))
+    row["canonical_decision_records_resolved"] = False
+    row["canonical_decision_request_only"] = True
+    row["non_executable_request_telemetry"] = True
+    row["paper_exploration_paper_fill_allowed"] = False
+    row["paper_exploration_materialization_queue_ready"] = False
+    row["paper_exploration_current_blocker"] = "CANONICAL_DECISION_PRODUCERS_PENDING"
+    row["canonical_decision_request_reasons"] = exact_reasons
+    row["paper_fill_allowed"] = False
+    row["valid_for_paper"] = False
+    row["routes_to_live"] = False
+    row["places_real_order"] = False
+    signal = row.get("paper_signal")
+    if isinstance(signal, dict):
+        signal["paper_fill_allowed"] = False
+        signal["valid_for_paper"] = False
+        signal["canonical_decision_records_resolved"] = False
+        signal["canonical_decision_request_only"] = True
+        signal["non_executable_request_telemetry"] = True
+        signal["canonical_decision_request_reasons"] = exact_reasons
+        signal["routes_to_live"] = False
+        signal["places_real_order"] = False
 
 
-def _publish_materialization_decision_records(
+def _observe_materialization_decision_records(
     client: Any,
     rows: list[dict[str, Any]],
     *,
     generated_utc: str,
 ) -> dict[str, Any]:
+    """Resolve canonical decisions without ever owning or writing their namespace."""
+
+    observed_at = _parse_utc(generated_utc) or datetime.now(timezone.utc)
     status: dict[str, Any] = {
         "implemented": True,
-        "write_mode": "WRITE_MISSING_ONLY_PRESERVE_EXISTING",
+        "schema_version": "paper_exploration_canonical_decision_observer_v2",
+        "consumer_role": "READ_ONLY_CANONICAL_DECISION_OBSERVER",
+        "write_mode": "READ_ONLY_NEVER_MATERIALIZE_CANONICAL_RECORDS_OR_INDEXES",
+        "canonical_risk_producer": "v2_risk_gateway_live_loop",
+        "canonical_orchestrator_producer": "v2_orchestrator_arbitration_loop",
         "risk_records_written": 0,
         "risk_records_resolved": 0,
         "risk_records_missing": 0,
@@ -521,6 +498,10 @@ def _publish_materialization_decision_records(
         "orchestrator_records_mismatch": 0,
         "candidate_indexes_written": 0,
         "signal_indexes_written": 0,
+        "canonical_records_written": 0,
+        "canonical_indexes_written": 0,
+        "canonical_index_claimed": False,
+        "request_telemetry_count": 0,
         "row_count": len(rows),
         "row_status": [],
     }
@@ -543,94 +524,74 @@ def _publish_materialization_decision_records(
             "decision_record_missing_reasons": [],
         }
 
-        risk_record = _paper_exploration_risk_decision_record(row, generated_utc=generated_utc)
-        if risk_record is None:
+        risk_record: dict[str, Any] = {}
+        orchestrator_record: dict[str, Any] = {}
+        risk_decision_id = row_status["risk_decision_id"]
+        if not risk_decision_id:
             status["risk_records_missing"] += 1
             row_status["decision_record_missing_reasons"].append("RISK_DECISION_ID_MISSING")
         else:
-            risk_key = _decision_record_key("risk", risk_record["risk_decision_id"])
-            existing = _read_json(client, risk_key)
-            if isinstance(existing, Mapping) and existing:
-                if _decision_record_matches_row(
-                    existing,
-                    row,
-                    id_field="risk_decision_id",
-                    decision_id=risk_record["risk_decision_id"],
-                ):
-                    risk_record = dict(existing)
-                    status["risk_records_resolved"] += 1
-                    row_status["risk_decision_record_resolved"] = True
-                else:
-                    status["risk_records_mismatch"] += 1
-                    row_status["decision_record_missing_reasons"].append(
-                        "RISK_DECISION_RECORD_EXISTING_MISMATCH"
-                    )
-            elif _safe_redis_set(
-                client,
-                risk_key,
+            risk_key = _decision_record_key("risk", risk_decision_id)
+            risk_record = _as_dict(_read_json(client, risk_key))
+            rejection_reason = _canonical_decision_record_rejection_reason(
                 risk_record,
-                ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-            ):
-                status["risk_records_written"] += 1
+                row,
+                kind="risk",
+                id_field="risk_decision_id",
+                decision_id=risk_decision_id,
+                expected_schema="v2_per_id_risk_decision_record_v1",
+                expected_producer="v2_risk_gateway_live_loop",
+                observed_at=observed_at,
+            )
+            if rejection_reason is None:
                 status["risk_records_resolved"] += 1
                 row_status["risk_decision_record_resolved"] = True
             else:
-                status["risk_records_missing"] += 1
-                row_status["decision_record_missing_reasons"].append(
-                    "RISK_DECISION_RECORD_WRITE_FAILED"
-                )
+                if rejection_reason.endswith("_MISSING"):
+                    status["risk_records_missing"] += 1
+                else:
+                    status["risk_records_mismatch"] += 1
+                row_status["decision_record_missing_reasons"].append(rejection_reason)
             if row_status["risk_decision_record_resolved"]:
                 row_status["risk_decision_record_key"] = risk_key
                 row_status["risk_decision_record_hash"] = _record_hash(risk_record)
                 row["risk_decision_record_key"] = risk_key
                 row["risk_decision_record_hash"] = row_status["risk_decision_record_hash"]
                 row["risk_decision_record_resolved"] = True
-                row["risk_decision_source"] = "PER_ID_DECISION_RECORD"
+                row["risk_decision_source"] = "CANONICAL_PER_ID_DECISION_RECORD"
+                row["risk_decision"] = _first_present(
+                    risk_record.get("risk_action"),
+                    risk_record.get("decision"),
+                )
 
-        orchestrator_record = _paper_exploration_orchestrator_decision_record(
-            row,
-            generated_utc=generated_utc,
-        )
-        if orchestrator_record is None:
+        orchestrator_decision_id = row_status["orchestrator_decision_id"]
+        if not orchestrator_decision_id:
             status["orchestrator_records_missing"] += 1
             row_status["decision_record_missing_reasons"].append(
                 "ORCHESTRATOR_DECISION_ID_MISSING"
             )
         else:
-            orchestrator_key = _decision_record_key(
-                "orchestrator",
-                orchestrator_record["orchestrator_decision_id"],
-            )
-            existing = _read_json(client, orchestrator_key)
-            if isinstance(existing, Mapping) and existing:
-                if _decision_record_matches_row(
-                    existing,
-                    row,
-                    id_field="orchestrator_decision_id",
-                    decision_id=orchestrator_record["orchestrator_decision_id"],
-                ):
-                    orchestrator_record = dict(existing)
-                    status["orchestrator_records_resolved"] += 1
-                    row_status["orchestrator_decision_record_resolved"] = True
-                else:
-                    status["orchestrator_records_mismatch"] += 1
-                    row_status["decision_record_missing_reasons"].append(
-                        "ORCHESTRATOR_DECISION_RECORD_EXISTING_MISMATCH"
-                    )
-            elif _safe_redis_set(
-                client,
-                orchestrator_key,
+            orchestrator_key = _decision_record_key("orchestrator", orchestrator_decision_id)
+            orchestrator_record = _as_dict(_read_json(client, orchestrator_key))
+            rejection_reason = _canonical_decision_record_rejection_reason(
                 orchestrator_record,
-                ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-            ):
-                status["orchestrator_records_written"] += 1
+                row,
+                kind="orchestrator",
+                id_field="orchestrator_decision_id",
+                decision_id=orchestrator_decision_id,
+                expected_schema="v2_per_id_orchestrator_decision_record_v1",
+                expected_producer="v2_orchestrator_arbitration_loop",
+                observed_at=observed_at,
+            )
+            if rejection_reason is None:
                 status["orchestrator_records_resolved"] += 1
                 row_status["orchestrator_decision_record_resolved"] = True
             else:
-                status["orchestrator_records_missing"] += 1
-                row_status["decision_record_missing_reasons"].append(
-                    "ORCHESTRATOR_DECISION_RECORD_WRITE_FAILED"
-                )
+                if rejection_reason.endswith("_MISSING"):
+                    status["orchestrator_records_missing"] += 1
+                else:
+                    status["orchestrator_records_mismatch"] += 1
+                row_status["decision_record_missing_reasons"].append(rejection_reason)
             if row_status["orchestrator_decision_record_resolved"]:
                 row_status["orchestrator_decision_record_key"] = orchestrator_key
                 row_status["orchestrator_decision_record_hash"] = _record_hash(
@@ -641,45 +602,48 @@ def _publish_materialization_decision_records(
                     "orchestrator_decision_record_hash"
                 ]
                 row["orchestrator_decision_record_resolved"] = True
-                row["orchestrator_decision_source"] = "PER_ID_DECISION_RECORD"
+                row["orchestrator_decision_source"] = "CANONICAL_PER_ID_DECISION_RECORD"
+                row["orchestrator_decision"] = _first_present(
+                    orchestrator_record.get("orchestrator_action"),
+                    orchestrator_record.get("decision"),
+                )
 
-        index_payload = {
-            "schema_version": "paper_exploration_decision_index_v1",
-            "generated_utc": generated_utc,
-            "candidate_id": candidate_id,
-            "signal_id": signal_id,
-            "prediction_id": row.get("prediction_id"),
-            "symbol": row.get("symbol"),
-            "timeframe": row.get("timeframe"),
-            "side": row.get("side"),
-            "risk_decision_id": row_status["risk_decision_id"],
-            "risk_decision_record_key": row_status.get("risk_decision_record_key"),
-            "risk_decision_record_hash": row_status.get("risk_decision_record_hash"),
-            "orchestrator_decision_id": row_status["orchestrator_decision_id"],
-            "orchestrator_decision_record_key": row_status.get(
-                "orchestrator_decision_record_key"
-            ),
-            "orchestrator_decision_record_hash": row_status.get(
-                "orchestrator_decision_record_hash"
-            ),
-            "paper_only": True,
-            "routes_to_live": False,
-            "places_real_order": False,
-        }
-        if candidate_id and _safe_redis_set(
-            client,
-            _decision_index_key("candidate", candidate_id),
-            index_payload,
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
+        row_resolved = bool(
+            row_status["risk_decision_record_resolved"]
+            and row_status["orchestrator_decision_record_resolved"]
+        )
+        if row_resolved and str(risk_record.get("orchestrator_decision_id") or "") != str(
+            orchestrator_decision_id
         ):
-            status["candidate_indexes_written"] += 1
-        if signal_id and _safe_redis_set(
-            client,
-            _decision_index_key("signal", signal_id),
-            index_payload,
-            ex=PAPER_TRAINING_EVIDENCE_TTL_SECONDS,
-        ):
-            status["signal_indexes_written"] += 1
+            row_resolved = False
+            status["risk_records_mismatch"] += 1
+            row_status["decision_record_missing_reasons"].append(
+                "RISK_TO_ORCHESTRATOR_CANONICAL_DECISION_ID_MISMATCH"
+            )
+        row["canonical_decision_records_resolved"] = row_resolved
+        row_status["canonical_decision_records_resolved"] = row_resolved
+        row["canonical_decision_request_only"] = not row_resolved
+        row["non_executable_request_telemetry"] = not row_resolved
+        if row_resolved:
+            row["canonical_decision_request_reasons"] = []
+            signal = row.get("paper_signal")
+            if isinstance(signal, dict):
+                for field in (
+                    "risk_decision_record_key",
+                    "risk_decision_record_hash",
+                    "orchestrator_decision_record_key",
+                    "orchestrator_decision_record_hash",
+                ):
+                    signal[field] = row.get(field)
+                signal["canonical_decision_records_resolved"] = True
+                signal["canonical_decision_request_only"] = False
+                signal["non_executable_request_telemetry"] = False
+        else:
+            status["request_telemetry_count"] += 1
+            _mark_materialization_request_only(
+                row,
+                reasons=row_status["decision_record_missing_reasons"],
+            )
         row["decision_record_missing_reasons"] = row_status[
             "decision_record_missing_reasons"
         ]
@@ -690,6 +654,15 @@ def _publish_materialization_decision_records(
         + status["orchestrator_records_missing"]
         + status["risk_records_mismatch"]
         + status["orchestrator_records_mismatch"]
+    )
+    status["canonical_namespace_conflict_count"] = (
+        status["risk_records_mismatch"] + status["orchestrator_records_mismatch"]
+    )
+    status["canonical_namespace_cleanup_required"] = bool(
+        status["canonical_namespace_conflict_count"]
+    )
+    status["canonical_namespace_cleanup_policy"] = (
+        "OPERATOR_REVIEW_REQUIRED_INVENTORY_NEVER_OVERWRITES_OR_DELETES"
     )
     return status
 
@@ -2880,7 +2853,6 @@ def _normalize_candidate(
         "counts_as_A_plus": a_plus,
         "counts_as_live_ready": live_ready,
         "counts_as_final_a_plus": a_plus,
-        "source_runtime_key": _first_present(row.get("source_runtime_key"), prediction.get("redis_key")),
         "generated_utc": generated_utc,
     }
     initial_exploration_policy = evaluate_paper_risk_controller_exploration(normalized)
@@ -3453,8 +3425,38 @@ def _build_materialization_queue_row(
         "adaptive_stale_seconds": adaptive_seconds,
         "risk_decision_id": row.get("risk_decision_id")
         or row.get("paper_exploration_risk_decision_id"),
+        "risk_decision_record_key": row.get("risk_decision_record_key"),
+        "risk_decision_record_hash": row.get("risk_decision_record_hash"),
+        "risk_decision_record_resolved": row.get("risk_decision_record_resolved")
+        is True,
         "orchestrator_decision_id": row.get("orchestrator_decision_id")
         or row.get("paper_exploration_orchestrator_decision_id"),
+        "orchestrator_decision_record_key": row.get(
+            "orchestrator_decision_record_key"
+        ),
+        "orchestrator_decision_record_hash": row.get(
+            "orchestrator_decision_record_hash"
+        ),
+        "orchestrator_decision_record_resolved": row.get(
+            "orchestrator_decision_record_resolved"
+        )
+        is True,
+        "canonical_decision_records_resolved": row.get(
+            "canonical_decision_records_resolved"
+        )
+        is True,
+        "canonical_decision_request_only": row.get(
+            "canonical_decision_request_only"
+        )
+        is True,
+        "non_executable_request_telemetry": row.get(
+            "non_executable_request_telemetry"
+        )
+        is True,
+        "canonical_decision_request_reasons": row.get(
+            "canonical_decision_request_reasons"
+        )
+        or [],
         "allocator_decision_id": row.get("allocator_decision_id"),
         "preemptive_decision_id": row.get("preemptive_decision_id"),
         "pre_trade_loss_probability": row.get("pre_trade_loss_probability"),
@@ -3684,30 +3686,22 @@ def _publish_materialization_queue(
     queue_published_at: str | None = None,
 ) -> dict[str, Any]:
     queue_generated_utc = queue_published_at or _utc_now()
-    accepted_rows = [
+    proposed_current_rows = [
         row
         for row in rows
         if row.get("paper_exploration_paper_fill_allowed") is True
     ]
-    queue_rows = [
-        _build_materialization_queue_row(
-            row,
-            accepted_at=queue_generated_utc,
-            inventory_generated_utc=generated_utc,
-        )
-        for row in accepted_rows
-    ]
-    now = _parse_utc(queue_generated_utc) or datetime.now(timezone.utc)
+    accepted_dry_run_row_count = len(proposed_current_rows)
     current_queue_identities = {
-        str(_first_present(row.get("queue_id"), row.get("candidate_id")))
-        for row in queue_rows
-        if _first_present(row.get("queue_id"), row.get("candidate_id"))
+        f"paper_exploration_materialize_{_queue_row_identity(row)}"
+        for row in proposed_current_rows
     }
     previous_queue_payload = _read_json(
         client,
         EXPLORATION_MATERIALIZATION_QUEUE_KEY,
     )
-    preserved_previous_queue_rows: list[dict[str, Any]] = []
+    proposed_previous_rows: list[dict[str, Any]] = []
+    preserved_previous_request_rows: list[dict[str, Any]] = []
     if isinstance(previous_queue_payload, Mapping):
         for previous_row in previous_queue_payload.get("rows") or []:
             if not isinstance(previous_row, Mapping):
@@ -3723,16 +3717,101 @@ def _publish_materialization_queue(
             )
             if not previous_identity or previous_identity in current_queue_identities:
                 continue
+            proposed_previous_rows.append(dict(previous_row))
+            current_queue_identities.add(previous_identity)
+        for previous_request_row in previous_queue_payload.get("request_rows") or []:
+            if not isinstance(previous_request_row, Mapping):
+                continue
+            previous_identity = str(
+                _first_present(
+                    previous_request_row.get("queue_id"),
+                    previous_request_row.get("candidate_id"),
+                    previous_request_row.get("prediction_id"),
+                    previous_request_row.get("signal_id"),
+                )
+                or ""
+            )
+            if not previous_identity or previous_identity in current_queue_identities:
+                continue
+            request_row = copy.deepcopy(previous_request_row)
+            request_row["previous_materialization_queue_generated_utc"] = (
+                previous_queue_payload.get("generated_utc")
+            )
+            _mark_materialization_request_only(
+                request_row,
+                reasons=[
+                    *(request_row.get("canonical_decision_request_reasons") or []),
+                    "CURRENT_INVENTORY_REVALIDATION_REQUIRED",
+                ],
+            )
+            preserved_previous_request_rows.append(request_row)
+            current_queue_identities.add(previous_identity)
+
+    observation_rows = [
+        *[row for row in proposed_current_rows if isinstance(row, dict)],
+        *proposed_previous_rows,
+    ]
+    per_id_decision_store_status = _observe_materialization_decision_records(
+        client,
+        observation_rows,
+        generated_utc=queue_generated_utc,
+    )
+    accepted_rows = [
+        row
+        for row in proposed_current_rows
+        if row.get("canonical_decision_records_resolved") is True
+    ]
+    queue_rows = [
+        _build_materialization_queue_row(
+            row,
+            accepted_at=queue_generated_utc,
+            inventory_generated_utc=generated_utc,
+        )
+        for row in accepted_rows
+    ]
+    request_rows: list[dict[str, Any]] = []
+    for row in proposed_current_rows:
+        if row.get("canonical_decision_records_resolved") is True:
+            continue
+        request_row = _build_materialization_queue_row(
+            row,
+            accepted_at=queue_generated_utc,
+            inventory_generated_utc=generated_utc,
+        )
+        _mark_materialization_request_only(
+            request_row,
+            reasons=row.get("canonical_decision_request_reasons") or [],
+        )
+        request_rows.append(request_row)
+    request_rows.extend(preserved_previous_request_rows)
+    now = _parse_utc(queue_generated_utc) or datetime.now(timezone.utc)
+    preserved_previous_queue_rows: list[dict[str, Any]] = []
+    for previous_row in proposed_previous_rows:
+        if previous_row.get("canonical_decision_records_resolved") is True:
             preserved_previous_queue_rows.append(
                 {
                     **previous_row,
                     "materialization_queue_preserved_from_previous_queue": True,
                     "previous_materialization_queue_generated_utc": (
                         previous_queue_payload.get("generated_utc")
+                        if isinstance(previous_queue_payload, Mapping)
+                        else None
                     ),
                 }
             )
-            current_queue_identities.add(previous_identity)
+        else:
+            request_row = copy.deepcopy(previous_row)
+            request_row["materialization_queue_preserved_from_previous_queue"] = False
+            request_row["previous_materialization_queue_generated_utc"] = (
+                previous_queue_payload.get("generated_utc")
+                if isinstance(previous_queue_payload, Mapping)
+                else None
+            )
+            _mark_materialization_request_only(
+                request_row,
+                reasons=previous_row.get("canonical_decision_request_reasons") or [],
+            )
+            request_rows.append(request_row)
     if preserved_previous_queue_rows:
         queue_rows = [*queue_rows, *preserved_previous_queue_rows]
     pending_source_rows = [
@@ -3820,7 +3899,9 @@ def _publish_materialization_queue(
     prequeue_exact_no_fill_reason = _prequeue_materialization_no_fill_reason(
         prequeue_reason_counts,
     )
-    if queued_count == 0 and prequeue_rejected_rows:
+    if queued_count == 0 and request_rows:
+        exact_no_fill_reason = "CANONICAL_DECISION_PRODUCERS_PENDING"
+    elif queued_count == 0 and prequeue_rejected_rows:
         exact_no_fill_reason = (
             prequeue_exact_no_fill_reason
             or "ALL_CURRENT_ROWS_PREQUEUE_BLOCKED_WITH_EXACT_REASONS"
@@ -3833,11 +3914,6 @@ def _publish_materialization_queue(
         exact_no_fill_reason = "ALL_QUEUE_ROWS_EXPIRED_BEFORE_PAPER_LOOP"
     else:
         exact_no_fill_reason = "NO_CURRENT_EXPLORATION_CANDIDATES"
-    per_id_decision_store_status = _publish_materialization_decision_records(
-        client,
-        [*active_rows, *pending_source_rows],
-        generated_utc=queue_generated_utc,
-    )
     queue_payload = {
         "schema_version": "paper_exploration_materialization_queue_v1",
         "generated_utc": queue_generated_utc,
@@ -3846,12 +3922,16 @@ def _publish_materialization_queue(
         "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
         "queue_key": EXPLORATION_MATERIALIZATION_QUEUE_KEY,
         "rows": [*active_rows, *pending_source_rows],
+        "request_rows": request_rows,
+        "request_rows_executable": False,
         "pending_source_rows": pending_source_rows,
         "expired_rows": expired_rows,
         "unsafe_rows": unsafe_rows,
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        "canonical_namespace_owner": False,
+        "canonical_decision_consumer_role": "READ_ONLY_CANONICAL_DECISION_OBSERVER",
     }
     wrote_queue = _safe_redis_set(
         client,
@@ -3867,7 +3947,30 @@ def _publish_materialization_queue(
         "accepted_at_semantics": "QUEUE_PUBLISH_TIME_SOURCE_EXPIRY_UNCHANGED",
         "queue_key": EXPLORATION_MATERIALIZATION_QUEUE_KEY,
         "queue_status_key": EXPLORATION_MATERIALIZATION_QUEUE_STATUS_KEY,
-        "accepted_dry_run_rows": len(accepted_rows),
+        "accepted_dry_run_rows": accepted_dry_run_row_count,
+        "canonical_executable_row_count": len(accepted_rows),
+        "canonical_decision_request_count": len(request_rows),
+        "canonical_decision_request_rows": [
+            {
+                "candidate_id": row.get("candidate_id"),
+                "signal_id": row.get("signal_id"),
+                "prediction_id": row.get("prediction_id"),
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "side": row.get("side"),
+                "canonical_decision_request_reasons": row.get(
+                    "canonical_decision_request_reasons"
+                )
+                or [],
+                "canonical_decision_request_only": True,
+                "non_executable_request_telemetry": True,
+                "paper_fill_allowed": False,
+                "valid_for_paper": False,
+                "routes_to_live": False,
+                "places_real_order": False,
+            }
+            for row in request_rows[:25]
+        ],
         "queued_count": queued_count,
         "active_count": len(active_rows),
         "pending_source_time_count": len(pending_source_rows),
@@ -3878,6 +3981,7 @@ def _publish_materialization_queue(
         "prequeue_rejected_count": len(prequeue_rejected_rows),
         "prequeue_counterfactual_count": len(prequeue_counterfactual_rows),
         "preserved_previous_queue_count": len(preserved_previous_queue_rows),
+        "preserved_previous_request_count": len(preserved_previous_request_rows),
         "prequeue_counterfactual_key": (
             PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_KEY
         ),
@@ -3943,6 +4047,11 @@ def _publish_materialization_queue(
             for row in prequeue_rejected_rows[:25]
         ],
         "per_id_decision_store": {
+            key: value
+            for key, value in per_id_decision_store_status.items()
+            if key != "row_status"
+        },
+        "canonical_decision_observer": {
             key: value
             for key, value in per_id_decision_store_status.items()
             if key != "row_status"
@@ -4063,7 +4172,7 @@ def _publish_materialization_queue(
         ],
         "queue_written": wrote_queue,
         "dry_run_accepted_row_exists_without_queue_record": bool(
-            accepted_rows and not queue_rows
+            accepted_dry_run_row_count and not queue_rows
         ),
         "hard_fail": bool(unsafe_rows),
         "hard_fail_reasons": sorted(
@@ -4076,6 +4185,8 @@ def _publish_materialization_queue(
         "paper_only": True,
         "routes_to_live": False,
         "places_real_order": False,
+        "canonical_namespace_owner": False,
+        "canonical_decision_consumer_role": "READ_ONLY_CANONICAL_DECISION_OBSERVER",
         "live_gate": "blocked_human_only",
     }
     if prequeue_counterfactual_rows:
@@ -4955,15 +5066,13 @@ def build_inventory(
         for row in exploration_above_floor_rows
         if row.get("paper_exploration_allocator_input_written") is True
     )
-    exploration_paper_accepted_rows = sum(
-        1
-        for row in exploration_above_floor_rows
-        if row.get("paper_exploration_paper_fill_allowed") is True
-    )
     materialization_queue_status = _publish_materialization_queue(
         client,
         exploration_above_floor_rows,
         generated_utc=generated,
+    )
+    exploration_paper_accepted_rows = int(
+        materialization_queue_status.get("canonical_executable_row_count") or 0
     )
     exploration_unknown_rows = sum(
         1

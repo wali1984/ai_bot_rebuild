@@ -143,14 +143,6 @@ def test_stage_recovery_checkpoint_writes_isolated_reloadable_candidate(
     rows = _rows(3)
     input_dim = len(rows[0].tensor.model_vector)
 
-    class _FakeModel:
-        model_id = "v2_hybrid_policy_" + ("a" * 24)
-        device = "cpu"
-        cuda_active = False
-
-        def save_weight_blob(self, path):
-            return V2HybridPolicyModel(input_dim=input_dim).save_weight_blob(path)
-
     def fake_train_model_for_config(
         examples,
         *,
@@ -160,7 +152,7 @@ def test_stage_recovery_checkpoint_writes_isolated_reloadable_candidate(
         validation_fraction,
         load_checkpoint,
     ):
-        return _FakeModel(), {
+        return V2HybridPolicyModel(input_dim=input_dim), {
             "config": config,
             "loss_before": 4.0,
             "loss_after": 1.0,
