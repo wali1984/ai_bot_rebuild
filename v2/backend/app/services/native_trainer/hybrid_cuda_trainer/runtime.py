@@ -2418,6 +2418,7 @@ def run_hybrid_trainer_cycle(
                         "served_policy_fingerprint_available": (
                             served_policy_fingerprint is not None
                         ),
+                        "served_policy_fingerprint": served_policy_fingerprint,
                         "checkpoint_id": checkpoint.checkpoint_id,
                         "checkpoint_weight_sha256": checkpoint_hash,
                         "checkpoint_evidence_digest": (

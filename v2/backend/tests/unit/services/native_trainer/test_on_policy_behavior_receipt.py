@@ -815,6 +815,8 @@ def _lane_candidate(index: int = 0) -> dict[str, object]:
             "source_payload_sha256"
         ],
         "served_policy_fingerprint_available": True,
+        "served_policy_fingerprint": "d" * 64,
+        "confidence_candidate_action": "long",
         "checkpoint_id": CHECKPOINT_ID,
         "checkpoint_weight_sha256": "c" * 64,
         "checkpoint_evidence_digest": CHECKPOINT_EVIDENCE_DIGEST,

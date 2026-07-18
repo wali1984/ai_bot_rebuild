@@ -17,15 +17,28 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from ..adaptive_sampling_plan_contract import (
+    ADAPTIVE_ON_POLICY_ACTION_COUNT,
+    ADAPTIVE_ON_POLICY_LANE_FORMULA,
+    ADAPTIVE_ON_POLICY_LANE_SCHEMA_VERSION,
+    U53_DENOMINATOR,
+)
+from ..adaptive_sampling_plan_contract import (
+    adaptive_on_policy_lane_plan_rejection_reasons as _plan_rejection_reasons,
+)
+from ..adaptive_sampling_plan_contract import (
+    is_content_addressed_checkpoint_id as _is_real_checkpoint_id,
+)
 from .config import ACTION_COUNT, ACTION_LABELS
 from .training_state import ppo_consumption_update_key as _canonical_ppo_update_key
+
+adaptive_on_policy_lane_plan_rejection_reasons = _plan_rejection_reasons
 
 ON_POLICY_RECEIPT_SCHEMA_VERSION = "v2_positive_edge_on_policy_behavior_receipt_v1"
 ON_POLICY_SAMPLING_MODE = "CATEGORICAL_SAMPLE"
 ON_POLICY_DISTRIBUTION_CONTRACT = "POSITIVE_EDGE_MASKED_RAW_LOGITS_SOFTMAX_V1"
 ON_POLICY_ACTION_SOURCE = "NATIVE_CUDA_POLICY_CATEGORICAL_SAMPLE"
 ON_POLICY_MASK_SOURCE = "PIT_AFTER_COST_POSITIVE_ENTRY_ACTION_MASK_V1"
-ADAPTIVE_ON_POLICY_LANE_SCHEMA_VERSION = "v2_adaptive_on_policy_paper_lane_plan_v1"
 EXACT_COST_PROVENANCE_SCHEMA_VERSION = "v2_exact_adaptive_cost_provenance_v1"
 EXACT_COST_ESTIMATOR_SCHEMA_VERSION = "adaptive_cost_estimate_payload_v1"
 FINALIZED_OUTCOME_SCHEMA_VERSION = "v2_exact_ppo_finalized_outcome_v1"
@@ -54,21 +67,7 @@ FINALIZED_OUTCOME_EXIT_FEE_RATE_BASIS = (
 FINALIZED_OUTCOME_EXIT_SLIPPAGE_PROVENANCE_STATUS = (
     "EXIT_SPREAD_AVAILABLE_BY_CLOSE_TIME"
 )
-ADAPTIVE_ON_POLICY_LANE_FORMULA = (
-    "candidate_credit=geometric_mean(policy_entropy,profitability_uncertainty,"
-    "positive_edge_quality,paper_margin_headroom)/(1+geometric_mean);"
-    "token_budget=floor(carry_in+sum(candidate_credit));"
-    "ordinary_lane_reserved_each_multi_candidate_cycle_and_between_single_candidate_samples"
-)
-U53_DENOMINATOR = 1 << 53
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-_CONTENT_ADDRESSED_CHECKPOINT_ID_RE = re.compile(
-    r"^v2_hybrid_ckpt_(?:[0-9a-f]{8}_[0-9a-f]{16}_[0-9a-f]{12}|"
-    r"[0-9a-f]{12}_[0-9a-f]{20})$"
-)
-def _is_real_checkpoint_id(value: Any) -> bool:
-    checkpoint_id = str(value or "")
-    return bool(_CONTENT_ADDRESSED_CHECKPOINT_ID_RE.fullmatch(checkpoint_id))
 
 BEHAVIOR_POLICY_LINEAGE_FIELDS = (
     "action_labels",
@@ -1160,6 +1159,9 @@ def adaptive_on_policy_lane_plan(
     leaving ordinary predictions untouched.
     """
 
+    if ACTION_COUNT != ADAPTIVE_ON_POLICY_ACTION_COUNT:
+        raise ValueError("adaptive_on_policy_action_contract_count_mismatch")
+
     rows = [dict(candidate) for candidate in candidates]
     margin = dict(paper_margin_status or {})
     freeze = dict(paper_entry_freeze or {})
@@ -1224,6 +1226,10 @@ def adaptive_on_policy_lane_plan(
             reasons.append("on_policy_learning_row_not_trainable")
         if row.get("served_policy_fingerprint_available") is not True:
             reasons.append("served_policy_fingerprint_unavailable")
+        if not _SHA256_RE.fullmatch(
+            str(row.get("served_policy_fingerprint") or "")
+        ):
+            reasons.append("served_policy_fingerprint_unavailable")
         if not _is_real_checkpoint_id(row.get("checkpoint_id")):
             reasons.append("real_checkpoint_generation_unavailable")
         if not _SHA256_RE.fullmatch(
@@ -1254,17 +1260,27 @@ def adaptive_on_policy_lane_plan(
         if expected_move is None or cost is None or cost < 0.0:
             reasons.append("after_cost_edge_inputs_invalid")
             positive_edge = 0.0
+            expected_confidence_action = None
         else:
-            positive_edge = max(
-                0.0,
-                expected_move - cost,
-                -expected_move - cost,
-            )
+            long_edge = expected_move - cost
+            short_edge = -expected_move - cost
+            positive_edge = max(0.0, long_edge, short_edge)
             if positive_edge <= 0.0:
                 reasons.append("no_strictly_positive_after_cost_entry_action")
+                expected_confidence_action = None
+            else:
+                expected_confidence_action = (
+                    "long" if long_edge >= short_edge else "short"
+                )
+        observed_confidence_action = row.get("confidence_candidate_action")
+        if observed_confidence_action != expected_confidence_action:
+            reasons.append("confidence_candidate_action_invalid")
+        raw_logits: tuple[float, ...] = ()
+        sealed_raw_logits: list[float] = []
         try:
             raw_logits = tuple(float(value) for value in (row.get("raw_action_logits") or ()))
             raw_probabilities = _softmax(raw_logits)
+            sealed_raw_logits = list(raw_logits)
             entropy = -sum(
                 probability * math.log(probability)
                 for probability in raw_probabilities
@@ -1302,6 +1318,24 @@ def adaptive_on_policy_lane_plan(
             "candle_closed_confirmed": row.get("candle_closed_confirmed") is True,
             "decision_time": str(row.get("decision_time") or ""),
             "row_classification": str(row.get("row_classification") or ""),
+            "confidence_candidate_action": (
+                observed_confidence_action
+                if observed_confidence_action in {"long", "short"}
+                else None
+            ),
+            "served_policy_fingerprint": str(
+                row.get("served_policy_fingerprint") or ""
+            ),
+            "served_policy_fingerprint_available": (
+                row.get("served_policy_fingerprint_available") is True
+            ),
+            "exact_cost_provenance_valid": (
+                row.get("exact_cost_provenance_valid") is True
+            ),
+            "confidence_calibration_fitted": (
+                row.get("confidence_calibration_fitted") is True
+            ),
+            "raw_action_logits": sealed_raw_logits,
             "exact_cost_payload_hash": str(
                 row.get("exact_cost_payload_hash") or ""
             ),
@@ -1327,7 +1361,6 @@ def adaptive_on_policy_lane_plan(
                 "policy_entropy_normalized": entropy,
                 "profitability_uncertainty": uncertainty,
                 "profitability_confidence_calibrated": confidence,
-                "confidence_candidate_action": row.get("confidence_candidate_action"),
                 "expected_move_bps": expected_move,
                 "round_trip_cost_bps": cost,
                 "raw_policy_logits_hash": raw_policy_logits_hash,

@@ -14,19 +14,73 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.native_trainer.adaptive_sampling_plan_contract import (
+    U53_DENOMINATOR,
+    AdaptiveSamplingPlanContractError,
+    adaptive_on_policy_lane_plan_rejection_reasons,
+    verify_authenticated_sampling_plan_envelope,
+)
+
 ARCHIVE_SCHEMA_VERSION = "v2_durable_behavior_receipt_archive_v1"
 LIFECYCLE_EVENT_SCHEMA_VERSION = "v2_behavior_receipt_lifecycle_event_v1"
+SAMPLING_PLAN_ENVELOPE_ARCHIVE_SCHEMA_VERSION = (
+    "v2_authenticated_sampling_plan_envelope_archive_v1"
+)
+SAMPLING_COHORT_MANIFEST_SCHEMA_VERSION = (
+    "v2_on_policy_sampling_cohort_manifest_authenticated_plan_v2"
+)
+SAMPLING_COHORT_MANIFEST_ARCHIVE_SCHEMA_VERSION = (
+    "v2_on_policy_sampling_cohort_manifest_archive_authenticated_plan_v2"
+)
+SAMPLING_COHORT_COMPLETENESS_SCHEMA_VERSION = (
+    "v2_on_policy_sampling_cohort_completeness_authenticated_manifest_v2"
+)
+SAMPLING_COHORT_COMPLETENESS_ARCHIVE_SCHEMA_VERSION = (
+    "v2_on_policy_sampling_cohort_completeness_archive_authenticated_manifest_v2"
+)
 DEFAULT_ARCHIVE_REL = Path(
     ".local_data/v2_native_trainer/durable_behavior_receipt_archive"
 )
 RECEIPT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 UPDATE_KEY_RE = re.compile(r"^[0-9a-f]{64}$")
+SAMPLING_PLAN_AUTH_KEY_ID_RE = re.compile(r"^[A-Za-z0-9_.:@/-]{1,128}$")
+SAMPLING_COHORT_TERMINAL_DISPOSITIONS = frozenset(
+    {
+        "ENTRY_OUTCOME_FINALIZED",
+    }
+)
+SAMPLING_COHORT_MANIFEST_FIELDS = frozenset(
+    {
+        "schema_version",
+        "cohort_id",
+        "sampling_plan_envelope_id",
+        "sampling_plan_envelope_auth_tag",
+        "sampling_plan_cycle_binding_id",
+        "sampling_plan_auth_key_id",
+        "sampling_plan_hash",
+        "sampling_plan_input_hash",
+        "parent_policy_fingerprint",
+        "checkpoint_id",
+        "checkpoint_weight_sha256",
+        "sampling_plan",
+        "members",
+        "sampled_receipt_hashes",
+        "sampled_receipt_count",
+        "generated_at",
+        "pre_admission_manifest",
+        "paper_only",
+        "routes_to_live",
+        "places_real_order",
+        "manifest_digest",
+    }
+)
 
 EVENT_PUBLISHED = "PUBLISHED"
 EVENT_ENTRY_ACCEPTED = "ENTRY_ACCEPTED"
@@ -74,6 +128,38 @@ class BehaviorReceiptLifecycleWrite:
     already_present: bool
 
 
+@dataclass(frozen=True)
+class SamplingCohortArchiveWrite:
+    cohort_digest: str
+    manifest_digest: str
+    archive_content_sha256: str
+    proof_path: Path
+    already_present: bool
+
+
+@dataclass(frozen=True)
+class SamplingPlanEnvelopeArchiveWrite:
+    plan_instance_id: str
+    cycle_binding_id: str
+    archive_content_sha256: str
+    envelope_path: Path
+    already_present: bool
+
+
+@dataclass(frozen=True)
+class SamplingCohortManifestArchiveWrite:
+    plan_instance_id: str
+    manifest_digest: str
+    archive_content_sha256: str
+    manifest_path: Path
+    already_present: bool
+
+
+SamplingPlanKeyResolver = Callable[
+    [str], bytes | bytearray | memoryview
+]
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[5]
 
@@ -116,6 +202,12 @@ def _strict_utc(value: Any) -> datetime | None:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
     return parsed.astimezone(UTC)
+
+
+def _same_strict_utc(left: Any, right: Any) -> bool:
+    left_time = _strict_utc(left)
+    right_time = _strict_utc(right)
+    return left_time is not None and left_time == right_time
 
 
 def _validated_event_recorded_time(
@@ -358,6 +450,1239 @@ def verify_archived_behavior_receipt(
             }
         ),
         "blob_path": str(_blob_path(root or default_archive_root(), receipt_hash)),
+    }
+
+
+def _sampling_plan_envelope_path(root: Path, plan_instance_id: str) -> Path:
+    return (
+        root
+        / "sampling_plan_envelopes"
+        / plan_instance_id[:2]
+        / f"{plan_instance_id}.json"
+    )
+
+
+def _sampling_cohort_manifest_path(root: Path, plan_instance_id: str) -> Path:
+    return (
+        root
+        / "sampling_cohort_manifests"
+        / plan_instance_id[:2]
+        / f"{plan_instance_id}.json"
+    )
+
+
+def _sampling_cohort_proof_path(root: Path, cohort_digest: str) -> Path:
+    return (
+        root
+        / "sampling_cohort_completeness"
+        / cohort_digest[:2]
+        / f"{cohort_digest}.json"
+    )
+
+
+def _required_sha256(value: Any, reason: str) -> str:
+    normalized = str(value or "")
+    if not RECEIPT_HASH_RE.fullmatch(normalized):
+        raise BehaviorReceiptArchiveError(reason)
+    return normalized
+
+
+def _verified_sampling_plan_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    expected_plan_instance_id: str | None = None,
+) -> dict[str, Any]:
+    if not callable(key_resolver):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_KEY_RESOLVER_REQUIRED"
+        )
+    key_id = str(envelope.get("auth_key_id") or "")
+    if not SAMPLING_PLAN_AUTH_KEY_ID_RE.fullmatch(key_id):
+        raise BehaviorReceiptArchiveError("SAMPLING_PLAN_AUTH_KEY_ID_INVALID")
+    try:
+        hmac_key = key_resolver(key_id)
+    except Exception as exc:  # noqa: BLE001
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_KEY_RESOLUTION_FAILED"
+        ) from exc
+    try:
+        return verify_authenticated_sampling_plan_envelope(
+            envelope,
+            hmac_key=hmac_key,
+            expected_auth_key_id=key_id,
+            expected_plan_instance_id=expected_plan_instance_id,
+        )
+    except AdaptiveSamplingPlanContractError as exc:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_AUTHENTICATION_INVALID"
+        ) from exc
+
+
+def archive_authenticated_sampling_plan_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> SamplingPlanEnvelopeArchiveWrite:
+    """Persist one authenticated plan without persisting its HMAC secret."""
+
+    if not isinstance(envelope, Mapping):
+        raise BehaviorReceiptArchiveError("SAMPLING_PLAN_ENVELOPE_MISSING")
+    verified = _verified_sampling_plan_envelope(
+        envelope,
+        key_resolver=key_resolver,
+    )
+    plan_instance_id = _required_sha256(
+        verified.get("plan_instance_id"),
+        "SAMPLING_PLAN_INSTANCE_ID_INVALID",
+    )
+    cycle_binding_id = _required_sha256(
+        verified.get("cycle_binding_id"),
+        "SAMPLING_PLAN_CYCLE_BINDING_ID_INVALID",
+    )
+    record_without_hash = {
+        "schema_version": SAMPLING_PLAN_ENVELOPE_ARCHIVE_SCHEMA_VERSION,
+        "plan_instance_id": plan_instance_id,
+        "cycle_binding_id": cycle_binding_id,
+        "sampling_plan_hash": verified["sampling_plan_hash"],
+        "auth_key_id": verified["auth_key_id"],
+        "auth_tag": verified["auth_tag"],
+        "envelope": verified,
+    }
+    archive_hash = canonical_sha256(record_without_hash)
+    record = {**record_without_hash, "archive_content_sha256": archive_hash}
+    archive_root = root or default_archive_root()
+    path = _sampling_plan_envelope_path(archive_root, plan_instance_id)
+    try:
+        already_present = _write_json_create_or_identical(path, record)
+    except BehaviorReceiptArchiveError as exc:
+        if str(exc) == "ARCHIVE_IMMUTABLE_CONFLICT":
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_PLAN_ENVELOPE_INSTANCE_CONFLICT"
+            ) from exc
+        raise
+    loaded = load_authenticated_sampling_plan_envelope(
+        plan_instance_id,
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    if loaded != verified:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_READ_AFTER_WRITE_MISMATCH"
+        )
+    return SamplingPlanEnvelopeArchiveWrite(
+        plan_instance_id=plan_instance_id,
+        cycle_binding_id=cycle_binding_id,
+        archive_content_sha256=archive_hash,
+        envelope_path=path,
+        already_present=already_present,
+    )
+
+
+def load_authenticated_sampling_plan_envelope(
+    plan_instance_id: Any,
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    """Read and re-authenticate the exact envelope on every access."""
+
+    instance_id = _required_sha256(
+        plan_instance_id,
+        "SAMPLING_PLAN_INSTANCE_ID_INVALID",
+    )
+    archive_root = root or default_archive_root()
+    path = _sampling_plan_envelope_path(archive_root, instance_id)
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_ARCHIVE_UNREADABLE"
+        ) from exc
+    if not isinstance(record, dict):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_ARCHIVE_INVALID"
+        )
+    archive_hash = str(record.pop("archive_content_sha256", ""))
+    envelope = record.get("envelope")
+    if (
+        set(record)
+        != {
+            "schema_version",
+            "plan_instance_id",
+            "cycle_binding_id",
+            "sampling_plan_hash",
+            "auth_key_id",
+            "auth_tag",
+            "envelope",
+        }
+        or not RECEIPT_HASH_RE.fullmatch(archive_hash)
+        or canonical_sha256(record) != archive_hash
+        or record.get("schema_version")
+        != SAMPLING_PLAN_ENVELOPE_ARCHIVE_SCHEMA_VERSION
+        or record.get("plan_instance_id") != instance_id
+        or not isinstance(envelope, Mapping)
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_ARCHIVE_INTEGRITY_INVALID"
+        )
+    verified = _verified_sampling_plan_envelope(
+        envelope,
+        key_resolver=key_resolver,
+        expected_plan_instance_id=instance_id,
+    )
+    if (
+        record.get("cycle_binding_id") != verified.get("cycle_binding_id")
+        or record.get("sampling_plan_hash")
+        != verified.get("sampling_plan_hash")
+        or record.get("auth_key_id") != verified.get("auth_key_id")
+        or record.get("auth_tag") != verified.get("auth_tag")
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_ARCHIVE_BINDING_INVALID"
+        )
+    return verified
+
+
+def verify_archived_authenticated_sampling_plan_envelope(
+    envelope: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    verified = _verified_sampling_plan_envelope(
+        envelope,
+        key_resolver=key_resolver,
+    )
+    archived = load_authenticated_sampling_plan_envelope(
+        verified["plan_instance_id"],
+        key_resolver=key_resolver,
+        root=root,
+    )
+    if archived != verified:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_PLAN_ENVELOPE_ARCHIVE_PAYLOAD_MISMATCH"
+        )
+    return archived
+
+
+def _validated_sampling_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
+    rejection_reasons = adaptive_on_policy_lane_plan_rejection_reasons(plan)
+    if rejection_reasons:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_PLAN_SEMANTICS_INVALID:"
+            + ",".join(rejection_reasons)
+        )
+    row = dict(plan)
+    supplied_hash = _required_sha256(
+        row.pop("plan_hash", ""),
+        "SAMPLING_COHORT_PLAN_HASH_INVALID",
+    )
+    if canonical_sha256(row) != supplied_hash:
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_HASH_MISMATCH")
+    input_hash = _required_sha256(
+        row.get("input_hash"),
+        "SAMPLING_COHORT_PLAN_INPUT_HASH_INVALID",
+    )
+    selected = row.get("selected_indices")
+    audit = row.get("candidate_audit")
+    candidate_count = row.get("candidate_count")
+    if (
+        not isinstance(selected, list)
+        or any(isinstance(value, bool) or not isinstance(value, int) for value in selected)
+        or selected != sorted(set(selected))
+        or any(value < 0 for value in selected)
+    ):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_SELECTION_INVALID")
+    if (
+        isinstance(candidate_count, bool)
+        or not isinstance(candidate_count, int)
+        or candidate_count < 0
+        or not isinstance(audit, list)
+        or len(audit) != candidate_count
+        or row.get("selected_sample_count") != len(selected)
+        or any(value >= candidate_count for value in selected)
+    ):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_COUNTS_INVALID")
+    audit_indices = [
+        item.get("index") if isinstance(item, Mapping) else None for item in audit
+    ]
+    if audit_indices != list(range(candidate_count)):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_AUDIT_INVALID")
+    input_material = {
+        "schema_version": row.get("schema_version"),
+        "formula": row.get("formula"),
+        "carry_in": row.get("carry_in"),
+        "single_candidate_ordinary_credit_in": row.get(
+            "single_candidate_ordinary_credit_in"
+        ),
+        "paper_margin_inputs": row.get("paper_margin_inputs"),
+        "paper_entry_freeze_inputs": row.get("paper_entry_freeze_inputs"),
+        "candidate_audit": audit,
+    }
+    if canonical_sha256(input_material) != input_hash:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_PLAN_INPUT_BINDING_MISMATCH"
+        )
+    if (
+        row.get("paper_only") is not True
+        or row.get("routes_to_live") is not False
+        or row.get("places_real_order") is not False
+    ):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_SAFETY_INVALID")
+    return {**row, "plan_hash": supplied_hash}
+
+
+def _validate_receipt_against_sampling_plan(
+    receipt: Mapping[str, Any],
+    *,
+    selected_index: int,
+    sampling_plan: Mapping[str, Any],
+    parent_policy_fingerprint: str,
+    expected_draw_u53: int | None = None,
+) -> str:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
+        behavior_receipt_rejection_reasons,
+    )
+
+    receipt_hash = _receipt_hash(receipt)
+    audit = sampling_plan["candidate_audit"][selected_index]
+    if not isinstance(audit, Mapping):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_AUDIT_INVALID")
+    expected_fields = {
+        "symbol": audit.get("symbol"),
+        "timeframe": audit.get("timeframe"),
+        "feature_tensor_id": audit.get("feature_tensor_id"),
+        "checkpoint_id": audit.get("checkpoint_id"),
+        "checkpoint_weight_sha256": audit.get("checkpoint_weight_sha256"),
+        "checkpoint_evidence_digest": audit.get("checkpoint_evidence_digest"),
+        "cost_source_payload_sha256": audit.get("exact_cost_payload_hash"),
+    }
+    if any(receipt.get(field) != expected for field, expected in expected_fields.items()):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_PLAN_MEMBER_MISMATCH"
+        )
+    for field in ("feature_cutoff", "available_at", "candle_close_time"):
+        if not _same_strict_utc(receipt.get(field), audit.get(field)):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_RECEIPT_PLAN_CLOCK_MISMATCH"
+            )
+    audit_decision = _strict_utc(audit.get("decision_time"))
+    receipt_decision = _strict_utc(receipt.get("decision_time"))
+    if (
+        audit_decision is None
+        or receipt_decision is None
+        or receipt_decision != audit_decision
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_PLAN_DECISION_TIME_INVALID"
+        )
+    if (
+        receipt.get("on_policy_sampling_selected") is not True
+        or receipt.get("candle_closed_confirmed") is not True
+        or audit.get("candle_closed_confirmed") is not True
+        or audit.get("eligible") is not True
+        or receipt.get("on_policy_sampling_plan_hash") != sampling_plan["plan_hash"]
+        or receipt.get("on_policy_sampling_plan_input_hash")
+        != sampling_plan["input_hash"]
+        or receipt.get("served_policy_fingerprint") != parent_policy_fingerprint
+        or audit.get("served_policy_fingerprint")
+        != parent_policy_fingerprint
+        or canonical_sha256(
+            {"raw_action_logits": receipt.get("raw_action_logits")}
+        )
+        != audit.get("raw_policy_logits_hash")
+        or (
+            expected_draw_u53 is not None
+            and (
+                receipt.get("sample_draw_u53") != expected_draw_u53
+                or receipt.get("sample_draw_denominator") != U53_DENOMINATOR
+            )
+        )
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_PLAN_BINDING_INVALID"
+        )
+    if str(receipt.get("selected_action") or "").lower() not in {
+        "hold",
+        "long",
+        "short",
+    }:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_ACTION_INVALID"
+        )
+    rejection_reasons = behavior_receipt_rejection_reasons(
+        receipt,
+        expected_symbol=audit.get("symbol"),
+        expected_timeframe=audit.get("timeframe"),
+        expected_checkpoint_id=audit.get("checkpoint_id"),
+        expected_checkpoint_weight_sha256=audit.get(
+            "checkpoint_weight_sha256"
+        ),
+        expected_feature_tensor_id=audit.get("feature_tensor_id"),
+        expected_feature_cutoff=receipt.get("feature_cutoff"),
+        expected_available_at=receipt.get("available_at"),
+        expected_decision_time=receipt.get("decision_time"),
+        expected_policy_fingerprint=parent_policy_fingerprint,
+        expected_sampling_plan_hash=sampling_plan["plan_hash"],
+        expected_sampling_plan_input_hash=sampling_plan["input_hash"],
+    )
+    if rejection_reasons:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_INVALID:"
+            + ",".join(rejection_reasons)
+        )
+    return receipt_hash
+
+
+def _sampling_plan_draws_by_index(
+    envelope: Mapping[str, Any],
+) -> dict[int, int]:
+    return {
+        int(record["selected_index"]): int(record["draw_u53"])
+        for record in envelope["selected_index_draws"]
+    }
+
+
+def _validate_manifest_member_receipt_identity(
+    *,
+    member: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    observed_receipt_hash: str,
+) -> None:
+    if (
+        member.get("receipt_hash") != observed_receipt_hash
+        or member.get("prediction_id") != receipt.get("prediction_id")
+        or member.get("selected_action") != receipt.get("selected_action")
+        or member.get("sample_draw_u53") != receipt.get("sample_draw_u53")
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_RECEIPT_IDENTITY_MISMATCH"
+        )
+
+
+def build_sampling_cohort_manifest(
+    *,
+    sampling_plan_envelope: Mapping[str, Any],
+    receipts_by_selected_index: Mapping[int, Mapping[str, Any]],
+    key_resolver: SamplingPlanKeyResolver,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Bind every sampled receipt to one authenticated pre-admission plan."""
+
+    envelope = _verified_sampling_plan_envelope(
+        sampling_plan_envelope,
+        key_resolver=key_resolver,
+    )
+    plan = _validated_sampling_plan(envelope["sampling_plan"])
+    parent = envelope["parent_policy_fingerprint"]
+    draws_by_index = _sampling_plan_draws_by_index(envelope)
+    normalized: dict[int, Mapping[str, Any]] = {}
+    for raw_index, receipt in receipts_by_selected_index.items():
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_RECEIPT_INDEX_INVALID"
+            )
+        if raw_index in normalized or not isinstance(receipt, Mapping):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_RECEIPT_INDEX_INVALID"
+            )
+        normalized[raw_index] = receipt
+    selected = list(plan["selected_indices"])
+    if not selected or sorted(normalized) != selected:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_NOT_COMPLETE"
+        )
+    members: list[dict[str, Any]] = []
+    decision_times: list[datetime] = []
+    for selected_index in selected:
+        receipt = normalized[selected_index]
+        receipt_hash = _validate_receipt_against_sampling_plan(
+            receipt,
+            selected_index=selected_index,
+            sampling_plan=plan,
+            parent_policy_fingerprint=parent,
+            expected_draw_u53=draws_by_index[selected_index],
+        )
+        decision = _strict_utc(receipt.get("decision_time"))
+        if decision is None:
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_RECEIPT_DECISION_TIME_INVALID"
+            )
+        decision_times.append(decision)
+        members.append(
+            {
+                "selected_index": selected_index,
+                "receipt_hash": receipt_hash,
+                "prediction_id": str(receipt.get("prediction_id") or ""),
+                "selected_action": str(receipt.get("selected_action") or "").lower(),
+                "sample_draw_u53": draws_by_index[selected_index],
+            }
+        )
+    if len({member["receipt_hash"] for member in members}) != len(members):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_DUPLICATE_RECEIPT")
+    if len({member["prediction_id"] for member in members}) != len(members):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_DUPLICATE_PREDICTION")
+    timestamp = generated_at or utc_now()
+    generated_time = _strict_utc(timestamp)
+    sealed_time = _strict_utc(envelope["sealed_at"])
+    if (
+        generated_time is None
+        or sealed_time is None
+        or generated_time < max([*decision_times, sealed_time])
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_TIME_INVALID"
+        )
+    identity = {
+        "sampling_plan_envelope_id": envelope["plan_instance_id"],
+        "sampling_plan_envelope_auth_tag": envelope["auth_tag"],
+        "sampling_plan_cycle_binding_id": envelope["cycle_binding_id"],
+        "sampling_plan_hash": plan["plan_hash"],
+        "sampling_plan_input_hash": plan["input_hash"],
+        "parent_policy_fingerprint": parent,
+        "members": members,
+    }
+    material = {
+        "schema_version": SAMPLING_COHORT_MANIFEST_SCHEMA_VERSION,
+        "cohort_id": canonical_sha256(identity),
+        "sampling_plan_envelope_id": envelope["plan_instance_id"],
+        "sampling_plan_envelope_auth_tag": envelope["auth_tag"],
+        "sampling_plan_cycle_binding_id": envelope["cycle_binding_id"],
+        "sampling_plan_auth_key_id": envelope["auth_key_id"],
+        "sampling_plan_hash": plan["plan_hash"],
+        "sampling_plan_input_hash": plan["input_hash"],
+        "parent_policy_fingerprint": parent,
+        "checkpoint_id": envelope["checkpoint_id"],
+        "checkpoint_weight_sha256": envelope["checkpoint_weight_sha256"],
+        "sampling_plan": plan,
+        "members": members,
+        "sampled_receipt_hashes": [member["receipt_hash"] for member in members],
+        "sampled_receipt_count": len(members),
+        "generated_at": timestamp,
+        "pre_admission_manifest": True,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return {**material, "manifest_digest": canonical_sha256(material)}
+
+
+def _validated_sampling_cohort_manifest(
+    manifest: Mapping[str, Any],
+    *,
+    sampling_plan_envelope: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    row = dict(manifest)
+    if set(row) != SAMPLING_COHORT_MANIFEST_FIELDS:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_SHAPE_INVALID"
+        )
+    supplied_digest = _required_sha256(
+        row.pop("manifest_digest", ""),
+        "SAMPLING_COHORT_MANIFEST_DIGEST_INVALID",
+    )
+    if canonical_sha256(row) != supplied_digest:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_DIGEST_MISMATCH"
+        )
+    if row.get("schema_version") != SAMPLING_COHORT_MANIFEST_SCHEMA_VERSION:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_SCHEMA_INVALID"
+        )
+    plan_instance_id = _required_sha256(
+        row.get("sampling_plan_envelope_id"),
+        "SAMPLING_COHORT_PLAN_INSTANCE_ID_INVALID",
+    )
+    envelope_auth_tag = _required_sha256(
+        row.get("sampling_plan_envelope_auth_tag"),
+        "SAMPLING_COHORT_PLAN_AUTH_TAG_INVALID",
+    )
+    cycle_binding_id = _required_sha256(
+        row.get("sampling_plan_cycle_binding_id"),
+        "SAMPLING_COHORT_PLAN_CYCLE_BINDING_INVALID",
+    )
+    if not str(row.get("sampling_plan_auth_key_id") or ""):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_PLAN_AUTH_KEY_ID_INVALID"
+        )
+    plan_raw = row.get("sampling_plan")
+    if not isinstance(plan_raw, Mapping):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PLAN_MISSING")
+    plan = _validated_sampling_plan(plan_raw)
+    parent = _required_sha256(
+        row.get("parent_policy_fingerprint"),
+        "SAMPLING_COHORT_PARENT_POLICY_INVALID",
+    )
+    _required_sha256(
+        row.get("checkpoint_weight_sha256"),
+        "SAMPLING_COHORT_CHECKPOINT_HASH_INVALID",
+    )
+    if not str(row.get("checkpoint_id") or ""):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_CHECKPOINT_ID_INVALID"
+        )
+    if (
+        row.get("sampling_plan_hash") != plan["plan_hash"]
+        or row.get("sampling_plan_input_hash") != plan["input_hash"]
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_PLAN_BINDING_INVALID"
+        )
+    members = row.get("members")
+    if not isinstance(members, list) or not members:
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_MANIFEST_EMPTY")
+    indices: list[int] = []
+    hashes: list[str] = []
+    draws: list[int] = []
+    for member in members:
+        if not isinstance(member, Mapping):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_MEMBER_INVALID"
+            )
+        if set(member) != {
+            "selected_index",
+            "receipt_hash",
+            "prediction_id",
+            "selected_action",
+            "sample_draw_u53",
+        }:
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_MEMBER_INVALID"
+            )
+        index = member.get("selected_index")
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_MEMBER_INVALID"
+            )
+        indices.append(index)
+        hashes.append(
+            _required_sha256(
+                member.get("receipt_hash"),
+                "SAMPLING_COHORT_RECEIPT_HASH_INVALID",
+            )
+        )
+        draw = member.get("sample_draw_u53")
+        if (
+            isinstance(draw, bool)
+            or not isinstance(draw, int)
+            or not 0 <= draw < U53_DENOMINATOR
+        ):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_DRAW_INVALID"
+            )
+        draws.append(draw)
+        if (
+            not isinstance(member.get("prediction_id"), str)
+            or not member["prediction_id"]
+            or member.get("selected_action") not in {"hold", "long", "short"}
+        ):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_MEMBER_INVALID"
+            )
+    if (
+        indices != list(plan["selected_indices"])
+        or len(set(hashes)) != len(hashes)
+        or len({str(member["prediction_id"]) for member in members})
+        != len(members)
+        or row.get("sampled_receipt_hashes") != hashes
+        or row.get("sampled_receipt_count") != len(members)
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_MEMBERSHIP_INVALID"
+        )
+    identity = {
+        "sampling_plan_envelope_id": plan_instance_id,
+        "sampling_plan_envelope_auth_tag": envelope_auth_tag,
+        "sampling_plan_cycle_binding_id": cycle_binding_id,
+        "sampling_plan_hash": plan["plan_hash"],
+        "sampling_plan_input_hash": plan["input_hash"],
+        "parent_policy_fingerprint": parent,
+        "members": [dict(member) for member in members],
+    }
+    if row.get("cohort_id") != canonical_sha256(identity):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_IDENTITY_INVALID"
+        )
+    generated = _strict_utc(row.get("generated_at"))
+    if generated is None:
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_MANIFEST_TIME_INVALID")
+    if (
+        row.get("pre_admission_manifest") is not True
+        or row.get("paper_only") is not True
+        or row.get("routes_to_live") is not False
+        or row.get("places_real_order") is not False
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_SAFETY_INVALID"
+        )
+    validated = {
+        **row,
+        "sampling_plan": plan,
+        "manifest_digest": supplied_digest,
+    }
+    if sampling_plan_envelope is not None:
+        envelope = dict(sampling_plan_envelope)
+        envelope_draws = _sampling_plan_draws_by_index(envelope)
+        if (
+            plan_instance_id != envelope.get("plan_instance_id")
+            or envelope_auth_tag != envelope.get("auth_tag")
+            or cycle_binding_id != envelope.get("cycle_binding_id")
+            or validated.get("sampling_plan_auth_key_id")
+            != envelope.get("auth_key_id")
+            or validated.get("sampling_plan_hash")
+            != envelope.get("sampling_plan_hash")
+            or validated.get("sampling_plan_input_hash")
+            != envelope.get("sampling_plan_input_hash")
+            or parent != envelope.get("parent_policy_fingerprint")
+            or validated.get("checkpoint_id") != envelope.get("checkpoint_id")
+            or validated.get("checkpoint_weight_sha256")
+            != envelope.get("checkpoint_weight_sha256")
+            or plan != envelope.get("sampling_plan")
+            or list(zip(indices, draws, strict=True))
+            != list(envelope_draws.items())
+        ):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_ENVELOPE_BINDING_INVALID"
+            )
+        generated_time = _strict_utc(validated.get("generated_at"))
+        sealed_time = _strict_utc(envelope.get("sealed_at"))
+        if (
+            generated_time is None
+            or sealed_time is None
+            or generated_time < sealed_time
+        ):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_TIME_INVALID"
+            )
+    return validated
+
+
+@contextmanager
+def _locked_receipt_lifecycles(
+    *,
+    receipt_hashes: list[str],
+    root: Path,
+) -> Iterator[None]:
+    """Exclude lifecycle admission while a first manifest is committed."""
+
+    with ExitStack() as stack:
+        for receipt_hash in sorted(set(receipt_hashes)):
+            lock_path = (
+                root / "locks" / receipt_hash[:2] / f"{receipt_hash}.lock"
+            )
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            lock_handle = stack.enter_context(lock_path.open("a+b"))
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+            stack.callback(fcntl.flock, lock_handle.fileno(), fcntl.LOCK_UN)
+        yield
+
+
+def archive_sampling_cohort_manifest(
+    manifest: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> SamplingCohortManifestArchiveWrite:
+    structurally_validated = _validated_sampling_cohort_manifest(manifest)
+    archive_root = root or default_archive_root()
+    plan_instance_id = structurally_validated["sampling_plan_envelope_id"]
+    envelope = load_authenticated_sampling_plan_envelope(
+        plan_instance_id,
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    validated = _validated_sampling_cohort_manifest(
+        structurally_validated,
+        sampling_plan_envelope=envelope,
+    )
+    draws_by_index = _sampling_plan_draws_by_index(envelope)
+    record_without_hash = {
+        "schema_version": SAMPLING_COHORT_MANIFEST_ARCHIVE_SCHEMA_VERSION,
+        "plan_instance_id": plan_instance_id,
+        "manifest_digest": validated["manifest_digest"],
+        "manifest": validated,
+    }
+    archive_hash = canonical_sha256(record_without_hash)
+    record = {**record_without_hash, "archive_content_sha256": archive_hash}
+    path = _sampling_cohort_manifest_path(archive_root, plan_instance_id)
+    receipt_hashes = list(validated["sampled_receipt_hashes"])
+    with _locked_receipt_lifecycles(
+        receipt_hashes=receipt_hashes,
+        root=archive_root,
+    ):
+        if path.exists():
+            archived = load_sampling_cohort_manifest(
+                plan_instance_id,
+                key_resolver=key_resolver,
+                root=archive_root,
+            )
+            if archived != validated:
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MANIFEST_INSTANCE_CONFLICT"
+                )
+            already_present = True
+        else:
+            for member in validated["members"]:
+                receipt = load_behavior_receipt(
+                    member["receipt_hash"], root=archive_root
+                )
+                if lifecycle_events(member["receipt_hash"], root=archive_root):
+                    raise BehaviorReceiptArchiveError(
+                        "SAMPLING_COHORT_MANIFEST_NOT_PRE_ADMISSION"
+                    )
+                observed = _validate_receipt_against_sampling_plan(
+                    receipt,
+                    selected_index=member["selected_index"],
+                    sampling_plan=validated["sampling_plan"],
+                    parent_policy_fingerprint=validated[
+                        "parent_policy_fingerprint"
+                    ],
+                    expected_draw_u53=draws_by_index[
+                        member["selected_index"]
+                    ],
+                )
+                if observed != member["receipt_hash"]:
+                    raise BehaviorReceiptArchiveError(
+                        "SAMPLING_COHORT_MANIFEST_RECEIPT_BINDING_INVALID"
+                    )
+                _validate_manifest_member_receipt_identity(
+                    member=member,
+                    receipt=receipt,
+                    observed_receipt_hash=observed,
+                )
+            try:
+                already_present = _write_json_create_or_identical(path, record)
+            except BehaviorReceiptArchiveError as exc:
+                if str(exc) == "ARCHIVE_IMMUTABLE_CONFLICT":
+                    raise BehaviorReceiptArchiveError(
+                        "SAMPLING_COHORT_MANIFEST_INSTANCE_CONFLICT"
+                    ) from exc
+                raise
+            archived = load_sampling_cohort_manifest(
+                plan_instance_id,
+                key_resolver=key_resolver,
+                root=archive_root,
+            )
+            if archived != validated:
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MANIFEST_READ_AFTER_WRITE_MISMATCH"
+                )
+    return SamplingCohortManifestArchiveWrite(
+        plan_instance_id=plan_instance_id,
+        manifest_digest=validated["manifest_digest"],
+        archive_content_sha256=archive_hash,
+        manifest_path=path,
+        already_present=already_present,
+    )
+
+
+def load_sampling_cohort_manifest(
+    plan_instance_id: Any,
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    instance_id = _required_sha256(
+        plan_instance_id,
+        "SAMPLING_COHORT_PLAN_INSTANCE_ID_INVALID",
+    )
+    archive_root = root or default_archive_root()
+    path = _sampling_cohort_manifest_path(archive_root, instance_id)
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_ARCHIVE_UNREADABLE"
+        ) from exc
+    if not isinstance(record, dict):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_ARCHIVE_INVALID"
+        )
+    archive_hash = str(record.pop("archive_content_sha256", ""))
+    manifest = record.get("manifest")
+    if (
+        set(record)
+        != {
+            "schema_version",
+            "plan_instance_id",
+            "manifest_digest",
+            "manifest",
+        }
+        or not RECEIPT_HASH_RE.fullmatch(archive_hash)
+        or canonical_sha256(record) != archive_hash
+        or record.get("schema_version")
+        != SAMPLING_COHORT_MANIFEST_ARCHIVE_SCHEMA_VERSION
+        or record.get("plan_instance_id") != instance_id
+        or not isinstance(manifest, Mapping)
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_ARCHIVE_INTEGRITY_INVALID"
+        )
+    envelope = load_authenticated_sampling_plan_envelope(
+        instance_id,
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    validated = _validated_sampling_cohort_manifest(
+        manifest,
+        sampling_plan_envelope=envelope,
+    )
+    if (
+        validated["manifest_digest"] != record.get("manifest_digest")
+        or validated["sampling_plan_envelope_id"] != instance_id
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_ARCHIVE_BINDING_INVALID"
+        )
+    draws_by_index = _sampling_plan_draws_by_index(envelope)
+    for member in validated["members"]:
+        receipt = load_behavior_receipt(
+            member["receipt_hash"], root=archive_root
+        )
+        observed = _validate_receipt_against_sampling_plan(
+            receipt,
+            selected_index=member["selected_index"],
+            sampling_plan=validated["sampling_plan"],
+            parent_policy_fingerprint=validated[
+                "parent_policy_fingerprint"
+            ],
+            expected_draw_u53=draws_by_index[member["selected_index"]],
+        )
+        if observed != member["receipt_hash"]:
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MANIFEST_RECEIPT_BINDING_INVALID"
+            )
+        _validate_manifest_member_receipt_identity(
+            member=member,
+            receipt=receipt,
+            observed_receipt_hash=observed,
+        )
+    return validated
+
+
+def verify_archived_sampling_cohort_manifest(
+    manifest: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    validated = _validated_sampling_cohort_manifest(manifest)
+    archived = load_sampling_cohort_manifest(
+        validated["sampling_plan_envelope_id"],
+        key_resolver=key_resolver,
+        root=root,
+    )
+    if archived != validated:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_MANIFEST_ARCHIVE_PAYLOAD_MISMATCH"
+        )
+    return validated
+
+
+def build_sampling_cohort_completeness_proof(
+    *,
+    manifest: Mapping[str, Any],
+    terminal_dispositions: Mapping[str, str],
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    """Bind terminal outcomes to the exact immutable pre-admission manifest."""
+
+    validated_manifest = _validated_sampling_cohort_manifest(manifest)
+    normalized_dispositions = {
+        str(receipt_hash): str(disposition)
+        for receipt_hash, disposition in terminal_dispositions.items()
+    }
+    sampled = list(validated_manifest["sampled_receipt_hashes"])
+    if set(normalized_dispositions) != set(sampled):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_NOT_FULLY_TERMINALIZED"
+        )
+    if any(
+        disposition not in SAMPLING_COHORT_TERMINAL_DISPOSITIONS
+        for disposition in normalized_dispositions.values()
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_TERMINAL_DISPOSITION_INVALID"
+        )
+    timestamp = generated_at or utc_now()
+    generated = _strict_utc(timestamp)
+    manifest_time = _strict_utc(validated_manifest["generated_at"])
+    if generated is None or manifest_time is None or generated < manifest_time:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_TIME_INVALID"
+        )
+    material = {
+        "schema_version": SAMPLING_COHORT_COMPLETENESS_SCHEMA_VERSION,
+        "sampling_plan_envelope_id": validated_manifest[
+            "sampling_plan_envelope_id"
+        ],
+        "manifest_digest": validated_manifest["manifest_digest"],
+        "cohort_id": validated_manifest["cohort_id"],
+        "sampling_plan_hash": validated_manifest["sampling_plan_hash"],
+        "sampling_plan_input_hash": validated_manifest["sampling_plan_input_hash"],
+        "parent_policy_fingerprint": validated_manifest[
+            "parent_policy_fingerprint"
+        ],
+        "sampled_receipt_hashes": sampled,
+        "terminalized_receipt_hashes": sampled,
+        "terminal_dispositions": {
+            receipt_hash: normalized_dispositions[receipt_hash]
+            for receipt_hash in sampled
+        },
+        "sampled_receipt_count": len(sampled),
+        "terminalized_receipt_count": len(sampled),
+        "generated_at": timestamp,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return {**material, "cohort_digest": canonical_sha256(material)}
+
+
+def _validated_sampling_cohort_proof(
+    proof: Mapping[str, Any],
+) -> dict[str, Any]:
+    row = dict(proof)
+    supplied_digest = _required_sha256(
+        row.pop("cohort_digest", ""),
+        "SAMPLING_COHORT_DIGEST_INVALID",
+    )
+    if canonical_sha256(row) != supplied_digest:
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_DIGEST_MISMATCH")
+    if row.get("schema_version") != SAMPLING_COHORT_COMPLETENESS_SCHEMA_VERSION:
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_SCHEMA_VERSION_INVALID")
+    for field in (
+        "sampling_plan_envelope_id",
+        "manifest_digest",
+        "cohort_id",
+        "sampling_plan_hash",
+        "sampling_plan_input_hash",
+        "parent_policy_fingerprint",
+    ):
+        _required_sha256(
+            row.get(field), f"SAMPLING_COHORT_{field.upper()}_INVALID"
+        )
+    sampled = row.get("sampled_receipt_hashes")
+    terminalized = row.get("terminalized_receipt_hashes")
+    dispositions = row.get("terminal_dispositions")
+    if (
+        not isinstance(sampled, list)
+        or not sampled
+        or any(not RECEIPT_HASH_RE.fullmatch(str(value)) for value in sampled)
+        or len(set(sampled)) != len(sampled)
+        or terminalized != sampled
+        or not isinstance(dispositions, Mapping)
+        or set(dispositions) != set(sampled)
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_MEMBERSHIP_INVALID"
+        )
+    if any(
+        disposition not in SAMPLING_COHORT_TERMINAL_DISPOSITIONS
+        for disposition in dispositions.values()
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_TERMINAL_DISPOSITION_INVALID"
+        )
+    if (
+        row.get("sampled_receipt_count") != len(sampled)
+        or row.get("terminalized_receipt_count") != len(sampled)
+        or _strict_utc(row.get("generated_at")) is None
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_COUNTS_OR_TIME_INVALID"
+        )
+    if (
+        row.get("paper_only") is not True
+        or row.get("routes_to_live") is not False
+        or row.get("places_real_order") is not False
+    ):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_PAPER_SAFETY_INVALID")
+    return {**row, "cohort_digest": supplied_digest}
+
+
+def _verify_sampling_cohort_terminal_lifecycle(
+    *,
+    proof: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    root: Path,
+) -> None:
+    proof_time = _strict_utc(proof.get("generated_at"))
+    if proof_time is None:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_TIME_INVALID"
+        )
+    members_by_hash = {
+        member["receipt_hash"]: member for member in manifest["members"]
+    }
+    for receipt_hash in proof["sampled_receipt_hashes"]:
+        load_behavior_receipt(receipt_hash, root=root)
+        disposition = proof["terminal_dispositions"][receipt_hash]
+        member = members_by_hash[receipt_hash]
+        status = receipt_lifecycle_status(receipt_hash, root=root)
+        if (
+            disposition != "ENTRY_OUTCOME_FINALIZED"
+            or member["selected_action"] not in {"long", "short"}
+            or status.get("entry_accepted_durable") is not True
+            or status.get("outcome_finalized_durable") is not True
+        ):
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
+            )
+        outcome_time = _strict_utc(
+            status.get("event_bindings", {})
+            .get(EVENT_OUTCOME_FINALIZED, {})
+            .get("outcome_available_at")
+        )
+        if outcome_time is None or outcome_time > proof_time:
+            raise BehaviorReceiptArchiveError(
+                "SAMPLING_COHORT_TERMINAL_TIME_INVALID"
+            )
+
+
+def _manifest_bound_to_proof(
+    proof: Mapping[str, Any], manifest: Mapping[str, Any]
+) -> bool:
+    return all(
+        proof.get(field) == manifest.get(field)
+        for field in (
+            "sampling_plan_envelope_id",
+            "manifest_digest",
+            "cohort_id",
+            "sampling_plan_hash",
+            "sampling_plan_input_hash",
+            "parent_policy_fingerprint",
+            "sampled_receipt_hashes",
+            "sampled_receipt_count",
+        )
+    )
+
+
+def archive_sampling_cohort_completeness_proof(
+    proof: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+) -> SamplingCohortArchiveWrite:
+    validated = _validated_sampling_cohort_proof(proof)
+    archive_root = root or default_archive_root()
+    manifest = load_sampling_cohort_manifest(
+        validated["sampling_plan_envelope_id"],
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    if not _manifest_bound_to_proof(validated, manifest):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_MANIFEST_MISMATCH"
+        )
+    _verify_sampling_cohort_terminal_lifecycle(
+        proof=validated, manifest=manifest, root=archive_root
+    )
+    record_without_hash = {
+        "schema_version": SAMPLING_COHORT_COMPLETENESS_ARCHIVE_SCHEMA_VERSION,
+        "cohort_digest": validated["cohort_digest"],
+        "proof": validated,
+    }
+    archive_hash = canonical_sha256(record_without_hash)
+    record = {**record_without_hash, "archive_content_sha256": archive_hash}
+    path = _sampling_cohort_proof_path(archive_root, validated["cohort_digest"])
+    already_present = _write_json_create_or_identical(path, record)
+    verify_archived_sampling_cohort_completeness_proof(
+        validated,
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    return SamplingCohortArchiveWrite(
+        cohort_digest=validated["cohort_digest"],
+        manifest_digest=validated["manifest_digest"],
+        archive_content_sha256=archive_hash,
+        proof_path=path,
+        already_present=already_present,
+    )
+
+
+def verify_archived_sampling_cohort_completeness_proof(
+    proof: Mapping[str, Any],
+    *,
+    key_resolver: SamplingPlanKeyResolver,
+    root: Path | None = None,
+    expected_receipt_hash: str | None = None,
+    expected_sampling_plan_hash: str | None = None,
+    expected_sampling_plan_input_hash: str | None = None,
+    expected_parent_policy_fingerprint: str | None = None,
+) -> dict[str, Any]:
+    validated = _validated_sampling_cohort_proof(proof)
+    for observed, expected, reason in (
+        (
+            validated["sampling_plan_hash"],
+            expected_sampling_plan_hash,
+            "SAMPLING_COHORT_PLAN_HASH_MISMATCH",
+        ),
+        (
+            validated["sampling_plan_input_hash"],
+            expected_sampling_plan_input_hash,
+            "SAMPLING_COHORT_PLAN_INPUT_HASH_MISMATCH",
+        ),
+        (
+            validated["parent_policy_fingerprint"],
+            expected_parent_policy_fingerprint,
+            "SAMPLING_COHORT_PARENT_POLICY_MISMATCH",
+        ),
+    ):
+        if expected is not None and observed != expected:
+            raise BehaviorReceiptArchiveError(reason)
+    if expected_receipt_hash is not None and expected_receipt_hash not in validated[
+        "sampled_receipt_hashes"
+    ]:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_RECEIPT_MEMBERSHIP_MISSING"
+        )
+    archive_root = root or default_archive_root()
+    manifest = load_sampling_cohort_manifest(
+        validated["sampling_plan_envelope_id"],
+        key_resolver=key_resolver,
+        root=archive_root,
+    )
+    if not _manifest_bound_to_proof(validated, manifest):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_MANIFEST_MISMATCH"
+        )
+    path = _sampling_cohort_proof_path(archive_root, validated["cohort_digest"])
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_ARCHIVE_UNREADABLE"
+        ) from exc
+    if not isinstance(record, dict):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_ARCHIVE_RECORD_INVALID")
+    archive_hash = str(record.pop("archive_content_sha256", ""))
+    if (
+        not RECEIPT_HASH_RE.fullmatch(archive_hash)
+        or canonical_sha256(record) != archive_hash
+        or record.get("schema_version")
+        != SAMPLING_COHORT_COMPLETENESS_ARCHIVE_SCHEMA_VERSION
+        or record.get("cohort_digest") != validated["cohort_digest"]
+        or record.get("proof") != validated
+    ):
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_ARCHIVE_INTEGRITY_INVALID"
+        )
+    _verify_sampling_cohort_terminal_lifecycle(
+        proof=validated, manifest=manifest, root=archive_root
+    )
+    return {
+        "cohort_verified": True,
+        "cohort_digest": validated["cohort_digest"],
+        "manifest_digest": validated["manifest_digest"],
+        "cohort_id": validated["cohort_id"],
+        "sampled_receipt_count": len(validated["sampled_receipt_hashes"]),
+        "terminalized_receipt_count": len(validated["terminalized_receipt_hashes"]),
+        "receipt_membership_verified": expected_receipt_hash is not None,
+        "archive_content_sha256": archive_hash,
+        "proof_path": str(path),
     }
 
 
