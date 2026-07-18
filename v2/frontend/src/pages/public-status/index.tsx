@@ -19,7 +19,7 @@ type StatusTone = 'ok' | 'warn' | 'block' | 'neutral';
 type MarketDataStatus = 'LIVE' | 'DELAYED' | 'STALE' | 'OFFLINE';
 type AutomationStatus = 'ACTIVE' | 'PAUSED' | 'DEGRADED' | 'UNKNOWN';
 type ExecutionStatus = 'RESTRICTED' | 'PAPER' | 'LIVE_APPROVED' | 'DISABLED';
-type AccountStatus = 'CONNECTED' | 'UNAVAILABLE' | 'UNAUTHORIZED';
+type AccountStatus = 'CONNECTED' | 'AUTHORIZED' | 'UNAVAILABLE' | 'UNAUTHORIZED';
 
 interface TruthfulStatusDimensions {
   market_data?: MarketDataStatus;
@@ -94,7 +94,7 @@ function statusLabel(value: string | null | undefined): string {
 
 function statusTone(label: string | null | undefined): StatusTone {
   const status = String(label ?? '').toUpperCase();
-  if (status === 'LIVE' || status === 'ACTIVE' || status === 'CONNECTED') return 'ok';
+  if (status === 'LIVE' || status === 'ACTIVE' || status === 'CONNECTED' || status === 'AUTHORIZED') return 'ok';
   if (status === 'OFFLINE' || status === 'DISABLED') return 'block';
   if (status === 'UNAUTHORIZED' || status === 'UNAVAILABLE') return 'neutral';
   return 'warn';

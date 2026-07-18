@@ -245,7 +245,7 @@ export default function IngestorsPage(): JSX.Element {
                     <th>TTL (s)</th>
                     <th>Symbols</th>
                     <th>Keys written</th>
-                    <th>Last heartbeat</th>
+                    <th>Last generated</th>
                     <th>Controls</th>
                   </tr>
                 </thead>

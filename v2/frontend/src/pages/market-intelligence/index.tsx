@@ -185,7 +185,7 @@ function MarketSummaryBanner({ tickers }: { tickers: TickerRow[] }): JSX.Element
         sub={eth ? fmtPct(eth.change_24h) + ' 24h' : 'Not loaded'} icon="⟠" />
       <StatCard label="Market Breadth" value={`${breadth >= 0 ? '+' : ''}${breadth.toFixed(0)}%`}
         color={breadthColor} sub={`${advancing}↑ / ${declining}↓ / ${unchanged}=`} icon="📊" />
-      <StatCard label="Total Volume 24h" value={totalTurnover > 0 ? fmt(totalTurnover) : '—'}
+      <StatCard label="Total Turnover 24h" value={totalTurnover > 0 ? fmt(totalTurnover) : '—'}
         sub="Total USD turnover across all pairs" icon="💹" />
       <StatCard label="Avg Change 24h" value={`${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}%`}
         color={avgChange >= 0 ? '#26c281' : '#ef5350'} sub="Mean price change across all pairs" icon="📈" />
