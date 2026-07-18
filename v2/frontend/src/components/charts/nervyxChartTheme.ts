@@ -84,7 +84,7 @@ export function fmtPct(n: number | null | undefined, digits = 1): string {
 export interface EquityCurvePoint { t?: string; pnl?: number; winner?: boolean }
 export interface EquityChartData {
   equitySeries: Array<{ label: string; value: number }>;
-  perTradePnl: Array<{ label: string; value: number }>;
+  perTradePnl: Array<{ label: string; value: number; winner?: boolean }>;
   winLossData: Array<{ name: string; value: number; color: string }>;
   winRate: number | null;
   trades: number;
@@ -99,12 +99,22 @@ export function buildEquityCharts(
   curve: EquityCurvePoint[] | null | undefined,
   opts: { startingCapital?: number | null; equity?: number | null; totalPnl?: number | null } = {},
 ): EquityChartData {
+  // equity_curve `pnl` is CUMULATIVE net PnL. Derive the PER-TRADE delta so the
+  // per-trade bars and the equity reconstruction (run += value) are correct, and
+  // count wins by the NET `winner` flag — never the sign of cumulative equity
+  // (which counts "equity was above breakeven %", e.g. a phantom 70% vs true 37%).
+  let prevCum = 0;
   const per = (curve ?? [])
-    .map((p, i) => ({ label: `#${i + 1}`, value: Number(p?.pnl ?? 0) }))
+    .map((p, i) => {
+      const cum = Number(p?.pnl ?? 0);
+      const delta = Number.isFinite(cum) ? cum - prevCum : NaN;
+      if (Number.isFinite(cum)) prevCum = cum;
+      return { label: `#${i + 1}`, value: delta, winner: p?.winner === true };
+    })
     .filter((p) => Number.isFinite(p.value));
-  const wins = per.filter((p) => p.value > 0).length;
-  const losses = per.filter((p) => p.value < 0).length;
-  const flat = per.length - wins - losses;
+  const wins = per.filter((p) => p.winner === true).length;
+  const losses = per.length - wins;
+  const flat = 0;
   const base = opts.startingCapital
     ?? (opts.equity != null && opts.totalPnl != null ? opts.equity - opts.totalPnl : (opts.equity ?? 3000));
   let run = base;
