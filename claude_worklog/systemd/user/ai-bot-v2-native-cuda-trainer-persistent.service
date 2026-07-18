@@ -12,6 +12,7 @@ Environment=V2_NATIVE_TRAINER_ADAPTIVE_GPU_CONTROLLER=1
 Environment=V2_TRAINER_HIDDEN_SIZE=2048
 Environment=V2_TRAINER_RESIDUAL_BLOCKS=4
 Environment=V2_TRAINER_CPU_THREADS=8
+Environment=V2_TRAINER_VALIDATION_CHECKPOINT_GUARD=true
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
 ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_native_cuda_trainer_persistent_loop --repo-root "/home/wali/Desktop/AI BOT REBUILD" --interval-seconds 5 --max-rows 16384'
 Restart=always
