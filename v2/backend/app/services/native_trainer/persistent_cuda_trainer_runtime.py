@@ -1529,7 +1529,15 @@ def checkpoint_retention_status(
 ) -> dict[str, Any]:
     checkpoint_dir = paths.model_dir
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted([p for p in checkpoint_dir.glob("*") if p.is_file()], key=lambda p: p.stat().st_mtime)
+    files = sorted(
+        [
+            path
+            for path in checkpoint_dir.glob("v2_hybrid_ckpt_*")
+            if path.is_file()
+            and (path.name.endswith(".json") or path.name.endswith(".weights.npz"))
+        ],
+        key=lambda path: path.stat().st_mtime,
+    )
     pinned_names: set[str] = set()
     if latest_checkpoint_id:
         pinned_names.update(path.name for path in files if latest_checkpoint_id in path.name)
@@ -1557,7 +1565,11 @@ def checkpoint_retention_status(
                 continue
             deleted.append(path.name)
             total_bytes -= size
-    remaining = sorted([p for p in checkpoint_dir.glob("*") if p.is_file()], key=lambda p: p.stat().st_mtime)
+    remaining = sorted(
+        [path for path in files if path.exists()],
+        key=lambda path: path.stat().st_mtime,
+    )
+    total_bytes = sum(path.stat().st_size for path in remaining)
     latest = remaining[-1].name if remaining else None
     manifest = {
         "schema_version": "native_cuda_trainer_checkpoint_retention_manifest_v1",

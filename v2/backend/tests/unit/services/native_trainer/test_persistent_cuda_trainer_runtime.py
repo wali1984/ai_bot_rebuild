@@ -239,6 +239,8 @@ def test_checkpoint_retention_keeps_latest_below_300gb(tmp_path: Path) -> None:
     (checkpoint_dir / "v2_hybrid_ckpt_old.json").write_text("{}", encoding="utf-8")
     latest = checkpoint_dir / "v2_hybrid_ckpt_latest.json"
     latest.write_text("{}", encoding="utf-8")
+    control_file = checkpoint_dir / "checkpoint_retention_manifest.json"
+    control_file.write_text('{"latest_checkpoint": "stale"}', encoding="utf-8")
 
     status = checkpoint_retention_status(
         paths=paths,
@@ -248,7 +250,12 @@ def test_checkpoint_retention_keeps_latest_below_300gb(tmp_path: Path) -> None:
 
     assert status["checkpoint_count"] == 2
     assert status["rollover_action_taken"] == "NONE"
-    assert status["latest_checkpoint"] == "checkpoint_retention_manifest.json" or status["latest_checkpoint"] == latest.name
+    assert status["latest_checkpoint"] == latest.name
+    assert status["checkpoint_dir_size_bytes"] == sum(
+        path.stat().st_size
+        for path in checkpoint_dir.glob("v2_hybrid_ckpt_*")
+        if path.is_file()
+    )
     assert latest.exists()
 
 
