@@ -96,6 +96,8 @@ def test_online_learning_runtime_fields_publish_training_update_evidence() -> No
     assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
     assert fields["checkpoint_hash"] == "checkpoint-sha256"
     assert "schema_version" not in fields
+    assert fields["trainer_process_status"] == "INACTIVE"
+    assert fields["cuda_inference_status"] == "BLOCKED_NO_CUDA_INFERENCE_EVIDENCE"
 
 
 def test_online_learning_runtime_fields_keep_checkpoint_evidence_from_persistent_runtime() -> None:

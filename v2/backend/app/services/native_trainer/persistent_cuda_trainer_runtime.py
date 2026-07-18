@@ -2202,6 +2202,8 @@ def online_learning_runtime_fields(
     latest_training_metrics: Mapping[str, Any] | None = None,
     persistent_state: Mapping[str, Any] | None = None,
     prediction_rows: int = 0,
+    trainer_process_active: bool | None = None,
+    cuda_inference_active: bool | None = None,
 ) -> dict[str, Any]:
     training = as_dict(training)
     latest_training_metrics = as_dict(latest_training_metrics)
@@ -2231,6 +2233,8 @@ def online_learning_runtime_fields(
         latest_training_metrics=latest_training_metrics,
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_rows,
+        trainer_process_active=trainer_process_active,
+        cuda_inference_active=cuda_inference_active,
     )
     return {
         **{key: value for key, value in readiness.items() if key != "schema_version"},
@@ -2300,6 +2304,7 @@ def build_persistent_runtime_status(
         latest_training_metrics=latest_training_metrics,
         persistent_state=persistent_state,
         prediction_rows=prediction_rows,
+        trainer_process_active=True,
     )
     legacy_runtime_config = legacy_grade_runtime_config(
         symbols=symbol_scope.get("training_symbols") or [],
@@ -2467,6 +2472,7 @@ def publish_training_cycle_heartbeat(
         latest_training_metrics=latest_training_metrics,
         persistent_state=state,
         prediction_rows=prediction_rows,
+        trainer_process_active=True,
     )
     payload = {
         **existing,
@@ -3378,6 +3384,7 @@ def publish_persistent_payloads(
         latest_training_metrics=latest_training_metrics,
         persistent_state=persistent,
         prediction_rows=current_prediction_rows,
+        trainer_process_active=True,
     )
     current_result_status = as_dict(getattr(trainer_result, "status", {})) if trainer_result is not None else {}
     current_metric_fields = as_dict(as_dict(latest_training_metrics).get("metrics"))

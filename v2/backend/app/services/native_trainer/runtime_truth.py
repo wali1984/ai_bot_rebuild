@@ -174,6 +174,8 @@ def online_learning_runtime_fields(
     training: Mapping[str, Any] | None = None,
     persistent_runtime: Mapping[str, Any] | None = None,
     prediction_rows: int = 0,
+    trainer_process_active: bool | None = None,
+    cuda_inference_active: bool | None = None,
 ) -> dict[str, Any]:
     training = as_dict(training)
     persistent_runtime = as_dict(persistent_runtime)
@@ -188,6 +190,8 @@ def online_learning_runtime_fields(
         training=training,
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_rows,
+        trainer_process_active=trainer_process_active,
+        cuda_inference_active=cuda_inference_active,
     )
     return {
         **{key: value for key, value in readiness.items() if key != "schema_version"},
@@ -501,6 +505,15 @@ def build_native_trainer_runtime_payloads(paths: NativeTrainerRuntimePaths | Non
         training=training,
         persistent_runtime=persistent_runtime,
         prediction_rows=prediction_summary["prediction_rows"],
+        trainer_process_active=(
+            persistent_active
+            or trainer_service.get("ActiveState") in {"active", "activating"}
+        ),
+        cuda_inference_active=bool(
+            training.get("cuda_active")
+            or persistent_resource.get("cuda_available")
+            or persistent_resource.get("cuda_active")
+        ),
     )
     gpu_status = {
         "schema_version": "native_trainer_gpu_status_v1",

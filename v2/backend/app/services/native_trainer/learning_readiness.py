@@ -67,11 +67,26 @@ def build_learning_readiness(
     persistent_runtime: Mapping[str, Any] | None = None,
     latest_training_metrics: Mapping[str, Any] | None = None,
     prediction_rows: int = 0,
+    trainer_process_active: bool | None = None,
+    cuda_inference_active: bool | None = None,
 ) -> dict[str, Any]:
     training = as_dict(training)
     persistent_runtime = as_dict(persistent_runtime)
     latest_training_metrics = as_dict(latest_training_metrics)
     metrics = as_dict(latest_training_metrics.get("metrics")) or as_dict(training.get("metrics"))
+    if trainer_process_active is None:
+        trainer_process_active = _bool_any(
+            persistent_runtime.get("service_active"),
+            persistent_runtime.get("cycle_process_active"),
+            training.get("trainer_process_active"),
+        )
+    if cuda_inference_active is None:
+        cuda_inference_active = _bool_any(
+            metrics.get("cuda_active"),
+            training.get("cuda_active"),
+            latest_training_metrics.get("cuda_active"),
+            persistent_runtime.get("cuda_active"),
+        )
 
     trusted_rows_loaded = int(
         _first_number(
@@ -217,8 +232,10 @@ def build_learning_readiness(
         "schema_version": "online_learning_global_readiness_override_v1",
         "generated_utc": utc_now(),
         "trainer_learning_ready": trainer_learning_ready,
-        "trainer_process_status": "ACTIVE",
-        "cuda_inference_status": "ACTIVE",
+        "trainer_process_status": "ACTIVE" if trainer_process_active else "INACTIVE",
+        "cuda_inference_status": (
+            "ACTIVE" if cuda_inference_active else "BLOCKED_NO_CUDA_INFERENCE_EVIDENCE"
+        ),
         "prediction_publication_status": "ACTIVE" if int(prediction_rows) > 0 else "BLOCKED_NO_PREDICTIONS",
         "offline_replay_learning_status": offline_replay_learning_status,
         "online_paper_learning_status": online_paper_learning_status,

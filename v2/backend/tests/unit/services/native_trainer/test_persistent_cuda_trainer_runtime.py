@@ -104,6 +104,8 @@ def test_online_learning_runtime_fields_publish_checkpoint_evidence() -> None:
     assert fields["trainer_learning_ready"] is True
     assert fields["checkpoint_path"] == "/tmp/unit-checkpoint.pt"
     assert "schema_version" not in fields
+    assert fields["trainer_process_status"] == "INACTIVE"
+    assert fields["cuda_inference_status"] == "BLOCKED_NO_CUDA_INFERENCE_EVIDENCE"
     assert fields["checkpoint_hash"] == "checkpoint-sha256"
 
 
