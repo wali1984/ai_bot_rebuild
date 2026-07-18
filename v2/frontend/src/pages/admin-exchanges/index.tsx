@@ -70,7 +70,7 @@ export default function AdminExchangesPage(): JSX.Element {
           <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 700, color: data.stream_stale ? SC.warn : SC.ok }}>
             MARKET STREAM: {data.stream_stale ? 'STALE' : 'LIVE'}
           </span>
-          {data.stream_source !== undefined && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>source: unknown</span>}
+          {data.stream_source !== undefined && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>source: {String(data.stream_source ?? 'unknown')}</span>}
           {data.stream_last_at && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>last frame {relativeAge(data.stream_last_at)}</span>}
         </div>
       )}

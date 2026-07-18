@@ -287,7 +287,7 @@ export default function DashboardPage(): JSX.Element {
           { name: 'Portfolio', status: portfolioEnv.freshness_status, lagMs: portfolioEnv.lag_ms },
           { name: 'Signals', status: signalEnv.freshness_status, lagMs: signalEnv.lag_ms },
           { name: 'AI', status: aiEnv.freshness_status, lagMs: aiEnv.lag_ms },
-          { name: 'Market', status: marketTickers.length > 0 ? 'fresh' : 'offline' },
+          { name: 'Market', status: marketEnv.freshness_status, lagMs: marketEnv.lag_ms },
         ]}
         compact
       />

@@ -58,7 +58,9 @@ export default function AuditLedgerPage(): JSX.Element {
   const data = envelope.data;
   const allEvents = data?.events ?? data?.entries ?? [];
   const eventTotal = data?.total ?? data?.chain_length ?? allEvents.length;
-  const immutable = data?.immutable ?? true;
+  // Only assert immutability when the backend actually reports it — defaulting
+  // to true fabricated a green "✓ Immutable" guarantee with no evidence.
+  const immutable = data?.immutable ?? false;
   const filtered = allEvents.filter((e) => {
     if (actorFilter && !e.actor.toLowerCase().includes(actorFilter.toLowerCase())) return false;
     if (actionFilter && !e.action.toLowerCase().includes(actionFilter.toLowerCase())) return false;

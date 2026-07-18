@@ -252,10 +252,10 @@ export default function AdminWarRoomPage(): JSX.Element {
                 />
                 <MetricCard label="Execution symbols" value={liveGateRuntime?.execution_live_symbols?.length ?? 0} tone="ok" />
                 <MetricCard label="Dry-run mode" value={(canaryDash.payload?.dry_run ?? true) ? 'enabled' : 'disabled'} tone="ok" />
-                <MetricCard label="Live order routing enabled" value={(canaryDash.payload?.live_enabled ?? false) ? 'enabled' : 'blocked'} tone="ok" />
-                <MetricCard label="Real order attempt" value={(canaryDash.payload?.real_order_attempted ?? false) ? 'attempted' : 'none'} tone="ok" />
-                <MetricCard label="Leverage changes" value={(canaryDash.payload?.leverage_changed ?? false) ? 'changed' : 'unchanged'} tone="ok" />
-                <MetricCard label="Margin mode changes" value={(canaryDash.payload?.margin_mode_changed ?? false) ? 'changed' : 'unchanged'} tone="ok" />
+                <MetricCard label="Live order routing enabled" value={(canaryDash.payload?.live_enabled ?? false) ? 'enabled' : 'blocked'} tone={(canaryDash.payload?.live_enabled ?? false) ? 'bad' : 'ok'} />
+                <MetricCard label="Real order attempt" value={(canaryDash.payload?.real_order_attempted ?? false) ? 'attempted' : 'none'} tone={(canaryDash.payload?.real_order_attempted ?? false) ? 'bad' : 'ok'} />
+                <MetricCard label="Leverage changes" value={(canaryDash.payload?.leverage_changed ?? false) ? 'changed' : 'unchanged'} tone={(canaryDash.payload?.leverage_changed ?? false) ? 'warn' : 'ok'} />
+                <MetricCard label="Margin mode changes" value={(canaryDash.payload?.margin_mode_changed ?? false) ? 'changed' : 'unchanged'} tone={(canaryDash.payload?.margin_mode_changed ?? false) ? 'warn' : 'ok'} />
                 <MetricCard label="Approval artifact" value={(canaryDash.payload?.approval_file_present ?? false) ? 'present' : 'not present'} />
                 <MetricCard label="Codex pass marker" value={(canaryDash.payload?.codex_live_canary_pass_marker_present ?? false) ? 'present' : 'not present'} />
                 <MetricCard label="Permission probe" value={canaryDash.payload?.permission_probe_go_no_go ?? canaryProbe.payload?.go_no_go ?? '—'} />

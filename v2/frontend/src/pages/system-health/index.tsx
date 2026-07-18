@@ -138,7 +138,7 @@ function RuntimeAuthPanel(): JSX.Element {
         <TruthCell label="Auth endpoint" value={AUTH_HEALTH_ENDPOINT} tone={data?.status === 'ok' ? 'ok' : 'warn'} />
         <TruthCell label="Backend session" value={data?.login_endpoint_available ? 'login endpoint online' : 'login endpoint unavailable'} tone={data?.login_endpoint_available ? 'ok' : 'error'} />
         <TruthCell label="Auth backend" value={statusLabel(data?.auth_store_backend ?? authStore?.backend)} tone={data?.durable_user_store_configured ? 'ok' : 'warn'} />
-        <TruthCell label="Redis feed" value={`${DATA_HEALTH_ENDPOINT} · redis_live surfaces`} tone="ok" />
+        <TruthCell label="Redis feed" value={`${DATA_HEALTH_ENDPOINT} · redis_live surfaces`} tone={['offline', 'stale', 'unavailable'].includes(auth.envelope.freshness_status) ? 'warn' : 'ok'} />
         <TruthCell label="Cookie security" value={`httpOnly ${yesNo(data?.session_security?.cookie_httponly)} · secure ${yesNo(data?.session_security?.cookie_secure)}`} tone={data?.session_security?.cookie_httponly && data.session_security.cookie_secure ? 'ok' : 'warn'} />
         <TruthCell label="Revocation store" value={statusLabel(data?.session_security?.revocation_store_kind ?? revocationStore?.backend)} tone={revocationStore?.production_ready ? 'ok' : 'warn'} />
         <TruthCell label="Live gate" value={statusLabel(data?.live_gate ?? 'blocked_human_only')} tone={liveBlocked ? 'ok' : 'error'} />
