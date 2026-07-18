@@ -42,6 +42,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.runtime import (
     _checkpoint_promotion_status_fields,
+    _trusted_replay_backfill_limit_for_cycle,
     _trusted_replay_load_limit_for_cycle,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
@@ -146,6 +147,34 @@ def test_nonresident_replay_load_limit_uses_requested_rows() -> None:
     )
 
     assert limit == 32768
+
+
+@pytest.mark.parametrize(
+    ("max_rows", "frontier_rows", "buffered_rows", "expected"),
+    (
+        (512, 0, 0, 512),
+        (512, 100, 0, 412),
+        (512, 0, 16_000, 384),
+        (512, 100, 16_000, 284),
+        (16_384, 0, 0, 16_384),
+        (0, 0, 0, 0),
+    ),
+)
+def test_trusted_replay_backfill_is_bounded_by_cycle_and_buffer_capacity(
+    max_rows: int,
+    frontier_rows: int,
+    buffered_rows: int,
+    expected: int,
+) -> None:
+    replay_buffer = deque(range(buffered_rows), maxlen=16_384)
+
+    limit = _trusted_replay_backfill_limit_for_cycle(
+        max_training_rows_per_cycle=max_rows,
+        replay_buffer=replay_buffer,
+        frontier_rows=frontier_rows,
+    )
+
+    assert limit == expected
 
 
 def _runtime_promotion_metrics(**overrides: object) -> dict[str, object]:

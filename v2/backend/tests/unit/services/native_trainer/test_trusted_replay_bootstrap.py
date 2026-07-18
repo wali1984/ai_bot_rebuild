@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    CanonicalCandle,
+    canonical_candle_id,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     SnapshotArchiveError,
     append_snapshot,
     build_archive_record,
+    content_sha256,
     load_snapshot,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
+    profitability_target_from_trust_row,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as data_loader_mod
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
@@ -32,13 +41,20 @@ from v2.backend.app.services.native_trainer.trusted_replay.bootstrap import (
     bootstrap_trusted_replay_dataset,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
+    TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION,
+    TRUSTED_REPLAY_LABEL_POLICY_VERSION,
     build_trusted_replay_row,
+    target_action_index,
+    trusted_replay_cost_evidence,
 )
 
 
 FEATURE_CUTOFF = "2026-06-22T00:00:00Z"
 AVAILABLE_AT = "2026-06-22T00:00:30Z"
 DECISION_TIME = "2026-06-22T00:01:00Z"
+TRAINING_OBSERVED_AT = datetime(2026, 6, 22, 5, 0, tzinfo=timezone.utc)
+LABEL_PATH_START = datetime(2026, 6, 22, 0, 0, tzinfo=timezone.utc)
+LABEL_HORIZON_SLOT = {"5m": 1, "15m": 3, "1h": 12, "4h": 48}
 
 
 def _snapshot(**overrides: object) -> dict[str, object]:
@@ -53,6 +69,10 @@ def _snapshot(**overrides: object) -> dict[str, object]:
         "rsi_14": 55.0,
         "macd": 1.0,
         "macd_signal": 0.0,
+        "fee_bps": 1.0,
+        "actual_observed_spread_entry_bps": 0.5,
+        "expected_slippage_bps": 0.25,
+        "expected_funding_bps": 0.25,
     }
     snapshot: dict[str, object] = build_archive_record(
         snapshot_id="replay-snapshot-1",
@@ -76,49 +96,79 @@ def _snapshot(**overrides: object) -> dict[str, object]:
         },
     )
     snapshot.update(overrides)
-    if overrides:
-        snapshot["content_sha256"] = build_archive_record(
-            snapshot_id=snapshot["snapshot_id"],
-            symbol=snapshot["symbol"],
-            timeframe=snapshot["timeframe"],
-            feature_cutoff=snapshot["feature_cutoff"],
-            decision_time=snapshot["decision_time"],
-            available_at=snapshot["available_at"],
-            mtf_snapshot_id=snapshot["mtf_snapshot_id"],
-            features=snapshot["features"],
-            missing_mask=snapshot["missing_mask"],
-            stale_mask=snapshot["stale_mask"],
-            source_availability=snapshot["source_availability"],
-            source_hashes=snapshot["source_hashes"],
-            created_at=snapshot["created_at"],
-            extra={
-                "decision_id": snapshot.get("decision_id"),
-                "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
-                "model_version": snapshot.get("model_version"),
-                "checkpoint_id": snapshot.get("checkpoint_id"),
-            },
-        )["content_sha256"]
+    snapshot["content_sha256"] = content_sha256(snapshot)
     return snapshot
 
 
-def _candles() -> list[dict[str, object]]:
-    start = datetime(2026, 6, 22, 0, 1, tzinfo=timezone.utc)
+def _candles(
+    *,
+    horizon_closes: dict[str, float] | None = None,
+    path_high: float | None = None,
+    path_low: float | None = None,
+) -> list[dict[str, object]]:
+    """Build the exact finalized 5m label frontier used by replay.
+
+    The decision occurs inside slot 0.  Forty-nine contiguous base candles are
+    therefore required to reach the first finalized 5m close at or after the
+    4h target without borrowing the snapshot's own timeframe.
+    """
+
+    selected_closes = dict(horizon_closes or {})
     rows: list[dict[str, object]] = []
-    for minute in range(1, 260):
-        close_time = start + timedelta(minutes=minute)
-        close = 100.0 + minute * 0.02
+    close_override_by_slot = {
+        LABEL_HORIZON_SLOT[horizon]: close
+        for horizon, close in selected_closes.items()
+    }
+    for slot in range(LABEL_HORIZON_SLOT["4h"] + 1):
+        open_time = LABEL_PATH_START + timedelta(minutes=5 * slot)
+        close_time = open_time + timedelta(minutes=5) - timedelta(milliseconds=1)
+        default_close = 100.0 if selected_closes else 100.0 + (slot + 1) * 0.1
+        close = close_override_by_slot.get(slot, default_close)
+        high = max(100.0, close, path_high if path_high is not None else close + 0.5)
+        low = min(100.0, close, path_low if path_low is not None else close - 0.5)
+        ingested_at = close_time + timedelta(milliseconds=1)
+        raw_hash = hashlib.sha256(
+            f"BTCUSDT:5m:{slot}:{close}:{high}:{low}".encode("utf-8")
+        ).hexdigest()
         rows.append(
-            {
-                "candle_close_time": close_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
-                "close": close,
-                "high": close + 0.5,
-                "low": close - 0.5,
-                "is_closed": True,
-                "closed_candle": True,
-                "candle_closed_confirmed": True,
-            }
+            CanonicalCandle(
+                symbol="BTCUSDT",
+                exchange="binance",
+                timeframe="5m",
+                candle_open_time=int(open_time.timestamp() * 1000),
+                candle_close_time=int(close_time.timestamp() * 1000),
+                event_time=int(close_time.timestamp() * 1000),
+                ingested_at=int(ingested_at.timestamp() * 1000),
+                available_at=int(ingested_at.timestamp() * 1000),
+                is_closed=True,
+                source="binance_wss",
+                source_sequence_id=f"unit-5m-{slot}",
+                raw_payload_hash=raw_hash,
+                ohlcv={
+                    "open": 100.0,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": 1_000.0 + slot,
+                },
+                is_backfilled=False,
+                feature_eligible=True,
+            ).to_dict()
         )
     return rows
+
+
+def _build_replay(
+    snapshot: dict[str, object],
+    *,
+    candles: list[dict[str, object]] | None = None,
+    training_observed_at: datetime | str | None = TRAINING_OBSERVED_AT,
+) -> tuple[dict[str, object] | None, list[str]]:
+    return build_trusted_replay_row(
+        snapshot,
+        candles=_candles() if candles is None else candles,
+        training_observed_at=training_observed_at,
+    )
 
 
 class _NoScanRedis:
@@ -150,6 +200,10 @@ def _append_archive_series(root: Path, *, rows: int = 270) -> None:
             "rsi_14": 55.0,
             "macd": 1.0,
             "macd_signal": 0.0,
+            "fee_bps": 1.0,
+            "actual_observed_spread_entry_bps": 0.5,
+            "expected_slippage_bps": 0.25,
+            "expected_funding_bps": 0.25,
         }
         for offset, (name, _source) in enumerate(V2UnifiedFeatureTensorBuilder.feature_spec):
             features.setdefault(str(name), close + (offset * 0.001))
@@ -180,7 +234,7 @@ def _append_archive_series(root: Path, *, rows: int = 270) -> None:
 def test_future_labels_not_in_feature_tensor() -> None:
     snapshot = _snapshot(features={**_snapshot()["features"], "future_return_5m_bps": 10.0})
 
-    row, reasons = build_trusted_replay_row(snapshot, candles=_candles())
+    row, reasons = _build_replay(snapshot)
 
     assert row is None
     assert "FUTURE_LABEL_PRESENT_IN_FEATURES" in reasons
@@ -189,7 +243,7 @@ def test_future_labels_not_in_feature_tensor() -> None:
 def test_available_at_after_decision_rejected() -> None:
     snapshot = _snapshot(available_at="2026-06-22T00:02:00Z")
 
-    row, reasons = build_trusted_replay_row(snapshot, candles=_candles())
+    row, reasons = _build_replay(snapshot)
 
     assert row is None
     assert "AVAILABLE_AT_AFTER_DECISION_TIME" in reasons
@@ -198,73 +252,298 @@ def test_available_at_after_decision_rejected() -> None:
 def test_open_candle_rejected() -> None:
     snapshot = _snapshot(candle_closed_confirmed=False)
 
-    row, reasons = build_trusted_replay_row(snapshot, candles=_candles())
+    row, reasons = _build_replay(snapshot)
 
     assert row is None
     assert "OPEN_CANDLE_REJECTED" in reasons
 
 
 def test_costs_cannot_flip_small_down_move_into_profitable_long() -> None:
-    decision_time = datetime(2026, 6, 22, 0, 1, tzinfo=timezone.utc)
-    candles = []
-    for seconds, close in (
-        (5 * 60, 100.0),
-        (15 * 60, 99.99),  # raw 15m return = -1 bps
-        (60 * 60, 100.0),
-        (4 * 60 * 60, 100.0),
-    ):
-        candles.append(
-            {
-                "candle_close_time": (decision_time + timedelta(seconds=seconds))
-                .isoformat(timespec="seconds")
-                .replace("+00:00", "Z"),
-                "close": close,
-                "high": max(100.0, close),
-                "low": min(100.0, close),
-                "candle_closed_confirmed": True,
-            }
-        )
+    candles = _candles(
+        horizon_closes={
+            "5m": 100.0,
+            "15m": 99.99,  # raw 15m return = -1 bps
+            "1h": 100.0,
+            "4h": 100.0,
+        }
+    )
 
-    row, reasons = build_trusted_replay_row(
+    row, reasons = _build_replay(
         _snapshot(selected_action="long"),
         candles=candles,
-        round_trip_cost_bps=2.0,
-        action_threshold_bps=0.5,
     )
 
     assert row is not None, reasons
     assert row["raw_future_return_15m_bps"] == pytest.approx(-1.0)
-    assert row["counterfactual_long_net_pnl_bps"] == pytest.approx(-3.0)
-    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(-1.0)
+    assert row["counterfactual_long_net_pnl_bps"] == pytest.approx(-4.25)
+    assert row["counterfactual_short_net_pnl_bps"] == pytest.approx(-2.25)
     assert row["target_action"] == "hold"
     assert row["future_return_after_cost_bps"] == 0.0
     assert row["directional_outcome"] == "DOWN"
     assert row["counterfactual_action_was_profitable"] is False
-    assert row["actual_behavior_net_pnl_bps"] == pytest.approx(-3.0)
+    assert row["actual_behavior_net_pnl_bps"] == pytest.approx(-4.25)
     assert row["actual_behavior_trade_outcome"] == "LOSS"
     assert row["actual_behavior_action_was_profitable"] is False
     assert row["trade_outcome"] == "BREAKEVEN"
 
 
+def test_missing_cost_component_fails_closed_without_flat_fallback() -> None:
+    snapshot = _snapshot()
+    del snapshot["features"]["expected_funding_bps"]  # type: ignore[index]
+    snapshot["content_sha256"] = content_sha256(snapshot)
+
+    row, reasons = _build_replay(snapshot)
+
+    assert row is None
+    assert reasons == ["COST_EVIDENCE_FUNDING_MISSING"]
+
+
+def test_nonfinite_cost_component_fails_closed() -> None:
+    snapshot = _snapshot()
+    snapshot["features"]["expected_slippage_bps"] = float("nan")  # type: ignore[index]
+    snapshot["content_sha256"] = content_sha256(snapshot)
+
+    row, reasons = _build_replay(snapshot)
+
+    assert row is None
+    assert reasons == ["COST_EVIDENCE_SLIPPAGE_NONFINITE_OR_INVALID"]
+
+
+def test_stale_cost_component_fails_closed() -> None:
+    snapshot = _snapshot()
+    snapshot["stale_mask"]["fee_bps"] = True  # type: ignore[index]
+    snapshot["content_sha256"] = content_sha256(snapshot)
+
+    row, reasons = _build_replay(snapshot)
+
+    assert row is None
+    assert reasons == ["COST_EVIDENCE_FEE_FLAGGED_STALE"]
+
+
+def test_future_cost_evidence_clock_fails_closed() -> None:
+    snapshot = _snapshot(available_at="2026-06-22T00:02:00Z")
+
+    evidence, reasons = trusted_replay_cost_evidence(snapshot)
+
+    assert evidence is None
+    assert "COST_EVIDENCE_AVAILABLE_AT_AFTER_DECISION_TIME" in reasons
+
+
+def test_adaptive_cost_increase_moves_marginal_direction_to_hold() -> None:
+    candles = _candles(
+        horizon_closes={
+            "5m": 100.0,
+            "15m": 100.04,
+            "1h": 100.04,
+            "4h": 100.04,
+        }
+    )
+    low_cost = _snapshot(snapshot_id="low-cost")
+    high_cost = _snapshot(snapshot_id="high-cost")
+    high_cost["features"]["fee_bps"] = 3.0  # type: ignore[index]
+    high_cost["content_sha256"] = content_sha256(high_cost)
+
+    low_row, low_reasons = _build_replay(low_cost, candles=candles)
+    high_row, high_reasons = _build_replay(high_cost, candles=candles)
+
+    assert low_row is not None, low_reasons
+    assert high_row is not None, high_reasons
+    assert low_row["target_action"] == "long"
+    assert high_row["target_action"] == "hold"
+    assert high_row["action_dead_zone_bps"] > low_row["action_dead_zone_bps"]
+
+
+def test_replay_label_contract_has_no_static_threshold_or_cost_fallback() -> None:
+    row, reasons = _build_replay(_snapshot())
+
+    assert row is not None, reasons
+    assert row["trusted_replay_label_policy_version"] == TRUSTED_REPLAY_LABEL_POLICY_VERSION
+    assert row["cost_evidence_schema_version"] == TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION
+    assert row["round_trip_cost_bps"] == pytest.approx(
+        (2.0 * row["fee_bps"])
+        + row["spread_bps"]
+        + (2.0 * row["slippage_bps"])
+        + abs(row["funding_bps"])
+    )
+    assert row["action_dead_zone_bps"] == pytest.approx(
+        row["round_trip_cost_bps"]
+    )
+    assert row["round_trip_fee_drag_bps"] == pytest.approx(
+        2.0 * row["fee_bps"]
+    )
+    assert row["round_trip_slippage_drag_bps"] == pytest.approx(
+        2.0 * row["slippage_bps"]
+    )
+    assert row["flat_round_trip_cost_fallback_used"] is False
+    assert row["static_action_threshold_used"] is False
+    assert target_action_index(row["target_action"]) == row["target_action_index"]
+
+
 @pytest.mark.parametrize(
-    ("label_kwargs", "expected_reason"),
+    ("close_15m", "expected_action", "expected_mfe", "expected_mae"),
     (
-        ({"round_trip_cost_bps": float("nan")}, "ROUND_TRIP_COST_BPS_INVALID"),
-        ({"action_threshold_bps": float("inf")}, "ACTION_THRESHOLD_BPS_INVALID"),
+        (101.0, "long", 200.0, -1500.0),
+        (99.0, "short", 1500.0, -200.0),
+        (100.01, "hold", 0.0, 0.0),
     ),
 )
-def test_invalid_cost_label_inputs_fail_closed(
-    label_kwargs: dict[str, float],
-    expected_reason: str,
+def test_counterfactual_excursion_is_side_aware(
+    close_15m: float,
+    expected_action: str,
+    expected_mfe: float,
+    expected_mae: float,
 ) -> None:
-    row, reasons = build_trusted_replay_row(
+    candles = _candles(
+        horizon_closes={
+            "5m": 100.0,
+            "15m": close_15m,
+            "1h": close_15m,
+            "4h": close_15m,
+        },
+        path_high=102.0,
+        path_low=85.0,
+    )
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is not None, reasons
+    assert row["target_action"] == expected_action
+    assert row["counterfactual_excursion_action"] == expected_action
+    assert row["counterfactual_excursion_scope"] == (
+        "FULL_FINALIZED_5M_CANDLES_OPENING_AT_OR_AFTER_DECISION_TIME"
+    )
+    assert row["maximum_favorable_excursion_bps"] == pytest.approx(
+        expected_mfe
+    )
+    assert row["maximum_adverse_excursion_bps"] == pytest.approx(expected_mae)
+    assert row["outcome_targets"]["MFE"] == pytest.approx(expected_mfe)
+    assert row["outcome_targets"]["MAE"] == pytest.approx(expected_mae)
+
+
+def test_excursion_excludes_5m_candle_overlapping_decision_boundary() -> None:
+    candles = _candles(
+        horizon_closes={
+            "5m": 100.0,
+            "15m": 101.0,
+            "1h": 101.0,
+            "4h": 101.0,
+        },
+        path_high=102.0,
+        path_low=98.0,
+    )
+    overlapping = candles[0]
+    overlapping_ohlcv = dict(overlapping["ohlcv"])  # type: ignore[arg-type]
+    overlapping_ohlcv.update({"high": 150.0, "low": 50.0})
+    overlapping["ohlcv"] = overlapping_ohlcv
+    overlapping["high"] = 150.0
+    overlapping["low"] = 50.0
+    overlapping["raw_payload_hash"] = hashlib.sha256(
+        b"predecision-overlap-extremes"
+    ).hexdigest()
+    overlapping["candle_id"] = canonical_candle_id(overlapping)
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is not None, reasons
+    assert row["maximum_favorable_excursion_bps"] == pytest.approx(200.0)
+    assert row["maximum_adverse_excursion_bps"] == pytest.approx(-200.0)
+    assert row["trusted_replay_label_path_candle_count"] == 49
+    assert row["trusted_replay_excursion_candle_count"] == 48
+    assert row[
+        "trusted_replay_excursion_excluded_overlapping_decision_candle_ids"
+    ] == [overlapping["candle_id"]]
+    assert overlapping["candle_id"] not in row[
+        "trusted_replay_excursion_candle_ids"
+    ]
+    assert row["trusted_replay_excursion_predecision_overlap_excluded"] is True
+
+
+def test_counterfactual_excursion_missing_path_price_fails_closed() -> None:
+    candles = _candles()
+    candles[0].pop("high")
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is None
+    assert reasons == ["LABEL_CANDLE_HIGH_MISSING_OR_INVALID"]
+
+
+def test_4h_snapshot_uses_canonical_5m_candle_for_15m_target() -> None:
+    candles = _candles(
+        horizon_closes={
+            "5m": 100.1,
+            "15m": 101.0,
+            "1h": 102.0,
+            "4h": 103.0,
+        }
+    )
+
+    row, reasons = _build_replay(
+        _snapshot(timeframe="4h", snapshot_id="four-hour-feature-row"),
+        candles=candles,
+    )
+
+    assert row is not None, reasons
+    assert row["timeframe"] == "4h"
+    assert row["trusted_replay_label_base_timeframe"] == "5m"
+    assert row["trusted_replay_label_horizon_candle_ids"]["15m"] == (
+        candles[LABEL_HORIZON_SLOT["15m"]]["candle_id"]
+    )
+    assert row["raw_future_return_15m_bps"] == pytest.approx(100.0)
+
+
+def test_canonical_5m_label_path_gap_fails_closed() -> None:
+    candles = _candles()
+    del candles[5]
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is None
+    assert reasons == ["CANONICAL_5M_LABEL_PATH_GAP"]
+
+
+def test_canonical_5m_duplicate_close_conflict_fails_closed() -> None:
+    candles = _candles()
+    conflicting = dict(candles[5])
+    conflicting["raw_payload_hash"] = hashlib.sha256(
+        b"conflicting-source-payload"
+    ).hexdigest()
+    conflicting["candle_id"] = canonical_candle_id(conflicting)
+    candles.append(conflicting)
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is None
+    assert reasons == ["CANONICAL_5M_DUPLICATE_CLOSE_CONFLICT"]
+
+
+def test_canonical_5m_label_available_after_observation_fails_closed() -> None:
+    candles = _candles()
+    future_available_ms = int(
+        (TRAINING_OBSERVED_AT + timedelta(seconds=1)).timestamp() * 1000
+    )
+    candles[5]["ingested_at"] = future_available_ms
+    candles[5]["available_at"] = future_available_ms
+
+    row, reasons = _build_replay(_snapshot(), candles=candles)
+
+    assert row is None
+    assert reasons == [
+        "CANONICAL_5M_LABEL_AVAILABLE_AFTER_TRAINING_OBSERVED_AT"
+    ]
+
+
+@pytest.mark.parametrize("training_observed_at", (None, "2026-06-22T05:00:00"))
+def test_training_observation_cutoff_is_explicit_and_timezone_aware(
+    training_observed_at: str | None,
+) -> None:
+    row, reasons = _build_replay(
         _snapshot(),
-        candles=_candles(),
-        **label_kwargs,
+        training_observed_at=training_observed_at,
     )
 
     assert row is None
-    assert reasons == [expected_reason]
+    assert reasons == ["TRAINING_OBSERVED_AT_MISSING_OR_INVALID"]
 
 
 def test_temporal_split_has_no_overlap() -> None:
@@ -290,7 +569,9 @@ def test_snapshot_hash_mismatch_rejected(tmp_path: Path) -> None:
         load_snapshot("replay-snapshot-1", root=tmp_path)
 
 
-def test_archive_only_bootstrap_refreshes_replay_status_without_redis_scan(tmp_path: Path) -> None:
+def test_archive_only_bootstrap_blocks_without_durable_indexed_5m_labels(
+    tmp_path: Path,
+) -> None:
     archive_root = tmp_path / "archive"
     _append_archive_series(archive_root)
 
@@ -306,11 +587,20 @@ def test_archive_only_bootstrap_refreshes_replay_status_without_redis_scan(tmp_p
     status = result["dataset_status"]
     assert status["redis_snapshot_import_enabled"] is False
     assert status["redis_snapshots_scanned"] == 0
-    assert status["trusted_replay_rows"] == 20
+    assert status["trusted_replay_rows"] == 0
     assert status["trusted_replay_rows_requirement_met"] is False
-    assert status["label_distribution"]["positive_directional_labels"] > 0
+    assert status["historical_label_source_status"] == (
+        "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED"
+    )
+    assert status["replay_rejections_by_reason"] == {
+        "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 1
+    }
+    assert status["same_timeframe_label_fallback_used"] is False
+    assert status["mutable_redis_history_used_for_historical_labels"] is False
     published = tmp_path / "goal_state" / "V2_TRUSTED_REPLAY_BOOTSTRAP_PAPER_EXPLORATION_AND_ONLINE_LEARNING_ACTIVATION" / "trusted_replay_dataset_status.json"
-    assert json.loads(published.read_text(encoding="utf-8"))["trusted_replay_rows"] == 20
+    assert json.loads(published.read_text(encoding="utf-8"))[
+        "historical_label_source_status"
+    ] == "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED"
 
 
 def test_trusted_replay_loader_skips_critical_missing_rows(tmp_path: Path) -> None:
@@ -393,6 +683,73 @@ def test_trusted_replay_loader_uses_persistent_cursor_not_newest_first(
     assert scan["embargo_seconds"] == data_loader_mod.TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS
 
 
+def test_trusted_replay_loader_streams_snapshots_without_chunk_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    def fake_iter_snapshots_from_offset(
+        _root: Path,
+        *,
+        start_offset: int = 0,
+        limit: int | None = None,
+    ) -> object:
+        assert start_offset == 0
+        assert limit is None
+        for index in range(3):
+            events.append(f"yield:{index}")
+            yield index + 1, {
+                "snapshot_id": f"stream-{index}",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "decision_time": DECISION_TIME,
+                "large_feature_payload": "x" * 100_000,
+            }
+
+    def fake_build_trusted_replay_row(
+        snapshot: dict[str, object],
+        **_kwargs: object,
+    ) -> tuple[None, list[str]]:
+        events.append(f"build:{snapshot['snapshot_id']}")
+        return None, ["UNIT_REJECTION"]
+
+    monkeypatch.setattr(
+        data_loader_mod,
+        "iter_snapshots_from_offset",
+        fake_iter_snapshots_from_offset,
+    )
+    monkeypatch.setattr(
+        data_loader_mod,
+        "build_trusted_replay_row",
+        fake_build_trusted_replay_row,
+    )
+    loader = V2HybridTrainerDataLoader(
+        trusted_replay_archive_root=tmp_path,
+    )
+
+    examples = loader.load_trusted_replay_examples(
+        limit=1,
+        training_observed_at=TRAINING_OBSERVED_AT,
+    )
+
+    assert examples == []
+    assert events == [
+        "yield:0",
+        "build:stream-0",
+        "yield:1",
+        "build:stream-1",
+        "yield:2",
+        "build:stream-2",
+    ]
+    assert loader.last_trusted_replay_scan[
+        "streaming_snapshot_processing"
+    ] is True
+    assert loader.last_trusted_replay_scan[
+        "maximum_resident_snapshot_rows"
+    ] == 1
+
+
 def _tensor(feature_snapshot_id: str, value: float) -> FeatureTensorRecord:
     values = (value, value + 1.0, value - 1.0, value * 0.5)
     return FeatureTensorRecord(
@@ -414,7 +771,8 @@ def _tensor(feature_snapshot_id: str, value: float) -> FeatureTensorRecord:
 
 
 def _example_from_row(row: dict[str, object], idx: int) -> TrainingExample:
-    label = 1 if float(row["future_return_after_cost_bps"]) > 0 else 2
+    label = target_action_index(row["target_action"])
+    assert label is not None
     return TrainingExample(
         symbol="BTCUSDT",
         timeframe="1m",
@@ -428,24 +786,18 @@ def _example_from_row(row: dict[str, object], idx: int) -> TrainingExample:
 
 
 def test_trusted_replay_changes_parameter_hash() -> None:
-    long_row, reasons = build_trusted_replay_row(_snapshot(snapshot_id="replay-long"), candles=_candles())
+    long_row, reasons = _build_replay(_snapshot(snapshot_id="replay-long"))
     assert long_row is not None, reasons
     short_snapshot = _snapshot(snapshot_id="replay-short")
-    short_candles = []
-    start = datetime(2026, 6, 22, 0, 1, tzinfo=timezone.utc)
-    for minute in range(1, 260):
-        close_time = start + timedelta(minutes=minute)
-        close = 100.0 - minute * 0.02
-        short_candles.append(
-            {
-                "candle_close_time": close_time.isoformat(timespec="seconds").replace("+00:00", "Z"),
-                "close": close,
-                "high": close + 0.5,
-                "low": close - 0.5,
-                "candle_closed_confirmed": True,
-            }
-        )
-    short_row, reasons = build_trusted_replay_row(short_snapshot, candles=short_candles)
+    short_candles = _candles(
+        horizon_closes={
+            "5m": 99.8,
+            "15m": 99.6,
+            "1h": 98.7,
+            "4h": 95.1,
+        }
+    )
+    short_row, reasons = _build_replay(short_snapshot, candles=short_candles)
     assert short_row is not None, reasons
     trainer = V2HybridPPOTrainer(model=V2HybridPolicyModel(input_dim=16))
 
@@ -463,8 +815,39 @@ def test_trusted_replay_changes_parameter_hash() -> None:
 
 
 def test_expected_move_not_used_as_realized_reward() -> None:
-    row, reasons = build_trusted_replay_row(_snapshot(), candles=_candles())
+    row, reasons = _build_replay(_snapshot())
 
     assert row is not None, reasons
     assert row["uses_expected_move_as_realized_reward"] is False
     assert row["realized_reward_source"] == "counterfactual_target_after_cost_from_finalized_candles"
+
+
+def test_counterfactual_economics_are_standardized_and_not_exact_close_ledger() -> None:
+    row, reasons = _build_replay(_snapshot())
+
+    assert row is not None, reasons
+    economics = row["standardized_counterfactual_economics"]
+    assert economics["standardized_entry_notional_usd"] == 1.0
+    assert economics["long"]["net_pnl_usd"] == pytest.approx(
+        economics["long"]["net_pnl_bps"] / 10_000.0
+    )
+    assert economics["short"]["net_pnl_usd"] == pytest.approx(
+        economics["short"]["net_pnl_bps"] / 10_000.0
+    )
+    assert economics["confidence_exact_close_contract_claimed"] is False
+    assert row["confidence_exact_close_contract_eligible"] is False
+    assert row["confidence_target_action_not_substituted_from_hindsight"] is True
+    assert "ACTUAL_SELECTED_BEHAVIOR_ACTION_MISSING" in row[
+        "confidence_exact_close_contract_blockers"
+    ]
+
+
+def test_counterfactual_replay_does_not_weaken_exact_confidence_contract() -> None:
+    row, reasons = _build_replay(_snapshot())
+
+    assert row is not None, reasons
+    confidence_target = profitability_target_from_trust_row(row)
+
+    assert confidence_target["eligible"] is False
+    assert confidence_target["target"] is None
+    assert confidence_target["reason"] == "CONFIDENCE_TARGET_LABEL_FINALITY_TIME_UNPROVEN"

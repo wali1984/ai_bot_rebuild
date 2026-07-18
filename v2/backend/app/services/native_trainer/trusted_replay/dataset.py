@@ -5,13 +5,19 @@ snapshots and later finalized candles. They are intentionally not PPO rows.
 """
 from __future__ import annotations
 
-import math
 import hashlib
 import json
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_candle_id,
+)
 from v2.backend.app.services.market_state_integrity.trust import TRUST_SCHEMA_VERSION
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
+    content_sha256 as archive_content_sha256,
+)
 
 
 HORIZON_SECONDS: dict[str, int] = {
@@ -20,6 +26,21 @@ HORIZON_SECONDS: dict[str, int] = {
     "1h": 60 * 60,
     "4h": 4 * 60 * 60,
 }
+TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME = "5m"
+TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS = 5 * 60 * 1000
+TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION = (
+    "v2_trusted_replay_canonical_finalized_5m_label_path_v1"
+)
+TRUSTED_REPLAY_LABEL_CANDLE_SOURCE_KEY_TEMPLATE = (
+    "v2:market:ohlcv_closed:binance:{symbol}:5m"
+)
+TRUSTED_REPLAY_LABEL_CANDLE_SOURCES = frozenset(
+    {
+        "binance_wss",
+        "binance_rest",
+        "v2_closed_candle_resampler:1m",
+    }
+)
 FUTURE_LABEL_PREFIXES = (
     "future_return",
     "future_",
@@ -28,6 +49,47 @@ FUTURE_LABEL_PREFIXES = (
     "realized_",
 )
 PIT_SAFE_REALIZED_FEATURES = {"realized_slippage_error"}
+TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION = (
+    "v2_trusted_replay_pit_cost_evidence_v1"
+)
+TRUSTED_REPLAY_LABEL_POLICY_VERSION = (
+    "v2_trusted_replay_adaptive_after_cost_action_v1"
+)
+TRUSTED_REPLAY_COUNTERFACTUAL_ECONOMICS_SCHEMA_VERSION = (
+    "v2_trusted_replay_standardized_counterfactual_economics_v1"
+)
+# These are evidence aliases, not fallback values.  A replay row is rejected
+# unless one explicit, finite field exists for every component in the archived
+# decision-time snapshot.
+COST_COMPONENT_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "fee": ("fee_bps", "expected_fee_bps", "taker_fee_bps"),
+    "spread": (
+        "actual_observed_spread_entry_bps",
+        "observed_bid_ask_spread_bps",
+        "bid_ask_spread_bps",
+        "spread_bps",
+    ),
+    "slippage": (
+        "expected_slippage_bps",
+        "actual_observed_slippage_bps",
+        "slippage_bps",
+    ),
+    "funding": (
+        "expected_funding_bps",
+        "funding_bps",
+        "funding_rate_bps",
+    ),
+}
+# Canonical archived fee and expected-slippage fields are per-side. A complete
+# entry/exit replay therefore charges both twice. The observed full bid/ask
+# spread is crossed as one full spread over the round trip; expected funding is
+# a horizon drag rather than an execution-side charge.
+COST_COMPONENT_ROUND_TRIP_MULTIPLIERS: dict[str, float] = {
+    "fee": 2.0,
+    "spread": 1.0,
+    "slippage": 2.0,
+    "funding": 1.0,
+}
 
 
 def _future_label_feature_name(name: Any) -> bool:
@@ -52,8 +114,8 @@ def parse_utc(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
@@ -93,6 +155,12 @@ def snapshot_to_final_candle(snapshot: Mapping[str, Any]) -> tuple[dict[str, Any
         reasons.append("FEATURE_CUTOFF_MISSING")
     if available_at is None:
         reasons.append("AVAILABLE_AT_MISSING")
+    if (
+        feature_cutoff is not None
+        and available_at is not None
+        and feature_cutoff > available_at
+    ):
+        reasons.append("FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
     if snapshot.get("candle_closed_confirmed") is not True:
         reasons.append("OPEN_CANDLE_REJECTED")
     close_price = finite_float(
@@ -160,15 +228,6 @@ def finite_float(value: Any) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
-def _candle_close_time(row: Mapping[str, Any]) -> datetime | None:
-    return parse_utc(
-        row.get("candle_close_time")
-        or row.get("close_time")
-        or row.get("closeTime")
-        or row.get("event_time")
-    )
-
-
 def _candle_price(row: Mapping[str, Any], *names: str) -> float | None:
     for name in names:
         parsed = finite_float(row.get(name))
@@ -177,36 +236,332 @@ def _candle_price(row: Mapping[str, Any], *names: str) -> float | None:
     return None
 
 
-def _is_final_candle(row: Mapping[str, Any]) -> bool:
-    return bool(
-        row.get("is_closed") is True
-        or row.get("closed_candle") is True
-        or row.get("candle_closed_confirmed") is True
+def _canonical_timestamp_ms(value: Any) -> int | None:
+    parsed = parse_utc(value)
+    if parsed is None:
+        return None
+    return int(round(parsed.timestamp() * 1000.0))
+
+
+def _canonical_5m_label_candle(
+    row: Mapping[str, Any],
+    *,
+    symbol: str,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Validate one exact CanonicalCandle used as outcome evidence."""
+
+    reasons: list[str] = []
+    expected_symbol = str(symbol).upper()
+    if str(row.get("symbol") or "").upper() != expected_symbol:
+        reasons.append("LABEL_CANDLE_SYMBOL_MISMATCH")
+    if str(row.get("exchange") or "").lower() != "binance":
+        reasons.append("LABEL_CANDLE_EXCHANGE_MISMATCH")
+    if str(row.get("timeframe") or "") != TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME:
+        reasons.append("LABEL_CANDLE_NOT_CANONICAL_5M")
+    if row.get("is_closed") is not True:
+        reasons.append("LABEL_CANDLE_NOT_FINAL")
+    if row.get("closed_candle") is not True:
+        reasons.append("LABEL_CANDLE_CLOSED_FLAG_MISSING")
+    if row.get("candle_closed_confirmed") is not True:
+        reasons.append("LABEL_CANDLE_FINALITY_CONFIRMATION_MISSING")
+    if row.get("feature_eligible") is not True:
+        reasons.append("LABEL_CANDLE_FEATURE_ELIGIBILITY_UNPROVEN")
+    if not isinstance(row.get("is_backfilled"), bool):
+        reasons.append("LABEL_CANDLE_BACKFILL_STATE_MISSING")
+    if str(row.get("source") or "") not in TRUSTED_REPLAY_LABEL_CANDLE_SOURCES:
+        reasons.append("LABEL_CANDLE_SOURCE_NOT_CANONICAL")
+    if row.get("source_sequence_id") in (None, ""):
+        reasons.append("LABEL_CANDLE_SOURCE_SEQUENCE_ID_MISSING")
+
+    open_ms = _canonical_timestamp_ms(
+        row.get("candle_open_time") or row.get("open_time")
     )
+    close_ms = _canonical_timestamp_ms(
+        row.get("candle_close_time") or row.get("close_time")
+    )
+    event_ms = _canonical_timestamp_ms(row.get("event_time"))
+    ingested_ms = _canonical_timestamp_ms(row.get("ingested_at"))
+    available_ms = _canonical_timestamp_ms(row.get("available_at"))
+    if open_ms is None:
+        reasons.append("LABEL_CANDLE_OPEN_TIME_MISSING_OR_INVALID")
+    if close_ms is None:
+        reasons.append("LABEL_CANDLE_CLOSE_TIME_MISSING_OR_INVALID")
+    if event_ms is None:
+        reasons.append("LABEL_CANDLE_EVENT_TIME_MISSING_OR_INVALID")
+    if ingested_ms is None:
+        reasons.append("LABEL_CANDLE_INGESTED_AT_MISSING_OR_INVALID")
+    if available_ms is None:
+        reasons.append("LABEL_CANDLE_AVAILABLE_AT_MISSING_OR_INVALID")
+    if open_ms is not None and close_ms is not None:
+        if close_ms - open_ms != TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS - 1:
+            reasons.append("LABEL_CANDLE_5M_SLOT_BOUNDS_INVALID")
+    if close_ms is not None and event_ms is not None and event_ms < close_ms:
+        reasons.append("LABEL_CANDLE_EVENT_BEFORE_CLOSE")
+    if (
+        close_ms is not None
+        and event_ms is not None
+        and ingested_ms is not None
+        and available_ms is not None
+        and available_ms != max(close_ms, event_ms, ingested_ms)
+    ):
+        reasons.append("LABEL_CANDLE_AVAILABLE_AT_NOT_CANONICAL_MAX_CLOCK")
+
+    prices: dict[str, float] = {}
+    nested_ohlcv = row.get("ohlcv")
+    if not isinstance(nested_ohlcv, Mapping):
+        reasons.append("LABEL_CANDLE_CANONICAL_OHLCV_MISSING")
+        nested_ohlcv = {}
+    for field in ("open", "high", "low", "close"):
+        top_value = finite_float(row.get(field))
+        nested_value = finite_float(nested_ohlcv.get(field))
+        if top_value is None or top_value <= 0.0:
+            reasons.append(f"LABEL_CANDLE_{field.upper()}_MISSING_OR_INVALID")
+            continue
+        if nested_value is None or nested_value != top_value:
+            reasons.append(
+                f"LABEL_CANDLE_{field.upper()}_CANONICAL_COPY_MISMATCH"
+            )
+            continue
+        prices[field] = top_value
+    top_volume = finite_float(row.get("volume"))
+    nested_volume = finite_float(nested_ohlcv.get("volume"))
+    if top_volume is None or top_volume < 0.0:
+        reasons.append("LABEL_CANDLE_VOLUME_MISSING_OR_INVALID")
+    elif nested_volume is None or nested_volume != top_volume:
+        reasons.append("LABEL_CANDLE_VOLUME_CANONICAL_COPY_MISMATCH")
+    else:
+        prices["volume"] = top_volume
+    if all(field in prices for field in ("open", "high", "low", "close")):
+        if prices["high"] < max(prices["open"], prices["close"]):
+            reasons.append("LABEL_CANDLE_HIGH_BELOW_OPEN_OR_CLOSE")
+        if prices["low"] > min(prices["open"], prices["close"]):
+            reasons.append("LABEL_CANDLE_LOW_ABOVE_OPEN_OR_CLOSE")
+        if prices["high"] < prices["low"]:
+            reasons.append("LABEL_CANDLE_HIGH_BELOW_LOW")
+
+    raw_payload_hash = _valid_sha256(row.get("raw_payload_hash"))
+    if raw_payload_hash is None:
+        reasons.append("LABEL_CANDLE_RAW_PAYLOAD_HASH_MISSING_OR_INVALID")
+    candle_id = str(row.get("candle_id") or "").strip()
+    if not candle_id:
+        reasons.append("LABEL_CANDLE_ID_MISSING")
+    elif candle_id != canonical_candle_id(row):
+        reasons.append("LABEL_CANDLE_ID_MISMATCH")
+    if reasons:
+        return None, sorted(set(reasons))
+    assert open_ms is not None
+    assert close_ms is not None
+    assert event_ms is not None
+    assert ingested_ms is not None
+    assert available_ms is not None
+    assert raw_payload_hash is not None
+    content_material = {
+        "candle_id": candle_id,
+        "symbol": expected_symbol,
+        "exchange": "binance",
+        "timeframe": TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME,
+        "candle_open_time_ms": open_ms,
+        "candle_close_time_ms": close_ms,
+        "event_time_ms": event_ms,
+        "ingested_at_ms": ingested_ms,
+        "available_at_ms": available_ms,
+        "source": row.get("source"),
+        "source_sequence_id": row.get("source_sequence_id"),
+        "raw_payload_hash": raw_payload_hash,
+        "is_backfilled": row.get("is_backfilled"),
+        "ohlcv": prices,
+    }
+    content_hash = hashlib.sha256(
+        json.dumps(
+            content_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        **dict(row),
+        "_open_ms": open_ms,
+        "_close_ms": close_ms,
+        "_event_ms": event_ms,
+        "_ingested_ms": ingested_ms,
+        "_available_ms": available_ms,
+        "_canonical_label_content_sha256": content_hash,
+    }, []
 
 
-def _later_finalized_candles(candles: Iterable[Mapping[str, Any]], decision_time: datetime) -> list[Mapping[str, Any]]:
-    rows = [
+def canonical_5m_label_evidence(
+    *,
+    candles: Iterable[Mapping[str, Any]],
+    symbol: str,
+    decision_time: datetime,
+    training_observed_at: datetime,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Resolve an exact, contiguous, PIT-observed 5m outcome path."""
+
+    reasons: list[str] = []
+    by_close: dict[int, dict[str, Any]] = {}
+    for raw in candles:
+        if not isinstance(raw, Mapping):
+            reasons.append("LABEL_CANDLE_ROW_NOT_OBJECT")
+            continue
+        candle, candle_reasons = _canonical_5m_label_candle(
+            raw,
+            symbol=symbol,
+        )
+        reasons.extend(candle_reasons)
+        if candle is None:
+            continue
+        close_ms = int(candle["_close_ms"])
+        prior = by_close.get(close_ms)
+        if prior is not None:
+            if (
+                prior["_canonical_label_content_sha256"]
+                != candle["_canonical_label_content_sha256"]
+            ):
+                reasons.append("CANONICAL_5M_DUPLICATE_CLOSE_CONFLICT")
+            continue
+        by_close[close_ms] = candle
+    if reasons:
+        return None, sorted(set(reasons))
+    decision_ms = int(round(decision_time.timestamp() * 1000.0))
+    observed_ms = int(round(training_observed_at.timestamp() * 1000.0))
+    if observed_ms <= decision_ms:
+        return None, ["TRAINING_OBSERVED_AT_NOT_AFTER_DECISION_TIME"]
+    ordered = [by_close[key] for key in sorted(by_close)]
+    future = [row for row in ordered if int(row["_close_ms"]) > decision_ms]
+    if not future:
+        return None, ["NO_CANONICAL_5M_LABEL_CANDLES_AFTER_DECISION"]
+
+    horizon_candles: dict[str, dict[str, Any]] = {}
+    horizon_lateness_ms: dict[str, int] = {}
+    for horizon, seconds in HORIZON_SECONDS.items():
+        target_ms = decision_ms + seconds * 1000
+        selected = next(
+            (
+                row
+                for row in future
+                if int(row["_close_ms"]) >= target_ms
+            ),
+            None,
+        )
+        if selected is None:
+            reasons.append(
+                f"CANONICAL_5M_HORIZON_MISSING_{horizon.upper()}"
+            )
+            continue
+        lateness_ms = int(selected["_close_ms"]) - target_ms
+        if lateness_ms >= TRUSTED_REPLAY_LABEL_BASE_MILLISECONDS:
+            reasons.append(
+                f"CANONICAL_5M_HORIZON_LATE_{horizon.upper()}"
+            )
+            continue
+        horizon_candles[horizon] = selected
+        horizon_lateness_ms[horizon] = lateness_ms
+    if reasons:
+        return None, sorted(set(reasons))
+
+    path_end_ms = int(horizon_candles["4h"]["_close_ms"])
+    path = [
         row
-        for row in candles
-        if isinstance(row, Mapping)
-        and _is_final_candle(row)
-        and (_candle_close_time(row) is not None)
-        and (_candle_close_time(row) or decision_time) > decision_time
+        for row in future
+        if int(row["_close_ms"]) <= path_end_ms
     ]
-    rows.sort(key=lambda row: _candle_close_time(row) or decision_time)
-    return rows
-
-
-def _first_candle_at_or_after(
-    candles: list[Mapping[str, Any]],
-    target_time: datetime,
-) -> Mapping[str, Any] | None:
-    for candle in candles:
-        close_time = _candle_close_time(candle)
-        if close_time is not None and close_time >= target_time:
-            return candle
-    return None
+    if not path:
+        return None, ["CANONICAL_5M_LABEL_PATH_EMPTY"]
+    first = path[0]
+    if not (
+        int(first["_open_ms"]) <= decision_ms + 1
+        and int(first["_close_ms"]) > decision_ms
+    ):
+        reasons.append("CANONICAL_5M_LABEL_PATH_START_GAP")
+    for prior, current in zip(path, path[1:]):
+        if int(current["_open_ms"]) != int(prior["_close_ms"]) + 1:
+            reasons.append("CANONICAL_5M_LABEL_PATH_GAP")
+            break
+    future_available = [
+        row
+        for row in path
+        if int(row["_available_ms"]) > observed_ms
+    ]
+    if future_available:
+        reasons.append(
+            "CANONICAL_5M_LABEL_AVAILABLE_AFTER_TRAINING_OBSERVED_AT"
+        )
+    if reasons:
+        return None, sorted(set(reasons))
+    excursion_path = [
+        row
+        for row in path
+        if int(row["_open_ms"]) >= decision_ms
+    ]
+    excluded_overlapping_candles = [
+        row
+        for row in path
+        if int(row["_open_ms"]) < decision_ms < int(row["_close_ms"])
+    ]
+    if not excursion_path:
+        return None, ["CANONICAL_5M_POST_DECISION_EXCURSION_PATH_EMPTY"]
+    label_available_ms = max(int(row["_available_ms"]) for row in path)
+    label_available_at = datetime.fromtimestamp(
+        label_available_ms / 1000.0,
+        tz=timezone.utc,
+    )
+    evidence_material = {
+        "contract_version": TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION,
+        "source_key": TRUSTED_REPLAY_LABEL_CANDLE_SOURCE_KEY_TEMPLATE.format(
+            symbol=str(symbol).upper()
+        ),
+        "symbol": str(symbol).upper(),
+        "decision_time": iso_utc(decision_time),
+        "training_observed_at": iso_utc(training_observed_at),
+        "label_available_at": iso_utc(label_available_at),
+        "path_candles": [
+            {
+                "candle_id": row["candle_id"],
+                "candle_open_time_ms": row["_open_ms"],
+                "candle_close_time_ms": row["_close_ms"],
+                "available_at_ms": row["_available_ms"],
+                "raw_payload_hash": row["raw_payload_hash"],
+                "canonical_label_content_sha256": row[
+                    "_canonical_label_content_sha256"
+                ],
+            }
+            for row in path
+        ],
+        "horizon_candle_ids": {
+            horizon: row["candle_id"]
+            for horizon, row in sorted(horizon_candles.items())
+        },
+        "horizon_lateness_ms": dict(sorted(horizon_lateness_ms.items())),
+        "excursion_scope": (
+            "FULL_FINALIZED_5M_CANDLES_OPENING_AT_OR_AFTER_DECISION_TIME"
+        ),
+        "excursion_candle_ids": [row["candle_id"] for row in excursion_path],
+        "excursion_excluded_overlapping_decision_candle_ids": [
+            row["candle_id"] for row in excluded_overlapping_candles
+        ],
+        "excursion_predecision_overlap_excluded": True,
+    }
+    evidence_hash = hashlib.sha256(
+        json.dumps(
+            evidence_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        **evidence_material,
+        "label_candle_evidence_sha256": evidence_hash,
+        "horizon_candles": horizon_candles,
+        "path_candles": path,
+        "excursion_path_candles": excursion_path,
+        "label_available_at_datetime": label_available_at,
+        "path_contiguous_verified": True,
+        "duplicate_close_conflict": False,
+        "future_available_candle_used": False,
+    }, []
 
 
 def _directional_outcome(value_bps: float) -> str:
@@ -223,28 +578,275 @@ def _trade_outcome(value_bps: float) -> str:
     return "WIN" if value_bps > 0 else "LOSS"
 
 
-def _target_action_from_net_edges(
+def target_action_from_net_edges(
     *,
     long_net_bps: float,
     short_net_bps: float,
-    threshold_bps: float,
 ) -> str:
-    """Choose only a direction whose own after-cost PnL clears the threshold.
+    """Choose only a direction whose own after-cost PnL is positive.
 
     Costs are subtracted from both counterfactual sides. They must never be
     added to a negative raw market return, which can flip a small down move into
-    a fabricated profitable long label.
+    a fabricated profitable long label.  There is no market-static action band:
+    the explicit PIT cost envelope itself is the decision-time dead zone.
     """
-    threshold = abs(float(threshold_bps))
     best_net = max(long_net_bps, short_net_bps)
-    if best_net <= 0.0 or best_net < threshold:
+    if best_net <= 0.0:
         return "hold"
     return "long" if long_net_bps >= short_net_bps else "short"
+
+
+def target_action_index(action: Any) -> int | None:
+    normalized = _normalized_action(action)
+    if normalized is None:
+        return None
+    return {"hold": 0, "long": 1, "short": 2}[normalized]
+
+
+def counterfactual_excursion_bps(
+    *,
+    entry_price: float,
+    target_action: Any,
+    highs: Iterable[float],
+    lows: Iterable[float],
+) -> tuple[float, float] | None:
+    """Return side-aware gross MFE/MAE for the selected replay action.
+
+    A falling price is favorable to SHORT and adverse to LONG.  Keeping the
+    raw-price sign convention for both sides silently swaps SHORT MFE/MAE, so
+    excursion is normalized to the counterfactual action before publication.
+    HOLD has no position and therefore no price-path excursion.
+    """
+
+    normalized = _normalized_action(target_action)
+    parsed_entry = finite_float(entry_price)
+    parsed_highs = [finite_float(value) for value in highs]
+    parsed_lows = [finite_float(value) for value in lows]
+    if (
+        normalized is None
+        or parsed_entry is None
+        or parsed_entry <= 0.0
+        or not parsed_highs
+        or not parsed_lows
+        or any(value is None or value <= 0.0 for value in parsed_highs)
+        or any(value is None or value <= 0.0 for value in parsed_lows)
+    ):
+        return None
+    if normalized == "hold":
+        return 0.0, 0.0
+    high_excursion = (
+        (max(value for value in parsed_highs if value is not None) - parsed_entry)
+        / parsed_entry
+    ) * 10_000.0
+    low_excursion = (
+        (min(value for value in parsed_lows if value is not None) - parsed_entry)
+        / parsed_entry
+    ) * 10_000.0
+    if normalized == "long":
+        return max(0.0, high_excursion), min(0.0, low_excursion)
+    return max(0.0, -low_excursion), min(0.0, -high_excursion)
+
+
+def signed_after_cost_move_for_action(
+    *,
+    raw_return_bps: float,
+    action: Any,
+    action_dead_zone_bps: float,
+) -> float | None:
+    """Return the replay label's signed convention for one explicit action."""
+
+    normalized = _normalized_action(action)
+    if normalized is None:
+        return None
+    dead_zone = finite_float(action_dead_zone_bps)
+    raw_return = finite_float(raw_return_bps)
+    if dead_zone is None or dead_zone < 0.0 or raw_return is None:
+        return None
+    if normalized == "long":
+        return raw_return - dead_zone
+    if normalized == "short":
+        return raw_return + dead_zone
+    return 0.0
 
 
 def _normalized_action(value: Any) -> str | None:
     action = str(value or "").strip().lower()
     return action if action in {"long", "short", "hold"} else None
+
+
+def _valid_sha256(value: Any) -> str | None:
+    normalized = str(value or "").strip().lower()
+    if len(normalized) != 64 or any(
+        character not in "0123456789abcdef" for character in normalized
+    ):
+        return None
+    return normalized
+
+
+def _cost_component_evidence(
+    snapshot: Mapping[str, Any],
+    *,
+    component: str,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
+    missing_mask = snapshot.get("missing_mask") if isinstance(snapshot.get("missing_mask"), Mapping) else {}
+    stale_mask = snapshot.get("stale_mask") if isinstance(snapshot.get("stale_mask"), Mapping) else {}
+    aliases = COST_COMPONENT_FIELD_ALIASES[component]
+    selected_field: str | None = None
+    selected_value: float | None = None
+    payload_name: str | None = None
+    raw_value: Any = None
+    for payload, prefix in ((features, "features"), (snapshot, "snapshot")):
+        for field_name in aliases:
+            if field_name not in payload:
+                continue
+            selected_field = field_name
+            payload_name = prefix
+            raw_value = payload.get(field_name)
+            selected_value = finite_float(raw_value)
+            break
+        if selected_field is not None:
+            break
+    reason_prefix = f"COST_EVIDENCE_{component.upper()}"
+    if selected_field is None:
+        return None, [f"{reason_prefix}_MISSING"]
+    if selected_value is None:
+        return None, [f"{reason_prefix}_NONFINITE_OR_INVALID"]
+    if component != "funding" and selected_value < 0.0:
+        return None, [f"{reason_prefix}_NEGATIVE"]
+    if bool(missing_mask.get(selected_field)):
+        return None, [f"{reason_prefix}_FLAGGED_MISSING"]
+    if bool(stale_mask.get(selected_field)):
+        return None, [f"{reason_prefix}_FLAGGED_STALE"]
+
+    source_fields = (
+        snapshot.get("market_cost_evidence_source_fields")
+        if isinstance(snapshot.get("market_cost_evidence_source_fields"), Mapping)
+        else {}
+    )
+    source = source_fields.get(selected_field)
+    if source in (None, ""):
+        source = f"{payload_name}.{selected_field}"
+    round_trip_multiplier = COST_COMPONENT_ROUND_TRIP_MULTIPLIERS[component]
+    absolute_or_positive_bps = (
+        abs(float(selected_value))
+        if component == "funding"
+        else float(selected_value)
+    )
+    return {
+        "component": component,
+        "field": selected_field,
+        "source": str(source),
+        "signed_bps": float(selected_value),
+        "round_trip_multiplier": round_trip_multiplier,
+        "cost_drag_bps": absolute_or_positive_bps * round_trip_multiplier,
+        "raw_value": raw_value,
+    }, []
+
+
+def trusted_replay_cost_evidence(
+    snapshot: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Resolve a hash-bound PIT cost envelope without a flat fallback.
+
+    Every component is read from the immutable archived snapshot and inherits
+    that snapshot's feature/availability/decision clocks.  Missing, stale,
+    future, non-finite, or negative non-funding evidence fails closed.
+    """
+
+    decision_time = parse_utc(snapshot.get("decision_time"))
+    feature_cutoff = parse_utc(snapshot.get("feature_cutoff"))
+    available_at = parse_utc(snapshot.get("available_at"))
+    reasons: list[str] = []
+    if decision_time is None:
+        reasons.append("COST_EVIDENCE_DECISION_TIME_MISSING_OR_INVALID")
+    if feature_cutoff is None:
+        reasons.append("COST_EVIDENCE_FEATURE_CUTOFF_MISSING_OR_INVALID")
+    if available_at is None:
+        reasons.append("COST_EVIDENCE_AVAILABLE_AT_MISSING_OR_INVALID")
+    if (
+        feature_cutoff is not None
+        and available_at is not None
+        and feature_cutoff > available_at
+    ):
+        reasons.append("COST_EVIDENCE_FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
+    if (
+        available_at is not None
+        and decision_time is not None
+        and available_at > decision_time
+    ):
+        reasons.append("COST_EVIDENCE_AVAILABLE_AT_AFTER_DECISION_TIME")
+    snapshot_hash = _valid_sha256(snapshot.get("content_sha256"))
+    if snapshot_hash is None:
+        reasons.append("COST_EVIDENCE_SNAPSHOT_CONTENT_SHA256_MISSING_OR_INVALID")
+    else:
+        try:
+            if archive_content_sha256(snapshot) != snapshot_hash:
+                reasons.append("COST_EVIDENCE_SNAPSHOT_CONTENT_SHA256_MISMATCH")
+        except (TypeError, ValueError):
+            reasons.append("COST_EVIDENCE_SNAPSHOT_CONTENT_SHA256_UNVERIFIABLE")
+
+    components: dict[str, dict[str, Any]] = {}
+    for component in COST_COMPONENT_FIELD_ALIASES:
+        evidence, component_reasons = _cost_component_evidence(
+            snapshot,
+            component=component,
+        )
+        reasons.extend(component_reasons)
+        if evidence is not None:
+            components[component] = evidence
+    if reasons:
+        return None, sorted(set(reasons))
+
+    assert decision_time is not None
+    assert feature_cutoff is not None
+    assert available_at is not None
+    assert snapshot_hash is not None
+    total_cost_bps = sum(
+        float(component["cost_drag_bps"])
+        for component in components.values()
+    )
+    if not math.isfinite(total_cost_bps) or total_cost_bps < 0.0:
+        return None, ["COST_EVIDENCE_TOTAL_NONFINITE_OR_NEGATIVE"]
+    material = {
+        "schema_version": TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION,
+        "snapshot_content_sha256": snapshot_hash,
+        "feature_cutoff": iso_utc(feature_cutoff),
+        "available_at": iso_utc(available_at),
+        "decision_time": iso_utc(decision_time),
+        "components": {
+            name: {
+                "field": component["field"],
+                "source": component["source"],
+                "signed_bps": component["signed_bps"],
+                "round_trip_multiplier": component[
+                    "round_trip_multiplier"
+                ],
+                "cost_drag_bps": component["cost_drag_bps"],
+            }
+            for name, component in sorted(components.items())
+        },
+        "total_cost_bps": total_cost_bps,
+    }
+    evidence_hash = hashlib.sha256(
+        json.dumps(
+            material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode("utf-8")
+    ).hexdigest()
+    return {
+        **material,
+        "cost_evidence_hash": evidence_hash,
+        "cost_evidence_source": "+".join(
+            str(components[name]["source"])
+            for name in sorted(components)
+        ),
+        "flat_round_trip_cost_fallback_used": False,
+        "action_dead_zone_bps": total_cost_bps,
+        "action_dead_zone_source": "EXPLICIT_PIT_COMPONENT_SUM_NO_STATIC_ACTION_THRESHOLD",
+    }, []
 
 
 def replay_rejection_reasons(
@@ -267,6 +869,8 @@ def replay_rejection_reasons(
         reasons.append("DECISION_TIME_MISSING")
     if available_at is None:
         reasons.append("AVAILABLE_AT_MISSING")
+    if feature_cutoff is not None and available_at is not None and feature_cutoff > available_at:
+        reasons.append("FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
     if feature_cutoff is not None and decision_time is not None and feature_cutoff > decision_time:
         reasons.append("FEATURE_CUTOFF_AFTER_DECISION_TIME")
     if available_at is not None and decision_time is not None and available_at > decision_time:
@@ -275,8 +879,9 @@ def replay_rejection_reasons(
         reasons.append("OPEN_CANDLE_REJECTED")
     if snapshot.get("mtf_snapshot_id") in (None, ""):
         reasons.append("MTF_SNAPSHOT_ID_MISSING")
-    if decision_time is not None and not _later_finalized_candles(candles, decision_time):
-        reasons.append("NO_LATER_FINALIZED_CANDLES")
+    # Outcome-candle semantics are validated by canonical_5m_label_evidence;
+    # merely finding a later row is not proof of the required base-candle path.
+    _ = candles
     return sorted(set(reasons))
 
 
@@ -284,16 +889,31 @@ def build_trusted_replay_row(
     snapshot: Mapping[str, Any],
     *,
     candles: Iterable[Mapping[str, Any]],
-    round_trip_cost_bps: float = 2.0,
-    action_threshold_bps: float = 4.0,
+    training_observed_at: datetime | str | None = None,
 ) -> tuple[dict[str, Any] | None, list[str]]:
-    reasons = replay_rejection_reasons(snapshot, candles=candles)
+    candle_rows = [row for row in candles if isinstance(row, Mapping)]
+    reasons = replay_rejection_reasons(snapshot, candles=candle_rows)
     if reasons:
         return None, reasons
+    cost_evidence, cost_reasons = trusted_replay_cost_evidence(snapshot)
+    if cost_evidence is None:
+        return None, cost_reasons
     decision_time = parse_utc(snapshot.get("decision_time"))
     feature_cutoff = parse_utc(snapshot.get("feature_cutoff"))
     available_at = parse_utc(snapshot.get("available_at"))
     assert decision_time is not None and feature_cutoff is not None and available_at is not None
+    observed_at = (
+        training_observed_at
+        if isinstance(training_observed_at, datetime)
+        else parse_utc(training_observed_at)
+    )
+    if (
+        observed_at is None
+        or observed_at.tzinfo is None
+        or observed_at.utcoffset() is None
+    ):
+        return None, ["TRAINING_OBSERVED_AT_MISSING_OR_INVALID"]
+    observed_at = observed_at.astimezone(timezone.utc)
     features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
     entry_price = finite_float(
         features.get("close")
@@ -304,33 +924,36 @@ def build_trusted_replay_row(
     if entry_price is None or entry_price <= 0.0:
         return None, ["ENTRY_PRICE_MISSING"]
 
-    future_candles = _later_finalized_candles(candles, decision_time)
+    label_evidence, label_reasons = canonical_5m_label_evidence(
+        candles=candle_rows,
+        symbol=str(snapshot.get("symbol") or "").upper(),
+        decision_time=decision_time,
+        training_observed_at=observed_at,
+    )
+    if label_evidence is None:
+        return None, label_reasons
+    horizon_candles = label_evidence["horizon_candles"]
+    label_path_candles = label_evidence["path_candles"]
+    excursion_path_candles = label_evidence["excursion_path_candles"]
     returns: dict[str, float] = {}
-    missing_horizons: list[str] = []
-    for horizon, seconds in HORIZON_SECONDS.items():
-        candle = _first_candle_at_or_after(future_candles, decision_time + timedelta(seconds=seconds))
-        close_price = _candle_price(candle or {}, "close", "close_price", "c") if candle is not None else None
+    for horizon, candle in horizon_candles.items():
+        close_price = _candle_price(candle, "close", "close_price", "c")
         if close_price is None or close_price <= 0.0:
-            missing_horizons.append(horizon)
-            continue
-        returns[horizon] = ((close_price - entry_price) / entry_price) * 10_000.0
-    if missing_horizons:
-        return None, [f"FUTURE_CANDLE_HORIZON_MISSING_{name.upper()}" for name in missing_horizons]
+            return None, [
+                f"CANONICAL_5M_HORIZON_CLOSE_INVALID_{horizon.upper()}"
+            ]
+        returns[horizon] = (
+            (close_price - entry_price) / entry_price
+        ) * 10_000.0
 
     raw_return_15m_bps = returns["15m"]
-    parsed_cost_bps = finite_float(round_trip_cost_bps)
-    parsed_action_threshold_bps = finite_float(action_threshold_bps)
-    if parsed_cost_bps is None:
-        return None, ["ROUND_TRIP_COST_BPS_INVALID"]
-    if parsed_action_threshold_bps is None:
-        return None, ["ACTION_THRESHOLD_BPS_INVALID"]
-    costs_bps = abs(parsed_cost_bps)
+    costs_bps = float(cost_evidence["total_cost_bps"])
+    action_dead_zone_bps = float(cost_evidence["action_dead_zone_bps"])
     long_net_bps = raw_return_15m_bps - costs_bps
     short_net_bps = -raw_return_15m_bps - costs_bps
-    target_action = _target_action_from_net_edges(
+    target_action = target_action_from_net_edges(
         long_net_bps=long_net_bps,
         short_net_bps=short_net_bps,
-        threshold_bps=parsed_action_threshold_bps,
     )
     counterfactual_target_net_bps = (
         long_net_bps
@@ -359,20 +982,29 @@ def build_trusted_replay_row(
         if selected_action == "hold"
         else None
     )
+    label_available_at = label_evidence["label_available_at_datetime"]
+    if label_available_at <= decision_time:
+        return None, ["LABEL_AVAILABLE_AT_NOT_AFTER_DECISION_TIME"]
+    label_horizon_seconds = (label_available_at - decision_time).total_seconds()
+    if not math.isfinite(label_horizon_seconds) or label_horizon_seconds <= 0.0:
+        return None, ["LABEL_HORIZON_SECONDS_INVALID"]
     highs = [
         _candle_price(candle, "high", "high_price", "h")
-        for candle in future_candles
-        if (_candle_close_time(candle) or decision_time) <= decision_time + timedelta(hours=4)
+        for candle in excursion_path_candles
     ]
     lows = [
         _candle_price(candle, "low", "low_price", "l")
-        for candle in future_candles
-        if (_candle_close_time(candle) or decision_time) <= decision_time + timedelta(hours=4)
+        for candle in excursion_path_candles
     ]
-    highs = [value for value in highs if value is not None]
-    lows = [value for value in lows if value is not None]
-    mfe = ((max(highs) - entry_price) / entry_price) * 10_000.0 if highs else max(0.0, after_cost)
-    mae = ((min(lows) - entry_price) / entry_price) * 10_000.0 if lows else min(0.0, after_cost)
+    excursion = counterfactual_excursion_bps(
+        entry_price=entry_price,
+        target_action=target_action,
+        highs=(value for value in highs if value is not None),
+        lows=(value for value in lows if value is not None),
+    )
+    if excursion is None or any(value is None for value in [*highs, *lows]):
+        return None, ["LABEL_PATH_HIGH_OR_LOW_MISSING_OR_INVALID"]
+    mfe, mae = excursion
     directional = _directional_outcome(raw_return_15m_bps)
     trade_outcome = _trade_outcome(counterfactual_target_net_bps)
     actual_behavior_trade_outcome = (
@@ -387,6 +1019,80 @@ def build_trusted_replay_row(
     stale_mask = snapshot.get("stale_mask") if isinstance(snapshot.get("stale_mask"), Mapping) else {}
     missing_names = [name for name in feature_names if bool(missing_mask.get(name))]
     stale_names = [name for name in feature_names if bool(stale_mask.get(name))]
+    cost_components = cost_evidence["components"]
+    fee_bps = float(cost_components["fee"]["signed_bps"])
+    spread_bps = float(cost_components["spread"]["signed_bps"])
+    slippage_bps = float(cost_components["slippage"]["signed_bps"])
+    funding_bps = float(cost_components["funding"]["signed_bps"])
+    round_trip_fee_drag_bps = float(
+        cost_components["fee"]["cost_drag_bps"]
+    )
+    round_trip_spread_drag_bps = float(
+        cost_components["spread"]["cost_drag_bps"]
+    )
+    round_trip_slippage_drag_bps = float(
+        cost_components["slippage"]["cost_drag_bps"]
+    )
+    round_trip_funding_drag_bps = float(
+        cost_components["funding"]["cost_drag_bps"]
+    )
+    target_exit_price = _candle_price(
+        horizon_candles["15m"],
+        "close",
+        "close_price",
+        "c",
+    )
+    assert target_exit_price is not None
+    standardized_notional_usd = 1.0
+    standardized_costs_usd = {
+        "fee_usd": round_trip_fee_drag_bps / 10_000.0,
+        "spread_usd": round_trip_spread_drag_bps / 10_000.0,
+        "slippage_usd": round_trip_slippage_drag_bps / 10_000.0,
+        "funding_drag_usd": round_trip_funding_drag_bps / 10_000.0,
+    }
+    standardized_economics = {
+        "schema_version": TRUSTED_REPLAY_COUNTERFACTUAL_ECONOMICS_SCHEMA_VERSION,
+        "basis": "ONE_USD_ENTRY_NOTIONAL_BPS_NORMALIZATION",
+        "standardized_entry_notional_usd": standardized_notional_usd,
+        "entry_price": entry_price,
+        "exit_price": target_exit_price,
+        "closed_quantity_per_one_usd_notional": standardized_notional_usd / entry_price,
+        "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
+        "cost_scope": "DECISION_TIME_EXPECTED_COUNTERFACTUAL_NOT_EXACT_PAPER_CLOSE_LEDGER",
+        "component_costs_usd": standardized_costs_usd,
+        "long": {
+            "gross_pnl_bps": raw_return_15m_bps,
+            "net_pnl_bps": long_net_bps,
+            "gross_pnl_usd": raw_return_15m_bps / 10_000.0,
+            "net_pnl_usd": long_net_bps / 10_000.0,
+        },
+        "short": {
+            "gross_pnl_bps": -raw_return_15m_bps,
+            "net_pnl_bps": short_net_bps,
+            "gross_pnl_usd": -raw_return_15m_bps / 10_000.0,
+            "net_pnl_usd": short_net_bps / 10_000.0,
+        },
+        "hold": {
+            "gross_pnl_bps": 0.0,
+            "net_pnl_bps": 0.0,
+            "gross_pnl_usd": 0.0,
+            "net_pnl_usd": 0.0,
+        },
+        "net_formula": (
+            "directional_gross_bps-(2*fee_bps)-spread_bps-"
+            "(2*slippage_bps)-abs(funding_bps)"
+        ),
+        "confidence_exact_close_contract_claimed": False,
+    }
+    confidence_exact_close_blockers = [
+        "DECISION_TIME_EXPECTED_COSTS_ARE_NOT_EXACT_ENTRY_EXIT_LEDGER_COSTS",
+        "EXACT_ENTRY_EXIT_FEE_SLIPPAGE_FUNDING_USD_EVIDENCE_MISSING",
+        "EXACT_CLOSED_QUANTITY_AND_CLOSE_EVENT_EVIDENCE_MISSING",
+    ]
+    if selected_action is None:
+        confidence_exact_close_blockers.append(
+            "ACTUAL_SELECTED_BEHAVIOR_ACTION_MISSING"
+        )
     row = {
         "sample_id": f"trusted_replay:{snapshot.get('snapshot_id')}",
         "trust_schema_version": TRUST_SCHEMA_VERSION,
@@ -435,12 +1141,83 @@ def build_trusted_replay_row(
         "selected_action": selected_action,
         "selected_action_raw": snapshot.get("selected_action"),
         "target_action": target_action,
+        "target_action_index": target_action_index(target_action),
+        "trusted_replay_label_policy_version": TRUSTED_REPLAY_LABEL_POLICY_VERSION,
+        "trusted_replay_label_candle_contract_version": (
+            TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION
+        ),
+        "trusted_replay_label_base_timeframe": (
+            TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME
+        ),
+        "trusted_replay_label_candle_source_key": label_evidence[
+            "source_key"
+        ],
+        "trusted_replay_label_candle_evidence_sha256": label_evidence[
+            "label_candle_evidence_sha256"
+        ],
+        "trusted_replay_label_path_candle_count": len(label_path_candles),
+        "trusted_replay_label_path_contiguous_verified": label_evidence[
+            "path_contiguous_verified"
+        ],
+        "trusted_replay_label_duplicate_close_conflict": label_evidence[
+            "duplicate_close_conflict"
+        ],
+        "trusted_replay_label_future_available_candle_used": label_evidence[
+            "future_available_candle_used"
+        ],
+        "trusted_replay_label_horizon_candle_ids": dict(
+            label_evidence["horizon_candle_ids"]
+        ),
+        "trusted_replay_label_horizon_lateness_ms": dict(
+            label_evidence["horizon_lateness_ms"]
+        ),
+        "trusted_replay_excursion_scope": label_evidence[
+            "excursion_scope"
+        ],
+        "trusted_replay_excursion_candle_count": len(
+            excursion_path_candles
+        ),
+        "trusted_replay_excursion_candle_ids": list(
+            label_evidence["excursion_candle_ids"]
+        ),
+        "trusted_replay_excursion_excluded_overlapping_decision_candle_ids": (
+            list(
+                label_evidence[
+                    "excursion_excluded_overlapping_decision_candle_ids"
+                ]
+            )
+        ),
+        "trusted_replay_excursion_predecision_overlap_excluded": (
+            label_evidence["excursion_predecision_overlap_excluded"]
+        ),
+        "training_observed_at": iso_utc(observed_at),
+        "label_available_at": iso_utc(label_available_at),
+        "outcome_available_at": iso_utc(label_available_at),
+        "label_horizon_seconds": label_horizon_seconds,
+        "outcome_horizon_seconds": label_horizon_seconds,
         "future_return_5m_bps": returns["5m"],
         "future_return_15m_bps": returns["15m"],
         "future_return_1h_bps": returns["1h"],
         "future_return_4h_bps": returns["4h"],
         "raw_future_return_15m_bps": raw_return_15m_bps,
         "round_trip_cost_bps": costs_bps,
+        "fee_bps": fee_bps,
+        "spread_bps": spread_bps,
+        "slippage_bps": slippage_bps,
+        "funding_bps": funding_bps,
+        "round_trip_fee_drag_bps": round_trip_fee_drag_bps,
+        "round_trip_spread_drag_bps": round_trip_spread_drag_bps,
+        "round_trip_slippage_drag_bps": round_trip_slippage_drag_bps,
+        "round_trip_funding_drag_bps": round_trip_funding_drag_bps,
+        "action_dead_zone_bps": action_dead_zone_bps,
+        "action_dead_zone_source": cost_evidence["action_dead_zone_source"],
+        "cost_evidence_schema_version": cost_evidence["schema_version"],
+        "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
+        "cost_evidence_source": cost_evidence["cost_evidence_source"],
+        "cost_evidence_available_at": cost_evidence["available_at"],
+        "cost_evidence_components": dict(cost_components),
+        "flat_round_trip_cost_fallback_used": False,
+        "static_action_threshold_used": False,
         "counterfactual_long_net_pnl_bps": long_net_bps,
         "counterfactual_short_net_pnl_bps": short_net_bps,
         "counterfactual_target_net_pnl_bps": counterfactual_target_net_bps,
@@ -456,10 +1233,20 @@ def build_trusted_replay_row(
             else None
         ),
         "future_return_after_cost_bps": after_cost,
+        "standardized_counterfactual_economics": standardized_economics,
+        "confidence_exact_close_contract_eligible": False,
+        "confidence_exact_close_contract_blockers": (
+            confidence_exact_close_blockers
+        ),
+        "confidence_target_action_not_substituted_from_hindsight": True,
         "directional_outcome": directional,
         "trade_outcome": trade_outcome,
         "maximum_favorable_excursion_bps": mfe,
         "maximum_adverse_excursion_bps": mae,
+        "counterfactual_excursion_action": target_action,
+        "counterfactual_excursion_scope": label_evidence[
+            "excursion_scope"
+        ],
         "realized_after_cost_reward": reward,
         "value_baseline": value_baseline,
         "advantage": reward - value_baseline,
@@ -469,7 +1256,7 @@ def build_trusted_replay_row(
         "future_labels_not_in_feature_tensor": True,
         "outcome_targets": {
             "realized_net_pnl_bps": after_cost,
-            "realized_net_pnl_usd": 0.0,
+            "realized_net_pnl_usd": None,
             "directional_outcome": directional,
             "trade_outcome": trade_outcome,
             "selected_action": selected_action,
@@ -489,11 +1276,46 @@ def build_trusted_replay_row(
                 else None
             ),
             "holding_period": HORIZON_SECONDS["15m"],
-            "fees": costs_bps,
+            "label_available_at": iso_utc(label_available_at),
+            "outcome_available_at": iso_utc(label_available_at),
+            "label_horizon_seconds": label_horizon_seconds,
+            "label_candle_contract_version": (
+                TRUSTED_REPLAY_LABEL_CANDLE_CONTRACT_VERSION
+            ),
+            "label_base_timeframe": TRUSTED_REPLAY_LABEL_BASE_TIMEFRAME,
+            "label_candle_evidence_sha256": label_evidence[
+                "label_candle_evidence_sha256"
+            ],
+            "label_path_contiguous_verified": True,
+            "label_future_available_candle_used": False,
+            "fees": None,
+            "fees_bps": fee_bps,
+            "spread_bps": spread_bps,
             "slippage": None,
-            "funding": features.get("funding_rate"),
+            "slippage_bps": slippage_bps,
+            "funding": None,
+            "funding_bps": funding_bps,
+            "round_trip_fee_drag_bps": round_trip_fee_drag_bps,
+            "round_trip_spread_drag_bps": round_trip_spread_drag_bps,
+            "round_trip_slippage_drag_bps": round_trip_slippage_drag_bps,
+            "round_trip_funding_drag_bps": round_trip_funding_drag_bps,
+            "round_trip_cost_bps": costs_bps,
+            "action_dead_zone_bps": action_dead_zone_bps,
+            "cost_evidence_hash": cost_evidence["cost_evidence_hash"],
+            "cost_evidence_schema_version": cost_evidence["schema_version"],
             "MFE": mfe,
             "MAE": mae,
+            "counterfactual_excursion_scope": label_evidence[
+                "excursion_scope"
+            ],
+            "counterfactual_excursion_candle_ids": list(
+                label_evidence["excursion_candle_ids"]
+            ),
+            "counterfactual_excursion_predecision_overlap_excluded": (
+                label_evidence[
+                    "excursion_predecision_overlap_excluded"
+                ]
+            ),
             "exit_reason": "TRUSTED_REPLAY_FUTURE_FINALIZED_CANDLE_HORIZON",
             "realized_after_cost_reward": reward,
             "value_baseline": value_baseline,

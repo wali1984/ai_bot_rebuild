@@ -186,6 +186,31 @@ def _trusted_replay_load_limit_for_cycle(
     return limit
 
 
+def _trusted_replay_backfill_limit_for_cycle(
+    *,
+    max_training_rows_per_cycle: int,
+    replay_buffer: Any | None,
+    frontier_rows: int,
+) -> int:
+    """Bound cold/prefetched backfill by both cycle and buffer capacity."""
+
+    cycle_limit = max(0, int(max_training_rows_per_cycle or 0))
+    if cycle_limit == 0:
+        return 0
+    frontier_count = max(0, int(frontier_rows or 0))
+    remaining_cycle_rows = max(0, cycle_limit - frontier_count)
+    buffer_maxlen = (
+        getattr(replay_buffer, "maxlen", None)
+        if replay_buffer is not None
+        else None
+    )
+    if not buffer_maxlen:
+        return 0
+    occupancy = len(replay_buffer) + frontier_count
+    remaining_buffer_rows = max(0, int(buffer_maxlen) - occupancy)
+    return min(remaining_cycle_rows, remaining_buffer_rows)
+
+
 def _sha256_file(path: str | None) -> str | None:
     if not path:
         return None
@@ -1590,18 +1615,23 @@ def run_hybrid_trainer_cycle(
     # touches the frontier cursor.
     backfill_examples: list[Any] = []
     buffer_maxlen = getattr(replay_buffer, "maxlen", None) if replay_buffer is not None else None
+    backfill_limit = _trusted_replay_backfill_limit_for_cycle(
+        max_training_rows_per_cycle=config.max_training_rows_per_cycle,
+        replay_buffer=replay_buffer,
+        frontier_rows=len(trusted_replay_examples),
+    )
     if prefetched_backfill_examples:
         # Resident pipeline mode: a background prefetcher built these rows
         # WHILE the previous cycle trained on GPU, so the cycle no longer pays
         # the archive tensor-build cost synchronously.
-        backfill_examples = list(prefetched_backfill_examples)
+        backfill_examples = list(prefetched_backfill_examples[:backfill_limit])
     elif buffer_maxlen:
         # Cold start (empty prefetch queue) or non-resident mode: fall back to
         # the synchronous backfill so the buffer never starves.
         occupancy = len(replay_buffer) + len(trusted_replay_examples)
-        if occupancy < int(buffer_maxlen) // 2:
+        if occupancy < int(buffer_maxlen) // 2 and backfill_limit > 0:
             backfill_examples = loader.load_trusted_replay_examples(
-                limit=max(0, int(buffer_maxlen) - occupancy),
+                limit=backfill_limit,
                 backfill=True,
                 training_observed_at=training_observed_at,
             )
@@ -1613,6 +1643,15 @@ def run_hybrid_trainer_cycle(
         "frontier_load_ms": frontier_load_ms,
         "backfill_load_ms": backfill_load_ms,
         "prefetched_backfill_rows": len(prefetched_backfill_examples or []),
+        "prefetched_backfill_rows_consumed": len(backfill_examples),
+        "prefetched_backfill_rows_retained": max(
+            0,
+            len(prefetched_backfill_examples or []) - len(backfill_examples),
+        ),
+        "trusted_replay_backfill_cycle_limit": backfill_limit,
+        "closed_trade_load": dict(
+            getattr(loader, "last_closed_trade_load", {}) or {}
+        ),
         "prediction_grid_load": dict(getattr(loader, "last_prediction_grid_load", {}) or {}),
     }
     # Feed loader-approved trusted rows into the replay buffer, but keep each

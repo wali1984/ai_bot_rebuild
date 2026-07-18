@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import sqlite3
 import threading
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -13,6 +14,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
+from v2.backend.app.services.durable_paper_evidence_archive import (
+    COUNTERFACTUAL_ARCHIVE_STREAM_ID,
+    DurablePaperEvidenceArchive,
+)
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     REQUIRED_DECISION_TIMEFRAMES,
     build_multi_timeframe_decision_snapshot,
@@ -41,7 +46,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
     build_trusted_replay_row,
-    snapshot_to_final_candle,
+    target_action_index,
 )
 from v2.backend.app.services.ordinary_paper_admission import (
     build_microstructure_trust_evidence,
@@ -70,14 +75,21 @@ TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS = int(4.5 * 3600)
 # STALE_MASKED rows (wrong values, not absent ones) remain rejected. The
 # global integrity optional-token list is intentionally NOT changed — live
 # decision rows still require current-schema evidence.
-# First-run cursor placement: closed-candle series from Redis cover ~25h at
-# 15m granularity, so labeling starts inside that window.
-TRUSTED_REPLAY_INITIAL_LOOKBACK_SECONDS = int(25 * 3600)
 TRAINER_FEEDBACK_OUTCOMES_KEY = "v2:trainer:feedback:outcomes"
 TRAINER_FEEDBACK_COUNTERFACTUALS_KEY = "v2:trainer:feedback:counterfactuals"
 TRAINER_FEEDBACK_PAPER_EXPLORATION_MATERIALIZATION_KEY = (
     "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
 )
+CANONICAL_REPO_ROOT = Path(__file__).resolve().parents[6]
+DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH = (
+    CANONICAL_REPO_ROOT
+    / ".local_data/v2_edge_replay_factory/counterfactual_evidence.sqlite3"
+)
+# Resource-control bound only.  This is not a market gate or training label
+# threshold.  Redis JSON strings larger than this are never GET/parsing inputs;
+# the verified durable archive must serve those rows instead.
+TRAINER_FEEDBACK_REDIS_JSON_MAX_BYTES = 64 * 1024 * 1024
+CLOSED_TRADE_DEFAULT_MAX_ROWS = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE
 
 # ── Closed-trade example memo cache ─────────────────────────────────────────
 # The resident runtime rebuilds a fresh loader instance every cycle, and the
@@ -1009,14 +1021,19 @@ class V2HybridTrainerDataLoader:
         tensor_builder: V2UnifiedFeatureTensorBuilder | None = None,
         replay_bundle_paths: Iterable[Path] = (),
         trusted_replay_archive_root: Path | None = None,
+        counterfactual_archive_path: Path | None = None,
     ) -> None:
         self.io = io or V2OnlyJsonIO(client=None)
         self.tensor_builder = tensor_builder or V2UnifiedFeatureTensorBuilder()
         self.replay_bundle_paths = tuple(Path(p) for p in replay_bundle_paths)
         self.trusted_replay_archive_root = trusted_replay_archive_root or default_archive_root()
+        self.counterfactual_archive_path = Path(
+            counterfactual_archive_path or DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH
+        )
         self.last_trusted_replay_scan: dict[str, Any] = {}
         self.last_trusted_replay_backfill_scan: dict[str, Any] = {}
         self.last_prediction_grid_load: dict[str, Any] = {}
+        self.last_closed_trade_load: dict[str, Any] = {}
         # Request-scoped batch cache: load_snapshot_payloads primes this with a
         # single pipelined round-trip so the ~57 per-pair reads stop paying
         # sequential Redis latency (the dominant prediction-grid cost).
@@ -1028,6 +1045,199 @@ class V2HybridTrainerDataLoader:
         if cache is not None and key in cache:
             return cache[key]
         return self.io.get_json(key)
+
+    def _verified_counterfactual_archive_rows(
+        self,
+        *,
+        limit: int,
+    ) -> tuple[list[dict[str, Any]] | None, dict[str, Any]]:
+        """Read a bounded archive tail after the producer-owned full proof."""
+
+        bounded_limit = max(0, int(limit))
+        status: dict[str, Any] = {
+            "source_key": TRAINER_FEEDBACK_COUNTERFACTUALS_KEY,
+            "durable_archive_path": str(self.counterfactual_archive_path),
+            "durable_archive_stream_id": COUNTERFACTUAL_ARCHIVE_STREAM_ID,
+            "requested_rows": bounded_limit,
+            "archive_rows_loaded": 0,
+            "archive_integrity_verified": False,
+            "archive_migration_complete": False,
+            "archive_replacement_readiness_verified": False,
+        }
+        if bounded_limit == 0:
+            status["status"] = "BOUNDED_ZERO_ROWS_REQUESTED"
+            return [], status
+        if not self.counterfactual_archive_path.is_file():
+            status["status"] = "DURABLE_ARCHIVE_MISSING"
+            return None, status
+        try:
+            archive = DurablePaperEvidenceArchive(
+                self.counterfactual_archive_path,
+                stream_id=COUNTERFACTUAL_ARCHIVE_STREAM_ID,
+            )
+            rows, readiness = archive.verified_latest_rows(
+                source_key=TRAINER_FEEDBACK_COUNTERFACTUALS_KEY,
+                limit=bounded_limit,
+            )
+            status.update(
+                {
+                    "archive_integrity_verified": readiness.get(
+                        "archive_integrity_verified"
+                    )
+                    is True,
+                    "archive_replacement_readiness_verified": readiness.get(
+                        "readiness_verified"
+                    )
+                    is True,
+                    "archive_migration_complete": readiness.get(
+                        "readiness_verified"
+                    )
+                    is True,
+                    "archive_migration_proof": (
+                        "PRODUCER_VERIFIED_REPLACEMENT_READINESS_V1"
+                        if readiness.get("readiness_verified") is True
+                        else None
+                    ),
+                    "archive_total_unique_rows": readiness.get(
+                        "archive_total_unique_rows"
+                    ),
+                    "archive_total_occurrences": readiness.get(
+                        "archive_total_occurrences"
+                    ),
+                    "archive_chain_sha256": readiness.get(
+                        "archive_chain_sha256"
+                    ),
+                    "archive_readiness_schema_version": readiness.get(
+                        "schema_version"
+                    ),
+                    "archive_readiness_rejection_reasons": list(
+                        readiness.get("rejection_reasons") or []
+                    ),
+                    "archive_verification_cost": readiness.get(
+                        "verification_cost"
+                    ),
+                    "archive_verification_memory_bound": readiness.get(
+                        "verification_memory_bound"
+                    ),
+                    "archive_bounded_rows_snapshot_compare_verified": (
+                        readiness.get(
+                            "bounded_rows_snapshot_compare_verified"
+                        )
+                        is True
+                    ),
+                }
+            )
+            if readiness.get("readiness_verified") is not True:
+                status["status"] = (
+                    "DURABLE_ARCHIVE_REPLACEMENT_READINESS_UNPROVEN"
+                )
+                return None, status
+        except (OSError, sqlite3.Error, TypeError, ValueError) as exc:
+            status["status"] = "DURABLE_ARCHIVE_VERIFICATION_FAILED"
+            status["rejection_reason"] = type(exc).__name__
+            status["rejection_detail"] = str(exc)[:240]
+            return None, status
+        status["status"] = "DURABLE_ARCHIVE_READY_BOUNDED_ROWS"
+        status["archive_rows_loaded"] = len(rows)
+        return rows, status
+
+    def _bounded_redis_feedback_rows(
+        self,
+        *,
+        source_key: str,
+        limit: int,
+    ) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
+        """Read one Redis JSON working set only after an exact byte-size gate."""
+
+        bounded_limit = max(0, int(limit))
+        status: dict[str, Any] = {
+            "source_key": source_key,
+            "requested_rows": bounded_limit,
+            "redis_json_max_bytes": TRAINER_FEEDBACK_REDIS_JSON_MAX_BYTES,
+            "redis_payload_bytes": None,
+            "rows_loaded": 0,
+        }
+        if bounded_limit == 0:
+            status["status"] = "BOUNDED_ZERO_ROWS_REQUESTED"
+            return [], status
+        client = getattr(self.io, "client", None)
+        if client is not None:
+            strlen = getattr(client, "strlen", None)
+            if not callable(strlen):
+                status["status"] = "REDIS_STRING_LENGTH_CAPABILITY_MISSING"
+                return [], status
+            try:
+                payload_bytes = int(strlen(source_key))
+            except Exception as exc:  # noqa: BLE001
+                status["status"] = "REDIS_STRING_LENGTH_READ_FAILED"
+                status["rejection_reason"] = type(exc).__name__
+                return [], status
+            status["redis_payload_bytes"] = payload_bytes
+            if payload_bytes > TRAINER_FEEDBACK_REDIS_JSON_MAX_BYTES:
+                status["status"] = "REDIS_JSON_OVERSIZED_SKIPPED_FAIL_CLOSED"
+                return [], status
+        payload = self._get(source_key)
+        rows: list[Mapping[str, Any]] = []
+        if isinstance(payload, list):
+            rows = [row for row in payload if isinstance(row, Mapping)]
+        elif isinstance(payload, Mapping):
+            nested = (
+                payload.get("rows")
+                or payload.get("outcomes")
+                or payload.get("outcome_labels")
+            )
+            if isinstance(nested, list):
+                rows = [row for row in nested if isinstance(row, Mapping)]
+        rows = rows[-bounded_limit:]
+        status["status"] = "BOUNDED_REDIS_JSON_ROWS_LOADED"
+        status["rows_loaded"] = len(rows)
+        return rows, status
+
+    def _bounded_feedback_rows(
+        self,
+        *,
+        source_key: str,
+        limit: int,
+    ) -> tuple[list[Mapping[str, Any]], dict[str, Any]]:
+        if source_key != TRAINER_FEEDBACK_COUNTERFACTUALS_KEY:
+            return self._bounded_redis_feedback_rows(
+                source_key=source_key,
+                limit=limit,
+            )
+        archive_rows, archive_status = (
+            self._verified_counterfactual_archive_rows(limit=limit)
+        )
+        if archive_rows is not None:
+            return archive_rows, archive_status
+        if archive_status.get("status") != "DURABLE_ARCHIVE_MISSING":
+            return [], {
+                "source_key": source_key,
+                "status": (
+                    "COUNTERFACTUAL_ARCHIVE_EXISTS_BUT_UNREADY_FAIL_CLOSED:"
+                    f"{archive_status.get('status')}"
+                ),
+                "archive_status": archive_status,
+                "archive_fallback_used": False,
+                "redis_fallback_suppressed": True,
+                "redis_read_attempted": False,
+            }
+        redis_rows, redis_status = self._bounded_redis_feedback_rows(
+            source_key=source_key,
+            limit=limit,
+        )
+        combined = {
+            **redis_status,
+            "archive_status": archive_status,
+            "archive_fallback_used": bool(redis_rows),
+            "redis_fallback_suppressed": False,
+            "redis_read_attempted": True,
+        }
+        if not redis_rows:
+            combined["status"] = (
+                "COUNTERFACTUAL_SOURCE_UNAVAILABLE_FAIL_CLOSED:"
+                f"{archive_status.get('status')}:{redis_status.get('status')}"
+            )
+        return redis_rows, combined
 
     def _get_exact_json_with_ttl(self, key: str) -> tuple[dict[str, Any] | None, int | None]:
         """Atomically re-read one expiring source and its remaining TTL.
@@ -1190,6 +1400,22 @@ class V2HybridTrainerDataLoader:
         if closed_from_raw:
             return closed_from_raw, raw_key
         return closed_payload, closed_key
+
+    def _read_trusted_replay_label_candles(
+        self,
+        *,
+        symbol: str,
+    ) -> tuple[Any, str]:
+        """Read only the canonical finalized 5m label source.
+
+        The legacy compatibility key can contain raw rows whose historical
+        ingestion/availability clocks are not preserved.  It is suitable for
+        compatibility features, not exact outcome labels, so replay never
+        falls back to it.
+        """
+
+        key = f"v2:market:ohlcv_closed:binance:{str(symbol).upper()}:5m"
+        return self._get(key), key
 
     def load_payloads(self, *, symbol: str, timeframe: str) -> dict[str, Any]:
         keys = {
@@ -1819,16 +2045,23 @@ class V2HybridTrainerDataLoader:
     ) -> list[TrainingExample]:
         observation_cutoff = _resolve_training_observed_at(training_observed_at)
         examples: list[TrainingExample] = []
+        bounded_limit = None if limit is None else max(0, int(limit))
+        if bounded_limit == 0:
+            return examples
         if trusted_only:
-            for example in self._closed_trade_snapshot_training_examples():
-                if not _training_example_observed_by(
-                    example,
+            closed_trade_limit = (
+                CLOSED_TRADE_DEFAULT_MAX_ROWS
+                if bounded_limit is None
+                else bounded_limit
+            )
+            examples.extend(
+                self._closed_trade_snapshot_training_examples(
+                    limit=closed_trade_limit,
                     training_observed_at=observation_cutoff,
-                ):
-                    continue
-                examples.append(example)
-                if limit is not None and len(examples) >= int(limit):
-                    return examples
+                )
+            )
+            if bounded_limit is not None and len(examples) >= bounded_limit:
+                return examples[:bounded_limit]
             if closed_trade_only:
                 return examples
         for symbol in symbols:
@@ -1847,7 +2080,7 @@ class V2HybridTrainerDataLoader:
                     ):
                         continue
                 examples.append(example)
-                if limit is not None and len(examples) >= int(limit):
+                if bounded_limit is not None and len(examples) >= bounded_limit:
                     return examples
         return examples
 
@@ -1975,24 +2208,32 @@ class V2HybridTrainerDataLoader:
         backfill: bool = False,
         training_observed_at: datetime | str | None = None,
     ) -> list[TrainingExample]:
-        """Consume labelable snapshots from a persistent oldest-first cursor.
+        """Stream frontier-labelable snapshots from an oldest-first cursor.
 
-        F-0013: the previous newest-first bounded scan only ever inspected the
-        most recent minutes of a ~13k-snapshots/hour archive, whose rows are
-        younger than the outcome label horizon (max 4h) and therefore always
-        rejected (NO_LATER_FINALIZED_CANDLES). The lane loaded 0 rows and the
-        trainer stayed INFERENCE_ONLY. The cursor walks forward and stops at
-        the embargo frontier (now - 4.5h); each cycle consumes snapshots that
-        newly crossed the frontier, giving a continuous training stream.
+        Labels come only from the canonical finalized 5m Redis frontier and
+        are bounded by one explicit ``training_observed_at``.  Snapshots are
+        processed one at a time so a scan cannot retain thousands of large
+        feature payloads in memory.
 
-        ``backfill=True`` runs the historical epoch lane: a second cursor
-        re-consumes archive rows BEHIND the frontier cursor so a restarted
-        replay buffer can refill from the full archive instead of waiting on
-        live production rate. It stops at the frontier cursor (that region
-        belongs to the primary lane) and wraps to offset 0 when it catches up,
-        starting the next epoch over history. The frontier cursor is never
-        touched by this lane.
+        ``backfill=True`` is deliberately blocked until the system has a
+        durable, time-indexed canonical 5m label archive.  Mutable short-lived
+        Redis history and same-timeframe feature snapshots are never used as
+        historical outcome evidence.
         """
+        if backfill:
+            self.last_trusted_replay_backfill_scan = {
+                "backfill_lane": True,
+                "status": "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED",
+                "examples_built": 0,
+                "snapshots_scanned": 0,
+                "cursor_advanced": False,
+                "same_timeframe_label_fallback_used": False,
+                "mutable_redis_history_used_for_historical_labels": False,
+                "rejection_reasons": {
+                    "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 1,
+                },
+            }
+            return []
         observation_cutoff = _resolve_training_observed_at(training_observed_at)
         examples: list[TrainingExample] = []
         requested_limit = TRUSTED_REPLAY_MAX_SCAN_PER_CYCLE if limit is None else max(0, int(limit))
@@ -2022,54 +2263,50 @@ class V2HybridTrainerDataLoader:
         scanned = 0
         frontier_reached = False
         consumed_offset = cursor
-        # Phase 1: collect the chunk so every snapshot can see the candles of
-        # the snapshots that FOLLOW it inside the chunk (outcome labels need
-        # future candles; incremental collection would starve the earliest
-        # rows in every chunk).
-        chunk: list[tuple[int, dict[str, Any]]] = []
-        archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
-        candle_cache: dict[tuple[str, str], tuple[Any, str]] = {}
-        for next_offset, snapshot in iter_snapshots_from_offset(
-            self.trusted_replay_archive_root, start_offset=cursor
-        ):
-            if scanned >= scan_limit:
-                break
-            if backfill_stop_offset is not None and next_offset > backfill_stop_offset:
-                # The region past the frontier cursor belongs to the primary lane.
-                frontier_reached = True
-                break
-            decision_time = _parse_iso_utc(snapshot.get("decision_time"))
-            if decision_time is not None and decision_time > embargo_cutoff:
-                frontier_reached = True
-                break
-            scanned += 1
-            chunk.append((next_offset, snapshot))
-            candle, _candle_reasons = snapshot_to_final_candle(snapshot)
-            if candle is not None:
-                pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
-                archive_candles.setdefault(pair, []).append(candle)
-        for rows in archive_candles.values():
-            rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
-        # Phase 2: build examples; the cursor only advances past snapshots
-        # whose build was attempted so an early example-limit stop does not
-        # silently skip unprocessed rows.
-        for next_offset, snapshot in chunk:
-            if limit is not None and len(examples) >= int(limit):
-                break
+        candle_cache: dict[str, tuple[Any, str]] = {}
+
+        def _stream_labelable_snapshots() -> Iterable[tuple[int, dict[str, Any]]]:
+            nonlocal scanned, frontier_reached
+            for next_offset, snapshot in iter_snapshots_from_offset(
+                self.trusted_replay_archive_root,
+                start_offset=cursor,
+            ):
+                if scanned >= scan_limit:
+                    break
+                if limit is not None and len(examples) >= int(limit):
+                    break
+                if (
+                    backfill_stop_offset is not None
+                    and next_offset > backfill_stop_offset
+                ):
+                    frontier_reached = True
+                    break
+                decision_time = _parse_iso_utc(snapshot.get("decision_time"))
+                if decision_time is not None and decision_time > embargo_cutoff:
+                    frontier_reached = True
+                    break
+                scanned += 1
+                yield next_offset, snapshot
+
+        # The cursor advances only past snapshots whose build was attempted.
+        for next_offset, snapshot in _stream_labelable_snapshots():
             consumed_offset = next_offset
             symbol = str(snapshot.get("symbol") or "").upper()
             timeframe = str(snapshot.get("timeframe") or "")
             if not symbol or not timeframe:
                 rejections["symbol_or_timeframe_missing"] = rejections.get("symbol_or_timeframe_missing", 0) + 1
                 continue
-            cache_key = (symbol, timeframe)
-            if cache_key not in candle_cache:
-                candle_cache[cache_key] = self._read_closed_candle_series(symbol=symbol, timeframe=timeframe)
-            candles, candle_key = candle_cache[cache_key]
-            candle_rows = list(archive_candles.get(cache_key) or [])
-            if isinstance(candles, list):
-                candle_rows.extend(candles)
-            replay_row, reasons = build_trusted_replay_row(snapshot, candles=candle_rows)
+            if symbol not in candle_cache:
+                candle_cache[symbol] = self._read_trusted_replay_label_candles(
+                    symbol=symbol,
+                )
+            candles, candle_key = candle_cache[symbol]
+            candle_rows = candles if isinstance(candles, list) else []
+            replay_row, reasons = build_trusted_replay_row(
+                snapshot,
+                candles=candle_rows,
+                training_observed_at=observation_cutoff,
+            )
             if replay_row is None:
                 for reason in reasons or ["trusted_replay_row_not_built"]:
                     rejections[str(reason)] = rejections.get(str(reason), 0) + 1
@@ -2173,15 +2410,24 @@ class V2HybridTrainerDataLoader:
                     },
                 }
             )
+            replay_label_action_index = target_action_index(
+                replay_row.get("target_action")
+            )
+            if replay_label_action_index is None:
+                rejections["target_action_invalid"] = (
+                    rejections.get("target_action_invalid", 0) + 1
+                )
+                continue
             example = TrainingExample(
                 symbol=symbol,
                 timeframe=timeframe,
                 tensor=tensor,
-                label_action_index=self._label_action(float(replay_row["future_return_after_cost_bps"])),
+                label_action_index=replay_label_action_index,
                 label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
                 payload_keys=tuple((payloads.get("_keys") or {}).values()),
                 row_classification=classification,
                 trust_row=trust_row,
+                label_available_at=str(replay_row["label_available_at"]),
             )
             if not _training_example_observed_by(
                 example,
@@ -2244,6 +2490,9 @@ class V2HybridTrainerDataLoader:
             "examples_built": len(examples),
             "frontier_reached": frontier_reached,
             "embargo_seconds": TRUSTED_REPLAY_LABEL_EMBARGO_SECONDS,
+            "streaming_snapshot_processing": True,
+            "maximum_resident_snapshot_rows": 1,
+            "canonical_5m_label_symbols_cached": len(candle_cache),
             "rejection_reasons": dict(sorted(rejections.items(), key=lambda kv: -kv[1])[:15]),
         }
         if backfill:
@@ -2255,8 +2504,17 @@ class V2HybridTrainerDataLoader:
             self.last_trusted_replay_scan = scan_status
         return examples
 
-    def _closed_trade_snapshot_training_examples(self) -> list[TrainingExample]:
+    def _closed_trade_snapshot_training_examples(
+        self,
+        *,
+        limit: int = CLOSED_TRADE_DEFAULT_MAX_ROWS,
+        training_observed_at: datetime | str | None = None,
+    ) -> list[TrainingExample]:
+        observation_cutoff = _resolve_training_observed_at(training_observed_at)
+        bounded_limit = max(0, int(limit))
         examples: list[TrainingExample] = []
+        source_statuses: list[dict[str, Any]] = []
+        rejected_after_observation_cutoff = 0
         for source_key, usable in (
             (TRAINER_FEEDBACK_OUTCOMES_KEY, _trainer_feedback_row_usable),
             (TRAINER_FEEDBACK_COUNTERFACTUALS_KEY, _counterfactual_trainer_feedback_row_usable),
@@ -2265,11 +2523,20 @@ class V2HybridTrainerDataLoader:
                 _paper_exploration_materialization_feedback_row_usable,
             ),
         ):
-            payload = self._get(source_key)
-            if not isinstance(payload, list):
+            remaining = bounded_limit - len(examples)
+            if remaining <= 0:
+                break
+            payload, source_status = self._bounded_feedback_rows(
+                source_key=source_key,
+                limit=remaining,
+            )
+            source_statuses.append(source_status)
+            if not payload:
                 continue
             cache_enabled = _closed_trade_example_cache_enabled()
             for row in payload:
+                if len(examples) >= bounded_limit:
+                    break
                 if not isinstance(row, Mapping) or not usable(row):
                     continue
                 row_with_source = dict(row)
@@ -2299,7 +2566,13 @@ class V2HybridTrainerDataLoader:
                             _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
                     if cached is not None:
-                        examples.append(cached)
+                        if _training_example_observed_by(
+                            cached,
+                            training_observed_at=observation_cutoff,
+                        ):
+                            examples.append(cached)
+                        else:
+                            rejected_after_observation_cutoff += 1
                         continue
                 snapshot, snapshot_source = self._closed_trade_feature_snapshot(
                     row=row_with_source,
@@ -2324,7 +2597,13 @@ class V2HybridTrainerDataLoader:
                             _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
                     if cached is not None:
-                        examples.append(cached)
+                        if _training_example_observed_by(
+                            cached,
+                            training_observed_at=observation_cutoff,
+                        ):
+                            examples.append(cached)
+                        else:
+                            rejected_after_observation_cutoff += 1
                         continue
                 example = self._closed_trade_snapshot_training_example(
                     row_with_source,
@@ -2332,6 +2611,12 @@ class V2HybridTrainerDataLoader:
                     resolved_snapshot_source=snapshot_source,
                 )
                 if example is not None:
+                    if not _training_example_observed_by(
+                        example,
+                        training_observed_at=observation_cutoff,
+                    ):
+                        rejected_after_observation_cutoff += 1
+                        continue
                     examples.append(example)
                     if cache_enabled:
                         assert cache_key is not None
@@ -2341,6 +2626,24 @@ class V2HybridTrainerDataLoader:
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["misses"] += 1
                             while len(_CLOSED_TRADE_EXAMPLE_CACHE) > _CLOSED_TRADE_EXAMPLE_CACHE_CAP:
                                 _CLOSED_TRADE_EXAMPLE_CACHE.popitem(last=False)
+        self.last_closed_trade_load = {
+            "status": (
+                "BOUNDED_CLOSED_TRADE_ROWS_LOADED"
+                if examples
+                else "NO_BOUNDED_CLOSED_TRADE_ROWS_AVAILABLE"
+            ),
+            "requested_max_rows": bounded_limit,
+            "examples_built": len(examples),
+            "hard_row_bound_respected": len(examples) <= bounded_limit,
+            "training_observed_at": observation_cutoff.isoformat().replace(
+                "+00:00",
+                "Z",
+            ),
+            "rows_rejected_after_training_observation_cutoff": (
+                rejected_after_observation_cutoff
+            ),
+            "source_statuses": source_statuses,
+        }
         return examples
 
     def _closed_trade_feature_snapshot(

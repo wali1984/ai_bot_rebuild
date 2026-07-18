@@ -34,9 +34,6 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     default_archive_root as default_trusted_replay_archive_root,
 )
-from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
-    iter_snapshots,
-)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     CheckpointManifest,
     V2HybridCheckpointManager,
@@ -54,10 +51,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.config import (
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     TrainingExample,
-    V2HybridTrainerDataLoader,
-    _classification_from_lineage,
-    _lineage_trust_fields,
-    _snapshot_decision_time_lineage,
     trainer_feedback_quarantine_rejection_reasons,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import (
@@ -81,8 +74,9 @@ from v2.backend.app.services.native_trainer.learning_readiness import (
     write_learning_readiness_artifact,
 )
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
-    build_trusted_replay_row,
-    snapshot_to_final_candle,
+    TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION,
+    TRUSTED_REPLAY_LABEL_POLICY_VERSION,
+    target_action_index,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     SMOKE_TEST_SYMBOLS,
@@ -119,7 +113,6 @@ EST = ZoneInfo("America/New_York")
 DEFAULT_HOLDOUT_CALIBRATION_SCAN_LIMIT = 100_000
 DEFAULT_HOLDOUT_CALIBRATION_EVAL_LIMIT = 512
 DEFAULT_HOLDOUT_CALIBRATION_MIN_INTERVAL_SECONDS = 900
-_HOLDOUT_EXAMPLE_CACHE: dict[str, Any] = {}
 CANONICAL_REPO_ROOT = Path(__file__).resolve().parents[5]
 
 
@@ -530,53 +523,77 @@ def _holdout_window(manifest: Mapping[str, Any]) -> tuple[datetime | None, datet
     return start, end, rows
 
 
-def _sample_evenly(rows: list[Any], limit: int) -> list[Any]:
-    if limit <= 0:
-        return []
-    if len(rows) <= limit:
-        return list(rows)
-    if limit == 1:
-        return [rows[-1]]
-    last = len(rows) - 1
-    indices = [int(round((last * index) / (limit - 1))) for index in range(limit)]
-    out: list[Any] = []
-    seen: set[int] = set()
-    for index in indices:
-        if index in seen:
-            continue
-        seen.add(index)
-        out.append(rows[index])
-    return out
+def _trusted_replay_holdout_target_action(
+    trust_row: Mapping[str, Any],
+) -> str | None:
+    """Resolve only the exact adaptive label contract used for training."""
+
+    if (
+        trust_row.get("trusted_replay_label_policy_version")
+        != TRUSTED_REPLAY_LABEL_POLICY_VERSION
+        or trust_row.get("cost_evidence_schema_version")
+        != TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION
+        or trust_row.get("flat_round_trip_cost_fallback_used") is not False
+        or trust_row.get("static_action_threshold_used") is not False
+    ):
+        return None
+    cost_hash = str(trust_row.get("cost_evidence_hash") or "").strip().lower()
+    if len(cost_hash) != 64 or any(
+        character not in "0123456789abcdef" for character in cost_hash
+    ):
+        return None
+    dead_zone = finite_float(trust_row.get("action_dead_zone_bps"))
+    if dead_zone is None or dead_zone < 0.0:
+        return None
+    action = str(trust_row.get("target_action") or "").strip().lower()
+    expected_index = target_action_index(action)
+    row_index = finite_float(trust_row.get("target_action_index"))
+    if (
+        expected_index is None
+        or row_index is None
+        or not float(row_index).is_integer()
+        or int(row_index) != expected_index
+    ):
+        return None
+    return action
 
 
-def _selected_action_outcome(selected_action: Any, realized_after_cost_bps: float) -> float | None:
-    action = str(selected_action or "").lower()
-    if action == "long":
-        return 1.0 if realized_after_cost_bps > 0.0 else 0.0
-    if action == "short":
-        return 1.0 if realized_after_cost_bps < 0.0 else 0.0
-    if action == "hold":
-        return 1.0 if abs(realized_after_cost_bps) < 4.0 else 0.0
-    return None
+def _selected_action_outcome(
+    selected_action: Any,
+    trust_row: Mapping[str, Any],
+) -> float | None:
+    """Score against the same adaptive target action used by training."""
+
+    target_action = _trusted_replay_holdout_target_action(trust_row)
+    action = str(selected_action or "").strip().lower()
+    if target_action is None or action not in {"long", "short", "hold"}:
+        return None
+    return 1.0 if action == target_action else 0.0
 
 
-def _expected_after_cost_bps(expected_move_bps: float, *, round_trip_cost_bps: float = 2.0) -> float:
-    if expected_move_bps > 0.0:
-        return expected_move_bps - abs(round_trip_cost_bps)
-    if expected_move_bps < 0.0:
-        return expected_move_bps + abs(round_trip_cost_bps)
-    return 0.0
+def _expected_after_cost_bps(
+    expected_move_bps: Any,
+    trust_row: Mapping[str, Any],
+) -> float | None:
+    """Validate and return the model head's already-after-cost prediction.
+
+    The expected-move head is trained directly on
+    ``label_expected_move_after_cost_bps``. Subtracting a fixed or adaptive
+    cost again during holdout would double-charge costs and break train/eval
+    parity.
+    """
+
+    if _trusted_replay_holdout_target_action(trust_row) is None:
+        return None
+    return finite_float(expected_move_bps)
 
 
-def _directional_accuracy_hit(selected_action: Any, realized_after_cost_bps: float) -> bool | None:
-    action = str(selected_action or "").lower()
-    if action == "long":
-        return realized_after_cost_bps > 0.0
-    if action == "short":
-        return realized_after_cost_bps < 0.0
-    if action == "hold":
-        return abs(realized_after_cost_bps) < 4.0
-    return None
+def _directional_accuracy_hit(
+    selected_action: Any,
+    trust_row: Mapping[str, Any],
+) -> bool | None:
+    outcome = _selected_action_outcome(selected_action, trust_row)
+    return None if outcome is None else bool(outcome)
 
 
 def _trusted_replay_holdout_examples(
@@ -593,141 +610,32 @@ def _trusted_replay_holdout_examples(
             "examples": [],
             "rows_rejected_by_reason": {"holdout_window_missing": 1},
         }
-    archive_root = default_trusted_replay_archive_root(repo_root).resolve()
-    cache_key = hashlib.sha256(
-        json.dumps(
-            {
-                "archive_root": str(archive_root),
-                "start": start.isoformat(),
-                "end": end.isoformat(),
-                "manifest_rows": manifest_rows,
-                "scan_limit": int(scan_limit),
-                "eval_limit": int(eval_limit),
-            },
-            sort_keys=True,
-        ).encode("utf-8")
-    ).hexdigest()
-    cached = _HOLDOUT_EXAMPLE_CACHE.get(cache_key)
-    if isinstance(cached, Mapping):
-        return {**dict(cached), "cache_hit": True}
-
-    rejected: dict[str, int] = {}
-    archive_candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
-    candidates: list[tuple[str, str, dict[str, Any]]] = []
-    snapshots_scanned = 0
-    try:
-        for snapshot in iter_snapshots(archive_root, limit=scan_limit):
-            snapshots_scanned += 1
-            candle, _reasons = snapshot_to_final_candle(snapshot)
-            if candle is not None:
-                pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
-                archive_candles.setdefault(pair, []).append(candle)
-            decision_time = parse_runtime_time(snapshot.get("decision_time"))
-            if decision_time is None or decision_time < start or decision_time > end:
-                continue
-            sample_id = str(snapshot.get("snapshot_id") or snapshot.get("feature_snapshot_id") or "")
-            candidates.append((decision_time.isoformat(), sample_id, dict(snapshot)))
-    except Exception as exc:  # noqa: BLE001
-        return {
-            "status": "BLOCKED_TRUSTED_REPLAY_HOLDOUT_ARCHIVE_SCAN_FAILED",
-            "examples": [],
-            "snapshots_scanned": snapshots_scanned,
-            "rows_rejected_by_reason": {f"archive_scan_failed:{type(exc).__name__}": 1},
-        }
-
-    for rows in archive_candles.values():
-        rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
-    candidates.sort(key=lambda item: (item[0], item[1]))
-    selected = _sample_evenly(candidates, eval_limit)
-    loader = V2HybridTrainerDataLoader(
-        io=V2OnlyJsonIO(client=None),
-        trusted_replay_archive_root=archive_root,
-    )
-    examples: list[TrainingExample] = []
-    sample_ids: list[str] = []
-    for _decision_time, _sample_id, snapshot in selected:
-        symbol = str(snapshot.get("symbol") or "").upper()
-        timeframe = str(snapshot.get("timeframe") or "")
-        if not symbol or not timeframe:
-            rejected["symbol_or_timeframe_missing"] = rejected.get("symbol_or_timeframe_missing", 0) + 1
-            continue
-        replay_row, reasons = build_trusted_replay_row(
-            snapshot,
-            candles=list(archive_candles.get((symbol, timeframe)) or []),
-        )
-        if replay_row is None:
-            for reason in reasons or ["trusted_replay_row_not_built"]:
-                rejected[str(reason)] = rejected.get(str(reason), 0) + 1
-            continue
-        features = snapshot.get("features") if isinstance(snapshot.get("features"), Mapping) else {}
-        if not features:
-            rejected["features_empty"] = rejected.get("features_empty", 0) + 1
-            continue
-        payloads = loader._payloads_from_feature_snapshot(  # noqa: SLF001
-            snapshot=snapshot,
-            features=features,
-            feedback_row=replay_row,
-        )
-        payloads["_keys"] = {
-            "features_latest": f"durable_feature_snapshot_archive:{snapshot.get('snapshot_id')}",
-            "trainer_feedback_outcomes": replay_row["sample_id"],
-            "ohlcv": "durable_feature_snapshot_archive_holdout",
-        }
-        try:
-            tensor = loader.tensor_builder.build(symbol=symbol, timeframe=timeframe, payloads=payloads)
-        except Exception as exc:  # noqa: BLE001
-            reason = f"tensor_build_failed:{type(exc).__name__}"
-            rejected[reason] = rejected.get(reason, 0) + 1
-            continue
-        if tensor.data_coverage_percent < 20.0:
-            rejected["data_coverage_below_20"] = rejected.get("data_coverage_below_20", 0) + 1
-            continue
-        snapshot_lineage = _snapshot_decision_time_lineage(snapshot)
-        classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
-        trust_row = dict(replay_row)
-        trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
-        trust_row.update(
-            {
-                "row_classification": classification,
-                "feature_vector_hash": tensor.tensor_id,
-                "reject_reasons": list(reasons),
-                "out_of_sample_holdout": True,
-                "untouched_holdout_window": True,
-            }
-        )
-        examples.append(
-            TrainingExample(
-                symbol=symbol,
-                timeframe=timeframe,
-                tensor=tensor,
-                label_action_index=loader._label_action(float(replay_row["future_return_after_cost_bps"])),  # noqa: SLF001
-                label_expected_move_after_cost_bps=float(replay_row["future_return_after_cost_bps"]),
-                payload_keys=tuple((payloads.get("_keys") or {}).values()),
-                row_classification=classification,
-                trust_row=trust_row,
-            )
-        )
-        sample_ids.append(str(replay_row.get("sample_id") or ""))
-
-    payload = {
-        "status": "ACTIVE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES_LOADED" if examples else "BLOCKED_NO_USABLE_HOLDOUT_EXAMPLES",
-        "examples": examples,
-        "cache_hit": False,
-        "snapshots_scanned": snapshots_scanned,
-        "holdout_candidates_found": len(candidates),
+    # No historical evaluation is permitted until this function is wired to
+    # a durable time-indexed canonical finalized-5m archive.  Keeping this
+    # fail-close unconditional prevents an operator from flipping a boolean
+    # and silently re-enabling the removed same-timeframe snapshot relabeler.
+    _ = (repo_root, scan_limit, eval_limit)
+    return {
+        "status": "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED",
+        "examples": [],
+        "snapshots_scanned": 0,
         "manifest_holdout_rows": manifest_rows,
-        "selected_candidate_rows": len(selected),
-        "usable_examples": len(examples),
-        "rows_rejected_by_reason": rejected,
-        "holdout_sample_identity_hash": hashlib.sha256(
-            json.dumps(sample_ids, sort_keys=True, separators=(",", ":")).encode("utf-8")
-        ).hexdigest()
-        if sample_ids
-        else None,
+        "holdout_window": {
+            "start_decision_time": start.isoformat(),
+            "end_decision_time": end.isoformat(),
+        },
+        "required_label_source": (
+            "DURABLE_TIME_INDEXED_CANONICAL_FINALIZED_5M_CANDLE_ARCHIVE"
+        ),
+        "same_timeframe_label_fallback_used": False,
+        "mutable_redis_history_used_for_historical_labels": False,
+        "rows_rejected_by_reason": {
+            "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": max(
+                1,
+                manifest_rows,
+            ),
+        },
     }
-    _HOLDOUT_EXAMPLE_CACHE.clear()
-    _HOLDOUT_EXAMPLE_CACHE[cache_key] = payload
-    return dict(payload)
 
 
 def build_trusted_replay_holdout_calibration(
@@ -784,8 +692,23 @@ def build_trusted_replay_holdout_calibration(
             "manifest_holdout_rows": manifest_rows,
             "scan_limit": scan_limit,
             "eval_limit": eval_limit,
+            "snapshots_scanned": int(
+                finite_float(loaded.get("snapshots_scanned")) or 0
+            ),
+            "required_label_source": loaded.get("required_label_source"),
+            "same_timeframe_label_fallback_used": loaded.get(
+                "same_timeframe_label_fallback_used"
+            )
+            is True,
+            "mutable_redis_history_used_for_historical_labels": loaded.get(
+                "mutable_redis_history_used_for_historical_labels"
+            )
+            is True,
             "rows_rejected_by_reason": as_dict(loaded.get("rows_rejected_by_reason")),
-            "reason": "no PIT-safe trusted replay holdout examples could be materialized",
+            "reason": (
+                "no PIT-safe trusted replay holdout examples could be "
+                "materialized from a durable indexed finalized-5m label source"
+            ),
         }
     input_dim = len(examples[0].tensor.model_vector)
     checkpoint_manager = V2HybridCheckpointManager(Path(model_dir))
@@ -974,16 +897,26 @@ def build_trusted_replay_holdout_calibration(
             rows_rejected[reason] = rows_rejected.get(reason, 0) + 1
             continue
         confidence = finite_float(forward.confidence_calibrated)
-        outcome = _selected_action_outcome(forward.selected_action, realized)
-        expected_after_cost = _expected_after_cost_bps(float(forward.expected_move_bps))
+        outcome = _selected_action_outcome(forward.selected_action, trust_row)
+        expected_after_cost = _expected_after_cost_bps(
+            forward.expected_move_bps,
+            trust_row,
+        )
         if confidence is not None and 0.0 <= confidence <= 1.0 and outcome is not None:
             calibration_rows.append({"confidence": confidence, "outcome": outcome})
         else:
             rows_rejected["missing_confidence_or_selected_action_outcome"] = rows_rejected.get(
                 "missing_confidence_or_selected_action_outcome", 0
             ) + 1
-        expected_move_rows.append({"expected": expected_after_cost, "realized": realized})
-        hit = _directional_accuracy_hit(forward.selected_action, realized)
+        if expected_after_cost is not None:
+            expected_move_rows.append(
+                {"expected": expected_after_cost, "realized": realized}
+            )
+        else:
+            rows_rejected["adaptive_cost_label_contract_invalid"] = (
+                rows_rejected.get("adaptive_cost_label_contract_invalid", 0) + 1
+            )
+        hit = _directional_accuracy_hit(forward.selected_action, trust_row)
         if hit is not None:
             direction_total += 1
             direction_hits += 1 if hit else 0
@@ -3897,6 +3830,7 @@ _PREFETCH_LOCK = threading.Lock()
 _PREFETCH_THREAD: threading.Thread | None = None
 _PREFETCH_STOP = threading.Event()
 _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT: Path | None = None
+_PREFETCH_MAX_ROWS_PER_CYCLE: int | None = None
 _PREFETCH_CHUNK_ROWS = 2_048
 _PREFETCH_IDLE_SLEEP_SECONDS = 10.0
 
@@ -3905,19 +3839,34 @@ def _prefetch_backfill_worker(
     *,
     trusted_replay_archive_root: Path,
     stop_event: threading.Event,
+    max_rows_per_cycle: int,
 ) -> None:
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
         V2HybridTrainerDataLoader,
     )
 
     loader = None
+    cycle_row_limit = max(0, int(max_rows_per_cycle))
+    chunk_row_limit = min(_PREFETCH_CHUNK_ROWS, cycle_row_limit)
+    if chunk_row_limit <= 0:
+        return
     while not stop_event.is_set():
         try:
             with _PREFETCH_LOCK:
                 queued = len(_PREFETCH_QUEUE)
             buffered = len(_REPLAY_BUFFER)
             capacity = int(_REPLAY_BUFFER.maxlen or 0)
-            if capacity and buffered + queued >= capacity:
+            remaining_cycle_rows = max(0, cycle_row_limit - queued)
+            remaining_capacity_rows = max(
+                0,
+                capacity - buffered - queued,
+            ) if capacity else 0
+            load_limit = min(
+                chunk_row_limit,
+                remaining_cycle_rows,
+                remaining_capacity_rows,
+            )
+            if load_limit <= 0:
                 stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
                 continue
             if loader is None:
@@ -3926,11 +3875,15 @@ def _prefetch_backfill_worker(
                     trusted_replay_archive_root=trusted_replay_archive_root,
                 )
             examples = loader.load_trusted_replay_examples(
-                limit=_PREFETCH_CHUNK_ROWS, backfill=True
+                limit=load_limit, backfill=True
             )
             if examples:
                 with _PREFETCH_LOCK:
-                    _PREFETCH_QUEUE.extend(examples)
+                    still_available = max(
+                        0,
+                        cycle_row_limit - len(_PREFETCH_QUEUE),
+                    )
+                    _PREFETCH_QUEUE.extend(examples[:still_available])
             else:
                 stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
         except Exception:
@@ -3938,27 +3891,42 @@ def _prefetch_backfill_worker(
             stop_event.wait(_PREFETCH_IDLE_SLEEP_SECONDS)
 
 
-def _ensure_prefetch_thread_started(*, trusted_replay_archive_root: Path) -> None:
-    global _PREFETCH_STOP, _PREFETCH_THREAD, _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT
+def _ensure_prefetch_thread_started(
+    *,
+    trusted_replay_archive_root: Path,
+    max_rows_per_cycle: int,
+) -> None:
+    global _PREFETCH_STOP, _PREFETCH_THREAD
+    global _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT, _PREFETCH_MAX_ROWS_PER_CYCLE
     resolved_archive_root = Path(trusted_replay_archive_root).expanduser().resolve()
+    resolved_max_rows = max(0, int(max_rows_per_cycle))
     if _PREFETCH_THREAD is not None and _PREFETCH_THREAD.is_alive():
-        if _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT == resolved_archive_root:
+        if (
+            _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT == resolved_archive_root
+            and _PREFETCH_MAX_ROWS_PER_CYCLE == resolved_max_rows
+        ):
             return
         _PREFETCH_STOP.set()
         _PREFETCH_THREAD.join(timeout=5.0)
         if _PREFETCH_THREAD.is_alive():
             raise RuntimeError("trusted replay prefetch root change could not stop prior worker")
-    if _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT != resolved_archive_root:
+    if (
+        _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT != resolved_archive_root
+        or _PREFETCH_MAX_ROWS_PER_CYCLE != resolved_max_rows
+    ):
         with _PREFETCH_LOCK:
             _PREFETCH_QUEUE.clear()
+    if _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT != resolved_archive_root:
         _REPLAY_BUFFER.clear()
     _PREFETCH_STOP = threading.Event()
     _PREFETCH_TRUSTED_REPLAY_ARCHIVE_ROOT = resolved_archive_root
+    _PREFETCH_MAX_ROWS_PER_CYCLE = resolved_max_rows
     _PREFETCH_THREAD = threading.Thread(
         target=_prefetch_backfill_worker,
         kwargs={
             "trusted_replay_archive_root": resolved_archive_root,
             "stop_event": _PREFETCH_STOP,
+            "max_rows_per_cycle": resolved_max_rows,
         },
         name="v2-trainer-backfill-prefetch",
         daemon=True,
@@ -3966,11 +3934,24 @@ def _ensure_prefetch_thread_started(*, trusted_replay_archive_root: Path) -> Non
     _PREFETCH_THREAD.start()
 
 
-def _drain_prefetched_backfill_examples() -> list[Any]:
+def _snapshot_prefetched_backfill_examples() -> list[Any]:
+    """Return a stable queue prefix without discarding unconsumed rows."""
+
     with _PREFETCH_LOCK:
-        drained = list(_PREFETCH_QUEUE)
-        _PREFETCH_QUEUE.clear()
-    return drained
+        return list(_PREFETCH_QUEUE)
+
+
+def _acknowledge_prefetched_backfill_examples(consumed: int) -> int:
+    """Remove only rows the completed trainer cycle actually consumed."""
+
+    acknowledged = 0
+    with _PREFETCH_LOCK:
+        for _index in range(max(0, int(consumed))):
+            if not _PREFETCH_QUEUE:
+                break
+            _PREFETCH_QUEUE.popleft()
+            acknowledged += 1
+    return acknowledged
 
 
 def _cuda_total_vram_mb() -> float | None:
@@ -4188,16 +4169,29 @@ def run_native_training_cycle(
     )
     _ensure_prefetch_thread_started(
         trusted_replay_archive_root=paths.trusted_replay_archive_root,
+        max_rows_per_cycle=config.max_training_rows_per_cycle,
     )
-    return run_hybrid_trainer_cycle(
+    prefetched_backfill_examples = _snapshot_prefetched_backfill_examples()
+    result = run_hybrid_trainer_cycle(
         config=config,
         io=io,
         publish=True,
         replay_buffer=_REPLAY_BUFFER,
-        prefetched_backfill_examples=_drain_prefetched_backfill_examples(),
+        prefetched_backfill_examples=prefetched_backfill_examples,
         trusted_replay_archive_root=paths.trusted_replay_archive_root,
         behavior_receipt_archive_root=paths.behavior_receipt_archive_root,
     )
+    result_metrics = as_dict(getattr(result, "metrics", {}))
+    training_metrics = as_dict(
+        as_dict(result_metrics.get("training")).get("metrics")
+    )
+    loader_stage = as_dict(training_metrics.get("data_loader_stage_ms"))
+    consumed_prefetch_rows = int(
+        finite_float(loader_stage.get("prefetched_backfill_rows_consumed"))
+        or 0
+    )
+    _acknowledge_prefetched_backfill_examples(consumed_prefetch_rows)
+    return result
 
 
 def dashboard_runtime_readiness_blockers(

@@ -32,7 +32,6 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader impo
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
-    build_trusted_replay_row,
     parse_utc,
     snapshot_to_final_candle,
 )
@@ -443,8 +442,23 @@ def bootstrap_trusted_replay_dataset(
             already_present += 1 if result.already_present else 0
         write_checksum_manifest(archive_root)
 
-    replay_examples = loader.load_trusted_replay_examples(limit=replay_limit)
-    replay_rejections: Counter[str] = Counter()
+    # Bootstrap is a historical replay operation.  It must not relabel old
+    # snapshots from the mutable, short-retention Redis 5m frontier; the
+    # backfill lane stays fail-closed until a durable time-indexed canonical
+    # finalized-5m label archive is available.
+    replay_examples = loader.load_trusted_replay_examples(
+        limit=replay_limit,
+        backfill=True,
+    )
+    replay_scan = dict(loader.last_trusted_replay_backfill_scan)
+    replay_rejections: Counter[str] = Counter(
+        {
+            str(reason): int(count)
+            for reason, count in dict(
+                replay_scan.get("rejection_reasons") or {}
+            ).items()
+        }
+    )
     label_counts: Counter[str] = Counter()
     symbols: set[str] = set()
     timeframes: set[str] = set()
@@ -504,6 +518,14 @@ def bootstrap_trusted_replay_dataset(
         "all_required_timeframes_present": all(tf in timeframes for tf in ("1m", "5m", "15m", "1h", "4h")),
         "label_distribution": label_distribution,
         "import_rejections_by_reason": dict(import_rejections),
+        "replay_rejections_by_reason": dict(replay_rejections),
+        "trusted_replay_scan": replay_scan,
+        "historical_label_source_status": replay_scan.get("status"),
+        "required_historical_label_source": (
+            "DURABLE_TIME_INDEXED_CANONICAL_FINALIZED_5M_CANDLE_ARCHIVE"
+        ),
+        "same_timeframe_label_fallback_used": False,
+        "mutable_redis_history_used_for_historical_labels": False,
         "learning_lane": "OUTCOME_SUPERVISED_TRUSTED_REPLAY",
         "ppo_objective_used": False,
         "live_or_exchange_mutation": False,

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import platform
 import subprocess
 import sys
@@ -23,7 +22,6 @@ from v2.backend.app.services.native_trainer.challenger_v2_cost_model import (
     cost_model_hash,
     estimate_paper_cost,
     estimate_replay_cost,
-    net_return_for_side,
 )
 from v2.backend.app.services.native_trainer.challenger_v2_feature_adapter import (
     NormalizationSpec,
@@ -37,12 +35,6 @@ from v2.backend.app.services.native_trainer.challenger_v2_feature_adapter import
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive import (
     default_archive_root,
-    iter_snapshots,
-)
-from v2.backend.app.services.native_trainer.trusted_replay.dataset import (
-    build_trusted_replay_row,
-    parse_utc,
-    snapshot_to_final_candle,
 )
 
 
@@ -209,29 +201,6 @@ def _hashes(paths: Sequence[Path], repo_root: Path) -> dict[str, str]:
     return {_rel(path, repo_root): _sha256_file(path) for path in paths}
 
 
-def _build_candle_index(snapshots: Sequence[Mapping[str, Any]]) -> tuple[dict[tuple[str, str], list[dict[str, Any]]], Counter[str]]:
-    candles: dict[tuple[str, str], list[dict[str, Any]]] = {}
-    rejections: Counter[str] = Counter()
-    for snapshot in snapshots:
-        candle, reasons = snapshot_to_final_candle(snapshot)
-        if candle is None:
-            rejections.update(reasons)
-            continue
-        pair = (str(candle.get("symbol") or "").upper(), str(candle.get("timeframe") or ""))
-        candles.setdefault(pair, []).append(candle)
-    for rows in candles.values():
-        rows.sort(key=lambda row: str(row.get("candle_close_time") or ""))
-    return candles, rejections
-
-
-def _target_edge(long_net: float, short_net: float) -> float:
-    if long_net <= 0.0 and short_net <= 0.0:
-        return 0.0
-    if long_net >= short_net:
-        return float(long_net)
-    return -float(short_net)
-
-
 def _build_dataset(
     *,
     repo_root: Path,
@@ -239,71 +208,25 @@ def _build_dataset(
     replay_limit: int,
 ) -> tuple[list[ReplayCandidateRow], dict[str, Any], dict[str, int]]:
     archive_root = default_archive_root(repo_root)
-    snapshots = list(iter_snapshots(archive_root, limit=scan_limit))
-    candles, rejections = _build_candle_index(snapshots)
-    rows: list[ReplayCandidateRow] = []
-    for snapshot in snapshots:
-        pair = (str(snapshot.get("symbol") or "").upper(), str(snapshot.get("timeframe") or ""))
-        replay_row, reasons = build_trusted_replay_row(
-            snapshot,
-            candles=candles.get(pair) or [],
-            round_trip_cost_bps=0.0,
-            action_threshold_bps=0.0,
-        )
-        if replay_row is None:
-            rejections.update(reasons)
-            continue
-        adapted = adapt_replay_snapshot(snapshot)
-        if adapted.integrity_status.get("accepted_for_training") is not True:
-            rejections.update(["ADAPTER_INTEGRITY_REJECTED", *adapted.rejection_reasons])
-            continue
-        gross = float(replay_row["future_return_15m_bps"])
-        long_cost = estimate_replay_cost(snapshot, side="long")
-        short_cost = estimate_replay_cost(snapshot, side="short")
-        long_net = net_return_for_side(gross, "long", long_cost)
-        short_net = net_return_for_side(gross, "short", short_cost)
-        rows.append(
-            ReplayCandidateRow(
-                sample_id=str(replay_row.get("sample_id") or ""),
-                snapshot_id=str(snapshot.get("feature_snapshot_id") or snapshot.get("snapshot_id") or ""),
-                symbol=str(snapshot.get("symbol") or "").upper(),
-                timeframe=str(snapshot.get("timeframe") or ""),
-                decision_time=str(replay_row.get("decision_time") or snapshot.get("decision_time") or ""),
-                feature_cutoff=str(replay_row.get("feature_cutoff") or snapshot.get("feature_cutoff") or ""),
-                available_at=str(replay_row.get("available_at") or snapshot.get("available_at") or ""),
-                gross_return_15m_bps=gross,
-                long_net_return_bps=long_net,
-                short_net_return_bps=short_net,
-                target_edge_bps=_target_edge(long_net, short_net),
-                cost_long=long_cost.to_jsonable(),
-                cost_short=short_cost.to_jsonable(),
-                production_grade_cost_evidence=long_cost.production_grade_evidence and short_cost.production_grade_evidence,
-                snapshot=snapshot,
-            )
-        )
-        if replay_limit and len(rows) >= replay_limit:
-            break
-    rows.sort(key=lambda row: (row.decision_time, row.sample_id))
-    total = len(rows)
-    train_end = int(total * 0.75)
-    validation_end = total
     manifest = {
         "schema_version": "challenger_v2_dataset_manifest_v1",
         "archive_root": str(archive_root),
-        "snapshots_scanned": len(snapshots),
-        "production_cost_replay_rows": len(rows),
+        "status": "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED",
+        "dataset_build_allowed": False,
+        "snapshots_scanned": 0,
+        "production_cost_replay_rows": 0,
         "replay_limit": replay_limit,
         "scan_limit": scan_limit,
         "split_method": "STRICT_TEMPORAL_ORDER_TRAIN_VALIDATION_ONLY_NO_LOCKBOX_ACCESS",
         "training_window": {
-            "rows": train_end,
-            "start_decision_time": rows[0].decision_time if train_end else None,
-            "end_decision_time": rows[train_end - 1].decision_time if train_end else None,
+            "rows": 0,
+            "start_decision_time": None,
+            "end_decision_time": None,
         },
         "validation_window": {
-            "rows": validation_end - train_end,
-            "start_decision_time": rows[train_end].decision_time if validation_end > train_end else None,
-            "end_decision_time": rows[-1].decision_time if validation_end > train_end else None,
+            "rows": 0,
+            "start_decision_time": None,
+            "end_decision_time": None,
         },
         "blind_lockbox_window": {
             "mode": "FUTURE_SNAPSHOTS_AFTER_CANDIDATE_FREEZE_ONLY",
@@ -311,13 +234,20 @@ def _build_dataset(
             "rows_used_for_model_selection": 0,
         },
         "future_labels_used_as_features": False,
-        "feature_cutoff_after_decision_rejected": rejections.get("FEATURE_CUTOFF_AFTER_DECISION_TIME", 0),
-        "available_at_after_decision_rejected": rejections.get("AVAILABLE_AT_AFTER_DECISION_TIME", 0),
-        "open_candle_rejected": rejections.get("OPEN_CANDLE_REJECTED", 0),
-        "production_grade_cost_rows": sum(1 for row in rows if row.production_grade_cost_evidence),
+        "same_timeframe_label_fallback_used": False,
+        "mutable_redis_history_used_for_historical_labels": False,
+        "required_label_source": (
+            "DURABLE_TIME_INDEXED_CANONICAL_FINALIZED_5M_CANDLE_ARCHIVE"
+        ),
+        "feature_cutoff_after_decision_rejected": 0,
+        "available_at_after_decision_rejected": 0,
+        "open_candle_rejected": 0,
+        "production_grade_cost_rows": 0,
     }
     manifest["dataset_manifest_hash"] = stable_hash(manifest)
-    return rows, manifest, dict(sorted(rejections.items()))
+    return [], manifest, {
+        "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 1,
+    }
 
 
 def _select_feature_names(rows: Sequence[ReplayCandidateRow], *, max_features: int = 32) -> tuple[str, ...]:

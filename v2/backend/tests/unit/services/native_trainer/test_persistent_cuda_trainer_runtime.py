@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from v2.backend.app.services.native_trainer import persistent_cuda_trainer_runtime as runtime_module
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
@@ -1036,8 +1038,11 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
     monkeypatch.setattr(
         runtime_module,
         "_ensure_prefetch_thread_started",
-        lambda *, trusted_replay_archive_root: captured.setdefault(
-            "prefetch_archive_root", trusted_replay_archive_root
+        lambda *, trusted_replay_archive_root, max_rows_per_cycle: captured.update(
+            {
+                "prefetch_archive_root": trusted_replay_archive_root,
+                "prefetch_max_rows_per_cycle": max_rows_per_cycle,
+            }
         ),
     )
 
@@ -1061,6 +1066,7 @@ def test_run_native_training_cycle_uses_full_resolved_symbol_scope(
     assert captured["trusted_replay_archive_root"] == paths.trusted_replay_archive_root
     assert captured["behavior_receipt_archive_root"] == paths.behavior_receipt_archive_root
     assert captured["prefetch_archive_root"] == paths.trusted_replay_archive_root
+    assert captured["prefetch_max_rows_per_cycle"] == 64
     assert str(foreign_cwd) not in str(captured["model_dir"])
     assert str(foreign_cwd) not in str(captured["trusted_replay_archive_root"])
     assert str(foreign_cwd) not in str(captured["behavior_receipt_archive_root"])
@@ -1111,9 +1117,15 @@ def test_run_native_training_cycle_caps_batch_size_for_large_max_rows(
     assert captured["publish"] is True
 
 
+@pytest.mark.parametrize(
+    ("max_rows_per_cycle", "expected_load_limit"),
+    ((512, 512), (16_384, 2_048)),
+)
 def test_prefetch_worker_uses_explicit_trusted_replay_root_from_foreign_cwd(
     tmp_path: Path,
     monkeypatch,
+    max_rows_per_cycle: int,
+    expected_load_limit: int,
 ) -> None:
     from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
         data_loader as data_loader_module,
@@ -1126,6 +1138,9 @@ def test_prefetch_worker_uses_explicit_trusted_replay_root_from_foreign_cwd(
     monkeypatch.chdir(foreign_cwd)
     captured: dict[str, object] = {}
     stop_event = runtime_module.threading.Event()
+    runtime_module._REPLAY_BUFFER.clear()  # noqa: SLF001
+    with runtime_module._PREFETCH_LOCK:  # noqa: SLF001
+        runtime_module._PREFETCH_QUEUE.clear()  # noqa: SLF001
 
     class _Loader:
         def __init__(self, *, io, trusted_replay_archive_root):
@@ -1143,12 +1158,28 @@ def test_prefetch_worker_uses_explicit_trusted_replay_root_from_foreign_cwd(
     runtime_module._prefetch_backfill_worker(  # noqa: SLF001
         trusted_replay_archive_root=archive_root,
         stop_event=stop_event,
+        max_rows_per_cycle=max_rows_per_cycle,
     )
 
     assert captured["archive_root"] == archive_root
-    assert captured["limit"] == runtime_module._PREFETCH_CHUNK_ROWS  # noqa: SLF001
+    assert captured["limit"] == expected_load_limit
     assert captured["backfill"] is True
     assert str(foreign_cwd) not in str(captured["archive_root"])
+
+
+def test_prefetch_queue_acknowledges_only_rows_consumed_by_completed_cycle() -> None:
+    with runtime_module._PREFETCH_LOCK:  # noqa: SLF001
+        runtime_module._PREFETCH_QUEUE.clear()  # noqa: SLF001
+        runtime_module._PREFETCH_QUEUE.extend(["row-1", "row-2", "row-3"])  # noqa: SLF001
+
+    snapshot = runtime_module._snapshot_prefetched_backfill_examples()  # noqa: SLF001
+    acknowledged = runtime_module._acknowledge_prefetched_backfill_examples(1)  # noqa: SLF001
+
+    assert snapshot == ["row-1", "row-2", "row-3"]
+    assert acknowledged == 1
+    with runtime_module._PREFETCH_LOCK:  # noqa: SLF001
+        assert list(runtime_module._PREFETCH_QUEUE) == ["row-2", "row-3"]  # noqa: SLF001
+        runtime_module._PREFETCH_QUEUE.clear()  # noqa: SLF001
 
 
 def test_persistent_cli_default_repo_root_and_cadence_are_cwd_independent(
@@ -2434,6 +2465,34 @@ def test_confidence_artifacts_compute_brier_ece_from_trusted_feedback(monkeypatc
     assert len(reliability["buckets"]) == 2
 
 
+def test_historical_holdout_requires_durable_indexed_canonical_5m_labels(
+    tmp_path: Path,
+) -> None:
+    loaded = runtime_module._trusted_replay_holdout_examples(  # noqa: SLF001
+        repo_root=tmp_path,
+        manifest={
+            "holdout_window": {
+                "start_decision_time": "2026-06-22T09:00:00Z",
+                "end_decision_time": "2026-06-22T11:00:00Z",
+                "rows": 17,
+            }
+        },
+        scan_limit=100_000,
+        eval_limit=512,
+    )
+
+    assert loaded["status"] == (
+        "BLOCKED_DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED"
+    )
+    assert loaded["examples"] == []
+    assert loaded["snapshots_scanned"] == 0
+    assert loaded["same_timeframe_label_fallback_used"] is False
+    assert loaded["mutable_redis_history_used_for_historical_labels"] is False
+    assert loaded["rows_rejected_by_reason"] == {
+        "DURABLE_INDEXED_5M_LABEL_ARCHIVE_REQUIRED": 17
+    }
+
+
 def _unit_holdout_example() -> runtime_module.TrainingExample:
     tensor = FeatureTensorRecord(
         tensor_id="holdout-tensor-1",
@@ -2469,6 +2528,17 @@ def _unit_holdout_example() -> runtime_module.TrainingExample:
             "future_return_after_cost_bps": 5.0,
             "future_labels_not_in_feature_tensor": True,
             "target_action": "long",
+            "target_action_index": 1,
+            "trusted_replay_label_policy_version": (
+                runtime_module.TRUSTED_REPLAY_LABEL_POLICY_VERSION
+            ),
+            "cost_evidence_schema_version": (
+                runtime_module.TRUSTED_REPLAY_COST_EVIDENCE_SCHEMA_VERSION
+            ),
+            "cost_evidence_hash": "b" * 64,
+            "action_dead_zone_bps": 6.25,
+            "flat_round_trip_cost_fallback_used": False,
+            "static_action_threshold_used": False,
         },
     )
 
@@ -2727,6 +2797,29 @@ def test_holdout_checkpoint_evaluates_only_after_verified_serving_safe_load(
     assert result["checkpoint_path"] == str(weight_path.resolve())
     assert result["checkpoint_weight_blob_loaded"] is True
     assert result["trusted_holdout_rows"] == 1
+    assert result["expected_move_mae"] == pytest.approx(2.0)
+    assert result["evaluation_rows_preview"][0][
+        "expected_move_after_cost_bps"
+    ] == pytest.approx(7.0)
+
+
+def test_holdout_uses_exact_training_action_and_after_cost_semantics() -> None:
+    trust_row = _unit_holdout_example().trust_row
+
+    assert runtime_module._selected_action_outcome("long", trust_row) == 1.0
+    assert runtime_module._selected_action_outcome("hold", trust_row) == 0.0
+    assert runtime_module._directional_accuracy_hit("long", trust_row) is True
+    assert runtime_module._directional_accuracy_hit("short", trust_row) is False
+    assert runtime_module._expected_after_cost_bps(7.0, trust_row) == 7.0
+
+
+def test_holdout_fails_closed_when_adaptive_label_contract_is_tampered() -> None:
+    trust_row = dict(_unit_holdout_example().trust_row)
+    trust_row["static_action_threshold_used"] = True
+
+    assert runtime_module._selected_action_outcome("long", trust_row) is None
+    assert runtime_module._directional_accuracy_hit("long", trust_row) is None
+    assert runtime_module._expected_after_cost_bps(7.0, trust_row) is None
 
 
 def test_confidence_artifacts_activate_from_trusted_replay_holdout(
@@ -2856,14 +2949,17 @@ def test_holdout_calibration_due_respects_recent_active_publish() -> None:
     assert age == 960.0
 
 
-def test_selected_action_outcome_uses_realized_direction_not_trade_outcome_label() -> None:
-    assert runtime_module._selected_action_outcome("long", 5.0) == 1.0
-    assert runtime_module._selected_action_outcome("long", -5.0) == 0.0
-    assert runtime_module._selected_action_outcome("short", -5.0) == 1.0
-    assert runtime_module._selected_action_outcome("short", 5.0) == 0.0
-    assert runtime_module._selected_action_outcome("hold", 2.0) == 1.0
-    assert runtime_module._selected_action_outcome("hold", 12.0) == 0.0
-    assert runtime_module._selected_action_outcome("close_long", 5.0) is None
+def test_selected_action_outcome_uses_adaptive_training_target_not_static_band() -> None:
+    trust_row = dict(_unit_holdout_example().trust_row)
+    assert runtime_module._selected_action_outcome("long", trust_row) == 1.0
+    assert runtime_module._selected_action_outcome("short", trust_row) == 0.0
+    assert runtime_module._selected_action_outcome("hold", trust_row) == 0.0
+    assert runtime_module._selected_action_outcome("close_long", trust_row) is None
+
+    trust_row["target_action"] = "hold"
+    trust_row["target_action_index"] = 0
+    assert runtime_module._selected_action_outcome("hold", trust_row) == 1.0
+    assert runtime_module._selected_action_outcome("long", trust_row) == 0.0
 
 
 def test_trainer_quality_artifact_computes_expected_move_mae_and_calibration(monkeypatch) -> None:

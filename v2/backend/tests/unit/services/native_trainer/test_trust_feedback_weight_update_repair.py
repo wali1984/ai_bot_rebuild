@@ -804,9 +804,11 @@ class _FakeRedis:
         value = self.store.get(key)
         if value is None:
             return None
-        import json
-
         return json.dumps(value)
+
+    def strlen(self, key: str) -> int:
+        payload = self.get(key)
+        return len(payload.encode("utf-8")) if payload is not None else 0
 
 
 def _train_one() -> tuple[V2HybridPolicyModel, object]:
