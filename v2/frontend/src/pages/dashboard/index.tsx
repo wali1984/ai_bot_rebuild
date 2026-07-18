@@ -1493,14 +1493,15 @@ function StatChip({ label, value, color }: { label: string; value: string; color
 
 function PerformancePanel({ equitySeries, perTradePnl, winLossData, directionData, accuracy, equity, realized, unrealized, totalPnl }: {
   equitySeries: Array<{ label: string; value: number }>;
-  perTradePnl: Array<{ label: string; value: number }>;
+  perTradePnl: Array<{ label: string; value: number; winner?: boolean }>;
   winLossData: Array<{ name: string; value: number; color?: string }>;
   directionData: Array<{ name: string; value: number; color?: string }>;
   accuracy: number | null | undefined;
   equity: number | null; realized: number | null; unrealized: number | null; totalPnl: number | null;
 }): JSX.Element {
   const trades = perTradePnl.length;
-  const wins = perTradePnl.filter((p) => p.value > 0).length;
+  // NET win rate via the `winner` flag — consistent with the accuracy donut.
+  const wins = perTradePnl.filter((p) => p.winner === true).length;
   const winRate = trades ? (wins / trades) * 100 : null;
   const posColor = '#22c55e', negColor = '#ef4444';
   const pnlColor = (totalPnl ?? 0) >= 0 ? posColor : negColor;
@@ -1647,12 +1648,21 @@ export default function DashboardPage(): JSX.Element {
 
   // ── Chart-ready derivations (real closed-trade equity curve) ──────────────
   const equityCurveRaw = paperStatusStream.data?.equity_curve ?? [];
-  const perTradePnl = useMemo(
-    () => equityCurveRaw
-      .map((p, i) => ({ label: `#${i + 1}`, value: Number(p?.pnl ?? 0), winner: p?.winner === true }))
-      .filter((p) => Number.isFinite(p.value)),
-    [equityCurveRaw],
-  );
+  // equity_curve `pnl` is CUMULATIVE net PnL. Derive the PER-TRADE delta so the
+  // per-trade bars, the equity-curve reconstruction (run += value), and the
+  // win count are all correct. Win/loss is the NET `winner` flag — never the
+  // sign of cumulative equity (which yields a meaningless ~"equity-was-up %").
+  const perTradePnl = useMemo(() => {
+    let prevCum = 0;
+    return equityCurveRaw
+      .map((p, i) => {
+        const cum = Number(p?.pnl ?? 0);
+        const delta = Number.isFinite(cum) ? cum - prevCum : NaN;
+        if (Number.isFinite(cum)) prevCum = cum;
+        return { label: `#${i + 1}`, value: delta, cumulative: cum, winner: p?.winner === true };
+      })
+      .filter((p) => Number.isFinite(p.value));
+  }, [equityCurveRaw]);
   const equitySeries = useMemo(() => {
     if (perTradePnl.length === 0) return [] as Array<{ label: string; value: number }>;
     // Anchor on real capital only — never a fabricated baseline. If neither a
@@ -1664,9 +1674,11 @@ export default function DashboardPage(): JSX.Element {
     perTradePnl.forEach((p, i) => { run += p.value; pts.push({ label: `#${i + 1}`, value: run }); });
     return pts;
   }, [perTradePnl, startingCapital, equity, totalPnl]);
-  const winCount = perTradePnl.filter((p) => p.value > 0).length;
-  const lossCount = perTradePnl.filter((p) => p.value < 0).length;
-  const flatCount = perTradePnl.length - winCount - lossCount;
+  // Win/loss by the NET `winner` flag (matches the accuracy donut + guardian),
+  // not the per-trade sign (which counts gross-positive net-losers as wins).
+  const winCount = perTradePnl.filter((p) => p.winner === true).length;
+  const lossCount = perTradePnl.length - winCount;
+  const flatCount = 0;
   const winLossData = useMemo(() => ([
     { name: 'Wins', value: winCount, color: '#22c55e' },
     { name: 'Losses', value: lossCount, color: '#ef4444' },
