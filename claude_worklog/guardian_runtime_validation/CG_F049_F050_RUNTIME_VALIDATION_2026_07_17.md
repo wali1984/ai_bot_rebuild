@@ -60,3 +60,65 @@ All are downstream of fixes NOT owned/activatable by me right now:
 
 ## Safety
 Read-only. No writes to old keys, no order placement, no live enablement. Live gate BLOCKED throughout.
+
+---
+
+## Re-validation addendum — 2026-07-18T02:40Z (read-only, independent)
+
+**Context change since the negative 2026-07-17 validation:** the paper loop was RESTARTED at
+2026-07-18T02:25:27Z (new PID 2878). Both fix files (`position_state.py`, `sizing_model.py`)
+have mtime 2026-07-18T00:52Z — i.e. the running process now includes the fix code, which the
+previous negative validation identified as the missing precondition (old PID 2215061 predated
+the fix load).
+
+**CG-F050 (capital invariant):**
+- Open positions (2): MANAUSDT gross 76.22 = 38.11×2.0; ARBUSDT gross 35.40 = 17.70×2.0 —
+  both COHERENT (use `net_quantity` for open rows; `closed_quantity` only exists on closed rows).
+- Rows exited after 2026-07-17T20:00Z: 1/1 PASSES the invariant (tol $0.02). First
+  post-fix-era close to hold.
+- Verdict: EARLY-POSITIVE but INSUFFICIENT SAMPLE (n=1; and rows must both OPEN and CLOSE
+  under the fixed code, incl. same-side accumulation, for a clean test). Status remains
+  FIX_APPLIED_PENDING_INDEPENDENT_RUNTIME_VALIDATION. Re-validate after ≥10 closes with
+  entry ts > 2026-07-18T02:25Z; specifically require ≥1 multi-fill (accumulated) close to
+  test the apply_same_side_fill recompute path.
+- The 46 pre-fix violation rows are historical failed evidence (per master-doc addendum),
+  not rows to rewrite; G10 will keep failing on them until the gate scopes to post-fix entries.
+
+**CG-F049 (short admission):**
+- Last 12h closes: 7, ALL LONG (net −$4.35), 0 SHORT. Both open positions LONG (opened
+  pre-restart). Corrected short admission CANNOT yet be observed — no post-restart
+  admissions have occurred in the 15 minutes since PID 2878 started.
+- Verdict: NOT YET OBSERVABLE post-restart; remains PENDING. Signature to look for:
+  favorable-edge shorts admitted with non-zero risk budget and leverage >1x.
+
+Validator: Claude (read-only; no trading-flow code touched). Method: direct Redis reads
+(`v2:paper:positions`, `v2:paper:closed_trades`), process table, file mtimes.
+
+---
+
+## Refresh — 2026-07-18T22:14Z (re-observation, read-only)
+
+Re-ran the observation to check whether the WQ-R34 external dependencies moved. They have not.
+
+- **Codex F049/F050 fixes STILL UNCOMMITTED.** `git status` shows 12 dirty files in the Codex
+  lane (`v2/backend/app/services/adaptive_capital_allocator/` + `.../paper_trade_management/`).
+  The running loop therefore still cannot carry the fix even if restarted.
+- **Paper-loop service is currently DEAD.** `ai-bot-v2-trade-management-paper-loop.service` =
+  `inactive (dead) since 2026-07-18 18:12:37 EDT` (Main PID 1641118 exited status 0/SUCCESS, clean).
+  While dead, no new closed outcomes accumulate, so G10/G13/G14 cannot advance regardless.
+- **Guardian gates unchanged** vs prior tick: G10 = 46 capital-invariant violations (20 subclass-A
+  allocated_margin==0, 26 subclass-B accumulation-freeze); G11 sweep FAIL; G12 8 warns; G13 −18.13 bps;
+  G14 PF 0.658. G01/G02/G04–G09/G15/G16 PASS.
+
+### Conclusion (unchanged): WQ-R34 remains BLOCKED_EXTERNAL_DEPENDENCY
+My Claude-lane part (independent runtime validation) is complete and negative. The unblock path is
+entirely outside my lane and must not be performed by me:
+1. **Codex** commits the F049/F050/F051/F052 fixes (currently uncommitted).
+2. **Operator** drain-safe restart of the paper loop (paper-only; trading stays BLOCKED). It is
+   currently stopped — an operator restart with the committed fix is the gating event.
+3. **Claude** re-runs this validation (expect new coherent closes + L/S rebalance).
+4. **Operator** authorizes `tools/g10_capital_invariant_repair.py` for the 46 historical rows
+   (reversible, G08-safe; the auto-classifier blocked the bulk rewrite by design).
+
+No further Claude action is available until steps 1–2 occur. This refresh is evidence-integrity
+documentation only; no code, no Redis writes, no process changes, live gate BLOCKED.
