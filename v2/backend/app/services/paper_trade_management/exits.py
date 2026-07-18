@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -30,6 +31,37 @@ def _first_present(*values: Any) -> Any:
         if value is not None and value != "":
             return value
     return None
+
+
+def _current_liquidation_distance_bps(
+    position: PaperNetPosition,
+    *,
+    mark_price: float,
+) -> float | None:
+    """Return side-aware current mark distance to the canonical liq estimate.
+
+    ``liquidation_buffer_bps`` is entry-relative and therefore cannot drive a
+    current emergency exit.  A crossed or side-inconsistent estimate maps to
+    zero distance so the protective tier fails closed.
+    """
+    mark = coerce_float(mark_price)
+    liquidation_price = coerce_float(position.liquidation_price_estimate)
+    if (
+        mark is None
+        or liquidation_price is None
+        or not math.isfinite(mark)
+        or not math.isfinite(liquidation_price)
+        or mark <= 0.0
+        or liquidation_price < 0.0
+    ):
+        return None
+    if position.side == "long":
+        distance = mark - liquidation_price
+    elif position.side == "short":
+        distance = liquidation_price - mark
+    else:
+        return None
+    return max(0.0, distance / mark * 10000.0)
 
 
 def _context_value(context: Mapping[str, Any], *keys: str) -> Any:
@@ -383,13 +415,21 @@ def evaluate_exit(
             if (alpha_context or {}).get("bid_ask_spread_bps") is not None
             else (alpha_context or {}).get("spread_bps")
         )
-    liquidation_distance_bps = coerce_float(getattr(position, "liquidation_distance_bps", None))
-    if liquidation_distance_bps is not None and liquidation_distance_bps <= config.emergency_liquidation_distance_bps:
+    liquidation_distance_bps = _current_liquidation_distance_bps(
+        position,
+        mark_price=mark_price,
+    )
+    if (
+        liquidation_distance_bps is not None
+        and liquidation_distance_bps <= config.emergency_liquidation_distance_bps
+    ):
         return {
             "should_close": True,
             "close_reason": "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE",
             "tier": 0,
             "pnl_bps": pnl_bps_value,
+            "liquidation_price_estimate": position.liquidation_price_estimate,
+            "current_liquidation_distance_bps": liquidation_distance_bps,
         }
     account_drawdown_bps = coerce_float((account_context or {}).get("drawdown_bps"))
     if account_drawdown_bps is not None and account_drawdown_bps >= abs(config.drawdown_emergency_bps):

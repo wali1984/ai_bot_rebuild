@@ -39,7 +39,22 @@ def _long_position():
         best_favorable_price=None,
     )
     pos.size = 0.01
-    pos.liquidation_distance_bps = None
+    return pos
+
+
+def _short_position():
+    from app.services.paper_trade_management.position_state import PaperNetPosition
+
+    pos = PaperNetPosition(
+        position_id="paper_pos_BTCUSDT_short",
+        symbol="BTCUSDT",
+        side="short",
+        net_quantity=-0.01,
+        avg_entry_price=100_000.0,
+        opened_est="2026-06-17T00:00:00Z",
+        best_favorable_price=None,
+    )
+    pos.size = 0.01
     return pos
 
 
@@ -405,7 +420,6 @@ def test_atr_ceiling_cuts_losing_short_symmetrically() -> None:
         best_favorable_price=None,
     )
     pos.size = 0.01
-    pos.liquidation_distance_bps = None
     config = _wide_atr_config(ceiling_bps=80.0)
     mark = 100_000.0 * (1 + 90 / 10000.0)  # short down 90 bps
     result = evaluate_exit(
@@ -888,7 +902,7 @@ def test_emergency_liquidation_exit_still_fires_tier_0() -> None:
     pos = _long_position()
     pos.avg_entry_price = 100_000.0
     pos.best_favorable_price = None
-    pos.liquidation_distance_bps = 100.0  # close to liquidation
+    pos.liquidation_price_estimate = 98_000.0
 
     config = PaperExitConfig(
         emergency_liquidation_distance_bps=250.0,
@@ -902,6 +916,122 @@ def test_emergency_liquidation_exit_still_fires_tier_0() -> None:
     )
     assert result["should_close"] is True
     assert result["close_reason"] == "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE"
+    assert result["current_liquidation_distance_bps"] == pytest.approx(
+        (99_500.0 - 98_000.0) / 99_500.0 * 10000.0
+    )
+
+
+def test_emergency_liquidation_exit_is_side_aware_for_short() -> None:
+    pos = _short_position()
+    pos.liquidation_price_estimate = 101_000.0
+
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_500.0,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=PaperExitConfig(
+            emergency_liquidation_distance_bps=250.0,
+            min_hold_seconds=0,
+        ),
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE"
+    assert result["liquidation_price_estimate"] == 101_000.0
+    assert result["current_liquidation_distance_bps"] == pytest.approx(
+        (101_000.0 - 100_500.0) / 100_500.0 * 10000.0
+    )
+
+
+@pytest.mark.parametrize(
+    ("side", "liquidation_price_estimate"),
+    (
+        ("long", 100_100.0),
+        ("short", 99_900.0),
+    ),
+)
+def test_crossed_liquidation_estimate_fails_closed_at_zero_distance(
+    side: str,
+    liquidation_price_estimate: float,
+) -> None:
+    pos = _long_position() if side == "long" else _short_position()
+    pos.liquidation_price_estimate = liquidation_price_estimate
+
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_000.0,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=PaperExitConfig(
+            emergency_liquidation_distance_bps=250.0,
+            min_hold_seconds=0,
+        ),
+    )
+
+    assert result["should_close"] is True
+    assert result["close_reason"] == "TIER_0_EMERGENCY_LIQUIDATION_DISTANCE"
+    assert result["current_liquidation_distance_bps"] == 0.0
+
+
+def test_missing_liquidation_estimate_does_not_invent_emergency_distance() -> None:
+    pos = _long_position()
+    pos.liquidation_price_estimate = None
+
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_000.0,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=PaperExitConfig(
+            emergency_liquidation_distance_bps=250.0,
+            min_hold_seconds=0,
+        ),
+    )
+
+    assert result["should_close"] is False
+    assert result["close_reason"] is None
+    assert "current_liquidation_distance_bps" not in result
+
+
+def test_zero_long_liquidation_estimate_is_a_distant_valid_boundary() -> None:
+    pos = _long_position()
+    pos.liquidation_price_estimate = 0.0
+
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_000.0,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=PaperExitConfig(
+            emergency_liquidation_distance_bps=250.0,
+            min_hold_seconds=0,
+        ),
+    )
+
+    assert result["should_close"] is False
+    assert result["close_reason"] is None
+
+
+@pytest.mark.parametrize(
+    "liquidation_price_estimate",
+    (-1.0, float("nan"), float("inf"), float("-inf")),
+)
+def test_invalid_liquidation_estimate_does_not_invent_emergency_distance(
+    liquidation_price_estimate: float,
+) -> None:
+    pos = _long_position()
+    pos.liquidation_price_estimate = liquidation_price_estimate
+
+    result = evaluate_exit(
+        position=pos,
+        mark_price=100_000.0,
+        generated_utc="2026-06-17T01:00:00Z",
+        config=PaperExitConfig(
+            emergency_liquidation_distance_bps=250.0,
+            min_hold_seconds=0,
+        ),
+    )
+
+    assert result["should_close"] is False
+    assert result["close_reason"] is None
+    assert "current_liquidation_distance_bps" not in result
 
 
 def test_confidence_decay_exit_fires() -> None:
