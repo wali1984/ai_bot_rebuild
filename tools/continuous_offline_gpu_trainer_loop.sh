@@ -73,7 +73,12 @@ while [ "$_running" -eq 1 ]; do
     --early-stop-patience "$EARLY_STOP" \
     --limit "$LIMIT" \
     $rebuild \
-    --output "$REPORT" || echo "[continuous-offline] iter=$iter exited non-zero (continuing)"
+    --output "$REPORT"
+  trainer_rc=$?
+  if [ "$trainer_rc" -ne 0 ]; then
+    echo "[continuous-offline] iter=$iter exited non-zero rc=$trainer_rc; propagating to systemd" >&2
+    exit "$trainer_rc"
+  fi
   # Interruptible sleep so SIGTERM stops promptly.
   for _ in $(seq 1 "$INTERVAL"); do
     [ "$_running" -eq 1 ] || break
