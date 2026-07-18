@@ -154,7 +154,12 @@ function MarketIngestorCoverage({ data }: { data: IngestorsStatusData | null | u
                     {row.redis_pattern || '—'}
                   </span>
                   {row.provider_unusable_reason ? (
-                    <span style={{ color: 'var(--warn, #f59e0b)' }}>{row.provider_unusable_reason}</span>
+                    <span
+                      title={row.provider_unusable_reason}
+                      style={{ color: 'var(--warn, #f59e0b)', overflowWrap: 'anywhere', wordBreak: 'break-word', minWidth: 0 }}
+                    >
+                      {row.provider_unusable_reason}
+                    </span>
                   ) : null}
                 </div>
               </div>
