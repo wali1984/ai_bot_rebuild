@@ -1538,9 +1538,26 @@ def checkpoint_retention_status(
         ],
         key=lambda path: path.stat().st_mtime,
     )
+    effective_latest_checkpoint_id = latest_checkpoint_id
+    latest_checkpoint_id_source = "caller" if latest_checkpoint_id else None
+    if not effective_latest_checkpoint_id:
+        for metadata_path in reversed(
+            [path for path in files if path.name.endswith(".json")]
+        ):
+            payload = as_dict(read_json(metadata_path))
+            candidate_id = str(payload.get("checkpoint_id") or metadata_path.stem)
+            weight_path = checkpoint_dir / f"{candidate_id}.weights.npz"
+            if payload.get("weight_blob_written") is True and weight_path.is_file():
+                effective_latest_checkpoint_id = candidate_id
+                latest_checkpoint_id_source = "newest_complete_checkpoint_artifact"
+                break
     pinned_names: set[str] = set()
-    if latest_checkpoint_id:
-        pinned_names.update(path.name for path in files if latest_checkpoint_id in path.name)
+    if effective_latest_checkpoint_id:
+        pinned_names.update(
+            path.name
+            for path in files
+            if effective_latest_checkpoint_id in path.name
+        )
     if best_checkpoint_id:
         pinned_names.update(path.name for path in files if best_checkpoint_id in path.name)
     for path in files:
@@ -1556,7 +1573,10 @@ def checkpoint_retention_status(
                 break
             if path.name in pinned_names:
                 continue
-            if latest_checkpoint_id and latest_checkpoint_id in path.name:
+            if (
+                effective_latest_checkpoint_id
+                and effective_latest_checkpoint_id in path.name
+            ):
                 continue
             size = path.stat().st_size
             try:
@@ -1584,7 +1604,8 @@ def checkpoint_retention_status(
         "checkpoint_rollover_limit_bytes": limit_bytes,
         "oldest_checkpoint": remaining[0].name if remaining else None,
         "latest_checkpoint": latest,
-        "latest_checkpoint_id": latest_checkpoint_id,
+        "latest_checkpoint_id": effective_latest_checkpoint_id,
+        "latest_checkpoint_id_source": latest_checkpoint_id_source,
         "best_checkpoint": best_checkpoint_id,
         "pinned_checkpoints": sorted(pinned_names),
         "deleted_checkpoints": deleted,

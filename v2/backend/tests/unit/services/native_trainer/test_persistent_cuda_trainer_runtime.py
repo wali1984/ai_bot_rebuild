@@ -262,6 +262,46 @@ def test_checkpoint_retention_keeps_latest_below_300gb(tmp_path: Path) -> None:
     assert latest.exists()
 
 
+def test_checkpoint_retention_recovers_latest_complete_pair_without_caller_id(
+    tmp_path: Path,
+) -> None:
+    paths = PersistentTrainerPaths(repo_root=tmp_path)
+    checkpoint_dir = paths.model_dir
+    checkpoint_dir.mkdir(parents=True)
+    checkpoint_id = "v2_hybrid_ckpt_complete"
+    weight = checkpoint_dir / f"{checkpoint_id}.weights.npz"
+    weight.write_bytes(b"unit-weight")
+    metadata = checkpoint_dir / f"{checkpoint_id}.json"
+    metadata.write_text(
+        json.dumps(
+            {
+                "checkpoint_id": checkpoint_id,
+                "weight_blob_written": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (checkpoint_dir / "v2_hybrid_ckpt_orphan.json").write_text(
+        json.dumps(
+            {
+                "checkpoint_id": "v2_hybrid_ckpt_orphan",
+                "weight_blob_written": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    status = checkpoint_retention_status(
+        paths=paths,
+        latest_checkpoint_id=None,
+        apply_rollover=False,
+    )
+
+    assert status["latest_checkpoint_id"] == checkpoint_id
+    assert status["latest_checkpoint_id_source"] == "newest_complete_checkpoint_artifact"
+    assert status["pinned_checkpoints"] == sorted([metadata.name, weight.name])
+
+
 def test_resource_status_distinguishes_sample_set_below_target_from_training_blocker(monkeypatch) -> None:
     class _TrainerResult:
         metrics = {
