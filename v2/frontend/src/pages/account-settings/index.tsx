@@ -83,10 +83,13 @@ function accountTypeLabel(value: string | null | undefined): string {
 }
 
 function accountModeLabel(value: string | null | undefined): string {
-  if (!value) return 'Live account';
-  if (/paper/i.test(value)) return 'Live account';
-  if (/read/i.test(value)) return 'Live account';
-  return 'Live account';
+  // Honest mode display — the system default is paper / read-only with live
+  // trading BLOCKED, so never assert "Live account" for a non-live mode.
+  if (!value) return 'Paper account';
+  if (/paper|shadow|simulate/i.test(value)) return 'Paper account';
+  if (/read|view|observe/i.test(value)) return 'Read-only account';
+  if (/live/i.test(value)) return 'Live account';
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)} account`;
 }
 
 function accountRuntimeText(value: unknown, fallback = 'Unavailable'): string {

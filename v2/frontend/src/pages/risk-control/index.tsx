@@ -282,7 +282,7 @@ function SectionHead({ title }: { title: string }): JSX.Element {
 
 function Card({ children, accent }: { children: React.ReactNode; accent?: string }): JSX.Element {
   return (
-    <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '12px 14px', border: `1px solid ${accent ?? 'rgba(255,255,255,0.06)'}`, marginBottom: 14 }}>
+    <div className="glass" style={{ padding: '12px 14px', border: `1px solid ${accent ?? 'rgba(255,255,255,0.06)'}`, marginBottom: 14 }}>
       {children}
     </div>
   );
@@ -473,10 +473,10 @@ export default function RiskControlPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh' }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', minHeight: '100vh' }}
     >
       {/* Header */}
-      <div style={{ padding: '16px 20px 12px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '16px 20px 12px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>

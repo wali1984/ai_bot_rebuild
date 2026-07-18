@@ -124,10 +124,8 @@ function SectionHead({ title, action }: { title: string; action?: JSX.Element })
 function DataPanel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }): JSX.Element {
   return (
     <div
+      className="glass"
       style={{
-        background: 'var(--bg-panel)',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius)',
         padding: '16px 20px',
         ...style,
       }}
@@ -280,7 +278,13 @@ export default function DashboardPage(): JSX.Element {
       data-page-id={(meta as PageMeta).id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100%',
+        background:
+          'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)',
+      }}
     >
       <RealtimeStatusBar
         streams={[

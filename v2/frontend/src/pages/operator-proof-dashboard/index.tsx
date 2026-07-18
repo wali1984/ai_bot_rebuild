@@ -825,6 +825,10 @@ export default function OperatorProofDashboardPage(): JSX.Element {
       'data-page-surface': meta.surface,
       'data-page-min-role': rbac.minRole,
       'data-page-path': route.path,
+      style: {
+        background:
+          'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)',
+      },
     }),
     [],
   );

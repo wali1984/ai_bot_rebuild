@@ -48,7 +48,7 @@ interface RiskStatus {
 
 function KV({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius-md, 10px)', padding: '12px 14px' }}>
+    <div className="glass" style={{ padding: '12px 14px' }}>
       <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</span>
       <span style={{ fontSize: 15, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)' }}>{value}</span>
     </div>
@@ -82,8 +82,8 @@ export default function StrategyAdminPage(): JSX.Element {
 
   return (
     <div data-testid="page-strategy-admin" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}>
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 48 }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Strategy Admin</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
           Active paper strategy state · governor · entry gates · risk profile. Strategy mutations require operator approval and are disabled here.
@@ -113,7 +113,7 @@ export default function StrategyAdminPage(): JSX.Element {
       )}
 
       <div style={{ padding: '20px 24px 0', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+        <div className="glass" style={{ padding: '14px 16px' }}>
           <h2 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
             A+ Entry Gate — rejection reasons
           </h2>
@@ -173,7 +173,7 @@ export default function StrategyAdminPage(): JSX.Element {
           )}
         </div>
 
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+        <div className="glass" style={{ padding: '14px 16px' }}>
           <h2 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
             Active Risk Profile
           </h2>

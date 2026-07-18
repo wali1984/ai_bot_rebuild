@@ -28,7 +28,7 @@ function statusColor(s: string): string {
 
 function KV({ label, value, color }: { label: string; value: string; color?: string }): JSX.Element {
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+    <div className="glass" style={{ padding: '12px 14px' }}>
       <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)' }}>{value}</span>
     </div>
@@ -52,10 +52,10 @@ export default function MonitorCenterPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 64 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 64 }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Monitor Center</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
           Page coverage · Data coverage · Realtime stream health · Route health · Test &amp; build status
@@ -154,7 +154,7 @@ export default function MonitorCenterPage(): JSX.Element {
           stData?.streams?.length ? (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
               {stData.streams.map((s) => (
-                <div key={s.name} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+                <div key={s.name} className="glass" style={{ padding: '12px 14px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--text-primary)' }}>{s.name}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, color: statusColor(s.status) }}>{s.status.toUpperCase()}</span>

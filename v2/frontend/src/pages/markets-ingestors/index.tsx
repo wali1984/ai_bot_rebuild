@@ -137,9 +137,6 @@ const PROVIDER_TO_INGESTOR: Record<string, string> = {
 };
 
 const panelStyle: React.CSSProperties = {
-  background: 'var(--bg-panel)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md, 10px)',
   padding: '16px 18px',
 };
 
@@ -197,7 +194,7 @@ function ProviderTruthPanel({ providers }: { providers: ProviderStatusData | nul
   const byId = useMemo(() => providerById(providers?.providers), [providers?.providers]);
   const cards = REQUIRED_PROVIDER_ORDER.map(([id, label]) => ({ id, label, provider: byId.get(id) }));
   return (
-    <div data-testid="provider-truth-panel" style={{ ...panelStyle, marginBottom: 16 }}>
+    <div data-testid="provider-truth-panel" className="glass" style={{ ...panelStyle, marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <PanelTitle>Provider truth · canonical contract</PanelTitle>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
@@ -309,7 +306,7 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-      <div style={panelStyle}>
+      <div className="glass" style={panelStyle}>
         <PanelTitle>Ingestor status</PanelTitle>
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
@@ -332,7 +329,7 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
         <StatusLegend rows={rows} />
       </div>
 
-      <div style={panelStyle}>
+      <div className="glass" style={panelStyle}>
         <PanelTitle>Newest event age (lower is fresher)</PanelTitle>
         <ResponsiveContainer width="100%" height={Math.max(220, freshnessData.length * 26)}>
           <BarChart data={freshnessData} layout="vertical" margin={{ left: 8, right: 44 }}>
@@ -349,7 +346,7 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
         </ResponsiveContainer>
       </div>
 
-      <div style={panelStyle}>
+      <div className="glass" style={panelStyle}>
         <PanelTitle>Symbols / keys tracked</PanelTitle>
         <ResponsiveContainer width="100%" height={Math.max(220, coverageData.length * 26)}>
           <BarChart data={coverageData} layout="vertical" margin={{ left: 8, right: 44 }}>
@@ -443,7 +440,7 @@ function IngestorDetail({ name }: { name: string }) {
 
   if (metrics.envelope.source_type === 'unavailable' && !data) {
     return (
-      <div style={{ ...panelStyle, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+      <div className="glass" style={{ ...panelStyle, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
         Waiting for live data stream…
       </div>
     );
@@ -451,7 +448,7 @@ function IngestorDetail({ name }: { name: string }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
-      <div style={panelStyle}>
+      <div className="glass" style={panelStyle}>
         <PanelTitle>Feed freshness · live stream</PanelTitle>
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={trend} margin={{ left: 4, right: 12 }}>
@@ -468,7 +465,7 @@ function IngestorDetail({ name }: { name: string }) {
         </div>
       </div>
 
-      <div style={panelStyle}>
+      <div className="glass" style={panelStyle}>
         <PanelTitle>Fresh vs lagging symbols</PanelTitle>
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
@@ -491,7 +488,7 @@ function IngestorDetail({ name }: { name: string }) {
       </div>
 
       {freshnessBySymbol.length > 0 && (
-        <div style={{ ...panelStyle, gridColumn: '1 / -1' }}>
+        <div className="glass" style={{ ...panelStyle, gridColumn: '1 / -1' }}>
           <PanelTitle>Payload age by symbol</PanelTitle>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={freshnessBySymbol} margin={{ left: 4, right: 12 }} barCategoryGap="25%">
@@ -506,7 +503,7 @@ function IngestorDetail({ name }: { name: string }) {
       )}
 
       {changeRows.length > 0 && (
-        <div style={{ ...panelStyle, gridColumn: '1 / -1' }}>
+        <div className="glass" style={{ ...panelStyle, gridColumn: '1 / -1' }}>
           <PanelTitle>24h price change %</PanelTitle>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={changeRows} margin={{ left: 4, right: 12 }} barCategoryGap="25%">
@@ -525,7 +522,7 @@ function IngestorDetail({ name }: { name: string }) {
       )}
 
       {volumeRows.length > 0 && (
-        <div style={{ ...panelStyle, gridColumn: '1 / -1' }}>
+        <div className="glass" style={{ ...panelStyle, gridColumn: '1 / -1' }}>
           <PanelTitle>24h turnover · $M</PanelTitle>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={volumeRows} margin={{ left: 4, right: 12 }} barCategoryGap="25%">
@@ -560,8 +557,8 @@ export default function MarketsIngestorsPage() {
   const active = name && rows.find((row) => row.name === name);
 
   return (
-    <div data-testid="page-markets-ingestors" style={{ background: 'var(--bg-base)', minHeight: '100%', paddingBottom: 48 }}>
-      <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
+    <div data-testid="page-markets-ingestors" style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', minHeight: '100%', paddingBottom: 48 }}>
+      <div style={{ padding: '20px 24px 12px', borderBottom: '1px solid var(--border)', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
             <Link to="/markets" style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>Markets</Link>
