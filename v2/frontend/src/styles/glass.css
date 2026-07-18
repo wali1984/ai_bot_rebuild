@@ -1,0 +1,73 @@
+/* ============================================================================
+   Glassmorphism + motion — reusable trader-UI surface treatment (2026-07-18)
+   Operator-approved direction: glass + motion, applied to login + dashboard
+   first. Theme-aware (dark default; [data-theme="light"] overrides). Respects
+   prefers-reduced-motion. Uses the brand accent for hover glow.
+   Purely presentational — no data/logic; real payloads + live-gate untouched.
+   ============================================================================ */
+:root {
+  --glass-bg: rgba(18, 20, 32, 0.55);
+  --glass-bg-strong: rgba(18, 20, 32, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-blur: 16px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.38);
+  --glass-accent: 124, 92, 255; /* brand purple as r,g,b for rgba() glow */
+}
+[data-theme="light"] {
+  --glass-bg: rgba(255, 255, 255, 0.60);
+  --glass-bg-strong: rgba(255, 255, 255, 0.80);
+  --glass-border: rgba(15, 23, 42, 0.10);
+  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
+}
+
+.glass {
+  background: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 16px;
+  transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s ease, border-color .2s ease;
+}
+.glass-strong { background: var(--glass-bg-strong); }
+
+/* No-backdrop-filter fallback: use the more opaque bg so text stays legible. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass, .glass-strong { background: var(--glass-bg-strong); }
+}
+
+.glass-hover:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--glass-accent), 0.45);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45),
+              0 0 0 1px rgba(var(--glass-accent), 0.30),
+              0 0 30px rgba(var(--glass-accent), 0.14);
+}
+
+/* Subtle top-edge light sheen on a panel. */
+.glass-sheen { position: relative; }
+.glass-sheen::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  pointer-events: none;
+}
+
+/* Entrance rise + stagger. */
+@keyframes glassRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.glass-rise { animation: glassRise .55s cubic-bezier(.2, .8, .2, 1) both; }
+.glass-rise-1 { animation-delay: .05s; } .glass-rise-2 { animation-delay: .10s; }
+.glass-rise-3 { animation-delay: .15s; } .glass-rise-4 { animation-delay: .20s; }
+.glass-rise-5 { animation-delay: .25s; } .glass-rise-6 { animation-delay: .30s; }
+
+/* Soft pulsing accent glow (hero/logo). */
+@keyframes glassPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--glass-accent), 0.0); }
+  50%      { box-shadow: 0 0 34px 2px rgba(var(--glass-accent), 0.30); }
+}
+.glass-pulse { animation: glassPulse 3.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .glass { transition: none; }
+  .glass-hover:hover { transform: none; }
+  .glass-rise, .glass-pulse { animation: none; }
+}

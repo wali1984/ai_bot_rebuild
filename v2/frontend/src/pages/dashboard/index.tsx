@@ -8,6 +8,7 @@ import { EquityAreaChart, PnLBars, Donut, DonutLegend, RadialGauge, ChartFrame }
 import { fmtUsd as chartUsd } from '../../components/charts/nervyxChartTheme';
 import { usePaperActivityStream } from '../../hooks/usePaperActivityStream';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useCountUp } from '../../hooks/useCountUp';
 import { useAuth } from '../../hooks/useAuth';
 import { useTraderSnapshot } from '../../hooks/useTraderSnapshot';
 import { canSee, normalizeRole } from '../../auth/rbac';
@@ -1505,10 +1506,15 @@ function PerformancePanel({ equitySeries, perTradePnl, winLossData, directionDat
   const winRate = trades ? (wins / trades) * 100 : null;
   const posColor = '#22c55e', negColor = '#ef4444';
   const pnlColor = (totalPnl ?? 0) >= 0 ? posColor : negColor;
+  // Animated count-up on the hero metrics (snaps under prefers-reduced-motion).
+  const equityCU = useCountUp(equity);
+  const totalPnlCU = useCountUp(totalPnl);
+  const winRateCU = useCountUp(winRate);
   return (
     <section
       data-testid="dashboard-performance"
-      style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}
+      className="glass glass-sheen"
+      style={{ padding: '14px 16px' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1517,11 +1523,11 @@ function PerformancePanel({ equitySeries, perTradePnl, winLossData, directionDat
           <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 9.5, fontWeight: 700, fontFamily: 'var(--font-mono)', background: 'rgba(124,92,255,0.12)', color: '#a78bfa', border: '1px solid rgba(124,92,255,0.3)' }}>PAPER · LIVE BLOCKED</span>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <StatChip label="Equity" value={chartUsd(equity)} />
-          <StatChip label="Total PnL" value={chartUsd(totalPnl)} color={pnlColor} />
+          <StatChip label="Equity" value={chartUsd(equityCU)} />
+          <StatChip label="Total PnL" value={chartUsd(totalPnlCU)} color={pnlColor} />
           <StatChip label="Realized" value={chartUsd(realized)} color={(realized ?? 0) >= 0 ? posColor : negColor} />
           <StatChip label="Unrealized" value={chartUsd(unrealized)} color={(unrealized ?? 0) >= 0 ? posColor : negColor} />
-          <StatChip label="Win Rate" value={winRate != null ? `${winRate.toFixed(0)}%` : '—'} color={winRate != null ? (winRate >= 50 ? posColor : negColor) : undefined} />
+          <StatChip label="Win Rate" value={winRateCU != null ? `${winRateCU.toFixed(0)}%` : '—'} color={winRate != null ? (winRate >= 50 ? posColor : negColor) : undefined} />
         </div>
       </div>
 

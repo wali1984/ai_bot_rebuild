@@ -99,6 +99,17 @@ export default function LoginPage(): JSX.Element {
           pointerEvents: 'none',
         }}
       />
+      {/* Ambient glow — gives the frosted glass colour to refract */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(58% 46% at 50% 40%, rgba(124,92,255,0.20), transparent 70%), radial-gradient(42% 42% at 80% 82%, rgba(45,212,191,0.10), transparent 70%)',
+        }}
+      />
 
       <div style={{ position: 'relative', width: '100%', maxWidth: 440, boxSizing: 'border-box' }}>
         {/* Brand header */}
@@ -107,6 +118,7 @@ export default function LoginPage(): JSX.Element {
             src="/brand/nervyx-one-symbol-gradient.svg"
             alt=""
             aria-hidden="true"
+            className="glass-pulse"
             style={{
               width: 52,
               height: 52,
@@ -132,14 +144,11 @@ export default function LoginPage(): JSX.Element {
           </p>
         </div>
 
-        {/* Login card */}
+        {/* Login card — glassmorphism + entrance motion */}
         <div
+          className="glass glass-sheen glass-rise"
           style={{
-            background: 'var(--bg-panel)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--radius-md)',
             padding: '28px 32px 32px',
-            boxShadow: 'var(--shadow-strong)',
             boxSizing: 'border-box',
           }}
         >
