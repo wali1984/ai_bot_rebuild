@@ -253,3 +253,57 @@ tiers stay EARNED. I did not edit these to avoid clobbering Codex's active CG-F0
 
 -- Runtime state: leverage_recommendation + symbol priority are LIVE (clean files); effective leverage
    remains <=10x (Codex envelope) until 5.5 is applied; live trading remains BLOCKED.
+
+================================================================================
+PART 6 — TRAINING-LOOP TRUTH + LONGER-TF PREDICTION + ECHO-STYLE FORECASTER
+================================================================================
+
+## 6.1 CORRECTION (Codex feedback, accepted) — PPO is not training at all
+Claude's earlier "active PPO applies a cost-blind reward" was STALE. Precise truth (see
+claude_worklog/codex/CODEX_PPO_ON_POLICY_STARVATION_FINDING.md):
+- CONFIRMED: confidence head trained on move MAGNITUDE not P(after-cost profit); poor calibration, no
+  fitted temperature active.
+- ACTUAL PPO STATE: consumes ~ZERO valid on-policy rows -> PPO never updates. Evidence: 2/92 closed trades
+  have old_log_prob populated; on-policy eligibility (paper_loop:44177-44213) requires CATEGORICAL_SAMPLE
+  from the CUDA policy (RAW_LOGITS_SOFTMAX_V1), but ~98% of entries are strategy-supply/deterministic
+  (reason STRATEGY_SUPPLY_ACTION_NOT_SAMPLED_FROM_CUDA_POLICY). Deadlock: INFERENCE_ONLY -> deterministic
+  acting -> no on-policy data -> PPO can't learn -> candidate never improves -> stays rejected.
+=> The single most important training fix: feed PPO real on-policy samples (bounded, safety-gated
+   CATEGORICAL_SAMPLE exploration) so it can actually update. Handed to Codex.
+
+## 6.2 WHY LONGER-TF PREDICTION FAILS (operator question)
+Two layers:
+A) The training loop is broken for ALL horizons right now: PPO not training (6.1) + confidence head
+   mislabeled + no calibration. So the model is not learning from outcomes on ANY timeframe — longer TF
+   just shows it most starkly. Evidence: only 1h has +edge (+28 bps, n=11); 4h is worst (-31 bps, n=37)
+   despite having the MOST outcomes -> it is NOT a simple data-density problem; the model isn't learning.
+B) Architecture/horizon mismatch (even once the loop is fixed):
+   - Fixed temporal seq_len=16 frames (V2_TRAINER_TEMPORAL_SEQ_LEN). For 4h that is 16x4h = 64 HOURS of
+     context — regimes shift within it, so old frames become noise; for 1h it is 16 hours (coherent).
+     Longer TF likely needs a LONGER or multi-scale context, not a fixed 16.
+   - Label/outcome horizon must SCALE WITH TF: a 4h thesis needs ~hours to play out, but if the
+     label/exit horizon is short (tuned for 1m-15m) the 4h signal is graded before it resolves.
+   - The model is a short-window reactive classifier, not a long-horizon forecaster — it has no explicit
+     mechanism to project multi-bar futures.
+FIX-FIRST ORDER (matches operator intent "fix longer TF first, then build the algo"): (1) fix the
+training loop (6.1 + confidence relabel + calibration); (2) make seq_len + label-horizon TF-aware and
+add a dedicated longer-horizon (1h/4h/1d) head; (3) THEN add the Echo-style forecaster below.
+
+## 6.3 ECHO-STYLE MULTI-TF FORECASTER (operator: LuxAlgo Echo-like; build AFTER 6.2)
+What LuxAlgo "Echo" actually is (be honest): an ANALOG/pattern-matching forecaster — it finds the most
+similar historical price pattern to the current window and projects that historical continuation forward
+as the "echo". It is a heuristic analog projection, NOT a guaranteed predictor; usable as a FEATURE, not
+an oracle. A rigorous in-house version:
+- Per TF (1m..4h..1d..1w), embed the current no-lookahead feature/price window; find k-nearest historical
+  windows by similarity (only PAST analogs — strict no-lookahead, PIT-safe like the trainer's split).
+- Aggregate the analogs' FORWARD returns into a DISTRIBUTION: analog_expected_move, analog_dispersion
+  (disagreement = uncertainty), analog_hit_rate. Feed these as FEATURES to the trainer + as a longer-TF
+  "big-move-incoming" signal (ties to 5.4 volatility-hedging: high expected |move| + high dispersion ->
+  hedge/straddle; high move + low dispersion -> directional).
+- Honest guardrails: when analogs disagree (high dispersion) or few analogs match, confidence is LOW.
+  Never size on the analog alone — it is one input to the calibrated P(after-cost profit) head.
+WHY sequence it last: a broken training loop cannot learn from ANY new feature (including Echo analogs),
+so fixing 6.1/6.2 is the prerequisite. Once the loop learns, the Echo analog features + a TF-aware
+longer-horizon head are exactly how the system starts "predicting bigger moves in advance" — the operator's goal.
+
+-- No runtime state changed by Part 6 (diagnosis + design). Trainer fixes are Codex's lane (handed off).
