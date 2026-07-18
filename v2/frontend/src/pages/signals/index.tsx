@@ -1273,10 +1273,23 @@ export default function SignalsPage(): JSX.Element {
 
   return (
     <div data-testid="page-signals" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh' }}>
+      style={{ background: 'var(--bg-base)', minHeight: '100vh', position: 'relative', overflow: 'hidden' }}>
+
+      {/* Ambient depth — gives the frosted panels colour to refract. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 0,
+          background:
+            'radial-gradient(46% 30% at 14% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 32% at 90% 6%, rgba(59,130,246,0.09), transparent 72%)',
+        }}
+      />
 
       {/* Header */}
-      <div style={{ padding: '16px 20px 12px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ position: 'relative', zIndex: 1, padding: '16px 20px 12px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Signals</h1>
@@ -1320,21 +1333,21 @@ export default function SignalsPage(): JSX.Element {
 
         {/* Signal analytics charts — direction mix, routing composition, accuracy */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 12 }}>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <div className="glass" style={{ padding: '10px 12px' }}>
             <ChartFrame title="Direction mix" subtitle="live signal matrix" height={150}>
               {directionDist.length
                 ? <><Donut data={directionDist} height={150} centerValue={String(directionDist.reduce((s, d) => s + d.value, 0))} centerLabel="signals" /><DonutLegend data={directionDist} /></>
                 : <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No signals yet</div>}
             </ChartFrame>
           </div>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px' }}>
+          <div className="glass" style={{ padding: '10px 12px' }}>
             <ChartFrame title="Routing" subtitle="paper-ready vs gated" height={150}>
               {routingDist.length
                 ? <><Donut data={routingDist} height={150} centerValue={String(readyCount)} centerLabel="ready" /><DonutLegend data={routingDist} /></>
                 : <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12, border: '1px dashed var(--border)', borderRadius: 8 }}>No signals yet</div>}
             </ChartFrame>
           </div>
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div className="glass" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <ChartFrame title="Prediction accuracy" subtitle="evaluated outcomes" height={150}>
               <RadialGauge value={accuracyStatus?.overall_accuracy} height={150} label="accuracy" />
             </ChartFrame>
