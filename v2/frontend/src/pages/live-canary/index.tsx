@@ -131,7 +131,7 @@ function APlusGateFunnel({ aPlus }: { aPlus?: APlusInventoryData | null }): JSX.
   const evaluated = aPlus?.evaluated_candidates ?? 0;
   return (
     <div data-testid="a-plus-gate-funnel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 8 }}>
-      <div style={{ padding: '10px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)' }}>
+      <div className="glass" style={{ padding: '10px 12px' }}>
         <strong style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-primary)' }}>
           A+ gate rejection matrix — {evaluated} evaluated this cycle
         </strong>
@@ -151,7 +151,7 @@ function APlusGateFunnel({ aPlus }: { aPlus?: APlusInventoryData | null }): JSX.
           </div>
         ))}
       </div>
-      <div style={{ padding: '10px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)', overflowX: 'auto' }}>
+      <div className="glass" style={{ padding: '10px 12px', overflowX: 'auto' }}>
         <strong style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text-primary)' }}>
           Per-candidate failed checks (first {rows.length} of {aPlus?.full_candidate_count ?? evaluated})
         </strong>
@@ -190,7 +190,7 @@ function APlusGateFunnel({ aPlus }: { aPlus?: APlusInventoryData | null }): JSX.
 
 function EvidenceCard({ label, value }: { label: string; value: unknown }): JSX.Element {
   return (
-    <div style={{ padding: '10px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-base)' }}>
+    <div className="glass" style={{ padding: '10px 12px' }}>
       <strong style={{ display: 'block', marginBottom: 5, fontSize: 12, color: 'var(--text-primary)' }}>{label}</strong>
       <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4, overflowWrap: 'anywhere' }}>{compactValue(value)}</p>
     </div>
@@ -221,7 +221,7 @@ export default function LiveCanaryPage(): JSX.Element {
   const safe = mutationSafe(flags);
 
   return (
-    <main data-testid="page-live-canary" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '18px clamp(14px, 2vw, 28px)' }}>
+    <main data-testid="page-live-canary" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '18px clamp(14px, 2vw, 28px)', background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
       <section style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <p style={{ margin: '0 0 4px', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -237,7 +237,7 @@ export default function LiveCanaryPage(): JSX.Element {
         </div>
       </section>
 
-      <section data-testid="cockpit-live-canary-runtime-truth" style={{ padding: 14, borderRadius: 8, background: 'var(--bg-panel)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <section data-testid="cockpit-live-canary-runtime-truth" className="glass" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Live Canary Runtime Truth</h2>

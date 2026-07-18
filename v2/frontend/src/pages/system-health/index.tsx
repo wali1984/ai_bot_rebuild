@@ -122,7 +122,7 @@ function RuntimeAuthPanel(): JSX.Element {
   const liveBlocked = data?.places_real_order !== true && data?.routes_to_live !== true;
 
   return (
-    <section data-testid="system-auth-runtime-panel" style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
+    <section data-testid="system-auth-runtime-panel" className="glass" style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Auth, Backend, Redis</h2>
@@ -243,7 +243,7 @@ function IngestorRollupPanel({ ingestors, loading }: { ingestors: IngestorRollup
     return 'warn';
   };
   return (
-    <section style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
+    <section className="glass" style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Ingestors &amp; Providers</h2>
@@ -314,7 +314,7 @@ function DataFeedsPanel(): JSX.Element {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
     <IngestorRollupPanel ingestors={data?.ingestors} loading={health.loading} />
-    <section style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-panel)', overflow: 'hidden' }}>
+    <section className="glass" style={{ overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderBottom: '1px solid var(--line-soft)' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Data Feeds</h2>
@@ -338,7 +338,7 @@ function DataFeedsPanel(): JSX.Element {
 
 export default function SystemHealthPage(): JSX.Element {
   return (
-    <div data-testid="system-health-page" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div data-testid="system-health-page" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
       <div>
         <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{meta.title}</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{meta.description}</p>

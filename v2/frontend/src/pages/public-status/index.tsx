@@ -146,7 +146,7 @@ export default function PublicStatusPage(): JSX.Element {
       data-page-id={meta.id}
       style={{
         minHeight: '100vh',
-        background: 'var(--bg-base)',
+        background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)',
         color: 'var(--text-primary)',
         fontFamily: 'var(--font-sans)',
         padding: '0 0 64px',
@@ -156,7 +156,8 @@ export default function PublicStatusPage(): JSX.Element {
       <div
         style={{
           borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-panel)',
+          background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)',
+          backdropFilter: 'blur(8px)',
           padding: '32px 24px 24px',
           maxWidth: 900,
           margin: '0 auto',
@@ -209,10 +210,8 @@ export default function PublicStatusPage(): JSX.Element {
 
         {/* Status rows */}
         <div
+          className="glass"
           style={{
-            background: 'var(--bg-panel)',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--border)',
             padding: '0 20px',
             marginBottom: 24,
           }}
@@ -257,10 +256,8 @@ export default function PublicStatusPage(): JSX.Element {
 
         {/* Scheduled maintenance */}
         <div
+          className="glass"
           style={{
-            background: 'var(--bg-panel)',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--border)',
             padding: '20px',
             marginBottom: 24,
           }}
@@ -275,10 +272,8 @@ export default function PublicStatusPage(): JSX.Element {
 
         {/* Platform capabilities */}
         <div
+          className="glass"
           style={{
-            background: 'var(--bg-panel)',
-            borderRadius: 'var(--radius)',
-            border: '1px solid var(--border)',
             padding: '20px',
             marginBottom: 24,
           }}

@@ -634,7 +634,7 @@ function AiPanel({ predictions, trainerStatus }: { predictions: PredictionsData[
       {predictions.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '16px 0' }}>No active AI predictions · Trainer pipeline must be running</div>
       ) : predictions.map((pred, i) => (
-        <div key={`pred-${i}`} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
+        <div key={`pred-${i}`} className="glass" style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
           <KV label="Symbol" value={pred.symbol ?? '—'} />
           <KV label="Action" value={(pred.action ?? '—').toUpperCase()} color={dirColor(pred.action)} />
           <KV label="Confidence" value={pred.confidence != null ? `${(pred.confidence * 100).toFixed(1)}%` : '—'} color={pred.confidence != null && pred.confidence >= 0.7 ? 'var(--buy)' : 'var(--warn)'} />
@@ -759,7 +759,7 @@ export default function BinancePage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', background: '#0b0e11', color: 'var(--text-primary)', overflow: 'hidden' }}
+      style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), #0b0e11', color: 'var(--text-primary)', overflow: 'hidden' }}
     >
       {/* ── Top bar: Symbol + ticker stats ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', background: '#131722', borderBottom: '1px solid #2a2d3a', flexShrink: 0, flexWrap: 'wrap' }}>

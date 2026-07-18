@@ -87,10 +87,10 @@ export default function TechnicalAnalysisPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ padding: '0 0 48px 0' }}
+      style={{ padding: '0 0 48px 0', background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
+      <div style={{ padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Technical Analysis</h1>
@@ -156,9 +156,8 @@ export default function TechnicalAnalysisPage(): JSX.Element {
                   {KEY_INDICATORS.map(([key, label]) => {
                     const val = data.sample_btc_1m!.indicators[key];
                     return (
-                      <div key={key} style={{
-                        padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
-                        background: 'var(--bg-panel)',
+                      <div key={key} className="glass" style={{
+                        padding: '10px 14px',
                       }}>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
                         <div style={{

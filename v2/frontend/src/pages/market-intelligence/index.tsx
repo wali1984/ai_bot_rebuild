@@ -105,7 +105,7 @@ function ChangeBar({ pct }: { pct: number | null | undefined }): JSX.Element {
 
 function StatCard({ label, value, color, sub, icon }: { label: string; value: string; color?: string; sub?: string; icon?: string }): JSX.Element {
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
+    <div className="glass" style={{ padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
         {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
         <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
@@ -288,10 +288,10 @@ export default function ResearchPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh', paddingBottom: 48 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', minHeight: '100vh', paddingBottom: 48 }}
     >
       {/* ── Header ── */}
-      <div style={{ padding: '20px 24px 0', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '20px 24px 0', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>Research</h1>
@@ -395,7 +395,7 @@ export default function ResearchPage(): JSX.Element {
 
         {/* Market table */}
         {tickers.length > 0 && (
-          <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+          <div className="glass" style={{ overflow: 'hidden' }}>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead>
@@ -432,7 +432,7 @@ export default function ResearchPage(): JSX.Element {
 
         {/* No data state */}
         {!loading && tickers.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <div className="glass" style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📡</div>
             <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Market Stream Connecting</h3>
             <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.6 }}>

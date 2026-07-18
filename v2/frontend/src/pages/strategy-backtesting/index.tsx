@@ -120,7 +120,7 @@ function MiniEquityCurve({ curve }: { curve: number[] | null }): JSX.Element {
 function ResultCard({ r, onSelect }: { r: BacktestResult; onSelect: () => void }): JSX.Element {
   const wr = r.win_rate;
   return (
-    <div onClick={onSelect} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', cursor: 'pointer', transition: 'border-color 0.15s' }}
+    <div onClick={onSelect} className="glass" style={{ padding: '14px 16px', cursor: 'pointer', transition: 'border-color 0.15s' }}
       onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59,130,246,0.4)'}
       onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)'}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -265,7 +265,7 @@ function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): J
   }, [symbol, tf, lookback, holdCandles, tpBps, slBps, onRunStarted]);
 
   return (
-    <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+    <div className="glass" style={{ padding: '18px 20px', marginBottom: 20 }}>
       <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700 }}>Manual Backtest Run</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div>
@@ -396,10 +396,10 @@ export default function BacktestsPage(): JSX.Element {
 
   return (
     <div data-testid="page-strategy-backtesting" data-page-id={meta.id} data-page-path={route.path} data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', minHeight: '100vh', paddingBottom: 64 }}>
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', minHeight: '100vh', paddingBottom: 64 }}>
 
       {/* Header */}
-      <div style={{ padding: '16px 20px 12px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '16px 20px 12px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 8 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -449,7 +449,7 @@ export default function BacktestsPage(): JSX.Element {
         {loading && results.length === 0 && <LoadingSkeleton rows={3} />}
 
         {!loading && results.length === 0 && (
-          <div style={{ padding: 40, textAlign: 'center', background: 'var(--bg-panel)', borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div className="glass" style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
             <h3 style={{ margin: '0 0 8px', fontSize: 15, fontWeight: 700 }}>
               {backtestSourceUnavailable ? 'Backtest engine unavailable' : 'Backtest engine unavailable or empty'}
@@ -470,7 +470,7 @@ export default function BacktestsPage(): JSX.Element {
           </div>
         )}
 
-        <div style={{ marginTop: 20, padding: '10px 14px', background: 'var(--bg-panel)', borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div className="glass" style={{ marginTop: 20, padding: '10px 14px' }}>
           <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
             Source: {envelope.source || '/api/v2/backtest/results'} ·
             {' '}Freshness: {envelope.freshness_status || 'unknown'} ·

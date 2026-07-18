@@ -189,7 +189,7 @@ function StateDistChart({ dist }: { dist: Record<string, number> }) {
 // ── Styles ─────────────────────────────────────────────────────────────────
 
 const S = {
-  page: { background: '#0d1117', minHeight: '100vh', padding: '16px 20px', color: '#e5e7eb', fontFamily: 'monospace' },
+  page: { background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), #0d1117', minHeight: '100vh', padding: '16px 20px', color: '#e5e7eb', fontFamily: 'monospace' },
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap' as const, gap: 8 },
   title: { fontSize: 20, fontWeight: 700, color: '#f9fafb' },
   badge: (color: string): React.CSSProperties => ({
@@ -198,7 +198,7 @@ const S = {
   }),
   section: { marginBottom: 20 },
   sectionTitle: { fontSize: 13, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' as const, marginBottom: 8, letterSpacing: 1 },
-  card: { background: '#161b22', border: '1px solid #30363d', borderRadius: 8, padding: 14, marginBottom: 10 },
+  card: { padding: 14, marginBottom: 10 },
   grid3: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8 },
   metric: { background: '#0d1117', border: '1px solid #21262d', borderRadius: 6, padding: 10 },
   metricLabel: { fontSize: 10, color: '#6b7280', textTransform: 'uppercase' as const, letterSpacing: 1 },
@@ -311,7 +311,7 @@ export default function MarketBrainPage(): JSX.Element {
       {/* Overview Metrics */}
       <div style={S.section}>
         <div style={S.sectionTitle}>System Overview</div>
-        <div style={S.card}>
+        <div className="glass" style={S.card}>
           <div style={S.grid3}>
             <Metric label="Symbols Processed" value={ov?.symbols_processed ?? '—'} />
             <Metric label="Classifications" value={ov?.classifications_computed ?? '—'} />
@@ -389,7 +389,7 @@ export default function MarketBrainPage(): JSX.Element {
             {Object.keys(STATE_COLOR).map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <div style={{ ...S.card, padding: 0 }}>
+        <div className="glass" style={{ ...S.card, padding: 0 }}>
           {filteredSymbols.length === 0 ? (
             <div style={S.noData}>
               {states.length === 0
@@ -443,7 +443,7 @@ export default function MarketBrainPage(): JSX.Element {
       {/* Entry Gate Panel */}
       <div style={S.section}>
         <div style={S.sectionTitle}>P0 Entry Gate Config</div>
-        <div style={S.card}>
+        <div className="glass" style={S.card}>
           {eg ? (
             <div>
               <div style={S.grid3}>
@@ -473,7 +473,7 @@ export default function MarketBrainPage(): JSX.Element {
       {/* HedgeLock Panel */}
       <div style={S.section}>
         <div style={S.sectionTitle}>HedgeLock Status</div>
-        <div style={S.card}>
+        <div className="glass" style={S.card}>
           <div style={{ marginBottom: 10, display: 'flex', gap: 12 }}>
             <Metric label="Config Enabled" value={hl?.config_enabled ? 'YES' : 'NO (DEFAULT OFF)'} color={hl?.config_enabled ? '#f97316' : '#6b7280'} />
             <Metric label="Active Pairs" value={hl?.total_active ?? 0} color="#8b5cf6" />

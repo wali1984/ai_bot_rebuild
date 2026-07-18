@@ -37,10 +37,10 @@ export default function HistoryPage(): JSX.Element {
       data-page-id={meta.id}
       data-page-path={route.path}
       data-page-min-role={rbac.minRole}
-      style={{ background: 'var(--bg-base)', paddingBottom: 48 }}
+      style={{ background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)', paddingBottom: 48 }}
     >
       {/* Header */}
-      <div style={{ padding: '20px 24px 16px', background: 'var(--bg-panel)', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '20px 24px 16px', background: 'color-mix(in oklch, var(--bg-panel) 82%, transparent)', backdropFilter: 'blur(8px)', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>History</h1>
@@ -71,7 +71,7 @@ export default function HistoryPage(): JSX.Element {
             { label: 'Executions', value: String(executionCount) },
             { label: 'Audit Events', value: String(auditEventCount) },
           ].map((item) => (
-            <div key={item.label} style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '12px 14px' }}>
+            <div key={item.label} className="glass" style={{ padding: '12px 14px' }}>
               <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{item.label}</span>
               <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: item.color ?? 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word', display: 'block' }}>{item.value}</span>
             </div>
@@ -88,7 +88,7 @@ export default function HistoryPage(): JSX.Element {
           />
         </div>
 
-        <div style={{ background: 'var(--bg-panel)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--text-muted)' }}>
+        <div className="glass" style={{ padding: '10px 14px', marginBottom: 20, fontSize: 12, color: 'var(--text-muted)' }}>
           Mode: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{tradeCopy(state.mode.traderState, 'Realtime trading workspace')}</span>
           {' · '}Signal source: <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{state.activity.sources.signals}</span>
         </div>
