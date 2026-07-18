@@ -113,31 +113,55 @@ def test_high_volatility_gives_1x() -> None:
     assert rec["recommended_leverage"] == 1
 
 
-def test_high_confidence_low_volatility_gives_3x() -> None:
-    # conf 0.80 sits in the high (not very-high) band: 3x tier.
-    rec = _rec(confidence_calibrated=0.80, atr_bps=15.0)
-    assert rec["recommended_leverage"] == 3
-    assert rec["reason_tier"] == "HIGH_CONFIDENCE_LOW_VOLATILITY_3X"
+def test_high_confidence_low_volatility_scales_up_adaptively() -> None:
+    # 2026-07-18 operator directive: leverage is per-symbol adaptive. High conf +
+    # low vol + positive after-cost edge now earns well above the old fixed 3x,
+    # bounded by the BTC ceiling (75x) and liquidation safety.
+    rec = _rec(confidence_calibrated=0.80, atr_bps=15.0, expected_move_after_cost_bps=30.0)
+    assert rec["recommended_leverage"] > 3
+    assert rec["symbol_leverage_ceiling"] == 75
+    assert rec["recommended_leverage"] <= rec["adaptive_leverage_ceiling"]
+    assert rec["reason_tier"].startswith("ADAPTIVE_EVIDENCE_SCALED_")
 
 
-def test_very_high_confidence_strong_edge_gives_5x_exploration_tier() -> None:
-    # 2026-07-16 operator directive: very high calibrated confidence + low
-    # volatility + strong after-cost edge earns the 5x exploration tier. The
-    # dynamic risk envelope (realized-performance scaled) still caps the
-    # final selected leverage at runtime.
-    rec = _rec(confidence_calibrated=0.87, atr_bps=15.0, expected_move_after_cost_bps=25.0)
-    assert rec["recommended_leverage"] == 5
-    assert rec["reason_tier"] == "VERY_HIGH_CONFIDENCE_STRONG_EDGE_5X"
+def test_max_evidence_approaches_symbol_ceiling() -> None:
+    # Very high confidence + strong after-cost edge + very tight range approaches
+    # the BTC ceiling (75x) — earned, not granted.
+    rec = _rec(confidence_calibrated=0.99, atr_bps=10.0, expected_move_after_cost_bps=60.0)
+    assert rec["recommended_leverage"] >= 60
+    assert rec["recommended_leverage"] <= 75
 
 
-def test_very_high_confidence_without_strong_edge_stays_3x() -> None:
-    rec = _rec(confidence_calibrated=0.87, atr_bps=15.0, expected_move_after_cost_bps=10.0)
-    assert rec["recommended_leverage"] == 3
+def test_high_confidence_weak_edge_stays_low() -> None:
+    # High confidence but weak after-cost edge -> low leverage: the edge axis
+    # gates the multiplicative quality score, so weak edge cannot lever up.
+    rec = _rec(confidence_calibrated=0.87, atr_bps=15.0, expected_move_after_cost_bps=6.0)
+    assert rec["recommended_leverage"] <= 12
 
 
-def test_moderate_confidence_gives_2x() -> None:
-    rec = _rec(confidence_calibrated=0.65, atr_bps=50.0)
-    assert rec["recommended_leverage"] == 2
+def test_moderate_confidence_gives_modest_leverage() -> None:
+    rec = _rec(confidence_calibrated=0.65, atr_bps=50.0, expected_move_after_cost_bps=20.0)
+    assert 1 <= rec["recommended_leverage"] <= 6
+
+
+def test_alt_symbol_capped_at_20x() -> None:
+    # Non-major alt caps at 20x even with maximal evidence.
+    rec = _rec(symbol="DOGEUSDT", confidence_calibrated=0.99, atr_bps=10.0, expected_move_after_cost_bps=90.0)
+    assert rec["symbol_leverage_ceiling"] == 20
+    assert rec["recommended_leverage"] <= 20
+
+
+def test_tier2_major_capped_at_50x() -> None:
+    rec = _rec(symbol="SOLUSDT", confidence_calibrated=0.99, atr_bps=10.0, expected_move_after_cost_bps=90.0)
+    assert rec["symbol_leverage_ceiling"] == 50
+    assert rec["recommended_leverage"] <= 50
+
+
+def test_high_volatility_forces_liquidation_safe_low_leverage() -> None:
+    # Choppy market: high-vol gate -> 1x, and the liq-safe ceiling contracts too.
+    rec = _rec(confidence_calibrated=0.95, atr_bps=90.0, expected_move_after_cost_bps=60.0)
+    assert rec["recommended_leverage"] == 1
+    assert rec["reason_tier"] == "HIGH_VOLATILITY_1X"
 
 
 def test_negative_after_cost_edge_gives_1x() -> None:
@@ -165,12 +189,11 @@ def test_zero_after_cost_edge_gives_1x() -> None:
 # ── Liquidation distance ──────────────────────────────────────────────────────
 
 def test_liquidation_distance_decreases_with_higher_leverage() -> None:
-    rec_1x = _rec(confidence_calibrated=0.40)
-    rec_2x = _rec(confidence_calibrated=0.65, atr_bps=50.0)
-    assert rec_1x["recommended_leverage"] == 1
-    assert rec_2x["recommended_leverage"] == 2
+    rec_low = _rec(confidence_calibrated=0.40)  # low conf -> 1x
+    rec_high = _rec(confidence_calibrated=0.90, atr_bps=15.0, expected_move_after_cost_bps=45.0)
+    assert rec_low["recommended_leverage"] < rec_high["recommended_leverage"]
     # Higher leverage → closer to liquidation (lower bps)
-    assert rec_1x["liquidation_distance_bps"] > rec_2x["liquidation_distance_bps"]
+    assert rec_low["liquidation_distance_bps"] > rec_high["liquidation_distance_bps"]
 
 
 def test_liquidation_distance_positive() -> None:
@@ -194,7 +217,7 @@ def test_max_loss_budget_usd_within_cap() -> None:
 def test_reason_contains_symbol_and_leverage() -> None:
     rec = _rec(symbol="BTCUSDT", confidence_calibrated=0.65, atr_bps=50.0)
     assert "BTCUSDT" in rec["reason"]
-    assert "lev=2x" in rec["reason"]
+    assert f"lev={rec['recommended_leverage']}x" in rec["reason"]
 
 
 # ── Validate invariants ───────────────────────────────────────────────────────
@@ -235,6 +258,15 @@ def test_validate_catches_all_symbols_aggregate_true() -> None:
 
 def test_validate_catches_leverage_over_cap() -> None:
     rec = _rec()
-    rec["recommended_leverage"] = 11  # above PAPER_MAX_LEVERAGE=10
+    rec["recommended_leverage"] = PAPER_MAX_LEVERAGE + 5  # above the absolute cap (75)
     violations = validate_leverage_recommendation(rec)
     assert any("recommended_leverage" in v for v in violations)
+
+
+def test_validate_catches_leverage_over_symbol_ceiling() -> None:
+    # An alt (20x ceiling) recommended above its tier must be flagged even though
+    # the value is under the absolute 75x cap.
+    rec = _rec(symbol="DOGEUSDT")
+    rec["recommended_leverage"] = 40
+    violations = validate_leverage_recommendation(rec)
+    assert any("symbol ceiling" in v for v in violations)

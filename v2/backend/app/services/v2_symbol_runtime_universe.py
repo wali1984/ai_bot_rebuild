@@ -47,6 +47,22 @@ BASELINE_25_SYMBOLS: Tuple[str, ...] = (
     "RIVERUSDT", "SOLUSDT", "UNIUSDT", "WIFUSDT", "XRPUSDT",
 )
 
+# Preferred majors — ALWAYS included and ranked FIRST in the runtime universe
+# (operator directive 2026-07-18: BTC/ETH/SOL are the first symbols to trade).
+# This is an ORDERING PREFERENCE, not an exclusive whitelist: the full adaptive
+# universe still follows, no static threshold or universe restriction is implied.
+# Operator-tunable via env (comma-separated) without a code change.
+def _preferred_majors() -> Tuple[str, ...]:
+    raw = os.environ.get("V2_PREFERRED_MAJOR_SYMBOLS", "").strip()
+    if raw:
+        vals = tuple(s.strip().upper() for s in raw.split(",") if s.strip())
+        if vals:
+            return vals
+    return ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+
+
+PREFERRED_MAJOR_SYMBOLS: Tuple[str, ...] = _preferred_majors()
+
 # Smoke-test only. NEVER the production default.
 SMOKE_TEST_SYMBOLS: Tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
 
@@ -149,13 +165,30 @@ def _read_published_symbols() -> Tuple[List[str], Optional[str], Set[str]]:
     return [], str(p), binance_confirmed
 
 
+def _prioritize_majors(symbols: Iterable[str]) -> List[str]:
+    """Rank preferred majors (BTC/ETH/SOL) FIRST, always included, then the rest
+    in their existing (market-driven) order. De-dupes and validates. Ordering
+    preference only — never removes or restricts the discovered universe."""
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for s in list(PREFERRED_MAJOR_SYMBOLS) + list(symbols):
+        text = str(s or "").upper()
+        if text and is_valid_runtime_symbol(text) and text not in seen:
+            seen.add(text)
+            ordered.append(text)
+    return ordered
+
+
 def resolve_symbols(
     *,
     explicit: Optional[Iterable[str]] = None,
     smoke_test: bool = False,
     include_baseline: bool = True,
 ) -> List[str]:
-    """Return the runtime symbol list per the resolution order above."""
+    """Return the runtime symbol list per the resolution order above.
+
+    Production paths rank preferred majors (BTC/ETH/SOL) first; explicit and
+    smoke-test overrides are returned verbatim (deliberate caller intent)."""
     env_smoke = os.environ.get(SMOKE_TEST_ENV_VAR) == SMOKE_TEST_ENV_VALUE
 
     # 1. Explicit caller list wins, except the 3-symbol smoke-test set
@@ -189,12 +222,12 @@ def resolve_symbols(
                 seen.add(text)
                 merged.append(text)
         if merged:
-            return merged
+            return _prioritize_majors(merged)
     elif discovered:
-        return list(discovered)
+        return _prioritize_majors(discovered)
 
     # 4. Final fallback: 25-symbol baseline.
-    return list(BASELINE_25_SYMBOLS)
+    return _prioritize_majors(BASELINE_25_SYMBOLS)
 
 
 def resolve_symbols_with_provenance(

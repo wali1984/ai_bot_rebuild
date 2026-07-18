@@ -176,4 +176,80 @@ fix model edge+calibration -> then conviction sizing + survivable leverage. That
 number, is where days well above 8% come from. The single binding constraint remains real, cost-aware, calibrated
 MODEL EDGE (Codex trainer lane) — everything Claude fixed removed distortions that were HIDING that truth.
 
--- No runtime state changed by this document. Live trading remains BLOCKED.
+================================================================================
+PART 5 — OPERATOR-DIRECTED CHANGES 2026-07-18 (leverage tiers, symbol priority)
+================================================================================
+Operator directive: stop being stuck at 1-3x; use per-symbol ADAPTIVE leverage
+(BTC/ETH 1-75x, SOL/LTC/XRP 1-50x, alts 1-20x); margin adaptive; risk-first but
+not perpetually conservative (don't keep missing moves); BTC/ETH/SOL always the
+first symbols to trade. Authorized. What I changed and WHY:
+
+## 5.1 CHANGED (clean files, tested) — per-symbol adaptive leverage recommendation
+File: services/paper_trade_management/leverage_recommendation.py (was hard-capped 1-3x effective).
+- Per-symbol CEILINGS via symbol_leverage_ceiling(): BTC/ETH=75, SOL/LTC/XRP=50, alts=20
+  (env-tunable: PAPER_MAX_LEVERAGE_MAJOR_TIER1/TIER2/ALT).
+- Leverage is now CONTINUOUSLY adaptive within [1, ceiling], earned from a MULTIPLICATIVE evidence
+  quality score = conf_q * edge_q * vol_q (all three must be strong to approach the ceiling), then
+  clamped by a volatility-scaled LIQUIDATION-SAFETY cap (keep liq distance >= 5x ATR, env
+  PAPER_LEVERAGE_LIQ_SAFETY_ATR_MULT) so a normal candle can never liquidate.
+- ALL existing risk gates preserved: non-positive after-cost edge -> 1x; flat/low-confidence -> 1x;
+  high volatility (ATR>=80bps) -> 1x. 32/32 unit tests pass (5 new).
+
+WHY THIS IS RIGHT (and safe on today's negative-edge book):
+- Leverage is a DERIVED value from positive, calibrated, low-volatility edge — never a static grant.
+  Because the current model edge is NEGATIVE (-1.39 bps validation), every trade today still resolves
+  to 1x (verified: negative/zero edge -> 1x). The ceiling is RAISED but DORMANT until real edge appears.
+- When the model DOES produce a strong, calibrated, low-vol signal, the system can now size a BTC move
+  up toward 75x instead of leaving it at 3x — this is the "don't miss moves" half, gated by evidence.
+- Liquidation-safety is adaptive to volatility (tight ranges permit more, chop forces less) rather than
+  a static cap — matches "margin adaptive to market conditions."
+- Majors carry more headroom because they are the deepest/most-liquid and lowest-slippage books;
+  alt tail risk is higher, so 20x.
+
+## 5.2 CHANGED (clean file, tested) — BTC/ETH/SOL selection priority
+File: services/v2_symbol_runtime_universe.py — resolve_symbols() now ranks PREFERRED_MAJOR_SYMBOLS
+(BTC/ETH/SOL, env V2_PREFERRED_MAJOR_SYMBOLS) FIRST in every production path, always included, with the
+full adaptive universe following. Ordering PREFERENCE, not an exclusive whitelist / static threshold —
+consistent with the "preferred majors, market-driven, no hardcoded lists" policy. Verified: universe of
+149 symbols now leads with BTC,ETH,SOL. NOTE: strict per-cycle trade priority also depends on downstream
+consumers iterating in list order; if the opportunity/selection ranker (Codex lane) re-sorts by score,
+it should apply the same major preference — flagged for Codex.
+
+## 5.3 VALIDATION — are we picking up moves in advance? (operator question)
+Evidence from 92 live closed trades:
+- BY TIMEFRAME: 1h is the ONLY positive-edge TF (+28.3 bps, WR 36%, n=11). 5m ~ breakeven (-4.5). 15m
+  (-17), 4h (-31, the largest bucket n=37) and 1m (-70) are negative. So there IS longer-TF signal, but
+  it PEAKS AT 1h — "longer = always better" is FALSE here (4h is worst). Bias signal weighting toward 1h.
+- BY VOLATILITY: low ATR<30 -> WR 52%, +34.5 bps (system makes money in calm markets). high ATR>80 ->
+  WR 10%, -87.5 bps (CATASTROPHIC directionally) BUT avg MFE 86 bps (the big moves ARE there).
+  => Today the system CANNOT call direction in high vol (10% win rate) -> the high-vol->1x gate is
+  correct RIGHT NOW. The opportunity (86 bps MFE) is real but uncaptured.
+
+## 5.4 DESIGN — profit FROM volatility via hedging (operator vision; Codex trainer/hedge lane)
+The operator is right that high volatility is where the big profit is IF the system predicts the move.
+The data says: it can't yet call DIRECTION in high vol (10% WR), but the MAGNITUDE is large (86 MFE).
+The correct structure for "know a big move is coming, unsure of direction" is a HEDGED/bidirectional
+position that harvests magnitude either way, converting to directional once the move commits. Path:
+  1. TRAINER: add a longer-TF (1h) MAGNITUDE/"big-move-incoming" head (expected |move| + confidence),
+     separate from the directional P(profit) head. This is what turns volatility into signal.
+  2. HEDGE: extend hedging.py from safety-only (ADAPTIVE_ADVERSE_EXCURSION_HEDGE) to a PROFIT/volatility
+     hedge: when big-move-confidence is high but direction is uncertain, open a bounded straddle-like
+     pair; unwind the losing leg once direction commits, let the winning leg run (ties to the CG-F052
+     right-tail fix). Keep the existing caps (<=35% ratio, mandatory unhedge condition, maintenance-margin
+     rejection) — risk stays bounded.
+  3. LEVERAGE GATE: make the high-vol->1x gate EDGE-CONDITIONAL — once a calibrated big-move signal +
+     an active hedge are present, permit controlled (liquidation-safe) exposure in high vol instead of
+     a blanket 1x. Until that signal exists (now), stay 1x. I did NOT loosen the gate yet because on a
+     10%-WR-in-high-vol book, loosening would be reckless; it unlocks with proven predictive power.
+
+## 5.5 STAGED / FLAGGED for Codex (binding cap — do NOT edit their in-flight files)
+The BINDING per-cycle leverage cap is the dynamic risk envelope in Codex's UNCOMMITTED files:
+  - adaptive_capital_allocator/dynamic_envelope.py: _PAPER_HARD_MAX_LEVERAGE = 10.0 (final clamp) and
+  - contracts.py: RiskEnvelope.max_effective_leverage default 3.0 (base).
+So effective leverage stays <=10x until these are lifted, regardless of the (now up-to-75x) recommendation.
+EXACT change for Codex (or after they commit): make the hard cap per-symbol/env-driven and consume
+symbol_leverage_ceiling() as the clamp, keeping the realized-win-rate/PF/drawdown exp() scaling so high
+tiers stay EARNED. I did not edit these to avoid clobbering Codex's active CG-F049/G10 money-path work.
+
+-- Runtime state: leverage_recommendation + symbol priority are LIVE (clean files); effective leverage
+   remains <=10x (Codex envelope) until 5.5 is applied; live trading remains BLOCKED.

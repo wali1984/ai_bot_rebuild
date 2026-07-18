@@ -6,7 +6,11 @@ NEVER produces ALL_SYMBOLS aggregate recommendations for trade decisions.
 All recommendations are paper-only and require human approval before live use.
 
 Fields produced per recommendation:
-    recommended_leverage: int (1–3 in paper mode)
+    recommended_leverage: int — per-symbol ADAPTIVE within [1, ceiling]; ceiling is
+        75x (BTC/ETH) / 50x (SOL/LTC/XRP) / 20x (alts), further clamped by a
+        volatility-scaled liquidation-safety cap. Earned through positive
+        after-cost edge + confidence + low vol; non-positive edge -> 1x. The
+        dynamic risk envelope remains the binding per-cycle cap downstream.
     recommended_margin_mode: str ("isolated" — CROSS is never recommended in paper mode)
     liquidation_distance_bps: float (estimated distance to liquidation in bps)
     volatility_budget_bps: float (max acceptable position loss per period in bps)
@@ -18,20 +22,82 @@ Fields produced per recommendation:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from typing import Any
 
 LIVE_GATE = "blocked_human_only"
 MUTATES_EXCHANGE = False
+
+
+def _clamp01(value: float) -> float:
+    if value != value:  # NaN
+        return 0.0
+    return 0.0 if value < 0.0 else 1.0 if value > 1.0 else value
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        raw = os.environ.get(name, "")
+        return max(1, int(float(raw.strip()))) if raw.strip() else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        raw = os.environ.get(name, "")
+        return float(raw.strip()) if raw.strip() else default
+    except (TypeError, ValueError):
+        return default
+
+
+# Per-symbol adaptive leverage CEILINGS (the MAX of an adaptive range, not a
+# static grant). Operator directive 2026-07-18: majors carry more headroom.
+#   Tier-1 majors  BTC/ETH        -> up to 75x
+#   Tier-2 majors  SOL/LTC/XRP    -> up to 50x
+#   All other alts                -> up to 20x
+# Every tier is still EARNED through positive after-cost edge + calibrated
+# confidence + low volatility + liquidation safety. A non-positive after-cost
+# edge caps at 1x regardless of symbol, so a negative-edge book stays at 1x.
+_TIER1_MAJOR_SYMBOLS = frozenset({"BTCUSDT", "ETHUSDT"})
+_TIER2_MAJOR_SYMBOLS = frozenset({"SOLUSDT", "LTCUSDT", "XRPUSDT"})
+
+
+def symbol_leverage_ceiling(symbol: str) -> int:
+    """Adaptive-range leverage CEILING by symbol tier (operator-configurable)."""
+    s = (symbol or "").upper().strip()
+    if s in _TIER1_MAJOR_SYMBOLS:
+        return _env_int("PAPER_MAX_LEVERAGE_MAJOR_TIER1", 75)
+    if s in _TIER2_MAJOR_SYMBOLS:
+        return _env_int("PAPER_MAX_LEVERAGE_MAJOR_TIER2", 50)
+    return _env_int("PAPER_MAX_LEVERAGE_ALT", 20)
+
+
+def _liquidation_safe_max_leverage(
+    atr_bps: float | None, fee_buffer_bps: float, safety_atr_multiple: float
+) -> int:
+    """Highest leverage whose ISOLATED liquidation distance stays beyond
+    safety_atr_multiple x ATR, so a normal adverse candle cannot liquidate.
+
+    liq_distance_bps ~= (1/lev)*1e4 - fee_buffer; require >= safety*ATR:
+        lev <= 1e4 / (safety*ATR + fee_buffer)
+    This makes the usable ceiling ADAPTIVE to volatility — tight ranges permit
+    more leverage, choppy markets force it down — without any static threshold.
+    """
+    effective_atr = atr_bps if (atr_bps is not None and atr_bps > 0) else 30.0
+    denom = max(1e-6, safety_atr_multiple * effective_atr + fee_buffer_bps)
+    return max(1, int(10000.0 / denom))
 SCHEMA_VERSION = "v2_leverage_recommendation_v1"
 
-# Hard caps for paper mode — never recommend above these.
-# 2026-07-16 operator directive: the trainer must keep exploring higher
-# leverage; the recommendation ladder extends to 10x, matching the dynamic
-# risk envelope's paper ceiling. The envelope (scaled by REALIZED win rate /
-# profit factor / confidence / drawdown) remains the binding per-cycle cap,
-# so higher tiers are earned through evidence, never granted statically.
-PAPER_MAX_LEVERAGE = 10
+# Absolute paper ceiling = the highest per-symbol tier (Tier-1 majors, 75x).
+# 2026-07-18 operator directive: leverage is now per-symbol adaptive
+# (BTC/ETH<=75x, SOL/LTC/XRP<=50x, alts<=20x) — see symbol_leverage_ceiling().
+# The recommendation is the TOP of an adaptive range earned through evidence;
+# the dynamic risk envelope (scaled by REALIZED win rate / profit factor /
+# confidence / drawdown) remains the BINDING per-cycle cap, so higher tiers are
+# earned, never granted statically, and a non-positive after-cost edge -> 1x.
+PAPER_MAX_LEVERAGE = _env_int("PAPER_ABSOLUTE_MAX_LEVERAGE", 75)
 PAPER_MAX_CONFIDENCE_BUDGET_PCT = 0.05  # 5% of equity max per trade
 PAPER_MAX_LOSS_BUDGET_USD = 50.0
 
@@ -48,10 +114,15 @@ class LeverageRecommendationConfig:
     # Volatility thresholds (ATR in bps) for leverage tiers
     low_volatility_threshold_bps: float = 30.0
     high_volatility_threshold_bps: float = 80.0
-    # After-cost edge (bps) required for the 5x exploration tier
+    # After-cost edge (bps) that maps to FULL evidence-quality on the edge axis.
     strong_edge_bps_for_5x: float = 20.0
     # Fee + slippage buffer for liquidation distance estimate
     liquidation_fee_buffer_bps: float = 25.0
+    # Liquidation-safety: keep liq distance >= this multiple of ATR at all times
+    # (operator-tunable). Higher = safer/less leverage; adaptive to volatility.
+    liquidation_safety_atr_multiple: float = field(
+        default_factory=lambda: _env_float("PAPER_LEVERAGE_LIQ_SAFETY_ATR_MULT", 5.0)
+    )
 
 
 def _estimate_liquidation_distance_bps(leverage: int, fee_buffer_bps: float) -> float:
@@ -126,6 +197,18 @@ def recommend_leverage_for_signal(
     # caps at 1x before confidence/volatility are even considered. (The composite
     # allocator also caps small/negative edge to 1x; this keeps the standalone
     # recommendation self-consistent for external verifiers.)
+    # Adaptive range: the CEILING is per-symbol (75/50/20), then clamped by a
+    # volatility-scaled liquidation-safety cap (so a normal candle can never
+    # liquidate) and the config's absolute max. The final recommended value is
+    # earned continuously within [1, adaptive_ceiling] from evidence quality —
+    # confidence, after-cost edge magnitude, and low volatility, MULTIPLIED so
+    # ALL three must be strong to approach the ceiling. This lifts the old
+    # 1-3x floor (risk-first) without ever levering a weak/negative-edge setup.
+    _symbol_ceiling = symbol_leverage_ceiling(sym)
+    _liq_safe_ceiling = _liquidation_safe_max_leverage(
+        atr_bps, cfg.liquidation_fee_buffer_bps, cfg.liquidation_safety_atr_multiple
+    )
+    adaptive_ceiling = max(1, min(cfg.max_leverage, _symbol_ceiling, _liq_safe_ceiling))
     if (
         expected_move_after_cost_bps is not None
         and expected_move_after_cost_bps <= 0.0
@@ -141,28 +224,22 @@ def recommend_leverage_for_signal(
     ):
         recommended_leverage = 1
         reason_tier = "HIGH_VOLATILITY_1X"
-    elif (
-        confidence_calibrated >= cfg.very_high_confidence_threshold
-        and atr_bps is not None
-        and atr_bps <= cfg.low_volatility_threshold_bps
-        and expected_move_after_cost_bps is not None
-        and expected_move_after_cost_bps >= cfg.strong_edge_bps_for_5x
-    ):
-        # Exploration tier (2026-07-16): very high calibrated confidence +
-        # low volatility + strong after-cost edge earns 5x. The dynamic risk
-        # envelope (realized win-rate/PF scaled) still caps the final value,
-        # so this tier only takes effect once performance evidence supports it.
-        recommended_leverage = min(cfg.max_leverage, 5)
-        reason_tier = "VERY_HIGH_CONFIDENCE_STRONG_EDGE_5X"
-    elif (
-        confidence_calibrated >= cfg.high_confidence_threshold
-        and (atr_bps is None or atr_bps <= cfg.low_volatility_threshold_bps)
-    ):
-        recommended_leverage = min(cfg.max_leverage, 3)
-        reason_tier = "HIGH_CONFIDENCE_LOW_VOLATILITY_3X"
     else:
-        recommended_leverage = min(cfg.max_leverage, 2)
-        reason_tier = "MODERATE_CONFIDENCE_OR_VOLATILITY_2X"
+        # Evidence-quality axes, each in [0,1]:
+        _conf_span = max(1e-9, 1.0 - cfg.low_confidence_threshold)
+        conf_q = _clamp01((confidence_calibrated - cfg.low_confidence_threshold) / _conf_span)
+        # Full edge quality at ~2x the strong-edge reference (needs real edge).
+        _edge_ref = max(1.0, cfg.strong_edge_bps_for_5x * 2.0)
+        edge_q = _clamp01((expected_move_after_cost_bps or 0.0) / _edge_ref)
+        if atr_bps is None:
+            vol_q = 0.5
+        else:
+            _vol_span = max(1e-9, cfg.high_volatility_threshold_bps - cfg.low_volatility_threshold_bps)
+            vol_q = _clamp01((cfg.high_volatility_threshold_bps - atr_bps) / _vol_span)
+        quality = conf_q * edge_q * vol_q  # multiplicative — all three must be strong
+        recommended_leverage = int(round(1.0 + quality * (adaptive_ceiling - 1.0)))
+        recommended_leverage = max(1, min(adaptive_ceiling, recommended_leverage))
+        reason_tier = f"ADAPTIVE_EVIDENCE_SCALED_{recommended_leverage}X_CEIL{adaptive_ceiling}"
 
     liquidation_distance_bps = _estimate_liquidation_distance_bps(
         recommended_leverage, cfg.liquidation_fee_buffer_bps
@@ -195,6 +272,9 @@ def recommend_leverage_for_signal(
         "signal_id": signal_id,
         "direction": direction,
         "recommended_leverage": recommended_leverage,
+        "symbol_leverage_ceiling": _symbol_ceiling,
+        "adaptive_leverage_ceiling": adaptive_ceiling,
+        "liquidation_safe_leverage_ceiling": _liq_safe_ceiling,
         "recommended_margin_mode": "isolated",
         "liquidation_distance_bps": liquidation_distance_bps,
         "volatility_budget_bps": volatility_budget_bps,
@@ -221,8 +301,13 @@ def validate_leverage_recommendation(rec: dict) -> list[str]:
     if rec.get("all_symbols_aggregate") is not False:
         violations.append("INVARIANT_VIOLATED:all_symbols_aggregate must be False")
     lev = rec.get("recommended_leverage")
+    _sym_ceiling = symbol_leverage_ceiling(str(rec.get("symbol") or ""))
     if not isinstance(lev, int) or lev < 1 or lev > PAPER_MAX_LEVERAGE:
         violations.append(f"INVARIANT_VIOLATED:recommended_leverage must be int in [1,{PAPER_MAX_LEVERAGE}]")
+    elif lev > _sym_ceiling:
+        violations.append(
+            f"INVARIANT_VIOLATED:recommended_leverage {lev}x exceeds symbol ceiling {_sym_ceiling}x"
+        )
     if rec.get("recommended_margin_mode") != "isolated":
         violations.append("INVARIANT_VIOLATED:recommended_margin_mode must be isolated (never CROSS in paper mode)")
     if not rec.get("symbol"):
