@@ -47,3 +47,13 @@ createRoot(root).render(
 );
 
 registerServiceWorker();
+
+// DEV-ONLY visual-editing toolbar (Stagewise). `import.meta.env.DEV` is statically
+// replaced with `false` in production builds, so this block and the entire
+// ./dev/stagewise chunk (+ the @stagewise/toolbar devDependency) are dead-code-
+// eliminated and never ship to prod. Fails silently — never blocks the app.
+if (import.meta.env.DEV) {
+  void import('./dev/stagewise')
+    .then((m) => m.mountStagewiseDevToolbar())
+    .catch(() => {});
+}
