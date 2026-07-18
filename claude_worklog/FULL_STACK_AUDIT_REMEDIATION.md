@@ -80,10 +80,12 @@ Second pass on the under-covered layers. is_live filter used (0 dead-code false 
 4. Two legacy old-bot systemd units execute the forbidden legacy tree with Restart=always — operator should
    mask/disable them (do not edit the legacy tree itself).
 
-### NOTE: 52 PRE-EXISTING domain-purity test failures
-tests/unit/domain/{shadow_mode_readiness,trainer_prediction_output}/* fail on the CURRENT tree even with my
-pass-2 changes stashed, so NOT caused by this audit — most likely from Codex's uncommitted changeset adding a
-forbidden import into a domain module. Flag for Codex's commit validation.
+### RESOLVED (was a false alarm): domain-purity "failures" were a CWD artifact
+Earlier I flagged domain-purity tests as failing. Re-checked in an isolated worktree at HEAD (clean, no
+Codex uncommitted): tests/unit/domain/{shadow_mode_readiness,trainer_prediction_output}/* hardcode
+REPO-ROOT-RELATIVE source paths (e.g. "v2/backend/app/domain/.../__init__.py"). Run from v2/backend/ they
+FileNotFoundError; run from the repo root all 57 PASS. So NOT a regression, NOT Codex's, NOT pre-existing
+breakage — purely an invocation-cwd artifact. No action needed. (Lesson: run these from the repo root.)
 
 ## Caveats surfaced to operator
 - Auth changes (RBAC/backtest/login) verified against the test suite but NOT runtime-verified here (no live
