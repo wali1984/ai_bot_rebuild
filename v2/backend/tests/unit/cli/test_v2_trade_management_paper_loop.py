@@ -8004,6 +8004,107 @@ def test_compact_status_for_redis_omits_heavy_row_lists() -> None:
     assert compact["held_by_paper_fill_gate_count"] == 1
 
 
+def test_write_compact_public_status_omits_full_retained_rows(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    payload = {
+        "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+        "intents_built": 1,
+        "intents_accepted": 0,
+        "v2_paper_keys_written_count": 1,
+        "held_by_paper_fill_gate": [
+            {"prediction_id": "held-1", "retained_evidence": "x" * 100_000}
+        ],
+        "paper_adaptive_sizing_runtime_status": {
+            "candidate_allocations": [
+                {"allocation_id": "allocation-1", "retained_evidence": "y" * 100_000}
+            ],
+        },
+    }
+    captured: dict[str, object] = {}
+
+    def capture_write(value: dict[str, object], path: Path) -> None:
+        captured["value"] = value
+        captured["path"] = path
+
+    monkeypatch.setattr(paper_loop, "write_payload", capture_write)
+    output_path = tmp_path / "paper_status.json"
+
+    paper_loop._write_compact_public_status(payload, output_path)  # noqa: SLF001
+
+    written = captured["value"]
+    assert captured["path"] == output_path
+    assert "held_by_paper_fill_gate" not in written
+    assert written["held_by_paper_fill_gate_count"] == 1
+    sizing = written["paper_adaptive_sizing_runtime_status"]
+    assert "candidate_allocations" not in sizing
+    assert sizing["candidate_allocations_count"] == 1
+    assert "retained_evidence" in payload["held_by_paper_fill_gate"][0]
+    assert len(json.dumps(written)) < 10_000
+
+
+def test_main_once_routes_public_status_through_compact_writer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    status = {
+        "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+        "intents_built": 1,
+        "intents_accepted": 0,
+        "v2_paper_keys_written_count": 1,
+    }
+    writes: list[tuple[dict[str, object], Path]] = []
+    monkeypatch.setattr(paper_loop, "run_once", lambda: status)
+    monkeypatch.setattr(
+        paper_loop,
+        "_write_compact_public_status",
+        lambda value, path: writes.append((value, path)),
+    )
+    output_path = tmp_path / "paper_once.json"
+
+    result = paper_loop.main(["--once", "--out", str(output_path)])
+
+    assert result == 0
+    assert writes == [(status, output_path)]
+
+
+def test_main_loop_routes_each_public_status_through_compact_writer(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    status = {
+        "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
+        "intents_built": 1,
+        "intents_accepted": 0,
+        "v2_paper_keys_written_count": 1,
+    }
+    writes: list[tuple[dict[str, object], Path]] = []
+
+    class DrainAfterFirstCycle:
+        def is_set(self) -> bool:
+            return True
+
+        def wait(self, timeout: float) -> bool:
+            return True
+
+    monkeypatch.setattr(paper_loop, "run_once", lambda: status)
+    monkeypatch.setattr(paper_loop, "_try_acquire_loop_lock", lambda: object())
+    monkeypatch.setattr(paper_loop.threading, "Event", DrainAfterFirstCycle)
+    monkeypatch.setattr(paper_loop.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(
+        paper_loop,
+        "_write_compact_public_status",
+        lambda value, path: writes.append((value, path)),
+    )
+    output_path = tmp_path / "paper_loop.json"
+
+    result = paper_loop.main(["--loop", "--out", str(output_path)])
+
+    assert result == 0
+    assert writes == [(status, output_path)]
+
+
 def test_paper_runtime_cost_capture_summary_counts_order_applicable_rows() -> None:
     rows = [
         {

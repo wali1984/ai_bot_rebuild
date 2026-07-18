@@ -9769,6 +9769,18 @@ def _compact_status_for_redis(value: Any) -> Any:
     return value
 
 
+def _write_compact_public_status(payload: dict[str, Any], path: Path) -> None:
+    """Write the same bounded operator projection used for Redis status.
+
+    ``run_once`` retains full paper evidence in memory for lifecycle and audit
+    work.  The top-level CLI status is an operator heartbeat, not a canonical
+    evidence store, so publishing that full object can duplicate retained rows
+    into a very large JSON file every cycle.
+    """
+
+    write_payload(_compact_status_for_redis(payload), path)
+
+
 def _paper_runtime_cost_capture_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     intent_rows = [row for row in rows if isinstance(row, dict)]
     order_applicable_rows = [
@@ -35675,7 +35687,7 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGINT, _request_drain_stop)
         while True:
             hb = run_once()
-            write_payload(hb, args.out)
+            _write_compact_public_status(hb, args.out)
             if _drain_stop.is_set():
                 print(json.dumps({
                     "classification": "V2_TRADE_MANAGEMENT_PAPER_LOOP_DRAINED_CLEAN_EXIT",
@@ -35696,17 +35708,17 @@ def main(argv: list[str] | None = None) -> int:
     hb = run_once()
     cutover_marker_status = None
     if args.mark_forward_canary_cutover:
-        write_payload(hb, args.out)
+        _write_compact_public_status(hb, args.out)
         cutover_marker_status = _write_controlled_one_shot_cutover_marker(
             hb,
             one_shot_output_path=args.out,
         )
         hb["paper_forward_canary_cutover_marker_status"] = cutover_marker_status
         if cutover_marker_status["cutover_marker_write_allowed"] is not True:
-            write_payload(hb, args.out)
+            _write_compact_public_status(hb, args.out)
             print(json.dumps(cutover_marker_status, sort_keys=True))
             return 2
-    write_payload(hb, args.out)
+    _write_compact_public_status(hb, args.out)
     print(json.dumps({
         "classification": hb["classification"],
         "intents_built": hb["intents_built"],
