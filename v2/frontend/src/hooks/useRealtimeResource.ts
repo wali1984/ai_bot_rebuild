@@ -260,6 +260,10 @@ export function mergeRealtimeResourceEnvelope<T>(
     return {
       envelope: {
         ...previous,
+        // The live frame is stale/incomplete and we are SHOWING the preserved
+        // last-good payload — label it 'stale' so the freshness badge reflects
+        // the (old) data on screen instead of inheriting the previous 'fresh'.
+        freshness_status: 'stale',
         received_at: next.received_at,
         lag_ms: next.lag_ms,
         warnings: uniqueResourceWarnings(
