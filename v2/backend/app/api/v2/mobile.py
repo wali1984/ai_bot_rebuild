@@ -2713,7 +2713,9 @@ async def get_mobile_admin_summary(
     return {
         "generated_utc": _utc_now(),
         "actor": {
-            "user_id": str(actor.get("user_id", "") if actor else ""),
+            # UserRecord's identity key is "id" (safe_user reads user.get("id"));
+            # actor.get("user_id") was always "" — matches the push-register fix.
+            "user_id": str(actor.get("id", "") if actor else ""),
             "email": str(actor.get("email", "") if actor else ""),
             "role": role_val,
         },

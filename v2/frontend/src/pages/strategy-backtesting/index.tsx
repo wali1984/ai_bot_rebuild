@@ -64,6 +64,27 @@ function fmtPct(v: number | null | undefined): string {
   if (v == null) return '—';
   return `${(v * 100).toFixed(2)}%`;
 }
+
+// The /backtest/results LIST endpoint nests KPIs under `summary`/`params` in
+// PERCENT units (total_pnl_pct = equity-100, max_drawdown_pct, win_rate is a
+// fraction), while ResultCard reads flat FRACTION-unit fields (fmtPct *100).
+// Without this map every result card renders "—" for every metric.
+function normalizeBacktestResult(raw: any): BacktestResult {
+  const s = (raw && raw.summary) || {};
+  const p = (raw && raw.params) || {};
+  const num = (v: any): number | null => (v == null || Number.isNaN(Number(v)) ? null : Number(v));
+  const pctToFrac = (v: any): number | null => { const n = num(v); return n == null ? null : n / 100; };
+  return {
+    ...raw,
+    total_pnl: raw?.total_pnl != null ? num(raw.total_pnl) : pctToFrac(s.total_pnl_pct),
+    win_rate: raw?.win_rate != null ? num(raw.win_rate) : num(s.win_rate),
+    sharpe_ratio: raw?.sharpe_ratio != null ? num(raw.sharpe_ratio) : num(s.sharpe_estimate),
+    max_drawdown: raw?.max_drawdown != null ? num(raw.max_drawdown) : pctToFrac(s.max_drawdown_pct),
+    total_trades: raw?.total_trades != null ? num(raw.total_trades) : num(s.total_trades),
+    candle_count: raw?.candle_count != null ? num(raw.candle_count) : num(p.candles_loaded),
+    equity_curve: raw?.equity_curve ?? null,
+  };
+}
 function pnlColor(v: number | null | undefined): string {
   if (v == null) return 'var(--text-muted)';
   return v > 0 ? '#26c281' : v < 0 ? '#ef5350' : '#f59e0b';
@@ -213,11 +234,21 @@ function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): J
     setRunning(true);
     setError(null);
     try {
-      const resp = await fetch('/api/v2/backtest/run', {
+      // Backend /backtest/run reads symbol/timeframe/lookback as QUERY params
+      // (not a JSON body) — a POSTed body was silently ignored, so every run
+      // used the defaults BTCUSDT/1h/100 regardless of operator selection.
+      // (hold/tp/sl are not yet backend params; sent for forward-compat only.)
+      const qs = new URLSearchParams({
+        symbol,
+        timeframe: tf,
+        lookback: String(Math.max(10, Math.min(500, lookback))),
+        hold_candles: String(holdCandles),
+        tp_bps: String(tpBps),
+        sl_bps: String(slBps),
+      });
+      const resp = await fetch(`/api/v2/backtest/run?${qs.toString()}`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol, timeframe: tf, lookback_candles: lookback, hold_candles: holdCandles, tp_bps: tpBps, sl_bps: slBps }),
       });
       if (!resp.ok) {
         const txt = await resp.text();
@@ -297,7 +328,7 @@ function RunStatusPoller({ runId, onComplete }: { runId: string; onComplete: () 
         const s: RunStatus = data?.data ?? data;
         if (mounted) {
           setStatus(s);
-          if (s.status === 'completed' || s.status === 'error') {
+          if (s.status === 'completed' || s.status === 'complete' || s.status === 'error') {
             setDone(true);
             onComplete();
           }
@@ -316,7 +347,7 @@ function RunStatusPoller({ runId, onComplete }: { runId: string; onComplete: () 
     </div>
   );
 
-  const isComplete = status.status === 'completed';
+  const isComplete = status.status === 'completed' || status.status === 'complete';
   const isError = status.status === 'error';
   const color = isComplete ? '#26c281' : isError ? '#ef5350' : '#f59e0b';
 
@@ -351,7 +382,7 @@ export default function BacktestsPage(): JSX.Element {
     initialFetchWhenStreaming: true,
   });
 
-  const results = envelope.data?.results ?? [];
+  const results = (envelope.data?.results ?? []).map(normalizeBacktestResult);
   const backtestSourceUnavailable = !envelope.data || envelope.source_type === 'unavailable';
 
   const handleRunStarted = useCallback((runId: string) => {
