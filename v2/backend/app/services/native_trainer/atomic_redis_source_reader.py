@@ -6,10 +6,12 @@ paper-provenance-only and is neither a source-schema attestation nor a
 finality proof, durable-ledger receipt, feature publication, or trainer
 admission.
 
-The batch order is fixed for every requested key: ``TYPE``, ``GET``, ``PTTL``;
-``TIME`` is queued exactly once as the final command.  Payloads are never
-decoded or re-serialized.  Fixed byte/key/count limits are resource-integrity
-limits, not market-selection or trading thresholds.
+The batch order is fixed for every requested key: ``TYPE``, bounded
+``GETRANGE``, ``PTTL``; ``TIME`` is queued exactly once as the final command.
+The inclusive ``GETRANGE`` end requests at most the accepted cap plus one
+sentinel byte.  Payloads are never decoded or re-serialized.  Fixed
+byte/key/count limits are resource-integrity limits, not market-selection or
+trading thresholds.
 
 ``TIME`` is Redis server time at the final queued command.  It is not the
 client's post-response ``consumer_observed_at`` and must never be substituted
@@ -18,12 +20,11 @@ Python-constructible immutable value carriers, not authenticity proofs.  This
 nonconsumable transport boundary therefore grants no durable or cryptographic
 verification of how an arbitrary instance was constructed.
 
-Redis materializes a ``GET`` response on the wire before Python can enforce a
-post-``EXEC`` byte count.  The product invariant below bounds every *accepted*
-batch to the aggregate limit, but does not bound peak allocation from a
-malicious pre-existing oversized Redis value.  Runtime wiring must first add
-an independently enforced publisher/server/client byte limit or an atomic
-size-preflight design that preserves this exact-read contract.
+An accepted value is returned byte-for-byte.  An oversized value returns only
+the cap-plus-one prefix and fails closed, so even a malicious pre-existing
+Redis string cannot force its full body into this Python process.  This remains
+an unwired transport primitive; it does not attest source schema, finality, or
+point-in-time eligibility.
 """
 
 from __future__ import annotations
@@ -33,10 +34,11 @@ import json
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from itertools import islice
 from typing import Any, NoReturn, Protocol, cast
 
-ATOMIC_REDIS_SOURCE_READ_SCHEMA_VERSION = "trainer_atomic_redis_source_read_v1"
-ATOMIC_REDIS_SOURCE_RESULT_SCHEMA_VERSION = "trainer_atomic_redis_source_result_v1"
+ATOMIC_REDIS_SOURCE_READ_SCHEMA_VERSION = "trainer_atomic_redis_source_read_v2"
+ATOMIC_REDIS_SOURCE_RESULT_SCHEMA_VERSION = "trainer_atomic_redis_source_result_v2"
 ATOMIC_REDIS_SOURCE_READ_EVIDENCE_CLASSIFICATION = (
     "ATOMIC_REDIS_TRANSPORT_READ_ONLY_PAPER_PROVENANCE_ONLY_NONCONSUMABLE"
 )
@@ -49,11 +51,17 @@ REDIS_TIME_CLOCK_SEMANTICS = "REDIS_TIME_FINAL_QUEUED_COMMAND_NOT_CLIENT_CONSUME
 # market, symbol, feature, observation, position, risk level, or leverage.
 MAX_SOURCE_KEYS_PER_BATCH = 64
 MAX_SOURCE_KEY_BYTES = 512
+MAX_REDIS_CONNECTION_METADATA_FIELDS = 64
 MAX_AGGREGATE_PAYLOAD_BYTES = 64 * 1024 * 1024
 MAX_SOURCE_PAYLOAD_BYTES = MAX_AGGREGATE_PAYLOAD_BYTES // MAX_SOURCE_KEYS_PER_BATCH
+MAX_RANGE_REPLY_BYTES = MAX_SOURCE_PAYLOAD_BYTES + 1
+MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES = MAX_RANGE_REPLY_BYTES * MAX_SOURCE_KEYS_PER_BATCH
 MAX_REDIS_PTTL_MS = (1 << 63) - 1
 
 assert MAX_SOURCE_PAYLOAD_BYTES * MAX_SOURCE_KEYS_PER_BATCH <= MAX_AGGREGATE_PAYLOAD_BYTES
+assert MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES == (
+    MAX_AGGREGATE_PAYLOAD_BYTES + MAX_SOURCE_KEYS_PER_BATCH
+)
 
 _SOURCE_KEY_RE = re.compile(r"^v2:[A-Za-z0-9][A-Za-z0-9:._/@-]*$")
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -62,7 +70,7 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 class _RedisPipeline(Protocol):
     def type(self, key: str) -> Any: ...
 
-    def get(self, key: str) -> Any: ...
+    def getrange(self, key: str, start: int, end: int) -> Any: ...
 
     def pttl(self, key: str) -> Any: ...
 
@@ -165,13 +173,19 @@ def _integrity_error(reason: str) -> NoReturn:
 def _validated_source_keys(source_keys: object) -> tuple[str, ...]:
     if type(source_keys) is not tuple and type(source_keys) is not list:
         _validation_error("atomic_redis_source_keys_container_invalid")
-    container = cast("tuple[object, ...] | list[object]", source_keys)
-    if not 1 <= len(container) <= MAX_SOURCE_KEYS_PER_BATCH:
+    if type(source_keys) is list:
+        # A caller-owned list can change between a count check and iteration.
+        # Slice only cap+1 elements under the interpreter lock, then validate
+        # and use this immutable bounded snapshot exclusively.
+        snapshot = tuple(cast(list[object], source_keys)[: MAX_SOURCE_KEYS_PER_BATCH + 1])
+    else:
+        snapshot = cast(tuple[object, ...], source_keys)
+    if not 1 <= len(snapshot) <= MAX_SOURCE_KEYS_PER_BATCH:
         _validation_error("atomic_redis_source_key_count_invalid")
 
     validated: list[str] = []
     seen: set[str] = set()
-    for candidate in container:
+    for candidate in snapshot:
         if type(candidate) is not str:
             _validation_error("atomic_redis_source_key_invalid")
         key = candidate
@@ -197,14 +211,31 @@ def _verify_raw_client(client: RawRedisSourceClient) -> None:
     if type(connection_kwargs) is not dict:
         _validation_error("atomic_redis_client_raw_mode_unverified")
 
-    # Validate every key before dictionary lookup so a hostile key cannot run
-    # caller-defined hash/equality/string hooks during the lookup below.
-    for key in connection_kwargs:
+    # Snapshot only a bounded prefix of exact built-in dictionary entries.
+    # Mutation during iteration is totalized; mutation after this snapshot
+    # cannot alter which metadata is validated below.
+    try:
+        metadata_snapshot = tuple(
+            islice(
+                connection_kwargs.items(),
+                MAX_REDIS_CONNECTION_METADATA_FIELDS + 1,
+            )
+        )
+    except Exception:  # noqa: BLE001 - untrusted metadata race is totalized
+        _validation_error("atomic_redis_client_raw_mode_unverified")
+    if len(metadata_snapshot) > MAX_REDIS_CONNECTION_METADATA_FIELDS:
+        _validation_error("atomic_redis_client_raw_mode_unverified")
+
+    decode_responses: object = None
+    decode_responses_seen = False
+    for key, value in metadata_snapshot:
         if type(key) is not str:
             _validation_error("atomic_redis_client_raw_mode_unverified")
-    if "decode_responses" not in connection_kwargs:
+        if key == "decode_responses":
+            decode_responses = value
+            decode_responses_seen = True
+    if not decode_responses_seen:
         _validation_error("atomic_redis_client_raw_mode_unverified")
-    decode_responses = connection_kwargs["decode_responses"]
     if type(decode_responses) is not bool or decode_responses is not False:
         _validation_error("atomic_redis_client_raw_mode_unverified")
 
@@ -277,7 +308,7 @@ def _parse_results(
         pttl_ms = raw_pttl
 
         if raw_type == b"none":
-            if raw_payload is not None or pttl_ms != -2:
+            if type(raw_payload) is not bytes or raw_payload != b"" or pttl_ms != -2:
                 _integrity_error("atomic_redis_source_read_missing_inconsistent")
             partial.append((key, "none", False, None, None, 0, pttl_ms))
             continue
@@ -286,6 +317,8 @@ def _parse_results(
             _integrity_error("atomic_redis_source_read_payload_invalid")
         payload = raw_payload
         payload_bytes = len(payload)
+        if payload_bytes > MAX_RANGE_REPLY_BYTES:
+            _integrity_error("atomic_redis_source_read_range_reply_bytes_invalid")
         if payload_bytes > MAX_SOURCE_PAYLOAD_BYTES:
             _integrity_error("atomic_redis_source_read_payload_bytes_exceeded")
         aggregate_bytes += payload_bytes
@@ -347,6 +380,13 @@ def _batch_material(
         "live_execution_authorized": False,
         "paper_provenance_only": True,
         "read_only": True,
+        "redis_payload_read_operation": "GETRANGE_INCLUSIVE_CAP_PLUS_ONE",
+        "redis_transaction_command_order_per_key": ["TYPE", "GETRANGE", "PTTL"],
+        "max_aggregate_payload_bytes": MAX_AGGREGATE_PAYLOAD_BYTES,
+        "max_batch_materialized_payload_bytes": MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES,
+        "max_range_reply_bytes": MAX_RANGE_REPLY_BYTES,
+        "max_source_keys_per_batch": MAX_SOURCE_KEYS_PER_BATCH,
+        "max_source_payload_bytes": MAX_SOURCE_PAYLOAD_BYTES,
         "results": [
             {
                 "consumer_eligible": result.consumer_eligible,
@@ -389,7 +429,7 @@ def _batch_material(
         separators=(",", ":"),
     )
     material_sha256 = hashlib.sha256(material_json.encode("ascii")).hexdigest()
-    batch_id = f"trainer_atomic_redis_source_read_v1_{material_sha256}"
+    batch_id = f"trainer_atomic_redis_source_read_v2_{material_sha256}"
     return material_json, material_sha256, batch_id
 
 
@@ -415,7 +455,7 @@ def read_atomic_redis_sources(
         pipeline = client.pipeline(transaction=True)
         for key in keys:
             pipeline.type(key)
-            pipeline.get(key)
+            pipeline.getrange(key, 0, MAX_SOURCE_PAYLOAD_BYTES)
             pipeline.pttl(key)
         pipeline.time()
         executed_responses = pipeline.execute()
@@ -469,6 +509,8 @@ __all__ = [
     "ATOMIC_REDIS_SOURCE_READ_SCHEMA_VERSION",
     "ATOMIC_REDIS_SOURCE_RESULT_SCHEMA_VERSION",
     "MAX_AGGREGATE_PAYLOAD_BYTES",
+    "MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES",
+    "MAX_RANGE_REPLY_BYTES",
     "MAX_SOURCE_KEYS_PER_BATCH",
     "MAX_SOURCE_KEY_BYTES",
     "MAX_SOURCE_PAYLOAD_BYTES",

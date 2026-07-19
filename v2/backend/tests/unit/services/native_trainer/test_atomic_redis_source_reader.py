@@ -4,6 +4,7 @@ import ast
 import hashlib
 import inspect
 import json
+import sys
 from dataclasses import FrozenInstanceError
 from typing import Any
 
@@ -15,6 +16,8 @@ from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
     ATOMIC_REDIS_SOURCE_READ_EVIDENCE_CLASSIFICATION,
     ATOMIC_REDIS_SOURCE_READ_SCHEMA_VERSION,
     ATOMIC_REDIS_SOURCE_RESULT_SCHEMA_VERSION,
+    MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES,
+    MAX_RANGE_REPLY_BYTES,
     MAX_SOURCE_KEY_BYTES,
     MAX_SOURCE_KEYS_PER_BATCH,
     MAX_SOURCE_PAYLOAD_BYTES,
@@ -46,12 +49,12 @@ class _FakePipeline:
         self.execute_failure = execute_failure
         self.cleanup_failures = cleanup_failures
         self.clear_responses_on_reset = clear_responses_on_reset
-        self.commands: list[tuple[str, str | None]] = []
+        self.commands: list[tuple[object, ...]] = []
         self.reset_calls = 0
         self.close_calls = 0
 
-    def _queue(self, command: str, key: str | None = None) -> _FakePipeline:
-        self.commands.append((command, key))
+    def _queue(self, command: str, *arguments: object) -> _FakePipeline:
+        self.commands.append((command, *arguments))
         if self.command_failure == command:
             raise RuntimeError(HOSTILE_DETAIL)
         return self
@@ -59,8 +62,8 @@ class _FakePipeline:
     def type(self, key: str) -> _FakePipeline:
         return self._queue("TYPE", key)
 
-    def get(self, key: str) -> _FakePipeline:
-        return self._queue("GET", key)
+    def getrange(self, key: str, start: int, end: int) -> _FakePipeline:
+        return self._queue("GETRANGE", key, start, end)
 
     def pttl(self, key: str) -> _FakePipeline:
         return self._queue("PTTL", key)
@@ -126,7 +129,7 @@ def _present(payload: bytes = b'{"exact": 1}\n', pttl_ms: int = 91_337) -> list[
 
 
 def _missing() -> list[object]:
-    return [b"none", None, -2]
+    return [b"none", b"", -2]
 
 
 def _client_for(*rows: list[object], time: object = TIME, **kwargs: Any) -> _FakeClient:
@@ -158,12 +161,12 @@ def test_one_transaction_queues_deterministic_read_order_and_time_last() -> None
     assert client.transactions == [True]
     assert client.pipeline_instance.commands == [
         ("TYPE", KEY_A),
-        ("GET", KEY_A),
+        ("GETRANGE", KEY_A, 0, MAX_SOURCE_PAYLOAD_BYTES),
         ("PTTL", KEY_A),
         ("TYPE", KEY_B),
-        ("GET", KEY_B),
+        ("GETRANGE", KEY_B, 0, MAX_SOURCE_PAYLOAD_BYTES),
         ("PTTL", KEY_B),
-        ("TIME", None),
+        ("TIME",),
     ]
     assert tuple(result.source_key for result in batch.results) == (KEY_A, KEY_B)
     assert client.pipeline_instance.reset_calls == 1
@@ -232,7 +235,7 @@ def test_batch_material_and_hash_are_canonical_and_bind_every_result() -> None:
     )
     expected_hash = hashlib.sha256(batch.batch_material_json.encode("ascii")).hexdigest()
     assert batch.batch_material_sha256 == expected_hash
-    assert batch.batch_id == f"trainer_atomic_redis_source_read_v1_{expected_hash}"
+    assert batch.batch_id == f"trainer_atomic_redis_source_read_v2_{expected_hash}"
     assert material["results"][0]["payload_sha256"] == hashlib.sha256(b"abc").hexdigest()
     assert material["results"][1]["present"] is False
     assert material["total_payload_byte_count"] == 3
@@ -240,6 +243,17 @@ def test_batch_material_and_hash_are_canonical_and_bind_every_result() -> None:
     assert material["live_execution_authorized"] is False
     assert material["transport_authenticity_attested"] is False
     assert material["server_time_is_consumer_observed_at"] is False
+    assert material["redis_payload_read_operation"] == ("GETRANGE_INCLUSIVE_CAP_PLUS_ONE")
+    assert material["redis_transaction_command_order_per_key"] == [
+        "TYPE",
+        "GETRANGE",
+        "PTTL",
+    ]
+    assert material["max_source_payload_bytes"] == MAX_SOURCE_PAYLOAD_BYTES
+    assert material["max_range_reply_bytes"] == MAX_RANGE_REPLY_BYTES
+    assert material["max_batch_materialized_payload_bytes"] == (
+        MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES
+    )
 
 
 def test_equal_complete_responses_are_deterministic_and_order_is_bound() -> None:
@@ -297,6 +311,41 @@ def test_key_count_must_be_bounded(keys: object) -> None:
         "atomic_redis_source_key_count_invalid",
     )
     assert client.transactions == []
+
+
+def test_mutating_caller_list_cannot_expand_the_bounded_key_snapshot() -> None:
+    initial_keys = [f"v2:test:atomic:key:{index}" for index in range(4)]
+    requested_keys = list(initial_keys)
+    client = _client_for(*(_present(str(index).encode()) for index in range(4)))
+    mutation_observed = False
+
+    def mutate_after_snapshot(frame: Any, event: str, _arg: object) -> Any:
+        nonlocal mutation_observed
+        if (
+            event == "line"
+            and frame.f_code is reader._validated_source_keys.__code__
+            and "snapshot" in frame.f_locals
+            and not mutation_observed
+        ):
+            requested_keys.extend(
+                f"v2:test:atomic:late:{index}" for index in range(MAX_SOURCE_KEYS_PER_BATCH * 16)
+            )
+            mutation_observed = True
+        return mutate_after_snapshot
+
+    prior_trace = sys.gettrace()
+    sys.settrace(mutate_after_snapshot)
+    try:
+        batch = read_atomic_redis_sources(client, requested_keys)
+    finally:
+        sys.settrace(prior_trace)
+
+    assert mutation_observed is True
+    assert len(requested_keys) > MAX_SOURCE_KEYS_PER_BATCH
+    assert [result.source_key for result in batch.results] == initial_keys
+    assert [
+        command for command in client.pipeline_instance.commands if command[0] == "GETRANGE"
+    ] == [("GETRANGE", key, 0, MAX_SOURCE_PAYLOAD_BYTES) for key in initial_keys]
 
 
 @pytest.mark.parametrize(
@@ -385,6 +434,57 @@ def test_raw_decode_responses_false_client_is_required(connection_kwargs: object
     assert client.transactions == []
 
 
+def test_mutating_connection_metadata_cannot_change_the_bounded_snapshot() -> None:
+    connection_kwargs: dict[str, object] = {
+        "decode_responses": False,
+        "socket_timeout": 1,
+    }
+    client = _client_for(_present(), connection_kwargs=connection_kwargs)
+    mutation_observed = False
+
+    def mutate_after_snapshot(frame: Any, event: str, _arg: object) -> Any:
+        nonlocal mutation_observed
+        if (
+            event == "line"
+            and frame.f_code is reader._verify_raw_client.__code__
+            and "metadata_snapshot" in frame.f_locals
+            and not mutation_observed
+        ):
+            del connection_kwargs["decode_responses"]
+            connection_kwargs["replacement"] = HOSTILE_DETAIL
+            mutation_observed = True
+        return mutate_after_snapshot
+
+    prior_trace = sys.gettrace()
+    sys.settrace(mutate_after_snapshot)
+    try:
+        batch = read_atomic_redis_sources(client, [KEY_A])
+    finally:
+        sys.settrace(prior_trace)
+
+    assert mutation_observed is True
+    assert batch.results[0].source_key == KEY_A
+    assert connection_kwargs == {
+        "socket_timeout": 1,
+        "replacement": HOSTILE_DETAIL,
+    }
+
+
+def test_connection_metadata_field_count_is_resource_bounded() -> None:
+    connection_kwargs: dict[str, object] = {
+        "decode_responses": False,
+        **{f"field_{index}": index for index in range(reader.MAX_REDIS_CONNECTION_METADATA_FIELDS)},
+    }
+    client = _client_for(_present(), connection_kwargs=connection_kwargs)
+    _assert_fixed_error(
+        client,
+        [KEY_A],
+        AtomicRedisSourceReadValidationError,
+        "atomic_redis_client_raw_mode_unverified",
+    )
+    assert client.transactions == []
+
+
 @pytest.mark.parametrize("raw_type", ["string", bytearray(b"string"), b"list", None, True])
 def test_type_response_must_be_exact_raw_string_or_none_bytes(raw_type: object) -> None:
     client = _FakeClient([raw_type, b"payload", 1, TIME])
@@ -433,7 +533,14 @@ def test_present_pttl_must_be_persistent_or_nonnegative_redis_range(pttl: int) -
 
 @pytest.mark.parametrize(
     ("payload", "pttl"),
-    [(b"unexpected", -2), (None, -1), (None, 0), (None, 1)],
+    [
+        (b"unexpected", -2),
+        (None, -2),
+        (None, -1),
+        (b"", -1),
+        (b"", 0),
+        (b"", 1),
+    ],
 )
 def test_missing_type_payload_and_pttl_must_be_consistent(payload: object, pttl: int) -> None:
     client = _FakeClient([b"none", payload, pttl, TIME])
@@ -523,9 +630,39 @@ def test_per_payload_byte_limit_is_enforced_without_decoding(
     )
 
 
+def test_exact_payload_cap_is_accepted_and_cap_plus_one_is_rejected() -> None:
+    exact_cap = b"x" * MAX_SOURCE_PAYLOAD_BYTES
+    accepted = read_atomic_redis_sources(_client_for(_present(exact_cap)), [KEY_A])
+    assert accepted.results[0].exact_payload_bytes == exact_cap
+
+    _assert_fixed_error(
+        _client_for(_present(exact_cap + b"!")),
+        [KEY_A],
+        AtomicRedisSourceReadIntegrityError,
+        "atomic_redis_source_read_payload_bytes_exceeded",
+    )
+
+
+def test_reply_larger_than_requested_cap_plus_one_is_an_integrity_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(reader, "MAX_SOURCE_PAYLOAD_BYTES", 3)
+    monkeypatch.setattr(reader, "MAX_RANGE_REPLY_BYTES", 4)
+    _assert_fixed_error(
+        _client_for(_present(b"12345")),
+        [KEY_A],
+        AtomicRedisSourceReadIntegrityError,
+        "atomic_redis_source_read_range_reply_bytes_invalid",
+    )
+
+
 def test_accepted_batch_capacity_product_cannot_exceed_aggregate_limit() -> None:
     assert MAX_SOURCE_PAYLOAD_BYTES * MAX_SOURCE_KEYS_PER_BATCH <= (
         reader.MAX_AGGREGATE_PAYLOAD_BYTES
+    )
+    assert MAX_RANGE_REPLY_BYTES == MAX_SOURCE_PAYLOAD_BYTES + 1
+    assert MAX_BATCH_MATERIALIZED_PAYLOAD_BYTES == (
+        reader.MAX_AGGREGATE_PAYLOAD_BYTES + MAX_SOURCE_KEYS_PER_BATCH
     )
 
 
@@ -543,7 +680,7 @@ def test_aggregate_payload_byte_limit_is_enforced_in_requested_order(
     )
 
 
-@pytest.mark.parametrize("failure", ["TYPE", "GET", "PTTL", "TIME"])
+@pytest.mark.parametrize("failure", ["TYPE", "GETRANGE", "PTTL", "TIME"])
 def test_pipeline_is_reset_and_closed_when_command_queueing_fails(failure: str) -> None:
     client = _client_for(_present(), command_failure=failure)
     _assert_fixed_error(
@@ -968,7 +1105,7 @@ def test_module_is_unwired_and_contains_no_redis_write_calls() -> None:
     assert "redis" not in imported_modules
     assert "client's post-response ``consumer_observed_at``" in (reader.__doc__ or "")
     assert "Python-constructible immutable value carriers" in (reader.__doc__ or "")
-    assert "does not bound peak allocation" in (reader.__doc__ or "")
+    assert "cannot force its full body" in (reader.__doc__ or "")
     assert not any("exact_source_read_capture" in module for module in imported_from)
     assert not any("durable_feature_snapshot_ledger" in module for module in imported_from)
     assert called_attributes.isdisjoint(
