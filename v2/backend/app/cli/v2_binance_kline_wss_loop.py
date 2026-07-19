@@ -1104,6 +1104,64 @@ def _stream_chunks(symbols: tuple[str, ...], timeframes: tuple[str, ...], max_st
     return [streams[index : index + chunk_size] for index in range(0, len(streams), chunk_size)]
 
 
+def _runtime_stream_plan(
+    args: argparse.Namespace,
+) -> tuple[tuple[str, ...], tuple[str, ...], list[tuple[str, ...]]]:
+    """Resolve the current adaptive universe into one exact stream plan."""
+
+    symbols = _resolve_symbols(args.symbols, max_symbols=int(args.max_symbols))
+    timeframes = _parse_csv(args.timeframes, DEFAULT_TIMEFRAMES)
+    chunks = _stream_chunks(
+        symbols,
+        timeframes,
+        max_streams=int(args.max_streams_per_connection),
+    )
+    return symbols, timeframes, chunks
+
+
+def _runtime_cycle_seconds(args: argparse.Namespace) -> float:
+    """Bound one loop cycle to the universe-refresh cadence.
+
+    The production refresh default equals the existing websocket session
+    rollover, so adaptive re-resolution does not add reconnects.  The cadence
+    is a transport-control interval, never a market-selection threshold.
+    """
+
+    def finite_seconds(value: Any, *, name: str) -> float:
+        if type(value) is bool:
+            raise ValueError(f"{name}_must_be_finite_number")
+        try:
+            parsed = float(value)
+        except Exception:
+            raise ValueError(f"{name}_must_be_finite_number") from None
+        if not math.isfinite(parsed):
+            raise ValueError(f"{name}_must_be_finite_number")
+        return parsed
+
+    total_seconds = max(
+        15.0,
+        finite_seconds(args.total_seconds, name="total_seconds"),
+    )
+    if not bool(args.loop):
+        return total_seconds
+    configured_refresh = getattr(args, "universe_refresh_seconds", None)
+    refresh_source = (
+        configured_refresh
+        if configured_refresh is not None
+        else getattr(args, "max_seconds_per_session", 600.0)
+    )
+    refresh_name = (
+        "universe_refresh_seconds"
+        if configured_refresh is not None
+        else "max_seconds_per_session"
+    )
+    refresh_seconds = max(
+        15.0,
+        finite_seconds(refresh_source, name=refresh_name),
+    )
+    return min(total_seconds, refresh_seconds)
+
+
 def _submit_wss_canonical_5m_label(
     canonical: Any,
     label_pipeline: _Canonical5mLabelArchivePipeline | None,
@@ -1404,8 +1462,7 @@ def _runtime_cycle_exit_code(
 
 async def run_loop(args: argparse.Namespace) -> int:
     if websockets is None:
-        symbols = _resolve_symbols(args.symbols, max_symbols=int(args.max_symbols))
-        timeframes = _parse_csv(args.timeframes, DEFAULT_TIMEFRAMES)
+        symbols, timeframes, _chunks = _runtime_stream_plan(args)
         payload = _base_status(
             symbols=symbols,
             timeframes=timeframes,
@@ -1421,9 +1478,7 @@ async def run_loop(args: argparse.Namespace) -> int:
         return 2
 
     redis_holder = _RedisHolder()
-    symbols = _resolve_symbols(args.symbols, max_symbols=int(args.max_symbols))
-    timeframes = _parse_csv(args.timeframes, DEFAULT_TIMEFRAMES)
-    chunks = _stream_chunks(symbols, timeframes, max_streams=int(args.max_streams_per_connection))
+    symbols, timeframes, chunks = _runtime_stream_plan(args)
     stats: dict[str, Any] = {
         "messages_received": 0,
         "ohlcv_closed_keys_written": 0,
@@ -1434,6 +1489,11 @@ async def run_loop(args: argparse.Namespace) -> int:
         "connection_errors": 0,
         "session_timeouts": 0,
         "connected_chunks": 0,
+        "universe_refresh_count": 0,
+        "universe_changed": False,
+        "universe_added_symbols": [],
+        "universe_removed_symbols": [],
+        "universe_refresh_seconds": _runtime_cycle_seconds(args),
     }
     label_pipeline_enabled = bool(
         getattr(args, "enable_canonical_5m_label_archive", False)
@@ -1493,12 +1553,41 @@ async def run_loop(args: argparse.Namespace) -> int:
                 "ohlcv_keys_written": stats.get("ohlcv_keys_written"),
                 "live_gate": payload["live_gate"],
             }, sort_keys=True), flush=True)
-            await asyncio.sleep(max(1.0, float(args.heartbeat_interval_seconds)))
+            remaining = stop_at - time.time()
+            if remaining <= 0.0:
+                return
+            await asyncio.sleep(
+                min(
+                    max(1.0, float(args.heartbeat_interval_seconds)),
+                    remaining,
+                )
+            )
 
     pipeline_task: asyncio.Task[bool] | None = None
     try:
         while True:
-            stop_at = time.time() + max(15.0, float(args.total_seconds))
+            refreshed_symbols, refreshed_timeframes, refreshed_chunks = (
+                _runtime_stream_plan(args)
+            )
+            prior_symbol_set = set(symbols)
+            refreshed_symbol_set = set(refreshed_symbols)
+            stats["universe_refresh_count"] = int(
+                stats.get("universe_refresh_count") or 0
+            ) + 1
+            stats["universe_changed"] = (
+                refreshed_symbols != symbols
+                or refreshed_timeframes != timeframes
+            )
+            stats["universe_added_symbols"] = sorted(
+                refreshed_symbol_set - prior_symbol_set
+            )
+            stats["universe_removed_symbols"] = sorted(
+                prior_symbol_set - refreshed_symbol_set
+            )
+            symbols = refreshed_symbols
+            timeframes = refreshed_timeframes
+            chunks = refreshed_chunks
+            stop_at = time.time() + _runtime_cycle_seconds(args)
             stats["connected_chunks"] = 0
             consumer_tasks = [
                 asyncio.create_task(
@@ -1582,6 +1671,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--ws-base", default=DEFAULT_WS_BASE)
     parser.add_argument("--total-seconds", type=float, default=86400.0)
     parser.add_argument("--max-seconds-per-session", type=float, default=600.0)
+    parser.add_argument(
+        "--universe-refresh-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Re-resolve the adaptive symbol universe at this transport cadence; "
+            "by default it derives from --max-seconds-per-session so no extra "
+            "reconnect cadence is introduced."
+        ),
+    )
     parser.add_argument("--heartbeat-interval-seconds", type=float, default=30.0)
     parser.add_argument(
         "--enable-canonical-5m-label-archive",
