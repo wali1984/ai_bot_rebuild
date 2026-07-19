@@ -72,22 +72,50 @@ def _parse_utc(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
-_REQUIRED_PIT_CLOCK_FIELDS: tuple[str, ...] = (
+_PIT_EVIDENCE_LANE_FIELD = "training_evidence_lane"
+_PIT_EXECUTED_PAPER_LANE = "EXECUTED_PAPER"
+_PIT_COUNTERFACTUAL_LANE = "COUNTERFACTUAL"
+_PIT_EVIDENCE_LANES: tuple[str, ...] = (
+    _PIT_EXECUTED_PAPER_LANE,
+    _PIT_COUNTERFACTUAL_LANE,
+)
+
+# These names are deliberately exact. In particular, source availability is
+# not interchangeable with feature availability, and estimate/UTC aliases are
+# not accepted as substitutes for missing producer clocks.
+_REQUIRED_SHARED_PIT_CLOCK_FIELDS: tuple[str, ...] = (
     "event_time",
     "ingested_at",
+    "source_available_at",
     "generated_at",
     "available_at",
     "feature_cutoff",
     "decision_time",
-    "masa_feature_cutoff",
-    "ppo_feature_cutoff",
-    "ppo_decision_time",
-    "execution_time",
     "outcome_available_at",
     "label_available_at",
     "training_observed_at",
     "candle_open_time",
     "candle_close_time",
+)
+
+_PIT_EXECUTED_PAPER_CLOCK_FIELDS: tuple[str, ...] = ("execution_time",)
+_PIT_MASA_CLOCK_FIELDS: tuple[str, ...] = ("masa_feature_cutoff",)
+_PIT_PPO_CLOCK_FIELDS: tuple[str, ...] = (
+    "ppo_feature_cutoff",
+    "ppo_decision_time",
+)
+_ALL_PIT_CLOCK_FIELDS: tuple[str, ...] = tuple(
+    dict.fromkeys(
+        _REQUIRED_SHARED_PIT_CLOCK_FIELDS
+        + _PIT_EXECUTED_PAPER_CLOCK_FIELDS
+        + _PIT_MASA_CLOCK_FIELDS
+        + _PIT_PPO_CLOCK_FIELDS
+    )
+)
+
+_PIT_MODEL_PROVENANCE_FIELDS: tuple[str, ...] = (
+    "masa_provenance_present",
+    "ppo_provenance_present",
 )
 
 _REQUIRED_PIT_FINALITY_FIELDS: tuple[str, ...] = (
@@ -96,17 +124,34 @@ _REQUIRED_PIT_FINALITY_FIELDS: tuple[str, ...] = (
     "label_finalized",
 )
 
-_PIT_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
+_PIT_SHARED_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
     ("candle_open_time", "candle_close_time", "CANDLE_WINDOW_NOT_FINAL", True),
+    (
+        "candle_close_time",
+        "event_time",
+        "CANDLE_CLOSE_TIME_AFTER_EVENT_TIME",
+        False,
+    ),
+    ("event_time", "ingested_at", "EVENT_TIME_AFTER_INGESTED_AT", False),
+    (
+        "ingested_at",
+        "source_available_at",
+        "INGESTED_AT_AFTER_SOURCE_AVAILABLE_AT",
+        False,
+    ),
+    (
+        "source_available_at",
+        "generated_at",
+        "SOURCE_AVAILABLE_AT_AFTER_GENERATED_AT",
+        False,
+    ),
+    ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT", False),
     (
         "candle_close_time",
         "feature_cutoff",
         "CANDLE_CLOSE_TIME_AFTER_FEATURE_CUTOFF",
         False,
     ),
-    ("event_time", "ingested_at", "EVENT_TIME_AFTER_INGESTED_AT", False),
-    ("event_time", "feature_cutoff", "EVENT_TIME_AFTER_FEATURE_CUTOFF", False),
-    ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT", False),
     (
         "feature_cutoff",
         "generated_at",
@@ -128,32 +173,8 @@ _PIT_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
     ),
     (
         "decision_time",
-        "ppo_decision_time",
-        "DECISION_TIME_AFTER_PPO_DECISION_TIME",
-        False,
-    ),
-    (
-        "masa_feature_cutoff",
-        "ppo_decision_time",
-        "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
-        False,
-    ),
-    (
-        "ppo_feature_cutoff",
-        "ppo_decision_time",
-        "PPO_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
-        False,
-    ),
-    (
-        "ppo_decision_time",
-        "execution_time",
-        "PPO_DECISION_TIME_AFTER_EXECUTION_TIME",
-        False,
-    ),
-    (
-        "execution_time",
         "outcome_available_at",
-        "OUTCOME_AVAILABLE_BEFORE_EXECUTION",
+        "OUTCOME_AVAILABLE_BEFORE_DECISION",
         False,
     ),
     (
@@ -176,23 +197,76 @@ _PIT_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
     ),
 )
 
+_PIT_EXECUTED_PAPER_CLOCK_ORDER_RULES: tuple[
+    tuple[str, str, str, bool], ...
+] = (
+    (
+        "decision_time",
+        "execution_time",
+        "DECISION_TIME_AFTER_EXECUTION_TIME",
+        False,
+    ),
+    (
+        "execution_time",
+        "outcome_available_at",
+        "OUTCOME_AVAILABLE_BEFORE_EXECUTION",
+        False,
+    ),
+)
+
+_PIT_MASA_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
+    (
+        "masa_feature_cutoff",
+        "decision_time",
+        "MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME",
+        False,
+    ),
+)
+
+_PIT_PPO_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
+    (
+        "decision_time",
+        "ppo_decision_time",
+        "DECISION_TIME_AFTER_PPO_DECISION_TIME",
+        False,
+    ),
+    (
+        "ppo_feature_cutoff",
+        "ppo_decision_time",
+        "PPO_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+        False,
+    ),
+)
+
 
 def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
-    """Fail-closed replay timing audit for offline tuning inputs.
+    """Fail-closed, lane-aware timing audit for offline tuning inputs.
 
-    The sweep trains on trusted replay/feedback rows, but it is still a
-    recovery tool: before spending GPU cycles, verify that row-level timing
-    fields do not imply future leakage into the decision window.
+    An executed paper outcome and a counterfactual label do not share an
+    execution contract. Likewise, MASA/PPO clocks are meaningful only when the
+    producer explicitly declares that provenance. This audit never infers a
+    lane and never fills an exact clock from an estimate or alias.
     """
     audit_observed_at = datetime.now(UTC)
     violations: list[dict[str, Any]] = []
     missing_trust_row_count = 0
     missing_decision_time_count = 0
-    missing_clock_counts = {field: 0 for field in _REQUIRED_PIT_CLOCK_FIELDS}
-    invalid_clock_counts = {field: 0 for field in _REQUIRED_PIT_CLOCK_FIELDS}
+    missing_clock_counts = {field: 0 for field in _ALL_PIT_CLOCK_FIELDS}
+    invalid_clock_counts = {field: 0 for field in _ALL_PIT_CLOCK_FIELDS}
     missing_finality_counts = {
         field: 0 for field in _REQUIRED_PIT_FINALITY_FIELDS
     }
+    missing_provenance_counts = {
+        field: 0 for field in _PIT_MODEL_PROVENANCE_FIELDS
+    }
+    invalid_provenance_counts = {
+        field: 0 for field in _PIT_MODEL_PROVENANCE_FIELDS
+    }
+    evidence_lane_counts = {lane: 0 for lane in _PIT_EVIDENCE_LANES}
+    missing_evidence_lane_count = 0
+    invalid_evidence_lane_count = 0
+    missing_execution_occurred_count = 0
+    invalid_execution_occurred_count = 0
     checked_rows = 0
 
     def add_violation(
@@ -220,8 +294,143 @@ def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
             missing_trust_row_count += 1
             continue
         checked_rows += 1
+
+        raw_lane = row.get(_PIT_EVIDENCE_LANE_FIELD)
+        evidence_lane: str | None = None
+        if raw_lane in (None, ""):
+            missing_evidence_lane_count += 1
+            add_violation(
+                index=index,
+                example=example,
+                field=_PIT_EVIDENCE_LANE_FIELD,
+                observed=raw_lane,
+                reason="TRAINING_EVIDENCE_LANE_MISSING",
+            )
+        else:
+            normalized_lane = str(raw_lane).strip().upper()
+            if normalized_lane not in _PIT_EVIDENCE_LANES:
+                invalid_evidence_lane_count += 1
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=_PIT_EVIDENCE_LANE_FIELD,
+                    observed=str(raw_lane),
+                    reason="TRAINING_EVIDENCE_LANE_INVALID",
+                )
+            else:
+                evidence_lane = normalized_lane
+                evidence_lane_counts[evidence_lane] += 1
+
+        raw_execution_occurred = row.get("execution_occurred")
+        execution_occurred: bool | None = None
+        if raw_execution_occurred is None:
+            missing_execution_occurred_count += 1
+            add_violation(
+                index=index,
+                example=example,
+                field="execution_occurred",
+                observed=raw_execution_occurred,
+                reason="EXECUTION_OCCURRED_MISSING",
+            )
+        elif not isinstance(raw_execution_occurred, bool):
+            invalid_execution_occurred_count += 1
+            add_violation(
+                index=index,
+                example=example,
+                field="execution_occurred",
+                observed=str(raw_execution_occurred),
+                reason="EXECUTION_OCCURRED_NOT_BOOLEAN",
+            )
+        else:
+            execution_occurred = raw_execution_occurred
+
+        if evidence_lane == _PIT_EXECUTED_PAPER_LANE:
+            if execution_occurred is not True:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="execution_occurred",
+                    observed=raw_execution_occurred,
+                    reason="EXECUTED_PAPER_REQUIRES_EXECUTION_OCCURRED_TRUE",
+                )
+        elif evidence_lane == _PIT_COUNTERFACTUAL_LANE:
+            if execution_occurred is not False:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="execution_occurred",
+                    observed=raw_execution_occurred,
+                    reason="COUNTERFACTUAL_REQUIRES_EXECUTION_OCCURRED_FALSE",
+                )
+            if row.get("execution_time") not in (None, ""):
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="execution_time",
+                    observed=str(row.get("execution_time")),
+                    reason="COUNTERFACTUAL_EXECUTION_TIME_PRESENT",
+                )
+
+        model_provenance: dict[str, bool | None] = {}
+        for provenance_field in _PIT_MODEL_PROVENANCE_FIELDS:
+            raw_provenance = row.get(provenance_field)
+            if raw_provenance is None:
+                missing_provenance_counts[provenance_field] += 1
+                model_provenance[provenance_field] = None
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=provenance_field,
+                    observed=raw_provenance,
+                    reason=f"{provenance_field.upper()}_MISSING",
+                )
+            elif not isinstance(raw_provenance, bool):
+                invalid_provenance_counts[provenance_field] += 1
+                model_provenance[provenance_field] = None
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=provenance_field,
+                    observed=str(raw_provenance),
+                    reason=f"{provenance_field.upper()}_NOT_BOOLEAN",
+                )
+            else:
+                model_provenance[provenance_field] = raw_provenance
+
+        masa_provenance_present = (
+            model_provenance.get("masa_provenance_present") is True
+        )
+        ppo_provenance_present = (
+            model_provenance.get("ppo_provenance_present") is True
+        )
+        for provenance_present, component, fields in (
+            (masa_provenance_present, "MASA", _PIT_MASA_CLOCK_FIELDS),
+            (ppo_provenance_present, "PPO", _PIT_PPO_CLOCK_FIELDS),
+        ):
+            if provenance_present:
+                continue
+            for field in fields:
+                if row.get(field) not in (None, ""):
+                    add_violation(
+                        index=index,
+                        example=example,
+                        field=field,
+                        observed=str(row.get(field)),
+                        reason=(
+                            f"{field.upper()}_PRESENT_WITHOUT_DECLARED_"
+                            f"{component}_PROVENANCE"
+                        ),
+                    )
+
         clocks: dict[str, datetime] = {}
-        for field in _REQUIRED_PIT_CLOCK_FIELDS:
+        required_clock_fields = list(_REQUIRED_SHARED_PIT_CLOCK_FIELDS)
+        if evidence_lane == _PIT_EXECUTED_PAPER_LANE:
+            required_clock_fields.extend(_PIT_EXECUTED_PAPER_CLOCK_FIELDS)
+        if masa_provenance_present:
+            required_clock_fields.extend(_PIT_MASA_CLOCK_FIELDS)
+        if ppo_provenance_present:
+            required_clock_fields.extend(_PIT_PPO_CLOCK_FIELDS)
+        for field in dict.fromkeys(required_clock_fields):
             raw_value = row.get(field)
             if raw_value in (None, ""):
                 missing_clock_counts[field] += 1
@@ -283,7 +492,63 @@ def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
                 reason="CLOSED_CANDLE_EVIDENCE_CONFLICT",
             )
 
-        for left, right, reason, strict in _PIT_CLOCK_ORDER_RULES:
+        canonical_source_fields = (
+            "candle_close_time",
+            "event_time",
+            "ingested_at",
+            "source_available_at",
+        )
+        if all(field in clocks for field in canonical_source_fields):
+            canonical_source_available_at = max(
+                clocks["candle_close_time"],
+                clocks["event_time"],
+                clocks["ingested_at"],
+            )
+            if clocks["source_available_at"] != canonical_source_available_at:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="source_available_at",
+                    observed=clocks["source_available_at"].isoformat(),
+                    reason="SOURCE_AVAILABLE_AT_NOT_CANONICAL_MAX",
+                )
+
+        clock_order_rules = list(_PIT_SHARED_CLOCK_ORDER_RULES)
+        if evidence_lane == _PIT_EXECUTED_PAPER_LANE:
+            clock_order_rules.extend(_PIT_EXECUTED_PAPER_CLOCK_ORDER_RULES)
+        if masa_provenance_present:
+            clock_order_rules.extend(_PIT_MASA_CLOCK_ORDER_RULES)
+        if ppo_provenance_present:
+            clock_order_rules.extend(_PIT_PPO_CLOCK_ORDER_RULES)
+            ppo_terminal_clock = (
+                "execution_time"
+                if evidence_lane == _PIT_EXECUTED_PAPER_LANE
+                else "outcome_available_at"
+            )
+            ppo_terminal_reason = (
+                "PPO_DECISION_TIME_AFTER_EXECUTION_TIME"
+                if evidence_lane == _PIT_EXECUTED_PAPER_LANE
+                else "PPO_DECISION_TIME_AFTER_OUTCOME_AVAILABLE_AT"
+            )
+            clock_order_rules.append(
+                (
+                    "ppo_decision_time",
+                    ppo_terminal_clock,
+                    ppo_terminal_reason,
+                    False,
+                )
+            )
+        if masa_provenance_present and ppo_provenance_present:
+            clock_order_rules.append(
+                (
+                    "masa_feature_cutoff",
+                    "ppo_decision_time",
+                    "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+                    False,
+                )
+            )
+
+        for left, right, reason, strict in clock_order_rules:
             if left not in clocks or right not in clocks:
                 continue
             ordered = (
@@ -350,17 +615,38 @@ def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
                         ),
                     )
     return {
-        "schema_version": "trainer_offline_point_in_time_safety_v2",
+        "schema_version": "trainer_offline_point_in_time_safety_v3",
         "checked_rows": checked_rows,
         "missing_trust_row_count": missing_trust_row_count,
         "missing_decision_time_count": missing_decision_time_count,
-        "required_clock_fields": list(_REQUIRED_PIT_CLOCK_FIELDS),
+        "evidence_lane_field": _PIT_EVIDENCE_LANE_FIELD,
+        "supported_evidence_lanes": list(_PIT_EVIDENCE_LANES),
+        "evidence_lane_counts": evidence_lane_counts,
+        "missing_evidence_lane_count": missing_evidence_lane_count,
+        "invalid_evidence_lane_count": invalid_evidence_lane_count,
+        "execution_occurred_field": "execution_occurred",
+        "missing_execution_occurred_count": missing_execution_occurred_count,
+        "invalid_execution_occurred_count": invalid_execution_occurred_count,
+        "required_clock_fields": list(_REQUIRED_SHARED_PIT_CLOCK_FIELDS),
+        "lane_required_clock_fields": {
+            _PIT_EXECUTED_PAPER_LANE: list(_PIT_EXECUTED_PAPER_CLOCK_FIELDS),
+            _PIT_COUNTERFACTUAL_LANE: [],
+        },
+        "model_provenance_clock_fields": {
+            "masa_provenance_present": list(_PIT_MASA_CLOCK_FIELDS),
+            "ppo_provenance_present": list(_PIT_PPO_CLOCK_FIELDS),
+        },
+        "required_model_provenance_fields": list(
+            _PIT_MODEL_PROVENANCE_FIELDS
+        ),
         "required_finality_fields": list(_REQUIRED_PIT_FINALITY_FIELDS),
         "training_evaluation_observation_cutoff_field": "training_observed_at",
         "evaluation_observed_at": audit_observed_at.isoformat(),
         "missing_clock_counts": missing_clock_counts,
         "invalid_clock_counts": invalid_clock_counts,
         "missing_finality_counts": missing_finality_counts,
+        "missing_provenance_counts": missing_provenance_counts,
+        "invalid_provenance_counts": invalid_provenance_counts,
         "violation_count": len(violations),
         "violation_reasons": sorted({row["reason"] for row in violations}),
         "violations_sample": violations[:50],

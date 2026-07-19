@@ -38,13 +38,20 @@ def _example(index: int, action_index: int) -> TrainingExample:
         trust_row={
             "accepted_for_training": True, "reject_reasons": [],
             "trust_schema_version": TRUST_SCHEMA_VERSION,
+            "training_evidence_lane": "EXECUTED_PAPER",
+            "execution_occurred": True,
+            "masa_provenance_present": True,
+            "ppo_provenance_present": True,
+            "paper_learning_lane": "OUTCOME_SUPERVISED_PAPER",
             "mtf_snapshot_id": f"mtf_{index}", "mtf_snapshot_valid": True,
             "replay_snapshot_id": f"replay_{index}", "candle_closed_confirmed": True,
             "closed_candle": True,
             "candle_open_time": "2026-06-18T23:59:00Z",
             "candle_close_time": "2026-06-19T00:00:00Z",
-            "event_time": "2026-06-19T00:00:00Z",
-            "ingested_at": "2026-06-19T00:00:01Z",
+            # A final WSS close event is allowed to follow the candle cutoff.
+            "event_time": "2026-06-19T00:00:00.250Z",
+            "ingested_at": "2026-06-19T00:00:00.500Z",
+            "source_available_at": "2026-06-19T00:00:00.500Z",
             "feature_cutoff": "2026-06-19T00:00:00Z",
             "generated_at": "2026-06-19T00:00:02Z",
             "available_at": "2026-06-19T00:00:03Z",
@@ -72,6 +79,31 @@ def _example(index: int, action_index: int) -> TrainingExample:
             "uses_expected_move_as_realized_reward": False,
         },
     )
+
+
+def _counterfactual_example(index: int = 0) -> TrainingExample:
+    """Shape one row like the edge-factory counterfactual producer contract."""
+    example = _example(index, 1)
+    assert example.trust_row is not None
+    example.trust_row.update(
+        {
+            "training_evidence_lane": "COUNTERFACTUAL",
+            "execution_occurred": False,
+            "trainer_feedback_source": "CONTINUOUS_EDGE_FACTORY_COUNTERFACTUAL",
+            "future_window_label_source": (
+                "continuous_edge_factory_counterfactual_closed_candle"
+            ),
+            "counterfactual_label_matured": True,
+            "entry_time": "2026-06-19T00:01:00Z",
+            "exit_time": "2026-06-19T00:02:00Z",
+            # The producer's generated_utc is label-generation time; the PIT
+            # audit must continue to consume exact generated_at separately.
+            "generated_utc": "2026-06-19T00:02:02Z",
+            "label_generated_at": "2026-06-19T00:02:02Z",
+        }
+    )
+    example.trust_row.pop("execution_time", None)
+    return example
 
 
 def _rows(n: int) -> list[TrainingExample]:
@@ -283,14 +315,20 @@ def test_stage_recovery_checkpoint_rejects_overfit_candidate_without_write(
 
 
 def test_point_in_time_safety_report_passes_good_rows() -> None:
-    report = point_in_time_safety_report(_rows(3))
+    report = point_in_time_safety_report([*_rows(3), _counterfactual_example(4)])
     assert report["passed"] is True
-    assert report["schema_version"] == "trainer_offline_point_in_time_safety_v2"
-    assert report["checked_rows"] == 3
+    assert report["schema_version"] == "trainer_offline_point_in_time_safety_v3"
+    assert report["checked_rows"] == 4
+    assert report["evidence_lane_counts"] == {
+        "EXECUTED_PAPER": 3,
+        "COUNTERFACTUAL": 1,
+    }
     assert report["violation_count"] == 0
     assert not any(report["missing_clock_counts"].values())
     assert not any(report["invalid_clock_counts"].values())
     assert not any(report["missing_finality_counts"].values())
+    assert not any(report["missing_provenance_counts"].values())
+    assert not any(report["invalid_provenance_counts"].values())
     assert report["training_evaluation_observation_cutoff_field"] == (
         "training_observed_at"
     )
@@ -305,6 +343,7 @@ def test_pit_gate_rejects_naive_2099_clocks_and_missing_candle_finality() -> Non
             "candle_close_time": "2099-01-01T00:00:10Z",
             "event_time": "2099-01-01T00:00:10Z",
             "ingested_at": "2099-01-01T00:00:11Z",
+            "source_available_at": "2099-01-01T00:00:11Z",
             "feature_cutoff": "2099-01-01T00:00:10Z",
             "generated_at": "2099-01-01T00:00:12Z",
             "available_at": "2099-01-01T00:00:13Z",
@@ -345,6 +384,129 @@ def test_pit_gate_fails_closed_when_any_required_clock_is_missing() -> None:
         report = point_in_time_safety_report(rows)
         assert report["passed"] is False
         assert f"{field.upper()}_MISSING" in report["violation_reasons"]
+
+
+def test_pit_gate_enforces_executed_and_counterfactual_lane_semantics() -> None:
+    counterfactual = _counterfactual_example()
+    assert point_in_time_safety_report([counterfactual])["passed"] is True
+
+    assert counterfactual.trust_row is not None
+    counterfactual.trust_row["execution_time"] = "2026-06-19T00:01:05Z"
+    report = point_in_time_safety_report([counterfactual])
+    assert report["passed"] is False
+    assert "COUNTERFACTUAL_EXECUTION_TIME_PRESENT" in report["violation_reasons"]
+
+    counterfactual.trust_row.pop("execution_time")
+    counterfactual.trust_row["execution_occurred"] = True
+    report = point_in_time_safety_report([counterfactual])
+    assert "COUNTERFACTUAL_REQUIRES_EXECUTION_OCCURRED_FALSE" in report[
+        "violation_reasons"
+    ]
+
+    executed = _example(1, 1)
+    assert executed.trust_row is not None
+    executed.trust_row.pop("execution_time")
+    report = point_in_time_safety_report([executed])
+    assert report["passed"] is False
+    assert "EXECUTION_TIME_MISSING" in report["violation_reasons"]
+
+
+def test_pit_gate_allows_wss_event_after_feature_cutoff_but_rejects_bad_ingest_order() -> None:
+    row = _counterfactual_example()
+    assert point_in_time_safety_report([row])["passed"] is True
+
+    assert row.trust_row is not None
+    assert sweep_mod._parse_utc(row.trust_row["event_time"]) > sweep_mod._parse_utc(
+        row.trust_row["feature_cutoff"]
+    )
+    row.trust_row["source_available_at"] = "2026-06-19T00:00:00.750Z"
+    report = point_in_time_safety_report([row])
+    assert "SOURCE_AVAILABLE_AT_NOT_CANONICAL_MAX" in report["violation_reasons"]
+
+    row.trust_row["source_available_at"] = "2026-06-19T00:00:00.500Z"
+    row.trust_row["ingested_at"] = "2026-06-19T00:00:00.100Z"
+    report = point_in_time_safety_report([row])
+    assert report["passed"] is False
+    assert "EVENT_TIME_AFTER_INGESTED_AT" in report["violation_reasons"]
+
+
+def test_pit_gate_requires_model_clocks_only_for_declared_provenance() -> None:
+    row = _counterfactual_example()
+    assert row.trust_row is not None
+    row.trust_row.update(
+        {
+            "masa_provenance_present": False,
+            "ppo_provenance_present": False,
+        }
+    )
+    row.trust_row.pop("masa_feature_cutoff")
+    row.trust_row.pop("ppo_feature_cutoff")
+    row.trust_row.pop("ppo_decision_time")
+    assert point_in_time_safety_report([row])["passed"] is True
+
+    row.trust_row["ppo_decision_time"] = "2026-06-19T00:01:00Z"
+    report = point_in_time_safety_report([row])
+    assert report["passed"] is False
+    assert (
+        "PPO_DECISION_TIME_PRESENT_WITHOUT_DECLARED_PPO_PROVENANCE"
+        in report["violation_reasons"]
+    )
+
+    row.trust_row["ppo_provenance_present"] = True
+    report = point_in_time_safety_report([row])
+    assert report["passed"] is False
+    assert "PPO_FEATURE_CUTOFF_MISSING" in report["violation_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("exact_field", "alias_field"),
+    [
+        ("event_time", "source_event_time_est"),
+        ("source_available_at", "source_available_time"),
+        ("generated_at", "generated_utc"),
+    ],
+)
+def test_pit_gate_does_not_substitute_alias_or_estimate_clocks(
+    exact_field: str,
+    alias_field: str,
+) -> None:
+    row = _counterfactual_example()
+    assert row.trust_row is not None
+    exact_value = row.trust_row.pop(exact_field)
+    row.trust_row[alias_field] = exact_value
+    report = point_in_time_safety_report([row])
+    assert report["passed"] is False
+    assert f"{exact_field.upper()}_MISSING" in report["violation_reasons"]
+
+
+def test_pit_gate_rejects_legacy_counterfactual_producer_row() -> None:
+    row = _counterfactual_example()
+    assert row.trust_row is not None
+    legacy_fields = {
+        "available_at",
+        "feature_cutoff",
+        "decision_time",
+        "masa_feature_cutoff",
+        "ppo_feature_cutoff",
+        "candle_close_time",
+        "candle_closed_confirmed",
+        "generated_utc",
+        "label_available_at",
+    }
+    legacy_row = {
+        key: value
+        for key, value in row.trust_row.items()
+        if key in legacy_fields
+    }
+    row.trust_row.clear()
+    row.trust_row.update(legacy_row)
+
+    report = point_in_time_safety_report([row])
+    assert report["passed"] is False
+    assert "TRAINING_EVIDENCE_LANE_MISSING" in report["violation_reasons"]
+    assert "EVENT_TIME_MISSING" in report["violation_reasons"]
+    assert "SOURCE_AVAILABLE_AT_MISSING" in report["violation_reasons"]
+    assert "GENERATED_AT_MISSING" in report["violation_reasons"]
 
 
 @pytest.mark.parametrize(
