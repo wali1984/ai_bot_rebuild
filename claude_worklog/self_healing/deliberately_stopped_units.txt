@@ -5,3 +5,8 @@
 #
 # Example:
 # ai-bot-v2-orchestrator-arbitration-loop.service
+
+# Codex containment 2026-07-18: keep every canonical paper writer stopped until
+# the guard respects service holds and one-shot writers share the writer lock.
+ai-bot-v2-production-replacement-runtime-guard.service
+ai-bot-v2-trade-management-paper-loop.service

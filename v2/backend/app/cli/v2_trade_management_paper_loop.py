@@ -124,7 +124,10 @@ PAPER_ADAPTIVE_SIZING_RUNTIME_STATUS_REDIS_KEY = (
 DEFAULT_PAYLOAD_PATH = Path(
     "v2/frontend/public/operator_runtime/v2_trade_management_paper/live/latest/v2_trade_management_paper_live_status.json"
 )
-PAPER_LOOP_LOCK_PATH = Path("logs/v2_trade_management_paper_loop.lock")
+PAPER_LOOP_LOCK_PATH = (
+    Path(__file__).resolve().parents[4]
+    / "logs/v2_trade_management_paper_loop.lock"
+)
 CHECKPOINT_DIR = Path(".local_models/v2_native_rl_masa_ppo")
 TRADE_MANAGEMENT_PUBLIC_DIR = Path(
     "v2/frontend/public/operator_runtime/v2_paper_trade_management/latest"
@@ -35449,6 +35452,24 @@ def run_once() -> dict:
     return status
 
 
+_run_once_without_writer_lock = run_once
+
+
+def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
+    """Run one paper cycle only while holding the canonical writer lock."""
+    writer_lock_handle = _try_acquire_loop_lock()
+    if writer_lock_handle is None:
+        raise RuntimeError("PAPER_WRITER_LOCK_ALREADY_HELD")
+    try:
+        if behavior_receipt_archive_root is None:
+            return _run_once_without_writer_lock()
+        return _run_once_without_writer_lock(
+            behavior_receipt_archive_root=behavior_receipt_archive_root,
+        )
+    finally:
+        writer_lock_handle.close()
+
+
 def write_payload(payload: dict, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
@@ -35645,30 +35666,8 @@ def _try_acquire_loop_lock(path: Path = PAPER_LOOP_LOCK_PATH) -> TextIO | None:
     return handle
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="v2_trade_management_paper_loop")
-    parser.add_argument("--once", action="store_true")
-    parser.add_argument("--loop", action="store_true")
-    parser.add_argument("--interval-seconds", type=int, default=60)
-    parser.add_argument("--out", type=Path, default=DEFAULT_PAYLOAD_PATH)
-    parser.add_argument("--mark-forward-canary-cutover", action="store_true")
-    args = parser.parse_args(argv)
-    if args.loop and args.mark_forward_canary_cutover:
-        parser.error("--mark-forward-canary-cutover is only valid for controlled one-shot runs")
+def _main_with_writer_lock(args: argparse.Namespace) -> int:
     if args.loop:
-        loop_lock_handle = _try_acquire_loop_lock()
-        if loop_lock_handle is None:
-            print(json.dumps({
-                "classification": "V2_TRADE_MANAGEMENT_PAPER_LOOP_ALREADY_RUNNING",
-                "generated_utc": _utc_iso(),
-                "pid": os.getpid(),
-                "lock_path": str(PAPER_LOOP_LOCK_PATH),
-                "out_path_not_written": str(args.out),
-                "paper_only": True,
-                "places_real_order": False,
-                "writes_legacy_redis": False,
-            }, sort_keys=True))
-            return 0
         # Drain-on-SIGTERM: run_once persists paper state across MANY
         # sequential redis writes (closed_trades, accepted_fills, positions,
         # ledger, ...). A restart signal landing mid-sequence splits them —
@@ -35686,7 +35685,7 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(signal.SIGTERM, _request_drain_stop)
         signal.signal(signal.SIGINT, _request_drain_stop)
         while True:
-            hb = run_once()
+            hb = _run_once_without_writer_lock()
             _write_compact_public_status(hb, args.out)
             if _drain_stop.is_set():
                 print(json.dumps({
@@ -35705,7 +35704,7 @@ def main(argv: list[str] | None = None) -> int:
                     "paper_only": True,
                 }, sort_keys=True))
                 return 0
-    hb = run_once()
+    hb = _run_once_without_writer_lock()
     cutover_marker_status = None
     if args.mark_forward_canary_cutover:
         _write_compact_public_status(hb, args.out)
@@ -35731,6 +35730,38 @@ def main(argv: list[str] | None = None) -> int:
         ),
     }))
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="v2_trade_management_paper_loop")
+    parser.add_argument("--once", action="store_true")
+    parser.add_argument("--loop", action="store_true")
+    parser.add_argument("--interval-seconds", type=int, default=60)
+    parser.add_argument("--out", type=Path, default=DEFAULT_PAYLOAD_PATH)
+    parser.add_argument("--mark-forward-canary-cutover", action="store_true")
+    args = parser.parse_args(argv)
+    if args.loop and args.mark_forward_canary_cutover:
+        parser.error("--mark-forward-canary-cutover is only valid for controlled one-shot runs")
+    writer_lock_handle = _try_acquire_loop_lock()
+    if writer_lock_handle is None:
+        print(json.dumps({
+            "classification": "V2_TRADE_MANAGEMENT_PAPER_WRITER_ALREADY_RUNNING",
+            "generated_utc": _utc_iso(),
+            "pid": os.getpid(),
+            "lock_path": str(PAPER_LOOP_LOCK_PATH),
+            "invocation_mode": "loop" if args.loop else "one_shot",
+            "out_path_not_written": str(args.out),
+            "paper_only": True,
+            "places_real_order": False,
+            "writes_legacy_redis": False,
+        }, sort_keys=True))
+        return 75
+    try:
+        return _main_with_writer_lock(args)
+    finally:
+        close = getattr(writer_lock_handle, "close", None)
+        if callable(close):
+            close()
 
 
 if __name__ == "__main__":

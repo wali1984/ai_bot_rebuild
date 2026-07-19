@@ -1,9 +1,8 @@
 """V2 production replacement runtime guard.
 
-Runs the five V2 production-equivalent loops once each, verifies the
-expected v2:* Redis namespaces are non-empty, emits a heartbeat
-payload, and refuses to say "monitoring ready" unless the required
-chain is live.
+Runs the non-writer V2 production-equivalent phases once, observes the
+canonical paper writer without impersonating it, verifies the expected
+v2:* Redis namespaces, and refuses readiness unless the chain is live.
 """
 from __future__ import annotations
 
@@ -30,6 +29,11 @@ WORKLOG_STATUS_MD = (
 )
 
 PHASES = ("ingestors", "features", "rl_core", "orchestrator", "trade_mgmt")
+CANONICAL_PAPER_LOOP_UNIT = "ai-bot-v2-trade-management-paper-loop.service"
+DELIBERATELY_STOPPED_FILE = (
+    REPO / "claude_worklog/self_healing/deliberately_stopped_units.txt"
+)
+DELIBERATELY_STOPPED_REDIS_KEY = "v2:self_healing:deliberately_stopped"
 EXPECTED_NAMESPACES = (
     "v2:market:",
     "v2:features:",
@@ -110,7 +114,132 @@ def _count_pattern(r, pattern: str) -> int:
     return n
 
 
+def _canonical_paper_loop_hold_status() -> dict:
+    """Return the effective operator-hold state for the canonical paper writer.
+
+    This guard historically called the paper CLI directly, bypassing systemd
+    drop-ins on the canonical service. Treat an unavailable systemd proof as a
+    hold as well: a monitoring helper must not create an uncoordinated writer.
+    """
+    cmd = [
+        "systemctl",
+        "--user",
+        "show",
+        CANONICAL_PAPER_LOOP_UNIT,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--property=SubState",
+        "--property=MainPID",
+        "--property=RefuseManualStart",
+        "--property=ExecStart",
+        "--property=DropInPaths",
+    ]
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except Exception as exc:
+        return {
+            "held": True,
+            "reason": "PAPER_LOOP_HOLD_PROOF_UNAVAILABLE",
+            "detail": f"{type(exc).__name__}: {exc}",
+            "unit": CANONICAL_PAPER_LOOP_UNIT,
+        }
+    if result.returncode != 0:
+        return {
+            "held": True,
+            "reason": "PAPER_LOOP_HOLD_PROOF_UNAVAILABLE",
+            "detail": (result.stderr or "")[-200:],
+            "unit": CANONICAL_PAPER_LOOP_UNIT,
+        }
+    properties: dict[str, str] = {}
+    for line in (result.stdout or "").splitlines():
+        key, separator, value = line.partition("=")
+        if separator:
+            properties[key] = value
+    reasons: list[str] = []
+    deliberately_stopped_units: set[str] = set()
+    try:
+        if DELIBERATELY_STOPPED_FILE.exists():
+            deliberately_stopped_units.update(
+                line.strip()
+                for line in DELIBERATELY_STOPPED_FILE.read_text().splitlines()
+                if line.strip() and not line.strip().startswith("#")
+            )
+    except OSError:
+        reasons.append("DELIBERATELY_STOPPED_FILE_UNREADABLE")
+    redis_client = _connect_redis()
+    if redis_client is not None:
+        try:
+            deliberately_stopped_units.update(
+                redis_client.smembers(DELIBERATELY_STOPPED_REDIS_KEY) or []
+            )
+        except Exception:
+            reasons.append("DELIBERATELY_STOPPED_REDIS_SET_UNREADABLE")
+    if CANONICAL_PAPER_LOOP_UNIT in deliberately_stopped_units:
+        reasons.append("DELIBERATELY_STOPPED_MARKER")
+    load_state = properties.get("LoadState", "")
+    exec_start = properties.get("ExecStart", "")
+    if load_state in {"masked", "not-found", "error"}:
+        reasons.append(f"LOAD_STATE_{load_state.upper().replace('-', '_')}")
+    if properties.get("RefuseManualStart", "").lower() == "yes":
+        reasons.append("REFUSE_MANUAL_START")
+    if "path=/usr/bin/true" in exec_start or "argv[]=/usr/bin/true" in exec_start:
+        reasons.append("EFFECTIVE_EXEC_START_NOOP")
+    return {
+        "held": bool(reasons),
+        "reason": (
+            "PAPER_LOOP_EXPLICIT_OPERATOR_HOLD"
+            if reasons
+            else "PAPER_LOOP_NOT_EXPLICITLY_HELD"
+        ),
+        "hold_evidence": reasons,
+        "unit": CANONICAL_PAPER_LOOP_UNIT,
+        "load_state": load_state,
+        "active_state": properties.get("ActiveState"),
+        "sub_state": properties.get("SubState"),
+        "main_pid": properties.get("MainPID"),
+        "refuse_manual_start": properties.get("RefuseManualStart"),
+        "effective_exec_start": exec_start,
+        "drop_in_paths": properties.get("DropInPaths"),
+    }
+
+
 def _run_phase(phase: str) -> dict:
+    if phase == "trade_mgmt":
+        hold_status = _canonical_paper_loop_hold_status()
+        if hold_status["held"] is True:
+            return {
+                "phase": phase,
+                "returncode": None,
+                "status": "SKIPPED_CANONICAL_PAPER_LOOP_HELD",
+                "hold_status": hold_status,
+                "stdout_tail": "",
+                "stderr_tail": "",
+            }
+        active = hold_status.get("active_state") == "active"
+        main_pid = str(hold_status.get("main_pid") or "0")
+        if active and main_pid not in {"", "0"}:
+            return {
+                "phase": phase,
+                "returncode": 0,
+                "status": "OBSERVED_CANONICAL_PAPER_LOOP_ACTIVE",
+                "hold_status": hold_status,
+                "stdout_tail": "canonical paper writer observed active",
+                "stderr_tail": "",
+            }
+        return {
+            "phase": phase,
+            "returncode": 3,
+            "status": "CANONICAL_PAPER_LOOP_NOT_ACTIVE",
+            "hold_status": hold_status,
+            "stdout_tail": "",
+            "stderr_tail": "canonical paper writer is not active",
+        }
     cmd = [
         ".venv/bin/python",
         "v2/backend/scripts/run_v2_production_chain_once.py",
@@ -125,6 +254,7 @@ def _run_phase(phase: str) -> dict:
         return {
             "phase": phase,
             "returncode": r.returncode,
+            "status": "COMPLETED",
             "stdout_tail": (r.stdout or "")[-400:],
             "stderr_tail": (r.stderr or "")[-200:],
         }
@@ -132,6 +262,7 @@ def _run_phase(phase: str) -> dict:
         return {
             "phase": phase,
             "returncode": -1,
+            "status": "FAILED",
             "stdout_tail": "",
             "stderr_tail": f"{type(exc).__name__}: {exc}",
         }
@@ -145,6 +276,10 @@ def run_guard() -> dict:
     namespace_counts = {ns: _count_pattern(r, ns + "*") for ns in EXPECTED_NAMESPACES}
     total_v2 = _count_pattern(r, f"{V2_REDIS_PREFIX}*")
     required_workers_running = all(p["returncode"] == 0 for p in phases_results)
+    held_phases = [
+        p for p in phases_results
+        if p.get("status") == "SKIPPED_CANONICAL_PAPER_LOOP_HELD"
+    ]
     namespace_non_empty = all(
         namespace_counts[ns] > 0
         for ns in (
@@ -174,6 +309,9 @@ def run_guard() -> dict:
             failed_checks.append(f"payload_stale:{path}:age_seconds={age}")
     if not required_workers_running:
         failed_checks.append("phase_returncode_nonzero")
+    for phase in held_phases:
+        hold_reason = phase.get("hold_status", {}).get("reason", "UNKNOWN")
+        failed_checks.append(f"phase_operator_held:{phase['phase']}:{hold_reason}")
     if not failed_checks:
         classification = "V2_PRODUCTION_REPLACEMENT_RUNTIME_READY_STABLE"
     elif required_workers_running and namespace_non_empty and redis_ok:
@@ -189,6 +327,7 @@ def run_guard() -> dict:
         "v2_namespace_counts": namespace_counts,
         "v2_total_key_count": total_v2,
         "required_workers_returncode_ok": required_workers_running,
+        "operator_held_phases": held_phases,
         "required_namespaces_non_empty": namespace_non_empty,
         "required_processes_status": process_status,
         "all_required_processes_running": all_required_processes_running,

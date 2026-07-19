@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8055,7 +8058,8 @@ def test_main_once_routes_public_status_through_compact_writer(
         "v2_paper_keys_written_count": 1,
     }
     writes: list[tuple[dict[str, object], Path]] = []
-    monkeypatch.setattr(paper_loop, "run_once", lambda: status)
+    monkeypatch.setattr(paper_loop, "_run_once_without_writer_lock", lambda: status)
+    monkeypatch.setattr(paper_loop, "_try_acquire_loop_lock", lambda: object())
     monkeypatch.setattr(
         paper_loop,
         "_write_compact_public_status",
@@ -8067,6 +8071,97 @@ def test_main_once_routes_public_status_through_compact_writer(
 
     assert result == 0
     assert writes == [(status, output_path)]
+
+
+def test_main_once_fails_closed_before_cycle_when_writer_lock_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(paper_loop, "_try_acquire_loop_lock", lambda: None)
+
+    def unexpected_cycle() -> dict:
+        raise AssertionError("lock-blocked one-shot must not run a paper cycle")
+
+    monkeypatch.setattr(paper_loop, "_run_once_without_writer_lock", unexpected_cycle)
+
+    result = paper_loop.main(["--once", "--out", str(tmp_path / "blocked.json")])
+
+    assert result == 75
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["classification"] == "V2_TRADE_MANAGEMENT_PAPER_WRITER_ALREADY_RUNNING"
+    assert receipt["invocation_mode"] == "one_shot"
+
+
+def test_direct_run_once_fails_closed_when_writer_lock_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "paper-writer.lock"
+    acquire = paper_loop._try_acquire_loop_lock  # noqa: SLF001
+    existing_writer = acquire(lock_path)
+    assert existing_writer is not None
+    monkeypatch.setattr(
+        paper_loop,
+        "_try_acquire_loop_lock",
+        lambda: acquire(lock_path),
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match="PAPER_WRITER_LOCK_ALREADY_HELD"):
+            paper_loop.run_once()
+    finally:
+        existing_writer.close()
+
+
+def test_default_writer_lock_contends_across_different_working_directories(
+    tmp_path: Path,
+) -> None:
+    assert paper_loop.PAPER_LOOP_LOCK_PATH.is_absolute()
+    first_cwd = tmp_path / "first"
+    second_cwd = tmp_path / "second"
+    first_cwd.mkdir()
+    second_cwd.mkdir()
+    repo_root = Path(paper_loop.__file__).resolve().parents[4]
+    env = {**os.environ, "PYTHONPATH": str(repo_root)}
+    holder_code = (
+        "from v2.backend.app.cli import v2_trade_management_paper_loop as p;"
+        "h=p._try_acquire_loop_lock();"
+        "print('LOCKED' if h is not None else 'FAILED', flush=True);"
+        "input()"
+    )
+    contender_code = (
+        "from v2.backend.app.cli import v2_trade_management_paper_loop as p;"
+        "h=p._try_acquire_loop_lock();"
+        "print('BLOCKED' if h is None else 'ACQUIRED')"
+    )
+    holder = subprocess.Popen(
+        [sys.executable, "-c", holder_code],
+        cwd=first_cwd,
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert holder.stdout is not None
+        assert holder.stdout.readline().strip() == "LOCKED"
+        contender = subprocess.run(
+            [sys.executable, "-c", contender_code],
+            cwd=second_cwd,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=True,
+        )
+        assert contender.stdout.strip() == "BLOCKED"
+    finally:
+        if holder.stdin is not None:
+            holder.stdin.write("\n")
+            holder.stdin.flush()
+        holder.communicate(timeout=30)
 
 
 def test_main_loop_routes_each_public_status_through_compact_writer(
@@ -8088,7 +8183,7 @@ def test_main_loop_routes_each_public_status_through_compact_writer(
         def wait(self, timeout: float) -> bool:
             return True
 
-    monkeypatch.setattr(paper_loop, "run_once", lambda: status)
+    monkeypatch.setattr(paper_loop, "_run_once_without_writer_lock", lambda: status)
     monkeypatch.setattr(paper_loop, "_try_acquire_loop_lock", lambda: object())
     monkeypatch.setattr(paper_loop.threading, "Event", DrainAfterFirstCycle)
     monkeypatch.setattr(paper_loop.signal, "signal", lambda *_args: None)
