@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
@@ -278,10 +279,16 @@ def _model_output(**overrides) -> SimpleNamespace:
     )
 
 
-def test_clean_path_produces_structurally_valid_prediction_payload() -> None:
+def test_clean_path_produces_structurally_valid_prediction_payload(
+    tmp_path: Path,
+) -> None:
     client = _MemoryClient()
     _seed(client)
-    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client), tensor_builder=_StubTensorBuilder())
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(client=client),
+        tensor_builder=_StubTensorBuilder(),
+        counterfactual_archive_path=tmp_path / "counterfactual.sqlite3",
+    )
 
     example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
     trusted = loader.load_training_examples(symbols=("BTCUSDT",), timeframes=("1m",), trusted_only=True)
@@ -362,14 +369,20 @@ def test_hold_with_directional_edge_is_diagnostic_only_and_blocked() -> None:
     )
 
 
-def test_corrupt_path_is_blocked_before_training_and_prediction() -> None:
+def test_corrupt_path_is_blocked_before_training_and_prediction(
+    tmp_path: Path,
+) -> None:
     client = _MemoryClient()
     _seed(
         client,
         feature_overrides={"available_at": "2026-06-11T00:01:06Z"},
         prediction_overrides={"masa_feature_cutoff": "2026-06-11T00:01:06Z"},
     )
-    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=client), tensor_builder=_StubTensorBuilder())
+    loader = V2HybridTrainerDataLoader(
+        io=V2OnlyJsonIO(client=client),
+        tensor_builder=_StubTensorBuilder(),
+        counterfactual_archive_path=tmp_path / "counterfactual.sqlite3",
+    )
 
     example = loader.build_example(symbol="BTCUSDT", timeframe="1m")
     trusted = loader.load_training_examples(symbols=("BTCUSDT",), timeframes=("1m",), trusted_only=True)
