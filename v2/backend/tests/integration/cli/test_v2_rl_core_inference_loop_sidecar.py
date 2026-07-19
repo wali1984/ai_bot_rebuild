@@ -4,6 +4,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import Mock
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 if str(REPO_ROOT) not in sys.path:
@@ -141,3 +142,68 @@ def test_rl_core_loop_uses_active_native_checkpoint_evidence_without_fake_sideca
     assert status["checkpoint_evidence"]["native_model_weights_load_verified"] is True
     assert status["checkpoint_evidence"]["model_weights_loaded_into_v2_process"] is False
     assert status["checkpoint_evidence"]["weight_deserialization_performed"] is False
+
+
+def test_rl_core_loop_publishes_exact_trust_gate_rejection_reasons(monkeypatch) -> None:
+    redis = _MemoryRedis()
+
+    monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
+    monkeypatch.setattr(
+        loop,
+        "_read_feature_snapshot",
+        lambda r, symbol, tf: {"feature_snapshot_id": "fs_btc_1m"},
+    )
+    monkeypatch.setattr(loop, "_read_checkpoint_evidence", lambda r: {})
+
+    import v2.backend.app.services.rl_core.trainer_output as trainer_output
+    from v2.backend.app.services.market_state_integrity.trust import (
+        TrustGateRejectedError,
+        TrustGateResult,
+    )
+
+    trust_result = TrustGateResult(
+        accepted=False,
+        severity="reject",
+        reject_reasons=(
+            "required_feature_missing:oi_change_pct",
+            "required_feature_missing:last_liq_bps_24h",
+        ),
+        warnings=("feature_payload_dataclass_received",),
+        data_quality_score=0.73,
+        future_leak_detected=False,
+        cutoff_mismatch_detected=False,
+        replay_required=True,
+        metrics={"latency_ms": 81, "missing_candle_count": 0},
+    )
+
+    monkeypatch.setattr(
+        trainer_output,
+        "emit_trainer_output",
+        Mock(
+            side_effect=TrustGateRejectedError(
+                "observation_builder_trust_gate_rejected",
+                decision_id="decision_btc_1m",
+                trust_gate_result=trust_result,
+            )
+        ),
+    )
+
+    status = loop.run_once(("BTCUSDT",), "1m")
+
+    assert status["classification"] == "BLOCKED_BY_MARKET_STATE_TRUST_GATE"
+    assert status["predictions_count"] == 0
+    assert status["trust_gate_rejection_count"] == 1
+    assert status["predictions_blocked"] == [
+        "BTCUSDT:TRUST_GATE_REJECTED:required_feature_missing:oi_change_pct,"
+        "required_feature_missing:last_liq_bps_24h"
+    ]
+    assert status["trust_gate_rejections"] == [
+        {
+            "symbol": "BTCUSDT",
+            "decision_id": "decision_btc_1m",
+            "message": "observation_builder_trust_gate_rejected",
+            **trust_result.to_dict(),
+        }
+    ]
+    heartbeat = json.loads(redis.store["v2:trainer:heartbeat"])
+    assert heartbeat["trust_gate_rejections"] == status["trust_gate_rejections"]

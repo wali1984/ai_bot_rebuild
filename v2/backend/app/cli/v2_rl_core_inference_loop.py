@@ -231,6 +231,7 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
     keys_written: list[str] = []
     predictions: list[dict] = []
     blocked: list[str] = []
+    trust_gate_rejections: list[dict] = []
     open_gate: list[str] = []
     for sym in symbols:
         snap = _read_feature_snapshot(r, sym, timeframe)
@@ -244,7 +245,21 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
                 checkpoint_blocker=checkpoint_blocker,
             )
         except TrustGateRejectedError as exc:
-            blocked.append(sym + ":TRUST_GATE_REJECTED:" + str(exc))
+            trust_gate_result = exc.trust_gate_result.to_dict()
+            reject_reasons = [
+                str(reason)
+                for reason in trust_gate_result.get("reject_reasons", [])
+            ]
+            concise_reason = ",".join(reject_reasons) or str(exc)
+            blocked.append(sym + ":TRUST_GATE_REJECTED:" + concise_reason)
+            trust_gate_rejections.append(
+                {
+                    "symbol": sym,
+                    "decision_id": exc.decision_id,
+                    "message": str(exc),
+                    **trust_gate_result,
+                }
+            )
             continue
         gate = validate_for_paper_fill_gate(rec)
         prediction = {
@@ -328,6 +343,8 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
         "predictions_count": len(predictions),
         "predictions_with_open_gate": open_gate,
         "predictions_blocked": blocked,
+        "trust_gate_rejection_count": len(trust_gate_rejections),
+        "trust_gate_rejections": trust_gate_rejections,
         "v2_prediction_keys_written": keys_written,
         "v2_prediction_keys_written_count": len(keys_written),
         "classification": classification,
