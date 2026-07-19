@@ -40,6 +40,10 @@ interface IngestorRow {
   upstream_error_payloads: number;
   newest_event_age_seconds: number | null;
   status: string;
+  provider_current?: boolean;
+  provider_usable?: boolean;
+  provider_unusable_reason?: string | null;
+  must_not_label_as_current_source?: boolean;
 }
 
 interface IngestorStatusData {
@@ -279,6 +283,101 @@ function StatusLegend({ rows }: { rows: IngestorRow[] }) {
   );
 }
 
+/** Freshness colour: only live ingestors grade by age; others take their status colour. */
+function ageColor(status: string, age: number | null | undefined): string {
+  if (status !== 'live') return STATUS_COLOR[status] ?? 'var(--text-muted)';
+  if (age == null) return 'var(--text-muted)';
+  if (age < 60) return 'var(--buy, #21C784)';
+  if (age < 300) return '#A8841F';
+  return 'var(--sell, #FF5D7A)';
+}
+
+function Stat({ label, value, color, mono }: { label: string; value: React.ReactNode; color?: string; mono?: boolean }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      <span style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: color ?? 'var(--text-primary)', fontFamily: mono ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+    </div>
+  );
+}
+
+/** One ingestor as a full-field glass status card — every field from the real payload. */
+function IngestorStatusCard({ row }: { row: IngestorRow }) {
+  const color = STATUS_COLOR[row.status] ?? 'var(--text-muted)';
+  const hasErrors = (row.upstream_error_payloads ?? 0) > 0;
+  const providerKnown = row.provider_current !== undefined || row.provider_usable !== undefined;
+  return (
+    <Link
+      to={`/markets/ingestors/${row.name}`}
+      data-testid={`ingestor-status-card-${row.name}`}
+      className="glass glass-hover"
+      style={{ display: 'block', textDecoration: 'none', padding: '14px 16px', borderLeft: `3px solid ${color}` }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 12 }}>
+        <span style={{ minWidth: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.title}</span>
+        <span style={{ flex: '0 0 auto', padding: '2px 9px', borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', color, background: `color-mix(in oklch, ${color} 14%, transparent)`, border: `1px solid color-mix(in oklch, ${color} 40%, transparent)`, textTransform: 'uppercase' }}>{row.status.replace(/_/g, ' ')}</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '10px 14px' }}>
+        <Stat label="Freshness" value={fmtAge(row.newest_event_age_seconds)} color={ageColor(row.status, row.newest_event_age_seconds)} mono />
+        <Stat label="Keys / symbols" value={row.key_count != null ? row.key_count.toLocaleString() : '—'} mono />
+        <Stat label="Sampled payloads" value={row.sampled_payloads != null ? row.sampled_payloads.toLocaleString() : '—'} mono />
+        <Stat label="Upstream errors" value={row.upstream_error_payloads ?? 0} color={hasErrors ? 'var(--sell, #FF5D7A)' : 'var(--buy, #21C784)'} mono />
+        {providerKnown ? (
+          <>
+            <Stat label="Provider current" value={row.provider_current ? 'yes' : 'no'} color={row.provider_current ? 'var(--buy, #21C784)' : 'var(--text-muted)'} />
+            <Stat label="Provider usable" value={row.provider_usable ? 'yes' : 'no'} color={row.provider_usable ? 'var(--buy, #21C784)' : 'var(--sell, #FF5D7A)'} />
+          </>
+        ) : null}
+      </div>
+      {row.provider_unusable_reason ? (
+        <div style={{ marginTop: 10, fontSize: 11, color: 'var(--sell, #FF5D7A)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.provider_unusable_reason}>⚠ {row.provider_unusable_reason.replace(/_/g, ' ')}</div>
+      ) : null}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--glass-border, var(--border))', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ minWidth: 0, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.redis_pattern}>{row.redis_pattern}</span>
+        <span style={{ flex: '0 0 auto', fontSize: 11, color: 'var(--accent, #22D3C5)', fontWeight: 600 }}>View stream →</span>
+      </div>
+    </Link>
+  );
+}
+
+const STATUS_RANK: Record<string, number> = { upstream_error: 0, offline: 1, stale: 2, not_started: 3, live: 4 };
+
+/** Full per-ingestor status grid — problems surfaced first, every real field shown. */
+function IngestorCardGrid({ rows }: { rows: IngestorRow[] }) {
+  const sorted = useMemo(
+    () => [...rows].sort((a, b) => (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) || a.title.localeCompare(b.title)),
+    [rows],
+  );
+  const counts = useMemo(() => {
+    const c = { total: rows.length, live: 0, stale: 0, offline: 0, upstream_error: 0, not_started: 0 } as Record<string, number>;
+    for (const r of rows) c[r.status] = (c[r.status] ?? 0) + 1;
+    return c;
+  }, [rows]);
+  const summary: Array<{ label: string; key: string }> = [
+    { label: 'Total', key: 'total' },
+    { label: 'Live', key: 'live' },
+    { label: 'Stale', key: 'stale' },
+    { label: 'Upstream error', key: 'upstream_error' },
+    { label: 'Offline', key: 'offline' },
+    { label: 'Not started', key: 'not_started' },
+  ];
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, marginBottom: 14 }}>
+        {summary.map((s) => (
+          <div key={s.key} className="glass" style={{ padding: '10px 14px' }}>
+            <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</span>
+            <span style={{ display: 'block', fontSize: 22, fontWeight: 800, fontFamily: 'var(--font-mono)', color: s.key === 'total' ? 'var(--text-primary)' : (STATUS_COLOR[s.key] ?? 'var(--text-primary)') }}>{counts[s.key] ?? 0}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+        {sorted.map((row) => <IngestorStatusCard key={row.name} row={row} />)}
+      </div>
+    </div>
+  );
+}
+
 /** Hub view: every ingestor as charts — status donut, freshness bars, coverage bars. */
 function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
   const donutData = useMemo(() => {
@@ -305,7 +404,10 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
   );
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+    <>
+      <IngestorCardGrid rows={rows} />
+      <h3 style={{ margin: '4px 0 12px', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fleet visualisation</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
       <div className="glass" style={panelStyle}>
         <PanelTitle>Ingestor status</PanelTitle>
         <ResponsiveContainer width="100%" height={220}>
@@ -359,6 +461,7 @@ function IngestorsHub({ rows }: { rows: IngestorRow[] }) {
         </ResponsiveContainer>
       </div>
     </div>
+    </>
   );
 }
 
@@ -609,7 +712,14 @@ export default function MarketsIngestorsPage() {
       <div style={{ padding: '18px 24px' }}>
         <ProviderTruthPanel providers={providerStatus.envelope.data} />
         {name ? (
-          <IngestorDetail name={name} />
+          <>
+            {active ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 340px))', gap: 14, marginBottom: 16 }}>
+                <IngestorStatusCard row={active} />
+              </div>
+            ) : null}
+            <IngestorDetail name={name} />
+          </>
         ) : (
           <IngestorsHub rows={rows} />
         )}
