@@ -46,6 +46,11 @@ def publish_moralis_result(
     now = _now()
     envelope = {
         **normalized,
+        # The normalized event is the source observation. The cutoff is the
+        # latest source observation included in this endpoint feature family;
+        # availability is assigned only when the completed envelope is about
+        # to be published.
+        "feature_cutoff": normalized.get("event_time"),
         "available_at": now,
         "ingested_at": now,
         "generated_at": now,
@@ -94,7 +99,7 @@ def publish_moralis_result(
                 wallet_watchlist_count=wallet_watchlist_count,
                 actual_payload_present=feature_payload.get("actual_payload_present") is True,
                 event_time=feature_payload.get("event_time"),
-                available_at=feature_payload.get("available_at"),
+                feature_cutoff=feature_payload.get("feature_cutoff"),
                 ttl_seconds=feature_ttl,
                 stale_after=feature_payload.get("stale_after"),
                 compute_unit_status=budget_status,
@@ -244,6 +249,7 @@ def _merge_feature_payload(
     budget_status: Mapping[str, Any] | None = None,
 ) -> tuple[dict[str, Any], int]:
     endpoint_payloads: dict[str, dict[str, Any]] = {}
+    endpoint_temporal_rejections: list[str] = []
     now_dt = _parse_utc(now) or datetime.now(timezone.utc)
     try:
         raw = redis_client.get(key)
@@ -259,28 +265,49 @@ def _merge_feature_payload(
                     expires_at = _parse_utc(row.get("expires_at"))
                     if expires_at is None or expires_at <= now_dt:
                         continue
+                    temporal_reasons = _endpoint_temporal_rejection_reasons(
+                        row,
+                        observed_at=now_dt,
+                    )
+                    if temporal_reasons:
+                        endpoint_temporal_rejections.extend(
+                            f"{endpoint_id}:{reason}" for reason in temporal_reasons
+                        )
+                        continue
                     endpoint_payloads[str(endpoint_id)] = dict(row)
     except Exception:
         endpoint_payloads = {}
 
     if actual:
         expires_at = now_dt + timedelta(seconds=spec.ttl_seconds)
-        endpoint_payloads[spec.endpoint_id] = {
+        endpoint_row = {
             "endpoint_id": spec.endpoint_id,
             "feature_family": spec.group,
             "features": dict(envelope.get("features") or {}),
             "event_time": envelope.get("event_time"),
             "available_at": envelope.get("available_at"),
-            "feature_cutoff": envelope.get("event_time") or envelope.get("available_at"),
+            "feature_cutoff": envelope.get("feature_cutoff"),
+            "generated_at": envelope.get("generated_at"),
             "expires_at": expires_at.isoformat(timespec="seconds").replace("+00:00", "Z"),
             "actual_payload_present": True,
             "status": status,
             "ttl_seconds": spec.ttl_seconds,
         }
+        temporal_reasons = _endpoint_temporal_rejection_reasons(
+            endpoint_row,
+            observed_at=now_dt,
+        )
+        if temporal_reasons:
+            endpoint_temporal_rejections.extend(
+                f"{spec.endpoint_id}:{reason}" for reason in temporal_reasons
+            )
+        else:
+            endpoint_payloads[spec.endpoint_id] = endpoint_row
 
     merged_features: dict[str, float] = {}
     active_expires: list[datetime] = []
     event_times: list[str] = []
+    feature_cutoffs: list[str] = []
     available_times: list[str] = []
     for row in endpoint_payloads.values():
         features = row.get("features") if isinstance(row.get("features"), Mapping) else {}
@@ -294,6 +321,8 @@ def _merge_feature_payload(
             active_expires.append(expires_at)
         if row.get("event_time"):
             event_times.append(str(row.get("event_time")))
+        if row.get("feature_cutoff"):
+            feature_cutoffs.append(str(row.get("feature_cutoff")))
         if row.get("available_at"):
             available_times.append(str(row.get("available_at")))
 
@@ -302,8 +331,9 @@ def _merge_feature_payload(
     if active_expires:
         ttl = max(1, int((min(active_expires) - now_dt).total_seconds()))
     aggregate_status = "READY" if aggregate_actual else status
-    event_time = max(event_times) if event_times else envelope.get("event_time")
-    available_at = max(available_times) if available_times else envelope.get("available_at")
+    event_time = _latest_strict_utc(event_times) or envelope.get("event_time")
+    feature_cutoff = _latest_strict_utc(feature_cutoffs) or envelope.get("feature_cutoff")
+    source_available_at = _latest_strict_utc(available_times) or envelope.get("available_at")
     payload = build_moralis_feature_payload(
         symbol=str(envelope.get("symbol") or ""),
         timeframe=str(envelope.get("timeframe") or "1m"),
@@ -312,7 +342,7 @@ def _merge_feature_payload(
         wallet_watchlist_count=wallet_watchlist_count,
         actual_payload_present=aggregate_actual,
         event_time=event_time,
-        available_at=available_at,
+        feature_cutoff=feature_cutoff,
         ttl_seconds=ttl,
         stale_after=ttl,
         compute_unit_status=budget_status or envelope.get("compute_budget_status") or {},
@@ -325,20 +355,35 @@ def _merge_feature_payload(
     bridge_stale = payload.get("stale_feature_flags")
     payload.update(
         {
-            **dict(envelope),
+            "chain": envelope.get("chain"),
+            "wallet": envelope.get("wallet"),
+            "token": envelope.get("token"),
+            "ingested_at": envelope.get("ingested_at"),
+            "source_available_at": source_available_at,
+            "compute_budget_status": envelope.get("compute_budget_status"),
+            "last_http_status": envelope.get("last_http_status"),
+            "last_error_class": envelope.get("last_error_class"),
             "schema_version": "moralis_feature_bridge_v1",
             "endpoint_id": "moralis_aggregate",
             "feature_family": "moralis_aggregate",
-            "event_time": event_time,
-            "available_at": available_at,
-            "feature_cutoff": event_time or available_at,
             "features": payload.get("features", {}),
             "endpoint_payloads": endpoint_payloads,
             "actual_payload_endpoint_count": len(endpoint_payloads),
-            "actual_payload_present": aggregate_actual,
-            "heartbeat_only": not aggregate_actual,
-            "subscription_status": aggregate_status,
-            "auth_status": aggregate_status,
+            "endpoint_temporal_rejection_reasons": sorted(
+                set(endpoint_temporal_rejections)
+            ),
+            "rejected_endpoint_count": len(
+                {
+                    reason.split(":", 1)[0]
+                    for reason in endpoint_temporal_rejections
+                }
+            ),
+            "subscription_status": (
+                aggregate_status
+                if payload.get("actual_payload_present") is True
+                else payload.get("status")
+            ),
+            "auth_status": status,
             "status": bridge_status,
             "dashboard_color": bridge_dashboard_color,
             "provider_ready": bridge_provider_ready,
@@ -423,7 +468,7 @@ def _merge_endpoint_status(
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -433,6 +478,44 @@ def _parse_utc(value: Any) -> datetime | None:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
+
+
+def _latest_strict_utc(values: list[str]) -> str | None:
+    parsed = [_parse_utc(value) for value in values]
+    valid = [value for value in parsed if value is not None]
+    if not valid:
+        return None
+    return max(valid).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _endpoint_temporal_rejection_reasons(
+    row: Mapping[str, Any],
+    *,
+    observed_at: datetime,
+) -> list[str]:
+    parsed: dict[str, datetime] = {}
+    reasons: list[str] = []
+    for field in ("event_time", "feature_cutoff", "generated_at", "available_at"):
+        value = row.get(field)
+        if value in (None, ""):
+            reasons.append(f"{field.upper()}_MISSING")
+            continue
+        clock = _parse_utc(value)
+        if clock is None:
+            reasons.append(f"{field.upper()}_NOT_STRICT_UTC")
+            continue
+        parsed[field] = clock
+        if clock > observed_at:
+            reasons.append(f"{field.upper()}_AFTER_OBSERVED_AT")
+
+    for earlier, later, reason in (
+        ("event_time", "feature_cutoff", "EVENT_TIME_AFTER_FEATURE_CUTOFF"),
+        ("feature_cutoff", "generated_at", "FEATURE_CUTOFF_AFTER_GENERATED_AT"),
+        ("generated_at", "available_at", "GENERATED_AT_AFTER_AVAILABLE_AT"),
+    ):
+        if earlier in parsed and later in parsed and parsed[earlier] > parsed[later]:
+            reasons.append(reason)
+    return sorted(set(reasons))

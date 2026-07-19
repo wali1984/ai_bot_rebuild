@@ -11,7 +11,9 @@ Each run it
   2. builds a per-symbol per-family coverage census over the six core
      families the decision pipeline needs:
        - ohlcv_closed  (v2:market:ohlcv_closed:binance:{sym}:{tf},
-                        all 5 decision TFs, >=50 rows each, fresh)
+                        all 5 decision TFs, exact canonical schema,
+                        latest finalized close, and a contiguous suffix meeting
+                        the 71-row core-TA minimum coverage invariant)
        - prices        (v2:market:prices:{sym})
        - orderbook     (v2:market:orderbook:{sym})
        - open_interest (v2:market:open_interest:{sym})
@@ -31,21 +33,23 @@ Each run it
   5. publishes the census to Redis ``v2:universe:coverage_census``
      (with ``generated_utc``) for the dashboard / Monitor Center.
 
-Safety: read-only public market data + Redis writes to the census key
-only. No orders. No credentials. Never live. Runs as a 15-minute
-systemd user timer (ai-bot-v2-universe-coverage-sync.timer).
+Safety: read-only public market data plus bounded atomic Redis writes to exact
+closed-window keys and the census key. No orders. No credentials. Never live.
+Runs as a 15-minute systemd user timer
+(``ai-bot-v2-universe-coverage-sync.timer``).
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 _repo = Path(__file__).resolve().parents[4]
 if str(_repo) not in sys.path:
@@ -54,8 +58,8 @@ if str(_repo) not in sys.path:
 import redis  # noqa: E402
 
 from v2.backend.app.cli.v2_binance_kline_rest_backfill import (  # noqa: E402
-    MIN_CANDLES_THRESHOLD,
     _backfill_symbol_tf,
+    _stable_error_code,
 )
 from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
     binance_rest_fallback_allowed,
@@ -65,15 +69,32 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (  
     TIMEFRAME_SECONDS,
     closed_candle_key,
 )
+from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (  # noqa: E402
+    MAX_SOURCE_PAYLOAD_BYTES,
+    AtomicRedisSourceReadError,
+    RawRedisSourceClient,
+    read_atomic_redis_sources,
+)
+from v2.backend.app.services.native_trainer.feature_window_dependency_contract import (  # noqa: E402
+    CORE_TA_MINIMUM_SOURCE_ROWS,
+    FeatureWindowContractError,
+    inspect_canonical_contiguous_suffix,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (  # noqa: E402
     FEATURE_SPEC,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (  # noqa: E402
+    TIMEFRAME_DURATION_MS,
+    OHLCVClosedWindowValidationError,
+    ValidatedOHLCVClosedWindow,
+    validate_ohlcv_closed_window,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
     resolve_symbols_with_provenance,
 )
 
 WORKER_ID = "v2_universe_coverage_sync"
-SCHEMA_VERSION = "v2_universe_coverage_census_v1"
+SCHEMA_VERSION = "v2_universe_coverage_census_v2"
 CENSUS_REDIS_KEY = "v2:universe:coverage_census"
 # Publisher runs every 15 min; 2h TTL keeps a dead timer visible without
 # leaving a permanently stale census behind (champion/challenger lesson).
@@ -104,9 +125,12 @@ FAMILY_HEAL_PATH = {
     "feature_snapshot": "v2_feature_pipeline_native_loop_next_cycle",
 }
 
+
 # Freshness gates (seconds), env-overridable. Symbol-keyed families use a
-# flat max age; timeframe-keyed families use tf period + grace because a
-# 4h family legitimately only refreshes every 4 hours.
+# flat max age; non-OHLCV timeframe-keyed families use tf period + grace
+# because a 4h family legitimately only refreshes every 4 hours. OHLCV uses
+# exact end-exclusive finality and tail-continuity evidence instead of an age
+# threshold.
 def _env_int(name: str, default: int) -> int:
     try:
         return max(1, int(os.environ.get(name, "") or default))
@@ -121,7 +145,6 @@ PRICES_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_PRICES_MAX_AGE_S", 300)
 # maintaining at its budget-achievable cadence.
 ORDERBOOK_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_ORDERBOOK_MAX_AGE_S", 600)
 OPEN_INTEREST_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_OPEN_INTEREST_MAX_AGE_S", 900)
-OHLCV_GRACE_S = _env_int("V2_UNIVERSE_SYNC_OHLCV_GRACE_S", 300)
 TA_FULL_GRACE_S = _env_int("V2_UNIVERSE_SYNC_TA_FULL_GRACE_S", 1800)
 SNAPSHOT_GRACE_S = _env_int("V2_UNIVERSE_SYNC_SNAPSHOT_GRACE_S", 1800)
 SECONDARY_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_SECONDARY_MAX_AGE_S", 1800)
@@ -131,15 +154,23 @@ SECONDARY_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_SECONDARY_MAX_AGE_S", 1800)
 MAX_BACKFILL_PAIRS_DEFAULT = _env_int("V2_UNIVERSE_SYNC_MAX_BACKFILL_PAIRS", 120)
 BACKFILL_SLEEP_SECONDS = 0.15
 
+# Resource-reporting bound only. The exact schema parser and transport enforce
+# their own fixed row/byte ABI limits; this merely prevents a large universe
+# census from repeating every gap index in its published JSON.
+MAX_REPORTED_OHLCV_GAPS = 32
+OHLCV_COVERAGE_SEMANTICS = (
+    "CORE_TA_MINIMUM_COVERAGE_FLOOR_NOT_EXACT_DEPENDENCY_LENGTH_"
+    "NOT_MARKET_SELECTION_OR_TRAINER_ADMISSION"
+)
+
 STATUS_FILE = (
-    _repo
-    / "v2/frontend/public/operator_runtime/v2_universe_coverage_sync/latest/"
-      "v2_universe_coverage_sync_status.json"
+    _repo / "v2/frontend/public/operator_runtime/v2_universe_coverage_sync/latest/"
+    "v2_universe_coverage_sync_status.json"
 )
 
 
 def _utc_iso(ts: float | None = None) -> str:
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else datetime.now(timezone.utc)
+    dt = datetime.fromtimestamp(ts, tz=UTC) if ts else datetime.now(UTC)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
@@ -148,9 +179,16 @@ def _redis_client() -> redis.Redis:
     return redis.Redis.from_url(url, decode_responses=True)
 
 
+def _ohlcv_binary_redis_client() -> redis.Redis:
+    """Return the dedicated raw client required for exact OHLCV bytes."""
+
+    url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    return redis.Redis.from_url(url, decode_responses=False)
+
+
 def _read_json(r: redis.Redis, key: str) -> Any:
     try:
-        raw = r.get(key)
+        raw = cast(str | bytes | bytearray | None, r.get(key))
     except redis.RedisError:
         return None
     if not raw:
@@ -165,7 +203,7 @@ def _parse_ts_seconds(value: Any) -> float | None:
     """Parse epoch s/ms or ISO-8601 (Z or offset) into epoch seconds."""
     if value is None:
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         v = float(value)
         if v <= 0:
             return None
@@ -184,7 +222,7 @@ def _parse_ts_seconds(value: Any) -> float | None:
             text = text[:-1] + "+00:00"
         dt = datetime.fromisoformat(text)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         return dt.timestamp()
     except ValueError:
         return None
@@ -200,12 +238,68 @@ def _payload_age_seconds(payload: Any, *fields: str) -> float | None:
     return None
 
 
-def _row_close_seconds(row: Any) -> float | None:
-    if isinstance(row, dict):
-        return _parse_ts_seconds(row.get("candle_close_time") or row.get("close_time"))
-    if isinstance(row, (list, tuple)) and len(row) >= 7:
-        return _parse_ts_seconds(row[6])
-    return None
+def _consumer_observed_at_ms() -> int:
+    """Local instant after the exact transport result is possessed."""
+
+    return time.time_ns() // 1_000_000
+
+
+def _ohlcv_base_entry(*, key: str, status: str) -> dict[str, Any]:
+    return {
+        "ok": status == "ok",
+        "reason": status,
+        "coverage_status": status,
+        "source_key": key,
+        "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
+        "coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
+        "market_selection_threshold": False,
+        "source_schema_validated": False,
+        "producer_finality_contract_validated": False,
+        "end_exclusive_consumer_finality_validated": False,
+    }
+
+
+def _bounded_gap_evidence(
+    gap_indices: tuple[int, ...],
+    gap_missing_interval_counts: tuple[int, ...],
+) -> dict[str, Any]:
+    pairs = list(zip(gap_indices, gap_missing_interval_counts, strict=True))
+    material = json.dumps(
+        pairs,
+        ensure_ascii=True,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    reported = pairs[:MAX_REPORTED_OHLCV_GAPS]
+    return {
+        "gap_count": len(pairs),
+        "reported_gap_count": len(reported),
+        "gaps_truncated": len(reported) != len(pairs),
+        "gap_indices": [index for index, _missing in reported],
+        "gap_missing_interval_counts": [missing for _index, missing in reported],
+        "all_gaps_sha256": hashlib.sha256(material.encode("ascii")).hexdigest(),
+    }
+
+
+def _strict_window_evidence(
+    validated: ValidatedOHLCVClosedWindow,
+) -> dict[str, Any]:
+    gaps = _bounded_gap_evidence(
+        validated.gap_indices,
+        validated.gap_missing_interval_counts,
+    )
+    return {
+        "source_schema_version": validated.schema_version,
+        "exact_payload_byte_count": validated.exact_payload_byte_count,
+        "exact_payload_sha256": validated.exact_payload_sha256,
+        "rows": validated.row_count,
+        "row_count": validated.row_count,
+        "first_economic_close_time": validated.first_economic_close_time,
+        "latest_economic_close_time": validated.latest_economic_close_time,
+        "max_available_at": validated.max_available_at,
+        "missing_interval_count": validated.missing_interval_count,
+        **gaps,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -213,30 +307,124 @@ def _row_close_seconds(row: Any) -> float | None:
 # ---------------------------------------------------------------------------
 
 
-def _check_ohlcv_closed(r: redis.Redis, symbol: str) -> dict[str, Any]:
+def _check_ohlcv_closed(
+    r: RawRedisSourceClient,
+    symbol: str,
+) -> dict[str, Any]:
     tfs: dict[str, Any] = {}
     ok_count = 0
     for tf in REQUIRED_DECISION_TIMEFRAMES:
         key = closed_candle_key("binance", symbol, tf)
-        rows = _read_json(r, key)
-        if not isinstance(rows, list) or not rows:
-            tfs[tf] = {"ok": False, "rows": 0, "reason": "missing"}
+        try:
+            batch = read_atomic_redis_sources(r, (key,))
+            # This local clock is intentionally captured immediately after the
+            # exact bounded transport returns. Redis TIME is a server clock,
+            # not when this consumer possessed the bytes.
+            consumer_observed_at_ms = _consumer_observed_at_ms()
+        except AtomicRedisSourceReadError as exc:
+            error_code = _stable_error_code(exc)
+            status = (
+                "oversized"
+                if error_code == "atomic_redis_source_read_payload_bytes_exceeded"
+                else "transport_invalid"
+            )
+            entry = _ohlcv_base_entry(key=key, status=status)
+            entry["transport_error_code"] = error_code
+            if status == "oversized":
+                entry.update(
+                    max_exact_payload_bytes=MAX_SOURCE_PAYLOAD_BYTES,
+                    payload_byte_count_lower_bound=MAX_SOURCE_PAYLOAD_BYTES + 1,
+                )
+            tfs[tf] = entry
             continue
-        newest = max(
-            (s for s in (_row_close_seconds(row) for row in rows) if s is not None),
-            default=None,
+
+        result = batch.results[0]
+        if not result.present:
+            tfs[tf] = _ohlcv_base_entry(key=key, status="missing")
+            continue
+        exact_payload = result.exact_payload_bytes
+        try:
+            validated = validate_ohlcv_closed_window(
+                exact_payload,
+                symbol=symbol,
+                timeframe=tf,
+            )
+        except OHLCVClosedWindowValidationError as exc:
+            entry = _ohlcv_base_entry(key=key, status="schema_invalid")
+            entry.update(
+                exact_payload_byte_count=result.payload_byte_count,
+                exact_payload_sha256=result.payload_sha256,
+                schema_error_code=_stable_error_code(exc),
+                validation_stage="exact_source_schema",
+            )
+            tfs[tf] = entry
+            continue
+
+        duration_ms = TIMEFRAME_DURATION_MS[tf]
+        expected_latest_close = ((consumer_observed_at_ms // duration_ms) * duration_ms) - 1
+        projection = tuple(
+            {
+                "symbol": row.symbol,
+                "timeframe": row.timeframe,
+                "candle_id": row.candle_id,
+                "candle_open_time": row.candle_open_time,
+                "candle_close_time": row.candle_close_time,
+                "available_at": row.available_at,
+            }
+            for row in validated.rows
         )
-        age_s = None if newest is None else max(0.0, time.time() - newest)
-        max_age = TIMEFRAME_SECONDS.get(tf, 3600) + OHLCV_GRACE_S
-        entry: dict[str, Any] = {"rows": len(rows)}
-        if len(rows) < MIN_CANDLES_THRESHOLD:
-            entry.update(ok=False, reason="insufficient_rows")
-        elif age_s is None:
-            entry.update(ok=False, reason="no_close_timestamp")
-        elif age_s > max_age:
-            entry.update(ok=False, reason="stale", age_s=int(age_s))
+        try:
+            inspection = inspect_canonical_contiguous_suffix(
+                projection,
+                expected_symbol=symbol,
+                timeframe=tf,
+                consumer_observed_at_ms=consumer_observed_at_ms,
+                expected_latest_finalized_close_time=expected_latest_close,
+            )
+        except FeatureWindowContractError as exc:
+            entry = _ohlcv_base_entry(key=key, status="schema_invalid")
+            entry.update(_strict_window_evidence(validated))
+            entry.update(
+                source_schema_validated=True,
+                producer_finality_contract_validated=True,
+                consumer_contract_error_code=_stable_error_code(exc),
+                validation_stage="consumer_finality_and_continuity",
+                consumer_observed_at_ms=consumer_observed_at_ms,
+                expected_latest_finalized_close_time=expected_latest_close,
+            )
+            tfs[tf] = entry
+            continue
+
+        if inspection.tail_missing_interval_count != 0:
+            status = "tail_stale"
+        elif inspection.contiguous_suffix_count < CORE_TA_MINIMUM_SOURCE_ROWS:
+            status = "contiguous_suffix_short"
         else:
-            entry.update(ok=True, age_s=int(age_s))
+            status = "ok"
+
+        entry = _ohlcv_base_entry(key=key, status=status)
+        entry.update(_strict_window_evidence(validated))
+        entry.update(
+            ok=status == "ok",
+            source_schema_validated=True,
+            producer_finality_contract_validated=True,
+            end_exclusive_consumer_finality_validated=True,
+            continuity_inspection_version=inspection.schema_version,
+            minimum_coverage_contract_sha256=inspection.contract_sha256,
+            consumer_observed_at_ms=inspection.consumer_observed_at_ms,
+            expected_latest_finalized_close_time=(inspection.expected_latest_finalized_close_time),
+            latest_candle_matches_expected_cutoff=(
+                inspection.latest_candle_matches_expected_cutoff
+            ),
+            tail_missing_interval_count=inspection.tail_missing_interval_count,
+            contiguous_suffix_start_index=inspection.contiguous_suffix_start_index,
+            contiguous_suffix_count=inspection.contiguous_suffix_count,
+            full_contiguous_suffix_candle_id_chain_sha256=(
+                inspection.selected_candle_id_chain_sha256
+            ),
+            core_ta_minimum_coverage_ready=(inspection.core_ta_minimum_coverage_ready),
+        )
+        if status == "ok":
             ok_count += 1
         tfs[tf] = entry
     status = (
@@ -244,7 +432,14 @@ def _check_ohlcv_closed(r: redis.Redis, symbol: str) -> dict[str, Any]:
         if ok_count == len(REQUIRED_DECISION_TIMEFRAMES)
         else ("partial" if ok_count else "missing")
     )
-    return {"status": status, "ok_tfs": ok_count, "tfs": tfs}
+    return {
+        "status": status,
+        "ok_tfs": ok_count,
+        "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
+        "coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
+        "market_selection_threshold": False,
+        "tfs": tfs,
+    }
 
 
 def _check_symbol_keyed(
@@ -363,9 +558,14 @@ def _check_secondary_sources(r: redis.Redis, symbol: str) -> dict[str, Any]:
     return out
 
 
-def _census_symbol(r: redis.Redis, symbol: str) -> dict[str, Any]:
+def _census_symbol(
+    r: redis.Redis,
+    symbol: str,
+    *,
+    ohlcv_r: RawRedisSourceClient,
+) -> dict[str, Any]:
     families: dict[str, Any] = {
-        "ohlcv_closed": _check_ohlcv_closed(r, symbol),
+        "ohlcv_closed": _check_ohlcv_closed(ohlcv_r, symbol),
         "prices": _check_symbol_keyed(
             r,
             f"v2:market:prices:{symbol}",
@@ -416,10 +616,16 @@ def _census_symbol(r: redis.Redis, symbol: str) -> dict[str, Any]:
     return entry
 
 
-def build_census(r: redis.Redis, symbols: list[str], provenance: dict[str, Any]) -> dict[str, Any]:
+def build_census(
+    r: redis.Redis,
+    symbols: list[str],
+    provenance: dict[str, Any],
+    *,
+    ohlcv_r: RawRedisSourceClient,
+) -> dict[str, Any]:
     per_symbol: dict[str, Any] = {}
     for symbol in symbols:
-        per_symbol[symbol] = _census_symbol(r, symbol)
+        per_symbol[symbol] = _census_symbol(r, symbol, ohlcv_r=ohlcv_r)
 
     family_summary: dict[str, dict[str, int]] = {
         fam: {"ok": 0, "partial": 0, "missing": 0, "stale": 0, "no_timestamp": 0}
@@ -430,14 +636,12 @@ def build_census(r: redis.Redis, symbols: list[str], provenance: dict[str, Any])
             status = entry["families"][fam]["status"]
             family_summary[fam][status] = family_summary[fam].get(status, 0) + 1
 
-    gap_symbols = sorted(
-        sym for sym, entry in per_symbol.items() if not entry["fully_covered"]
-    )
+    gap_symbols = sorted(sym for sym, entry in per_symbol.items() if not entry["fully_covered"])
     coverages = [
         entry["families"]["feature_snapshot"].get("feature_spec_coverage_pct")
         for entry in per_symbol.values()
     ]
-    coverages = [c for c in coverages if isinstance(c, (int, float))]
+    coverages = [c for c in coverages if isinstance(c, int | float)]
     return {
         "schema_version": SCHEMA_VERSION,
         "worker_id": WORKER_ID,
@@ -446,7 +650,9 @@ def build_census(r: redis.Redis, symbols: list[str], provenance: dict[str, Any])
         "universe_source": provenance.get("source_path"),
         "universe_profile": provenance.get("symbol_profile"),
         "timeframes": list(REQUIRED_DECISION_TIMEFRAMES),
-        "min_candles_threshold": MIN_CANDLES_THRESHOLD,
+        "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
+        "ohlcv_coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
+        "ohlcv_market_selection_threshold": False,
         "feature_spec_total": len(FEATURE_SPEC),
         "feature_spec_coverage_method": (
             "snapshot_features_only: FEATURE_SPEC names with finite values in "
@@ -458,7 +664,6 @@ def build_census(r: redis.Redis, symbols: list[str], provenance: dict[str, Any])
             "prices_max_age_s": PRICES_MAX_AGE_S,
             "orderbook_max_age_s": ORDERBOOK_MAX_AGE_S,
             "open_interest_max_age_s": OPEN_INTEREST_MAX_AGE_S,
-            "ohlcv_grace_s": OHLCV_GRACE_S,
             "ta_full_grace_s": TA_FULL_GRACE_S,
             "snapshot_grace_s": SNAPSHOT_GRACE_S,
         },
@@ -484,11 +689,12 @@ def build_census(r: redis.Redis, symbols: list[str], provenance: dict[str, Any])
 
 
 def heal_ohlcv_gaps(
-    r: redis.Redis,
+    ohlcv_r: RawRedisSourceClient,
     census: dict[str, Any],
     *,
     max_pairs: int,
     dry_run: bool = False,
+    replace_invalid_existing: bool = False,
 ) -> dict[str, Any]:
     pairs: list[tuple[str, str]] = []
     for symbol, entry in census["symbols"].items():
@@ -501,12 +707,15 @@ def heal_ohlcv_gaps(
         "gap_pairs_found": len(pairs),
         "max_pairs_per_run": max_pairs,
         "attempted": 0,
-        "ok": 0,
+        "writes_committed": 0,
+        "cache_ready_after": 0,
+        "unresolved_after_attempt": 0,
         "errors": 0,
         "rest_fallback_allowed": binance_rest_fallback_allowed(),
         "rest_budget_exhausted": False,
         "skipped_pairs": max(0, len(pairs) - max_pairs),
         "dry_run": dry_run,
+        "replace_invalid_existing_authorized": replace_invalid_existing,
         "details": [],
     }
     if dry_run or not pairs:
@@ -515,25 +724,62 @@ def heal_ohlcv_gaps(
     for symbol, tf in pairs[:max_pairs]:
         result["attempted"] += 1
         try:
-            outcome = _backfill_symbol_tf(r, symbol, tf)
-            result["ok"] += 1
+            outcome = _backfill_symbol_tf(
+                ohlcv_r,
+                symbol,
+                tf,
+                replace_invalid_existing=replace_invalid_existing,
+            )
+            write_committed = outcome.get("write_committed") is True
+            cache_ready_after = outcome.get("cache_ready_after") is True
+            if write_committed:
+                result["writes_committed"] += 1
+            if cache_ready_after:
+                result["cache_ready_after"] += 1
+            else:
+                result["unresolved_after_attempt"] += 1
+            if write_committed and cache_ready_after:
+                status = "write_committed_cache_ready"
+            elif write_committed:
+                status = "write_committed_cache_still_nonready"
+            elif cache_ready_after:
+                status = "cache_ready_no_write"
+            else:
+                status = "unresolved_no_write"
             result["details"].append(
                 {
                     "symbol": symbol,
                     "tf": tf,
-                    "status": "ok",
-                    "closed_ingested": outcome.get("closed_ingested"),
+                    "status": status,
+                    "recovery_status": outcome.get("recovery_status"),
+                    "write_committed": write_committed,
+                    "cache_ready_after": cache_ready_after,
+                    "rows_submitted": outcome.get("rows_submitted"),
                     "total_in_key": outcome.get("total_in_key"),
                     "transport": outcome.get("transport"),
+                    "invalid_existing_replaced": outcome.get("invalid_existing_replaced"),
                 }
             )
         except Exception as exc:  # noqa: BLE001 — census must survive any pair failure
-            message = str(exc)
+            error_code = _stable_error_code(exc)
             result["errors"] += 1
             result["details"].append(
-                {"symbol": symbol, "tf": tf, "status": "error", "error": message[:300]}
+                {
+                    "symbol": symbol,
+                    "tf": tf,
+                    "status": "error",
+                    "error_code": error_code,
+                    "write_committed": False,
+                    "cache_ready_after": False,
+                }
             )
-            if "REST_FALLBACK_BUDGET_EXHAUSTED" in message:
+            if error_code in {
+                "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION",
+                "REST_FALLBACK_COOLDOWN_BAN_PROTECTION",
+                "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED",
+                "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
+                "kline_backfill_http_rate_or_ban_limit",
+            }:
                 # Shared host-wide budget spent: skip the rest of this
                 # cycle; the 15-minute timer retries with a fresh window.
                 result["rest_budget_exhausted"] = True
@@ -610,6 +856,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Cap on (symbol, timeframe) backfill pairs per run (default: %(default)s).",
     )
     parser.add_argument(
+        "--replace-invalid-existing",
+        action="store_true",
+        help=(
+            "Explicitly authorize atomic replacement of invalid existing "
+            "closed-window values. Default healing fails closed."
+        ),
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Print the full after-census JSON to stdout.",
@@ -620,6 +874,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     r = _redis_client()
+    ohlcv_r = _ohlcv_binary_redis_client()
 
     explicit = None
     if args.symbols:
@@ -634,7 +889,7 @@ def main(argv: list[str] | None = None) -> int:
 
     previous = _load_previous_summary(r)
 
-    census_before = build_census(r, symbols, provenance)
+    census_before = build_census(r, symbols, provenance, ohlcv_r=ohlcv_r)
     before_summary = census_before["summary"]
     print(
         f"[{WORKER_ID}] BEFORE: fully_covered="
@@ -645,20 +900,25 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {fam}: {before_summary['families'][fam]}")
 
     heal = heal_ohlcv_gaps(
-        r,
+        ohlcv_r,
         census_before,
         max_pairs=max(0, int(args.max_backfill_pairs)),
         dry_run=bool(args.no_backfill),
+        replace_invalid_existing=bool(args.replace_invalid_existing),
     )
     print(
         f"[{WORKER_ID}] backfill: pairs_found={heal['gap_pairs_found']} "
-        f"attempted={heal['attempted']} ok={heal['ok']} errors={heal['errors']} "
+        f"attempted={heal['attempted']} "
+        f"writes_committed={heal['writes_committed']} "
+        f"cache_ready_after={heal['cache_ready_after']} "
+        f"unresolved={heal['unresolved_after_attempt']} "
+        f"errors={heal['errors']} "
         f"budget_exhausted={heal['rest_budget_exhausted']}"
     )
 
     # After-census re-reads Redis only (cheap) so the published census
     # reflects the post-heal state within the same run.
-    census_after = build_census(r, symbols, provenance)
+    census_after = build_census(r, symbols, provenance, ohlcv_r=ohlcv_r)
     census_after["backfill"] = {k: v for k, v in heal.items() if k != "details"}
     census_after["backfill_details"] = heal["details"][:200]
     census_after["previous_run"] = previous
