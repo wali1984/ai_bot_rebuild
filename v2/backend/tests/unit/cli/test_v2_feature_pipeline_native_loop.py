@@ -808,6 +808,145 @@ def test_feature_snapshot_carries_point_in_time_cost_evidence_from_orderbook(mon
     }
 
 
+def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidence() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    injected = {
+        field: float(index + 1)
+        for index, field in enumerate(sorted(mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS))
+    }
+    injected["optional_external_signal"] = 0.73
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {"indicators": injected}
+    )
+    features = {
+        field: None for field in mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS
+    }
+
+    result = mod._merge_external_v2_features(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        "1m",
+        features,
+    )
+
+    assert all(
+        features[field] is None
+        for field in mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS
+    )
+    assert features["optional_external_signal"] == 0.73
+    assert "v2:features:ta_full" in result["sources_present"]
+
+
+def test_explicit_orderbook_imbalance_must_be_inside_unit_interval() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    market = _market_payload()
+    market["_orderbook"] = {"depth_imbalance": "1.0001"}
+
+    features = mod._features_from_market(market)  # noqa: SLF001
+
+    assert features["depth_imbalance"] is None
+    assert features["toxicity_proxy"] is None
+
+
+def test_snapshot_core_book_and_cost_evidence_uses_only_selected_orderbook(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    open_ms = close_ms - 60_000 + 1
+    market = _market_payload()
+    market["funding"] = {}
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(market)
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
+        {
+            "candle_open_time": open_ms,
+            "candle_close_time": close_ms,
+            **_exact_candle_clocks(close_ms),
+            "open": "99.0",
+            "high": "101.0",
+            "low": "98.0",
+            "close": "100.0",
+            "volume": "1000",
+            "is_closed": True,
+        }
+    ])
+    # This is the one payload selected by _read_orderbook for required/core
+    # evidence.  Explicit recorder imbalance is valid without book arrays.
+    fake.store["v2:market:orderbook:BTCUSDT"] = json.dumps(
+        {
+            "best_bid": "99.0",
+            "best_ask": "101.0",
+            "best_bid_size": "8.0",
+            "best_ask_size": "2.0",
+            "depth_imbalance": "0.6",
+            "actual_observed_spread_entry_bps": "12.5",
+            "bid_depth_usd": "800.0",
+            "ask_depth_usd": "202.0",
+            "orderbook_depth_usd": "202.0",
+            "fee_bps": "3.1",
+            "expected_slippage_bps": "4.2",
+        }
+    )
+    # Optional enrichment reads this key first, but it is not authoritative for
+    # reserved feature/cost fields and deliberately disagrees with every one.
+    fake.store["v2:orderbook:features:binance:BTCUSDT"] = json.dumps(
+        {
+            "best_bid": "1.0",
+            "best_ask": "2.0",
+            "depth_imbalance": "-0.9",
+            "bid_depth_usd": "9.0",
+            "ask_depth_usd": "8.0",
+            "orderbook_depth_usd": "7.0",
+            "spread_bps": "999.0",
+            "depth_slope": "0.33",
+        }
+    )
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {
+            "indicators": {
+                "ret_pct": "0.99",
+                "funding_rate": "0.5",
+                "expected_funding_bps": "5000.0",
+                "paper_position_present": "1",
+                "fee_bps": "91.0",
+                "expected_slippage_bps": "92.0",
+                "actual_observed_spread_entry_bps": "93.0",
+                "toxicity_proxy": "0.95",
+            }
+        }
+    )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
+    mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    features = payload["features"]
+    assert features["depth_imbalance"] == 0.6
+    assert features["toxicity_proxy"] == 0.6
+    assert features["micro_price"] == pytest.approx(100.6)
+    assert features["bid_ask_spread_bps"] == 12.5
+    assert features["actual_observed_spread_entry_bps"] == 12.5
+    assert features["bid_depth_usd"] == 800.0
+    assert features["ask_depth_usd"] == 202.0
+    assert features["orderbook_depth_usd"] == 202.0
+    assert features["fee_bps"] == 3.1
+    assert features["expected_slippage_bps"] == 4.2
+    assert features["expected_funding_bps"] is None
+    assert features["funding_rate"] is None
+    assert features["ret_pct"] is None
+    assert features["paper_position_present"] is None
+    assert features["depth_slope"] == 0.33
+    assert payload["market_cost_evidence_source_fields"] == {
+        "fee_bps": "orderbook.fee_bps",
+        "expected_slippage_bps": "orderbook.expected_slippage_bps",
+    }
+    assert payload["market_cost_evidence_missing_fields"] == [
+        "expected_funding_bps"
+    ]
+
+
 def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()

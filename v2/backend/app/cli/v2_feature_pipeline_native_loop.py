@@ -67,6 +67,23 @@ TRAINER_REQUIRED_FEATURE_FIELDS = (
     "last_liq_bps_24h",
     "paper_position_present",
 )
+CORE_MARKET_COST_EVIDENCE_FIELDS = (
+    "fee_bps",
+    "expected_slippage_bps",
+    "expected_funding_bps",
+    "actual_observed_spread_entry_bps",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "orderbook_depth_usd",
+    "_fee_bps_source",
+    "_expected_slippage_source",
+)
+# Optional feature surfaces are enrichment only.  They must never manufacture
+# a missing trainer input or replace the market-cost evidence derived from the
+# one orderbook payload selected for this snapshot.
+EXTERNAL_ENRICHMENT_RESERVED_FIELDS = frozenset(
+    (*TRAINER_REQUIRED_FEATURE_FIELDS, *CORE_MARKET_COST_EVIDENCE_FIELDS)
+)
 FEATURE_LATEST_TTL_SECONDS = 600
 # 12h default. Audit found ~644K resident snapshot keys (prior OOM was at ~370K)
 # because a legacy 30d TTL backlog was still draining and 24h steady-state sat near
@@ -843,6 +860,8 @@ def _merge_numeric_features(target: dict, source: dict | None, *, prefix: str | 
         if value is None:
             continue
         out_name = f"{prefix}{name}" if prefix else name
+        if out_name in EXTERNAL_ENRICHMENT_RESERVED_FIELDS:
+            continue
         if target.get(out_name) is None:
             target[out_name] = value
             merged += 1
@@ -854,6 +873,8 @@ def _merge_selected_numeric_features(target: dict, source: dict | None, fields: 
         return 0
     merged = 0
     for name in fields:
+        if name in EXTERNAL_ENRICHMENT_RESERVED_FIELDS:
+            continue
         if target.get(name) is not None:
             continue
         value = _coerce_numeric(source.get(name))
@@ -869,6 +890,8 @@ def _merge_numeric_aliases(target: dict, source: dict | None, aliases: tuple[tup
         return 0
     merged = 0
     for out_name, source_names in aliases:
+        if out_name in EXTERNAL_ENRICHMENT_RESERVED_FIELDS:
+            continue
         if target.get(out_name) is not None:
             continue
         for source_name in source_names:
@@ -1615,7 +1638,22 @@ def _features_from_market(market: dict) -> dict:
         htf_rsi_14 = _ta_rsi(htf_closes, 14)
     htf_ret_pct = (closes[-1] / closes[-5] - 1.0) if len(closes) >= 5 and closes[-5] > 0 else None
 
-    depth_imbalance = _ta_orderbook_imbalance(orderbook) if orderbook else None
+    # Use only the orderbook payload selected once by ``_read_orderbook`` for
+    # required book evidence.  The native recorder publishes an explicit
+    # ``depth_imbalance`` without necessarily carrying book levels, so accept
+    # that field before deriving the same statistic from bids/asks.
+    depth_imbalance = None
+    if isinstance(orderbook, dict) and orderbook:
+        explicit_depth_imbalance = _coerce_numeric(
+            orderbook.get("depth_imbalance")
+        )
+        if (
+            explicit_depth_imbalance is not None
+            and -1.0 <= explicit_depth_imbalance <= 1.0
+        ):
+            depth_imbalance = explicit_depth_imbalance
+        if depth_imbalance is None:
+            depth_imbalance = _ta_orderbook_imbalance(orderbook)
 
     # A microprice is a book statistic, not the ticker last price.  Prefer the
     # size-weighted top of book; when sizes are unavailable the observable mid
@@ -1732,10 +1770,12 @@ def _features_from_market(market: dict) -> dict:
         bid_depth_usd = _first_numeric(
             orderbook.get("bid_depth_usd"),
             orderbook.get("book_bid_depth_usd"),
+            orderbook.get("depth_5_bid_usd"),
         )
         ask_depth_usd = _first_numeric(
             orderbook.get("ask_depth_usd"),
             orderbook.get("book_ask_depth_usd"),
+            orderbook.get("depth_5_ask_usd"),
         )
         if bid_depth_usd is None:
             bid_depth_usd = _top_depth_notional_usd(bids)
@@ -1913,8 +1953,6 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         m["_liq_notional_24h"] = _read_liq_notional_24h(r, sym)
         feats = _features_from_market(m)
         external = _merge_external_v2_features(r, sym, timeframe, feats)
-        if feats.get("toxicity_proxy") is None and feats.get("depth_imbalance") is not None:
-            feats["toxicity_proxy"] = abs(float(feats["depth_imbalance"]))
         market_cost_sources = {
             "fee_bps": feats.pop("_fee_bps_source", None),
             "expected_slippage_bps": feats.pop("_expected_slippage_source", None),
