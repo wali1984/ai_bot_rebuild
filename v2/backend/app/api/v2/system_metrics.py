@@ -359,11 +359,15 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
     },
     "moralis": {
         "title": "Moralis Smart-Money Flow",
-        # Raw whale/exchange/token-flow payload namespace (small, scannable).
-        # Status reflects genuine payload freshness; the authoritative provider
-        # health/feature state lives on /api/v2/providers/status (never green from
-        # heartbeat alone). Offline here simply means no fresh raw payload sampled.
-        "pattern": "v2:market:moralis:*",
+        # Raw on-chain payload namespace the provider loop actually writes
+        # (token_transfers/swaps/token_holders/token_price/metadata per contract) —
+        # small, scannable (~19 keys). The legacy `v2:market:moralis:*` symbol-keyed
+        # bridge namespace is not yet populated, so the ingestor read from an empty
+        # pattern and falsely showed offline; point it at the live raw namespace so
+        # status reflects genuine ingestion. Downstream feature-bridge/consumer state
+        # (whether these payloads become trainer features) is the authoritative
+        # /api/v2/providers/status provider card (never green from heartbeat alone).
+        "pattern": "v2:moralis:*",
         "ts_field": None,
         "value_fields": {},
     },
