@@ -40,11 +40,34 @@ def _example(index: int, action_index: int) -> TrainingExample:
             "trust_schema_version": TRUST_SCHEMA_VERSION,
             "mtf_snapshot_id": f"mtf_{index}", "mtf_snapshot_valid": True,
             "replay_snapshot_id": f"replay_{index}", "candle_closed_confirmed": True,
-            "feature_cutoff": "2026-06-19T00:00:00Z", "available_at": "2026-06-19T00:00:00Z",
-            "decision_time": "2026-06-19T00:01:00Z", "features": {"ret_pct": 0.0},
+            "closed_candle": True,
+            "candle_open_time": "2026-06-18T23:59:00Z",
+            "candle_close_time": "2026-06-19T00:00:00Z",
+            "event_time": "2026-06-19T00:00:00Z",
+            "ingested_at": "2026-06-19T00:00:01Z",
+            "feature_cutoff": "2026-06-19T00:00:00Z",
+            "generated_at": "2026-06-19T00:00:02Z",
+            "available_at": "2026-06-19T00:00:03Z",
+            "masa_feature_cutoff": "2026-06-19T00:00:10Z",
+            "ppo_feature_cutoff": "2026-06-19T00:00:20Z",
+            "decision_time": "2026-06-19T00:01:00Z",
+            "ppo_decision_time": "2026-06-19T00:01:00Z",
+            "execution_time": "2026-06-19T00:01:05Z",
+            "outcome_available_at": "2026-06-19T00:02:00Z",
+            "label_available_at": "2026-06-19T00:02:01Z",
+            "training_observed_at": "2026-06-19T00:03:00Z",
+            "evaluation_observed_at": "2026-06-19T00:03:00Z",
+            "outcome_finalized": True,
+            "label_finalized": True,
+            "features": {"ret_pct": 0.0},
             "selected_action": selected, "model_version": "unit", "checkpoint_id": "ckpt_unit",
             "source_hashes": {"feature_vector_hash": f"tensor_{index}"},
-            "outcome_targets": {"realized_net_pnl_bps": expected, "directional_outcome": "UP" if expected > 0 else ("DOWN" if expected < 0 else "FLAT")},
+            "outcome_targets": {
+                "realized_net_pnl_bps": expected,
+                "directional_outcome": (
+                    "UP" if expected > 0 else ("DOWN" if expected < 0 else "FLAT")
+                ),
+            },
             "realized_after_cost_reward": expected / 100.0,
             "uses_expected_move_as_realized_reward": False,
         },
@@ -262,8 +285,124 @@ def test_stage_recovery_checkpoint_rejects_overfit_candidate_without_write(
 def test_point_in_time_safety_report_passes_good_rows() -> None:
     report = point_in_time_safety_report(_rows(3))
     assert report["passed"] is True
+    assert report["schema_version"] == "trainer_offline_point_in_time_safety_v2"
     assert report["checked_rows"] == 3
     assert report["violation_count"] == 0
+    assert not any(report["missing_clock_counts"].values())
+    assert not any(report["invalid_clock_counts"].values())
+    assert not any(report["missing_finality_counts"].values())
+    assert report["training_evaluation_observation_cutoff_field"] == (
+        "training_observed_at"
+    )
+
+
+def test_pit_gate_rejects_naive_2099_clocks_and_missing_candle_finality() -> None:
+    rows = _rows(1)
+    assert rows[0].trust_row is not None
+    rows[0].trust_row.update(
+        {
+            "candle_open_time": "2099-01-01T00:00:00Z",
+            "candle_close_time": "2099-01-01T00:00:10Z",
+            "event_time": "2099-01-01T00:00:10Z",
+            "ingested_at": "2099-01-01T00:00:11Z",
+            "feature_cutoff": "2099-01-01T00:00:10Z",
+            "generated_at": "2099-01-01T00:00:12Z",
+            "available_at": "2099-01-01T00:00:13Z",
+            "masa_feature_cutoff": "2099-01-01T00:00:20Z",
+            "ppo_feature_cutoff": "2099-01-01T00:00:30Z",
+            "decision_time": "2099-01-01T00:01:00",
+            "ppo_decision_time": "2099-01-01T00:01:00Z",
+            "execution_time": "2099-01-01T00:01:05Z",
+            "outcome_available_at": "2099-01-01T00:02:00Z",
+            "label_available_at": "2099-01-01T00:02:01Z",
+            "training_observed_at": "2099-01-01T00:03:00Z",
+            "evaluation_observed_at": "2099-01-01T00:03:00Z",
+            "candle_closed_confirmed": None,
+        }
+    )
+
+    report = point_in_time_safety_report(rows)
+    assert report["passed"] is False
+    assert "DECISION_TIME_NOT_TIMEZONE_AWARE_OR_INVALID" in report[
+        "violation_reasons"
+    ]
+    assert "CANDLE_CLOSED_CONFIRMED_NOT_EXPLICITLY_FINAL" in report[
+        "violation_reasons"
+    ]
+    assert "TRAINING_OBSERVED_AT_AFTER_EVALUATION_OBSERVED_AT" in report[
+        "violation_reasons"
+    ]
+    with pytest.raises(ValueError, match="point-in-time safety"):
+        run_hyperparameter_sweep(rows, grid=[], steps=0, batch_size=1)
+
+
+def test_pit_gate_fails_closed_when_any_required_clock_is_missing() -> None:
+    baseline = point_in_time_safety_report(_rows(1))
+    for field in baseline["required_clock_fields"]:
+        rows = _rows(1)
+        assert rows[0].trust_row is not None
+        rows[0].trust_row.pop(field)
+        report = point_in_time_safety_report(rows)
+        assert report["passed"] is False
+        assert f"{field.upper()}_MISSING" in report["violation_reasons"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["candle_closed_confirmed", "outcome_finalized", "label_finalized"],
+)
+def test_pit_gate_requires_explicit_candle_label_and_outcome_finality(
+    field: str,
+) -> None:
+    rows = _rows(1)
+    assert rows[0].trust_row is not None
+    rows[0].trust_row[field] = None
+    report = point_in_time_safety_report(rows)
+    assert report["passed"] is False
+    assert f"{field.upper()}_NOT_EXPLICITLY_FINAL" in report["violation_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "reason"),
+    [
+        (
+            "available_at",
+            "2026-06-19T00:01:01Z",
+            "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME",
+        ),
+        (
+            "masa_feature_cutoff",
+            "2026-06-19T00:01:01Z",
+            "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+        ),
+        (
+            "ppo_feature_cutoff",
+            "2026-06-19T00:01:01Z",
+            "PPO_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+        ),
+        (
+            "outcome_available_at",
+            "2026-06-19T00:03:01Z",
+            "OUTCOME_AVAILABLE_AT_AFTER_TRAINING_OBSERVED_AT",
+        ),
+        (
+            "label_available_at",
+            "2026-06-19T00:01:59Z",
+            "LABEL_AVAILABLE_BEFORE_OUTCOME",
+        ),
+    ],
+)
+def test_pit_gate_enforces_feature_model_and_outcome_causality(
+    field: str,
+    value: str,
+    reason: str,
+) -> None:
+    rows = _rows(1)
+    assert rows[0].trust_row is not None
+    rows[0].trust_row[field] = value
+    report = point_in_time_safety_report(rows)
+    assert report["passed"] is False
+    assert reason in report["violation_reasons"]
 
 
 def test_sweep_rejects_future_leaking_rows_before_training() -> None:

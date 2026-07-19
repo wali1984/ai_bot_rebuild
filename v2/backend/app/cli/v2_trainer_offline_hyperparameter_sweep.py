@@ -17,22 +17,29 @@ import argparse
 import hashlib
 import json
 import os
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.checkpoint import (
     V2HybridCheckpointManager,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.model import V2HybridPolicyModel
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
-    V2HybridPPOTrainer,
     PPOTrainingResult,
+    V2HybridPPOTrainer,
 )
 
 # One config is a dict of the tunable knobs.
 DEFAULT_GRID: tuple[dict[str, float], ...] = tuple(
-    {"learning_rate": lr, "entropy_coefficient": ec, "supervised_entropy_bonus": 0.0, "weight_decay": 0.02, "dropout": 0.10}
+    {
+        "learning_rate": lr,
+        "entropy_coefficient": ec,
+        "supervised_entropy_bonus": 0.0,
+        "weight_decay": 0.02,
+        "dropout": 0.10,
+    }
     for lr in (3e-5, 1e-4, 3e-4)
     for ec in (0.005, 0.01, 0.02)
 )
@@ -43,7 +50,7 @@ DEFAULT_STAGE_MODEL_DIR = Path(".local_models/v2_native_rl_masa_ppo_offline_reco
 def _parse_utc(value: Any) -> datetime | None:
     if value in (None, "") or isinstance(value, bool):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         try:
             epoch = float(value)
         except (TypeError, ValueError):
@@ -53,24 +60,121 @@ def _parse_utc(value: Any) -> datetime | None:
         if epoch > 10_000_000_000:
             epoch /= 1000.0
         try:
-            return datetime.fromtimestamp(epoch, tz=timezone.utc)
+            return datetime.fromtimestamp(epoch, tz=UTC)
         except (OverflowError, OSError, ValueError):
             return None
     try:
         parsed = datetime.fromisoformat(str(value).strip().replace("Z", "+00:00"))
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(UTC)
 
 
-def _first_time(row: dict[str, Any], *keys: str) -> datetime | None:
-    for key in keys:
-        parsed = _parse_utc(row.get(key))
-        if parsed is not None:
-            return parsed
-    return None
+_REQUIRED_PIT_CLOCK_FIELDS: tuple[str, ...] = (
+    "event_time",
+    "ingested_at",
+    "generated_at",
+    "available_at",
+    "feature_cutoff",
+    "decision_time",
+    "masa_feature_cutoff",
+    "ppo_feature_cutoff",
+    "ppo_decision_time",
+    "execution_time",
+    "outcome_available_at",
+    "label_available_at",
+    "training_observed_at",
+    "candle_open_time",
+    "candle_close_time",
+)
+
+_REQUIRED_PIT_FINALITY_FIELDS: tuple[str, ...] = (
+    "candle_closed_confirmed",
+    "outcome_finalized",
+    "label_finalized",
+)
+
+_PIT_CLOCK_ORDER_RULES: tuple[tuple[str, str, str, bool], ...] = (
+    ("candle_open_time", "candle_close_time", "CANDLE_WINDOW_NOT_FINAL", True),
+    (
+        "candle_close_time",
+        "feature_cutoff",
+        "CANDLE_CLOSE_TIME_AFTER_FEATURE_CUTOFF",
+        False,
+    ),
+    ("event_time", "ingested_at", "EVENT_TIME_AFTER_INGESTED_AT", False),
+    ("event_time", "feature_cutoff", "EVENT_TIME_AFTER_FEATURE_CUTOFF", False),
+    ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT", False),
+    (
+        "feature_cutoff",
+        "generated_at",
+        "FEATURE_CUTOFF_AFTER_GENERATED_AT",
+        False,
+    ),
+    ("generated_at", "available_at", "GENERATED_AT_AFTER_AVAILABLE_AT", False),
+    (
+        "feature_cutoff",
+        "available_at",
+        "FEATURE_CUTOFF_AFTER_AVAILABLE_AT",
+        False,
+    ),
+    (
+        "available_at",
+        "decision_time",
+        "FEATURE_AVAILABLE_AT_AFTER_DECISION_TIME",
+        False,
+    ),
+    (
+        "decision_time",
+        "ppo_decision_time",
+        "DECISION_TIME_AFTER_PPO_DECISION_TIME",
+        False,
+    ),
+    (
+        "masa_feature_cutoff",
+        "ppo_decision_time",
+        "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+        False,
+    ),
+    (
+        "ppo_feature_cutoff",
+        "ppo_decision_time",
+        "PPO_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME",
+        False,
+    ),
+    (
+        "ppo_decision_time",
+        "execution_time",
+        "PPO_DECISION_TIME_AFTER_EXECUTION_TIME",
+        False,
+    ),
+    (
+        "execution_time",
+        "outcome_available_at",
+        "OUTCOME_AVAILABLE_BEFORE_EXECUTION",
+        False,
+    ),
+    (
+        "outcome_available_at",
+        "label_available_at",
+        "LABEL_AVAILABLE_BEFORE_OUTCOME",
+        False,
+    ),
+    (
+        "outcome_available_at",
+        "training_observed_at",
+        "OUTCOME_AVAILABLE_AT_AFTER_TRAINING_OBSERVED_AT",
+        False,
+    ),
+    (
+        "label_available_at",
+        "training_observed_at",
+        "LABEL_AVAILABLE_AT_AFTER_TRAINING_OBSERVED_AT",
+        False,
+    ),
+)
 
 
 def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
@@ -80,68 +184,188 @@ def point_in_time_safety_report(examples: Sequence[Any]) -> dict[str, Any]:
     recovery tool: before spending GPU cycles, verify that row-level timing
     fields do not imply future leakage into the decision window.
     """
+    audit_observed_at = datetime.now(UTC)
     violations: list[dict[str, Any]] = []
     missing_trust_row_count = 0
     missing_decision_time_count = 0
+    missing_clock_counts = {field: 0 for field in _REQUIRED_PIT_CLOCK_FIELDS}
+    invalid_clock_counts = {field: 0 for field in _REQUIRED_PIT_CLOCK_FIELDS}
+    missing_finality_counts = {
+        field: 0 for field in _REQUIRED_PIT_FINALITY_FIELDS
+    }
     checked_rows = 0
+
+    def add_violation(
+        *,
+        index: int,
+        example: Any,
+        field: str,
+        observed: Any,
+        reason: str,
+    ) -> None:
+        violations.append(
+            {
+                "row_index": index,
+                "symbol": getattr(example, "symbol", None),
+                "timeframe": getattr(example, "timeframe", None),
+                "field": field,
+                "observed": observed,
+                "reason": reason,
+            }
+        )
+
     for index, example in enumerate(examples):
         row = getattr(example, "trust_row", None)
         if not isinstance(row, dict):
             missing_trust_row_count += 1
             continue
-        decision_time = _first_time(
-            row,
-            "decision_time",
-            "decision_time_est",
-            "decision_cutoff",
-            "decision_cutoff_time_est",
-        )
-        if decision_time is None:
-            missing_decision_time_count += 1
-            continue
         checked_rows += 1
-        for field in (
-            "available_at",
-            "feature_cutoff",
-            "source_available_time",
-            "masa_feature_cutoff",
-            "ppo_feature_cutoff",
-        ):
-            observed = _parse_utc(row.get(field))
-            if observed is not None and observed > decision_time:
-                violations.append(
-                    {
-                        "row_index": index,
-                        "symbol": getattr(example, "symbol", None),
-                        "timeframe": getattr(example, "timeframe", None),
-                        "field": field,
-                        "observed": observed.isoformat(),
-                        "decision_time": decision_time.isoformat(),
-                        "reason": f"{field}_AFTER_DECISION_TIME",
-                    }
+        clocks: dict[str, datetime] = {}
+        for field in _REQUIRED_PIT_CLOCK_FIELDS:
+            raw_value = row.get(field)
+            if raw_value in (None, ""):
+                missing_clock_counts[field] += 1
+                if field == "decision_time":
+                    missing_decision_time_count += 1
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=field,
+                    observed=raw_value,
+                    reason=f"{field.upper()}_MISSING",
                 )
-        if row.get("candle_closed_confirmed") is False or row.get("closed_candle") is False:
-            violations.append(
-                {
-                    "row_index": index,
-                    "symbol": getattr(example, "symbol", None),
-                    "timeframe": getattr(example, "timeframe", None),
-                    "field": "candle_closed_confirmed",
-                    "observed": False,
-                    "decision_time": decision_time.isoformat(),
-                    "reason": "UNFINISHED_CANDLE_USED_AS_FINAL",
-                }
+                continue
+            parsed = _parse_utc(raw_value)
+            if parsed is None:
+                invalid_clock_counts[field] += 1
+                if field == "decision_time":
+                    missing_decision_time_count += 1
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=field,
+                    observed=str(raw_value),
+                    reason=f"{field.upper()}_NOT_TIMEZONE_AWARE_OR_INVALID",
+                )
+                continue
+            clocks[field] = parsed
+
+        row_evaluation_observed_at = row.get("evaluation_observed_at")
+        if row_evaluation_observed_at not in (None, ""):
+            parsed_evaluation_observed_at = _parse_utc(row_evaluation_observed_at)
+            if parsed_evaluation_observed_at is None:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="evaluation_observed_at",
+                    observed=str(row_evaluation_observed_at),
+                    reason="EVALUATION_OBSERVED_AT_NOT_TIMEZONE_AWARE_OR_INVALID",
+                )
+            else:
+                clocks["evaluation_observed_at"] = parsed_evaluation_observed_at
+
+        for field in _REQUIRED_PIT_FINALITY_FIELDS:
+            if row.get(field) is not True:
+                missing_finality_counts[field] += 1
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=field,
+                    observed=row.get(field),
+                    reason=f"{field.upper()}_NOT_EXPLICITLY_FINAL",
+                )
+        if "closed_candle" in row and row.get("closed_candle") is not True:
+            add_violation(
+                index=index,
+                example=example,
+                field="closed_candle",
+                observed=row.get("closed_candle"),
+                reason="CLOSED_CANDLE_EVIDENCE_CONFLICT",
             )
+
+        for left, right, reason, strict in _PIT_CLOCK_ORDER_RULES:
+            if left not in clocks or right not in clocks:
+                continue
+            ordered = (
+                clocks[left] < clocks[right]
+                if strict
+                else clocks[left] <= clocks[right]
+            )
+            if not ordered:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field=left,
+                    observed=clocks[left].isoformat(),
+                    reason=reason,
+                )
+        if (
+            "training_observed_at" in clocks
+            and clocks["training_observed_at"] > audit_observed_at
+        ):
+            add_violation(
+                index=index,
+                example=example,
+                field="training_observed_at",
+                observed=clocks["training_observed_at"].isoformat(),
+                reason="TRAINING_OBSERVED_AT_AFTER_EVALUATION_OBSERVED_AT",
+            )
+        if "evaluation_observed_at" in clocks:
+            if clocks["evaluation_observed_at"] > audit_observed_at:
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="evaluation_observed_at",
+                    observed=clocks["evaluation_observed_at"].isoformat(),
+                    reason="ROW_EVALUATION_OBSERVED_AT_AFTER_AUDIT_OBSERVED_AT",
+                )
+            if (
+                "training_observed_at" in clocks
+                and clocks["training_observed_at"]
+                > clocks["evaluation_observed_at"]
+            ):
+                add_violation(
+                    index=index,
+                    example=example,
+                    field="training_observed_at",
+                    observed=clocks["training_observed_at"].isoformat(),
+                    reason="TRAINING_OBSERVED_AT_AFTER_ROW_EVALUATION_OBSERVED_AT",
+                )
+            for availability_field in (
+                "outcome_available_at",
+                "label_available_at",
+            ):
+                if (
+                    availability_field in clocks
+                    and clocks[availability_field]
+                    > clocks["evaluation_observed_at"]
+                ):
+                    add_violation(
+                        index=index,
+                        example=example,
+                        field=availability_field,
+                        observed=clocks[availability_field].isoformat(),
+                        reason=(
+                            f"{availability_field.upper()}_AFTER_EVALUATION_OBSERVED_AT"
+                        ),
+                    )
     return {
-        "schema_version": "trainer_offline_point_in_time_safety_v1",
+        "schema_version": "trainer_offline_point_in_time_safety_v2",
         "checked_rows": checked_rows,
         "missing_trust_row_count": missing_trust_row_count,
         "missing_decision_time_count": missing_decision_time_count,
+        "required_clock_fields": list(_REQUIRED_PIT_CLOCK_FIELDS),
+        "required_finality_fields": list(_REQUIRED_PIT_FINALITY_FIELDS),
+        "training_evaluation_observation_cutoff_field": "training_observed_at",
+        "evaluation_observed_at": audit_observed_at.isoformat(),
+        "missing_clock_counts": missing_clock_counts,
+        "invalid_clock_counts": invalid_clock_counts,
+        "missing_finality_counts": missing_finality_counts,
         "violation_count": len(violations),
-        "violations_sample": violations[:10],
+        "violation_reasons": sorted({row["reason"] for row in violations}),
+        "violations_sample": violations[:50],
         "passed": (
             missing_trust_row_count == 0
-            and missing_decision_time_count == 0
             and not violations
         ),
     }
