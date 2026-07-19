@@ -708,7 +708,9 @@ def test_exact_entry_feature_snapshot_accepts_same_second_millisecond_decision()
             "available_at": "2026-06-11T10:00:01.250Z",
             "generated_at": "2026-06-11T10:00:01.250Z",
             "feature_cutoff": "2026-06-11T10:00:00.999Z",
+            "candle_close_time": "2026-06-11T10:00:00.999Z",
             "candle_closed_confirmed": True,
+            "latest_unclosed_kline_excluded": True,
             "features": {"close_price": 100.0},
         }
     )
