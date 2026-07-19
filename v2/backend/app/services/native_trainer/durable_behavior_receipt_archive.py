@@ -1123,7 +1123,7 @@ def build_sampling_cohort_manifest(
             )
         normalized[raw_index] = receipt
     selected = list(plan["selected_indices"])
-    if not selected or sorted(normalized) != selected:
+    if sorted(normalized) != selected:
         raise BehaviorReceiptArchiveError(
             "SAMPLING_COHORT_MANIFEST_NOT_COMPLETE"
         )
@@ -1264,8 +1264,8 @@ def _validated_sampling_cohort_manifest(
             "SAMPLING_COHORT_MANIFEST_PLAN_BINDING_INVALID"
         )
     members = row.get("members")
-    if not isinstance(members, list) or not members:
-        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_MANIFEST_EMPTY")
+    if not isinstance(members, list):
+        raise BehaviorReceiptArchiveError("SAMPLING_COHORT_MANIFEST_MEMBERS_INVALID")
     indices: list[int] = []
     hashes: list[str] = []
     draws: list[int] = []
@@ -1320,6 +1320,7 @@ def _validated_sampling_cohort_manifest(
         or len({str(member["prediction_id"]) for member in members})
         != len(members)
         or row.get("sampled_receipt_hashes") != hashes
+        or type(row.get("sampled_receipt_count")) is not int
         or row.get("sampled_receipt_count") != len(members)
     ):
         raise BehaviorReceiptArchiveError(
@@ -1623,11 +1624,15 @@ def build_sampling_cohort_completeness_proof(
     """Bind terminal outcomes to the exact immutable pre-admission manifest."""
 
     validated_manifest = _validated_sampling_cohort_manifest(manifest)
+    sampled = list(validated_manifest["sampled_receipt_hashes"])
+    if not sampled:
+        raise BehaviorReceiptArchiveError(
+            "SAMPLING_COHORT_COMPLETENESS_EMPTY_COHORT"
+        )
     normalized_dispositions = {
         str(receipt_hash): str(disposition)
         for receipt_hash, disposition in terminal_dispositions.items()
     }
-    sampled = list(validated_manifest["sampled_receipt_hashes"])
     if set(normalized_dispositions) != set(sampled):
         raise BehaviorReceiptArchiveError(
             "SAMPLING_COHORT_NOT_FULLY_TERMINALIZED"
@@ -1720,7 +1725,9 @@ def _validated_sampling_cohort_proof(
             "SAMPLING_COHORT_TERMINAL_DISPOSITION_INVALID"
         )
     if (
-        row.get("sampled_receipt_count") != len(sampled)
+        type(row.get("sampled_receipt_count")) is not int
+        or type(row.get("terminalized_receipt_count")) is not int
+        or row.get("sampled_receipt_count") != len(sampled)
         or row.get("terminalized_receipt_count") != len(sampled)
         or _strict_utc(row.get("generated_at")) is None
     ):
