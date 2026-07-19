@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
@@ -54,7 +55,14 @@ def build_moralis_feature_payload(
 ) -> dict[str, Any]:
     ttl = max(1, int(ttl_seconds))
     stale = max(1, int(stale_after or ttl))
-    numeric = _numeric_subset(features or {})
+    # Trainer isolation (default ON): while active, Moralis is masked out of the
+    # trainer critical path by POLICY, not by accident of missing data. No source
+    # payload can produce a trainer-facing feature until an operator DELIBERATELY
+    # lifts isolation (MORALIS_TRAINER_ISOLATION=0). This is the durable guarantee
+    # that keeping it masked no longer depends on an empty watchlist / exhausted CU.
+    isolation_active = _isolation_active()
+    source_numeric = _numeric_subset(features or {})
+    numeric = {} if isolation_active else source_numeric
     missing = [name for name in FEATURE_NAMES if name not in numeric]
     stale_flags: list[str] = []
     # ``generated_at`` is the completion time of this feature computation. It
@@ -75,6 +83,7 @@ def build_moralis_feature_payload(
     has_actual = bool(actual_payload_present and numeric and temporal_valid)
     feature_bridge_ready = bool(has_lists and has_actual and not missing and not stale_flags)
     status = _status(
+        isolation_active=isolation_active,
         has_lists=has_lists,
         has_actual=has_actual,
         temporal_rejected=bool(actual_payload_present and numeric and not temporal_valid),
@@ -116,7 +125,8 @@ def build_moralis_feature_payload(
         "stale_mask_true": bool(stale_flags),
         "token_map_count": int(token_map_count),
         "wallet_watchlist_count": int(wallet_watchlist_count),
-        "source_actual_payload_present": bool(actual_payload_present and numeric),
+        "trainer_isolation_active": isolation_active,
+        "source_actual_payload_present": bool(actual_payload_present and source_numeric),
         "actual_payload_present": has_actual,
         "heartbeat_only": not has_actual,
         "provider_ready": feature_bridge_ready,
@@ -210,6 +220,7 @@ def _numeric_subset(values: Mapping[str, Any]) -> dict[str, float]:
 
 def _status(
     *,
+    isolation_active: bool = False,
     has_lists: bool,
     has_actual: bool,
     temporal_rejected: bool,
@@ -218,6 +229,8 @@ def _status(
     token_map_count: int,
     wallet_watchlist_count: int,
 ) -> str:
+    if isolation_active:
+        return "ISOLATED_BY_POLICY"
     if temporal_rejected:
         return "TEMPORAL_CONTRACT_REJECTED"
     if wallet_watchlist_count <= 0:
@@ -236,9 +249,15 @@ def _status(
 
 
 def _feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
+    # Consumption is REAL only when the bridge is actually ready and un-masked.
+    # While isolated / not ready, nothing consumes Moralis, so every consumption
+    # flag must report False — a hardcoded True would falsely advertise that a
+    # masked, zero-contribution provider is already in the trainer path.
+    ready = bool(payload.get("feature_bridge_ready"))
     return {
         "schema_version": "moralis_feature_bridge_status_v1",
         "provider": "moralis",
+        "trainer_isolation_active": payload.get("trainer_isolation_active"),
         "generated_utc": payload.get("generated_at"),
         "symbol": payload.get("symbol"),
         "timeframe": payload.get("timeframe"),
@@ -266,16 +285,16 @@ def _feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
         "actual_payload_present": payload.get("actual_payload_present"),
         "heartbeat_only": payload.get("heartbeat_only"),
         "heartbeat_only_green_allowed": False,
-        "trainer_consumption": True,
-        "provider_tensor_consumption": True,
-        "ppo_consumption": True,
-        "masa_consumption": True,
-        "risk_consumption": True,
-        "orchestrator_consumption": True,
-        "allocator_consumption": True,
-        "paper_consumption": True,
-        "live_dryrun_consumption": True,
-        "feedback_attribution": True,
+        "trainer_consumption": ready,
+        "provider_tensor_consumption": ready,
+        "ppo_consumption": ready,
+        "masa_consumption": ready,
+        "risk_consumption": ready,
+        "orchestrator_consumption": ready,
+        "allocator_consumption": ready,
+        "paper_consumption": ready,
+        "live_dryrun_consumption": ready,
+        "feedback_attribution": ready,
         "single_provider_can_approve": False,
         "provider_data_can_approve_trade_alone": False,
         "core_system_blocked": False,
@@ -422,6 +441,14 @@ def _dig(mapping: Mapping[str, Any], *path: str) -> Any:
             return None
         cur = cur.get(item)
     return cur
+
+
+def _isolation_active() -> bool:
+    """Trainer isolation defaults ON. Moralis stays masked out of the trainer
+    critical path until an operator explicitly sets MORALIS_TRAINER_ISOLATION to a
+    false-y value (0/false/no/off). Unset or empty => isolated (safe default)."""
+    raw = os.environ.get("MORALIS_TRAINER_ISOLATION", "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _now() -> str:
