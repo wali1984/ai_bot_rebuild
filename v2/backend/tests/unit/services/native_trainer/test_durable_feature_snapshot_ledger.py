@@ -169,6 +169,45 @@ def _record(
     )
 
 
+def _builder_kwargs_from_record(record: dict[str, object]) -> dict[str, object]:
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    abi = envelope["feature_abi"]
+    assert isinstance(abi, dict)
+    return {
+        "provenance_classification": envelope["provenance_classification"],
+        "legacy_v1_snapshot_id": envelope["legacy_v1_snapshot_id"],
+        "symbol": envelope["symbol"],
+        "timeframe": envelope["timeframe"],
+        "feature_snapshot_id": envelope["feature_snapshot_id"],
+        "tensor_decision_time": envelope["tensor_decision_time"],
+        "temporal_rejection_reasons": envelope["temporal_rejection_reasons"],
+        "ordered_feature_names": envelope["ordered_feature_names"],
+        "feature_values": envelope["feature_values"],
+        "missing_mask": envelope["missing_mask"],
+        "stale_mask": envelope["stale_mask"],
+        "source_availability_mask": envelope["source_availability_mask"],
+        "ordered_feature_source_labels": envelope[
+            "ordered_feature_source_labels"
+        ],
+        "feature_source_receipt_sha256s": envelope[
+            "feature_source_receipt_sha256s"
+        ],
+        "source_read_receipts": envelope["source_read_receipts"],
+        "feature_requirement_policy_id": FEATURE_REQUIREMENT_POLICY_ID,
+        "ordered_feature_requirement_classes": abi[
+            "ordered_feature_requirement_classes"
+        ],
+        "original_tensor_id": envelope["original_tensor_id"],
+        "source_lineage_material": envelope["source_lineage_material"],
+        "feature_cutoff": envelope["feature_cutoff"],
+        "masa_feature_cutoff": envelope["masa_feature_cutoff"],
+        "ppo_feature_cutoff": envelope["ppo_feature_cutoff"],
+        "ppo_decision_time": envelope["ppo_decision_time"],
+        "generated_at": envelope["generated_at"],
+    }
+
+
 def _resign_record(record: dict[str, object]) -> None:
     envelope = record["frozen_envelope"]
     envelope_sha256 = ledger_module.stable_sha256(envelope)
@@ -432,6 +471,558 @@ def test_explicit_model_clocks_never_substitute_or_cross_decision(
 ) -> None:
     with pytest.raises(FeatureSnapshotValidationError, match=reason):
         _record(**override)
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("event_time", "SOURCE_EVENT_TIME_INVALID"),
+        ("available_at", "SOURCE_AVAILABLE_AT_INVALID"),
+        ("consumer_observed_at", "SOURCE_CONSUMER_OBSERVED_AT_INVALID"),
+        ("feature_cutoff", "SOURCE_FEATURE_CUTOFF_INVALID"),
+        ("finality_cutoff", "SOURCE_FINALITY_CUTOFF_INVALID"),
+        ("finality_verified_at", "SOURCE_FINALITY_VERIFIED_AT_INVALID"),
+    ],
+)
+@pytest.mark.parametrize(
+    "extreme_clock",
+    [
+        "9999-12-31T23:59:59.999999-23:59",
+        "0001-01-01T00:00:00.000000+23:59",
+    ],
+)
+def test_source_receipt_extreme_offset_clocks_fail_closed(
+    field: str,
+    reason: str,
+    extreme_clock: str,
+) -> None:
+    event = BASE
+    kwargs = {
+        "source_label": "closed_5m",
+        "payload_type": "CANONICAL_JSON_SOURCE_PAYLOAD",
+        "payload_sha256": "a" * 64,
+        "payload_byte_count": 128,
+        "event_time": _utc(event),
+        "available_at": _utc(event + timedelta(milliseconds=100)),
+        "consumer_observed_at": _utc(event + timedelta(milliseconds=200)),
+        "feature_cutoff": _utc(event + timedelta(milliseconds=300)),
+        "read_locator_type": "SQLITE_IMMUTABLE_ROW",
+        "read_locator": "fixture.sqlite3/source/closed_5m/extreme-clock",
+        "read_locator_version": "row:closed_5m:extreme-clock",
+        "finality_type": "CLOSED_INTERVAL",
+        "finality_cutoff": _utc(event + timedelta(milliseconds=50)),
+        "finality_verified_at": _utc(event + timedelta(milliseconds=150)),
+        "finality_verifier": "unit-test-finality-gate",
+    }
+    kwargs[field] = extreme_clock
+
+    with pytest.raises(FeatureSnapshotValidationError, match=reason) as captured:
+        build_source_read_receipt(**kwargs)
+
+    assert "date value out of range" not in str(captured.value)
+
+
+@pytest.mark.parametrize("numeric_base", [int, float])
+def test_tensor_numeric_subclasses_never_execute_conversion_hooks(
+    numeric_base: type[int] | type[float],
+) -> None:
+    conversion_called = False
+
+    class HostileNumeric(numeric_base):  # type: ignore[misc, valid-type]
+        def __float__(self) -> float:
+            nonlocal conversion_called
+            conversion_called = True
+            raise RuntimeError("ATTACKER_SECRET_NUMERIC_CONVERSION")
+
+    hostile = HostileNumeric(1)
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="FEATURE_VALUES_NOT_FINITE_FLOAT32",
+    ) as captured:
+        _record(values=[hostile, 2.0, -0.25])
+
+    assert conversion_called is False
+    assert "ATTACKER_SECRET_NUMERIC_CONVERSION" not in str(captured.value)
+
+
+def test_feature_abi_name_sequences_fail_before_caller_hooks() -> None:
+    hooks_called: list[str] = []
+
+    class HostileNames(list[str]):
+        def __len__(self) -> int:
+            hooks_called.append("len")
+            raise RuntimeError("ATTACKER_SECRET_ABI_NAMES_LEN")
+
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            hooks_called.append("iter")
+            raise RuntimeError("ATTACKER_SECRET_ABI_NAMES_ITER")
+
+    hostile_names = HostileNames(["last_price"])
+    for builder in (
+        ledger_module.feature_requirement_classes_for_names,
+        ledger_module.feature_abi_contract,
+    ):
+        with pytest.raises(
+            FeatureSnapshotValidationError,
+            match="ORDERED_FEATURE_NAMES_NOT_SEQUENCE",
+        ) as captured:
+            builder(hostile_names)
+        assert "ATTACKER_SECRET_ABI_NAMES" not in str(captured.value)
+
+    assert hooks_called == []
+
+
+def test_feature_abi_names_fail_before_hash_or_equality_hooks() -> None:
+    hooks_called: list[str] = []
+
+    class HostileFeatureName(str):
+        def __hash__(self) -> int:
+            hooks_called.append("hash")
+            raise RuntimeError("ATTACKER_SECRET_ABI_NAME_HASH")
+
+        def __eq__(self, other: object) -> bool:
+            hooks_called.append("eq")
+            raise RuntimeError("ATTACKER_SECRET_ABI_NAME_EQ")
+
+    hostile_name = HostileFeatureName("last_price")
+    for builder in (
+        ledger_module.feature_requirement_classes_for_names,
+        ledger_module.feature_abi_contract,
+    ):
+        with pytest.raises(
+            FeatureSnapshotValidationError,
+            match="FEATURE_NAME_INVALID",
+        ) as captured:
+            builder([hostile_name])
+        assert "ATTACKER_SECRET_ABI_NAME" not in str(captured.value)
+
+    assert hooks_called == []
+
+
+def test_feature_abi_policy_and_requirements_fail_before_caller_hooks() -> None:
+    policy_hooks: list[str] = []
+    requirement_hooks: list[str] = []
+    sequence_hooks: list[str] = []
+
+    class HostilePolicy(str):
+        def __eq__(self, other: object) -> bool:
+            policy_hooks.append("eq")
+            raise RuntimeError("ATTACKER_SECRET_ABI_POLICY_EQ")
+
+    class HostileRequirement(str):
+        def __hash__(self) -> int:
+            requirement_hooks.append("hash")
+            raise RuntimeError("ATTACKER_SECRET_ABI_REQUIREMENT_HASH")
+
+        def __eq__(self, other: object) -> bool:
+            requirement_hooks.append("eq")
+            raise RuntimeError("ATTACKER_SECRET_ABI_REQUIREMENT_EQ")
+
+    class HostileRequirements(list[str]):
+        def __len__(self) -> int:
+            sequence_hooks.append("len")
+            raise RuntimeError("ATTACKER_SECRET_ABI_REQUIREMENTS_LEN")
+
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            sequence_hooks.append("iter")
+            raise RuntimeError("ATTACKER_SECRET_ABI_REQUIREMENTS_ITER")
+
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="FEATURE_REQUIREMENT_POLICY_ID_MISMATCH",
+    ) as policy_error:
+        ledger_module.feature_abi_contract(
+            ["last_price"],
+            feature_requirement_policy_id=HostilePolicy(
+                FEATURE_REQUIREMENT_POLICY_ID
+            ),
+        )
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="FEATURE_REQUIREMENT_CLASS_INVALID",
+    ) as requirement_error:
+        ledger_module.feature_abi_contract(
+            ["last_price"],
+            ordered_feature_requirement_classes=[HostileRequirement("REQUIRED")],
+        )
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="ORDERED_FEATURE_REQUIREMENT_CLASSES_NOT_SEQUENCE",
+    ) as sequence_error:
+        ledger_module.feature_abi_contract(
+            ["last_price"],
+            ordered_feature_requirement_classes=HostileRequirements(["REQUIRED"]),
+        )
+
+    assert policy_hooks == []
+    assert requirement_hooks == []
+    assert sequence_hooks == []
+    combined_errors = " ".join(
+        (str(policy_error.value), str(requirement_error.value), str(sequence_error.value))
+    )
+    assert "ATTACKER_SECRET_ABI" not in combined_errors
+
+
+def _source_receipt_builder_kwargs() -> dict[str, object]:
+    return {
+        "source_label": "closed_5m",
+        "payload_type": "CANONICAL_JSON_SOURCE_PAYLOAD",
+        "payload_sha256": "a" * 64,
+        "payload_byte_count": 128,
+        "event_time": _utc(BASE),
+        "available_at": _utc(BASE + timedelta(milliseconds=100)),
+        "consumer_observed_at": _utc(BASE + timedelta(milliseconds=200)),
+        "feature_cutoff": _utc(BASE + timedelta(milliseconds=300)),
+        "read_locator_type": "SQLITE_IMMUTABLE_ROW",
+        "read_locator": "fixture.sqlite3/source/closed_5m/type-boundary",
+        "read_locator_version": "row:closed_5m:type-boundary",
+        "finality_type": "CLOSED_INTERVAL",
+        "finality_cutoff": _utc(BASE + timedelta(milliseconds=50)),
+        "finality_verified_at": _utc(BASE + timedelta(milliseconds=150)),
+        "finality_verifier": "unit-test-finality-gate",
+        "receipt_kind": "DIRECT_READ",
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("receipt_kind", "SOURCE_RECEIPT_KIND_INVALID"),
+        ("read_locator_type", "SOURCE_READ_EVIDENCE_LOCATOR_TYPE_INVALID"),
+        ("finality_type", "SOURCE_FINALITY_EVIDENCE_TYPE_INVALID"),
+    ],
+)
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        ["ATTACKER_SECRET_JSON_ENUM"],
+        {"ATTACKER_SECRET_JSON_ENUM": True},
+    ],
+    ids=["list", "dict"],
+)
+def test_source_receipt_enum_objects_return_fixed_validation_errors(
+    field: str,
+    reason: str,
+    invalid_value: object,
+) -> None:
+    kwargs = _source_receipt_builder_kwargs()
+    kwargs[field] = invalid_value
+
+    with pytest.raises(FeatureSnapshotValidationError, match=reason) as captured:
+        build_source_read_receipt(**kwargs)  # type: ignore[arg-type]
+
+    assert "unhashable type" not in str(captured.value)
+    assert "ATTACKER_SECRET_JSON_ENUM" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("receipt_kind", "SOURCE_RECEIPT_KIND_INVALID"),
+        ("read_locator_type", "SOURCE_READ_EVIDENCE_LOCATOR_TYPE_INVALID"),
+        ("finality_type", "SOURCE_FINALITY_EVIDENCE_TYPE_INVALID"),
+    ],
+)
+def test_source_receipt_enum_subclasses_fail_before_caller_hooks(
+    field: str,
+    reason: str,
+) -> None:
+    hooks_called: list[str] = []
+
+    class HostileEnum(str):
+        def __hash__(self) -> int:
+            hooks_called.append("hash")
+            raise RuntimeError("ATTACKER_SECRET_SOURCE_ENUM_HASH")
+
+        def __eq__(self, other: object) -> bool:
+            hooks_called.append("eq")
+            raise RuntimeError("ATTACKER_SECRET_SOURCE_ENUM_EQ")
+
+    kwargs = _source_receipt_builder_kwargs()
+    kwargs[field] = HostileEnum(str(kwargs[field]))
+    with pytest.raises(FeatureSnapshotValidationError, match=reason) as captured:
+        build_source_read_receipt(**kwargs)  # type: ignore[arg-type]
+
+    assert hooks_called == []
+    assert "ATTACKER_SECRET_SOURCE_ENUM" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("feature_values", "FEATURE_VALUES_NOT_SEQUENCE"),
+        ("missing_mask", "MISSING_MASK_NOT_SEQUENCE"),
+        ("source_read_receipts", "SOURCE_READ_RECEIPTS_NOT_SEQUENCE"),
+        (
+            "temporal_rejection_reasons",
+            "TEMPORAL_REJECTION_REASONS_NOT_SEQUENCE",
+        ),
+    ],
+)
+def test_builder_sequence_subclasses_never_execute_length_hooks(
+    field: str,
+    reason: str,
+) -> None:
+    kwargs = _builder_kwargs_from_record(_record())
+    length_called = False
+
+    class HostileSequence(list[object]):
+        def __len__(self) -> int:
+            nonlocal length_called
+            length_called = True
+            raise RuntimeError("ATTACKER_SECRET_SEQUENCE_LENGTH")
+
+    original = kwargs[field]
+    assert isinstance(original, list)
+    kwargs[field] = HostileSequence(original)
+
+    with pytest.raises(FeatureSnapshotValidationError, match=reason) as captured:
+        build_feature_snapshot_record(**kwargs)  # type: ignore[arg-type]
+
+    assert length_called is False
+    assert "ATTACKER_SECRET_SEQUENCE_LENGTH" not in str(captured.value)
+
+
+def test_builder_temporal_reasons_never_execute_string_hooks() -> None:
+    kwargs = _builder_kwargs_from_record(_record())
+    string_called = False
+
+    class HostileReason:
+        def __str__(self) -> str:
+            nonlocal string_called
+            string_called = True
+            raise RuntimeError("ATTACKER_SECRET_TEMPORAL_REASON")
+
+    kwargs["temporal_rejection_reasons"] = [HostileReason()]
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="TEMPORAL_REJECTION_REASON_INVALID",
+    ) as captured:
+        build_feature_snapshot_record(**kwargs)  # type: ignore[arg-type]
+
+    assert string_called is False
+    assert "ATTACKER_SECRET_TEMPORAL_REASON" not in str(captured.value)
+
+
+def test_builder_nested_lineage_never_observes_hostile_class_metadata() -> None:
+    kwargs = _builder_kwargs_from_record(_record())
+    class_observed = False
+
+    class HostileLineageValue:
+        @property
+        def __class__(self) -> type[object]:
+            nonlocal class_observed
+            class_observed = True
+            raise RuntimeError("ATTACKER_SECRET_LINEAGE_CLASS")
+
+    lineage = dict(kwargs["source_lineage_material"])  # type: ignore[arg-type]
+    lineage["hostile_nested_value"] = HostileLineageValue()
+    kwargs["source_lineage_material"] = lineage
+
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="STRICT_JSON_UNSUPPORTED_TYPE",
+    ) as captured:
+        build_feature_snapshot_record(**kwargs)  # type: ignore[arg-type]
+
+    assert class_observed is False
+    assert "ATTACKER_SECRET_LINEAGE_CLASS" not in str(captured.value)
+
+
+def test_builder_mask_values_never_observe_hostile_class_metadata() -> None:
+    kwargs = _builder_kwargs_from_record(_record())
+    class_observed = False
+
+    class HostileMaskValue:
+        @property
+        def __class__(self) -> type[object]:
+            nonlocal class_observed
+            class_observed = True
+            raise RuntimeError("ATTACKER_SECRET_MASK_CLASS")
+
+    kwargs["missing_mask"] = [HostileMaskValue(), 0, 0]
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="MISSING_MASK_NOT_BINARY",
+    ) as captured:
+        build_feature_snapshot_record(**kwargs)  # type: ignore[arg-type]
+
+    assert class_observed is False
+    assert "ATTACKER_SECRET_MASK_CLASS" not in str(captured.value)
+
+
+def test_record_validator_stops_before_hostile_mapping_hooks() -> None:
+    hooks_called: list[str] = []
+
+    class HostileRecord(dict[str, object]):
+        def __iter__(self):  # type: ignore[no-untyped-def]
+            hooks_called.append("iter")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_ITER")
+
+        def __len__(self) -> int:
+            hooks_called.append("len")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_LEN")
+
+        def get(self, *_: object, **__: object) -> object:
+            hooks_called.append("get")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_GET")
+
+        def items(self):  # type: ignore[no-untyped-def]
+            hooks_called.append("items")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_ITEMS")
+
+    hostile = HostileRecord(_record())
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="STRICT_JSON_UNSUPPORTED_TYPE",
+    ) as captured:
+        validate_feature_snapshot_record(hostile)
+
+    assert hooks_called == []
+    assert "ATTACKER_SECRET_RECORD" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("field", "reason"),
+    [
+        ("provenance", "PROVENANCE_CLASSIFICATION_INVALID"),
+        ("requirement", "FEATURE_REQUIREMENT_CLASS_INVALID"),
+        ("receipt_kind", "SOURCE_RECEIPT_KIND_INVALID"),
+        ("read_locator_type", "SOURCE_READ_EVIDENCE_LOCATOR_TYPE_INVALID"),
+        ("finality_type", "SOURCE_FINALITY_EVIDENCE_TYPE_INVALID"),
+    ],
+)
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        ["ATTACKER_SECRET_JSON_ENUM"],
+        {"ATTACKER_SECRET_JSON_ENUM": True},
+    ],
+    ids=["list", "dict"],
+)
+def test_record_validator_enum_objects_return_fixed_validation_errors(
+    field: str,
+    reason: str,
+    invalid_value: object,
+) -> None:
+    record = copy.deepcopy(_record())
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    value = copy.deepcopy(invalid_value)
+    if field == "provenance":
+        envelope["provenance_classification"] = value
+    elif field == "requirement":
+        abi = envelope["feature_abi"]
+        assert isinstance(abi, dict)
+        abi["ordered_feature_requirement_classes"] = [value, "REQUIRED", "REQUIRED"]
+    else:
+        receipts = envelope["source_read_receipts"]
+        assert isinstance(receipts, list)
+        receipt = receipts[0]
+        assert isinstance(receipt, dict)
+        if field == "receipt_kind":
+            receipt["receipt_kind"] = value
+        elif field == "read_locator_type":
+            read_evidence = receipt["read_evidence"]
+            assert isinstance(read_evidence, dict)
+            read_evidence["read_locator_type"] = value
+        else:
+            finality_evidence = receipt["finality_evidence"]
+            assert isinstance(finality_evidence, dict)
+            finality_evidence["finality_type"] = value
+
+    with pytest.raises(FeatureSnapshotValidationError, match=reason) as captured:
+        validate_feature_snapshot_record(record)
+
+    assert "unhashable type" not in str(captured.value)
+    assert "ATTACKER_SECRET_JSON_ENUM" not in str(captured.value)
+
+
+def test_record_validator_nested_string_subclass_fails_before_caller_hooks() -> None:
+    hooks_called: list[str] = []
+
+    class HostileProvenance(str):
+        def __hash__(self) -> int:
+            hooks_called.append("hash")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_PROVENANCE_HASH")
+
+        def __eq__(self, other: object) -> bool:
+            hooks_called.append("eq")
+            raise RuntimeError("ATTACKER_SECRET_RECORD_PROVENANCE_EQ")
+
+    record = _record()
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    envelope["provenance_classification"] = HostileProvenance(
+        PROVENANCE_CANONICAL_V3
+    )
+    with pytest.raises(
+        FeatureSnapshotValidationError,
+        match="STRICT_JSON_UNSUPPORTED_TYPE",
+    ) as captured:
+        validate_feature_snapshot_record(record)
+
+    assert hooks_called == []
+    assert "ATTACKER_SECRET_RECORD_PROVENANCE" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        ["ATTACKER_SECRET_JSON_ENUM"],
+        {"ATTACKER_SECRET_JSON_ENUM": True},
+    ],
+    ids=["list", "dict"],
+)
+def test_persisted_receipt_enum_objects_fail_with_fixed_readback_errors(
+    tmp_path: Path,
+    invalid_value: object,
+) -> None:
+    ledger = _ledger(tmp_path)
+    ledger.append_snapshot(_record())
+    connection = sqlite3.connect(ledger.path)
+    connection.row_factory = sqlite3.Row
+    try:
+        append_row = dict(
+            connection.execute(
+                "SELECT * FROM feature_snapshot_append_receipts"
+            ).fetchone()
+        )
+        projection_row = dict(
+            connection.execute(
+                "SELECT * FROM feature_snapshot_projection_outbox"
+            ).fetchone()
+        )
+    finally:
+        connection.close()
+
+    append_material = ledger_module.json.loads(append_row["receipt_json"])
+    append_material["attempted_dispositions"] = [copy.deepcopy(invalid_value)]
+    append_row["receipt_json"] = ledger_module.canonical_json(append_material)
+    with pytest.raises(
+        FeatureSnapshotReadbackError,
+        match="APPEND_RECEIPT_ATTEMPTED_DISPOSITIONS_INVALID",
+    ) as append_error:
+        ledger_module.DurableFeatureSnapshotLedger._validated_append_receipt_row(
+            append_row  # type: ignore[arg-type]
+        )
+
+    projection_material = ledger_module.json.loads(projection_row["projection_json"])
+    projection_material["provenance_classification"] = copy.deepcopy(invalid_value)
+    projection_row["projection_json"] = ledger_module.canonical_json(
+        projection_material
+    )
+    with pytest.raises(
+        FeatureSnapshotReadbackError,
+        match="PROJECTION_OUTBOX_PROVENANCE_INVALID",
+    ) as projection_error:
+        ledger_module.DurableFeatureSnapshotLedger._validated_projection_row(
+            projection_row  # type: ignore[arg-type]
+        )
+
+    combined_errors = f"{append_error.value} {projection_error.value}"
+    assert "unhashable type" not in combined_errors
+    assert "ATTACKER_SECRET_JSON_ENUM" not in combined_errors
 
 
 def test_source_event_availability_observation_and_cutoff_must_precede_decision() -> None:

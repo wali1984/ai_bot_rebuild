@@ -1180,7 +1180,7 @@ def _bounded_utf8_byte_count(value: str, *, maximum: int) -> int:
     exact built-in string is required by its trust boundary.
     """
 
-    if not isinstance(value, str):
+    if not issubclass(type(value), str):
         raise TypeError("bounded_utf8_value_not_text")
     if type(maximum) is not int or maximum < 0:
         raise ValueError("bounded_utf8_maximum_invalid")
@@ -1244,7 +1244,7 @@ def _validate_json_tree(
     if value_type is bool:
         _consume_json_budget(budget, 4 if value else 5)
         return
-    if isinstance(value, str):
+    if issubclass(value_type, str):
         try:
             encoded_bytes = _bounded_utf8_byte_count(
                 value,
@@ -1298,7 +1298,7 @@ def _validate_json_tree(
             raise FeatureSnapshotValidationError(["STRICT_JSON_MAX_MAP_ENTRIES_EXCEEDED"])
         _consume_json_budget(budget, 2 + max(0, len(value) - 1) + len(value))
         for key, item in value.items():
-            if not isinstance(key, str):
+            if type(key) is not str:
                 raise FeatureSnapshotValidationError(["STRICT_JSON_NONSTRING_KEY"])
             _validate_json_tree(key, path=f"{path}.<key>", depth=depth + 1, budget=budget)
             _validate_json_tree(
@@ -1347,11 +1347,15 @@ def _strict_utc(value: Any) -> datetime | None:
         return None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            return None
+        return parsed.astimezone(UTC)
+    except (OSError, OverflowError, ValueError):
+        # Extreme but syntactically valid offsets can overflow while being
+        # normalized to UTC.  Caller-controlled clocks are validation
+        # evidence, so they must fail closed as an invalid clock rather than
+        # escaping as a platform/date arithmetic exception.
         return None
-    if parsed.tzinfo is None or parsed.utcoffset() is None:
-        return None
-    return parsed.astimezone(UTC)
 
 
 def _canonical_utc(value: Any, *, field: str) -> str:
@@ -1384,7 +1388,11 @@ def _valid_sha256(value: Any) -> str | None:
 
 
 def _canonical_float32(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, int | float):
+    # Tensor values cross an integrity boundary.  Numeric subclasses can
+    # override ``__float__`` and either spoof different material or raise with
+    # attacker-controlled text, so only exact built-in numeric scalars are
+    # eligible for canonical runtime float32 conversion.
+    if type(value) not in {int, float}:
         return None
     try:
         parsed = float(value)
@@ -1403,11 +1411,9 @@ def _canonical_float32(value: Any) -> float | None:
 
 
 def _binary_vector(value: Any, *, expected: int, reason: str) -> list[int]:
-    if not isinstance(value, list) or len(value) != expected:
+    if type(value) is not list or len(value) != expected:
         raise FeatureSnapshotValidationError([f"{reason}_DIMENSION_MISMATCH"])
-    if any(
-        isinstance(item, bool) or not isinstance(item, int) or item not in (0, 1) for item in value
-    ):
+    if any(type(item) is not int or item not in (0, 1) for item in value):
         raise FeatureSnapshotValidationError([f"{reason}_NOT_BINARY"])
     return list(value)
 
@@ -1417,6 +1423,16 @@ def feature_requirement_classes_for_names(
 ) -> tuple[str, ...]:
     """Return the sole code-owned requirement class for every exact feature name."""
 
+    _bounded_builder_sequence_count(
+        ordered_feature_names,
+        max_items=MAX_FEATURE_SLOTS,
+        type_reason="ORDERED_FEATURE_NAMES_NOT_SEQUENCE",
+        count_reason="FEATURE_SLOT_COUNT_INVALID",
+    )
+    if any(type(feature_name) is not str for feature_name in ordered_feature_names):
+        # Requirement lookup hashes feature names.  Reject subclasses and
+        # arbitrary values before either their hash or equality hooks can run.
+        raise FeatureSnapshotValidationError(["FEATURE_NAME_INVALID"])
     return tuple(
         (
             "OPTIONAL_EVENT_DEPENDENT"
@@ -1433,32 +1449,51 @@ def feature_abi_contract(
     feature_requirement_policy_id: str = FEATURE_REQUIREMENT_POLICY_ID,
     ordered_feature_requirement_classes: Sequence[str] | None = None,
 ) -> dict[str, Any]:
+    _bounded_builder_sequence_count(
+        ordered_feature_names,
+        max_items=MAX_FEATURE_SLOTS,
+        type_reason="ORDERED_FEATURE_NAMES_NOT_SEQUENCE",
+        count_reason="FEATURE_SLOT_COUNT_INVALID",
+    )
+    if any(type(feature_name) is not str for feature_name in ordered_feature_names):
+        raise FeatureSnapshotValidationError(["FEATURE_NAME_INVALID"])
     names = list(ordered_feature_names)
     expected_requirements = list(feature_requirement_classes_for_names(names))
-    if feature_requirement_policy_id != FEATURE_REQUIREMENT_POLICY_ID:
+    if (
+        type(feature_requirement_policy_id) is not str
+        or feature_requirement_policy_id != FEATURE_REQUIREMENT_POLICY_ID
+    ):
         raise FeatureSnapshotValidationError(
             ["FEATURE_REQUIREMENT_POLICY_ID_MISMATCH"]
         )
     if ordered_feature_requirement_classes is None:
         requirements = expected_requirements
     else:
-        if isinstance(ordered_feature_requirement_classes, str | bytes) or not isinstance(
-            ordered_feature_requirement_classes, Sequence
-        ):
-            raise FeatureSnapshotValidationError(
-                ["ORDERED_FEATURE_REQUIREMENT_CLASSES_NOT_SEQUENCE"]
-            )
+        _bounded_builder_sequence_count(
+            ordered_feature_requirement_classes,
+            max_items=MAX_FEATURE_SLOTS,
+            type_reason="ORDERED_FEATURE_REQUIREMENT_CLASSES_NOT_SEQUENCE",
+            count_reason="FEATURE_SLOT_COUNT_INVALID",
+        )
         if len(ordered_feature_requirement_classes) != len(names):
             raise FeatureSnapshotValidationError(
                 ["FEATURE_REQUIREMENT_CLASSES_DIMENSION_MISMATCH"]
+            )
+        if any(
+            type(requirement) is not str
+            or requirement not in _FEATURE_REQUIREMENT_CLASSES
+            for requirement in ordered_feature_requirement_classes
+        ):
+            # Validate exact strings before list equality can invoke a
+            # caller-defined requirement ``__eq__`` implementation.
+            raise FeatureSnapshotValidationError(
+                ["FEATURE_REQUIREMENT_CLASS_INVALID"]
             )
         requirements = list(ordered_feature_requirement_classes)
         if requirements != expected_requirements:
             raise FeatureSnapshotValidationError(
                 ["FEATURE_REQUIREMENT_CLASSES_POLICY_MISMATCH"]
             )
-    if any(requirement not in _FEATURE_REQUIREMENT_CLASSES for requirement in requirements):
-        raise FeatureSnapshotValidationError(["FEATURE_REQUIREMENT_CLASS_INVALID"])
     return {
         "schema_version": FEATURE_ABI_SCHEMA_VERSION,
         "feature_requirement_policy_id": FEATURE_REQUIREMENT_POLICY_ID,
@@ -1588,7 +1623,7 @@ def _bounded_builder_mapping_copy(
     max_entries: int,
     type_reason: str,
     count_reason: str,
-) -> dict[Any, Any]:
+) -> dict[str, Any]:
     # As above, do not invoke arbitrary Mapping hooks before exact-type
     # admission.  A plain dict has trusted O(1) length and bounded iteration.
     if type(value) is not dict:
@@ -1599,10 +1634,12 @@ def _bounded_builder_mapping_copy(
         raise FeatureSnapshotValidationError([type_reason]) from exc
     if entry_count > max_entries:
         raise FeatureSnapshotValidationError([count_reason])
-    copied: dict[Any, Any] = {}
+    copied: dict[str, Any] = {}
     for key, item in value.items():
         if len(copied) >= max_entries:
             raise FeatureSnapshotValidationError([count_reason])
+        if type(key) is not str:
+            raise FeatureSnapshotValidationError(["STRICT_JSON_NONSTRING_KEY"])
         copied[key] = item
     return copied
 
@@ -1636,6 +1673,19 @@ def build_source_read_receipt(
     free-form evidence is intentionally not accepted at this strict v3 boundary.
     """
 
+    if type(receipt_kind) is not str or receipt_kind not in _SOURCE_RECEIPT_KINDS:
+        raise FeatureSnapshotValidationError(["SOURCE_RECEIPT_KIND_INVALID"])
+    if (
+        type(read_locator_type) is not str
+        or read_locator_type not in _SOURCE_READ_LOCATOR_TYPES
+    ):
+        raise FeatureSnapshotValidationError(
+            ["SOURCE_READ_EVIDENCE_LOCATOR_TYPE_INVALID"]
+        )
+    if type(finality_type) is not str or finality_type not in _SOURCE_FINALITY_TYPES:
+        raise FeatureSnapshotValidationError(
+            ["SOURCE_FINALITY_EVIDENCE_TYPE_INVALID"]
+        )
     _bounded_builder_sequence_count(
         child_read_bindings,
         max_items=MAX_SOURCE_RECEIPTS,
@@ -1824,49 +1874,117 @@ def build_feature_snapshot_record(
         ("FEATURE_SOURCE_RECEIPT_SHA256S", feature_source_receipt_sha256s),
         ("ORDERED_FEATURE_REQUIREMENT_CLASSES", ordered_feature_requirement_classes),
     )
+    vector_counts: list[int] = []
     for reason, vector in vectors:
-        if isinstance(vector, str | bytes):
-            raise FeatureSnapshotValidationError([f"{reason}_NOT_SEQUENCE"])
-        if len(vector) > MAX_FEATURE_SLOTS:
-            raise FeatureSnapshotValidationError(["FEATURE_SLOT_COUNT_INVALID"])
-    feature_count = len(ordered_feature_names)
-    if feature_count == 0 or any(len(vector) != feature_count for _reason, vector in vectors):
+        vector_counts.append(
+            _bounded_builder_sequence_count(
+                vector,
+                max_items=MAX_FEATURE_SLOTS,
+                type_reason=f"{reason}_NOT_SEQUENCE",
+                count_reason="FEATURE_SLOT_COUNT_INVALID",
+            )
+        )
+    feature_count = vector_counts[0]
+    if feature_count == 0 or any(count != feature_count for count in vector_counts):
         raise FeatureSnapshotValidationError(["FEATURE_SLOT_DIMENSION_MISMATCH"])
-    if isinstance(temporal_rejection_reasons, str | bytes):
-        raise FeatureSnapshotValidationError(["TEMPORAL_REJECTION_REASONS_NOT_SEQUENCE"])
-    if len(temporal_rejection_reasons) > MAX_FEATURE_SLOTS:
-        raise FeatureSnapshotValidationError(["TEMPORAL_REJECTION_REASON_COUNT_EXCEEDED"])
-    if isinstance(source_read_receipts, str | bytes):
-        raise FeatureSnapshotValidationError(["SOURCE_READ_RECEIPTS_NOT_SEQUENCE"])
-    if len(source_read_receipts) > MAX_SOURCE_RECEIPTS:
-        raise FeatureSnapshotValidationError(["SOURCE_RECEIPT_COUNT_EXCEEDED"])
+    _bounded_builder_sequence_count(
+        temporal_rejection_reasons,
+        max_items=MAX_FEATURE_SLOTS,
+        type_reason="TEMPORAL_REJECTION_REASONS_NOT_SEQUENCE",
+        count_reason="TEMPORAL_REJECTION_REASON_COUNT_EXCEEDED",
+    )
+    _bounded_builder_sequence_count(
+        source_read_receipts,
+        max_items=MAX_SOURCE_RECEIPTS,
+        type_reason="SOURCE_READ_RECEIPTS_NOT_SEQUENCE",
+        count_reason="SOURCE_RECEIPT_COUNT_EXCEEDED",
+    )
 
     names = list(ordered_feature_names)
+    if any(_strict_string(name, pattern=_LABEL_RE) is None for name in names):
+        raise FeatureSnapshotValidationError(["FEATURE_NAME_INVALID"])
+    if len(set(names)) != len(names):
+        raise FeatureSnapshotValidationError(["FEATURE_NAMES_NOT_UNIQUE"])
+    if (
+        type(provenance_classification) is not str
+        or provenance_classification
+        not in {PROVENANCE_CANONICAL_V3, PROVENANCE_LEGACY_V1_IMPORT}
+    ):
+        raise FeatureSnapshotValidationError(["PROVENANCE_CLASSIFICATION_INVALID"])
+    if type(feature_requirement_policy_id) is not str:
+        raise FeatureSnapshotValidationError(
+            ["FEATURE_REQUIREMENT_POLICY_ID_MISMATCH"]
+        )
     parsed_values = [_canonical_float32(value) for value in feature_values]
     if any(value is None for value in parsed_values):
         raise FeatureSnapshotValidationError(["FEATURE_VALUES_NOT_FINITE_FLOAT32"])
     values = [float(value) for value in parsed_values if value is not None]
-    missing = list(missing_mask)
-    stale = list(stale_mask)
-    availability = list(source_availability_mask)
+    missing = _binary_vector(
+        list(missing_mask), expected=feature_count, reason="MISSING_MASK"
+    )
+    stale = _binary_vector(
+        list(stale_mask), expected=feature_count, reason="STALE_MASK"
+    )
+    availability = _binary_vector(
+        list(source_availability_mask),
+        expected=feature_count,
+        reason="SOURCE_AVAILABILITY_MASK",
+    )
     feature_sources = list(ordered_feature_source_labels)
+    if any(
+        _strict_string(source_label, pattern=_LABEL_RE) is None
+        for source_label in feature_sources
+    ):
+        raise FeatureSnapshotValidationError(["SOURCE_LABEL_INVALID"])
     feature_bindings = list(feature_source_receipt_sha256s)
+    if any(
+        binding is not None and _valid_sha256(binding) is None
+        for binding in feature_bindings
+    ):
+        raise FeatureSnapshotValidationError(
+            ["FEATURE_SOURCE_RECEIPT_SHA256_INVALID"]
+        )
     requirement_classes = list(ordered_feature_requirement_classes)
-    temporal_rejections = sorted({str(reason) for reason in temporal_rejection_reasons})
+    if any(
+        type(requirement) is not str
+        or requirement not in _FEATURE_REQUIREMENT_CLASSES
+        for requirement in requirement_classes
+    ):
+        raise FeatureSnapshotValidationError(["FEATURE_REQUIREMENT_CLASS_INVALID"])
+    temporal_rejections = list(temporal_rejection_reasons)
+    if any(
+        _strict_string(reason, pattern=_LABEL_RE) is None
+        for reason in temporal_rejections
+    ):
+        raise FeatureSnapshotValidationError(["TEMPORAL_REJECTION_REASON_INVALID"])
+    temporal_rejections = sorted(set(temporal_rejections))
 
     receipts: list[dict[str, Any]] = []
     for receipt in source_read_receipts:
-        if not isinstance(receipt, Mapping):
-            raise FeatureSnapshotValidationError(["SOURCE_RECEIPT_NOT_OBJECT"])
-        if len(receipt) > MAX_JSON_MAP_ENTRIES:
-            raise FeatureSnapshotValidationError(["STRICT_JSON_MAX_MAP_ENTRIES_EXCEEDED"])
-        receipts.append(dict(receipt))
-    receipts.sort(key=lambda receipt: str(receipt.get("receipt_sha256") or ""))
+        receipts.append(
+            _bounded_builder_mapping_copy(
+                receipt,
+                max_entries=MAX_JSON_MAP_ENTRIES,
+                type_reason="SOURCE_RECEIPT_NOT_OBJECT",
+                count_reason="STRICT_JSON_MAX_MAP_ENTRIES_EXCEEDED",
+            )
+        )
 
-    if not isinstance(source_lineage_material, Mapping):
-        raise FeatureSnapshotValidationError(["SOURCE_LINEAGE_MATERIAL_INVALID"])
-    if len(source_lineage_material) > MAX_JSON_MAP_ENTRIES:
-        raise FeatureSnapshotValidationError(["STRICT_JSON_MAX_MAP_ENTRIES_EXCEEDED"])
+    def receipt_sort_key(receipt: dict[str, Any]) -> str:
+        receipt_sha256 = receipt.get("receipt_sha256")
+        return receipt_sha256 if type(receipt_sha256) is str else ""
+
+    receipts.sort(key=receipt_sort_key)
+
+    lineage = _bounded_builder_mapping_copy(
+        source_lineage_material,
+        max_entries=MAX_JSON_MAP_ENTRIES,
+        type_reason="SOURCE_LINEAGE_MATERIAL_INVALID",
+        count_reason="STRICT_JSON_MAX_MAP_ENTRIES_EXCEEDED",
+    )
+    # Validate nested lineage material before equality checks against reserved
+    # bindings; otherwise attacker-controlled comparison hooks could execute.
+    canonical_json(lineage)
 
     abi = feature_abi_contract(
         names,
@@ -1894,7 +2012,6 @@ def build_feature_snapshot_record(
             "receipt_sha256s": receipt_sha256s,
         }
     )
-    lineage = dict(source_lineage_material)
     lineage_bindings = {
         "feature_abi_sha256": abi_sha256,
         "ordered_feature_source_labels": feature_sources,
@@ -1978,7 +2095,10 @@ def _source_receipt_reasons(receipt: Mapping[str, Any]) -> list[str]:
     if _valid_sha256(receipt.get("payload_sha256")) is None:
         reasons.append("SOURCE_RECEIPT_PAYLOAD_SHA256_INVALID")
     receipt_kind = receipt.get("receipt_kind")
-    if receipt_kind not in _SOURCE_RECEIPT_KINDS:
+    receipt_kind_valid = (
+        type(receipt_kind) is str and receipt_kind in _SOURCE_RECEIPT_KINDS
+    )
+    if not receipt_kind_valid:
         reasons.append("SOURCE_RECEIPT_KIND_INVALID")
     children_raw = receipt.get("child_read_bindings")
     children = children_raw if isinstance(children_raw, list) else []
@@ -2019,12 +2139,12 @@ def _source_receipt_reasons(receipt: Mapping[str, Any]) -> list[str]:
 
     derivation = receipt.get("derivation_material")
     derivation_sha256 = receipt.get("derivation_sha256")
-    if receipt_kind == "DIRECT_READ":
+    if receipt_kind_valid and receipt_kind == "DIRECT_READ":
         if children:
             reasons.append("DIRECT_SOURCE_RECEIPT_HAS_CHILDREN")
         if derivation is not None or derivation_sha256 is not None:
             reasons.append("DIRECT_SOURCE_RECEIPT_HAS_DERIVATION")
-    elif receipt_kind == "COMPOSITE_DERIVATION":
+    elif receipt_kind_valid and receipt_kind == "COMPOSITE_DERIVATION":
         if not children:
             reasons.append("COMPOSITE_SOURCE_RECEIPT_CHILDREN_REQUIRED")
         if not isinstance(derivation, Mapping):
@@ -2089,7 +2209,11 @@ def _source_receipt_reasons(receipt: Mapping[str, Any]) -> list[str]:
         or payload_byte_count > MAX_SOURCE_PAYLOAD_BYTES
     ):
         reasons.append("SOURCE_READ_EVIDENCE_PAYLOAD_BYTE_COUNT_INVALID")
-    if read_evidence.get("read_locator_type") not in _SOURCE_READ_LOCATOR_TYPES:
+    read_locator_type = read_evidence.get("read_locator_type")
+    if (
+        type(read_locator_type) is not str
+        or read_locator_type not in _SOURCE_READ_LOCATOR_TYPES
+    ):
         reasons.append("SOURCE_READ_EVIDENCE_LOCATOR_TYPE_INVALID")
     if _strict_string(read_evidence.get("read_locator")) is None:
         reasons.append("SOURCE_READ_EVIDENCE_LOCATOR_INVALID")
@@ -2145,7 +2269,11 @@ def _source_receipt_reasons(receipt: Mapping[str, Any]) -> list[str]:
         reasons.append("SOURCE_FINALITY_EVIDENCE_READ_BINDING_MISMATCH")
     if finality_evidence.get("read_locator_sha256") != expected_read_locator_sha256:
         reasons.append("SOURCE_FINALITY_EVIDENCE_LOCATOR_BINDING_MISMATCH")
-    if finality_evidence.get("finality_type") not in _SOURCE_FINALITY_TYPES:
+    finality_type = finality_evidence.get("finality_type")
+    if (
+        type(finality_type) is not str
+        or finality_type not in _SOURCE_FINALITY_TYPES
+    ):
         reasons.append("SOURCE_FINALITY_EVIDENCE_TYPE_INVALID")
     if finality_evidence.get("event_final") is not True:
         reasons.append("SOURCE_FINALITY_EVIDENCE_NOT_FINAL")
@@ -2353,8 +2481,9 @@ def validate_feature_snapshot_record(record: Mapping[str, Any]) -> dict[str, Any
     try:
         canonical_record_json = canonical_json(record)
     except FeatureSnapshotValidationError as exc:
-        reasons.extend(exc.reasons)
-        canonical_record_json = ""
+        # A failed strict-JSON preflight means the object graph is not safe to
+        # traverse.  Stop before any Mapping/list/string proxy hooks can run.
+        raise FeatureSnapshotValidationError(list(exc.reasons)) from exc
     if set(record) != _RECORD_FIELDS:
         reasons.append("RECORD_FIELD_SET_MISMATCH")
     if record.get("schema_version") != RECORD_SCHEMA_VERSION:
@@ -2369,13 +2498,17 @@ def validate_feature_snapshot_record(record: Mapping[str, Any]) -> dict[str, Any
         reasons.append("FROZEN_ENVELOPE_SCHEMA_VERSION_MISMATCH")
 
     provenance = envelope.get("provenance_classification")
-    if provenance not in {PROVENANCE_CANONICAL_V3, PROVENANCE_LEGACY_V1_IMPORT}:
+    provenance_valid = (
+        type(provenance) is str
+        and provenance in {PROVENANCE_CANONICAL_V3, PROVENANCE_LEGACY_V1_IMPORT}
+    )
+    if not provenance_valid:
         reasons.append("PROVENANCE_CLASSIFICATION_INVALID")
     legacy_id = envelope.get("legacy_v1_snapshot_id")
-    if provenance == PROVENANCE_LEGACY_V1_IMPORT:
+    if provenance_valid and provenance == PROVENANCE_LEGACY_V1_IMPORT:
         if _strict_string(legacy_id, pattern=_LABEL_RE) is None:
             reasons.append("LEGACY_V1_SNAPSHOT_ID_REQUIRED")
-    elif legacy_id is not None:
+    elif provenance_valid and legacy_id is not None:
         reasons.append("CANONICAL_V3_HAS_LEGACY_V1_SNAPSHOT_ID")
 
     symbol = _strict_string(envelope.get("symbol"), pattern=_SYMBOL_RE)
@@ -2488,7 +2621,8 @@ def validate_feature_snapshot_record(record: Mapping[str, Any]) -> dict[str, Any
     if len(requirement_classes) != len(names):
         reasons.append("FEATURE_REQUIREMENT_CLASSES_DIMENSION_MISMATCH")
     elif any(
-        requirement not in _FEATURE_REQUIREMENT_CLASSES
+        type(requirement) is not str
+        or requirement not in _FEATURE_REQUIREMENT_CLASSES
         for requirement in requirement_classes
     ):
         reasons.append("FEATURE_REQUIREMENT_CLASS_INVALID")
@@ -2533,7 +2667,7 @@ def validate_feature_snapshot_record(record: Mapping[str, Any]) -> dict[str, Any
 
     expected_ineligibility_reasons = (
         _strict_training_ineligibility_reasons(
-            provenance_classification=str(provenance),
+            provenance_classification=(provenance if type(provenance) is str else ""),
             missing_mask=missing,
             stale_mask=stale,
             feature_source_receipt_sha256s=feature_bindings,
@@ -3508,8 +3642,10 @@ class DurableFeatureSnapshotLedger:
                 if len(identity_lists[prefix]) != material[count_field]:
                     reasons.append(f"APPEND_RECEIPT_{prefix.upper()}_IDENTITY_COUNT_MISMATCH")
         dispositions = material.get("attempted_dispositions")
-        if not isinstance(dispositions, list) or any(
-            disposition not in {"INSERTED", "DUPLICATE"} for disposition in dispositions
+        if type(dispositions) is not list or any(
+            type(disposition) is not str
+            or disposition not in {"INSERTED", "DUPLICATE"}
+            for disposition in dispositions
         ):
             reasons.append("APPEND_RECEIPT_ATTEMPTED_DISPOSITIONS_INVALID")
         elif (
@@ -3612,10 +3748,12 @@ class DurableFeatureSnapshotLedger:
             reasons.append("PROJECTION_OUTBOX_TIMEFRAME_INVALID")
         if _strict_string(material.get("original_tensor_id"), pattern=_LABEL_RE) is None:
             reasons.append("PROJECTION_OUTBOX_ORIGINAL_TENSOR_ID_INVALID")
-        if material.get("provenance_classification") not in {
-            PROVENANCE_CANONICAL_V3,
-            PROVENANCE_LEGACY_V1_IMPORT,
-        }:
+        provenance = material.get("provenance_classification")
+        if (
+            type(provenance) is not str
+            or provenance
+            not in {PROVENANCE_CANONICAL_V3, PROVENANCE_LEGACY_V1_IMPORT}
+        ):
             reasons.append("PROJECTION_OUTBOX_PROVENANCE_INVALID")
         if material.get("strict_training_eligible") not in (True, False):
             reasons.append("PROJECTION_OUTBOX_ELIGIBILITY_INVALID")
