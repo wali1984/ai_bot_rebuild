@@ -11,6 +11,7 @@ from app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_wss,
     closed_candle_key,
     current_candle_key,
+    latest_closed_candle_at_or_before,
     storage_records_for_candle,
 )
 
@@ -112,6 +113,67 @@ def test_rest_current_candle_is_not_feature_eligible() -> None:
     assert candle.is_closed is False
     assert candle.feature_eligible is False
     assert storage_records_for_candle(candle)[0][0] == current_candle_key("binance", "BTCUSDT", "1m")
+
+
+def test_rest_candle_finality_is_end_exclusive_at_close_boundary() -> None:
+    row = rest_row(timeframe="1m", open_time=BASE_MS)
+    close_time = int(row[6])
+
+    at_inclusive_close = canonical_from_binance_rest(
+        row,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time,
+    )
+    after_inclusive_close = canonical_from_binance_rest(
+        row,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time + 1,
+    )
+
+    assert at_inclusive_close.is_closed is False
+    assert at_inclusive_close.feature_eligible is False
+    assert after_inclusive_close.is_closed is True
+    assert after_inclusive_close.feature_eligible is True
+    assert after_inclusive_close.available_at == close_time + 1
+
+
+def test_wss_closed_flag_cannot_bypass_local_end_exclusive_finality() -> None:
+    message = wss_message(closed=True)
+    close_time = int(message["k"]["T"])
+
+    at_inclusive_close = canonical_from_binance_wss(
+        message,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time,
+    )
+    after_inclusive_close = canonical_from_binance_wss(
+        message,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=close_time + 1,
+    )
+
+    assert at_inclusive_close.is_closed is False
+    assert at_inclusive_close.feature_eligible is False
+    assert after_inclusive_close.is_closed is True
+    assert after_inclusive_close.feature_eligible is True
+    assert after_inclusive_close.available_at >= close_time + 1
+
+
+def test_decision_at_inclusive_close_cannot_select_candle() -> None:
+    candle = canonical_from_binance_rest(
+        rest_row(timeframe="1m", open_time=BASE_MS),
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=BASE_MS + TF_MS["1m"] + 1,
+    ).to_dict()
+    close_time = int(candle["candle_close_time"])
+
+    assert latest_closed_candle_at_or_before([candle], close_time) is None
+    assert latest_closed_candle_at_or_before([candle], close_time + 1) == candle
 
 
 def test_rest_candle_preserves_binance_trade_and_taker_fields() -> None:

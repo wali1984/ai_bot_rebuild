@@ -142,9 +142,13 @@ def canonical_from_binance_wss(message: Mapping[str, Any], *, symbol: str, timef
     close_time = parse_ms(kline.get("T"))
     if open_time is None or close_time is None:
         raise ValueError("binance_wss_kline_missing_open_or_close_time")
-    closed = bool(kline.get("x"))
     received = int(ingested_at or now_ms())
-    available_at = max(close_time, event_time, received) if closed else received
+    # Binance ``T`` is the inclusive final millisecond of the interval.  Even
+    # when the producer sets ``x=true``, the candle is not locally observable
+    # as final until the clock has advanced past ``T``.  Treating equality as
+    # final creates a one-millisecond look-ahead window at exact boundaries.
+    closed = bool(kline.get("x")) and close_time < received
+    available_at = max(close_time + 1, event_time, received) if closed else received
     return CanonicalCandle(
         symbol=str(symbol).upper(),
         exchange="binance",
@@ -184,7 +188,9 @@ def canonical_from_binance_rest(row: list[Any] | tuple[Any, ...], *, symbol: str
     if open_time is None or close_time is None:
         raise ValueError("binance_rest_kline_missing_open_or_close_time")
     received = int(ingested_at or now_ms())
-    closed = close_time <= received
+    # ``close_time`` is inclusive.  Finality is therefore end-exclusive:
+    # ``close_time + 1 <= received`` (equivalently ``close_time < received``).
+    closed = close_time < received
     return CanonicalCandle(
         symbol=str(symbol).upper(),
         exchange="binance",
@@ -193,7 +199,7 @@ def canonical_from_binance_rest(row: list[Any] | tuple[Any, ...], *, symbol: str
         candle_close_time=close_time,
         event_time=close_time,
         ingested_at=received,
-        available_at=max(close_time, received) if closed else received,
+        available_at=max(close_time + 1, received) if closed else received,
         is_closed=closed,
         source="binance_rest",
         source_sequence_id=str(close_time),
@@ -273,7 +279,7 @@ def aggregate_closed_candles(
             continue
         open_ms = parse_ms(raw.get("candle_open_time") or raw.get("open_time"))
         close_ms = parse_ms(raw.get("candle_close_time") or raw.get("close_time"))
-        if open_ms is None or close_ms is None or close_ms > current_ms:
+        if open_ms is None or close_ms is None or close_ms >= current_ms:
             continue
         by_open[open_ms] = dict(raw)
 
@@ -281,7 +287,7 @@ def aggregate_closed_candles(
     target_opens = sorted({(open_ms // target_ms) * target_ms for open_ms in by_open})
     for target_open in target_opens:
         target_close = target_open + target_ms - 1
-        if target_close > current_ms:
+        if target_close >= current_ms:
             continue
         expected_opens = list(range(target_open, target_open + target_ms, source_ms))
         source_rows = [by_open.get(open_ms) for open_ms in expected_opens]
@@ -381,7 +387,7 @@ def latest_closed_candle_at_or_before(candles: Any, decision_time: Any) -> dict[
         is_closed = raw.get("is_closed") is True or raw.get("closed_candle") is True or raw.get("candle_closed_confirmed") is True
         if close_time is None or not is_closed:
             continue
-        if close_time <= decision_ms:
+        if close_time < decision_ms:
             selected = dict(raw)
     return selected
 
@@ -404,7 +410,7 @@ def _latest_available_closed_candle_at_or_before(
             continue
         close_time = parse_ms(raw.get("candle_close_time") or raw.get("close_time"))
         is_closed = raw.get("is_closed") is True or raw.get("closed_candle") is True or raw.get("candle_closed_confirmed") is True
-        if close_time is None or not is_closed or close_time > decision_ms:
+        if close_time is None or not is_closed or close_time >= decision_ms:
             continue
         saw_closed_candidate = True
         available_at = parse_ms(raw.get("available_at"))
@@ -462,7 +468,7 @@ def build_multi_timeframe_decision_snapshot(
             reject_reasons.append(f"AVAILABLE_AT_AFTER_DECISION_{timeframe}")
         if close_time is None:
             reject_reasons.append(f"CANDLE_CLOSE_TIME_MISSING_{timeframe}")
-        elif close_time > decision_ms:
+        elif close_time >= decision_ms:
             reject_reasons.append(f"FUTURE_CANDLE_{timeframe}")
         selected[timeframe] = candle
     close_times = [parse_ms(row.get("candle_close_time") or row.get("close_time")) for row in selected.values()]
