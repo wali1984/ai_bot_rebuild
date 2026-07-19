@@ -43,13 +43,16 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
+import math
 import os
 import sys
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 _repo = Path(__file__).resolve().parents[4]
 if str(_repo) not in sys.path:
@@ -58,6 +61,7 @@ if str(_repo) not in sys.path:
 import redis  # noqa: E402
 
 from v2.backend.app.cli.v2_binance_kline_rest_backfill import (  # noqa: E402
+    TERMINAL_REST_RECOVERY_ERROR_CODES,
     _backfill_symbol_tf,
     _stable_error_code,
 )
@@ -90,6 +94,7 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import ( 
     validate_ohlcv_closed_window,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
+    is_valid_runtime_symbol,
     resolve_symbols_with_provenance,
 )
 
@@ -152,6 +157,7 @@ SECONDARY_MAX_AGE_S = _env_int("V2_UNIVERSE_SYNC_SECONDARY_MAX_AGE_S", 1800)
 # a large rotation cannot blow the shared per-minute REST budget or the
 # 15-minute timer window.
 MAX_BACKFILL_PAIRS_DEFAULT = _env_int("V2_UNIVERSE_SYNC_MAX_BACKFILL_PAIRS", 120)
+MAX_COVERAGE_BACKFILL_PAIRS_PER_RUN = 4096
 BACKFILL_SLEEP_SECONDS = 0.15
 
 # Resource-reporting bound only. The exact schema parser and transport enforce
@@ -162,6 +168,31 @@ OHLCV_COVERAGE_SEMANTICS = (
     "CORE_TA_MINIMUM_COVERAGE_FLOOR_NOT_EXACT_DEPENDENCY_LENGTH_"
     "NOT_MARKET_SELECTION_OR_TRAINER_ADMISSION"
 )
+# The contiguous suffix inspector is source evidence only. The current feature
+# worker still supplies whole lists to several transforms, so this census must
+# not turn source readiness into end-to-end consumer readiness.
+OHLCV_CONSUMER_SELECTION_BOUND = False
+OHLCV_CONSUMER_HOLD_REASON = "FULL_CONTIGUOUS_SUFFIX_SELECTION_NOT_WIRED"
+
+# Feature snapshots currently require a durable postcommit publication receipt
+# before any trainer/prediction/paper consumer flag can be trusted. The receipt
+# validator is intentionally not wired into this census yet.
+FEATURE_PUBLICATION_RECEIPT_VALIDATOR_BOUND = False
+FEATURE_CONSUMER_HOLD_REASON = "FEATURE_PUBLICATION_RECEIPT_VALIDATOR_NOT_BOUND"
+TA_FINALITY_CONSUMER_BOUND = False
+TA_CONSUMER_HOLD_REASON = "TA_FULL_FINALIZED_INPUT_RECEIPT_NOT_BOUND"
+
+# Immutable resource bounds; neither value selects markets or grants admission.
+MAX_CENSUS_JSON_SOURCE_BYTES = 1024 * 1024
+MAX_CENSUS_PAYLOAD_BYTES = 16 * 1024 * 1024
+MAX_CENSUS_SYMBOLS = 4096
+MAX_CENSUS_SYMBOL_ENTRY_BYTES = 64 * 1024
+MAX_CENSUS_SYMBOL_ENTRIES_AGGREGATE_BYTES = 12 * 1024 * 1024
+MAX_REPORTED_SECONDARY_FAMILIES = 32
+MAX_SECONDARY_FAMILY_COUNT = 1024
+MAX_SECONDARY_FAMILY_NAME_BYTES = 64
+MAX_REPORTED_FEATURE_COUNT = 10_000
+MAX_CENSUS_METADATA_TOKEN_BYTES = 256
 
 STATUS_FILE = (
     _repo / "v2/frontend/public/operator_runtime/v2_universe_coverage_sync/latest/"
@@ -186,16 +217,150 @@ def _ohlcv_binary_redis_client() -> redis.Redis:
     return redis.Redis.from_url(url, decode_responses=False)
 
 
+def _reject_json_constant(_value: str) -> NoReturn:
+    raise ValueError("nonfinite_json_constant")
+
+
+def _bounded_canonical_json(
+    value: Any,
+    *,
+    max_bytes: int,
+    error_code: str,
+) -> str:
+    """Serialize canonical JSON without first materializing an unbounded payload."""
+
+    if type(max_bytes) is not int or max_bytes < 1:
+        raise ValueError("universe_coverage_json_resource_bound_invalid")
+    encoder = json.JSONEncoder(
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    buffer = io.StringIO()
+    byte_count = 0
+    for chunk in encoder.iterencode(value):
+        # ensure_ascii=True guarantees the encoded chunk is ASCII. Count bytes
+        # before retaining the chunk so the aggregate string never crosses the
+        # caller's immutable resource limit.
+        chunk_bytes = len(chunk.encode("ascii"))
+        if byte_count + chunk_bytes > max_bytes:
+            raise ValueError(error_code)
+        buffer.write(chunk)
+        byte_count += chunk_bytes
+    return buffer.getvalue()
+
+
+def _bounded_metadata_token(value: Any) -> str | None:
+    """Retain only short printable ASCII provenance/status tokens."""
+
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        encoded = value.encode("ascii")
+    except UnicodeEncodeError:
+        return "UNTRUSTED_METADATA_TOKEN"
+    if len(encoded) > MAX_CENSUS_METADATA_TOKEN_BYTES or any(
+        character < " " or character == "\x7f" for character in value
+    ):
+        return "UNTRUSTED_METADATA_TOKEN"
+    return value
+
+
+def _bounded_secondary_family_summary(value: Any) -> dict[str, Any]:
+    """Summarize untrusted provider family names without echoing the list."""
+
+    if type(value) is int:
+        count_valid = 0 <= value <= MAX_SECONDARY_FAMILY_COUNT
+        return {
+            "valid": count_valid,
+            "reason": "ok" if count_valid else "SECONDARY_FAMILY_COUNT_RESOURCE_LIMIT",
+            "representation": "count_only",
+            "family_count": value if value >= 0 else 0,
+            "reported_family_count": 0,
+            "families_truncated": value > 0,
+            "reported_families": [],
+            "all_families_sha256": None,
+        }
+    if not isinstance(value, list):
+        return {
+            "valid": False,
+            "reason": "SECONDARY_FAMILY_LIST_REQUIRED",
+            "representation": "invalid",
+            "family_count": 0,
+            "reported_family_count": 0,
+            "families_truncated": False,
+            "reported_families": [],
+            "all_families_sha256": None,
+        }
+    family_count = len(value)
+    if family_count > MAX_SECONDARY_FAMILY_COUNT:
+        return {
+            "valid": False,
+            "reason": "SECONDARY_FAMILY_COUNT_RESOURCE_LIMIT",
+            "representation": "named_list",
+            "family_count": family_count,
+            "reported_family_count": 0,
+            "families_truncated": family_count > 0,
+            "reported_families": [],
+            "all_families_sha256": None,
+        }
+
+    validated: list[str] = []
+    for family in value:
+        if (
+            not isinstance(family, str)
+            or not family
+            or not family.isascii()
+            or len(family.encode("ascii")) > MAX_SECONDARY_FAMILY_NAME_BYTES
+            or any(not (character.isalnum() or character in "_-.:") for character in family)
+        ):
+            return {
+                "valid": False,
+                "reason": "SECONDARY_FAMILY_NAME_INVALID",
+                "representation": "named_list",
+                "family_count": family_count,
+                "reported_family_count": 0,
+                "families_truncated": family_count > 0,
+                "reported_families": [],
+                "all_families_sha256": None,
+            }
+        validated.append(family)
+
+    material = _bounded_canonical_json(
+        validated,
+        max_bytes=(MAX_SECONDARY_FAMILY_COUNT * (MAX_SECONDARY_FAMILY_NAME_BYTES + 3)) + 2,
+        error_code="universe_coverage_secondary_family_material_resource_limit",
+    )
+    reported = validated[:MAX_REPORTED_SECONDARY_FAMILIES]
+    return {
+        "valid": True,
+        "reason": "ok",
+        "representation": "named_list",
+        "family_count": family_count,
+        "reported_family_count": len(reported),
+        "families_truncated": len(reported) != family_count,
+        "reported_families": reported,
+        "all_families_sha256": hashlib.sha256(material.encode("ascii")).hexdigest(),
+    }
+
+
 def _read_json(r: redis.Redis, key: str) -> Any:
     try:
-        raw = cast(str | bytes | bytearray | None, r.get(key))
-    except redis.RedisError:
+        raw = cast(
+            str | bytes | bytearray | None,
+            r.getrange(key, 0, MAX_CENSUS_JSON_SOURCE_BYTES),
+        )
+    except (redis.RedisError, UnicodeError):
         return None
     if not raw:
         return None
+    raw_byte_count = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
+    if raw_byte_count > MAX_CENSUS_JSON_SOURCE_BYTES:
+        return None
     try:
-        return json.loads(raw)
-    except (TypeError, ValueError):
+        return json.loads(raw, parse_constant=_reject_json_constant)
+    except (TypeError, ValueError, UnicodeError):
         return None
 
 
@@ -203,9 +368,9 @@ def _parse_ts_seconds(value: Any) -> float | None:
     """Parse epoch s/ms or ISO-8601 (Z or offset) into epoch seconds."""
     if value is None:
         return None
-    if isinstance(value, int | float):
+    if type(value) in (int, float):
         v = float(value)
-        if v <= 0:
+        if not math.isfinite(v) or v <= 0:
             return None
         # Heuristic: epoch ms vs s.
         return v / 1000.0 if v > 1e11 else v
@@ -214,6 +379,8 @@ def _parse_ts_seconds(value: Any) -> float | None:
         return None
     try:
         v = float(text)
+        if not math.isfinite(v) or v <= 0:
+            return None
         return v / 1000.0 if v > 1e11 else v
     except ValueError:
         pass
@@ -222,9 +389,10 @@ def _parse_ts_seconds(value: Any) -> float | None:
             text = text[:-1] + "+00:00"
         dt = datetime.fromisoformat(text)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        return dt.timestamp()
-    except ValueError:
+            return None
+        parsed = dt.timestamp()
+        return parsed if math.isfinite(parsed) and parsed > 0 else None
+    except (ValueError, OverflowError, OSError):
         return None
 
 
@@ -234,7 +402,7 @@ def _payload_age_seconds(payload: Any, *fields: str) -> float | None:
     for field in fields:
         ts = _parse_ts_seconds(payload.get(field))
         if ts is not None:
-            return max(0.0, time.time() - ts)
+            return time.time() - ts
     return None
 
 
@@ -253,6 +421,10 @@ def _ohlcv_base_entry(*, key: str, status: str) -> dict[str, Any]:
         "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
         "coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
         "market_selection_threshold": False,
+        "source_window_recovery_ready": False,
+        "consumer_selection_bound": OHLCV_CONSUMER_SELECTION_BOUND,
+        "consumer_hold_reason": OHLCV_CONSUMER_HOLD_REASON,
+        "trainer_consumption_ready": False,
         "source_schema_validated": False,
         "producer_finality_contract_validated": False,
         "end_exclusive_consumer_finality_validated": False,
@@ -313,6 +485,7 @@ def _check_ohlcv_closed(
 ) -> dict[str, Any]:
     tfs: dict[str, Any] = {}
     ok_count = 0
+    source_ready_count = 0
     for tf in REQUIRED_DECISION_TIMEFRAMES:
         key = closed_candle_key("binance", symbol, tf)
         try:
@@ -395,10 +568,14 @@ def _check_ohlcv_closed(
             tfs[tf] = entry
             continue
 
+        source_window_recovery_ready = inspection.core_ta_minimum_coverage_ready
+        trainer_consumption_ready = source_window_recovery_ready and OHLCV_CONSUMER_SELECTION_BOUND
         if inspection.tail_missing_interval_count != 0:
             status = "tail_stale"
         elif inspection.contiguous_suffix_count < CORE_TA_MINIMUM_SOURCE_ROWS:
             status = "contiguous_suffix_short"
+        elif not OHLCV_CONSUMER_SELECTION_BOUND:
+            status = "source_ready_consumer_unbound"
         else:
             status = "ok"
 
@@ -423,23 +600,130 @@ def _check_ohlcv_closed(
                 inspection.selected_candle_id_chain_sha256
             ),
             core_ta_minimum_coverage_ready=(inspection.core_ta_minimum_coverage_ready),
+            source_window_recovery_ready=source_window_recovery_ready,
+            consumer_selection_bound=OHLCV_CONSUMER_SELECTION_BOUND,
+            consumer_hold_reason=OHLCV_CONSUMER_HOLD_REASON,
+            trainer_consumption_ready=trainer_consumption_ready,
         )
+        if source_window_recovery_ready:
+            source_ready_count += 1
         if status == "ok":
             ok_count += 1
         tfs[tf] = entry
-    status = (
-        "ok"
-        if ok_count == len(REQUIRED_DECISION_TIMEFRAMES)
-        else ("partial" if ok_count else "missing")
-    )
+    if ok_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "ok"
+    elif source_ready_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "source_ready_consumer_unbound"
+    else:
+        status = "partial" if source_ready_count else "missing"
     return {
         "status": status,
         "ok_tfs": ok_count,
+        "source_ready_tfs": source_ready_count,
         "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
         "coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
         "market_selection_threshold": False,
+        "source_windows_ready": all(
+            entry.get("source_window_recovery_ready") is True for entry in tfs.values()
+        ),
+        "consumer_selection_bound": OHLCV_CONSUMER_SELECTION_BOUND,
+        "consumer_hold_reason": OHLCV_CONSUMER_HOLD_REASON,
+        "trainer_consumption_ready": False,
         "tfs": tfs,
     }
+
+
+def _price_content_rejections(payload: Any, symbol: str) -> tuple[str, ...]:
+    if not isinstance(payload, dict):
+        return ("PRICE_PAYLOAD_OBJECT_REQUIRED",)
+    reasons: list[str] = []
+    if payload.get("symbol") != symbol:
+        reasons.append("PRICE_SYMBOL_IDENTITY_INVALID")
+    ticker = payload.get("ticker_24hr")
+    candidate = ticker if isinstance(ticker, dict) else payload
+    last_price = candidate.get("lastPrice", candidate.get("price"))
+    if not _finite(last_price) or float(last_price) <= 0:
+        reasons.append("PRICE_VALUE_INVALID")
+    if not isinstance(payload.get("source"), str) or not payload.get("source"):
+        reasons.append("PRICE_SOURCE_IDENTITY_REQUIRED")
+    return tuple(sorted(set(reasons)))
+
+
+def _book_level(payload: Any, field: str, fallback: str) -> tuple[float, float] | None:
+    levels = payload.get(field) if isinstance(payload, dict) else None
+    if isinstance(levels, list) and levels:
+        first = levels[0]
+        if isinstance(first, list | tuple) and len(first) >= 2:
+            price, quantity = first[0], first[1]
+            if _finite(price) and _finite(quantity):
+                return float(price), float(quantity)
+    price = payload.get(fallback) if isinstance(payload, dict) else None
+    quantity = payload.get(f"{fallback}_qty") if isinstance(payload, dict) else None
+    if _finite(price) and _finite(quantity):
+        return float(price), float(quantity)
+    return None
+
+
+def _orderbook_content_rejections(payload: Any, symbol: str) -> tuple[str, ...]:
+    if not isinstance(payload, dict):
+        return ("ORDERBOOK_PAYLOAD_OBJECT_REQUIRED",)
+    reasons: list[str] = []
+    if payload.get("symbol") != symbol:
+        reasons.append("ORDERBOOK_SYMBOL_IDENTITY_INVALID")
+    bid = _book_level(payload, "bids", "best_bid")
+    ask = _book_level(payload, "asks", "best_ask")
+    if bid is None or bid[0] <= 0 or bid[1] < 0:
+        reasons.append("ORDERBOOK_BID_INVALID")
+    if ask is None or ask[0] <= 0 or ask[1] < 0:
+        reasons.append("ORDERBOOK_ASK_INVALID")
+    if bid is not None and ask is not None and bid[0] >= ask[0]:
+        reasons.append("ORDERBOOK_CROSSED_OR_LOCKED")
+    return tuple(sorted(set(reasons)))
+
+
+def _open_interest_content_rejections(payload: Any, symbol: str) -> tuple[str, ...]:
+    if not isinstance(payload, dict):
+        return ("OPEN_INTEREST_PAYLOAD_OBJECT_REQUIRED",)
+    reasons: list[str] = []
+    if payload.get("symbol") != symbol:
+        reasons.append("OPEN_INTEREST_SYMBOL_IDENTITY_INVALID")
+    value = next(
+        (
+            payload.get(field)
+            for field in ("open_interest", "openInterest", "sumOpenInterest")
+            if payload.get(field) is not None
+        ),
+        None,
+    )
+    numeric_value = float(cast(Any, value)) if _finite(value) else None
+    if numeric_value is None or numeric_value < 0:
+        reasons.append("OPEN_INTEREST_VALUE_INVALID")
+    return tuple(sorted(set(reasons)))
+
+
+def _ta_content_rejections(payload: Any, symbol: str, timeframe: str) -> tuple[str, ...]:
+    if not isinstance(payload, dict):
+        return ("TA_PAYLOAD_OBJECT_REQUIRED",)
+    reasons: list[str] = []
+    if payload.get("schema_version") != "v2_full_talib_ta_payload_v1":
+        reasons.append("TA_SCHEMA_IDENTITY_INVALID")
+    if payload.get("symbol") != symbol or payload.get("timeframe") != timeframe:
+        reasons.append("TA_MARKET_IDENTITY_INVALID")
+    indicators = payload.get("indicators")
+    indicator_mapping = indicators if isinstance(indicators, dict) else {}
+    if not indicator_mapping or any(not _finite(value) for value in indicator_mapping.values()):
+        reasons.append("TA_INDICATOR_VALUES_INVALID")
+    if type(payload.get("indicator_count")) is not int or payload.get("indicator_count") != len(
+        indicator_mapping
+    ):
+        reasons.append("TA_INDICATOR_COUNT_INVALID")
+    last_candle_ts_ms = payload.get("last_candle_ts_ms")
+    if type(last_candle_ts_ms) is not int or last_candle_ts_ms <= 0:
+        reasons.append("TA_SOURCE_CANDLE_CLOCK_INVALID")
+    source_key = payload.get("source_ohlcv_key")
+    if not isinstance(source_key, str) or not source_key.startswith("v2:market:"):
+        reasons.append("TA_SOURCE_KEY_IDENTITY_INVALID")
+    return tuple(sorted(set(reasons)))
 
 
 def _check_symbol_keyed(
@@ -448,6 +732,7 @@ def _check_symbol_keyed(
     *,
     max_age_s: int,
     ts_fields: tuple[str, ...],
+    content_rejections: Callable[[Any], tuple[str, ...]] | None = None,
 ) -> dict[str, Any]:
     payload = _read_json(r, key)
     if payload is None:
@@ -455,8 +740,18 @@ def _check_symbol_keyed(
     age_s = _payload_age_seconds(payload, *ts_fields)
     if age_s is None:
         return {"status": "no_timestamp", "key": key}
+    if age_s < 0:
+        return {"status": "future_timestamp", "key": key}
     if age_s > max_age_s:
         return {"status": "stale", "age_s": int(age_s), "key": key}
+    rejections = content_rejections(payload) if content_rejections is not None else ()
+    if rejections:
+        return {
+            "status": "invalid_content",
+            "age_s": int(age_s),
+            "key": key,
+            "content_rejection_reasons": list(rejections),
+        }
     return {"status": "ok", "age_s": int(age_s)}
 
 
@@ -467,9 +762,13 @@ def _check_tf_keyed(
     *,
     grace_s: int,
     ts_fields: tuple[str, ...],
+    content_rejections: Callable[[Any, str], tuple[str, ...]] | None = None,
+    consumer_bound: bool = True,
+    consumer_hold_reason: str | None = None,
 ) -> dict[str, Any]:
     tfs: dict[str, Any] = {}
     ok_count = 0
+    held_count = 0
     for tf in REQUIRED_DECISION_TIMEFRAMES:
         key = key_template.format(symbol=symbol, timeframe=tf)
         payload = _read_json(r, key)
@@ -480,25 +779,52 @@ def _check_tf_keyed(
         max_age = TIMEFRAME_SECONDS.get(tf, 3600) + grace_s
         if age_s is None:
             tfs[tf] = {"ok": False, "reason": "no_timestamp"}
+        elif age_s < 0:
+            tfs[tf] = {"ok": False, "reason": "future_timestamp"}
         elif age_s > max_age:
             tfs[tf] = {"ok": False, "reason": "stale", "age_s": int(age_s)}
         else:
-            tfs[tf] = {"ok": True, "age_s": int(age_s)}
-            ok_count += 1
-    status = (
-        "ok"
-        if ok_count == len(REQUIRED_DECISION_TIMEFRAMES)
-        else ("partial" if ok_count else "missing")
-    )
-    return {"status": status, "ok_tfs": ok_count, "tfs": tfs}
+            rejections = content_rejections(payload, tf) if content_rejections is not None else ()
+            if rejections:
+                tfs[tf] = {
+                    "ok": False,
+                    "reason": "invalid_content",
+                    "age_s": int(age_s),
+                    "content_rejection_reasons": list(rejections),
+                }
+            elif not consumer_bound:
+                held_count += 1
+                tfs[tf] = {
+                    "ok": False,
+                    "reason": "consumer_held",
+                    "age_s": int(age_s),
+                    "consumer_hold_reason": consumer_hold_reason,
+                }
+            else:
+                tfs[tf] = {"ok": True, "age_s": int(age_s)}
+                ok_count += 1
+    if ok_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "ok"
+    elif held_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "consumer_held"
+    else:
+        status = "partial" if ok_count or held_count else "missing"
+    return {
+        "status": status,
+        "ok_tfs": ok_count,
+        "held_tfs": held_count,
+        "tfs": tfs,
+    }
 
 
 def _finite(value: Any) -> bool:
+    if isinstance(value, bool):
+        return False
     try:
         v = float(value)
     except (TypeError, ValueError):
         return False
-    return v == v and v not in (float("inf"), float("-inf"))
+    return math.isfinite(v)
 
 
 def _feature_spec_coverage_pct(snapshot: Any) -> float | None:
@@ -518,20 +844,130 @@ def _feature_spec_coverage_pct(snapshot: Any) -> float | None:
 
 
 def _check_feature_snapshot(r: redis.Redis, symbol: str) -> dict[str, Any]:
-    result = _check_tf_keyed(
-        r,
-        "v2:features:latest:{symbol}:{timeframe}",
-        symbol,
-        grace_s=SNAPSHOT_GRACE_S,
-        ts_fields=("generated_utc", "generated_at", "available_at"),
-    )
-    primary = _read_json(r, f"v2:features:latest:{symbol}:1m")
+    tfs: dict[str, Any] = {}
+    held_count = 0
+    ok_count = 0
+    primary: dict[str, Any] | None = None
+    for tf in REQUIRED_DECISION_TIMEFRAMES:
+        key = f"v2:features:latest:{symbol}:{tf}"
+        snapshot = _read_json(r, key)
+        if not isinstance(snapshot, dict):
+            tfs[tf] = {"ok": False, "reason": "missing", "key": key}
+            continue
+        if tf == "1m":
+            primary = snapshot
+        age_s = _payload_age_seconds(
+            snapshot,
+            "generated_utc",
+            "generated_at",
+            "available_at",
+        )
+        max_age = TIMEFRAME_SECONDS.get(tf, 3600) + SNAPSHOT_GRACE_S
+        if age_s is None:
+            tfs[tf] = {"ok": False, "reason": "no_timestamp", "key": key}
+            continue
+        if age_s < 0:
+            tfs[tf] = {"ok": False, "reason": "future_timestamp", "key": key}
+            continue
+        if age_s > max_age:
+            tfs[tf] = {
+                "ok": False,
+                "reason": "stale",
+                "age_s": int(age_s),
+                "key": key,
+            }
+            continue
+
+        features = snapshot.get("features")
+        feature_mapping = features if isinstance(features, dict) else {}
+        finite_feature_count = sum(_finite(value) for value in feature_mapping.values())
+        hold_reasons: list[str] = []
+        if snapshot.get("schema_version") != "v2_native_feature_snapshot_v2":
+            hold_reasons.append("FEATURE_SNAPSHOT_V2_SCHEMA_REQUIRED")
+        if snapshot.get("worker_id") != "v2_feature_pipeline_native_loop":
+            hold_reasons.append("FEATURE_SNAPSHOT_WORKER_IDENTITY_INVALID")
+        if not isinstance(features, dict) or not features or finite_feature_count == 0:
+            hold_reasons.append("FEATURE_VALUES_MISSING")
+        if type(snapshot.get("feature_count")) is not int or snapshot.get("feature_count") != len(
+            feature_mapping
+        ):
+            hold_reasons.append("FEATURE_COUNT_CONTRACT_INVALID")
+        if not isinstance(snapshot.get("feature_snapshot_id"), str) or not snapshot.get(
+            "feature_snapshot_id"
+        ):
+            hold_reasons.append("FEATURE_SNAPSHOT_ID_REQUIRED")
+        for field_name, reason in (
+            (
+                "required_model_feature_value_contract_valid",
+                "REQUIRED_MODEL_FEATURE_VALUE_CONTRACT_INVALID",
+            ),
+            (
+                "required_model_feature_pit_coverage_valid",
+                "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED",
+            ),
+            (
+                "ohlcv_history_payload_receipts_valid",
+                "IMMUTABLE_OHLCV_HISTORY_PAYLOAD_RECEIPTS_REQUIRED",
+            ),
+            (
+                "exact_feature_availability_valid",
+                "FEATURE_PUBLICATION_RECEIPT_REQUIRED",
+            ),
+            ("trainer_consumable", "TRAINER_CONSUMABLE_FALSE"),
+            ("valid_for_prediction", "PREDICTION_CONSUMABLE_FALSE"),
+            ("valid_for_paper", "PAPER_CONSUMABLE_FALSE"),
+        ):
+            if snapshot.get(field_name) is not True:
+                hold_reasons.append(reason)
+        if not FEATURE_PUBLICATION_RECEIPT_VALIDATOR_BOUND:
+            hold_reasons.append(FEATURE_CONSUMER_HOLD_REASON)
+
+        hold_reasons = sorted(set(hold_reasons))
+        consumer_ready = not hold_reasons
+        if consumer_ready:
+            ok_count += 1
+            reason = "ok"
+        else:
+            held_count += 1
+            reason = "consumer_held"
+        tfs[tf] = {
+            "ok": consumer_ready,
+            "reason": reason,
+            "age_s": int(age_s),
+            "key": key,
+            "finite_feature_count": finite_feature_count,
+            "feature_spec_coverage_pct": _feature_spec_coverage_pct(snapshot),
+            "consumer_hold_reasons": hold_reasons,
+            "publication_receipt_validator_bound": (FEATURE_PUBLICATION_RECEIPT_VALIDATOR_BOUND),
+        }
+
+    if ok_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "ok"
+    elif held_count == len(REQUIRED_DECISION_TIMEFRAMES):
+        status = "consumer_held"
+    else:
+        status = "partial" if held_count or ok_count else "missing"
     coverage = _feature_spec_coverage_pct(primary)
-    result["feature_spec_total"] = len(FEATURE_SPEC)
-    result["feature_spec_coverage_pct"] = coverage
+    result: dict[str, Any] = {
+        "status": status,
+        "ok_tfs": ok_count,
+        "held_tfs": held_count,
+        "tfs": tfs,
+        "feature_spec_total": len(FEATURE_SPEC),
+        "feature_spec_coverage_pct": coverage,
+        "publication_receipt_validator_bound": (FEATURE_PUBLICATION_RECEIPT_VALIDATOR_BOUND),
+        "consumer_hold_reason": FEATURE_CONSUMER_HOLD_REASON,
+    }
     if isinstance(primary, dict):
-        result["snapshot_feature_count"] = primary.get("feature_count")
-        result["snapshot_freshness_state"] = primary.get("feature_freshness_state")
+        feature_count = primary.get("feature_count")
+        feature_count_valid = (
+            type(feature_count) is int and 0 <= feature_count <= MAX_REPORTED_FEATURE_COUNT
+        )
+        result["snapshot_feature_count"] = feature_count if feature_count_valid else None
+        result["snapshot_feature_count_valid"] = feature_count_valid
+        result["snapshot_freshness_state"] = _bounded_metadata_token(
+            primary.get("feature_freshness_state")
+        )
     return result
 
 
@@ -542,11 +978,28 @@ def _check_secondary_sources(r: redis.Redis, symbol: str) -> dict[str, Any]:
     out: dict[str, Any] = {}
     coinank = _read_json(r, f"v2:features:coinank:{symbol}:1h")
     if isinstance(coinank, dict):
-        age_s = _payload_age_seconds(coinank, "generated_utc")
+        wrapper_age_s = _payload_age_seconds(coinank, "generated_utc")
+        source_freshness_value = coinank.get("source_freshness_seconds")
+        source_age_s: float | None = None
+        if isinstance(source_freshness_value, int | float) and not isinstance(
+            source_freshness_value, bool
+        ):
+            candidate_source_age_s = float(source_freshness_value)
+            if math.isfinite(candidate_source_age_s) and candidate_source_age_s >= 0:
+                source_age_s = candidate_source_age_s
         out["coinank_1h"] = {
-            "fresh": age_s is not None and age_s <= SECONDARY_MAX_AGE_S,
-            "age_s": None if age_s is None else int(age_s),
-            "families_present": coinank.get("families_present"),
+            "fresh": (
+                wrapper_age_s is not None
+                and 0 <= wrapper_age_s <= SECONDARY_MAX_AGE_S
+                and source_age_s is not None
+                and source_age_s <= SECONDARY_MAX_AGE_S
+            ),
+            "age_s": None if source_age_s is None else int(source_age_s),
+            "source_freshness_valid": source_age_s is not None,
+            "wrapper_age_s": None if wrapper_age_s is None else int(wrapper_age_s),
+            "families_present_summary": _bounded_secondary_family_summary(
+                coinank.get("families_present")
+            ),
         }
     kucoin = _read_json(r, f"v2:features:kucoin:{symbol}:latest")
     if isinstance(kucoin, dict):
@@ -571,18 +1024,30 @@ def _census_symbol(
             f"v2:market:prices:{symbol}",
             max_age_s=PRICES_MAX_AGE_S,
             ts_fields=("fetched_utc", "generated_utc", "timestamp"),
+            content_rejections=lambda payload: _price_content_rejections(
+                payload,
+                symbol,
+            ),
         ),
         "orderbook": _check_symbol_keyed(
             r,
             f"v2:market:orderbook:{symbol}",
             max_age_s=ORDERBOOK_MAX_AGE_S,
             ts_fields=("E", "T", "fetched_utc", "generated_utc", "timestamp"),
+            content_rejections=lambda payload: _orderbook_content_rejections(
+                payload,
+                symbol,
+            ),
         ),
         "open_interest": _check_symbol_keyed(
             r,
             f"v2:market:open_interest:{symbol}",
             max_age_s=OPEN_INTEREST_MAX_AGE_S,
             ts_fields=("binance_time_ms", "fetched_utc", "generated_utc", "timestamp"),
+            content_rejections=lambda payload: _open_interest_content_rejections(
+                payload,
+                symbol,
+            ),
         ),
         "ta_full": _check_tf_keyed(
             r,
@@ -590,6 +1055,13 @@ def _census_symbol(
             symbol,
             grace_s=TA_FULL_GRACE_S,
             ts_fields=("generated_utc",),
+            content_rejections=lambda payload, timeframe: _ta_content_rejections(
+                payload,
+                symbol,
+                timeframe,
+            ),
+            consumer_bound=TA_FINALITY_CONSUMER_BOUND,
+            consumer_hold_reason=TA_CONSUMER_HOLD_REASON,
         ),
         "feature_snapshot": _check_feature_snapshot(r, symbol),
     }
@@ -623,12 +1095,38 @@ def build_census(
     *,
     ohlcv_r: RawRedisSourceClient,
 ) -> dict[str, Any]:
+    symbol_snapshot = tuple(symbols[: MAX_CENSUS_SYMBOLS + 1])
+    if not 1 <= len(symbol_snapshot) <= MAX_CENSUS_SYMBOLS:
+        raise ValueError("universe_coverage_symbol_count_resource_limit")
+    if len(set(symbol_snapshot)) != len(symbol_snapshot) or any(
+        type(symbol) is not str or not is_valid_runtime_symbol(symbol) for symbol in symbol_snapshot
+    ):
+        raise ValueError("universe_coverage_symbol_identity_invalid")
     per_symbol: dict[str, Any] = {}
-    for symbol in symbols:
-        per_symbol[symbol] = _census_symbol(r, symbol, ohlcv_r=ohlcv_r)
+    aggregate_entry_bytes = 0
+    for symbol in symbol_snapshot:
+        entry = _census_symbol(r, symbol, ohlcv_r=ohlcv_r)
+        serialized_entry = _bounded_canonical_json(
+            entry,
+            max_bytes=MAX_CENSUS_SYMBOL_ENTRY_BYTES,
+            error_code="universe_coverage_symbol_entry_resource_limit",
+        )
+        aggregate_entry_bytes += len(serialized_entry.encode("ascii"))
+        if aggregate_entry_bytes > MAX_CENSUS_SYMBOL_ENTRIES_AGGREGATE_BYTES:
+            raise ValueError("universe_coverage_symbol_entries_aggregate_resource_limit")
+        per_symbol[symbol] = entry
 
     family_summary: dict[str, dict[str, int]] = {
-        fam: {"ok": 0, "partial": 0, "missing": 0, "stale": 0, "no_timestamp": 0}
+        fam: {
+            "ok": 0,
+            "partial": 0,
+            "missing": 0,
+            "stale": 0,
+            "no_timestamp": 0,
+            "future_timestamp": 0,
+            "source_ready_consumer_unbound": 0,
+            "consumer_held": 0,
+        }
         for fam in FAMILIES
     }
     for entry in per_symbol.values():
@@ -646,14 +1144,22 @@ def build_census(
         "schema_version": SCHEMA_VERSION,
         "worker_id": WORKER_ID,
         "generated_utc": _utc_iso(),
-        "universe_count": len(symbols),
-        "universe_source": provenance.get("source_path"),
-        "universe_profile": provenance.get("symbol_profile"),
+        "universe_count": len(symbol_snapshot),
+        "universe_source": _bounded_metadata_token(provenance.get("source_path")),
+        "universe_profile": _bounded_metadata_token(provenance.get("symbol_profile")),
         "timeframes": list(REQUIRED_DECISION_TIMEFRAMES),
         "core_ta_minimum_source_rows": CORE_TA_MINIMUM_SOURCE_ROWS,
         "ohlcv_coverage_semantics": OHLCV_COVERAGE_SEMANTICS,
         "ohlcv_market_selection_threshold": False,
+        "ohlcv_consumer_selection_bound": OHLCV_CONSUMER_SELECTION_BOUND,
+        "ohlcv_consumer_hold_reason": OHLCV_CONSUMER_HOLD_REASON,
         "feature_spec_total": len(FEATURE_SPEC),
+        "feature_publication_receipt_validator_bound": (
+            FEATURE_PUBLICATION_RECEIPT_VALIDATOR_BOUND
+        ),
+        "feature_consumer_hold_reason": FEATURE_CONSUMER_HOLD_REASON,
+        "ta_finality_consumer_bound": TA_FINALITY_CONSUMER_BOUND,
+        "ta_consumer_hold_reason": TA_CONSUMER_HOLD_REASON,
         "feature_spec_coverage_method": (
             "snapshot_features_only: FEATURE_SPEC names with finite values in "
             "v2:features:latest:{sym}:1m features dict. Lower bound — the "
@@ -669,7 +1175,7 @@ def build_census(
         },
         "summary": {
             "families": family_summary,
-            "symbols_fully_covered": len(symbols) - len(gap_symbols),
+            "symbols_fully_covered": len(symbol_snapshot) - len(gap_symbols),
             "symbols_with_gaps": len(gap_symbols),
             "gap_symbols": gap_symbols,
             "feature_spec_coverage_pct_avg": (
@@ -696,11 +1202,17 @@ def heal_ohlcv_gaps(
     dry_run: bool = False,
     replace_invalid_existing: bool = False,
 ) -> dict[str, Any]:
+    if type(dry_run) is not bool or type(replace_invalid_existing) is not bool:
+        raise ValueError("universe_coverage_heal_authority_flags_invalid")
+    if type(max_pairs) is not int or not 0 <= max_pairs <= MAX_COVERAGE_BACKFILL_PAIRS_PER_RUN:
+        raise ValueError("universe_coverage_max_backfill_pairs_resource_limit")
+    if not dry_run and max_pairs == 0:
+        raise ValueError("universe_coverage_max_backfill_pairs_zero_requires_no_backfill")
     pairs: list[tuple[str, str]] = []
     for symbol, entry in census["symbols"].items():
         tfs = entry["families"]["ohlcv_closed"]["tfs"]
         for tf, tf_entry in tfs.items():
-            if not tf_entry.get("ok"):
+            if tf_entry.get("source_window_recovery_ready") is not True:
                 pairs.append((symbol, tf))
 
     result: dict[str, Any] = {
@@ -773,13 +1285,7 @@ def heal_ohlcv_gaps(
                     "cache_ready_after": False,
                 }
             )
-            if error_code in {
-                "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION",
-                "REST_FALLBACK_COOLDOWN_BAN_PROTECTION",
-                "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED",
-                "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
-                "kline_backfill_http_rate_or_ban_limit",
-            }:
+            if error_code in TERMINAL_REST_RECOVERY_ERROR_CODES:
                 # Shared host-wide budget spent: skip the rest of this
                 # cycle; the 15-minute timer retries with a fresh window.
                 result["rest_budget_exhausted"] = True
@@ -799,7 +1305,7 @@ def _load_previous_summary(r: redis.Redis) -> dict[str, Any] | None:
     if not isinstance(previous, dict):
         return None
     age_s = _payload_age_seconds(previous, "generated_utc")
-    if age_s is None or age_s > PREVIOUS_CENSUS_MAX_AGE_SECONDS:
+    if age_s is None or age_s < 0 or age_s > PREVIOUS_CENSUS_MAX_AGE_SECONDS:
         # Cache-echo gate: never trust our own stale output.
         return None
     return {
@@ -810,7 +1316,12 @@ def _load_previous_summary(r: redis.Redis) -> dict[str, Any] | None:
 
 
 def publish_census(r: redis.Redis, census: dict[str, Any]) -> None:
-    r.set(CENSUS_REDIS_KEY, json.dumps(census, sort_keys=True, default=str), ex=CENSUS_TTL_SECONDS)
+    payload = _bounded_canonical_json(
+        census,
+        max_bytes=MAX_CENSUS_PAYLOAD_BYTES,
+        error_code="universe_coverage_census_payload_resource_limit",
+    )
+    r.set(CENSUS_REDIS_KEY, payload, ex=CENSUS_TTL_SECONDS)
 
 
 def write_status_file(census: dict[str, Any], heal: dict[str, Any]) -> None:
@@ -830,6 +1341,10 @@ def write_status_file(census: dict[str, Any], heal: dict[str, Any]) -> None:
         STATUS_FILE.write_text(json.dumps(payload, indent=2, sort_keys=True, default=str))
     except OSError as exc:
         print(f"[{WORKER_ID}] WARN status file write failed: {exc}")
+
+
+def _coverage_run_exit_code(heal: dict[str, Any]) -> int:
+    return 1 if heal.get("errors", 0) or heal.get("unresolved_after_attempt", 0) else 0
 
 
 # ---------------------------------------------------------------------------
@@ -902,7 +1417,7 @@ def main(argv: list[str] | None = None) -> int:
     heal = heal_ohlcv_gaps(
         ohlcv_r,
         census_before,
-        max_pairs=max(0, int(args.max_backfill_pairs)),
+        max_pairs=int(args.max_backfill_pairs),
         dry_run=bool(args.no_backfill),
         replace_invalid_existing=bool(args.replace_invalid_existing),
     )
@@ -942,7 +1457,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         print(json.dumps(census_after, indent=2, sort_keys=True, default=str))
-    return 0
+    return _coverage_run_exit_code(heal)
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field, replace
+from itertools import islice
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
@@ -83,14 +84,29 @@ MIN_CANDLES_THRESHOLD: Final = CORE_TA_MINIMUM_SOURCE_ROWS
 # Fixed transport/resource bounds, never market or trading thresholds.
 MAX_HTTP_RESPONSE_BYTES: Final = MAX_OHLCV_CLOSED_PAYLOAD_BYTES
 MAX_HTTP_RETRIES: Final = 5
+MAX_BINANCE_KLINE_LIMIT: Final = 1_000
 MAX_DISCOVERED_CURRENT_KEYS: Final = 4096
+MAX_EXPLICIT_BACKFILL_SYMBOLS: Final = 4096
+MAX_BACKFILL_PAIRS_PER_RUN: Final = 4096
 REDIS_SCAN_COUNT_HINT: Final = 256
 ATOMIC_OVERLAP_REASSESS_ATTEMPTS: Final = 3
 DEFAULT_CLOSED_WINDOW_TTL_FLOOR_SECONDS: Final = 86_400
 CLOSED_WINDOW_TTL_FLOOR_ENV: Final = "V2_BACKFILL_CLOSED_WINDOW_TTL_FLOOR_SECONDS"
+MAX_INTER_REQUEST_SLEEP_SECONDS: Final = 60.0
 
 _MAX_SIGNED_64: Final = (1 << 63) - 1
 _STABLE_ERROR_CODE_RE: Final = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,127}$")
+TERMINAL_REST_RECOVERY_ERROR_CODES: Final = frozenset(
+    {
+        "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
+        "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION",
+        "REST_FALLBACK_COOLDOWN_BAN_PROTECTION",
+        "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED",
+        "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
+        "kline_backfill_http_rate_or_ban_limit",
+        "kline_backfill_shared_rate_limit_cooldown_persistence_failed",
+    }
+)
 
 
 class KlineBackfillRecoveryError(RuntimeError):
@@ -182,6 +198,15 @@ def _exact_int(
     if type(value) is not int or not minimum <= value <= maximum:
         _fail(f"kline_backfill_{field_name}_invalid")
     return value
+
+
+def _validated_sleep_seconds(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        _fail("kline_backfill_sleep_seconds_invalid")
+    resolved = float(value)
+    if not math.isfinite(resolved) or not 0 <= resolved <= MAX_INTER_REQUEST_SLEEP_SECONDS:
+        _fail("kline_backfill_sleep_seconds_invalid")
+    return resolved
 
 
 def _validated_symbol(value: object) -> str:
@@ -417,12 +442,86 @@ def _retry_after_seconds(exc: urllib.error.HTTPError) -> float | None:
     return parsed if math.isfinite(parsed) and parsed >= 0 else None
 
 
+class _RejectRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Make redirects terminal so one reservation means one exact request."""
+
+    def redirect_request(
+        self,
+        req: Any,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        return None
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_RejectRedirectHandler())
+
+
+def _open_exact_public_request(
+    request: urllib.request.Request,
+    *,
+    timeout: float,
+) -> Any:
+    return _NO_REDIRECT_OPENER.open(request, timeout=timeout)  # noqa: S310
+
+
+def _binance_kline_request_weight(limit: object) -> int:
+    """Return Binance USD-M's published request weight for one kline page."""
+
+    bounded_limit = _exact_int(
+        limit,
+        field_name="limit",
+        minimum=1,
+        maximum=MAX_BINANCE_KLINE_LIMIT,
+    )
+    if bounded_limit < 100:
+        return 1
+    if bounded_limit < 500:
+        return 2
+    return 5
+
+
+def _validated_http_kline_request(parsed_url: urllib.parse.ParseResult) -> int:
+    """Validate the exact public request identity and return its weight."""
+
+    if parsed_url.params or parsed_url.fragment or not parsed_url.query:
+        _fail("kline_backfill_http_url_invalid")
+    try:
+        pairs = urllib.parse.parse_qsl(
+            parsed_url.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+        )
+    except ValueError:
+        _fail("kline_backfill_http_url_invalid")
+    if len(pairs) != 3 or {name for name, _value in pairs} != {
+        "symbol",
+        "interval",
+        "limit",
+    }:
+        _fail("kline_backfill_http_url_invalid")
+    values = {name: value for name, value in pairs}
+    _validated_symbol(values["symbol"])
+    _validated_timeframe(values["interval"])
+    raw_limit = values["limit"]
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError, OverflowError):
+        _fail("kline_backfill_limit_invalid")
+    if str(limit) != raw_limit:
+        _fail("kline_backfill_limit_invalid")
+    return _binance_kline_request_weight(limit)
+
+
 def _http_get(
     url: str,
     *,
     retries: int = 3,
     backoff: float = 2.0,
-) -> list[object]:
+) -> tuple[list[object], int, int]:
     """Fetch and decode at most one mebibyte of public response bytes."""
 
     attempts = _exact_int(
@@ -443,6 +542,7 @@ def _http_get(
         or parsed_url.path != "/fapi/v1/klines"
     ):
         _fail("kline_backfill_http_url_invalid")
+    request_weight = _validated_http_kline_request(parsed_url)
     for attempt in range(attempts):
         try:
             # The shared counter is a reservation for one physical request,
@@ -452,7 +552,7 @@ def _http_get(
                     endpoint=parsed_url.path or "binance_fapi_klines",
                     fallback_reason="operator_requested_kline_gap_backfill",
                     role="kline_gap_backfill_recovery",
-                    request_weight=1,
+                    request_weight=request_weight,
                     require_shared_budget=True,
                 )
             except RuntimeError as exc:
@@ -461,11 +561,18 @@ def _http_get(
                 url,
                 headers={"User-Agent": "v2-backfill/2.0"},
             )
-            with urllib.request.urlopen(  # noqa: S310 - exact HTTPS host checked above
+            request_started_at_ms = _consumer_observed_at_ms()
+            with _open_exact_public_request(
                 request,
                 timeout=15,
             ) as response:
                 payload = response.read(MAX_HTTP_RESPONSE_BYTES + 1)
+                # This is the ingestion/availability receipt clock. Finality
+                # remains bound to request_started_at_ms so neither transfer
+                # nor JSON decoding can move the cutoff past a boundary.
+                response_received_at_ms = _consumer_observed_at_ms()
+            if response_received_at_ms < request_started_at_ms:
+                _fail("kline_backfill_http_clock_order_invalid")
             if type(payload) is not bytes:
                 _fail("kline_backfill_http_payload_type_invalid")
             if not payload:
@@ -485,14 +592,22 @@ def _http_get(
                 _fail("kline_backfill_http_response_type_invalid")
             if len(decoded) > CLOSED_WINDOW_MAX_ROWS:
                 _fail("kline_backfill_http_response_row_count_invalid")
-            return cast(list[object], decoded)
+            return (
+                cast(list[object], decoded),
+                request_started_at_ms,
+                response_received_at_ms,
+            )
         except KlineBackfillRecoveryError:
             raise
         except urllib.error.HTTPError as exc:
-            report_binance_rest_response(
-                status_code=int(exc.code),
-                retry_after_seconds=_retry_after_seconds(exc),
-            )
+            if (
+                report_binance_rest_response(
+                    status_code=int(exc.code),
+                    retry_after_seconds=_retry_after_seconds(exc),
+                )
+                is not True
+            ):
+                _fail("kline_backfill_shared_rate_limit_cooldown_persistence_failed")
             if exc.code in (418, 429):
                 _fail("kline_backfill_http_rate_or_ban_limit")
             if attempt == attempts - 1:
@@ -512,14 +627,14 @@ def _fetch_rest_klines(
     symbol: str,
     interval: str,
     limit: int = BACKFILL_LIMIT,
-) -> list[object]:
+) -> tuple[list[object], int, int]:
     bound_symbol = _validated_symbol(symbol)
     bound_timeframe = _validated_timeframe(interval)
     bounded_limit = _exact_int(
         limit,
         field_name="limit",
         minimum=1,
-        maximum=CLOSED_WINDOW_MAX_ROWS,
+        maximum=MAX_BINANCE_KLINE_LIMIT,
     )
     query = urllib.parse.urlencode(
         {
@@ -528,13 +643,15 @@ def _fetch_rest_klines(
             "limit": bounded_limit,
         }
     )
-    rows = _http_get(f"{BINANCE_FAPI}/fapi/v1/klines?{query}")
+    rows, request_started_at_ms, response_received_at_ms = _http_get(
+        f"{BINANCE_FAPI}/fapi/v1/klines?{query}"
+    )
     if len(rows) > bounded_limit:
         _fail("kline_backfill_rest_row_count_exceeds_request")
     for row in rows:
         if type(row) is not list or not 11 <= len(row) <= 12:
             _fail("kline_backfill_rest_row_shape_invalid")
-    return rows
+    return rows, request_started_at_ms, response_received_at_ms
 
 
 def _fetch_klines(
@@ -548,7 +665,12 @@ def _fetch_klines(
     assessment = _assess_closed_window(client, symbol, interval)
     if assessment.ready:
         return [], "websocket_cache_primary"
-    return _fetch_rest_klines(symbol, interval, limit), "rest_fallback"
+    rows, _request_started_at_ms, _response_received_at_ms = _fetch_rest_klines(
+        symbol,
+        interval,
+        limit,
+    )
+    return rows, "rest_fallback"
 
 
 def _canonicalize_finalized_rest_rows(
@@ -556,16 +678,25 @@ def _canonicalize_finalized_rest_rows(
     *,
     symbol: str,
     timeframe: str,
+    request_started_at_ms: int,
     response_received_at_ms: int,
 ) -> tuple[dict[str, Any], ...]:
-    """Convert only candles final before the post-response local clock."""
+    """Convert only candles already final when the request began."""
 
-    observed_at_ms = _exact_int(
+    request_at_ms = _exact_int(
+        request_started_at_ms,
+        field_name="request_started_at_ms",
+        minimum=1,
+        maximum=_MAX_SIGNED_64,
+    )
+    received_at_ms = _exact_int(
         response_received_at_ms,
         field_name="response_received_at_ms",
         minimum=1,
         maximum=_MAX_SIGNED_64,
     )
+    if received_at_ms < request_at_ms:
+        _fail("kline_backfill_http_clock_order_invalid")
     canonical: list[dict[str, Any]] = []
     for raw_row in rows:
         if type(raw_row) is not list or not 11 <= len(raw_row) <= 12:
@@ -575,15 +706,16 @@ def _canonicalize_finalized_rest_rows(
                 raw_row,
                 symbol=symbol,
                 timeframe=timeframe,
-                ingested_at=observed_at_ms,
+                ingested_at=received_at_ms,
             )
         except (TypeError, ValueError, OverflowError) as exc:
             raise KlineBackfillRecoveryError(
                 "kline_backfill_rest_row_canonicalization_invalid"
             ) from exc
-        # Binance close time is inclusive.  Equality with the local observation
-        # clock is unfinished and must never enter the closed window.
-        if not candle.is_closed or candle.candle_close_time >= observed_at_ms:
+        # Binance close time is inclusive. Request-start is the conservative
+        # finality cutoff: a response that straddles a close cannot promote the
+        # row serialized while it was still the current candle.
+        if not candle.is_closed or candle.candle_close_time >= request_at_ms:
             continue
         canonical.append(candle.to_dict())
 
@@ -679,7 +811,10 @@ def _missing_symbols(
 
     bound_timeframes = tuple(_validated_timeframe(tf) for tf in timeframes)
     missing: dict[str, list[str]] = {}
-    for symbol in _scan_current_symbols(client):
+    discovered_symbols = _scan_current_symbols(client)
+    if not discovered_symbols:
+        _fail("kline_backfill_no_current_symbols_discovered")
+    for symbol in discovered_symbols:
         missing_timeframes = [
             timeframe
             for timeframe in bound_timeframes
@@ -688,6 +823,23 @@ def _missing_symbols(
         if missing_timeframes:
             missing[symbol] = missing_timeframes
     return missing
+
+
+def _validated_target_plan(
+    targets: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    pair_count = 0
+    for symbol, timeframes in targets.items():
+        _validated_symbol(symbol)
+        if type(timeframes) is not list or not timeframes:
+            _fail("kline_backfill_target_timeframes_invalid")
+        validated_timeframes = tuple(_validated_timeframe(tf) for tf in timeframes)
+        if len(set(validated_timeframes)) != len(validated_timeframes):
+            _fail("kline_backfill_target_timeframes_duplicate")
+        pair_count += len(validated_timeframes)
+        if pair_count > MAX_BACKFILL_PAIRS_PER_RUN:
+            _fail("kline_backfill_target_pair_count_resource_limit")
+    return targets
 
 
 def _outcome(
@@ -706,6 +858,11 @@ def _outcome(
     stored_rows = (
         write_result.stored_row_count if write_result is not None else assessment_after.row_count
     )
+    stored_row_growth = (
+        max(0, write_result.stored_row_count - write_result.existing_row_count)
+        if write_result is not None
+        else 0
+    )
     return {
         "symbol": symbol,
         "tf": timeframe,
@@ -713,7 +870,9 @@ def _outcome(
         "rows_submitted": rows_submitted,
         # Compatibility fields retained, with exact meanings constrained by the
         # accompanying write acknowledgement and strict post-assessment.
-        "closed_ingested": rows_submitted if committed else 0,
+        "closed_ingested": stored_row_growth,
+        "closed_ingested_semantics": "NET_STORED_ROW_COUNT_GROWTH_CONSERVATIVE",
+        "stored_row_growth": stored_row_growth,
         "total_in_key": stored_rows,
         "transport": transport,
         "rest_fallback_used": transport == "rest_fallback",
@@ -788,16 +947,20 @@ def _backfill_symbol_tf(
         # The cache was proven nonready.  REST fallback is therefore forced;
         # stale, shallow, invalid, or current-candle cache values cannot short
         # circuit recovery.
-        rest_rows = _fetch_rest_klines(
+        (
+            rest_rows,
+            request_started_at_ms,
+            response_received_at_ms,
+        ) = _fetch_rest_klines(
             bound_symbol,
             bound_timeframe,
             BACKFILL_LIMIT,
         )
-        response_received_at_ms = _consumer_observed_at_ms()
         canonical_rows = _canonicalize_finalized_rest_rows(
             rest_rows,
             symbol=bound_symbol,
             timeframe=bound_timeframe,
+            request_started_at_ms=request_started_at_ms,
             response_received_at_ms=response_received_at_ms,
         )
 
@@ -935,14 +1098,19 @@ def _resolve_backfill_targets(
     client: object,
     args: argparse.Namespace,
 ) -> dict[str, list[str]]:
-    timeframes = (
-        tuple(
-            timeframe.strip()
-            for timeframe in str(args.timeframes or "").split(",")
-            if timeframe.strip()
-        )
-        or BACKFILL_TIMEFRAMES
-    )
+    raw_timeframes = str(args.timeframes or "")
+    timeframe_parts = raw_timeframes.split(",", len(SUPPORTED_TRAINER_TIMEFRAMES))
+    if len(timeframe_parts) > len(SUPPORTED_TRAINER_TIMEFRAMES):
+        _fail("kline_backfill_timeframe_count_invalid")
+    deduplicated_timeframes: list[str] = []
+    seen_timeframes: set[str] = set()
+    for part in timeframe_parts:
+        timeframe = part.strip()
+        if not timeframe or timeframe in seen_timeframes:
+            continue
+        seen_timeframes.add(timeframe)
+        deduplicated_timeframes.append(timeframe)
+    timeframes = tuple(deduplicated_timeframes) or BACKFILL_TIMEFRAMES
     unknown = [tf for tf in timeframes if tf not in SUPPORTED_TRAINER_TIMEFRAMES]
     if unknown:
         raise SystemExit(
@@ -951,25 +1119,40 @@ def _resolve_backfill_targets(
         )
     raw = (args.symbols or "").strip()
     if not raw:
-        return _missing_symbols(client, timeframes)
+        return _validated_target_plan(_missing_symbols(client, timeframes))
     if raw.lower() in {"auto", "all", "universe"}:
-        symbols = list(resolve_symbols())
+        symbols = list(
+            islice(
+                resolve_symbols(),
+                MAX_EXPLICIT_BACKFILL_SYMBOLS + 1,
+            )
+        )
+        if len(symbols) > MAX_EXPLICIT_BACKFILL_SYMBOLS:
+            _fail("kline_backfill_explicit_symbol_count_invalid")
     else:
         symbols = []
         seen: set[str] = set()
-        for part in raw.split(","):
+        symbol_parts = raw.split(",", MAX_EXPLICIT_BACKFILL_SYMBOLS)
+        if len(symbol_parts) > MAX_EXPLICIT_BACKFILL_SYMBOLS:
+            _fail("kline_backfill_explicit_symbol_count_invalid")
+        for part in symbol_parts:
             text = part.strip().upper()
             if not text or text in seen:
                 continue
             if not is_valid_runtime_symbol(text):
-                print(f"[backfill] skipping invalid symbol {text!r}")
-                continue
+                _fail("kline_backfill_explicit_symbol_invalid")
             seen.add(text)
             symbols.append(text)
-    return {symbol: list(timeframes) for symbol in symbols}
+    if not symbols:
+        _fail("kline_backfill_explicit_symbols_empty")
+    if len(set(symbols)) != len(symbols) or any(
+        type(symbol) is not str or not is_valid_runtime_symbol(symbol) for symbol in symbols
+    ):
+        _fail("kline_backfill_resolved_symbol_identity_invalid")
+    return _validated_target_plan({symbol: list(timeframes) for symbol in symbols})
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     client = _redis_client()
     print(
@@ -984,7 +1167,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  {symbol}: {timeframes}")
 
     results: list[dict[str, Any]] = []
-    sleep_seconds = max(0.0, float(args.sleep_seconds))
+    terminal_error_code: str | None = None
+    sleep_seconds = _validated_sleep_seconds(args.sleep_seconds)
     total_symbols = len(targets)
     for index, (symbol, timeframes) in enumerate(sorted(targets.items()), 1):
         for timeframe in timeframes:
@@ -1017,7 +1201,12 @@ def main(argv: list[str] | None = None) -> None:
                     }
                 )
                 print(f"[{index}/{total_symbols}] {symbol}/{timeframe}: ERROR {error_code}")
+                if error_code in TERMINAL_REST_RECOVERY_ERROR_CODES:
+                    terminal_error_code = error_code
+                    break
             time.sleep(sleep_seconds)
+        if terminal_error_code is not None:
+            break
 
     committed = sum(result.get("write_committed") is True for result in results)
     ready_no_write = sum(
@@ -1025,7 +1214,8 @@ def main(argv: list[str] | None = None) -> None:
         for result in results
     )
     unresolved = sum(
-        result.get("recovery_status", "").startswith("unresolved_") for result in results
+        result.get("recovery_status") != "error" and result.get("cache_ready_after") is False
+        for result in results
     )
     errors = sum(result.get("recovery_status") == "error" for result in results)
     print(
@@ -1033,7 +1223,8 @@ def main(argv: list[str] | None = None) -> None:
         f"writes_committed={committed}, ready_no_write={ready_no_write}, "
         f"unresolved={unresolved}, errors={errors}."
     )
+    return 1 if errors or unresolved else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
