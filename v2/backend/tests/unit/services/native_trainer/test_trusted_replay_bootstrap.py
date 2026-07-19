@@ -94,6 +94,7 @@ def _snapshot(**overrides: object) -> dict[str, object]:
         extra={
             "decision_id": "decision-1",
             "candle_closed_confirmed": True,
+            "trainer_consumable": True,
             "model_version": "unit",
             "checkpoint_id": "ckpt",
         },
@@ -227,6 +228,7 @@ def _append_archive_series(root: Path, *, rows: int = 270) -> None:
             extra={
                 "decision_id": f"decision-archive-only-{minute:04d}",
                 "candle_closed_confirmed": True,
+                "trainer_consumable": True,
                 "model_version": "unit",
                 "checkpoint_id": "ckpt",
             },
@@ -778,6 +780,7 @@ def test_trusted_replay_loader_skips_critical_missing_rows(tmp_path: Path) -> No
             extra={
                 "decision_id": f"decision-critical-missing-{minute:04d}",
                 "candle_closed_confirmed": True,
+                "trainer_consumable": True,
                 "model_version": "unit",
                 "checkpoint_id": "ckpt",
             },
@@ -843,6 +846,7 @@ def test_trusted_replay_loader_streams_snapshots_without_chunk_materialization(
                 "symbol": "BTCUSDT",
                 "timeframe": "1m",
                 "decision_time": DECISION_TIME,
+                "trainer_consumable": True,
                 "large_feature_payload": "x" * 100_000,
             }
 

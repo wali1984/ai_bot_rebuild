@@ -271,6 +271,13 @@ def _example(index: int, *, label_available_at: str) -> TrainingExample:
         trust_row={
             "decision_time": "2026-07-18T00:00:00Z",
             "label_available_at": label_available_at,
+            "producer_trainer_consumable_claim_present": True,
+            "producer_trainer_consumable_claim": True,
+            "producer_trainer_consumable_literal_true": True,
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "trainer_consumable": True,
+            "reject_reasons": [],
         },
     )
 

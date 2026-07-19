@@ -78,6 +78,138 @@ class _FakeTensorBuilder:
         return _tensor()
 
 
+@pytest.mark.parametrize(
+    ("claim_present", "producer_claim"),
+    (
+        (False, None),
+        (True, False),
+        (True, 0),
+        (True, "true"),
+    ),
+)
+def test_feature_producer_trainer_claim_requires_literal_true(
+    monkeypatch: pytest.MonkeyPatch,
+    claim_present: bool,
+    producer_claim: object,
+) -> None:
+    monkeypatch.setattr(
+        data_loader_module,
+        "classify_training_sample",
+        lambda _row: {
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "market_state_integrity_score": 100.0,
+            "reject_reasons": [],
+            "source_lineage": {},
+        },
+    )
+    monkeypatch.setattr(
+        data_loader_module,
+        "build_multi_timeframe_decision_snapshot",
+        lambda **_kwargs: {
+            "decision_id": "decision-producer-claim",
+            "mtf_snapshot_id": "mtf-producer-claim",
+            "valid": True,
+            "reject_reasons": [],
+            "feature_cutoff": "2026-07-18T11:59:00Z",
+            "all_tf_candle_timestamps": [],
+            "all_source_event_times": [],
+        },
+    )
+    feature_snapshot: dict[str, object] = {
+        "feature_snapshot_id": "feature-producer-claim",
+        "decision_time": "2026-07-18T12:00:00Z",
+        "available_at": "2026-07-18T11:59:59Z",
+        "feature_cutoff": "2026-07-18T11:59:00Z",
+        "generated_at": "2026-07-18T11:59:59Z",
+        "candle_closed_confirmed": True,
+        "missing_feature_flags": [],
+        "missing_feature_count": 0,
+        "stale_feature_flags": [],
+        "source_availability": [1],
+        "features": {
+            "open": 100.0,
+            "high": 101.0,
+            "low": 99.0,
+            "close": 100.5,
+        },
+    }
+    if claim_present:
+        feature_snapshot["trainer_consumable"] = producer_claim
+
+    example = V2HybridTrainerDataLoader(
+        tensor_builder=_FakeTensorBuilder()
+    )._build_example_from_payloads(  # noqa: SLF001
+        symbol="BTCUSDT",
+        timeframe="1m",
+        payloads={"features_latest": feature_snapshot},
+    )
+
+    assert example.trust_row["producer_trainer_consumable_claim_present"] is (
+        claim_present
+    )
+    assert example.trust_row["producer_trainer_consumable_claim"] == producer_claim
+    assert example.trust_row["producer_trainer_consumable_literal_true"] is False
+    assert example.trust_row["trainer_consumable"] is False
+    assert example.trust_row["accepted_for_training"] is False
+    assert example.trust_row["valid_for_training"] is False
+    assert example.row_classification == "MARKET_STATE_REJECTED"
+    assert "PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE" in (
+        example.trust_row["reject_reasons"]
+    )
+
+
+def test_feature_producer_literal_true_remains_trainable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        data_loader_module,
+        "classify_training_sample",
+        lambda _row: {
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "market_state_integrity_score": 100.0,
+            "reject_reasons": [],
+            "source_lineage": {},
+        },
+    )
+    monkeypatch.setattr(
+        data_loader_module,
+        "_extra_contract_rejection_reasons",
+        lambda _row: [],
+    )
+    example = V2HybridTrainerDataLoader(
+        tensor_builder=_FakeTensorBuilder()
+    )._build_example_from_payloads(  # noqa: SLF001
+        symbol="BTCUSDT",
+        timeframe="1m",
+        payloads={
+            "features_latest": {
+                "feature_snapshot_id": "feature-producer-literal-true",
+                "trainer_consumable": True,
+                "decision_time": "2026-07-18T12:00:00Z",
+                "available_at": "2026-07-18T11:59:59Z",
+                "feature_cutoff": "2026-07-18T11:59:00Z",
+                "features": {
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                },
+            }
+        },
+    )
+
+    assert example.trust_row["producer_trainer_consumable_claim_present"] is True
+    assert example.trust_row["producer_trainer_consumable_claim"] is True
+    assert example.trust_row["producer_trainer_consumable_literal_true"] is True
+    assert example.trust_row["trainer_consumable"] is True
+    assert example.trust_row["accepted_for_training"] is True
+    assert example.trust_row["valid_for_training"] is True
+    assert example.trust_row["reject_reasons"] == []
+    assert example.row_classification == "TRAINABLE"
+
+
 def test_extra_contract_rejection_revokes_all_training_admission_flags(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -105,6 +237,7 @@ def test_extra_contract_rejection_revokes_all_training_admission_flags(
         payloads={
             "features_latest": {
                 "feature_snapshot_id": "feature-invalid-contract",
+                "trainer_consumable": True,
                 "decision_time": "2026-07-18T12:00:00Z",
                 "available_at": "2026-07-18T11:59:59Z",
                 "features": {
@@ -124,6 +257,39 @@ def test_extra_contract_rejection_revokes_all_training_admission_flags(
     assert example.trust_row["reject_reasons"] == [
         "FORCED_INVALID_MTF_CONTRACT"
     ]
+
+
+def test_trusted_replay_producer_veto_is_rejected_before_labeling(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    snapshot = {
+        "snapshot_id": "replay-producer-veto",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "decision_time": "2026-07-17T00:00:00Z",
+        "trainer_consumable": False,
+    }
+    monkeypatch.setattr(
+        data_loader_module,
+        "iter_snapshots_from_offset",
+        lambda *_args, **_kwargs: iter(((128, snapshot),)),
+    )
+    loader = V2HybridTrainerDataLoader(
+        io=_FakeIO({}),
+        tensor_builder=_FakeTensorBuilder(),
+        trusted_replay_archive_root=tmp_path,
+    )
+
+    examples = loader.load_trusted_replay_examples(
+        limit=1,
+        training_observed_at="2026-07-18T00:00:00Z",
+    )
+
+    assert examples == []
+    assert loader.last_trusted_replay_scan["rejection_reasons"] == {
+        "PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE": 1
+    }
 
 
 def _archive_snapshot(
@@ -148,6 +314,7 @@ def _archive_snapshot(
         extra={
             "candle_close_time": snapshot.get("candle_close_time"),
             "candle_closed_confirmed": snapshot.get("candle_closed_confirmed"),
+            "trainer_consumable": snapshot.get("trainer_consumable"),
         },
     )
     append_snapshot(record, root=root)
@@ -167,6 +334,7 @@ def _paper_exploration_snapshot() -> dict[str, object]:
         "feature_cutoff": "2026-07-09T11:45:00Z",
         "candle_close_time": "2026-07-09T11:45:00Z",
         "candle_closed_confirmed": True,
+        "trainer_consumable": True,
         "features": {"ema_12": 1.0, "close": 100.0},
     }
 
@@ -226,6 +394,32 @@ def _paper_exploration_feedback(**overrides: object) -> dict[str, object]:
     return feedback
 
 
+def test_closed_trade_feature_snapshot_producer_veto_cannot_be_upgraded() -> None:
+    snapshot = {
+        **_paper_exploration_snapshot(),
+        "trainer_consumable": False,
+    }
+    loader = V2HybridTrainerDataLoader(tensor_builder=_FakeTensorBuilder())
+
+    example = loader._closed_trade_snapshot_training_example(  # noqa: SLF001
+        _paper_exploration_feedback(),
+        resolved_snapshot=snapshot,
+        resolved_snapshot_source="unit:producer-veto",
+    )
+
+    assert example is not None
+    assert example.trust_row["producer_trainer_consumable_claim_present"] is True
+    assert example.trust_row["producer_trainer_consumable_claim"] is False
+    assert example.trust_row["producer_trainer_consumable_literal_true"] is False
+    assert example.trust_row["trainer_consumable"] is False
+    assert example.trust_row["accepted_for_training"] is False
+    assert example.trust_row["valid_for_training"] is False
+    assert example.row_classification == "MARKET_STATE_REJECTED"
+    assert example.trust_row["reject_reasons"] == [
+        "PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE"
+    ]
+
+
 def test_loader_consumes_mature_counterfactual_feedback_key(
     tmp_path: Path,
 ) -> None:
@@ -238,6 +432,7 @@ def test_loader_consumes_mature_counterfactual_feedback_key(
         "feature_cutoff": "2026-07-09T11:59:00Z",
         "candle_close_time": "2026-07-09T11:59:00Z",
         "candle_closed_confirmed": True,
+        "trainer_consumable": True,
         "features": {"ema_12": 1.0, "close": 100.0},
     }
     feedback = {
@@ -311,6 +506,7 @@ def test_loader_consumes_mature_counterfactual_feedback_key(
         ),
         tensor_builder=_FakeTensorBuilder(),
         trusted_replay_archive_root=tmp_path,
+        counterfactual_archive_path=tmp_path / "counterfactual-archive-missing.db",
     )
 
     examples = loader.load_training_examples(
@@ -344,6 +540,7 @@ def test_loader_consumes_mature_paper_exploration_materialization_feedback_key(
         ),
         tensor_builder=_FakeTensorBuilder(),
         trusted_replay_archive_root=tmp_path,
+        counterfactual_archive_path=tmp_path / "counterfactual-archive-missing.db",
     )
 
     examples = loader.load_training_examples(
@@ -382,6 +579,7 @@ def test_loader_rejects_outcome_not_available_by_training_observation_cutoff(
         ),
         tensor_builder=_FakeTensorBuilder(),
         trusted_replay_archive_root=tmp_path,
+        counterfactual_archive_path=tmp_path / "counterfactual-archive-missing.db",
     )
 
     examples = loader.load_training_examples(
@@ -418,6 +616,7 @@ def test_closed_feedback_preserves_entry_behavior_action_identity(
         ),
         tensor_builder=_FakeTensorBuilder(),
         trusted_replay_archive_root=tmp_path,
+        counterfactual_archive_path=tmp_path / "counterfactual-archive-missing.db",
     )
 
     examples = loader.load_training_examples(
@@ -434,7 +633,9 @@ def test_closed_feedback_preserves_entry_behavior_action_identity(
     assert examples[0].behavior_action == "short"
 
 
-def test_loader_skips_pending_paper_exploration_no_fill_feedback() -> None:
+def test_loader_skips_pending_paper_exploration_no_fill_feedback(
+    tmp_path: Path,
+) -> None:
     source_key = "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
     pending_feedback = _paper_exploration_feedback(
         feedback_type="PAPER_EXPLORATION_MATERIALIZATION_COUNTERFACTUAL_NO_FILL",
@@ -457,6 +658,7 @@ def test_loader_skips_pending_paper_exploration_no_fill_feedback() -> None:
             }
         ),
         tensor_builder=_FakeTensorBuilder(),
+        counterfactual_archive_path=tmp_path / "counterfactual-archive-missing.db",
     )
 
     examples = loader.load_training_examples(

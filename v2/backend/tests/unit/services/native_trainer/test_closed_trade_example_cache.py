@@ -8,6 +8,8 @@ while returning identical examples, and that the env kill-switch disables it.
 """
 from __future__ import annotations
 
+import pytest
+
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import data_loader as dl
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
     V2HybridTrainerDataLoader,
@@ -27,6 +29,16 @@ from tests.unit.services.native_trainer.test_hybrid_trainer_feedback_labels impo
 
 SNAPSHOT_KEY = "v2:features:snapshot:paper-explore-feat"
 SOURCE_KEY = "v2:trainer:paper_exploration_materialization_counterfactual_feedback"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_production_archives(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(
+        dl,
+        "DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH",
+        tmp_path / "counterfactual-archive-missing.db",
+    )
+    monkeypatch.setattr(dl, "default_archive_root", lambda: tmp_path / "snapshots")
 
 
 class _CountingIO:
@@ -79,6 +91,7 @@ def _payloads() -> dict[str, object]:
             "candle_closed_confirmed": source_snapshot[
                 "candle_closed_confirmed"
             ],
+            "trainer_consumable": source_snapshot["trainer_consumable"],
         },
     )
     snapshot_hash = snapshot["content_sha256"]
@@ -152,6 +165,33 @@ def test_changed_row_rebuilds_and_does_not_serve_stale(monkeypatch) -> None:
     # The changed row is a cache miss -> the snapshot GET happens again.
     assert io.get_calls.get(SNAPSHOT_KEY, 0) == 1
     assert dl._CLOSED_TRADE_EXAMPLE_CACHE_STATS["misses"] == 2
+
+
+def test_cached_producer_veto_cannot_bypass_admission(monkeypatch) -> None:
+    monkeypatch.setenv("V2_TRAINER_CLOSED_TRADE_EXAMPLE_CACHE", "1")
+    _reset_cache()
+
+    first = _load(_CountingIO(_payloads()))
+    assert len(first) == 1
+    cached_trust_row = first[0].trust_row
+    assert cached_trust_row is not None
+    cached_trust_row.update(
+        {
+            "producer_trainer_consumable_claim": False,
+            "producer_trainer_consumable_literal_true": False,
+            # Simulate a pre-fix cached row whose derived flags had incorrectly
+            # upgraded the producer veto.
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "trainer_consumable": True,
+            "reject_reasons": [],
+        }
+    )
+
+    warm_io = _CountingIO(_payloads())
+    assert _load(warm_io) == []
+    assert warm_io.get_calls.get(SNAPSHOT_KEY, 0) == 0
+    assert dl._CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] == 1
 
 
 def test_kill_switch_disables_cache(monkeypatch) -> None:

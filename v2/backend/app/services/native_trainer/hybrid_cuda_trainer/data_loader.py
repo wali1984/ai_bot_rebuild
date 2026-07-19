@@ -503,6 +503,26 @@ EXPLICIT_TRAINING_TRUST_FIELDS = (
     "multi_timeframe_decision_snapshot",
 )
 
+PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON = (
+    "PRODUCER_TRAINER_CONSUMABLE_NOT_LITERAL_TRUE"
+)
+
+
+def _producer_trainer_consumable_evidence(
+    snapshot: Any,
+) -> dict[str, Any]:
+    producer_snapshot = snapshot if isinstance(snapshot, Mapping) else {}
+    claim_present = "trainer_consumable" in producer_snapshot
+    claim = producer_snapshot.get("trainer_consumable")
+    literal_true = bool(
+        claim_present and type(claim) is bool and claim is True
+    )
+    return {
+        "producer_trainer_consumable_claim_present": claim_present,
+        "producer_trainer_consumable_claim": claim,
+        "producer_trainer_consumable_literal_true": literal_true,
+    }
+
 
 def _has_explicit_training_trust_evidence(row: Mapping[str, Any]) -> bool:
     return any(row.get(field) is not None for field in EXPLICIT_TRAINING_TRUST_FIELDS)
@@ -1004,6 +1024,8 @@ def _missing_names_are_optional_or_event_dependent(value: Any) -> bool:
 
 def _example_trusted_for_training(example: TrainingExample) -> bool:
     row = example.trust_row or {}
+    if row.get("producer_trainer_consumable_literal_true") is not True:
+        return False
     if row.get("accepted_for_training") is not True:
         return False
     if row.get("reject_reasons"):
@@ -1863,6 +1885,10 @@ class V2HybridTrainerDataLoader:
             trust_result = classify_training_sample(trust_row)
             trust_row["market_state_integrity_score"] = trust_result["market_state_integrity_score"]
             extra_reasons = _extra_contract_rejection_reasons(trust_row)
+            if trust_row.get("producer_trainer_consumable_literal_true") is not True:
+                extra_reasons.append(
+                    PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON
+                )
             trust_row["reject_reasons"] = sorted(set(list(trust_result["reject_reasons"]) + extra_reasons))
             trust_row["source_lineage"] = trust_result["source_lineage"]
             final_accepted = bool(
@@ -1883,9 +1909,19 @@ class V2HybridTrainerDataLoader:
             trust_row["trainer_consumable"] = False
             trust_row["row_classification"] = classification
             trust_row["market_state_integrity_score"] = None
-            trust_row["reject_reasons"] = [
-                "MISSING_EXPLICIT_TRAINING_TRUST_EVIDENCE"
-            ]
+            trust_row["reject_reasons"] = sorted(
+                {
+                    "MISSING_EXPLICIT_TRAINING_TRUST_EVIDENCE",
+                    *(
+                        [PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON]
+                        if trust_row.get(
+                            "producer_trainer_consumable_literal_true"
+                        )
+                        is not True
+                        else []
+                    ),
+                }
+            )
 
         return TrainingExample(
             symbol=symbol,
@@ -1965,6 +2001,9 @@ class V2HybridTrainerDataLoader:
             timeframe=timeframe,
             tensor_temporal_rejection_reasons=tensor.temporal_rejection_reasons,
         )
+        producer_trainer_consumable_evidence = (
+            _producer_trainer_consumable_evidence(latest)
+        )
         return {
             "trust_schema_version": latest.get("trust_schema_version")
             or prediction.get("trust_schema_version")
@@ -1999,7 +2038,17 @@ class V2HybridTrainerDataLoader:
             "latency_ms": latest.get("latency_ms"),
             "generated_at": latest.get("generated_at") or latest.get("generated_utc"),
             "feature_freshness_state": latest.get("feature_freshness_state"),
-            "trainer_consumable": classification == "TRAINABLE",
+            # The consumer may narrow a producer's admission, but it must never
+            # upgrade a missing, false, or loosely truthy producer claim.  Keep
+            # the original claim beside the derived flag so the veto remains
+            # auditable after tensor reconstruction.
+            **producer_trainer_consumable_evidence,
+            "trainer_consumable": (
+                classification == "TRAINABLE"
+                and producer_trainer_consumable_evidence[
+                    "producer_trainer_consumable_literal_true"
+                ]
+            ),
             "row_classification": classification,
             "missing_feature_count": len(tensor.missing_feature_names),
             "missing_feature_names": list(tensor.missing_feature_names),
@@ -2395,6 +2444,26 @@ class V2HybridTrainerDataLoader:
                 rejections["symbol_or_timeframe_missing"] = rejections.get("symbol_or_timeframe_missing", 0) + 1
                 consumed_offset = next_offset
                 continue
+            producer_trainer_consumable_evidence = (
+                _producer_trainer_consumable_evidence(snapshot)
+            )
+            if (
+                producer_trainer_consumable_evidence[
+                    "producer_trainer_consumable_literal_true"
+                ]
+                is not True
+            ):
+                rejections[
+                    PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON
+                ] = (
+                    rejections.get(
+                        PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON,
+                        0,
+                    )
+                    + 1
+                )
+                consumed_offset = next_offset
+                continue
             durable_label_path_proof: dict[str, Any] | None = None
             if backfill:
                 assert historical_label_archive is not None
@@ -2522,6 +2591,7 @@ class V2HybridTrainerDataLoader:
             )
             trust_row = dict(replay_row)
             trust_row.update(_lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage))
+            trust_row.update(producer_trainer_consumable_evidence)
             trust_row.update(
                 {
                     "row_source": "trusted_replay_archive",
@@ -2762,6 +2832,8 @@ class V2HybridTrainerDataLoader:
                             _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
                     if cached is not None:
+                        if not _example_trusted_for_training(cached):
+                            continue
                         if _training_example_observed_by(
                             cached,
                             training_observed_at=observation_cutoff,
@@ -2793,6 +2865,8 @@ class V2HybridTrainerDataLoader:
                             _CLOSED_TRADE_EXAMPLE_CACHE.move_to_end(cache_key)
                             _CLOSED_TRADE_EXAMPLE_CACHE_STATS["hits"] += 1
                     if cached is not None:
+                        if not _example_trusted_for_training(cached):
+                            continue
                         if _training_example_observed_by(
                             cached,
                             training_observed_at=observation_cutoff,
@@ -2807,6 +2881,8 @@ class V2HybridTrainerDataLoader:
                     resolved_snapshot_source=snapshot_source,
                 )
                 if example is not None:
+                    if not _example_trusted_for_training(example):
+                        continue
                     if not _training_example_observed_by(
                         example,
                         training_observed_at=observation_cutoff,
@@ -2956,12 +3032,30 @@ class V2HybridTrainerDataLoader:
         classification = _classification_from_lineage(tensor=tensor, lineage=snapshot_lineage)
         if classification == "NO_VERIFIABLE_OBSERVED_FEATURE_EVIDENCE":
             return None
+        producer_trainer_consumable_evidence = (
+            _producer_trainer_consumable_evidence(snapshot)
+        )
+        producer_trainer_consumable_literal_true = (
+            producer_trainer_consumable_evidence[
+                "producer_trainer_consumable_literal_true"
+            ]
+            is True
+        )
+        producer_tensor_row_classification = classification
+        if not producer_trainer_consumable_literal_true:
+            classification = "MARKET_STATE_REJECTED"
         lineage_fields = _lineage_trust_fields(tensor=tensor, lineage=snapshot_lineage)
         missing_feature_names = list(lineage_fields["missing_feature_names"])
-        optional_missing_masked = classification == "MISSING_MASKED" and _missing_names_are_optional_or_event_dependent(
+        optional_missing_masked = producer_tensor_row_classification == "MISSING_MASKED" and _missing_names_are_optional_or_event_dependent(
             missing_feature_names
         )
-        trainer_consumable = classification == "TRAINABLE" or optional_missing_masked
+        trainer_consumable = bool(
+            producer_trainer_consumable_literal_true
+            and (
+                producer_tensor_row_classification == "TRAINABLE"
+                or optional_missing_masked
+            )
+        )
         feature_cutoff = row.get("feature_cutoff") or snapshot.get("feature_cutoff")
         available_at = row.get("available_at") or snapshot.get("available_at")
         effective_feature_cutoff = _parse_trust_time(feature_cutoff)
@@ -2999,9 +3093,17 @@ class V2HybridTrainerDataLoader:
                 "accepted_for_training": trainer_consumable,
                 "valid_for_training": trainer_consumable,
                 "market_state_integrity_score": row.get("market_state_integrity_score"),
-                "reject_reasons": [],
+                "reject_reasons": (
+                    []
+                    if producer_trainer_consumable_literal_true
+                    else [PRODUCER_TRAINER_CONSUMABLE_REJECTION_REASON]
+                ),
                 "row_classification": classification,
                 "trainer_consumable": trainer_consumable,
+                "producer_tensor_row_classification": (
+                    producer_tensor_row_classification
+                ),
+                **producer_trainer_consumable_evidence,
                 **lineage_fields,
                 "features": dict(features),
                 "feature_cutoff": feature_cutoff,

@@ -27,6 +27,9 @@ from v2.backend.app.services.native_trainer.feedback_enrichment import (
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
     checkpoint as checkpoint_module,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
+    data_loader as data_loader_module,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import model as model_module
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import (
     ppo_trainer as ppo_trainer_module,
@@ -67,6 +70,23 @@ FEATURE_CUTOFF = "2026-06-21T10:00:00Z"
 CHECKPOINT_ID = "v2_hybrid_ckpt_deadbeef_0123456789abcdef_abcdef012345"
 CHECKPOINT_WEIGHT_SHA256 = "c" * 64
 CHECKPOINT_EVIDENCE_DIGEST = "e" * 64
+
+
+@pytest.fixture(autouse=True)
+def _isolate_native_trainer_archives(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        data_loader_module,
+        "DEFAULT_COUNTERFACTUAL_ARCHIVE_PATH",
+        tmp_path / "counterfactual-archive-missing.db",
+    )
+    monkeypatch.setattr(
+        data_loader_module,
+        "default_archive_root",
+        lambda: tmp_path / "feature-snapshot-archive",
+    )
 
 
 def _cost_provenance() -> dict[str, object]:
@@ -383,6 +403,7 @@ def _feature_snapshot(
         "external_v2_sources_present": ["v2:unified_features", "v2:liquidation_levels_engine"],
         "missing_feature_flags": [],
         "stale_feature_flags": [],
+        "trainer_consumable": True,
         "features": features,
     }
 
@@ -416,6 +437,7 @@ def _archive_feature_snapshot(snapshot: dict[str, object], root: Path) -> None:
             "latest_unclosed_kline_excluded": snapshot.get(
                 "latest_unclosed_kline_excluded"
             ),
+            "trainer_consumable": snapshot.get("trainer_consumable"),
         },
     )
     append_snapshot(record, root=root)
