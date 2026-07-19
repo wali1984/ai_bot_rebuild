@@ -18,6 +18,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     BASELINE_25_SYMBOLS,
@@ -66,6 +67,23 @@ LEGACY_NAMESPACES = (
     "prediction:", "features:", "trainer:", "signals:", "orchestrator:", "market:",
 )
 
+# A comparator observation must never monopolize Redis while inventorying a
+# large or rapidly changing keyspace.  One shared cursor pass replaces the old
+# pattern-by-pattern ``scan_iter`` calls (15 full keyspace walks per run).
+REDIS_SCAN_COUNT_HINT = 10_000
+REDIS_SCAN_MAX_CALLS = 64
+REDIS_SCAN_MAX_SECONDS = 2.0
+REDIS_SCAN_EXAMPLE_LIMIT = 3
+REDIS_SCAN_MAX_CURSOR = (1 << 64) - 1
+_EXAMPLE_PREFIXES = {
+    "v2_latest_market_keys": "v2:market:",
+    "v2_latest_feature_keys": "v2:features:latest:",
+    "v2_latest_prediction_keys": "v2:prediction:",
+    "v2_latest_orchestrator_keys": "v2:orchestrator:",
+    "v2_latest_paper_keys": "v2:paper:",
+    "v2_latest_risk_keys": "v2:risk:",
+}
+
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -77,20 +95,163 @@ def _connect_redis():
     except Exception:
         return None
     try:
-        r = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=True)
+        r = redis.Redis(
+            host="127.0.0.1",
+            port=6379,
+            db=0,
+            decode_responses=True,
+            socket_connect_timeout=1.0,
+            socket_timeout=REDIS_SCAN_MAX_SECONDS,
+        )
         r.ping()
         return r
     except Exception:
         return None
 
 
-def _count(r, pat: str) -> int:
-    if r is None:
-        return 0
-    n = 0
-    for _ in r.scan_iter(match=pat):
-        n += 1
-    return n
+def _bounded_keyspace_inventory(
+    r,
+    *,
+    max_calls: int = REDIS_SCAN_MAX_CALLS,
+    max_seconds: float = REDIS_SCAN_MAX_SECONDS,
+    count_hint: int = REDIS_SCAN_COUNT_HINT,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> dict:
+    """Inventory relevant namespaces with one explicitly bounded SCAN pass.
+
+    Redis SCAN is not a point-in-time snapshot and may return duplicate keys
+    while the keyspace changes.  The result therefore calls values "observed
+    match counts", never exact counts or lower bounds.  If the cursor cannot
+    complete within both budgets, those values are explicitly classified as a
+    partial cursor pass and must not qualify a soak readiness gate.
+    """
+    if max_calls <= 0:
+        raise ValueError("max_calls must be positive")
+    if max_seconds <= 0:
+        raise ValueError("max_seconds must be positive")
+    if count_hint <= 0:
+        raise ValueError("count_hint must be positive")
+
+    v2_counts = {namespace: 0 for namespace in V2_NAMESPACES}
+    legacy_counts = {namespace: 0 for namespace in LEGACY_NAMESPACES}
+    examples = {label: [] for label in _EXAMPLE_PREFIXES}
+    started = monotonic()
+    calls = 0
+    keys_examined = 0
+    v2_total = 0
+    cursor = 0
+    seen_nonzero_cursors: set[int] = set()
+    complete = False
+    stopped_reason = "REDIS_UNAVAILABLE"
+    error_type: str | None = None
+
+    if r is not None:
+        stopped_reason = "CALL_BUDGET_EXHAUSTED"
+        while calls < max_calls:
+            if monotonic() - started >= max_seconds:
+                stopped_reason = "TIME_BUDGET_EXHAUSTED"
+                break
+            calls += 1
+            try:
+                next_cursor_raw, keys = r.scan(cursor=cursor, count=count_hint)
+            except Exception as exc:
+                stopped_reason = "SCAN_ERROR"
+                error_type = type(exc).__name__
+                break
+
+            for raw_key in keys or ():
+                if isinstance(raw_key, bytes):
+                    key = raw_key.decode("utf-8", errors="replace")
+                else:
+                    key = str(raw_key)
+                keys_examined += 1
+                if key.startswith("v2:"):
+                    v2_total += 1
+                for namespace in V2_NAMESPACES:
+                    if key.startswith(namespace):
+                        v2_counts[namespace] += 1
+                        break
+                for namespace in LEGACY_NAMESPACES:
+                    if key.startswith(namespace):
+                        legacy_counts[namespace] += 1
+                        break
+                for label, prefix in _EXAMPLE_PREFIXES.items():
+                    bucket = examples[label]
+                    if len(bucket) < REDIS_SCAN_EXAMPLE_LIMIT and key.startswith(prefix):
+                        bucket.append(key)
+
+            time_budget_exhausted = monotonic() - started >= max_seconds
+
+            if type(next_cursor_raw) is int:
+                next_cursor = next_cursor_raw
+            elif isinstance(next_cursor_raw, (str, bytes)):
+                try:
+                    cursor_text = (
+                        next_cursor_raw.decode("ascii")
+                        if isinstance(next_cursor_raw, bytes)
+                        else next_cursor_raw
+                    )
+                    next_cursor = int(cursor_text) if cursor_text.isdecimal() else -1
+                except (UnicodeDecodeError, ValueError):
+                    next_cursor = -1
+            else:
+                next_cursor = -1
+            if not 0 <= next_cursor <= REDIS_SCAN_MAX_CURSOR:
+                stopped_reason = "INVALID_CURSOR"
+                break
+            if next_cursor == 0:
+                cursor = 0
+                if time_budget_exhausted:
+                    stopped_reason = "TIME_BUDGET_EXHAUSTED"
+                else:
+                    complete = True
+                    stopped_reason = "CURSOR_CYCLE_COMPLETE"
+                break
+            if next_cursor in seen_nonzero_cursors:
+                stopped_reason = "CURSOR_REPEATED"
+                cursor = next_cursor
+                break
+            seen_nonzero_cursors.add(next_cursor)
+            cursor = next_cursor
+            if time_budget_exhausted:
+                stopped_reason = "TIME_BUDGET_EXHAUSTED"
+                break
+
+        elapsed_seconds = max(0.0, monotonic() - started)
+        if not complete and calls >= max_calls and stopped_reason == "CALL_BUDGET_EXHAUSTED":
+            stopped_reason = "CALL_BUDGET_EXHAUSTED"
+    else:
+        elapsed_seconds = max(0.0, monotonic() - started)
+
+    classification = (
+        "COMPLETE_CURSOR_PASS"
+        if complete
+        else "PARTIAL_CURSOR_PASS"
+    )
+    return {
+        "v2_namespace_counts": v2_counts,
+        "legacy_namespace_counts": legacy_counts,
+        "v2_total_key_count": v2_total,
+        "examples": examples,
+        "scan": {
+            "status": "COMPLETE" if complete else "INCOMPLETE",
+            "complete": complete,
+            "count_classification": classification,
+            "count_semantics": "observed_matches_in_single_scan_cursor_cycle",
+            "counts_are_exact": False,
+            "counts_are_lower_bounds": False,
+            "point_in_time_snapshot": False,
+            "stopped_reason": stopped_reason,
+            "calls": calls,
+            "keys_examined": keys_examined,
+            "last_cursor": cursor,
+            "max_calls": max_calls,
+            "max_seconds": max_seconds,
+            "count_hint": count_hint,
+            "elapsed_seconds": round(elapsed_seconds, 6),
+            "error_type": error_type,
+        },
+    }
 
 
 def _process_running(pat: str) -> bool:
@@ -147,17 +308,6 @@ def _get_json(r, key: str):
     except Exception:
         return None
     return None
-
-
-def _example_keys(r, pat: str, n: int = 3) -> list[str]:
-    if r is None:
-        return []
-    out: list[str] = []
-    for k in r.scan_iter(match=pat):
-        out.append(k)
-        if len(out) >= n:
-            break
-    return out
 
 
 def _legacy_prediction_summary(r, symbol: str, tf: str) -> dict:
@@ -248,25 +398,23 @@ def collect_soak_observation(r) -> dict:
     now = _utc_iso()
     v2_proc = {p: _process_running(p) for p in V2_PROCESSES}
     legacy_proc = {p: _process_running(p) for p in LEGACY_PROCESSES}
-    v2_counts = {ns: _count(r, ns + "*") for ns in V2_NAMESPACES}
-    legacy_counts = {ns: _count(r, ns + "*") for ns in LEGACY_NAMESPACES}
-    v2_total = _count(r, "v2:*")
+    inventory = _bounded_keyspace_inventory(r)
+    scan = inventory["scan"]
+    examples = inventory["examples"]
     return {
-        "schema_version": "v2_runtime_soak_observation_v1",
+        "schema_version": "v2_runtime_soak_observation_v2",
         "observed_utc": now,
         "v2_processes_running": v2_proc,
         "v2_all_required_running": all(v2_proc.values()),
         "legacy_processes_running": legacy_proc,
         "legacy_processes_count": sum(1 for v in legacy_proc.values() if v),
-        "v2_namespace_counts": v2_counts,
-        "v2_total_key_count": v2_total,
-        "legacy_namespace_counts": legacy_counts,
-        "v2_latest_market_keys": _example_keys(r, "v2:market:*", n=3),
-        "v2_latest_feature_keys": _example_keys(r, "v2:features:latest:*", n=3),
-        "v2_latest_prediction_keys": _example_keys(r, "v2:prediction:*", n=3),
-        "v2_latest_orchestrator_keys": _example_keys(r, "v2:orchestrator:*", n=3),
-        "v2_latest_paper_keys": _example_keys(r, "v2:paper:*", n=3),
-        "v2_latest_risk_keys": _example_keys(r, "v2:risk:*", n=3),
+        "v2_namespace_counts": inventory["v2_namespace_counts"],
+        "v2_total_key_count": inventory["v2_total_key_count"],
+        "legacy_namespace_counts": inventory["legacy_namespace_counts"],
+        "redis_keyspace_scan": scan,
+        "namespace_scan_cursor_cycle_complete": scan["complete"],
+        "namespace_count_classification": scan["count_classification"],
+        **examples,
         "no_old_redis_writes": True,
         "no_exchange_mutation": True,
         "live_gate": "blocked_human_only",
@@ -302,7 +450,7 @@ def _read_jsonl(path: Path) -> list[dict]:
 def emit_soak_status(observations: list[dict]) -> dict:
     if not observations:
         return {
-            "schema_version": "v2_runtime_soak_status_v1",
+            "schema_version": "v2_runtime_soak_status_v2",
             "generated_utc": _utc_iso(),
             "observation_count": 0,
             "minutes_observed": 0,
@@ -322,18 +470,33 @@ def emit_soak_status(observations: list[dict]) -> dict:
     last_ts = datetime.fromisoformat(last["observed_utc"].replace("Z", "+00:00"))
     minutes = (last_ts - first_ts).total_seconds() / 60.0
     all_procs = all(o.get("v2_all_required_running") for o in observations)
-    v2_namespaces_never_empty = all(
+    redis_scans_all_complete = all(
+        (
+            o.get("redis_keyspace_scan", {}).get("complete") is True
+            if o.get("schema_version") == "v2_runtime_soak_observation_v2"
+            else o.get("schema_version") == "v2_runtime_soak_observation_v1"
+        )
+        for o in observations
+    )
+    v2_namespaces_never_empty = redis_scans_all_complete and all(
         all((o.get("v2_namespace_counts", {}).get(ns, 0) or 0) > 0 for ns in V2_NAMESPACES)
         for o in observations
     )
     return {
-        "schema_version": "v2_runtime_soak_status_v1",
+        "schema_version": "v2_runtime_soak_status_v2",
         "generated_utc": _utc_iso(),
         "observation_count": len(observations),
         "first_observed_utc": first["observed_utc"],
         "last_observed_utc": last["observed_utc"],
         "minutes_observed": round(minutes, 2),
         "all_v2_processes_uninterrupted": all_procs,
+        "redis_keyspace_scans_all_complete": redis_scans_all_complete,
+        "redis_keyspace_scan_incomplete_observation_count": sum(
+            1
+            for o in observations
+            if o.get("schema_version") == "v2_runtime_soak_observation_v2"
+            and o.get("redis_keyspace_scan", {}).get("complete") is not True
+        ),
         "v2_namespaces_never_empty": v2_namespaces_never_empty,
         "soak_15m_ready": minutes >= 15 and all_procs and v2_namespaces_never_empty,
         "soak_1h_ready": minutes >= 60 and all_procs and v2_namespaces_never_empty,
