@@ -122,6 +122,9 @@ def run_once(
         return status
     results: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
+    quarantined: list[dict[str, Any]] = []
+    published_symbols: set[str] = set()
+    contract_symbol_map = bootstrap.get("contract_symbol_map") or {}
     now_value = time.monotonic() if now_monotonic is None else float(now_monotonic)
     for spec in moralis_endpoint_registry():
         if spec.stream_based:
@@ -156,12 +159,32 @@ def run_once(
             )
             if scheduler_state is not None:
                 scheduler_state[state_key] = now_value
+            # IDENTITY: attribute a token endpoint to that token's OWN verified
+            # trading symbol, never the fixed context symbol (which merged
+            # LINK/UNI/WBTC/PEPE/SHIB/CRV flow into a single BTCUSDT bucket).
+            # Wallet/global targets and contracts with no verified symbol mapping
+            # get symbol=None: their raw contract-addressed data is still stored,
+            # but no per-symbol feature/aggregate/score is fabricated.
+            publish_symbol: str | None = None
+            if token:
+                resolved = contract_symbol_map.get(str(token).strip().lower())
+                if resolved and resolved.get("chain") == _norm_chain(chain) and resolved.get("symbol"):
+                    publish_symbol = str(resolved["symbol"])
+                else:
+                    quarantined.append(
+                        {
+                            "contract": token,
+                            "chain": _norm_chain(chain),
+                            "endpoint_id": spec.endpoint_id,
+                            "reason": "NO_VERIFIED_SYMBOL_MAPPING",
+                        }
+                    )
             result = publish_moralis_result(
                 redis_client,
                 env=os.environ,
                 spec=spec,
                 chain=chain,
-                symbol=symbol,
+                symbol=publish_symbol,
                 wallet=wallet,
                 token=token,
                 http_status=response.http_status,
@@ -172,7 +195,24 @@ def run_once(
                 token_map_count=int(bootstrap.get("token_map_count") or 0),
                 wallet_watchlist_count=int(bootstrap.get("wallet_watchlist_count") or 0),
             )
+            if publish_symbol:
+                published_symbols.add(publish_symbol)
             results.append(result)
+    # Keep the (masked) global feature-bridge status fresh even when every polled
+    # contract quarantined for lack of a verified symbol, so it never goes stale.
+    if redis_client is not None and not published_symbols:
+        publish_moralis_feature_payload(
+            redis_client,
+            symbol=symbol,
+            timeframe=timeframe,
+            features={},
+            token_map_count=int(bootstrap.get("token_map_count") or 0),
+            wallet_watchlist_count=int(bootstrap.get("wallet_watchlist_count") or 0),
+            actual_payload_present=False,
+            ttl_seconds=3600,
+            stale_after=3600,
+            compute_unit_status=client.limiter.as_dict(),
+        )
     status = {
         "schema_version": "moralis_provider_scheduler_status_v1",
         "provider": "moralis",
@@ -191,6 +231,11 @@ def run_once(
         "request_count": len(results),
         "skipped_not_due_count": len(skipped),
         "skipped_not_due": skipped[:50],
+        "resolved_symbols": sorted(published_symbols),
+        "resolved_symbol_count": len(published_symbols),
+        "quarantined_contract_count": len(quarantined),
+        "quarantined_contracts": quarantined[:50],
+        "context_symbol_attribution_disabled": True,
         "actual_payload_results": sum(1 for row in results if row.get("actual_payload_present")),
         "does_not_poll_every_symbol_every_minute": True,
         "stream_endpoints_are_webhook_only": True,
@@ -285,6 +330,18 @@ def _resolve_bootstrap_inputs(
             for row in token_map_tokens
             if _norm_chain(row.get("chain")) == _norm_chain(chain)
         ]
+    # Reverse identity map: contract address -> its OWN verified trading symbol.
+    # Because token-map native perps (BTCUSDT/ETHUSDT -> contract "native") are
+    # non-pollable, they never appear here, so an ERC-20 (e.g. WBTC) can never be
+    # attributed to BTCUSDT. This replaces the old fixed-context-symbol attribution.
+    contract_symbol_map = {
+        str(row.get("token") or "").strip().lower(): {
+            "symbol": str(row.get("symbol") or "").upper(),
+            "chain": _norm_chain(row.get("chain")),
+        }
+        for row in token_map_tokens
+        if str(row.get("token") or "").strip() and str(row.get("symbol") or "").strip()
+    }
     counts = watchlist_counts(redis_client)
     token_map_count = _token_map_count(redis_client)
     wallet_count = int(counts.get("wallet_watchlist_count") or 0)
@@ -304,6 +361,7 @@ def _resolve_bootstrap_inputs(
         "operator_supplied_wallets": explicit_wallets,
         "operator_supplied_tokens": explicit_tokens,
         "pollable_token_count": len(token_map_tokens),
+        "contract_symbol_map": contract_symbol_map,
     }
 
 
