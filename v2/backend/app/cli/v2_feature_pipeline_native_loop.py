@@ -231,6 +231,11 @@ def _closed_candle_is_stale(*, close_ms: int | None, decision_ms: int, timeframe
     return int(decision_ms) - int(close_ms) > max_age_ms
 
 
+def _expected_latest_finalized_close_ms(*, decision_ms: int, timeframe: str) -> int:
+    interval_ms = _timeframe_ms(timeframe)
+    return (int(decision_ms) // interval_ms) * interval_ms - 1
+
+
 def _connect_redis():
     try:
         import redis  # type: ignore
@@ -364,32 +369,63 @@ def _read_klines(r, symbol: str, interval: str = "1m", *, decision_ms: int | Non
     return closed_rows
 
 
-def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list | None]:
+def _closed_klines_with_evidence(
+    klines: list | None,
+    *,
+    decision_ms: int,
+) -> tuple[list, list | None, dict[str, int]]:
     closed: list = []
+    evidence = {
+        "unfinished_kline_excluded_count": 0,
+        "future_close_kline_excluded_count": 0,
+        "future_available_finalized_kline_excluded_count": 0,
+        "malformed_kline_excluded_count": 0,
+    }
     if not isinstance(klines, list):
-        return closed, None
+        return closed, None, evidence
     for row in klines:
         if isinstance(row, dict):
             if row.get("is_closed") is not True and row.get("closed_candle") is not True and row.get("candle_closed_confirmed") is not True:
+                evidence["unfinished_kline_excluded_count"] += 1
                 continue
             try:
                 close_ms = int(float(row.get("candle_close_time") or row.get("close_time")))
             except (TypeError, ValueError):
+                evidence["malformed_kline_excluded_count"] += 1
                 continue
             available_raw = row.get("available_at") or row.get("source_available_time") or row.get("ingested_at")
             available_ms = _parse_time_ms(available_raw) if available_raw not in (None, "") else None
+            if available_raw not in (None, "") and available_ms is None:
+                evidence["malformed_kline_excluded_count"] += 1
+                continue
             if available_ms is not None and available_ms > decision_ms:
+                evidence["future_available_finalized_kline_excluded_count"] += 1
                 continue
         elif isinstance(row, (list, tuple)) and len(row) >= 7:
             try:
                 close_ms = int(float(row[6]))
             except (TypeError, ValueError):
+                evidence["malformed_kline_excluded_count"] += 1
                 continue
         else:
+            evidence["malformed_kline_excluded_count"] += 1
             continue
-        if close_ms <= decision_ms:
-            closed.append(row)
-    return closed, closed[-1] if closed else None
+        if close_ms > decision_ms:
+            if isinstance(row, dict):
+                evidence["future_close_kline_excluded_count"] += 1
+            else:
+                evidence["unfinished_kline_excluded_count"] += 1
+            continue
+        closed.append(row)
+    return closed, closed[-1] if closed else None, evidence
+
+
+def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list | None]:
+    closed, latest, _evidence = _closed_klines_with_evidence(
+        klines,
+        decision_ms=decision_ms,
+    )
+    return closed, latest
 
 
 def _read_orderbook(r, symbol: str) -> dict | None:
@@ -1451,16 +1487,21 @@ def _feature_snapshot_archive_key(snapshot_id: str) -> str:
 
 def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot: bool = True) -> dict:
     started_at = _utc_iso()
-    decision_ms = int(time.time() * 1000)
     r = _connect_redis()
     keys_written: list[str] = []
     snapshots: list[dict] = []
     missing: list[str] = []
     for sym in symbols:
+        decision_ms = int(time.time() * 1000)
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
-        raw_klines = _read_klines(r, sym, timeframe)
-        closed_klines, latest_closed_kline = _closed_klines(raw_klines, decision_ms=decision_ms)
+        raw_klines = _read_klines(r, sym, timeframe, decision_ms=decision_ms)
+        closed_klines, latest_closed_kline, kline_exclusion_evidence = (
+            _closed_klines_with_evidence(
+                raw_klines,
+                decision_ms=decision_ms,
+            )
+        )
         m = _read_market(r, sym) or _market_from_closed_klines(closed_klines)
         if not m:
             missing.append(sym)
@@ -1516,11 +1557,40 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 "ohlcv_closed_window_stale",
             })
         generated_at = _utc_iso()
-        trainer_consumable = closed_candle_available and not closed_candle_stale
+        generated_ms = _parse_time_ms(generated_at)
+        expected_finalized_close_ms = (
+            _expected_latest_finalized_close_ms(
+                decision_ms=generated_ms,
+                timeframe=timeframe,
+            )
+            if generated_ms is not None
+            else None
+        )
+        latest_finalized_candle_available = (
+            candle_close_ms is not None
+            and expected_finalized_close_ms is not None
+            and candle_close_ms == expected_finalized_close_ms
+        )
+        temporal_rejection_reasons: list[str] = []
+        if closed_candle_available and not latest_finalized_candle_available:
+            temporal_rejection_reasons.append(
+                "FINALIZED_CANDLE_NOT_AVAILABLE_AT_DECISION"
+            )
+            missing_feature_flags = sorted(
+                set(missing_feature_flags)
+                | {"latest_finalized_candle_at_decision"}
+            )
+        trainer_consumable = (
+            closed_candle_available
+            and not closed_candle_stale
+            and latest_finalized_candle_available
+        )
         if not closed_candle_available:
             feature_freshness_state = "MISSING_CLOSED_OHLCV"
         elif closed_candle_stale:
             feature_freshness_state = "STALE_CLOSED_OHLCV"
+        elif not latest_finalized_candle_available:
+            feature_freshness_state = "FINALIZED_CANDLE_NOT_AVAILABLE_AT_DECISION"
         else:
             feature_freshness_state = "CURRENT"
         snap = {
@@ -1553,6 +1623,16 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "feature_cutoff": candle_close_time,
             "decision_time_est": generated_at,
             "decision_cutoff_time_est": generated_at,
+            "source_observation_time": _ms_to_utc_iso(decision_ms),
+            "expected_latest_finalized_candle_close_time": (
+                _ms_to_utc_iso(expected_finalized_close_ms)
+                if expected_finalized_close_ms is not None
+                else None
+            ),
+            "latest_finalized_candle_available_at_decision": (
+                latest_finalized_candle_available
+            ),
+            "temporal_rejection_reasons": temporal_rejection_reasons,
             "source_ohlcv_key": f"v2:market:ohlcv_closed:binance:{sym}:{timeframe}",
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
@@ -1573,7 +1653,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_closed_age_seconds": (
                 None if candle_close_ms is None else max(0, int((decision_ms - candle_close_ms) / 1000))
             ),
-            "latest_unclosed_kline_excluded": bool(raw_klines and closed_klines and len(raw_klines) != len(closed_klines)),
+            "latest_unclosed_kline_excluded": bool(
+                kline_exclusion_evidence["unfinished_kline_excluded_count"]
+            ),
+            **kline_exclusion_evidence,
             "orderbook_present": bool(m.get("_orderbook")),
             "long_short_present": bool(m.get("_long_short")),
             "generated_at": generated_at,
@@ -1642,7 +1725,7 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 ta_families.append("BB")
             if f.get("htf_rsi_14") is not None:
                 ta_indicators["ta_HTF_RSI_14"] = f["htf_rsi_14"]
-            ta_indicators["timestamp"] = time.time() * 1000
+            ta_indicators["timestamp"] = generated_ms or decision_ms
             ta_payload = {
                 "symbol": sym,
                 "timeframe": timeframe,
