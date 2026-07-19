@@ -471,6 +471,39 @@ def _exact_row_json(row: dict[str, Any]) -> str:
     return encoded[0]
 
 
+def _is_same_source_fact_reobservation(
+    incumbent: dict[str, Any],
+    candidate: dict[str, Any],
+) -> bool:
+    """Recognize a later receipt of the exact same producer payload.
+
+    ``ingested_at`` and ``available_at`` are local observation clocks. Binance
+    can replay an identical finalized packet after reconnect, so those clocks
+    may differ even though the producer event, raw payload, candle identity,
+    and economic values are byte-for-byte identical. Retaining the incumbent
+    preserves the first observed point-in-time fact. Any other difference is a
+    conflicting revision and remains fail-closed.
+    """
+
+    local_clock_fields = ("ingested_at", "available_at")
+    for field_name in local_clock_fields:
+        incumbent_clock = incumbent.get(field_name)
+        candidate_clock = candidate.get(field_name)
+        if (
+            type(incumbent_clock) is not int
+            or type(candidate_clock) is not int
+            or incumbent_clock < 0
+            or candidate_clock < 0
+        ):
+            return False
+    incumbent_source_fact = dict(incumbent)
+    candidate_source_fact = dict(candidate)
+    for field_name in local_clock_fields:
+        incumbent_source_fact.pop(field_name, None)
+        candidate_source_fact.pop(field_name, None)
+    return _exact_row_json(incumbent_source_fact) == _exact_row_json(candidate_source_fact)
+
+
 def merge_closed_window_rows(
     existing_rows: object,
     new_rows: object,
@@ -510,7 +543,17 @@ def merge_closed_window_rows(
             open_match = by_open.get(candle_open_time)
             if id_match is not None or open_match is not None:
                 incumbent = id_match if id_match is not None else open_match
-                if id_match is not open_match or incumbent is None or incumbent[1] != row_json:
+                if (
+                    id_match is not open_match
+                    or incumbent is None
+                    or (
+                        incumbent[1] != row_json
+                        and not _is_same_source_fact_reobservation(
+                            incumbent[0],
+                            row,
+                        )
+                    )
+                ):
                     _invalid("closed_window_conflicting_candle_identity")
                 deduplicated += 1
                 continue

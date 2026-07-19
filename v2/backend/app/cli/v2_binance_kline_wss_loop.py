@@ -25,10 +25,15 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
-    append_closed_candle,
     canonical_from_binance_wss,
     closed_candle_key,
     current_candle_key,
+)
+from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    CLOSED_WINDOW_MAX_ROWS,
+    ClosedWindowRedisStoreError,
+    ClosedWindowRedisWriteResult,
+    atomic_merge_closed_window,
 )
 from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
     DEFAULT_MAX_PENDING_ROWS,
@@ -47,6 +52,9 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
 )
 from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive import (
     default_archive_path as default_canonical_5m_label_archive_path,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    SUPPORTED_TRAINER_TIMEFRAMES,
 )
 from v2.backend.app.services.runtime_clock import est_now_iso
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
@@ -82,6 +90,7 @@ DEFAULT_LABEL_CLOSE_WAVE_FLUSH_SECONDS = 0.01
 DEFAULT_LABEL_ARCHIVE_RETRY_SECONDS = 5.0
 DEFAULT_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 4
 MAX_LABEL_QUEUE_CAPACITY = MAX_CLOSE_WAVE_ROWS * 8
+CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS = 4096
 
 
 @dataclass(frozen=True)
@@ -110,7 +119,14 @@ def _connect_redis() -> Any | None:
         import redis  # type: ignore
 
         url = os.getenv("V2_REDIS_URL") or os.getenv("REDIS_URL") or "redis://127.0.0.1:6379/0"
-        client = redis.Redis.from_url(url, decode_responses=True, socket_timeout=1.0)
+        # Closed-window publication requires exact raw bytes so corrupt UTF-8
+        # can fail closed or be repaired only by an explicitly authorized
+        # recovery worker. JSON writers accept this binary-response client.
+        client = redis.Redis.from_url(
+            url,
+            decode_responses=False,
+            socket_timeout=1.0,
+        )
         client.ping()
         return client
     except Exception:
@@ -1036,24 +1052,6 @@ def _safe_set_json(redis_client: Any, key: str, payload: Any, *, ex: int) -> boo
     return True
 
 
-def _safe_get_json(redis_client: Any, key: str) -> Any:
-    client = redis_client.ensure() if isinstance(redis_client, _RedisHolder) else redis_client
-    if client is None:
-        return None
-    try:
-        raw = client.get(key)
-    except Exception:
-        if isinstance(redis_client, _RedisHolder):
-            redis_client.mark_broken()
-        return None
-    if raw is None:
-        return None
-    try:
-        return json.loads(raw)
-    except Exception:
-        return None
-
-
 def _to_kline_row(message: dict[str, Any]) -> tuple[str, str, list[Any]] | None:
     kline = message.get("k")
     if not isinstance(kline, dict):
@@ -1111,12 +1109,138 @@ def _runtime_stream_plan(
 
     symbols = _resolve_symbols(args.symbols, max_symbols=int(args.max_symbols))
     timeframes = _parse_csv(args.timeframes, DEFAULT_TIMEFRAMES)
+    max_candles = getattr(args, "max_candles", 100)
+    if type(max_candles) is not int or not 1 <= max_candles <= CLOSED_WINDOW_MAX_ROWS:
+        raise ValueError("closed_window_max_candles_invalid")
+    if any(timeframe not in SUPPORTED_TRAINER_TIMEFRAMES for timeframe in timeframes):
+        raise ValueError("closed_window_timeframe_unsupported")
+    if len(symbols) * len(timeframes) > CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS:
+        raise ValueError("closed_window_stream_count_exceeds_status_resource_bound")
     chunks = _stream_chunks(
         symbols,
         timeframes,
         max_streams=int(args.max_streams_per_connection),
     )
     return symbols, timeframes, chunks
+
+
+def _closed_window_status_blocker(stats: dict[str, Any]) -> str | None:
+    blocked = stats.get("ohlcv_closed_blocked_keys")
+    if not isinstance(blocked, dict) or not blocked:
+        return None
+    first_key = sorted(str(key) for key in blocked)[0]
+    reason = str(blocked.get(first_key) or "closed_window_publication_failed")[:160]
+    return (
+        "CLOSED_WINDOW_ATOMIC_PUBLICATION_BLOCKED:"
+        f"{len(blocked)}:{first_key}:{reason}"
+    )
+
+
+def _record_closed_window_failure(
+    stats: dict[str, Any],
+    *,
+    key: str,
+    symbol: str,
+    timeframe: str,
+    error: ClosedWindowRedisStoreError,
+) -> None:
+    reason = str(error)[:160]
+    blocked = stats.setdefault("ohlcv_closed_blocked_keys", {})
+    if not isinstance(blocked, dict):
+        blocked = {}
+        stats["ohlcv_closed_blocked_keys"] = blocked
+    if key in blocked or len(blocked) < CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS:
+        blocked[key] = reason
+    else:
+        # A validated stream plan cannot reach this branch because each stream
+        # has one exact closed-window key and the plan is capped at this same
+        # resource bound. Keep the map bounded even under a hostile direct call.
+        stats["ohlcv_closed_blocker_tracking_overflow_events"] = int(
+            stats.get("ohlcv_closed_blocker_tracking_overflow_events") or 0
+        ) + 1
+    stats["ohlcv_closed_write_failures"] = int(
+        stats.get("ohlcv_closed_write_failures") or 0
+    ) + 1
+    stats["ohlcv_closed_last_blocked_key"] = key
+    stats["ohlcv_closed_last_blocked_symbol"] = symbol
+    stats["ohlcv_closed_last_blocked_timeframe"] = timeframe
+    stats["ohlcv_closed_last_error"] = reason
+
+
+def _record_closed_window_success(
+    stats: dict[str, Any],
+    *,
+    key: str,
+    result: ClosedWindowRedisWriteResult,
+) -> None:
+    blocked = stats.get("ohlcv_closed_blocked_keys")
+    if isinstance(blocked, dict):
+        blocked.pop(key, None)
+    stats["ohlcv_closed_keys_written"] = int(
+        stats.get("ohlcv_closed_keys_written") or 0
+    ) + 1
+    stats["ohlcv_keys_written"] = int(stats.get("ohlcv_keys_written") or 0) + 1
+    stats["ohlcv_closed_atomic_writes"] = int(
+        stats.get("ohlcv_closed_atomic_writes") or 0
+    ) + 1
+    stats["ohlcv_closed_atomic_retries"] = int(
+        stats.get("ohlcv_closed_atomic_retries") or 0
+    ) + max(0, result.attempts - 1)
+    stats["ohlcv_closed_rows_trimmed_for_bytes"] = int(
+        stats.get("ohlcv_closed_rows_trimmed_for_bytes") or 0
+    ) + result.rows_trimmed_for_bytes
+    stats["ohlcv_closed_rows_deduplicated_or_trimmed_for_row_limit"] = int(
+        stats.get("ohlcv_closed_rows_deduplicated_or_trimmed_for_row_limit") or 0
+    ) + result.rows_deduplicated_or_trimmed_for_row_limit
+
+
+def _publish_closed_window(
+    redis_client: Any,
+    *,
+    key: str,
+    row: dict[str, Any],
+    row_limit: int,
+    ttl_seconds: int,
+) -> ClosedWindowRedisWriteResult:
+    client = (
+        redis_client.ensure()
+        if isinstance(redis_client, _RedisHolder)
+        else redis_client
+    )
+    if client is None:
+        raise ClosedWindowRedisStoreError("closed_window_redis_unavailable")
+    try:
+        return atomic_merge_closed_window(
+            client,
+            redis_key=key,
+            new_rows=(row,),
+            row_limit=row_limit,
+            ttl_policy="set",
+            ttl_seconds=ttl_seconds,
+            replace_invalid_existing=False,
+        )
+    except ClosedWindowRedisStoreError as exc:
+        if (
+            isinstance(redis_client, _RedisHolder)
+            and str(exc).startswith("closed_window_redis_operation_failed:")
+        ):
+            redis_client.mark_broken()
+        raise
+
+
+def _closed_window_ttl_seconds(timeframe: str, configured_floor_seconds: int) -> int:
+    interval_seconds = {
+        "1m": 60,
+        "5m": 300,
+        "15m": 900,
+        "1h": 3600,
+        "4h": 14400,
+    }.get(timeframe)
+    if interval_seconds is None:
+        raise ClosedWindowRedisStoreError("closed_window_timeframe_unsupported")
+    if type(configured_floor_seconds) is not int or configured_floor_seconds < 1:
+        raise ClosedWindowRedisStoreError("closed_window_ttl_floor_invalid")
+    return max(configured_floor_seconds, interval_seconds * 3)
 
 
 def _runtime_cycle_seconds(args: argparse.Namespace) -> float:
@@ -1333,21 +1457,41 @@ async def _consume_chunk(
                     }
                     if canonical.is_closed:
                         key = _ohlcv_key(symbol, timeframe)
-                        existing = _safe_get_json(redis_client, key)
-                        merged = append_closed_candle(existing, canonical.to_dict(), limit=max_candles)
                         # Closed-candle HISTORY must outlive the candle interval:
                         # a flat 900s TTL expired 1h/4h keys between closes and
                         # perpetually reset history to a single row (destroying
                         # REST backfills). Keep the CLI TTL as a floor only.
-                        interval_seconds = {
-                            "1m": 60, "3m": 180, "5m": 300, "15m": 900,
-                            "30m": 1800, "1h": 3600, "2h": 7200, "4h": 14400,
-                            "6h": 21600, "12h": 43200, "1d": 86400,
-                        }.get(str(timeframe), 3600)
-                        closed_ttl = max(int(ttl_seconds), interval_seconds * 3)
-                        if _safe_set_json(redis_client, key, merged, ex=closed_ttl):
-                            stats["ohlcv_closed_keys_written"] = int(stats.get("ohlcv_closed_keys_written") or 0) + 1
-                            stats["ohlcv_keys_written"] = int(stats.get("ohlcv_keys_written") or 0) + 1
+                        # Explicit SET TTL preserves the deployed refresh policy
+                        # while WATCH/MULTI/EXEC removes lost concurrent writes.
+                        closed_ttl = _closed_window_ttl_seconds(
+                            timeframe,
+                            ttl_seconds,
+                        )
+                        try:
+                            write_result = _publish_closed_window(
+                                redis_client,
+                                key=key,
+                                row=canonical.to_dict(),
+                                row_limit=max_candles,
+                                ttl_seconds=closed_ttl,
+                            )
+                        except ClosedWindowRedisStoreError as exc:
+                            _record_closed_window_failure(
+                                stats,
+                                key=key,
+                                symbol=symbol,
+                                timeframe=timeframe,
+                                error=exc,
+                            )
+                            # A source sidecar or trainer label without its
+                            # canonical window publication would create false
+                            # durability/provenance. Hold this message locally.
+                            continue
+                        _record_closed_window_success(
+                            stats,
+                            key=key,
+                            result=write_result,
+                        )
                     else:
                         key = _current_key(symbol, timeframe)
                         if _safe_set_json(redis_client, key, canonical.to_dict(), ex=volatile_ttl):
@@ -1483,6 +1627,14 @@ async def run_loop(args: argparse.Namespace) -> int:
         "messages_received": 0,
         "ohlcv_closed_keys_written": 0,
         "ohlcv_keys_written": 0,
+        "ohlcv_closed_atomic_writes": 0,
+        "ohlcv_closed_atomic_retries": 0,
+        "ohlcv_closed_write_failures": 0,
+        "ohlcv_closed_rows_trimmed_for_bytes": 0,
+        "ohlcv_closed_rows_deduplicated_or_trimmed_for_row_limit": 0,
+        "ohlcv_closed_blocked_keys": {},
+        "ohlcv_closed_blocker_tracking_overflow_events": 0,
+        "ohlcv_closed_ttl_policy": "set_existing_computed_ttl",
         "kline_current_keys_written": 0,
         "source_keys_written": 0,
         "parse_errors": 0,
@@ -1516,6 +1668,9 @@ async def run_loop(args: argparse.Namespace) -> int:
         blockers: list[str] = []
         if not redis_ok:
             blockers.append("Redis unavailable; websocket data not persisted.")
+        closed_window_blocker = _closed_window_status_blocker(stats)
+        if closed_window_blocker is not None:
+            blockers.append(closed_window_blocker)
         if label_pipeline_enabled and label_status.get("healthy") is not True:
             blockers.append(
                 str(
@@ -1551,6 +1706,15 @@ async def run_loop(args: argparse.Namespace) -> int:
                 "stream_count": payload["stream_count"],
                 "messages_received": stats.get("messages_received"),
                 "ohlcv_keys_written": stats.get("ohlcv_keys_written"),
+                "ohlcv_closed_atomic_writes": stats.get(
+                    "ohlcv_closed_atomic_writes"
+                ),
+                "ohlcv_closed_write_failures": stats.get(
+                    "ohlcv_closed_write_failures"
+                ),
+                "ohlcv_closed_blocked_key_count": len(
+                    stats.get("ohlcv_closed_blocked_keys") or {}
+                ),
                 "live_gate": payload["live_gate"],
             }, sort_keys=True), flush=True)
             remaining = stop_at - time.time()

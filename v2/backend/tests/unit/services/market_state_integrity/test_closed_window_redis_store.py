@@ -9,6 +9,7 @@ import redis
 
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_rest,
+    canonical_from_binance_wss,
 )
 from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
     CLOSED_WINDOW_MAX_PAYLOAD_BYTES,
@@ -66,6 +67,37 @@ def _small_row(index: int, *, padding: int = 0) -> dict[str, Any]:
         "candle_close_time": open_time + 59_999,
         "payload": "x" * padding,
     }
+
+
+def _canonical_wss_row(*, ingested_at: int) -> dict[str, Any]:
+    open_time = BASE_MS
+    close_time = open_time + 59_999
+    packet = {
+        "E": close_time + 1,
+        "k": {
+            "s": "BTCUSDT",
+            "i": "1m",
+            "t": open_time,
+            "T": close_time,
+            "o": "100.0",
+            "h": "102.0",
+            "l": "99.0",
+            "c": "101.0",
+            "v": "12.0",
+            "q": "1206.0",
+            "n": 10,
+            "V": "6.0",
+            "Q": "603.0",
+            "B": "0",
+            "x": True,
+        },
+    }
+    return canonical_from_binance_wss(
+        packet,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        ingested_at=ingested_at,
+    ).to_dict()
 
 
 def _payload(rows: list[dict[str, Any]]) -> str:
@@ -239,6 +271,47 @@ def test_merge_does_not_treat_byte_distinct_int_and_float_rows_as_duplicates() -
         match="conflicting_candle_identity",
     ):
         merge_closed_window_rows([float_row], [int_row])
+
+
+def test_identical_wss_packet_reobservation_retains_first_pit_observation() -> None:
+    first = _canonical_wss_row(ingested_at=BASE_MS + 60_100)
+    replay = _canonical_wss_row(ingested_at=BASE_MS + 65_000)
+    first_payload = _payload([first]).encode("ascii")
+    replay_payload = _payload([replay]).encode("ascii")
+    assert first["candle_id"] == replay["candle_id"]
+    assert first["raw_payload_hash"] == replay["raw_payload_hash"]
+    assert first["ingested_at"] != replay["ingested_at"]
+    assert first_payload != replay_payload
+    validate_ohlcv_closed_window(
+        first_payload,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+    validate_ohlcv_closed_window(
+        replay_payload,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    merged, discarded = merge_closed_window_rows([first], [replay])
+
+    assert merged == [first]
+    assert discarded == 1
+
+
+def test_same_open_wss_source_revision_still_fails_closed() -> None:
+    first = _canonical_wss_row(ingested_at=BASE_MS + 60_100)
+    revision = {
+        **first,
+        "event_time": first["event_time"] + 1,
+        "source_sequence_id": str(first["event_time"] + 1),
+    }
+
+    with pytest.raises(
+        ClosedWindowRedisStoreError,
+        match="conflicting_candle_identity",
+    ):
+        merge_closed_window_rows([first], [revision])
 
 
 def test_serializer_trims_only_oldest_rows_and_is_exact_at_cap_boundary() -> None:

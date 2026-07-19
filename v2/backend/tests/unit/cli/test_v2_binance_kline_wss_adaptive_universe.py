@@ -62,6 +62,38 @@ def test_runtime_stream_plan_re_resolves_current_adaptive_universe(
     ]
 
 
+@pytest.mark.parametrize("max_candles", [0, -1, True, 1501])
+def test_runtime_stream_plan_rejects_invalid_closed_window_row_bound(
+    max_candles: object,
+) -> None:
+    with pytest.raises(ValueError, match="^closed_window_max_candles_invalid$"):
+        module._runtime_stream_plan(_args(max_candles=max_candles))
+
+
+def test_runtime_stream_plan_rejects_noncanonical_trainer_timeframe() -> None:
+    with pytest.raises(ValueError, match="^closed_window_timeframe_unsupported$"):
+        module._runtime_stream_plan(_args(timeframes="1m,3m", max_candles=100))
+
+
+def test_runtime_stream_plan_bounds_status_key_cardinality(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    symbols = tuple(
+        f"S{index}USDT" for index in range(module.CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS + 1)
+    )
+    monkeypatch.setattr(
+        module,
+        "_resolve_symbols",
+        lambda *_args, **_kwargs: symbols,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="^closed_window_stream_count_exceeds_status_resource_bound$",
+    ):
+        module._runtime_stream_plan(_args(timeframes="1m", max_candles=100))
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [

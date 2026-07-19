@@ -8,7 +8,8 @@ import threading
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
+from typing import Any, NoReturn
 
 import pytest
 
@@ -24,6 +25,9 @@ from v2.backend.app.cli.v2_binance_kline_wss_loop import (
 )
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     CanonicalCandle,
+)
+from v2.backend.app.services.market_state_integrity.closed_window_redis_store import (
+    ClosedWindowRedisStoreError,
 )
 from v2.backend.app.services.native_trainer.canonical_5m_label_outbox import (
     MAX_CLOSE_WAVE_ROWS,
@@ -94,6 +98,112 @@ def _candle(
 
 def _payload(index: int, **kwargs: Any) -> dict[str, Any]:
     return _candle(index, **kwargs).to_dict()
+
+
+def test_wss_redis_connection_requires_binary_responses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import redis
+
+    captured: dict[str, Any] = {}
+
+    class Client:
+        def ping(self) -> bool:
+            return True
+
+    def fake_from_url(url: str, **kwargs: Any) -> Client:
+        captured["url"] = url
+        captured["kwargs"] = kwargs
+        return Client()
+
+    monkeypatch.setattr(redis.Redis, "from_url", fake_from_url)
+
+    client = wss_module._connect_redis()
+
+    assert isinstance(client, Client)
+    assert captured["kwargs"]["decode_responses"] is False
+    assert captured["kwargs"]["socket_timeout"] == 1.0
+
+
+def test_closed_window_ttl_preserves_floor_and_three_interval_minimum() -> None:
+    assert wss_module._closed_window_ttl_seconds("5m", 900) == 900
+    assert wss_module._closed_window_ttl_seconds("4h", 900) == 43_200
+    assert wss_module._closed_window_ttl_seconds("4h", 86_400) == 86_400
+
+
+def test_closed_window_failure_then_success_clears_status_blocker() -> None:
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    stats: dict[str, Any] = {}
+    wss_module._record_closed_window_failure(
+        stats,
+        key=key,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        error=ClosedWindowRedisStoreError("closed_window_test_failure"),
+    )
+    assert wss_module._closed_window_status_blocker(stats) is not None
+
+    wss_module._record_closed_window_success(
+        stats,
+        key=key,
+        result=SimpleNamespace(
+            attempts=1,
+            rows_trimmed_for_bytes=0,
+            rows_deduplicated_or_trimmed_for_row_limit=0,
+        ),
+    )
+
+    assert stats["ohlcv_closed_blocked_keys"] == {}
+    assert wss_module._closed_window_status_blocker(stats) is None
+
+
+def test_closed_window_blocker_map_never_exceeds_resource_bound() -> None:
+    maximum = wss_module.CLOSED_WINDOW_MAX_STATUS_BLOCKED_KEYS
+    stats: dict[str, Any] = {
+        "ohlcv_closed_blocked_keys": {
+            f"v2:market:ohlcv_closed:binance:S{index}USDT:1m": "blocked" for index in range(maximum)
+        }
+    }
+
+    wss_module._record_closed_window_failure(
+        stats,
+        key="v2:market:ohlcv_closed:binance:OVERFLOWUSDT:1m",
+        symbol="OVERFLOWUSDT",
+        timeframe="1m",
+        error=ClosedWindowRedisStoreError("closed_window_test_overflow"),
+    )
+
+    assert len(stats["ohlcv_closed_blocked_keys"]) == maximum
+    assert "__bounded_overflow__" not in stats["ohlcv_closed_blocked_keys"]
+    assert stats["ohlcv_closed_blocker_tracking_overflow_events"] == 1
+
+
+def test_closed_window_transport_error_marks_holder_broken(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    holder = object.__new__(wss_module._RedisHolder)
+    underlying_client = object()
+    holder.client = underlying_client
+    holder._last_attempt = 0.0
+    holder.reconnects = 0
+    marked: list[bool] = []
+    monkeypatch.setattr(holder, "mark_broken", lambda: marked.append(True))
+
+    def fail_transport(client: Any, **kwargs: Any) -> NoReturn:
+        assert client is underlying_client
+        raise ClosedWindowRedisStoreError("closed_window_redis_operation_failed:ConnectionError")
+
+    monkeypatch.setattr(wss_module, "atomic_merge_closed_window", fail_transport)
+
+    with pytest.raises(ClosedWindowRedisStoreError, match="operation_failed"):
+        wss_module._publish_closed_window(
+            holder,
+            key="v2:market:ohlcv_closed:binance:BTCUSDT:1m",
+            row=_payload(0, symbol="BTCUSDT", timeframe="1m"),
+            row_limit=100,
+            ttl_seconds=86_400,
+        )
+    assert marked == [True]
 
 
 def test_149_symbol_close_wave_is_outboxed_once_before_one_archive_append(
@@ -1196,6 +1306,7 @@ async def test_message_handler_persists_redis_before_label_admission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[str] = []
+    atomic_call: dict[str, Any] = {}
     close_ms = int((BASE + timedelta(minutes=10)).timestamp() * 1000) - 1
     data = {
         "E": close_ms + 1,
@@ -1219,37 +1330,42 @@ async def test_message_handler_persists_redis_before_label_admission(
     }
 
     class FakeRedis:
-        def get(self, key):
-            events.append("redis_get")
-            return None
-
-        def set(self, key, value, ex):
+        def set(self, key: str, value: str, ex: int) -> None:
             events.append("redis_set")
 
     class FakeWebSocket:
         def __init__(self) -> None:
             self.sent = False
 
-        async def recv(self):
+        async def recv(self) -> str:
             if not self.sent:
                 self.sent = True
                 return json.dumps({"data": data})
             await asyncio.Event().wait()
+            raise AssertionError("unreachable websocket wait returned")
 
     class Connection:
-        async def __aenter__(self):
+        async def __aenter__(self) -> FakeWebSocket:
             return FakeWebSocket()
 
-        async def __aexit__(self, exc_type, exc, traceback):
+        async def __aexit__(
+            self,
+            exc_type: object,
+            exc: object,
+            traceback: object,
+        ) -> bool:
             return False
 
     class FakeWebsockets:
         @staticmethod
-        def connect(*args, **kwargs):
+        def connect(*args: Any, **kwargs: Any) -> Connection:
             return Connection()
 
     class DurableSink:
-        def submit(self, payload):
+        def submit(
+            self,
+            payload: dict[str, Any],
+        ) -> asyncio.Future[_Canonical5mLabelAdmissionResult]:
             assert "redis_set" in events
             events.append("label_submit")
             future = asyncio.get_running_loop().create_future()
@@ -1263,13 +1379,26 @@ async def test_message_handler_persists_redis_before_label_admission(
             )
             return future
 
+    fake_redis = FakeRedis()
+
+    def fake_atomic_merge(client: Any, **kwargs: Any) -> SimpleNamespace:
+        events.append("atomic_merge")
+        atomic_call["client"] = client
+        atomic_call["kwargs"] = kwargs
+        return SimpleNamespace(
+            attempts=2,
+            rows_trimmed_for_bytes=0,
+            rows_deduplicated_or_trimmed_for_row_limit=1,
+        )
+
     monkeypatch.setattr(wss_module, "websockets", FakeWebsockets())
+    monkeypatch.setattr(wss_module, "atomic_merge_closed_window", fake_atomic_merge)
     stats: dict[str, Any] = {}
     task = asyncio.create_task(
         _consume_chunk(
             chunk_id=0,
             streams=("btcusdt@kline_5m",),
-            redis_client=FakeRedis(),
+            redis_client=fake_redis,
             stats=stats,
             ws_base="wss://example.invalid/",
             ttl_seconds=900,
@@ -1287,8 +1416,126 @@ async def test_message_handler_persists_redis_before_label_admission(
     with pytest.raises(asyncio.CancelledError):
         await task
 
+    assert events.index("atomic_merge") < events.index("redis_set")
     assert events.index("redis_set") < events.index("label_submit")
+    assert atomic_call["client"] is fake_redis
+    assert atomic_call["kwargs"]["redis_key"].endswith(":BTCUSDT:5m")
+    assert type(atomic_call["kwargs"]["new_rows"]) is tuple
+    assert len(atomic_call["kwargs"]["new_rows"]) == 1
+    assert atomic_call["kwargs"]["new_rows"][0]["symbol"] == "BTCUSDT"
+    assert len(atomic_call["kwargs"]["new_rows"][0]) == 30
+    assert atomic_call["kwargs"]["row_limit"] == 10
+    assert atomic_call["kwargs"]["ttl_policy"] == "set"
+    assert atomic_call["kwargs"]["ttl_seconds"] == 900
+    assert atomic_call["kwargs"]["replace_invalid_existing"] is False
+    assert stats["ohlcv_closed_atomic_writes"] == 1
+    assert stats["ohlcv_closed_atomic_retries"] == 1
+    assert stats["ohlcv_closed_rows_deduplicated_or_trimmed_for_row_limit"] == 1
     assert stats["canonical_5m_label_handler_durable_acks"] == 1
+
+
+@pytest.mark.asyncio
+async def test_closed_window_failure_blocks_sidecar_and_label_without_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    close_ms = int((BASE + timedelta(minutes=10)).timestamp() * 1000) - 1
+    data = {
+        "E": close_ms + 1,
+        "k": {
+            "s": "BTCUSDT",
+            "i": "5m",
+            "t": close_ms - 299_999,
+            "T": close_ms,
+            "o": "100",
+            "h": "101",
+            "l": "99",
+            "c": "100.5",
+            "v": "10",
+            "q": "1005",
+            "n": 10,
+            "V": "4",
+            "Q": "402",
+            "B": "0",
+            "x": True,
+        },
+    }
+    sidecar_writes: list[str] = []
+    label_submissions: list[dict[str, Any]] = []
+
+    class FakeRedis:
+        def set(self, key: str, value: str, ex: int) -> None:
+            sidecar_writes.append(str(key))
+
+    class FakeWebSocket:
+        sent = False
+
+        async def recv(self) -> str:
+            if not self.sent:
+                self.sent = True
+                return json.dumps({"data": data})
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable websocket wait returned")
+
+    class Connection:
+        async def __aenter__(self) -> FakeWebSocket:
+            return FakeWebSocket()
+
+        async def __aexit__(
+            self,
+            exc_type: object,
+            exc: object,
+            traceback: object,
+        ) -> bool:
+            return False
+
+    class FakeWebsockets:
+        @staticmethod
+        def connect(*args: Any, **kwargs: Any) -> Connection:
+            return Connection()
+
+    class LabelSink:
+        def submit(self, payload: dict[str, Any]) -> NoReturn:
+            label_submissions.append(payload)
+            raise AssertionError("label admission must stay held")
+
+    def fail_atomic_merge(*args: Any, **kwargs: Any) -> NoReturn:
+        raise ClosedWindowRedisStoreError("closed_window_existing_schema_invalid:test")
+
+    monkeypatch.setattr(wss_module, "websockets", FakeWebsockets())
+    monkeypatch.setattr(wss_module, "atomic_merge_closed_window", fail_atomic_merge)
+    stats: dict[str, Any] = {}
+    task = asyncio.create_task(
+        _consume_chunk(
+            chunk_id=0,
+            streams=("btcusdt@kline_5m",),
+            redis_client=FakeRedis(),
+            stats=stats,
+            ws_base="wss://example.invalid/",
+            ttl_seconds=900,
+            max_candles=10,
+            max_seconds_per_session=60.0,
+            stop_at=time.time() + 60.0,
+            label_pipeline=LabelSink(),  # type: ignore[arg-type]
+        )
+    )
+    for _ in range(100):
+        if stats.get("ohlcv_closed_write_failures"):
+            break
+        await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    key = "v2:market:ohlcv_closed:binance:BTCUSDT:5m"
+    assert stats["ohlcv_closed_write_failures"] == 1
+    assert stats["ohlcv_closed_blocked_keys"][key].startswith(
+        "closed_window_existing_schema_invalid"
+    )
+    blocker = wss_module._closed_window_status_blocker(stats)
+    assert blocker is not None and blocker.startswith("CLOSED_WINDOW_ATOMIC_PUBLICATION_BLOCKED:1:")
+    assert int(stats.get("connection_errors") or 0) == 0
+    assert sidecar_writes == []
+    assert label_submissions == []
 
 
 def test_live_archive_admission_is_finalized_wss_5m_only() -> None:
