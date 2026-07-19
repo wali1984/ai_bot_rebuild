@@ -43,8 +43,19 @@ class _Record:
     generated_utc: str = "2026-06-09T21:00:00Z"
 
 
+def _bypass_active_snapshot_admission(monkeypatch) -> None:
+    import v2.backend.app.services.market_state_integrity.trust as trust
+
+    monkeypatch.setattr(
+        trust,
+        "build_market_state_envelope_from_snapshot",
+        lambda snapshot, **kwargs: object(),
+    )
+
+
 def test_rl_core_loop_writes_sidecar_only(monkeypatch) -> None:
     redis = _MemoryRedis()
+    _bypass_active_snapshot_admission(monkeypatch)
 
     monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
     monkeypatch.setattr(loop, "_read_feature_snapshot", lambda r, symbol, tf: {"feature_snapshot_id": "fs_btc_1m"})
@@ -83,6 +94,7 @@ def test_rl_core_loop_uses_active_native_checkpoint_evidence_without_fake_sideca
     monkeypatch,
 ) -> None:
     redis = _MemoryRedis()
+    _bypass_active_snapshot_admission(monkeypatch)
 
     monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
     monkeypatch.setattr(loop, "_read_feature_snapshot", lambda r, symbol, tf: {"feature_snapshot_id": "fs_btc_1m"})
@@ -146,6 +158,7 @@ def test_rl_core_loop_uses_active_native_checkpoint_evidence_without_fake_sideca
 
 def test_rl_core_loop_publishes_exact_trust_gate_rejection_reasons(monkeypatch) -> None:
     redis = _MemoryRedis()
+    _bypass_active_snapshot_admission(monkeypatch)
 
     monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
     monkeypatch.setattr(
@@ -207,3 +220,80 @@ def test_rl_core_loop_publishes_exact_trust_gate_rejection_reasons(monkeypatch) 
     ]
     heartbeat = json.loads(redis.store["v2:trainer:heartbeat"])
     assert heartbeat["trust_gate_rejections"] == status["trust_gate_rejections"]
+
+
+def test_rl_core_loop_rejects_two_field_snapshot_downgrade_before_inference(
+    monkeypatch,
+) -> None:
+    redis = _MemoryRedis()
+    monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
+    monkeypatch.setattr(
+        loop,
+        "_read_feature_snapshot",
+        lambda r, symbol, tf: {
+            "feature_snapshot_id": "downgraded_fs_btc_1m",
+            "symbol": "BTCUSDT",
+            "decision_time": "2026-06-11T00:01:05Z",
+            "generated_at": "2026-06-11T00:01:05Z",
+            "feature_cutoff": "2026-06-11T00:00:59.999Z",
+            "available_at": "2026-06-11T00:01:05Z",
+            "event_time": "2026-06-11T00:00:59Z",
+            "ingested_at": "2026-06-11T00:01:00Z",
+            "features": {},
+        },
+    )
+    monkeypatch.setattr(loop, "_read_checkpoint_evidence", lambda r: {})
+
+    import v2.backend.app.services.rl_core.trainer_output as trainer_output
+
+    emit = Mock()
+    monkeypatch.setattr(trainer_output, "emit_trainer_output", emit)
+
+    status = loop.run_once(("BTCUSDT",), "1m")
+
+    emit.assert_not_called()
+    assert status["classification"] == "BLOCKED_BY_MARKET_STATE_TRUST_GATE"
+    assert status["predictions_count"] == 0
+    assert status["predictions_blocked"] == [
+        "BTCUSDT:TRUST_GATE_REJECTED:active_native_feature_snapshot_v2_required"
+    ]
+    assert status["trust_gate_rejections"][0]["reject_reasons"] == [
+        "active_native_feature_snapshot_v2_required"
+    ]
+
+
+def test_rl_core_loop_rejects_self_asserted_v2_receipt_before_inference(
+    monkeypatch,
+) -> None:
+    redis = _MemoryRedis()
+    monkeypatch.setattr(loop, "_connect_redis", lambda: redis)
+    monkeypatch.setattr(
+        loop,
+        "_read_feature_snapshot",
+        lambda r, symbol, tf: {
+            "schema_version": "v2_native_feature_snapshot_v2",
+            "worker_id": "v2_feature_pipeline_native_loop",
+            "feature_snapshot_id": "forged_v2_fs_btc_1m",
+            "exact_source_clock_valid": True,
+            "exact_feature_availability_valid": True,
+            "feature_available_at": "2026-06-11T00:01:05.399Z",
+        },
+    )
+    monkeypatch.setattr(loop, "_read_checkpoint_evidence", lambda r: {})
+
+    import v2.backend.app.services.rl_core.trainer_output as trainer_output
+
+    emit = Mock()
+    monkeypatch.setattr(trainer_output, "emit_trainer_output", emit)
+
+    status = loop.run_once(("BTCUSDT",), "1m")
+
+    emit.assert_not_called()
+    assert status["classification"] == "BLOCKED_BY_MARKET_STATE_TRUST_GATE"
+    assert status["predictions_blocked"] == [
+        "BTCUSDT:TRUST_GATE_REJECTED:"
+        "verified_feature_publication_receipt_required"
+    ]
+    assert status["trust_gate_rejections"][0]["reject_reasons"] == [
+        "verified_feature_publication_receipt_required"
+    ]

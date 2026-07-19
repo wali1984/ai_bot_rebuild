@@ -200,7 +200,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
     from v2.backend.app.services.rl_core.trainer_output import (
         emit_trainer_output, validate_for_paper_fill_gate,
     )
-    from v2.backend.app.services.market_state_integrity.trust import TrustGateRejectedError
+    from v2.backend.app.services.market_state_integrity.trust import (
+        TrustGateRejectedError,
+        build_market_state_envelope_from_snapshot,
+    )
     r = _connect_redis()
     checkpoint_evidence = _read_checkpoint_evidence(r)
     checkpoint_id = (
@@ -239,6 +242,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
             blocked.append(sym + ":MISSING_FEATURE_SNAPSHOT")
             continue
         try:
+            build_market_state_envelope_from_snapshot(
+                snap,
+                require_verified_native_snapshot=True,
+            )
             rec = emit_trainer_output(
                 snap,
                 checkpoint_id=checkpoint_id,
@@ -258,6 +265,28 @@ def run_once(symbols: tuple[str, ...], timeframe: str) -> dict:
                     "decision_id": exc.decision_id,
                     "message": str(exc),
                     **trust_gate_result,
+                }
+            )
+            continue
+        except (TypeError, ValueError) as exc:
+            reason = str(exc) or "active_native_feature_snapshot_rejected"
+            blocked.append(sym + ":TRUST_GATE_REJECTED:" + reason)
+            trust_gate_rejections.append(
+                {
+                    "symbol": sym,
+                    "decision_id": str(snap.get("decision_id") or ""),
+                    "message": reason,
+                    "accepted": False,
+                    "severity": "reject",
+                    "reject_reasons": [reason],
+                    "warnings": [],
+                    "data_quality_score": 0.0,
+                    "future_leak_detected": False,
+                    "cutoff_mismatch_detected": False,
+                    "replay_required": True,
+                    "metrics": {
+                        "active_native_snapshot_contract": "REJECTED"
+                    },
                 }
             )
             continue

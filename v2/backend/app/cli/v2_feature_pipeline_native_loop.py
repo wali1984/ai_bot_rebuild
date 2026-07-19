@@ -3,7 +3,8 @@
 Consumes v2:market:prices:* / v2:market:funding:* /
 v2:market:open_interest:* / v2:market:long_short:*
 and emits v2:features:latest:{symbol}:{tf} + v2:features:snapshots
-and the on-disk trainer-consumable snapshot.
+and the on-disk trainer-candidate snapshot (admission remains fail-closed
+until immutable publication evidence is validated).
 
 Writes V2 namespace ONLY. No legacy Redis. No exchange mutation.
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import sys
 import time
@@ -40,6 +42,31 @@ from v2.backend.app.services.adaptive_capital_allocator.contracts import Allocat
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+TRAINER_REQUIRED_FEATURE_FIELDS = (
+    "ret_pct",
+    "log_return",
+    "range_pct",
+    "body_pct",
+    "true_range_pct",
+    "gap_pct",
+    "ema_12",
+    "ema_26",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "bb_width_pct",
+    "htf_ret_pct",
+    "htf_rsi_14",
+    "bid_ask_spread_bps",
+    "depth_imbalance",
+    "micro_price",
+    "toxicity_proxy",
+    "funding_rate",
+    "oi_change_pct",
+    "last_liq_bps_24h",
+    "paper_position_present",
+)
 FEATURE_LATEST_TTL_SECONDS = 600
 # 12h default. Audit found ~644K resident snapshot keys (prior OOM was at ~370K)
 # because a legacy 30d TTL backlog was still draining and 24h steady-state sat near
@@ -189,19 +216,31 @@ def _parse_time_ms(value) -> int | None:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        numeric = int(value)
-        return numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
+        try:
+            numeric = int(value)
+        except (OSError, OverflowError, ValueError):
+            return None
+        resolved = numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
+        try:
+            _ms_to_utc_iso(resolved)
+        except (OSError, OverflowError, ValueError):
+            return None
+        return resolved
     if isinstance(value, str):
         text = value.strip()
         if not text:
             return None
         try:
             numeric = int(float(text))
-            return numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
-        except ValueError:
+            resolved = (
+                numeric * 1000 if abs(numeric) < 10_000_000_000 else numeric
+            )
+            _ms_to_utc_iso(resolved)
+            return resolved
+        except (OSError, OverflowError, ValueError):
             try:
                 return int(datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp() * 1000)
-            except ValueError:
+            except (OSError, OverflowError, ValueError):
                 return None
     return None
 
@@ -323,35 +362,113 @@ def _load_json_list_key(r, key: str) -> list | None:
         return None
 
 
+def _kline_close_ms(row: object) -> int | None:
+    try:
+        if isinstance(row, dict):
+            numeric = float(
+                row.get("candle_close_time") or row.get("close_time")
+            )
+        elif isinstance(row, (list, tuple)) and len(row) >= 7:
+            numeric = float(row[6])
+        else:
+            return None
+        if not math.isfinite(numeric) or numeric <= 0:
+            return None
+        resolved = int(numeric)
+        _ms_to_utc_iso(resolved)
+        return resolved
+    except (OSError, OverflowError, TypeError, ValueError):
+        return None
+
+
+def _exact_epoch_ms(value: object) -> int | None:
+    """Accept the canonical candle ABI only: a positive built-in ms integer."""
+
+    if type(value) is not int or value <= 0:
+        return None
+    try:
+        _ms_to_utc_iso(value)
+    except (OSError, OverflowError, ValueError):
+        return None
+    return value
+
+
+def _exact_sha256(value: object) -> str | None:
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        return None
+    return value
+
+
+def _exact_model_feature_value(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value))
+
+
 def _latest_closed_close_ms(klines: list | None, *, decision_ms: int) -> int | None:
     latest: int | None = None
     closed, _ = _closed_klines(klines, decision_ms=decision_ms)
     for row in closed:
-        try:
-            if isinstance(row, dict):
-                close_ms = int(float(row.get("candle_close_time") or row.get("close_time")))
-            elif isinstance(row, (list, tuple)) and len(row) >= 7:
-                close_ms = int(float(row[6]))
-            else:
-                continue
-        except (TypeError, ValueError):
+        close_ms = _kline_close_ms(row)
+        if close_ms is None:
             continue
         latest = close_ms if latest is None else max(latest, close_ms)
     return latest
 
 
-def _read_klines(r, symbol: str, interval: str = "1m", *, decision_ms: int | None = None) -> list | None:
-    if r is None:
-        return None
-    current_decision_ms = int(decision_ms if decision_ms is not None else time.time() * 1000)
+def _read_klines_with_lineage(
+    r,
+    symbol: str,
+    interval: str = "1m",
+    *,
+    decision_ms: int | None = None,
+) -> tuple[list | None, dict]:
     closed_key = f"{V2_REDIS_PREFIX}market:ohlcv_closed:binance:{symbol}:{interval}"
     raw_key = f"{V2_REDIS_PREFIX}market:ohlcv:binance:{symbol}:{interval}"
+
+    def _selection(
+        rows: list | None,
+        *,
+        mode: str,
+        source_keys: list[str],
+        raw_rows: list | None,
+        closed_rows: list | None,
+    ) -> tuple[list | None, dict]:
+        return rows, {
+            "selection_mode": mode,
+            "selected_source_keys": source_keys,
+            "raw_key": raw_key,
+            "closed_key": closed_key,
+            "raw_key_row_count": len(raw_rows or []),
+            "closed_key_row_count": len(closed_rows or []),
+            "selected_row_count": len(rows or []),
+        }
+
+    if r is None:
+        return _selection(
+            None,
+            mode="REDIS_UNAVAILABLE",
+            source_keys=[],
+            raw_rows=None,
+            closed_rows=None,
+        )
+    current_decision_ms = int(decision_ms if decision_ms is not None else time.time() * 1000)
     closed_rows = _load_json_list_key(r, closed_key)
     raw_rows = _load_json_list_key(r, raw_key)
     closed_latest = _latest_closed_close_ms(closed_rows, decision_ms=current_decision_ms)
     raw_latest = _latest_closed_close_ms(raw_rows, decision_ms=current_decision_ms)
     if raw_latest is not None and (closed_latest is None or raw_latest > closed_latest):
-        return raw_rows
+        return _selection(
+            raw_rows,
+            mode="RAW_KEY_NEWER",
+            source_keys=[raw_key],
+            raw_rows=raw_rows,
+            closed_rows=closed_rows,
+        )
     # The ohlcv_closed key's history is TTL-truncated for intervals longer
     # than its TTL (e.g. 15m holds 1-2 rows, 1h/4h expire entirely), which
     # starves history-window features (atr_percentile needs 34+ candles).
@@ -365,8 +482,61 @@ def _read_klines(r, symbol: str, interval: str = "1m", *, decision_ms: int | Non
         and isinstance(closed_rows, list)
         and len(raw_rows) > len(closed_rows)
     ):
-        return raw_rows
-    return closed_rows
+        # Retain the deeper history, but replace its newest equal-cutoff row
+        # with the canonical closed-key row when available. Otherwise a REST
+        # list can erase exact event/ingest/availability clocks precisely on a
+        # freshness tie, making a valid finalized decision unverifiable.
+        canonical_latest = next(
+            (
+                row
+                for row in reversed(closed_rows)
+                if isinstance(row, dict)
+                and _kline_close_ms(row) == closed_latest
+            ),
+            None,
+        )
+        if canonical_latest is not None:
+            merged_rows = list(raw_rows)
+            for index in range(len(merged_rows) - 1, -1, -1):
+                if _kline_close_ms(merged_rows[index]) == raw_latest:
+                    merged_rows[index] = canonical_latest
+                    return _selection(
+                        merged_rows,
+                        mode="HYBRID_RAW_HISTORY_CANONICAL_CLOSED_LATEST",
+                        source_keys=[raw_key, closed_key],
+                        raw_rows=raw_rows,
+                        closed_rows=closed_rows,
+                    )
+        return _selection(
+            raw_rows,
+            mode="RAW_KEY_DEEPER_TIE_NO_CANONICAL_LATEST",
+            source_keys=[raw_key],
+            raw_rows=raw_rows,
+            closed_rows=closed_rows,
+        )
+    return _selection(
+        closed_rows,
+        mode="CLOSED_KEY_SELECTED" if closed_rows is not None else "NO_KLINES",
+        source_keys=[closed_key] if closed_rows is not None else [],
+        raw_rows=raw_rows,
+        closed_rows=closed_rows,
+    )
+
+
+def _read_klines(
+    r,
+    symbol: str,
+    interval: str = "1m",
+    *,
+    decision_ms: int | None = None,
+) -> list | None:
+    rows, _lineage = _read_klines_with_lineage(
+        r,
+        symbol,
+        interval,
+        decision_ms=decision_ms,
+    )
+    return rows
 
 
 def _closed_klines_with_evidence(
@@ -388,9 +558,8 @@ def _closed_klines_with_evidence(
             if row.get("is_closed") is not True and row.get("closed_candle") is not True and row.get("candle_closed_confirmed") is not True:
                 evidence["unfinished_kline_excluded_count"] += 1
                 continue
-            try:
-                close_ms = int(float(row.get("candle_close_time") or row.get("close_time")))
-            except (TypeError, ValueError):
+            close_ms = _kline_close_ms(row)
+            if close_ms is None:
                 evidence["malformed_kline_excluded_count"] += 1
                 continue
             available_raw = row.get("available_at") or row.get("source_available_time") or row.get("ingested_at")
@@ -402,9 +571,8 @@ def _closed_klines_with_evidence(
                 evidence["future_available_finalized_kline_excluded_count"] += 1
                 continue
         elif isinstance(row, (list, tuple)) and len(row) >= 7:
-            try:
-                close_ms = int(float(row[6]))
-            except (TypeError, ValueError):
+            close_ms = _kline_close_ms(row)
+            if close_ms is None:
                 evidence["malformed_kline_excluded_count"] += 1
                 continue
         else:
@@ -426,6 +594,134 @@ def _closed_klines(klines: list | None, *, decision_ms: int) -> tuple[list, list
         decision_ms=decision_ms,
     )
     return closed, latest
+
+
+def _exact_candle_temporal_lineage(
+    row: object,
+    *,
+    feature_generated_ms: int | None,
+    expected_symbol: str,
+    expected_timeframe: str,
+) -> tuple[dict[str, str | bool | None], list[str]]:
+    """Retain only producer-owned exact clocks; aliases never qualify."""
+
+    lineage: dict[str, str | bool | None] = {
+        "candle_open_time": None,
+        "candle_close_time": None,
+        "event_time": None,
+        "ingested_at": None,
+        "source_available_at": None,
+        "source": None,
+        "is_backfilled": None,
+        "source_sequence_id": None,
+        "raw_payload_hash": None,
+        "exact_source_clock_valid": False,
+    }
+    if not isinstance(row, dict):
+        return lineage, ["EXACT_CANDLE_CLOCK_PAYLOAD_REQUIRED"]
+
+    raw_clocks = {
+        "candle_open_time": row.get("candle_open_time"),
+        "candle_close_time": row.get("candle_close_time"),
+        "event_time": row.get("event_time"),
+        "ingested_at": row.get("ingested_at"),
+        "source_available_at": row.get("available_at"),
+    }
+    clocks = {name: _exact_epoch_ms(value) for name, value in raw_clocks.items()}
+    reasons = [
+        f"EXACT_{name.upper()}_MISSING_OR_INVALID"
+        for name in (
+            "candle_open_time",
+            "candle_close_time",
+            "event_time",
+            "ingested_at",
+            "source_available_at",
+        )
+        if clocks[name] is None
+    ]
+    for output_name in (
+        "candle_open_time",
+        "candle_close_time",
+        "event_time",
+        "ingested_at",
+        "source_available_at",
+    ):
+        value_ms = clocks[output_name]
+        if value_ms is not None:
+            lineage[output_name] = _ms_to_utc_iso(value_ms)
+    source = row.get("source")
+    is_backfilled = row.get("is_backfilled")
+    source_sequence_id = row.get("source_sequence_id")
+    raw_payload_hash = _exact_sha256(row.get("raw_payload_hash"))
+    if type(source) is str:
+        lineage["source"] = source
+    if type(is_backfilled) is bool:
+        lineage["is_backfilled"] = is_backfilled
+    if type(source_sequence_id) is str:
+        lineage["source_sequence_id"] = source_sequence_id
+    if raw_payload_hash is not None:
+        lineage["raw_payload_hash"] = raw_payload_hash
+    if row.get("symbol") != str(expected_symbol).upper():
+        reasons.append("CANDLE_SYMBOL_BINDING_MISMATCH")
+    if row.get("exchange") != "binance":
+        reasons.append("CANDLE_EXCHANGE_BINDING_MISMATCH")
+    if row.get("timeframe") != expected_timeframe:
+        reasons.append("CANDLE_TIMEFRAME_BINDING_MISMATCH")
+    if source != "binance_wss":
+        reasons.append("LIVE_CANDLE_SOURCE_NOT_EXACT_BINANCE_WSS")
+    if type(is_backfilled) is not bool:
+        reasons.append("LIVE_CANDLE_BACKFILL_FLAG_MISSING_OR_INVALID")
+    elif is_backfilled:
+        reasons.append("LIVE_CANDLE_BACKFILL_NOT_EXACT_OBSERVATION")
+    if row.get("is_closed") is not True:
+        reasons.append("EXACT_CANDLE_FINALITY_FLAG_INVALID")
+    if row.get("feature_eligible") is not True:
+        reasons.append("EXACT_CANDLE_FEATURE_ELIGIBILITY_INVALID")
+    if raw_payload_hash is None:
+        reasons.append("EXACT_CANDLE_RAW_PAYLOAD_HASH_INVALID")
+    event_ms = clocks["event_time"]
+    if event_ms is not None and source_sequence_id != str(event_ms):
+        reasons.append("EXACT_CANDLE_EVENT_SEQUENCE_BINDING_INVALID")
+    if reasons:
+        return lineage, reasons
+
+    candle_open_ms = clocks["candle_open_time"]
+    candle_close_ms = clocks["candle_close_time"]
+    event_ms = clocks["event_time"]
+    ingested_ms = clocks["ingested_at"]
+    source_available_ms = clocks["source_available_at"]
+    assert candle_open_ms is not None
+    assert candle_close_ms is not None
+    assert event_ms is not None
+    assert ingested_ms is not None
+    assert source_available_ms is not None
+
+    if candle_open_ms >= candle_close_ms:
+        reasons.append("CANDLE_OPEN_NOT_BEFORE_CLOSE")
+    timeframe_ms = _timeframe_ms(expected_timeframe)
+    if expected_timeframe not in DEFAULT_TIMEFRAMES:
+        reasons.append("EXACT_CANDLE_TIMEFRAME_UNSUPPORTED")
+    elif (
+        candle_open_ms % timeframe_ms != 0
+        or candle_close_ms != candle_open_ms + timeframe_ms - 1
+    ):
+        reasons.append("CANDLE_INTERVAL_OR_ALIGNMENT_INVALID")
+    if not candle_close_ms <= event_ms <= ingested_ms:
+        reasons.append("CANDLE_CLOSE_EVENT_INGEST_ORDER_INVALID")
+    canonical_source_available_ms = max(
+        candle_close_ms,
+        event_ms,
+        ingested_ms,
+    )
+    if source_available_ms != canonical_source_available_ms:
+        reasons.append("SOURCE_AVAILABLE_AT_NOT_CANONICAL_MAX")
+    if feature_generated_ms is None:
+        reasons.append("FEATURE_GENERATED_AT_MISSING_OR_INVALID")
+    elif source_available_ms > feature_generated_ms:
+        reasons.append("SOURCE_AVAILABLE_AT_AFTER_FEATURE_GENERATED_AT")
+
+    lineage["exact_source_clock_valid"] = not reasons
+    return lineage, reasons
 
 
 def _read_orderbook(r, symbol: str) -> dict | None:
@@ -1495,7 +1791,24 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         decision_ms = int(time.time() * 1000)
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
-        raw_klines = _read_klines(r, sym, timeframe, decision_ms=decision_ms)
+        raw_klines, ohlcv_selection_lineage = _read_klines_with_lineage(
+            r,
+            sym,
+            timeframe,
+            decision_ms=decision_ms,
+        )
+        selected_ohlcv_source_keys = [
+            str(key)
+            for key in ohlcv_selection_lineage.get(
+                "selected_source_keys",
+                [],
+            )
+            if isinstance(key, str) and key
+        ]
+        ohlcv_history_payload_receipts_valid = False
+        ohlcv_history_payload_receipt_rejection_reasons = [
+            "IMMUTABLE_OHLCV_HISTORY_PAYLOAD_RECEIPTS_REQUIRED"
+        ]
         closed_klines, latest_closed_kline, kline_exclusion_evidence = (
             _closed_klines_with_evidence(
                 raw_klines,
@@ -1529,15 +1842,30 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         candle_close_time = None
         candle_close_ms = None
         closed_candle_available = latest_closed_kline is not None
+        candle_closed_confirmed = (
+            isinstance(latest_closed_kline, dict)
+            and latest_closed_kline.get("is_closed") is True
+        )
         if isinstance(latest_closed_kline, dict):
-            candle_open_ms = int(float(latest_closed_kline.get("candle_open_time") or latest_closed_kline.get("open_time")))
-            candle_close_ms = int(float(latest_closed_kline.get("candle_close_time") or latest_closed_kline.get("close_time")))
-            candle_open_time = _ms_to_utc_iso(candle_open_ms)
-            candle_close_time = _ms_to_utc_iso(candle_close_ms)
+            candle_open_ms = _parse_time_ms(
+                latest_closed_kline.get("candle_open_time")
+                or latest_closed_kline.get("open_time")
+            )
+            candle_close_ms = _parse_time_ms(
+                latest_closed_kline.get("candle_close_time")
+                or latest_closed_kline.get("close_time")
+            )
+            if candle_open_ms is not None:
+                candle_open_time = _ms_to_utc_iso(candle_open_ms)
+            if candle_close_ms is not None:
+                candle_close_time = _ms_to_utc_iso(candle_close_ms)
         elif isinstance(latest_closed_kline, (list, tuple)) and len(latest_closed_kline) >= 7:
-            candle_open_time = _ms_to_utc_iso(int(float(latest_closed_kline[0])))
-            candle_close_ms = int(float(latest_closed_kline[6]))
-            candle_close_time = _ms_to_utc_iso(candle_close_ms)
+            candle_open_ms = _parse_time_ms(latest_closed_kline[0])
+            candle_close_ms = _parse_time_ms(latest_closed_kline[6])
+            if candle_open_ms is not None:
+                candle_open_time = _ms_to_utc_iso(candle_open_ms)
+            if candle_close_ms is not None:
+                candle_close_time = _ms_to_utc_iso(candle_close_ms)
         closed_candle_stale = (
             closed_candle_available
             and _closed_candle_is_stale(
@@ -1546,10 +1874,13 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 timeframe=timeframe,
             )
         )
+        if not candle_closed_confirmed:
+            missing_feature_flags = sorted(set(missing_feature_flags) | {
+                "candle_closed_confirmed",
+            })
         if not closed_candle_available:
             missing_feature_flags = sorted(set(missing_feature_flags) | {
                 "ohlcv_closed_window",
-                "candle_closed_confirmed",
                 "feature_cutoff",
             })
         if closed_candle_stale:
@@ -1558,6 +1889,14 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             })
         generated_at = _utc_iso()
         generated_ms = _parse_time_ms(generated_at)
+        exact_candle_lineage, exact_clock_rejection_reasons = (
+            _exact_candle_temporal_lineage(
+                latest_closed_kline,
+                feature_generated_ms=generated_ms,
+                expected_symbol=sym,
+                expected_timeframe=timeframe,
+            )
+        )
         expected_finalized_close_ms = (
             _expected_latest_finalized_close_ms(
                 decision_ms=generated_ms,
@@ -1567,11 +1906,18 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             else None
         )
         latest_finalized_candle_available = (
-            candle_close_ms is not None
+            candle_closed_confirmed
+            and exact_candle_lineage["exact_source_clock_valid"] is True
+            and candle_close_ms is not None
             and expected_finalized_close_ms is not None
             and candle_close_ms == expected_finalized_close_ms
         )
-        temporal_rejection_reasons: list[str] = []
+        temporal_rejection_reasons = list(exact_clock_rejection_reasons)
+        if closed_candle_available and exact_clock_rejection_reasons:
+            missing_feature_flags = sorted(
+                set(missing_feature_flags)
+                | {"exact_source_clock_lineage", "feature_cutoff"}
+            )
         if closed_candle_available and not latest_finalized_candle_available:
             temporal_rejection_reasons.append(
                 "FINALIZED_CANDLE_NOT_AVAILABLE_AT_DECISION"
@@ -1580,21 +1926,69 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 set(missing_feature_flags)
                 | {"latest_finalized_candle_at_decision"}
             )
-        trainer_consumable = (
+        required_model_feature_missing_fields = sorted(
+            name
+            for name in TRAINER_REQUIRED_FEATURE_FIELDS
+            if not _exact_model_feature_value(feats.get(name))
+        )
+        required_model_feature_value_contract_valid = (
+            not required_model_feature_missing_fields
+        )
+        if required_model_feature_missing_fields:
+            missing_feature_flags = sorted(
+                set(missing_feature_flags)
+                | set(required_model_feature_missing_fields)
+            )
+        # Finite values alone do not prove that every non-candle feature was
+        # available before this decision. OI, liquidation, order-book, and
+        # provider inputs still require immutable per-input PIT receipts.
+        required_model_feature_pit_coverage_valid = False
+        required_model_feature_pit_rejection_reasons = [
+            "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
+        ]
+        missing_feature_flags = sorted(
+            set(missing_feature_flags)
+            | {"required_model_feature_pit_coverage"}
+        )
+        latest_candle_temporally_valid = (
             closed_candle_available
+            and candle_closed_confirmed
             and not closed_candle_stale
             and latest_finalized_candle_available
+            and exact_candle_lineage["exact_source_clock_valid"] is True
+        )
+        # ``generated_at`` is captured before provider enrichment, hashing,
+        # Redis publication, and readback. It is a generation clock, not proof
+        # that this exact snapshot was available to a consumer. Until the
+        # immutable publication ledger supplies a postcommit receipt, every
+        # active-consumer flag must remain fail-closed.
+        exact_feature_availability_valid = False
+        exact_feature_availability_rejection_reasons = [
+            "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
+        ]
+        missing_feature_flags = sorted(
+            set(missing_feature_flags) | {"exact_feature_availability"}
+        )
+        trainer_consumable = (
+            latest_candle_temporally_valid
+            and required_model_feature_value_contract_valid
+            and required_model_feature_pit_coverage_valid
+            and exact_feature_availability_valid
         )
         if not closed_candle_available:
             feature_freshness_state = "MISSING_CLOSED_OHLCV"
         elif closed_candle_stale:
             feature_freshness_state = "STALE_CLOSED_OHLCV"
+        elif exact_candle_lineage["exact_source_clock_valid"] is not True:
+            feature_freshness_state = "EXACT_SOURCE_CLOCK_INVALID"
         elif not latest_finalized_candle_available:
             feature_freshness_state = "FINALIZED_CANDLE_NOT_AVAILABLE_AT_DECISION"
+        elif not exact_feature_availability_valid:
+            feature_freshness_state = "FEATURE_AVAILABILITY_UNVERIFIED"
         else:
             feature_freshness_state = "CURRENT"
         snap = {
-            "schema_version": "v2_native_feature_snapshot_v1",
+            "schema_version": "v2_native_feature_snapshot_v2",
             "worker_id": "v2_feature_pipeline_native_loop",
             "symbol": sym,
             "timeframe": timeframe,
@@ -1610,17 +2004,61 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "missing_feature_flags": missing_feature_flags,
             "stale_feature_flags": ["ohlcv_closed_window"] if closed_candle_stale else [],
             "feature_freshness_state": feature_freshness_state,
+            "latest_candle_temporally_valid": (
+                latest_candle_temporally_valid
+            ),
+            "required_model_feature_value_contract_valid": (
+                required_model_feature_value_contract_valid
+            ),
+            "required_model_feature_fields": list(
+                TRAINER_REQUIRED_FEATURE_FIELDS
+            ),
+            "required_model_feature_missing_fields": (
+                required_model_feature_missing_fields
+            ),
+            "required_model_feature_pit_coverage_valid": (
+                required_model_feature_pit_coverage_valid
+            ),
+            "required_model_feature_pit_rejection_reasons": (
+                required_model_feature_pit_rejection_reasons
+            ),
             "trainer_consumable": trainer_consumable,
             "valid_for_prediction": trainer_consumable,
             "valid_for_paper": trainer_consumable,
-            "candle_closed_confirmed": closed_candle_available,
-            "candle_open_time": candle_open_time,
-            "candle_close_time": candle_close_time,
+            "candle_closed_confirmed": candle_closed_confirmed,
+            "candle_open_time": exact_candle_lineage["candle_open_time"],
+            "candle_close_time": exact_candle_lineage["candle_close_time"],
+            "event_time": exact_candle_lineage["event_time"],
+            "ingested_at": exact_candle_lineage["ingested_at"],
+            "source_available_at": exact_candle_lineage["source_available_at"],
+            "source": exact_candle_lineage["source"],
+            "is_backfilled": exact_candle_lineage["is_backfilled"],
+            "source_sequence_id": exact_candle_lineage["source_sequence_id"],
+            "raw_payload_hash": exact_candle_lineage["raw_payload_hash"],
+            "exact_source_clock_valid": exact_candle_lineage[
+                "exact_source_clock_valid"
+            ],
+            "exact_source_clock_rejection_reasons": (
+                exact_clock_rejection_reasons
+            ),
+            "candle_open_time_est": candle_open_time,
+            "candle_close_time_est": candle_close_time,
             "source_event_time_est": candle_close_time,
             "source_received_time_est": generated_at,
-            "source_available_time": generated_at,
-            "available_at": generated_at,
-            "feature_cutoff": candle_close_time,
+            "source_available_time": exact_candle_lineage[
+                "source_available_at"
+            ],
+            "available_at": None,
+            "available_at_est": generated_at,
+            "feature_available_at": None,
+            "exact_feature_availability_valid": (
+                exact_feature_availability_valid
+            ),
+            "exact_feature_availability_rejection_reasons": (
+                exact_feature_availability_rejection_reasons
+            ),
+            "feature_cutoff": exact_candle_lineage["candle_close_time"],
+            "feature_cutoff_est": candle_close_time,
             "decision_time_est": generated_at,
             "decision_cutoff_time_est": generated_at,
             "source_observation_time": _ms_to_utc_iso(decision_ms),
@@ -1633,7 +2071,21 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 latest_finalized_candle_available
             ),
             "temporal_rejection_reasons": temporal_rejection_reasons,
-            "source_ohlcv_key": f"v2:market:ohlcv_closed:binance:{sym}:{timeframe}",
+            "source_ohlcv_key": (
+                selected_ohlcv_source_keys[-1]
+                if selected_ohlcv_source_keys
+                else None
+            ),
+            "source_ohlcv_keys": selected_ohlcv_source_keys,
+            "ohlcv_history_payload_receipts_valid": (
+                ohlcv_history_payload_receipts_valid
+            ),
+            "ohlcv_history_payload_receipt_rejection_reasons": (
+                ohlcv_history_payload_receipt_rejection_reasons
+            ),
+            "ohlcv_selection_mode": ohlcv_selection_lineage[
+                "selection_mode"
+            ],
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
             "market_cost_evidence_source_fields": {
@@ -1648,7 +2100,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "live_gate": "blocked_human_only",
             "live_symbols": [],
             "ohlcv_history_present": bool(closed_klines),
-            "ohlcv_raw_row_count": len(raw_klines or []),
+            "ohlcv_raw_row_count": ohlcv_selection_lineage[
+                "raw_key_row_count"
+            ],
+            "ohlcv_closed_key_row_count": ohlcv_selection_lineage[
+                "closed_key_row_count"
+            ],
+            "ohlcv_selected_row_count": ohlcv_selection_lineage[
+                "selected_row_count"
+            ],
             "ohlcv_closed_row_count": len(closed_klines),
             "ohlcv_closed_age_seconds": (
                 None if candle_close_ms is None else max(0, int((decision_ms - candle_close_ms) / 1000))
@@ -1732,7 +2192,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 "generated_utc": _utc_iso(),
                 "schema_version": "v2_native_feature_pipeline_ta_v2",
                 "source_label": "V2_NATIVE_FEATURE_PIPELINE_LIVE",
-                "source_ohlcv_key": f"v2:market:ohlcv_closed:binance:{sym}:{timeframe}",
+                "source_ohlcv_key": (
+                    selected_ohlcv_source_keys[-1]
+                    if selected_ohlcv_source_keys
+                    else None
+                ),
+                "source_ohlcv_keys": selected_ohlcv_source_keys,
+                "ohlcv_selection_mode": ohlcv_selection_lineage[
+                    "selection_mode"
+                ],
                 "families_present": list(dict.fromkeys(ta_families)),
                 "indicators": ta_indicators,
                 "live_gate": "blocked_human_only",
@@ -1768,15 +2236,49 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         ids_payload = json.dumps([s["feature_snapshot_id"] for s in snapshots])
         if _safe_write(r, f"{V2_REDIS_PREFIX}features:snapshots", ids_payload, ex=FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS):
             keys_written.append(f"{V2_REDIS_PREFIX}features:snapshots")
-    # On-disk trainer-consumable snapshot mirrors the first symbol's record
-    # so the existing P0.2A/B/F/G workers can consume it.
+    # On-disk trainer-candidate snapshot mirrors the first symbol's record.
+    # Its active-consumer flags remain false until an immutable postcommit
+    # publication receipt is validated.
     if snapshots and write_trainer_snapshot:
         SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
         SNAPSHOT_PATH.write_text(json.dumps(snapshots[0], indent=2, sort_keys=True) + "\n")
-    classification = (
-        "NATIVE_V2_FEATURES_OK" if snapshots else
-        ("BLOCKED_BY_MISSING_MARKET_INPUTS" if missing else "BLOCKED_BY_REDIS_UNAVAILABLE")
+    latest_candle_temporally_valid_count = sum(
+        snapshot.get("latest_candle_temporally_valid") is True
+        for snapshot in snapshots
     )
+    required_model_feature_value_contract_valid_count = sum(
+        snapshot.get("required_model_feature_value_contract_valid") is True
+        for snapshot in snapshots
+    )
+    required_model_feature_pit_coverage_valid_count = sum(
+        snapshot.get("required_model_feature_pit_coverage_valid") is True
+        for snapshot in snapshots
+    )
+    exact_feature_availability_valid_count = sum(
+        snapshot.get("exact_feature_availability_valid") is True
+        for snapshot in snapshots
+    )
+    trainer_consumable_count = sum(
+        snapshot.get("trainer_consumable") is True for snapshot in snapshots
+    )
+    publication_receipt_held_count = sum(
+        "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
+        in (
+            snapshot.get(
+                "exact_feature_availability_rejection_reasons"
+            )
+            or []
+        )
+        for snapshot in snapshots
+    )
+    if snapshots and trainer_consumable_count == len(snapshots):
+        classification = "NATIVE_V2_ACTIVE_CONSUMERS_READY"
+    elif snapshots:
+        classification = "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD"
+    elif missing:
+        classification = "BLOCKED_BY_MISSING_MARKET_INPUTS"
+    else:
+        classification = "BLOCKED_BY_REDIS_UNAVAILABLE"
     hb = {
         "worker_id": "v2_feature_pipeline_native_loop",
         "schema_version": "v2_feature_pipeline_native_live_v1",
@@ -1785,6 +2287,36 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         "symbols": list(symbols),
         "timeframe": timeframe,
         "snapshots_built": len(snapshots),
+        "latest_candle_temporally_valid_count": (
+            latest_candle_temporally_valid_count
+        ),
+        "required_model_feature_value_contract_valid_count": (
+            required_model_feature_value_contract_valid_count
+        ),
+        "required_model_feature_pit_coverage_valid_count": (
+            required_model_feature_pit_coverage_valid_count
+        ),
+        "exact_feature_availability_valid_count": (
+            exact_feature_availability_valid_count
+        ),
+        "trainer_consumable_count": trainer_consumable_count,
+        "prediction_eligible_count": sum(
+            snapshot.get("valid_for_prediction") is True
+            for snapshot in snapshots
+        ),
+        "paper_eligible_count": sum(
+            snapshot.get("valid_for_paper") is True
+            for snapshot in snapshots
+        ),
+        "publication_receipt_held_count": publication_receipt_held_count,
+        "active_consumer_readiness": (
+            "READY"
+            if trainer_consumable_count == len(snapshots) and snapshots
+            else "HELD"
+        ),
+        "trainer_release_ready": bool(
+            snapshots and trainer_consumable_count == len(snapshots)
+        ),
         "missing_symbols": missing,
         "v2_features_keys_written": keys_written,
         "v2_features_keys_written_count": len(keys_written),
@@ -1824,10 +2356,17 @@ def run_timeframes(symbols: tuple[str, ...], timeframes: tuple[str, ...]) -> dic
         for row in per_timeframe
         for symbol in (row.get("missing_symbols") or [])
     })
-    if per_timeframe and all(row.get("classification") == "NATIVE_V2_FEATURES_OK" for row in per_timeframe):
-        classification = "NATIVE_V2_FEATURES_OK"
+    trainer_consumable_count = sum(
+        int(row.get("trainer_consumable_count") or 0)
+        for row in per_timeframe
+    )
+    if per_timeframe and all(
+        row.get("classification") == "NATIVE_V2_ACTIVE_CONSUMERS_READY"
+        for row in per_timeframe
+    ):
+        classification = "NATIVE_V2_ACTIVE_CONSUMERS_READY"
     elif snapshots_built:
-        classification = "NATIVE_V2_FEATURES_PARTIAL"
+        classification = "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD"
     else:
         classification = "BLOCKED_BY_MISSING_MARKET_INPUTS"
     aggregate = {
@@ -1839,6 +2378,53 @@ def run_timeframes(symbols: tuple[str, ...], timeframes: tuple[str, ...]) -> dic
         "timeframe": ",".join(timeframes),
         "timeframes": list(timeframes),
         "snapshots_built": snapshots_built,
+        "latest_candle_temporally_valid_count": sum(
+            int(row.get("latest_candle_temporally_valid_count") or 0)
+            for row in per_timeframe
+        ),
+        "required_model_feature_value_contract_valid_count": sum(
+            int(
+                row.get(
+                    "required_model_feature_value_contract_valid_count"
+                )
+                or 0
+            )
+            for row in per_timeframe
+        ),
+        "required_model_feature_pit_coverage_valid_count": sum(
+            int(
+                row.get(
+                    "required_model_feature_pit_coverage_valid_count"
+                )
+                or 0
+            )
+            for row in per_timeframe
+        ),
+        "exact_feature_availability_valid_count": sum(
+            int(row.get("exact_feature_availability_valid_count") or 0)
+            for row in per_timeframe
+        ),
+        "trainer_consumable_count": trainer_consumable_count,
+        "prediction_eligible_count": sum(
+            int(row.get("prediction_eligible_count") or 0)
+            for row in per_timeframe
+        ),
+        "paper_eligible_count": sum(
+            int(row.get("paper_eligible_count") or 0)
+            for row in per_timeframe
+        ),
+        "publication_receipt_held_count": sum(
+            int(row.get("publication_receipt_held_count") or 0)
+            for row in per_timeframe
+        ),
+        "active_consumer_readiness": (
+            "READY"
+            if snapshots_built and trainer_consumable_count == snapshots_built
+            else "HELD"
+        ),
+        "trainer_release_ready": bool(
+            snapshots_built and trainer_consumable_count == snapshots_built
+        ),
         "snapshots_built_by_timeframe": {
             row.get("timeframe"): row.get("snapshots_built") for row in per_timeframe
         },

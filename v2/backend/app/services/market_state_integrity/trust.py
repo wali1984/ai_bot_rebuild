@@ -68,11 +68,19 @@ def parse_timestamp(value: Any) -> datetime | None:
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if value > 10_000_000_000:
-            return datetime.fromtimestamp(float(value) / 1000.0, tz=timezone.utc)
-        return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        try:
+            numeric = float(value)
+            if not math.isfinite(numeric):
+                return None
+            if numeric > 10_000_000_000:
+                numeric /= 1000.0
+            return datetime.fromtimestamp(numeric, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
     if isinstance(value, str):
         text = value.strip()
         if not text:
@@ -93,7 +101,13 @@ def isoformat_utc(value: Any) -> str:
     parsed = parse_timestamp(value)
     if parsed is None:
         raise ValueError("timestamp_missing_or_invalid")
-    return parsed.isoformat(timespec="seconds").replace("+00:00", "Z")
+    if parsed.microsecond == 0:
+        timespec = "seconds"
+    elif parsed.microsecond % 1000 == 0:
+        timespec = "milliseconds"
+    else:
+        timespec = "microseconds"
+    return parsed.isoformat(timespec=timespec).replace("+00:00", "Z")
 
 
 def _normalize_string_tuple(values: Any) -> tuple[str, ...]:
@@ -465,11 +479,38 @@ def build_market_state_envelope_from_snapshot(
     snapshot: Mapping[str, Any],
     *,
     exchange_default: str = "binance",
+    require_verified_native_snapshot: bool = False,
 ) -> MarketStateEnvelope:
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
+    schema_version = str(snapshot.get("schema_version") or "")
+    if (
+        require_verified_native_snapshot
+        and schema_version != "v2_native_feature_snapshot_v2"
+    ):
+        raise ValueError("active_native_feature_snapshot_v2_required")
+    native_feature_worker = (
+        snapshot.get("worker_id") == "v2_feature_pipeline_native_loop"
+    )
+    if native_feature_worker and schema_version != "v2_native_feature_snapshot_v2":
+        raise ValueError("native_feature_snapshot_schema_downgrade_rejected")
+    exact_native_snapshot = schema_version == "v2_native_feature_snapshot_v2"
+    if exact_native_snapshot:
+        if not native_feature_worker:
+            raise ValueError("exact_native_feature_producer_identity_required")
+        if snapshot.get("exact_source_clock_valid") is not True:
+            raise ValueError("exact_source_clock_lineage_required")
+        if snapshot.get("exact_feature_availability_valid") is not True:
+            raise ValueError("exact_feature_availability_required")
+        if parse_timestamp(snapshot.get("feature_available_at")) is None:
+            raise ValueError("feature_available_at_missing_or_invalid")
+        # A self-asserted boolean/timestamp in mutable Redis is not a
+        # publication receipt. Keep v2 snapshots unconditionally inactive
+        # until the immutable ledger validator binds the committed bytes,
+        # snapshot id/hash, postcommit clock, and successful readback.
+        raise ValueError("verified_feature_publication_receipt_required")
     embedded = snapshot.get("market_state_envelope")
-    if embedded is not None:
+    if embedded is not None and not exact_native_snapshot:
         return coerce_market_state_envelope(embedded)
 
     symbol = str(snapshot.get("symbol") or "").upper()
@@ -537,7 +578,8 @@ def build_market_state_envelope_from_snapshot(
             penalty += 0.1
         data_quality_score = max(0.0, min(1.0, base_score - penalty))
     available_dt = parse_timestamp(
-        snapshot.get("available_at")
+        snapshot.get("feature_available_at")
+        or snapshot.get("available_at")
         or snapshot.get("source_available_time")
         or snapshot.get("generated_at")
         or feature_cutoff_dt

@@ -23,6 +23,39 @@ def _latest_finalized_close_ms(mod, timeframe: str) -> int:
     )
 
 
+def _exact_candle_clocks(
+    close_ms: int,
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+    event_ms: int | None = None,
+    ingested_ms: int | None = None,
+    available_ms: int | None = None,
+) -> dict[str, int | str | bool]:
+    resolved_event_ms = event_ms if event_ms is not None else close_ms + 100
+    resolved_ingested_ms = (
+        ingested_ms if ingested_ms is not None else resolved_event_ms + 100
+    )
+    return {
+        "event_time": resolved_event_ms,
+        "ingested_at": resolved_ingested_ms,
+        "available_at": (
+            available_ms
+            if available_ms is not None
+            else max(close_ms, resolved_event_ms, resolved_ingested_ms)
+        ),
+        "symbol": symbol,
+        "exchange": "binance",
+        "timeframe": timeframe,
+        "source": "binance_wss",
+        "is_backfilled": False,
+        "is_closed": True,
+        "feature_eligible": True,
+        "source_sequence_id": str(resolved_event_ms),
+        "raw_payload_hash": "a" * 64,
+    }
+
+
 class FakeRedis:
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
@@ -90,7 +123,11 @@ def test_feature_snapshot_without_closed_ohlcv_is_not_trainer_consumable(monkeyp
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
 
-    mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+    mod.run_once(
+        ("BTCUSDT",),
+        "1m",
+        write_trainer_snapshot=False,
+    )
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
     assert payload["trainer_consumable"] is False
@@ -108,12 +145,13 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
     close_ms = _latest_finalized_close_ms(mod, "1m")
-    open_ms = close_ms - 60_000
+    open_ms = close_ms - 60_000 + 1
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
         {
-            "open_time": open_ms,
-            "close_time": close_ms,
+            "candle_open_time": open_ms,
+            "candle_close_time": close_ms,
+            **_exact_candle_clocks(close_ms),
             "open": "99.0",
             "high": "101.0",
             "low": "98.0",
@@ -124,17 +162,410 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
     ])
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
 
+    heartbeat = mod.run_once(
+        ("BTCUSDT",),
+        "1m",
+        write_trainer_snapshot=False,
+    )
+
+    payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert payload["schema_version"] == "v2_native_feature_snapshot_v2"
+    assert payload["trainer_consumable"] is False
+    assert payload["valid_for_prediction"] is False
+    assert payload["valid_for_paper"] is False
+    assert payload["feature_freshness_state"] == "FEATURE_AVAILABILITY_UNVERIFIED"
+    assert payload["candle_closed_confirmed"] is True
+    assert payload["feature_cutoff"] == mod._ms_to_utc_iso(close_ms)  # noqa: SLF001
+    assert payload["event_time"] == mod._ms_to_utc_iso(close_ms + 100)
+    assert payload["ingested_at"] == mod._ms_to_utc_iso(close_ms + 200)
+    assert payload["source_available_at"] == mod._ms_to_utc_iso(close_ms + 200)
+    assert payload["exact_source_clock_valid"] is True
+    assert payload["exact_source_clock_rejection_reasons"] == []
+    assert payload["available_at"] is None
+    assert payload["feature_available_at"] is None
+    assert payload["exact_feature_availability_valid"] is False
+    assert payload["exact_feature_availability_rejection_reasons"] == [
+        "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
+    ]
+    assert payload["required_model_feature_pit_coverage_valid"] is False
+    assert payload["required_model_feature_pit_rejection_reasons"] == [
+        "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
+    ]
+    assert payload["ohlcv_history_payload_receipts_valid"] is False
+    assert payload["ohlcv_history_payload_receipt_rejection_reasons"] == [
+        "IMMUTABLE_OHLCV_HISTORY_PAYLOAD_RECEIPTS_REQUIRED"
+    ]
+    assert payload["latest_finalized_candle_available_at_decision"] is True
+    assert payload["temporal_rejection_reasons"] == []
+    assert heartbeat["classification"] == (
+        "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD"
+    )
+    assert heartbeat["latest_candle_temporally_valid_count"] == 1
+    assert heartbeat["exact_feature_availability_valid_count"] == 0
+    assert heartbeat["required_model_feature_pit_coverage_valid_count"] == 0
+    assert heartbeat["trainer_consumable_count"] == 0
+    assert heartbeat["prediction_eligible_count"] == 0
+    assert heartbeat["paper_eligible_count"] == 0
+    assert heartbeat["publication_receipt_held_count"] == 1
+    assert heartbeat["active_consumer_readiness"] == "HELD"
+    assert heartbeat["trainer_release_ready"] is False
+
+
+def test_feature_snapshot_does_not_promote_clock_aliases_to_exact(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
+        [
+            {
+                "open_time": close_ms - 60_000 + 1,
+                "close_time": close_ms,
+                "source_event_time_est": close_ms + 100,
+                "source_received_time_est": close_ms + 200,
+                "source_available_time": close_ms + 200,
+                "source": "binance_wss",
+                "is_backfilled": False,
+                "symbol": "BTCUSDT",
+                "exchange": "binance",
+                "timeframe": "1m",
+                "feature_eligible": True,
+                "source_sequence_id": str(close_ms + 100),
+                "raw_payload_hash": "a" * 64,
+                "open": "99.0",
+                "high": "101.0",
+                "low": "98.0",
+                "close": "100.0",
+                "volume": "1000",
+                "is_closed": True,
+            }
+        ]
+    )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
     mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
-    assert payload["trainer_consumable"] is True
-    assert payload["valid_for_prediction"] is True
-    assert payload["valid_for_paper"] is True
-    assert payload["feature_freshness_state"] == "CURRENT"
-    assert payload["candle_closed_confirmed"] is True
-    assert payload["feature_cutoff"] == mod._ms_to_utc_iso(close_ms)  # noqa: SLF001
-    assert payload["latest_finalized_candle_available_at_decision"] is True
-    assert payload["temporal_rejection_reasons"] == []
+    assert payload["trainer_consumable"] is False
+    assert payload["feature_freshness_state"] == "EXACT_SOURCE_CLOCK_INVALID"
+    assert payload["event_time"] is None
+    assert payload["ingested_at"] is None
+    assert payload["source_available_at"] is None
+    assert payload["exact_source_clock_rejection_reasons"] == [
+        "EXACT_CANDLE_OPEN_TIME_MISSING_OR_INVALID",
+        "EXACT_CANDLE_CLOSE_TIME_MISSING_OR_INVALID",
+        "EXACT_EVENT_TIME_MISSING_OR_INVALID",
+        "EXACT_INGESTED_AT_MISSING_OR_INVALID",
+        "EXACT_SOURCE_AVAILABLE_AT_MISSING_OR_INVALID",
+    ]
+
+
+def test_run_timeframes_aggregates_active_consumer_hold_truth(monkeypatch) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    per_timeframe = iter(
+        [
+            {
+                "started_at": "2026-07-18T02:00:00.000Z",
+                "timeframe": "1m",
+                "classification": "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD",
+                "snapshots_built": 2,
+                "latest_candle_temporally_valid_count": 2,
+                "required_model_feature_value_contract_valid_count": 1,
+                "required_model_feature_pit_coverage_valid_count": 0,
+                "exact_feature_availability_valid_count": 0,
+                "trainer_consumable_count": 0,
+                "prediction_eligible_count": 0,
+                "paper_eligible_count": 0,
+                "publication_receipt_held_count": 2,
+                "missing_symbols": [],
+                "v2_features_keys_written": ["v2:features:latest:BTCUSDT:1m"],
+            },
+            {
+                "started_at": "2026-07-18T02:00:01.000Z",
+                "timeframe": "5m",
+                "classification": "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD",
+                "snapshots_built": 1,
+                "latest_candle_temporally_valid_count": 1,
+                "required_model_feature_value_contract_valid_count": 1,
+                "required_model_feature_pit_coverage_valid_count": 0,
+                "exact_feature_availability_valid_count": 0,
+                "trainer_consumable_count": 0,
+                "prediction_eligible_count": 0,
+                "paper_eligible_count": 0,
+                "publication_receipt_held_count": 1,
+                "missing_symbols": ["ETHUSDT"],
+                "v2_features_keys_written": ["v2:features:latest:BTCUSDT:5m"],
+            },
+        ]
+    )
+    monkeypatch.setattr(
+        mod,
+        "run_once",
+        lambda symbols, timeframe, write_trainer_snapshot: next(per_timeframe),
+    )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: None)
+
+    aggregate = mod.run_timeframes(("BTCUSDT", "ETHUSDT"), ("1m", "5m"))
+
+    assert aggregate["classification"] == (
+        "NATIVE_V2_SNAPSHOTS_BUILT_CONSUMERS_HELD"
+    )
+    assert aggregate["snapshots_built"] == 3
+    assert aggregate["latest_candle_temporally_valid_count"] == 3
+    assert aggregate["required_model_feature_value_contract_valid_count"] == 2
+    assert aggregate["required_model_feature_pit_coverage_valid_count"] == 0
+    assert aggregate["exact_feature_availability_valid_count"] == 0
+    assert aggregate["trainer_consumable_count"] == 0
+    assert aggregate["publication_receipt_held_count"] == 3
+    assert aggregate["active_consumer_readiness"] == "HELD"
+    assert aggregate["trainer_release_ready"] is False
+
+
+@pytest.mark.parametrize(
+    ("clock_overrides", "expected_reason"),
+    [
+        (
+            {"candle_open_time": 1_800_000_059_999},
+            "CANDLE_OPEN_NOT_BEFORE_CLOSE",
+        ),
+        (
+            {
+                "event_time": 1_800_000_060_299,
+                "ingested_at": 1_800_000_060_199,
+                "available_at": 1_800_000_060_299,
+            },
+            "CANDLE_CLOSE_EVENT_INGEST_ORDER_INVALID",
+        ),
+        (
+            {"available_at": 1_800_000_060_149},
+            "SOURCE_AVAILABLE_AT_NOT_CANONICAL_MAX",
+        ),
+        (
+            {
+                "event_time": 1_800_000_061_399,
+                "ingested_at": 1_800_000_061_499,
+                "available_at": 1_800_000_061_499,
+            },
+            "SOURCE_AVAILABLE_AT_AFTER_FEATURE_GENERATED_AT",
+        ),
+    ],
+)
+def test_exact_candle_temporal_lineage_rejects_noncanonical_clocks(
+    clock_overrides,
+    expected_reason,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    row = {
+        "candle_open_time": 1_800_000_000_000,
+        "candle_close_time": 1_800_000_059_999,
+        **_exact_candle_clocks(1_800_000_059_999),
+    }
+    row.update(clock_overrides)
+    row["source_sequence_id"] = str(row["event_time"])
+
+    lineage, reasons = mod._exact_candle_temporal_lineage(  # noqa: SLF001
+        row,
+        feature_generated_ms=1_800_000_060_999,
+        expected_symbol="BTCUSDT",
+        expected_timeframe="1m",
+    )
+
+    assert lineage["exact_source_clock_valid"] is False
+    assert expected_reason in reasons
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_reason"),
+    [
+        ("symbol", "ETHUSDT", "CANDLE_SYMBOL_BINDING_MISMATCH"),
+        ("exchange", "bybit", "CANDLE_EXCHANGE_BINDING_MISMATCH"),
+        ("timeframe", "5m", "CANDLE_TIMEFRAME_BINDING_MISMATCH"),
+        ("source", "binance_rest", "LIVE_CANDLE_SOURCE_NOT_EXACT_BINANCE_WSS"),
+        ("is_backfilled", True, "LIVE_CANDLE_BACKFILL_NOT_EXACT_OBSERVATION"),
+        ("is_closed", False, "EXACT_CANDLE_FINALITY_FLAG_INVALID"),
+        (
+            "feature_eligible",
+            False,
+            "EXACT_CANDLE_FEATURE_ELIGIBILITY_INVALID",
+        ),
+        ("raw_payload_hash", "bad", "EXACT_CANDLE_RAW_PAYLOAD_HASH_INVALID"),
+        (
+            "source_sequence_id",
+            "missing-wss-event-sequence",
+            "EXACT_CANDLE_EVENT_SEQUENCE_BINDING_INVALID",
+        ),
+    ],
+)
+def test_exact_candle_temporal_lineage_binds_canonical_source_identity(
+    field,
+    value,
+    expected_reason,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    close_ms = 1_800_000_059_999
+    row = {
+        "candle_open_time": 1_800_000_000_000,
+        "candle_close_time": close_ms,
+        **_exact_candle_clocks(close_ms),
+    }
+    row[field] = value
+
+    lineage, reasons = mod._exact_candle_temporal_lineage(  # noqa: SLF001
+        row,
+        feature_generated_ms=close_ms + 1_000,
+        expected_symbol="BTCUSDT",
+        expected_timeframe="1m",
+    )
+
+    assert lineage["exact_source_clock_valid"] is False
+    assert expected_reason in reasons
+
+
+def test_exact_candle_temporal_lineage_rejects_misaligned_interval() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    close_ms = 1_800_000_059_999
+    row = {
+        "candle_open_time": 1_800_000_000_001,
+        "candle_close_time": close_ms,
+        **_exact_candle_clocks(close_ms),
+    }
+
+    lineage, reasons = mod._exact_candle_temporal_lineage(  # noqa: SLF001
+        row,
+        feature_generated_ms=close_ms + 1_000,
+        expected_symbol="BTCUSDT",
+        expected_timeframe="1m",
+    )
+
+    assert lineage["exact_source_clock_valid"] is False
+    assert "CANDLE_INTERVAL_OR_ALIGNMENT_INVALID" in reasons
+
+
+def test_trainer_required_feature_contract_matches_rl_observation_contract() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    observation = importlib.import_module(
+        "v2.backend.app.services.rl_core.observation_builder"
+    )
+
+    assert (
+        observation.OBSERVATION_FEATURE_ORDER[:23]
+        == mod.TRAINER_REQUIRED_FEATURE_FIELDS
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        1_800_000_000_000.0,
+        float("nan"),
+        float("inf"),
+        "2027-01-15T08:00:00",
+        10**100,
+    ],
+)
+def test_exact_epoch_ms_rejects_noncanonical_or_unrepresentable_values(
+    value,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+
+    assert mod._exact_epoch_ms(value) is None  # noqa: SLF001
+
+
+def test_bad_exact_clock_fails_one_symbol_closed_without_stopping_cycle(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        fake.store[f"v2:market:prices:{symbol}"] = json.dumps(_market_payload())
+    bad_clocks = _exact_candle_clocks(close_ms, symbol="BTCUSDT")
+    bad_clocks["candle_open_time"] = 10**100
+    bad_clocks["candle_close_time"] = close_ms
+    good_clocks = _exact_candle_clocks(close_ms, symbol="ETHUSDT")
+    good_clocks["candle_open_time"] = close_ms - 60_000 + 1
+    good_clocks["candle_close_time"] = close_ms
+    for symbol, clocks in (("BTCUSDT", bad_clocks), ("ETHUSDT", good_clocks)):
+        fake.store[
+            f"v2:market:ohlcv_closed:binance:{symbol}:1m"
+        ] = json.dumps(
+            [
+                {
+                    **clocks,
+                    "open": "99.0",
+                    "high": "101.0",
+                    "low": "98.0",
+                    "close": "100.0",
+                    "volume": "1000",
+                    "is_closed": True,
+                }
+            ]
+        )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
+    mod.run_once(("BTCUSDT", "ETHUSDT"), "1m", write_trainer_snapshot=False)
+
+    btc = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    eth = json.loads(fake.store["v2:features:latest:ETHUSDT:1m"])
+    assert btc["trainer_consumable"] is False
+    assert "EXACT_CANDLE_OPEN_TIME_MISSING_OR_INVALID" in btc[
+        "exact_source_clock_rejection_reasons"
+    ]
+    assert eth["trainer_consumable"] is False
+    assert eth["exact_source_clock_valid"] is True
+    assert eth["exact_source_clock_rejection_reasons"] == []
+
+
+@pytest.mark.parametrize("bad_close", [float("inf"), float("-inf"), 10**100])
+def test_bad_close_clock_fails_one_symbol_closed_without_stopping_cycle(
+    monkeypatch,
+    bad_close,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        fake.store[f"v2:market:prices:{symbol}"] = json.dumps(_market_payload())
+    bad_row = {
+        "candle_open_time": close_ms - 60_000 + 1,
+        "candle_close_time": bad_close,
+        **_exact_candle_clocks(close_ms, symbol="BTCUSDT"),
+        "open": "99.0",
+        "high": "101.0",
+        "low": "98.0",
+        "close": "100.0",
+        "volume": "1000",
+    }
+    good_row = {
+        "candle_open_time": close_ms - 60_000 + 1,
+        "candle_close_time": close_ms,
+        **_exact_candle_clocks(close_ms, symbol="ETHUSDT"),
+        "open": "99.0",
+        "high": "101.0",
+        "low": "98.0",
+        "close": "100.0",
+        "volume": "1000",
+    }
+    fake.store[
+        "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    ] = json.dumps([bad_row])
+    fake.store[
+        "v2:market:ohlcv_closed:binance:ETHUSDT:1m"
+    ] = json.dumps([good_row])
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
+    mod.run_once(("BTCUSDT", "ETHUSDT"), "1m", write_trainer_snapshot=False)
+
+    btc = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    eth = json.loads(fake.store["v2:features:latest:ETHUSDT:1m"])
+    assert btc["trainer_consumable"] is False
+    assert btc["feature_freshness_state"] == "MISSING_CLOSED_OHLCV"
+    assert btc["malformed_kline_excluded_count"] == 1
+    assert eth["exact_source_clock_valid"] is True
+    assert eth["latest_candle_temporally_valid"] is True
 
 
 def test_run_once_uses_one_exact_cutoff_per_symbol_for_kline_selection(
@@ -150,10 +581,16 @@ def test_run_once_uses_one_exact_cutoff_per_symbol_for_kline_selection(
 
     def capture_read(_redis, symbol, _timeframe="1m", *, decision_ms=None):
         observed.append((symbol, decision_ms))
-        return None
+        return None, {
+            "selection_mode": "TEST_NO_KLINES",
+            "selected_source_keys": [],
+            "raw_key_row_count": 0,
+            "closed_key_row_count": 0,
+            "selected_row_count": 0,
+        }
 
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
-    monkeypatch.setattr(mod, "_read_klines", capture_read)
+    monkeypatch.setattr(mod, "_read_klines_with_lineage", capture_read)
 
     mod.run_once(("BTCUSDT", "ETHUSDT"), "1m", write_trainer_snapshot=False)
 
@@ -178,9 +615,9 @@ def test_feature_snapshot_fails_closed_when_generation_crosses_candle_boundary(
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
         [
             {
-                "open_time": selected_close_ms - 59_999,
-                "close_time": selected_close_ms,
-                "available_at": selected_close_ms + 1,
+                "candle_open_time": selected_close_ms - 59_999,
+                "candle_close_time": selected_close_ms,
+                **_exact_candle_clocks(selected_close_ms),
                 "open": "99.0",
                 "high": "101.0",
                 "low": "98.0",
@@ -215,14 +652,14 @@ def test_feature_snapshot_emits_closed_window_atr_percentile(monkeypatch) -> Non
     rows = []
     for index in range(45):
         close_ms = latest_close_ms - (44 - index) * 60_000
-        open_ms = close_ms - 60_000
+        open_ms = close_ms - 60_000 + 1
         close = 100.0 + index * 0.2
         width = 0.8 + (index % 9) * 0.08
         rows.append(
             {
-                "open_time": open_ms,
-                "close_time": close_ms,
-                "available_at": close_ms + 1_000,
+                "candle_open_time": open_ms,
+                "candle_close_time": close_ms,
+                **_exact_candle_clocks(close_ms),
                 "open": f"{close - 0.1}",
                 "high": f"{close + width}",
                 "low": f"{close - width * 0.7}",
@@ -239,7 +676,8 @@ def test_feature_snapshot_emits_closed_window_atr_percentile(monkeypatch) -> Non
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
     features = payload["features"]
-    assert payload["trainer_consumable"] is True
+    assert payload["trainer_consumable"] is False
+    assert payload["latest_candle_temporally_valid"] is True
     assert payload["latest_unclosed_kline_excluded"] is False
     assert features["atr_percentile"] is not None
     assert 0.0 <= features["atr_percentile"] <= 1.0
@@ -255,9 +693,9 @@ def test_feature_snapshot_skips_closed_candle_available_after_decision(monkeypat
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
         {
-            "open_time": older_close_ms - 60_000,
-            "close_time": older_close_ms,
-            "available_at": older_close_ms + 1_000,
+            "candle_open_time": older_close_ms - 60_000 + 1,
+            "candle_close_time": older_close_ms,
+            **_exact_candle_clocks(older_close_ms),
             "open": "99.0",
             "high": "101.0",
             "low": "98.0",
@@ -266,9 +704,13 @@ def test_feature_snapshot_skips_closed_candle_available_after_decision(monkeypat
             "is_closed": True,
         },
         {
-            "open_time": newer_close_ms - 60_000,
-            "close_time": newer_close_ms,
-            "available_at": now_ms + 60_000,
+            "candle_open_time": newer_close_ms - 60_000 + 1,
+            "candle_close_time": newer_close_ms,
+            **_exact_candle_clocks(
+                newer_close_ms,
+                ingested_ms=now_ms + 60_000,
+                available_ms=now_ms + 60_000,
+            ),
             "open": "100.0",
             "high": "102.0",
             "low": "99.0",
@@ -294,11 +736,13 @@ def test_feature_snapshot_skips_closed_candle_available_after_decision(monkeypat
     assert payload["future_available_finalized_kline_excluded_count"] == 1
 
 
-def test_feature_snapshot_falls_back_to_finalized_raw_ohlcv(monkeypatch) -> None:
+def test_feature_snapshot_rejects_raw_ohlcv_without_exact_source_clocks(
+    monkeypatch,
+) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
     close_ms = _latest_finalized_close_ms(mod, "1m")
-    open_ms = close_ms - 60_000
+    open_ms = close_ms - 60_000 + 1
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     fake.store["v2:market:ohlcv:binance:BTCUSDT:1m"] = json.dumps(
         [[open_ms, "99.0", "101.0", "98.0", "100.0", "1000", close_ms, "100000", 20, "500", "50000", "0"]]
@@ -308,17 +752,23 @@ def test_feature_snapshot_falls_back_to_finalized_raw_ohlcv(monkeypatch) -> None
     mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
-    assert payload["trainer_consumable"] is True
-    assert payload["valid_for_prediction"] is True
-    assert payload["feature_freshness_state"] == "CURRENT"
-    assert payload["feature_cutoff"] == mod._ms_to_utc_iso(close_ms)  # noqa: SLF001
+    assert payload["trainer_consumable"] is False
+    assert payload["valid_for_prediction"] is False
+    assert payload["feature_freshness_state"] == "EXACT_SOURCE_CLOCK_INVALID"
+    assert payload["feature_cutoff"] is None
+    assert payload["feature_cutoff_est"] == mod._ms_to_utc_iso(close_ms)
+    assert payload["exact_source_clock_valid"] is False
+    assert payload["exact_source_clock_rejection_reasons"] == [
+        "EXACT_CANDLE_CLOCK_PAYLOAD_REQUIRED"
+    ]
+    assert "exact_source_clock_lineage" in payload["missing_feature_flags"]
 
 
 def test_feature_snapshot_carries_point_in_time_cost_evidence_from_orderbook(monkeypatch) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
     close_ms = _latest_finalized_close_ms(mod, "1m")
-    open_ms = close_ms - 60_000
+    open_ms = close_ms - 60_000 + 1
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     fake.store["v2:market:orderbook:BTCUSDT"] = json.dumps(
         {
@@ -328,8 +778,9 @@ def test_feature_snapshot_carries_point_in_time_cost_evidence_from_orderbook(mon
     )
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
         {
-            "open_time": open_ms,
-            "close_time": close_ms,
+            "candle_open_time": open_ms,
+            "candle_close_time": close_ms,
+            **_exact_candle_clocks(close_ms),
             "open": "99.0",
             "high": "101.0",
             "low": "98.0",
@@ -344,7 +795,8 @@ def test_feature_snapshot_carries_point_in_time_cost_evidence_from_orderbook(mon
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
     features = payload["features"]
-    assert payload["trainer_consumable"] is True
+    assert payload["trainer_consumable"] is False
+    assert payload["latest_candle_temporally_valid"] is True
     assert features["fee_bps"] == mod._configured_fee_bps()  # noqa: SLF001
     assert abs(features["expected_slippage_bps"] - 5.0) < 1e-9
     assert "fee_bps" not in payload["missing_feature_flags"]
@@ -359,14 +811,15 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
     close_ms = _latest_finalized_close_ms(mod, "1m")
-    open_ms = close_ms - 60_000
+    open_ms = close_ms - 60_000 + 1
     market = _market_payload()
     market["open_interest"] = {"openInterest": "123.45"}
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(market)
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps([
         {
-            "open_time": open_ms,
-            "close_time": close_ms,
+            "candle_open_time": open_ms,
+            "candle_close_time": close_ms,
+            **_exact_candle_clocks(close_ms),
             "open": "99.0",
             "high": "101.0",
             "low": "98.0",
@@ -448,7 +901,8 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
     features = payload["features"]
-    assert payload["trainer_consumable"] is True
+    assert payload["trainer_consumable"] is False
+    assert payload["latest_candle_temporally_valid"] is True
     assert features["open_interest"] == 123.45
     assert features["taker_sell_base_vol"] == 40.0
     assert features["taker_sell_quote_vol"] == 4000.0
@@ -535,7 +989,10 @@ def test_feature_snapshot_with_stale_closed_ohlcv_is_not_consumable(monkeypatch)
     assert payload["valid_for_paper"] is False
     assert payload["feature_freshness_state"] == "STALE_CLOSED_OHLCV"
     assert payload["candle_closed_confirmed"] is True
-    assert payload["feature_cutoff"] == mod._ms_to_utc_iso(1_781_000_059_999)  # noqa: SLF001
+    assert payload["feature_cutoff"] is None
+    assert payload["feature_cutoff_est"] == mod._ms_to_utc_iso(
+        1_781_000_059_999
+    )
     assert payload["stale_feature_flags"] == ["ohlcv_closed_window"]
     assert "ohlcv_closed_window_stale" in payload["missing_feature_flags"]
 
@@ -570,7 +1027,9 @@ def test_finalized_raw_ohlcv_bridge_writes_closed_rows_and_skips_future() -> Non
     assert rows[0]["close"] == 101.0
 
 
-def test_feature_snapshot_uses_finalized_raw_ohlcv_bridge(monkeypatch) -> None:
+def test_feature_snapshot_rejects_rest_backfill_as_exact_live_evidence(
+    monkeypatch,
+) -> None:
     bridge = importlib.import_module("v2.backend.app.cli.v2_closed_candle_resampler")
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
@@ -592,10 +1051,16 @@ def test_feature_snapshot_uses_finalized_raw_ohlcv_bridge(monkeypatch) -> None:
     mod.run_once(("BTCUSDT",), "4h", write_trainer_snapshot=False)
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:4h"])
-    assert payload["trainer_consumable"] is True
-    assert payload["valid_for_paper"] is True
-    assert payload["feature_freshness_state"] == "CURRENT"
+    assert payload["trainer_consumable"] is False
+    assert payload["valid_for_paper"] is False
+    assert payload["feature_freshness_state"] == "EXACT_SOURCE_CLOCK_INVALID"
     assert payload["feature_cutoff"] == mod._ms_to_utc_iso(close_ms)  # noqa: SLF001
+    assert payload["source"] == "binance_rest"
+    assert payload["is_backfilled"] is True
+    assert payload["exact_source_clock_rejection_reasons"] == [
+        "LIVE_CANDLE_SOURCE_NOT_EXACT_BINANCE_WSS",
+        "LIVE_CANDLE_BACKFILL_NOT_EXACT_OBSERVATION",
+    ]
 
 
 class TestReadKlinesTieBreak:
@@ -613,7 +1078,20 @@ class TestReadKlinesTieBreak:
     @staticmethod
     def _kline(close_ms: int) -> list:
         # 12-field Binance kline row; index 6 is close_time
-        return [close_ms - 60_000, "1", "2", "0.5", "1.5", "10", close_ms, "10", 5, "5", "5", "0"]
+        return [
+            close_ms - 900_000 + 1,
+            "1",
+            "2",
+            "0.5",
+            "1.5",
+            "10",
+            close_ms,
+            "10",
+            5,
+            "5",
+            "5",
+            "0",
+        ]
 
     def test_tie_prefers_deeper_raw_buffer(self):
         import json as _json
@@ -630,6 +1108,51 @@ class TestReadKlinesTieBreak:
         }
         rows = fp._read_klines(self._FakeRedis(store), "XUSDT", "15m", decision_ms=now_ms)
         assert len(rows) == 50, "tie must resolve to the deeper raw buffer"
+
+    def test_tie_retains_deep_history_but_uses_exact_canonical_latest(self):
+        import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+        now_ms = _TEST_NOW_MS
+        latest = fp._expected_latest_finalized_close_ms(  # noqa: SLF001
+            decision_ms=now_ms,
+            timeframe="15m",
+        )
+        raw = [self._kline(latest - i * 900_000) for i in range(50)][::-1]
+        canonical_latest = {
+            "candle_open_time": latest - 900_000 + 1,
+            "candle_close_time": latest,
+            **_exact_candle_clocks(
+                latest,
+                symbol="XUSDT",
+                timeframe="15m",
+            ),
+        }
+        store = {
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv:binance:XUSDT:15m": json.dumps(raw),
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv_closed:binance:XUSDT:15m": (
+                json.dumps([canonical_latest])
+            ),
+        }
+
+        rows, lineage = fp._read_klines_with_lineage(
+            self._FakeRedis(store),
+            "XUSDT",
+            "15m",
+            decision_ms=now_ms,
+        )
+
+        assert len(rows) == 50
+        assert rows[-1] == canonical_latest
+        assert lineage["selection_mode"] == (
+            "HYBRID_RAW_HISTORY_CANONICAL_CLOSED_LATEST"
+        )
+        assert lineage["selected_source_keys"] == [
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv:binance:XUSDT:15m",
+            f"{fp.V2_REDIS_PREFIX}market:ohlcv_closed:binance:XUSDT:15m",
+        ]
+        assert lineage["raw_key_row_count"] == 50
+        assert lineage["closed_key_row_count"] == 1
+        assert lineage["selected_row_count"] == 50
 
     def test_newer_closed_key_still_wins(self):
         import json as _json
