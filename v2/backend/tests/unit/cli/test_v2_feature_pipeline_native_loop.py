@@ -292,6 +292,9 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
             "depth_total_usd": "100000",
             "depth_5_bid_usd": "52000",
             "depth_5_ask_usd": "48000",
+            "depth_20_bid_usd": "51000",
+            "depth_20_ask_usd": "49000",
+            "depth_imbalance": "0.02",
             "depth_slope": "0.12",
             "estimated_price_impact_bps": "0.9",
             "sequence_gap_flag": "0",
@@ -357,6 +360,10 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
     assert features["best_bid_size"] == 5.0
     assert features["spread_bps"] == 1.2
     assert features["microprice"] == 100.0
+    assert features["bid_depth_usd"] == 51000.0
+    assert features["ask_depth_usd"] == 49000.0
+    assert features["depth_imbalance"] == 0.02
+    assert features["toxicity_proxy"] == 0.02
     assert abs(features["expected_slippage_bps"] - 0.6) < 1e-9
     assert features["microstructure_trust_score"] == 0.73
     assert features["feed_latency_ms"] == 12.0
@@ -377,6 +384,10 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
         "v2:altdata:symbol_score",
     }.issubset(set(payload["external_v2_sources_present"]))
     assert "open_interest" not in payload["missing_feature_flags"]
+    assert "bid_depth_usd" not in payload["missing_feature_flags"]
+    assert "ask_depth_usd" not in payload["missing_feature_flags"]
+    assert "depth_imbalance" not in payload["missing_feature_flags"]
+    assert "toxicity_proxy" not in payload["missing_feature_flags"]
     assert "public_intel_score" not in payload["missing_feature_flags"]
     assert "microstructure_trust_score" not in payload["missing_feature_flags"]
 

@@ -64,6 +64,17 @@ DIRECT_ORDERBOOK_ALIASES = (
     ("orderbook_spread_bps", ("orderbook_spread_bps", "spread_bps", "bid_ask_spread_bps")),
     ("ob_imbalance", ("ob_imbalance", "orderbook_imbalance", "depth_imbalance")),
     ("orderbook_depth_imbalance", ("orderbook_depth_imbalance", "depth_imbalance", "orderbook_imbalance")),
+    (
+        "depth_imbalance",
+        (
+            "depth_imbalance",
+            "ob_imbalance",
+            "orderbook_depth_imbalance",
+            "orderbook_imbalance",
+        ),
+    ),
+    ("bid_depth_usd", ("bid_depth_usd", "depth_20_bid_usd", "depth_5_bid_usd")),
+    ("ask_depth_usd", ("ask_depth_usd", "depth_20_ask_usd", "depth_5_ask_usd")),
     ("orderbook_depth_usd", ("orderbook_depth_usd", "depth_total_usd", "depth_usd")),
     ("depth_total_usd", ("depth_total_usd", "orderbook_depth_usd", "depth_usd")),
     ("depth_usd", ("depth_usd", "depth_total_usd", "orderbook_depth_usd")),
@@ -1461,6 +1472,8 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         m["_liq_notional_24h"] = _read_liq_notional_24h(r, sym)
         feats = _features_from_market(m)
         external = _merge_external_v2_features(r, sym, timeframe, feats)
+        if feats.get("toxicity_proxy") is None and feats.get("depth_imbalance") is not None:
+            feats["toxicity_proxy"] = abs(float(feats["depth_imbalance"]))
         market_cost_sources = {
             "fee_bps": feats.pop("_fee_bps_source", None),
             "expected_slippage_bps": feats.pop("_expected_slippage_source", None),
