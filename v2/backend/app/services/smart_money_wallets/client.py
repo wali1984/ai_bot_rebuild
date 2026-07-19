@@ -75,10 +75,15 @@ class MoralisClient:
             headers = dict(response.headers)
             self.limiter.observe_response(response.status_code)
             if 200 <= response.status_code <= 299:
+                # Reconcile the pre-call reservation to the real header CU.
                 self.limiter.charge(estimated_cu=spec.cu_cost, headers=headers)
+            else:
+                # Non-2xx: release the reservation (the provider did not serve data).
+                self.limiter.refund_pending()
             return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, response.status_code, payload, headers=headers)
         except Exception as exc:  # noqa: BLE001
             self.limiter.observe_response(None)
+            self.limiter.refund_pending()
             return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, None, None, error_class=type(exc).__name__)
 
 

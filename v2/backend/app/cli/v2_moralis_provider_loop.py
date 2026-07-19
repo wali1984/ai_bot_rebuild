@@ -66,7 +66,9 @@ def main(argv: list[str] | None = None) -> int:
     redis_client = _redis_client(args.redis_url)
     wallets = _csv(args.wallets)
     tokens = _csv(args.tokens)
-    client = MoralisClient(limiter=MoralisRateLimiter())
+    # Give the limiter the Redis client so the CU ledger is persistent + atomic
+    # across restarts (else it resets to a fresh 2M month on every bounce).
+    client = MoralisClient(limiter=MoralisRateLimiter(redis_client=redis_client))
     scheduler_state: dict[str, float] = {}
     while True:
         report = run_once(

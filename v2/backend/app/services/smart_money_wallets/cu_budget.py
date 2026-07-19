@@ -16,11 +16,19 @@ from __future__ import annotations
 
 import calendar
 import json
+import os
 from datetime import datetime, timezone
 from typing import Any
 
 MONTHLY_CU_LIMIT = 2_000_000
 DAILY_SAFETY_FACTOR = 0.80  # spend at most 80% of the derived daily allowance
+# Hard daily sub-cap enforced ALONGSIDE the monthly cap (operator chose "both"):
+# usable daily budget = daily budget - reserve (default 55000 - 10000 = 45000).
+DAILY_HARD_CAP = max(
+    0,
+    int(os.getenv("MORALIS_DAILY_CU_BUDGET", "55000"))
+    - int(os.getenv("MORALIS_DAILY_CU_RESERVE", "10000")),
+)
 
 MONTH_KEY = "v2:provider:moralis:cu_usage:{month}"
 DAY_KEY = "v2:provider:moralis:cu_usage:{day}"
@@ -60,7 +68,10 @@ class MoralisCuBudget:
         return int(self.remaining_month() / remaining_days * DAILY_SAFETY_FACTOR)
 
     def remaining_today(self) -> int:
-        return max(0, self.daily_allowance() - self.day_spent())
+        # Enforce BOTH the dynamic daily allowance AND the hard daily sub-cap,
+        # whichever binds first, on top of the monthly cap.
+        daily_cap = min(self.daily_allowance(), DAILY_HARD_CAP) if DAILY_HARD_CAP else self.daily_allowance()
+        return max(0, daily_cap - self.day_spent())
 
     def can_spend(self, cost_cu: int) -> bool:
         return cost_cu <= self.remaining_today() and cost_cu <= self.remaining_month()
@@ -85,6 +96,7 @@ class MoralisCuBudget:
             "month_spent_cu": self.month_spent(),
             "remaining_month_cu": self.remaining_month(),
             "daily_allowance_cu": self.daily_allowance(),
+            "daily_hard_cap_cu": DAILY_HARD_CAP,
             "day_spent_cu": self.day_spent(),
             "remaining_today_cu": self.remaining_today(),
             "safety_factor": DAILY_SAFETY_FACTOR,
