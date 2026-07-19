@@ -1492,15 +1492,9 @@ def _features_from_market(market: dict) -> dict:
     f = market.get("funding") or {}
     oi = market.get("open_interest") or {}
     last = _f(t.get("lastPrice"))
-    open_p = _f(t.get("openPrice"))
-    high = _f(t.get("highPrice"))
-    low = _f(t.get("lowPrice"))
-    prev_close = _f(t.get("prevClosePrice"))
-    ret_pct = (last - open_p) / open_p if open_p > 0 else 0.0
-    range_pct = (high - low) / open_p if open_p > 0 else 0.0
-    gap_pct = (open_p - prev_close) / prev_close if prev_close > 0 else 0.0
     raw_funding_rate = _first_numeric(f.get("lastFundingRate"), f.get("fundingRate"))
-    funding_rate = raw_funding_rate if raw_funding_rate is not None else 0.0
+    # Absence is not a zero-rate observation.  The missing mask must carry it.
+    funding_rate = raw_funding_rate
     open_interest = _first_numeric(
         oi.get("open_interest"),
         oi.get("openInterest"),
@@ -1562,6 +1556,29 @@ def _features_from_market(market: dict) -> dict:
     if k_quote_volume is not None and k_taker_buy_quote is not None:
         k_taker_sell_quote = max(0.0, float(k_quote_volume) - float(k_taker_buy_quote))
 
+    # Required candle-return fields are defined over the exact finalized OHLCV
+    # window, never over the unrelated rolling 24h ticker.  Missing history
+    # remains ``None`` so it cannot silently become a valid zero-valued sample.
+    ret_pct: float | None = None
+    log_return: float | None = None
+    range_pct: float | None = None
+    body_pct: float | None = None
+    gap_pct: float | None = None
+    if len(closes) >= 2 and closes[-2] > 0.0 and closes[-1] > 0.0:
+        ret_pct = (closes[-1] - closes[-2]) / closes[-2]
+        log_return = math.log(closes[-1] / closes[-2])
+        if opens and opens[-1] > 0.0:
+            gap_pct = (opens[-1] - closes[-2]) / closes[-2]
+    if (
+        k_close is not None
+        and k_close > 0.0
+        and k_high is not None
+        and k_low is not None
+    ):
+        range_pct = (k_high - k_low) / k_close
+        if k_open is not None:
+            body_pct = (k_close - k_open) / k_close
+
     rsi_14 = _ta_rsi(closes, 14) if closes else None
     macd_line, macd_signal_v, macd_hist = (None, None, None)
     if closes:
@@ -1570,6 +1587,11 @@ def _features_from_market(market: dict) -> dict:
     ema_26 = _ta_ema(closes, 26) if closes else None
     sma_20 = _ta_sma(closes, 20) if closes else None
     atr_14 = _ta_atr(highs, lows, closes, 14) if (highs and lows and closes) else None
+    true_range_pct = (
+        float(atr_14) / float(k_close)
+        if atr_14 is not None and k_close is not None and k_close > 0.0
+        else None
+    )
     atr_percentile = (
         _atr_percentile_from_ohlc(highs, lows, closes)
         if (highs and lows and closes)
@@ -1594,6 +1616,62 @@ def _features_from_market(market: dict) -> dict:
     htf_ret_pct = (closes[-1] / closes[-5] - 1.0) if len(closes) >= 5 and closes[-5] > 0 else None
 
     depth_imbalance = _ta_orderbook_imbalance(orderbook) if orderbook else None
+
+    # A microprice is a book statistic, not the ticker last price.  Prefer the
+    # size-weighted top of book; when sizes are unavailable the observable mid
+    # is the only honest fallback.  No book means no microprice.
+    micro_price: float | None = None
+    if isinstance(orderbook, dict) and orderbook:
+        bids = orderbook.get("bids") or []
+        asks = orderbook.get("asks") or []
+        bid_price = _first_numeric(
+            orderbook.get("best_bid"),
+            orderbook.get("ob_best_bid"),
+            orderbook.get("bid"),
+            bids[0][0]
+            if bids and isinstance(bids[0], (list, tuple)) and bids[0]
+            else None,
+        )
+        ask_price = _first_numeric(
+            orderbook.get("best_ask"),
+            orderbook.get("ob_best_ask"),
+            orderbook.get("ask"),
+            asks[0][0]
+            if asks and isinstance(asks[0], (list, tuple)) and asks[0]
+            else None,
+        )
+        bid_size = _first_numeric(
+            orderbook.get("best_bid_size"),
+            orderbook.get("bid_size"),
+            bids[0][1]
+            if bids and isinstance(bids[0], (list, tuple)) and len(bids[0]) > 1
+            else None,
+        )
+        ask_size = _first_numeric(
+            orderbook.get("best_ask_size"),
+            orderbook.get("ask_size"),
+            asks[0][1]
+            if asks and isinstance(asks[0], (list, tuple)) and len(asks[0]) > 1
+            else None,
+        )
+        if (
+            bid_price is not None
+            and ask_price is not None
+            and bid_price > 0.0
+            and ask_price >= bid_price
+        ):
+            if (
+                bid_size is not None
+                and ask_size is not None
+                and bid_size >= 0.0
+                and ask_size >= 0.0
+                and bid_size + ask_size > 0.0
+            ):
+                micro_price = (
+                    bid_price * ask_size + ask_price * bid_size
+                ) / (bid_size + ask_size)
+            else:
+                micro_price = (bid_price + ask_price) / 2.0
 
     # toxicity_proxy: directional order-flow toxicity from book imbalance.
     # depth_imbalance is signed (bid-ask)/(bid+ask) in [-1, 1]; its magnitude is
@@ -1712,6 +1790,15 @@ def _features_from_market(market: dict) -> dict:
     if expected_funding_bps is None and raw_funding_rate is not None:
         expected_funding_bps = float(raw_funding_rate) * 10000.0
 
+    raw_paper_position_present = market.get("_paper_position_present")
+    if type(raw_paper_position_present) is bool:
+        paper_position_present: int | None = int(raw_paper_position_present)
+    elif type(raw_paper_position_present) is int and raw_paper_position_present in {0, 1}:
+        paper_position_present = raw_paper_position_present
+    else:
+        # An unread paper-position state is unknown, not proof of an empty book.
+        paper_position_present = None
+
     return {
         "open": k_open,
         "high": k_high,
@@ -1727,10 +1814,10 @@ def _features_from_market(market: dict) -> dict:
         "taker_buy_base_vol": k_taker_buy_base,
         "taker_buy_quote_vol": k_taker_buy_quote,
         "ret_pct": ret_pct,
-        "log_return": 0.0 if open_p <= 0 else (last / open_p - 1.0),
+        "log_return": log_return,
         "range_pct": range_pct,
-        "body_pct": (last - open_p) / open_p if open_p > 0 else 0.0,
-        "true_range_pct": range_pct,
+        "body_pct": body_pct,
+        "true_range_pct": true_range_pct,
         "gap_pct": gap_pct,
         "ema_12": ema_12,
         "ema_26": ema_26,
@@ -1755,7 +1842,7 @@ def _features_from_market(market: dict) -> dict:
         "_expected_slippage_source": expected_slippage_source,
         "expected_funding_bps": expected_funding_bps,
         "depth_imbalance": depth_imbalance,
-        "micro_price": last,
+        "micro_price": micro_price,
         "toxicity_proxy": toxicity_proxy,
         "funding_rate": funding_rate,
         "open_interest": open_interest,
@@ -1768,7 +1855,7 @@ def _features_from_market(market: dict) -> dict:
         "taker_sell_ratio": taker_sell_ratio,
         "oi_change_pct": oi_change_pct,
         "last_liq_bps_24h": last_liq_bps_24h,
-        "paper_position_present": 0,
+        "paper_position_present": paper_position_present,
     }
 
 

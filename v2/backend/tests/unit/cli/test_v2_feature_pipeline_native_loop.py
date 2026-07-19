@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import math
 import re
 
 import pytest
@@ -1168,3 +1169,123 @@ class TestReadKlinesTieBreak:
         }
         rows = fp._read_klines(self._FakeRedis(store), "XUSDT", "15m", decision_ms=now_ms)
         assert len(rows) == 2, "closed key with strictly newer candle must win"
+
+
+def test_required_candle_features_use_closed_window_not_24h_ticker() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    klines = [
+        {
+            "open": float(99 + index),
+            "high": float(101 + index),
+            "low": float(98 + index),
+            "close": float(100 + index),
+            "volume": 10.0,
+        }
+        for index in range(40)
+    ]
+    features = fp._features_from_market(
+        {
+            "ticker_24hr": {
+                "lastPrice": "9999",
+                "openPrice": "1",
+                "highPrice": "10000",
+                "lowPrice": "1",
+                "prevClosePrice": "2",
+            },
+            "funding": {},
+            "_klines": klines,
+            "_paper_position_present": False,
+        }
+    )
+
+    previous_close = 138.0
+    latest_close = 139.0
+    assert features["ret_pct"] == pytest.approx(
+        (latest_close - previous_close) / previous_close
+    )
+    assert features["log_return"] == pytest.approx(
+        math.log(latest_close / previous_close)
+    )
+    assert features["range_pct"] == pytest.approx((140.0 - 137.0) / latest_close)
+    assert features["body_pct"] == pytest.approx((139.0 - 138.0) / latest_close)
+    assert features["gap_pct"] == pytest.approx(0.0)
+    expected_atr = fp._ta_atr(
+        [float(101 + index) for index in range(40)],
+        [float(98 + index) for index in range(40)],
+        [float(100 + index) for index in range(40)],
+        14,
+    )
+    assert expected_atr is not None
+    assert features["true_range_pct"] == pytest.approx(expected_atr / latest_close)
+
+
+def test_missing_required_inputs_remain_missing_instead_of_zero() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    features = fp._features_from_market(
+        {
+            "ticker_24hr": {},
+            "funding": {},
+            "_klines": [],
+            "_orderbook": {},
+        }
+    )
+
+    for field in (
+        "ret_pct",
+        "log_return",
+        "range_pct",
+        "body_pct",
+        "true_range_pct",
+        "gap_pct",
+        "funding_rate",
+        "micro_price",
+        "paper_position_present",
+    ):
+        assert features[field] is None
+
+
+def test_micro_price_is_size_weighted_book_price_not_ticker_last() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    features = fp._features_from_market(
+        {
+            "ticker_24hr": {"lastPrice": "9999"},
+            "funding": {},
+            "_orderbook": {
+                "best_bid": 100.0,
+                "best_ask": 102.0,
+                "best_bid_size": 3.0,
+                "best_ask_size": 1.0,
+            },
+            "_paper_position_present": 0,
+        }
+    )
+
+    assert features["micro_price"] == pytest.approx(
+        (100.0 * 1.0 + 102.0 * 3.0) / 4.0
+    )
+    assert features["micro_price"] != features["last_price"]
+    assert features["paper_position_present"] == 0
+
+
+@pytest.mark.parametrize(
+    ("raw_value", "expected"),
+    [(True, 1), (False, 0), (1, 1), (0, 0), ("0", None), (2, None)],
+)
+def test_paper_position_presence_requires_explicit_binary_state(
+    raw_value: object,
+    expected: int | None,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    features = fp._features_from_market(
+        {
+            "ticker_24hr": {},
+            "funding": {},
+            "_paper_position_present": raw_value,
+        }
+    )
+
+    assert features["paper_position_present"] == expected
