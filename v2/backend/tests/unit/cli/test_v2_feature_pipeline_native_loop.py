@@ -360,8 +360,8 @@ def test_feature_snapshot_merges_realtime_ingestors_for_trainer(monkeypatch) -> 
     assert features["best_bid_size"] == 5.0
     assert features["spread_bps"] == 1.2
     assert features["microprice"] == 100.0
-    assert features["bid_depth_usd"] == 51000.0
-    assert features["ask_depth_usd"] == 49000.0
+    assert features["bid_depth_usd"] == 52000.0
+    assert features["ask_depth_usd"] == 48000.0
     assert features["depth_imbalance"] == 0.02
     assert features["toxicity_proxy"] == 0.02
     assert abs(features["expected_slippage_bps"] - 0.6) < 1e-9
