@@ -194,6 +194,27 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
     assert payload["required_model_feature_pit_rejection_reasons"] == [
         "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
     ]
+    assert payload["feature_requirement_policy_id"] == (
+        "v2_hybrid_feature_requirements_v1"
+    )
+    assert payload["model_feature_abi_slot_count"] == 446
+    assert payload["required_model_feature_count"] == 384
+    assert len(payload["required_model_feature_fields"]) == 384
+    assert payload["optional_event_dependent_feature_count"] == 62
+    assert len(payload["optional_event_dependent_feature_fields"]) == 62
+    assert "gap_pct" not in payload["required_model_feature_fields"]
+    assert "last_liq_bps_24h" in payload[
+        "optional_event_dependent_feature_fields"
+    ]
+    assert "paper_position_present" in payload[
+        "optional_event_dependent_feature_fields"
+    ]
+    assert "last_liq_bps_24h" not in payload[
+        "required_model_feature_missing_fields"
+    ]
+    assert "paper_position_present" not in payload[
+        "required_model_feature_missing_fields"
+    ]
     assert payload["ohlcv_history_payload_receipts_valid"] is False
     assert payload["ohlcv_history_payload_receipt_rejection_reasons"] == [
         "IMMUTABLE_OHLCV_HISTORY_PAYLOAD_RECEIPTS_REQUIRED"
@@ -446,15 +467,53 @@ def test_exact_candle_temporal_lineage_rejects_misaligned_interval() -> None:
     assert "CANDLE_INTERVAL_OR_ALIGNMENT_INVALID" in reasons
 
 
-def test_trainer_required_feature_contract_matches_rl_observation_contract() -> None:
+def test_legacy_rl_core_and_authoritative_trainer_abi_are_not_conflated() -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     observation = importlib.import_module(
         "v2.backend.app.services.rl_core.observation_builder"
     )
+    ledger = importlib.import_module(
+        "v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger"
+    )
+    tensor_builder = importlib.import_module(
+        "v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder"
+    )
 
     assert (
         observation.OBSERVATION_FEATURE_ORDER[:23]
-        == mod.TRAINER_REQUIRED_FEATURE_FIELDS
+        == mod.LEGACY_RL_OBSERVATION_CORE_FIELDS
+    )
+    ordered_names = tuple(name for name, _source in tensor_builder.FEATURE_SPEC)
+    requirement_classes = ledger.feature_requirement_classes_for_names(
+        ordered_names
+    )
+    assert mod.TRAINER_REQUIRED_FEATURE_FIELDS == tuple(
+        name
+        for name, requirement in zip(
+            ordered_names,
+            requirement_classes,
+            strict=True,
+        )
+        if requirement == "REQUIRED"
+    )
+    assert mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS == tuple(
+        name
+        for name, requirement in zip(
+            ordered_names,
+            requirement_classes,
+            strict=True,
+        )
+        if requirement == "OPTIONAL_EVENT_DEPENDENT"
+    )
+    assert len(ordered_names) == 446
+    assert len(mod.TRAINER_REQUIRED_FEATURE_FIELDS) == 384
+    assert len(mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS) == 62
+    assert "gap_pct" not in ordered_names
+    assert "last_liq_bps_24h" in (
+        mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS
+    )
+    assert "paper_position_present" in (
+        mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS
     )
 
 

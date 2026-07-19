@@ -20,6 +20,25 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from v2.backend.app.services.adaptive_capital_allocator.contracts import AllocationInput
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _atr as _ta_atr,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _ema as _ta_ema,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _macd as _ta_macd,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _orderbook_imbalance as _ta_orderbook_imbalance,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _rsi as _ta_rsi,
+)
+from v2.backend.app.services.feature_pipeline_and_ta.service import (
+    _sma as _ta_sma,
+)
 from v2.backend.app.services.market_structure import (
     compute_cvd_features,
     compute_fvg,
@@ -28,21 +47,19 @@ from v2.backend.app.services.market_structure import (
     compute_volume_profile,
     compute_vwap_features,
 )
-from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
-from v2.backend.app.services.feature_pipeline_and_ta.service import (
-    _rsi as _ta_rsi,
-    _macd as _ta_macd,
-    _ema as _ta_ema,
-    _sma as _ta_sma,
-    _atr as _ta_atr,
-    _orderbook_imbalance as _ta_orderbook_imbalance,
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    FEATURE_REQUIREMENT_POLICY_ID,
+    feature_requirement_classes_for_names,
 )
-from v2.backend.app.services.adaptive_capital_allocator.contracts import AllocationInput
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FEATURE_SPEC,
+)
+from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
-TRAINER_REQUIRED_FEATURE_FIELDS = (
+LEGACY_RL_OBSERVATION_CORE_FIELDS = (
     "ret_pct",
     "log_return",
     "range_pct",
@@ -67,6 +84,28 @@ TRAINER_REQUIRED_FEATURE_FIELDS = (
     "last_liq_bps_24h",
     "paper_position_present",
 )
+_ORDERED_TRAINER_FEATURE_NAMES = tuple(name for name, _source in FEATURE_SPEC)
+_ORDERED_TRAINER_FEATURE_REQUIREMENTS = feature_requirement_classes_for_names(
+    _ORDERED_TRAINER_FEATURE_NAMES
+)
+TRAINER_REQUIRED_FEATURE_FIELDS = tuple(
+    name
+    for name, requirement in zip(
+        _ORDERED_TRAINER_FEATURE_NAMES,
+        _ORDERED_TRAINER_FEATURE_REQUIREMENTS,
+        strict=True,
+    )
+    if requirement == "REQUIRED"
+)
+TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS = tuple(
+    name
+    for name, requirement in zip(
+        _ORDERED_TRAINER_FEATURE_NAMES,
+        _ORDERED_TRAINER_FEATURE_REQUIREMENTS,
+        strict=True,
+    )
+    if requirement == "OPTIONAL_EVENT_DEPENDENT"
+)
 CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "fee_bps",
     "expected_slippage_bps",
@@ -78,11 +117,13 @@ CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "_fee_bps_source",
     "_expected_slippage_source",
 )
-# Optional feature surfaces are enrichment only.  They must never manufacture
-# a missing trainer input or replace the market-cost evidence derived from the
-# one orderbook payload selected for this snapshot.
+# Enrichment must never replace the legacy core values computed from the exact
+# market inputs selected for this snapshot or its market-cost evidence.  This
+# protection list is intentionally separate from the 446-slot tensor ABI:
+# many other required/optional slots are assembled from their own V2 sources,
+# but none is trainer-consumable until the immutable PIT ledger binds it.
 EXTERNAL_ENRICHMENT_RESERVED_FIELDS = frozenset(
-    (*TRAINER_REQUIRED_FEATURE_FIELDS, *CORE_MARKET_COST_EVIDENCE_FIELDS)
+    (*LEGACY_RL_OBSERVATION_CORE_FIELDS, *CORE_MARKET_COST_EVIDENCE_FIELDS)
 )
 FEATURE_LATEST_TTL_SECONDS = 600
 PAPER_POSITIONS_SOURCE_KEY = f"{V2_REDIS_PREFIX}paper:positions"
@@ -2132,6 +2173,15 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         required_model_feature_value_contract_valid = (
             not required_model_feature_missing_fields
         )
+        optional_event_dependent_feature_missing_fields = sorted(
+            name
+            for name in TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS
+            if not _exact_model_feature_value(feats.get(name))
+        )
+        optional_event_dependent_feature_present_fields = sorted(
+            set(TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS)
+            - set(optional_event_dependent_feature_missing_fields)
+        )
         if required_model_feature_missing_fields:
             missing_feature_flags = sorted(
                 set(missing_feature_flags)
@@ -2208,11 +2258,32 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "required_model_feature_value_contract_valid": (
                 required_model_feature_value_contract_valid
             ),
+            "feature_requirement_policy_id": (
+                FEATURE_REQUIREMENT_POLICY_ID
+            ),
+            "model_feature_abi_slot_count": len(
+                _ORDERED_TRAINER_FEATURE_NAMES
+            ),
+            "required_model_feature_count": len(
+                TRAINER_REQUIRED_FEATURE_FIELDS
+            ),
             "required_model_feature_fields": list(
                 TRAINER_REQUIRED_FEATURE_FIELDS
             ),
             "required_model_feature_missing_fields": (
                 required_model_feature_missing_fields
+            ),
+            "optional_event_dependent_feature_count": len(
+                TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS
+            ),
+            "optional_event_dependent_feature_fields": list(
+                TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS
+            ),
+            "optional_event_dependent_feature_present_fields": (
+                optional_event_dependent_feature_present_fields
+            ),
+            "optional_event_dependent_feature_missing_fields": (
+                optional_event_dependent_feature_missing_fields
             ),
             "required_model_feature_pit_coverage_valid": (
                 required_model_feature_pit_coverage_valid
