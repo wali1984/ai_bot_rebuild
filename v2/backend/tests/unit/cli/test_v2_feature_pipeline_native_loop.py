@@ -59,13 +59,15 @@ def _exact_candle_clocks(
 
 class FakeRedis:
     def __init__(self) -> None:
-        self.store: dict[str, str] = {}
+        self.store: dict[str, object] = {}
         self.expiries: dict[str, int | None] = {}
+        self.get_calls: list[str] = []
 
     def ping(self) -> bool:
         return True
 
-    def get(self, key: str) -> str | None:
+    def get(self, key: str) -> object | None:
+        self.get_calls.append(key)
         return self.store.get(key)
 
     def set(self, key: str, value: str, ex: int | None = None) -> bool:
@@ -1428,3 +1430,208 @@ def test_paper_position_presence_requires_explicit_binary_state(
     )
 
     assert features["paper_position_present"] == expected
+
+
+@pytest.mark.parametrize("raw", ["[]", b"[]"])
+def test_paper_position_reader_accepts_explicit_empty_json_list(
+    raw: str | bytes,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = raw
+
+    presence, status, row_count = fp._read_paper_position_presence(  # noqa: SLF001
+        fake,
+        ("BTCUSDT", "ETHUSDT"),
+    )
+
+    assert presence == {"BTCUSDT": 0, "ETHUSDT": 0}
+    assert status == "VALID_EMPTY_LIST"
+    assert row_count == 0
+    assert fake.get_calls == [fp.PAPER_POSITIONS_SOURCE_KEY]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected_status"),
+    [
+        (None, "SOURCE_MISSING"),
+        ("", "SOURCE_EMPTY"),
+        (b"", "SOURCE_EMPTY"),
+        (b"\xff", "INVALID_UTF8"),
+        (123, "INVALID_PAYLOAD_TYPE"),
+        ("{", "INVALID_JSON"),
+        (json.dumps({"symbol": "BTCUSDT"}), "PAYLOAD_NOT_LIST"),
+        (json.dumps([[]]), "ROW_NOT_MAPPING"),
+        (json.dumps([{}]), "ROW_SYMBOL_INVALID"),
+        (json.dumps([{"symbol": "btcusdt"}]), "ROW_SYMBOL_INVALID"),
+        (json.dumps([{"symbol": "BTC/USDT"}]), "ROW_SYMBOL_INVALID"),
+        (json.dumps([{"symbol": 123}]), "ROW_SYMBOL_INVALID"),
+    ],
+)
+def test_paper_position_reader_fails_closed_on_invalid_source_value(
+    raw: object | None,
+    expected_status: str,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    if raw is not None:
+        fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = raw
+
+    presence, status, row_count = fp._read_paper_position_presence(  # noqa: SLF001
+        fake,
+        ("BTCUSDT",),
+    )
+
+    assert presence is None
+    assert status == expected_status
+    assert row_count is None
+    assert fake.get_calls == [fp.PAPER_POSITIONS_SOURCE_KEY]
+
+
+def test_paper_position_reader_fails_closed_on_redis_read_error() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    class ReadErrorRedis:
+        def __init__(self) -> None:
+            self.get_calls: list[str] = []
+
+        def get(self, key: str) -> None:
+            self.get_calls.append(key)
+            raise RuntimeError("redis read failed")
+
+    fake = ReadErrorRedis()
+
+    presence, status, row_count = fp._read_paper_position_presence(  # noqa: SLF001
+        fake,
+        ("BTCUSDT",),
+    )
+
+    assert presence is None
+    assert status == "READ_ERROR"
+    assert row_count is None
+    assert fake.get_calls == [fp.PAPER_POSITIONS_SOURCE_KEY]
+
+
+def test_paper_position_reader_rejects_invalid_requested_symbol_without_read() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = "[]"
+
+    presence, status, row_count = fp._read_paper_position_presence(  # noqa: SLF001
+        fake,
+        ("btcusdt",),
+    )
+
+    assert presence is None
+    assert status == "INVALID_REQUESTED_SYMBOL"
+    assert row_count is None
+    assert fake.get_calls == []
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        json.dumps([{"symbol": "BTCUSDT", "position_id": "pos-btc"}]),
+        json.dumps([{"symbol": "BTCUSDT", "position_id": "pos-btc"}]).encode(),
+    ],
+)
+def test_run_once_reads_paper_positions_once_and_maps_each_requested_symbol(
+    monkeypatch,
+    raw: str | bytes,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = raw
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        fake.store[f"v2:market:prices:{symbol}"] = json.dumps(_market_payload())
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    heartbeat = fp.run_once(
+        ("BTCUSDT", "ETHUSDT"),
+        "1m",
+        write_trainer_snapshot=False,
+    )
+
+    btc = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    eth = json.loads(fake.store["v2:features:latest:ETHUSDT:1m"])
+    assert fake.get_calls.count(fp.PAPER_POSITIONS_SOURCE_KEY) == 1
+    assert btc["features"]["paper_position_present"] == 1
+    assert eth["features"]["paper_position_present"] == 0
+    for snapshot in (btc, eth):
+        assert snapshot["paper_position_source_key"] == fp.PAPER_POSITIONS_SOURCE_KEY
+        assert snapshot["paper_position_value_source_status"] == ("VALID_POSITION_LIST")
+        assert snapshot["paper_position_source_row_count"] == 1
+        assert snapshot["paper_position_value_contract_valid"] is True
+        assert snapshot["required_model_feature_pit_coverage_valid"] is False
+        assert snapshot["trainer_consumable"] is False
+        assert snapshot["valid_for_prediction"] is False
+        assert snapshot["valid_for_paper"] is False
+    assert heartbeat["paper_position_value_source_status"] == ("VALID_POSITION_LIST")
+    assert heartbeat["paper_position_value_contract_valid"] is True
+    assert heartbeat["required_model_feature_pit_coverage_valid_count"] == 0
+    assert heartbeat["trainer_consumable_count"] == 0
+
+
+def test_invalid_paper_position_source_remains_unknown_and_cannot_promote(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = json.dumps(
+        [{"symbol": "BTCUSDT"}, {"symbol": "not-canonical"}]
+    )
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    heartbeat = fp.run_once(
+        ("BTCUSDT",),
+        "1m",
+        write_trainer_snapshot=False,
+    )
+
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["features"]["paper_position_present"] is None
+    assert snapshot["paper_position_value_source_status"] == "ROW_SYMBOL_INVALID"
+    assert snapshot["paper_position_value_contract_valid"] is False
+    assert snapshot["required_model_feature_value_contract_valid"] is False
+    assert snapshot["required_model_feature_pit_coverage_valid"] is False
+    assert snapshot["exact_feature_availability_valid"] is False
+    assert snapshot["trainer_consumable"] is False
+    assert snapshot["valid_for_prediction"] is False
+    assert snapshot["valid_for_paper"] is False
+    assert heartbeat["trainer_release_ready"] is False
+    assert heartbeat["active_consumer_readiness"] == "HELD"
+
+
+def test_external_enrichment_cannot_override_canonical_paper_position_presence(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    fake.store[fp.PAPER_POSITIONS_SOURCE_KEY] = json.dumps(
+        [{"symbol": "BTCUSDT", "position_id": "pos-btc"}]
+    )
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {
+            "indicators": {
+                "paper_position_present": 0,
+                "optional_external_signal": 0.75,
+            }
+        }
+    )
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["features"]["paper_position_present"] == 1
+    assert snapshot["features"]["optional_external_signal"] == 0.75
+    assert snapshot["external_v2_feature_fields_merged"] == 1
+    assert "v2:features:ta_full" in snapshot["external_v2_sources_present"]

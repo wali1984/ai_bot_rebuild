@@ -85,6 +85,7 @@ EXTERNAL_ENRICHMENT_RESERVED_FIELDS = frozenset(
     (*TRAINER_REQUIRED_FEATURE_FIELDS, *CORE_MARKET_COST_EVIDENCE_FIELDS)
 )
 FEATURE_LATEST_TTL_SECONDS = 600
+PAPER_POSITIONS_SOURCE_KEY = f"{V2_REDIS_PREFIX}paper:positions"
 # 12h default. Audit found ~644K resident snapshot keys (prior OOM was at ~370K)
 # because a legacy 30d TTL backlog was still draining and 24h steady-state sat near
 # the OOM threshold. Trust reconstruction has a self-contained fallback for expired
@@ -316,6 +317,70 @@ def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
         return True
     except Exception:
         return False
+
+
+def _valid_paper_position_symbol(value: object) -> bool:
+    return (
+        type(value) is str
+        and 3 <= len(value) <= 32
+        and value.isascii()
+        and value.isalnum()
+        and value == value.upper()
+    )
+
+
+def _read_paper_position_presence(
+    r,
+    symbols: tuple[str, ...],
+) -> tuple[dict[str, int] | None, str, int | None]:
+    """Read the canonical paper position list once and derive binary presence.
+
+    This validates only the payload's value contract. It does not establish
+    when the mutable Redis value became available and therefore cannot satisfy
+    the required-model-feature PIT ledger.
+    """
+    if any(not _valid_paper_position_symbol(symbol) for symbol in symbols):
+        return None, "INVALID_REQUESTED_SYMBOL", None
+    if r is None:
+        return None, "REDIS_UNAVAILABLE", None
+    try:
+        raw = r.get(PAPER_POSITIONS_SOURCE_KEY)
+    except Exception:
+        return None, "READ_ERROR", None
+    if raw is None:
+        return None, "SOURCE_MISSING", None
+    if type(raw) is bytes:
+        try:
+            text = raw.decode("utf-8", errors="strict")
+        except UnicodeDecodeError:
+            return None, "INVALID_UTF8", None
+    elif type(raw) is str:
+        text = raw
+    else:
+        return None, "INVALID_PAYLOAD_TYPE", None
+    if not text:
+        return None, "SOURCE_EMPTY", None
+    try:
+        payload = json.loads(text)
+    except (json.JSONDecodeError, RecursionError):
+        return None, "INVALID_JSON", None
+    if type(payload) is not list:
+        return None, "PAYLOAD_NOT_LIST", None
+
+    open_symbols: set[str] = set()
+    for row in payload:
+        if type(row) is not dict:
+            return None, "ROW_NOT_MAPPING", None
+        symbol = row.get("symbol")
+        if not _valid_paper_position_symbol(symbol):
+            return None, "ROW_SYMBOL_INVALID", None
+        open_symbols.add(symbol)
+    status = "VALID_EMPTY_LIST" if not payload else "VALID_POSITION_LIST"
+    return (
+        {symbol: int(symbol in open_symbols) for symbol in symbols},
+        status,
+        len(payload),
+    )
 
 
 def _read_market(r, symbol: str) -> dict | None:
@@ -1911,6 +1976,11 @@ def _feature_snapshot_archive_key(snapshot_id: str) -> str:
 def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot: bool = True) -> dict:
     started_at = _utc_iso()
     r = _connect_redis()
+    (
+        paper_position_presence,
+        paper_position_value_source_status,
+        paper_position_source_row_count,
+    ) = _read_paper_position_presence(r, symbols)
     keys_written: list[str] = []
     snapshots: list[dict] = []
     missing: list[str] = []
@@ -1951,6 +2021,9 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         m["_oi_hist"] = _read_oi_hist(r, sym)
         m["_long_short"] = _read_long_short(r, sym)
         m["_liq_notional_24h"] = _read_liq_notional_24h(r, sym)
+        m["_paper_position_present"] = (
+            paper_position_presence.get(sym) if paper_position_presence is not None else None
+        )
         feats = _features_from_market(m)
         external = _merge_external_v2_features(r, sym, timeframe, feats)
         market_cost_sources = {
@@ -2147,6 +2220,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "required_model_feature_pit_rejection_reasons": (
                 required_model_feature_pit_rejection_reasons
             ),
+            "paper_position_source_key": PAPER_POSITIONS_SOURCE_KEY,
+            "paper_position_value_source_status": (paper_position_value_source_status),
+            "paper_position_source_row_count": (paper_position_source_row_count),
+            "paper_position_value_contract_valid": (paper_position_presence is not None),
             "trainer_consumable": trainer_consumable,
             "valid_for_prediction": trainer_consumable,
             "valid_for_paper": trainer_consumable,
@@ -2421,6 +2498,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         "required_model_feature_pit_coverage_valid_count": (
             required_model_feature_pit_coverage_valid_count
         ),
+        "paper_position_source_key": PAPER_POSITIONS_SOURCE_KEY,
+        "paper_position_value_source_status": (paper_position_value_source_status),
+        "paper_position_source_row_count": paper_position_source_row_count,
+        "paper_position_value_contract_valid": (paper_position_presence is not None),
         "exact_feature_availability_valid_count": (
             exact_feature_availability_valid_count
         ),
