@@ -33,10 +33,12 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
     EVENT_OUTCOME_FINALIZED,
     EVENT_PUBLISHED,
     BehaviorReceiptArchiveError,
+    SamplingPlanKeyResolver,
     default_archive_root,
     lifecycle_events,
     receipt_lifecycle_status,
     verify_archived_behavior_receipt,
+    verify_archived_sampling_cohort_completeness_proof,
 )
 
 from .confidence import (
@@ -74,6 +76,21 @@ PPO_REQUIRED_BEHAVIOR_SAMPLING_MODE = "CATEGORICAL_SAMPLE"
 PPO_REQUIRED_BEHAVIOR_DISTRIBUTION_CONTRACT = ON_POLICY_DISTRIBUTION_CONTRACT
 PPO_SUPPORTED_BEHAVIOR_DISTRIBUTION_CONTRACTS = frozenset(
     {ON_POLICY_DISTRIBUTION_CONTRACT}
+)
+PPO_INCOMPLETE_SAMPLED_COHORT_REASON = (
+    "SELECTION_BIASED_SAMPLED_COHORT_NOT_FULLY_TERMINALIZED"
+)
+PPO_SAMPLING_COHORT_KEY_RESOLVER_MISSING_REASON = (
+    "AUTHENTICATED_SAMPLING_COHORT_KEY_RESOLVER_UNAVAILABLE"
+)
+PPO_SAMPLING_COHORT_PROOF_INVALID_REASON = (
+    "AUTHENTICATED_SAMPLED_COHORT_PROOF_INVALID"
+)
+PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON = (
+    "AUTHENTICATED_SAMPLED_COHORT_PROOF_ROW_BINDING_MISMATCH"
+)
+PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON = (
+    "AUTHENTICATED_SAMPLED_COHORT_PROOF_AFTER_TRAINING_OBSERVED_AT"
 )
 
 
@@ -498,6 +515,7 @@ class V2HybridPPOTrainer:
         weight_decay: float | None = None,
         learning_rate: float | None = None,
         behavior_receipt_archive_root: Path | None = None,
+        sampling_plan_key_resolver: SamplingPlanKeyResolver | None = None,
         training_observed_at: datetime | str | None = None,
     ) -> None:
         self.model = model
@@ -587,6 +605,7 @@ class V2HybridPPOTrainer:
             if behavior_receipt_archive_root is not None
             else default_archive_root()
         )
+        self.sampling_plan_key_resolver = sampling_plan_key_resolver
         self._ppo_parent_policy_fingerprint = model_parameter_fingerprint(self.model)
 
     @staticmethod
@@ -1410,6 +1429,62 @@ class V2HybridPPOTrainer:
                 return "BEHAVIOR_POLICY_DURABLE_EVENT_HASH_BINDING_MISMATCH"
         return None
 
+    def _durable_sampling_cohort_ineligibility_reason(
+        self,
+        *,
+        row: Mapping[str, Any],
+        receipt: Mapping[str, Any],
+    ) -> str | None:
+        """Authenticate the complete sampled cohort and exact receipt membership."""
+
+        proof = row.get("on_policy_sampling_cohort_completeness_proof")
+        if not isinstance(proof, Mapping):
+            return PPO_INCOMPLETE_SAMPLED_COHORT_REASON
+        if not callable(self.sampling_plan_key_resolver):
+            return PPO_SAMPLING_COHORT_KEY_RESOLVER_MISSING_REASON
+        try:
+            verification = verify_archived_sampling_cohort_completeness_proof(
+                proof,
+                key_resolver=self.sampling_plan_key_resolver,
+                root=self.behavior_receipt_archive_root,
+                expected_receipt_hash=str(receipt.get("receipt_hash") or ""),
+                expected_sampling_plan_hash=str(
+                    receipt.get("on_policy_sampling_plan_hash") or ""
+                ),
+                expected_sampling_plan_input_hash=str(
+                    receipt.get("on_policy_sampling_plan_input_hash") or ""
+                ),
+                expected_parent_policy_fingerprint=(
+                    self._ppo_parent_policy_fingerprint
+                ),
+            )
+        except (BehaviorReceiptArchiveError, OSError, TypeError, ValueError):
+            return PPO_SAMPLING_COHORT_PROOF_INVALID_REASON
+        if (
+            verification.get("cohort_verified") is not True
+            or verification.get("receipt_membership_verified") is not True
+        ):
+            return PPO_SAMPLING_COHORT_PROOF_INVALID_REASON
+        proof_generated_at = self._parsed_canonical_time(
+            verification.get("generated_at")
+        )
+        if (
+            proof_generated_at is None
+            or proof_generated_at > self.training_observed_at
+        ):
+            return PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON
+        if (
+            row.get("on_policy_sampling_cohort_completeness_verified") is not True
+            or row.get(
+                "on_policy_sampling_cohort_receipt_membership_verified"
+            )
+            is not True
+            or row.get("on_policy_sampling_cohort_completeness_digest")
+            != verification.get("cohort_digest")
+        ):
+            return PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON
+        return None
+
     def _has_on_policy_ppo_fields(self, example: TrainingExample) -> bool:
         return self._ppo_ineligibility_reason(example) is None
 
@@ -1683,6 +1758,16 @@ class V2HybridPPOTrainer:
             )
             if durable_reason is not None:
                 return durable_reason
+            # A valid receipt proves one sampled action/log-probability, not
+            # that the producer retained every selected action. Re-read the
+            # authenticated manifest/proof and all terminal lifecycle evidence
+            # on every admission; flat row booleans never establish this gate.
+            cohort_reason = self._durable_sampling_cohort_ineligibility_reason(
+                row=row,
+                receipt=receipt,
+            )
+            if cohort_reason is not None:
+                return cohort_reason
         return None
 
     def _ppo_behavior_action_metrics(self, rows: Sequence[TrainingExample]) -> dict[str, Any]:

@@ -1961,6 +1961,7 @@ def verify_archived_sampling_cohort_completeness_proof(
         "sampled_receipt_count": len(validated["sampled_receipt_hashes"]),
         "terminalized_receipt_count": len(validated["terminalized_receipt_hashes"]),
         "receipt_membership_verified": expected_receipt_hash is not None,
+        "generated_at": validated["generated_at"],
         "archive_content_sha256": archive_hash,
         "proof_path": str(path),
     }

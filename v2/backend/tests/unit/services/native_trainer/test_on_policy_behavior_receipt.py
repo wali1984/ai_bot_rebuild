@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Iterator, Mapping
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -58,6 +59,11 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavi
     model_parameter_fingerprint,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer import (
+    PPO_INCOMPLETE_SAMPLED_COHORT_REASON,
+    PPO_SAMPLING_COHORT_KEY_RESOLVER_MISSING_REASON,
+    PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON,
+    PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON,
+    PPO_SAMPLING_COHORT_PROOF_INVALID_REASON,
     V2HybridPPOTrainer,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.publisher import (
@@ -75,6 +81,9 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import (
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
 )
+from v2.backend.app.services.ordinary_paper_admission import (
+    build_microstructure_trust_evidence,
+)
 from v2.backend.app.services.paper_trade_management import (
     lifecycle as paper_lifecycle,
 )
@@ -86,8 +95,11 @@ from v2.backend.app.services.paper_trade_management.position_state import (
     PaperNetPosition,
     position_from_fill,
 )
-from v2.backend.app.services.ordinary_paper_admission import (
-    build_microstructure_trust_evidence,
+from v2.backend.tests.unit.services.native_trainer._authenticated_cohort_fixture import (
+    archive_single_member_pre_admission_cohort,
+    archive_single_member_terminalized_cohort,
+    build_single_member_sampling_plan,
+    sampling_plan_key_resolver,
 )
 
 CHECKPOINT_ID = "v2_hybrid_ckpt_deadbeef_0123456789abcdef_abcdef012345"
@@ -480,8 +492,25 @@ def _exact_ppo_example(
     decision_time = f"2026-07-18T00:0{index}:00Z"
     exit_time = f"2026-07-18T00:0{index + 5}:00Z"
     forward = model.forward(tensor)
-    plan_hash = ("a" * 63) + str(index)
-    plan_input_hash = ("b" * 63) + str(index)
+    cost_provenance = _cost_provenance()
+    sampling_plan = build_single_member_sampling_plan(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        feature_tensor_id=tensor.tensor_id,
+        feature_cutoff="2026-07-18T00:00:00Z",
+        available_at="2026-07-18T00:00:30Z",
+        candle_close_time="2026-07-18T00:00:00Z",
+        decision_time=decision_time,
+        raw_action_logits=forward.action_logits,
+        expected_move_bps=forward.expected_move_bps,
+        exact_cost_payload_hash=str(cost_provenance["source_payload_sha256"]),
+        parent_policy_fingerprint=policy_fingerprint,
+        checkpoint_id=CHECKPOINT_ID,
+        checkpoint_weight_sha256="c" * 64,
+        checkpoint_evidence_digest=CHECKPOINT_EVIDENCE_DIGEST,
+    )
+    plan_hash = str(sampling_plan["plan_hash"])
+    plan_input_hash = str(sampling_plan["input_hash"])
     receipt = build_positive_edge_behavior_receipt(
         prediction_id=f"prediction_optimizer_{index}",
         model_output=forward,
@@ -501,7 +530,7 @@ def _exact_ppo_example(
         decision_time=decision_time,
         candle_closed_confirmed=True,
         round_trip_cost_bps=2.0,
-        cost_provenance=_cost_provenance(),
+        cost_provenance=cost_provenance,
         draw_u53=U53_DENOMINATOR - 1,
         sampling_plan_hash=plan_hash,
         sampling_plan_input_hash=plan_input_hash,
@@ -713,7 +742,14 @@ def _exact_ppo_example(
     )
     trust["ppo_consumption_ledger_eligible"] = True
     if archive_root is not None:
-        archived = archive_behavior_receipt(receipt, root=archive_root)
+        archived, cohort_manifest = archive_single_member_pre_admission_cohort(
+            root=archive_root,
+            sampling_plan=sampling_plan,
+            receipt=receipt,
+            parent_policy_fingerprint=policy_fingerprint,
+            checkpoint_id=CHECKPOINT_ID,
+            checkpoint_weight_sha256="c" * 64,
+        )
         published = append_lifecycle_event(
             receipt_hash=str(receipt["receipt_hash"]),
             event_type=EVENT_PUBLISHED,
@@ -759,6 +795,12 @@ def _exact_ppo_example(
             root=archive_root,
             recorded_at=str(trust["outcome_available_at"]),
         )
+        cohort_proof = archive_single_member_terminalized_cohort(
+            root=archive_root,
+            manifest=cohort_manifest,
+            receipt_hash=str(receipt["receipt_hash"]),
+            generated_at=str(trust["outcome_available_at"]),
+        )
         trust.update(
             {
                 "behavior_policy_receipt_archive_write_success": True,
@@ -778,6 +820,12 @@ def _exact_ppo_example(
                 "behavior_policy_receipt_archive_retention_required_until_trainer_consumption": (
                     True
                 ),
+                "on_policy_sampling_cohort_completeness_proof": cohort_proof,
+                "on_policy_sampling_cohort_completeness_verified": True,
+                "on_policy_sampling_cohort_receipt_membership_verified": True,
+                "on_policy_sampling_cohort_completeness_digest": cohort_proof[
+                    "cohort_digest"
+                ],
             }
         )
     return TrainingExample(
@@ -1984,11 +2032,74 @@ def test_exact_ppo_admission_requires_direct_finalized_archive_evidence(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     assert trainer._ppo_ineligibility_reason(example) == (  # noqa: SLF001
         "BEHAVIOR_POLICY_DURABLE_ARCHIVE_INVALID"
     )
+
+
+def test_exact_ppo_cohort_gate_reauthenticates_instead_of_trusting_markers(
+    tmp_path: Path,
+) -> None:
+    model = V2HybridPolicyModel(input_dim=len(_tensor().model_vector), seed=41)
+    if not model.torch_available:
+        pytest.skip("exact authenticated cohort regression requires torch")
+    assert model.torch is not None and model.net is not None
+    with model.torch.no_grad():
+        model.net.expected_move_head.weight.zero_()
+        model.net.expected_move_head.bias.fill_(math.atanh(12.0 / 120.0))
+    fingerprint = model_parameter_fingerprint(model)
+    valid = _exact_ppo_example(
+        index=1,
+        model=model,
+        policy_fingerprint=fingerprint,
+        archive_root=tmp_path,
+    )
+    trainer = V2HybridPPOTrainer(
+        model=model,
+        behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
+    )
+    assert trainer._ppo_ineligibility_reason(valid) is None  # noqa: SLF001
+    assert valid.trust_row is not None
+
+    self_attested = deepcopy(valid.trust_row)
+    self_attested.pop("on_policy_sampling_cohort_completeness_proof")
+    self_attested["on_policy_sampling_cohort_completeness_verified"] = True
+    self_attested[
+        "on_policy_sampling_cohort_receipt_membership_verified"
+    ] = True
+    self_attested["on_policy_sampling_cohort_completeness_digest"] = "f" * 64
+    assert trainer._ppo_ineligibility_reason(  # noqa: SLF001
+        replace(valid, trust_row=self_attested)
+    ) == PPO_INCOMPLETE_SAMPLED_COHORT_REASON
+
+    no_resolver = V2HybridPPOTrainer(
+        model=model,
+        behavior_receipt_archive_root=tmp_path,
+    )
+    assert no_resolver._ppo_ineligibility_reason(valid) == (  # noqa: SLF001
+        PPO_SAMPLING_COHORT_KEY_RESOLVER_MISSING_REASON
+    )
+
+    forged_proof = deepcopy(valid.trust_row)
+    forged_proof["on_policy_sampling_cohort_completeness_proof"][
+        "cohort_digest"
+    ] = "f" * 64
+    forged_proof["on_policy_sampling_cohort_completeness_digest"] = "f" * 64
+    assert trainer._ppo_ineligibility_reason(  # noqa: SLF001
+        replace(valid, trust_row=forged_proof)
+    ) == PPO_SAMPLING_COHORT_PROOF_INVALID_REASON
+
+    mismatched_marker = deepcopy(valid.trust_row)
+    mismatched_marker["on_policy_sampling_cohort_completeness_digest"] = (
+        "f" * 64
+    )
+    assert trainer._ppo_ineligibility_reason(  # noqa: SLF001
+        replace(valid, trust_row=mismatched_marker)
+    ) == PPO_SAMPLING_COHORT_PROOF_BINDING_MISMATCH_REASON
 
 
 def test_exact_ppo_rejects_archive_receipt_after_terminal_consumption(
@@ -2023,6 +2134,7 @@ def test_exact_ppo_rejects_archive_receipt_after_terminal_consumption(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     assert trainer._ppo_ineligibility_reason(example) == (  # noqa: SLF001
@@ -2045,8 +2157,48 @@ def test_exact_ppo_rejects_2099_outcome_not_observed_by_training_cycle(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
         training_observed_at="2026-07-18T10:00:00Z",
     )
+
+    assert trainer._ppo_ineligibility_reason(example) == (  # noqa: SLF001
+        PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON
+    )
+
+    class _ProofWithDivergentGet(Mapping[str, Any]):
+        """Expose archived bytes to iteration while lying through ``get``."""
+
+        def __init__(self, backing: Mapping[str, Any]) -> None:
+            self._backing = dict(backing)
+
+        def __getitem__(self, key: str) -> Any:
+            return self._backing[key]
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(self._backing)
+
+        def __len__(self) -> int:
+            return len(self._backing)
+
+        def get(self, key: str, default: Any = None) -> Any:
+            if key == "generated_at":
+                return "2026-07-18T00:07:00Z"
+            return self._backing.get(key, default)
+
+    divergent_row = dict(example.trust_row or {})
+    archived_proof = divergent_row[
+        "on_policy_sampling_cohort_completeness_proof"
+    ]
+    assert isinstance(archived_proof, Mapping)
+    divergent_proof = _ProofWithDivergentGet(archived_proof)
+    assert divergent_proof.get("generated_at") == "2026-07-18T00:07:00Z"
+    assert dict(divergent_proof)["generated_at"].startswith("2099-")
+    divergent_row[
+        "on_policy_sampling_cohort_completeness_proof"
+    ] = divergent_proof
+    assert trainer._ppo_ineligibility_reason(  # noqa: SLF001
+        replace(example, trust_row=divergent_row)
+    ) == PPO_SAMPLING_COHORT_PROOF_AFTER_TRAINING_OBSERVED_REASON
 
     plan = trainer.plan_exact_ppo_optimizer_attempts([example])
 
@@ -2087,6 +2239,7 @@ def test_exact_receipt_rows_drive_real_clipped_ppo_optimizer_update(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     assert all(trainer._has_on_policy_ppo_fields(row) for row in rows)  # noqa: SLF001
@@ -2144,6 +2297,7 @@ def test_public_optimizer_attempt_plan_matches_train_partition_and_stable_dedupe
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     plan = trainer.plan_exact_ppo_optimizer_attempts(
@@ -2222,6 +2376,7 @@ def test_cpu_fallback_never_relabels_exact_rows_as_ppo_updates(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     assert trainer._has_on_policy_ppo_fields(pure_ppo)  # noqa: SLF001

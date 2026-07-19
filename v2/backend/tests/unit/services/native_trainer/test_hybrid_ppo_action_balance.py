@@ -11,7 +11,6 @@ from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive imp
     EVENT_OUTCOME_FINALIZED,
     EVENT_PUBLISHED,
     append_lifecycle_event,
-    archive_behavior_receipt,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
     CONFIDENCE_HEAD_SCHEMA_VERSION,
@@ -33,6 +32,12 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.ppo_trainer impo
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FeatureTensorRecord,
+)
+from v2.backend.tests.unit.services.native_trainer._authenticated_cohort_fixture import (
+    archive_single_member_pre_admission_cohort,
+    archive_single_member_terminalized_cohort,
+    build_single_member_sampling_plan,
+    sampling_plan_key_resolver,
 )
 
 CHECKPOINT_ID = "v2_hybrid_ckpt_deadbeef_0123456789abcdef_abcdef012345"
@@ -236,8 +241,25 @@ def _attach_exact_behavior_receipt(
     trust = row.trust_row
     assert trust is not None
     prediction_id = f"prediction_exact_{row.tensor.tensor_id}"
-    plan_hash = "a" * 64
-    plan_input_hash = "b" * 64
+    cost_provenance = _cost_provenance()
+    sampling_plan = build_single_member_sampling_plan(
+        symbol=row.symbol,
+        timeframe=row.timeframe,
+        feature_tensor_id=row.tensor.tensor_id,
+        feature_cutoff=str(trust["feature_cutoff"]),
+        available_at=str(trust["available_at"]),
+        candle_close_time=str(trust["candle_close_time"]),
+        decision_time=str(trust["decision_time"]),
+        raw_action_logits=forward.action_logits,
+        expected_move_bps=forward.expected_move_bps,
+        exact_cost_payload_hash=str(cost_provenance["source_payload_sha256"]),
+        parent_policy_fingerprint=fingerprint,
+        checkpoint_id=CHECKPOINT_ID,
+        checkpoint_weight_sha256=CHECKPOINT_WEIGHT_SHA256,
+        checkpoint_evidence_digest=CHECKPOINT_EVIDENCE_DIGEST,
+    )
+    plan_hash = str(sampling_plan["plan_hash"])
+    plan_input_hash = str(sampling_plan["input_hash"])
     receipt = build_positive_edge_behavior_receipt(
         prediction_id=prediction_id,
         model_output=forward,
@@ -257,7 +279,7 @@ def _attach_exact_behavior_receipt(
         decision_time=trust["decision_time"],
         candle_closed_confirmed=True,
         round_trip_cost_bps=2.0,
-        cost_provenance=_cost_provenance(),
+        cost_provenance=cost_provenance,
         draw_u53=U53_DENOMINATOR - 1,
         sampling_plan_hash=plan_hash,
         sampling_plan_input_hash=plan_input_hash,
@@ -402,7 +424,14 @@ def _attach_exact_behavior_receipt(
         parent_behavior_fingerprint=fingerprint,
     )
     trust["ppo_consumption_ledger_eligible"] = True
-    archived = archive_behavior_receipt(receipt, root=archive_root)
+    archived, cohort_manifest = archive_single_member_pre_admission_cohort(
+        root=archive_root,
+        sampling_plan=sampling_plan,
+        receipt=receipt,
+        parent_policy_fingerprint=fingerprint,
+        checkpoint_id=CHECKPOINT_ID,
+        checkpoint_weight_sha256=CHECKPOINT_WEIGHT_SHA256,
+    )
     published = append_lifecycle_event(
         receipt_hash=str(receipt["receipt_hash"]),
         event_type=EVENT_PUBLISHED,
@@ -446,6 +475,12 @@ def _attach_exact_behavior_receipt(
         root=archive_root,
         recorded_at=str(trust["outcome_available_at"]),
     )
+    cohort_proof = archive_single_member_terminalized_cohort(
+        root=archive_root,
+        manifest=cohort_manifest,
+        receipt_hash=str(receipt["receipt_hash"]),
+        generated_at=str(trust["outcome_available_at"]),
+    )
     trust.update(
         {
             "behavior_policy_receipt_archive_write_success": True,
@@ -461,6 +496,12 @@ def _attach_exact_behavior_receipt(
                 finalized_event.event_hash
             ),
             "behavior_policy_receipt_archive_retention_required_until_trainer_consumption": True,
+            "on_policy_sampling_cohort_completeness_proof": cohort_proof,
+            "on_policy_sampling_cohort_completeness_verified": True,
+            "on_policy_sampling_cohort_receipt_membership_verified": True,
+            "on_policy_sampling_cohort_completeness_digest": cohort_proof[
+                "cohort_digest"
+            ],
         }
     )
     return receipt
@@ -561,6 +602,7 @@ def test_ppo_behavior_short_is_not_replaced_by_neutralized_supervised_hold(
     trainer = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     )
 
     result = trainer.train(
@@ -964,6 +1006,7 @@ def test_torch_training_rolls_back_injected_nonfinite_ppo_ratio(
     result = V2HybridPPOTrainer(
         model=model,
         behavior_receipt_archive_root=tmp_path,
+        sampling_plan_key_resolver=sampling_plan_key_resolver,
     ).train(
         [row],
         steps=1,
