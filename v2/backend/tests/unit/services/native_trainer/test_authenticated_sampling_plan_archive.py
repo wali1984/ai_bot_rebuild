@@ -15,17 +15,24 @@ from v2.backend.app.services.native_trainer.adaptive_sampling_plan_contract impo
     build_authenticated_sampling_plan_envelope,
 )
 from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive import (
+    EVENT_ENTRY_ACCEPTED,
+    EVENT_NO_ENTRY_FINALIZED,
+    EVENT_OUTCOME_FINALIZED,
     EVENT_PUBLISHED,
     BehaviorReceiptArchiveError,
     append_lifecycle_event,
     archive_authenticated_sampling_plan_envelope,
     archive_behavior_receipt,
+    archive_sampling_cohort_completeness_proof,
     archive_sampling_cohort_manifest,
+    build_no_entry_terminal_binding,
+    build_sampling_cohort_completeness_proof,
     build_sampling_cohort_manifest,
     canonical_sha256,
     load_authenticated_sampling_plan_envelope,
     load_sampling_cohort_manifest,
     verify_archived_authenticated_sampling_plan_envelope,
+    verify_archived_sampling_cohort_completeness_proof,
     verify_archived_sampling_cohort_manifest,
 )
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavior import (
@@ -49,6 +56,10 @@ CYCLE_ID = "v2_cycle_sampling_plan_archive_unit"
 DECISION_TIME = "2026-07-18T00:01:00Z"
 SEALED_AT = "2026-07-18T00:02:00Z"
 MANIFEST_AT = "2026-07-18T00:02:10Z"
+NO_ENTRY_AT = "2026-07-18T00:03:00Z"
+ENTRY_AT = "2026-07-18T00:03:00Z"
+OUTCOME_AT = "2026-07-18T00:04:00Z"
+COMPLETENESS_AT = "2026-07-18T00:05:00Z"
 DRAW = U53_DENOMINATOR - 1
 
 
@@ -220,6 +231,23 @@ def _archive_complete_pre_admission_manifest(
         root=root,
     )
     return resolved_envelope, resolved_receipt, manifest
+
+
+def _append_published(
+    *,
+    receipt: dict[str, Any],
+    root: Path,
+) -> None:
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_PUBLISHED,
+        binding={
+            "prediction_id": receipt["prediction_id"],
+            "decision_time": receipt["decision_time"],
+        },
+        root=root,
+        recorded_at=receipt["decision_time"],
+    )
 
 
 def test_envelope_archive_is_idempotent_restart_verifiable_and_stores_no_key(
@@ -632,4 +660,322 @@ def test_first_manifest_is_rejected_after_receipt_lifecycle_admission(
             manifest,
             key_resolver=resolver,
             root=tmp_path,
+        )
+
+
+def test_sampled_hold_can_terminalize_without_entry_and_complete_cohort(
+    tmp_path: Path,
+) -> None:
+    resolver = _KeyResolver(AUTH_KEY)
+    envelope = _envelope(draw=0)
+    receipt = _receipt(draw=0)
+    assert receipt["selected_action"] == "hold"
+    _, _, manifest = _archive_complete_pre_admission_manifest(
+        root=tmp_path,
+        resolver=resolver,
+        envelope=envelope,
+        receipt=receipt,
+    )
+    _append_published(receipt=receipt, root=tmp_path)
+    terminal_binding = build_no_entry_terminal_binding(
+        prediction_id=receipt["prediction_id"],
+        decision_time=receipt["decision_time"],
+        disposition_available_at=NO_ENTRY_AT,
+        terminal_disposition="SAMPLED_HOLD_FINALIZED",
+        reason_codes=["SAMPLED_HOLD"],
+    )
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_NO_ENTRY_FINALIZED,
+        binding=terminal_binding,
+        root=tmp_path,
+        recorded_at=NO_ENTRY_AT,
+    )
+    proof = build_sampling_cohort_completeness_proof(
+        manifest=manifest,
+        terminal_dispositions={
+            receipt["receipt_hash"]: "SAMPLED_HOLD_FINALIZED"
+        },
+        generated_at=COMPLETENESS_AT,
+    )
+
+    archived = archive_sampling_cohort_completeness_proof(
+        proof,
+        key_resolver=resolver,
+        root=tmp_path,
+    )
+    verified = verify_archived_sampling_cohort_completeness_proof(
+        proof,
+        key_resolver=resolver,
+        root=tmp_path,
+        expected_receipt_hash=receipt["receipt_hash"],
+        expected_sampling_plan_hash=manifest["sampling_plan_hash"],
+        expected_sampling_plan_input_hash=manifest[
+            "sampling_plan_input_hash"
+        ],
+        expected_parent_policy_fingerprint=manifest[
+            "parent_policy_fingerprint"
+        ],
+    )
+
+    assert archived.cohort_digest == proof["cohort_digest"]
+    assert verified["cohort_verified"] is True
+    assert verified["receipt_membership_verified"] is True
+    assert verified["terminalized_receipt_count"] == 1
+
+
+def test_directional_entry_outcome_path_still_completes_cohort(
+    tmp_path: Path,
+) -> None:
+    resolver = _KeyResolver(AUTH_KEY)
+    _, receipt, manifest = _archive_complete_pre_admission_manifest(
+        root=tmp_path,
+        resolver=resolver,
+    )
+    _append_published(receipt=receipt, root=tmp_path)
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_ENTRY_ACCEPTED,
+        binding={
+            "paper_fill_id": "fill-cohort-1",
+            "decision_time": receipt["decision_time"],
+            "entry_time": ENTRY_AT,
+        },
+        root=tmp_path,
+        recorded_at=ENTRY_AT,
+    )
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_OUTCOME_FINALIZED,
+        binding={
+            "finalized_outcome_id": "outcome-cohort-1",
+            "finalized_outcome_digest": "a" * 64,
+            "ppo_consumption_update_key": "b" * 64,
+            "outcome_available_at": OUTCOME_AT,
+        },
+        root=tmp_path,
+        recorded_at=OUTCOME_AT,
+    )
+    proof = build_sampling_cohort_completeness_proof(
+        manifest=manifest,
+        terminal_dispositions={
+            receipt["receipt_hash"]: "ENTRY_OUTCOME_FINALIZED"
+        },
+        generated_at=COMPLETENESS_AT,
+    )
+
+    archive_sampling_cohort_completeness_proof(
+        proof,
+        key_resolver=resolver,
+        root=tmp_path,
+    )
+    assert (
+        verify_archived_sampling_cohort_completeness_proof(
+            proof,
+            key_resolver=resolver,
+            root=tmp_path,
+            expected_receipt_hash=receipt["receipt_hash"],
+        )["cohort_verified"]
+        is True
+    )
+
+
+def test_no_entry_terminalization_is_action_bound(
+    tmp_path: Path,
+) -> None:
+    resolver = _KeyResolver(AUTH_KEY)
+    _, receipt, _ = _archive_complete_pre_admission_manifest(
+        root=tmp_path,
+        resolver=resolver,
+    )
+    _append_published(receipt=receipt, root=tmp_path)
+    hold_binding = build_no_entry_terminal_binding(
+        prediction_id=receipt["prediction_id"],
+        decision_time=receipt["decision_time"],
+        disposition_available_at=NO_ENTRY_AT,
+        terminal_disposition="SAMPLED_HOLD_FINALIZED",
+        reason_codes=["SAMPLED_HOLD"],
+    )
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="NO_ENTRY_TERMINAL_RECEIPT_BINDING_INVALID",
+    ):
+        append_lifecycle_event(
+            receipt_hash=receipt["receipt_hash"],
+            event_type=EVENT_NO_ENTRY_FINALIZED,
+            binding=hold_binding,
+            root=tmp_path,
+            recorded_at=NO_ENTRY_AT,
+        )
+
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="NO_ENTRY_TERMINAL_DISPOSITION_INVALID",
+    ):
+        build_no_entry_terminal_binding(
+            prediction_id=receipt["prediction_id"],
+            decision_time=receipt["decision_time"],
+            disposition_available_at=NO_ENTRY_AT,
+            terminal_disposition="ENTRY_REJECTED_FINALIZED",
+            reason_codes=["FINAL_PAPER_GATE_REJECTED"],
+        )
+
+
+def test_hold_terminal_binding_digest_and_entry_conflict(
+    tmp_path: Path,
+) -> None:
+    resolver = _KeyResolver(AUTH_KEY)
+    envelope = _envelope(draw=0)
+    receipt = _receipt(draw=0)
+    _, _, _ = _archive_complete_pre_admission_manifest(
+        root=tmp_path,
+        resolver=resolver,
+        envelope=envelope,
+        receipt=receipt,
+    )
+    _append_published(receipt=receipt, root=tmp_path)
+    hold_binding = build_no_entry_terminal_binding(
+        prediction_id=receipt["prediction_id"],
+        decision_time=receipt["decision_time"],
+        disposition_available_at=NO_ENTRY_AT,
+        terminal_disposition="SAMPLED_HOLD_FINALIZED",
+        reason_codes=["SAMPLED_HOLD"],
+    )
+    hold_binding["reason_codes_sha256"] = "f" * 64
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="NO_ENTRY_TERMINAL_BINDING_DIGEST_INVALID",
+    ):
+        append_lifecycle_event(
+            receipt_hash=receipt["receipt_hash"],
+            event_type=EVENT_NO_ENTRY_FINALIZED,
+            binding=hold_binding,
+            root=tmp_path,
+            recorded_at=NO_ENTRY_AT,
+        )
+
+    hold_binding = build_no_entry_terminal_binding(
+        prediction_id=receipt["prediction_id"],
+        decision_time=receipt["decision_time"],
+        disposition_available_at=NO_ENTRY_AT,
+        terminal_disposition="SAMPLED_HOLD_FINALIZED",
+        reason_codes=["SAMPLED_HOLD"],
+    )
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_NO_ENTRY_FINALIZED,
+        binding=hold_binding,
+        root=tmp_path,
+        recorded_at=NO_ENTRY_AT,
+    )
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="LIFECYCLE_TERMINAL_PATH_CONFLICT",
+    ):
+        append_lifecycle_event(
+            receipt_hash=receipt["receipt_hash"],
+            event_type=EVENT_ENTRY_ACCEPTED,
+            binding={
+                "paper_fill_id": "late-fill-after-rejection",
+                "decision_time": receipt["decision_time"],
+                "entry_time": OUTCOME_AT,
+            },
+            root=tmp_path,
+            recorded_at=OUTCOME_AT,
+        )
+
+
+def test_completeness_archive_rederives_manifest_time_order(
+    tmp_path: Path,
+) -> None:
+    resolver = _KeyResolver(AUTH_KEY)
+    envelope = _envelope(draw=0)
+    receipt = _receipt(draw=0)
+    _, _, manifest = _archive_complete_pre_admission_manifest(
+        root=tmp_path,
+        resolver=resolver,
+        envelope=envelope,
+        receipt=receipt,
+    )
+    _append_published(receipt=receipt, root=tmp_path)
+    append_lifecycle_event(
+        receipt_hash=receipt["receipt_hash"],
+        event_type=EVENT_NO_ENTRY_FINALIZED,
+        binding=build_no_entry_terminal_binding(
+            prediction_id=receipt["prediction_id"],
+            decision_time=receipt["decision_time"],
+            disposition_available_at=NO_ENTRY_AT,
+            terminal_disposition="SAMPLED_HOLD_FINALIZED",
+            reason_codes=["SAMPLED_HOLD"],
+        ),
+        root=tmp_path,
+        recorded_at=NO_ENTRY_AT,
+    )
+    proof = build_sampling_cohort_completeness_proof(
+        manifest=manifest,
+        terminal_dispositions={
+            receipt["receipt_hash"]: "SAMPLED_HOLD_FINALIZED"
+        },
+        generated_at=COMPLETENESS_AT,
+    )
+    forged = dict(proof)
+    forged.pop("cohort_digest")
+    forged["generated_at"] = "2026-07-18T00:02:00Z"
+    forged["cohort_digest"] = canonical_sha256(forged)
+
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="SAMPLING_COHORT_COMPLETENESS_TIME_INVALID",
+    ):
+        archive_sampling_cohort_completeness_proof(
+            forged,
+            key_resolver=resolver,
+            root=tmp_path,
+        )
+
+
+def test_published_event_must_bind_exact_receipt_identity_and_clock(
+    tmp_path: Path,
+) -> None:
+    receipt = _receipt()
+    archive_behavior_receipt(receipt, root=tmp_path)
+
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="LIFECYCLE_PUBLISHED_RECEIPT_BINDING_MISMATCH",
+    ):
+        append_lifecycle_event(
+            receipt_hash=receipt["receipt_hash"],
+            event_type=EVENT_PUBLISHED,
+            binding={
+                "prediction_id": "different-prediction",
+                "decision_time": receipt["decision_time"],
+            },
+            root=tmp_path,
+            recorded_at=receipt["decision_time"],
+        )
+
+
+def test_no_entry_binding_bounds_reason_count_and_prediction_identity() -> None:
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="NO_ENTRY_TERMINAL_REASON_CODES_INVALID",
+    ):
+        build_no_entry_terminal_binding(
+            prediction_id="prediction-bounded",
+            decision_time=DECISION_TIME,
+            disposition_available_at=NO_ENTRY_AT,
+            terminal_disposition="SAMPLED_HOLD_FINALIZED",
+            reason_codes=[f"REASON_{index:03d}" for index in range(129)],
+        )
+    with pytest.raises(
+        BehaviorReceiptArchiveError,
+        match="NO_ENTRY_TERMINAL_PREDICTION_ID_INVALID",
+    ):
+        build_no_entry_terminal_binding(
+            prediction_id="p" * 257,
+            decision_time=DECISION_TIME,
+            disposition_available_at=NO_ENTRY_AT,
+            terminal_disposition="SAMPLED_HOLD_FINALIZED",
+            reason_codes=["SAMPLED_HOLD"],
         )

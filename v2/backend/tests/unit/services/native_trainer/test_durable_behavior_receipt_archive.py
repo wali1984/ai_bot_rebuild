@@ -9,12 +9,14 @@ import pytest
 
 from v2.backend.app.services.native_trainer.durable_behavior_receipt_archive import (
     EVENT_ENTRY_ACCEPTED,
+    EVENT_NO_ENTRY_FINALIZED,
     EVENT_OUTCOME_FINALIZED,
     EVENT_PUBLISHED,
     EVENT_TRAINER_CONSUMED,
     BehaviorReceiptArchiveError,
     append_lifecycle_event,
     archive_behavior_receipt,
+    build_no_entry_terminal_binding,
     canonical_sha256,
     load_behavior_receipt,
     receipt_lifecycle_status,
@@ -31,6 +33,8 @@ def _receipt() -> dict[str, object]:
         "schema_version": "unit_exact_receipt_v1",
         "prediction_id": "pred-1",
         "symbol": "BTCUSDT",
+        "decision_time": DECISION_TIME,
+        "selected_action": "long",
         "paper_only": True,
         "routes_to_live": False,
     }
@@ -292,10 +296,10 @@ def test_entry_recorded_time_cannot_predate_bound_decision_or_entry_time(
         event_type=EVENT_PUBLISHED,
         binding={
             "prediction_id": "pred-1",
-            "decision_time": "2026-07-18T00:01:00Z",
+            "decision_time": DECISION_TIME,
         },
         root=tmp_path,
-        recorded_at="2026-07-18T00:01:00Z",
+        recorded_at=DECISION_TIME,
     )
 
     with pytest.raises(
@@ -307,7 +311,7 @@ def test_entry_recorded_time_cannot_predate_bound_decision_or_entry_time(
             event_type=EVENT_ENTRY_ACCEPTED,
             binding={
                 "paper_fill_id": "fill-1",
-                "decision_time": "2026-07-18T00:01:00Z",
+                "decision_time": DECISION_TIME,
                 "entry_time": "2026-07-18T00:02:00Z",
             },
             root=tmp_path,
@@ -686,3 +690,68 @@ def test_concurrent_conflicting_entry_events_are_serialized_fail_closed(
     assert results.count("LIFECYCLE_EVENT_BINDING_CONFLICT") == 1
     status = receipt_lifecycle_status(receipt_hash, root=tmp_path)
     assert status["event_types"].count(EVENT_ENTRY_ACCEPTED) == 1
+
+
+def test_sampled_hold_terminalization_wins_over_invalid_entry_attempt(
+    tmp_path: Path,
+) -> None:
+    receipt = _receipt()
+    receipt["selected_action"] = "hold"
+    receipt.pop("receipt_hash")
+    receipt["receipt_hash"] = canonical_sha256(receipt)
+    receipt_hash = str(receipt["receipt_hash"])
+    archive_behavior_receipt(receipt, root=tmp_path)
+    append_lifecycle_event(
+        receipt_hash=receipt_hash,
+        event_type=EVENT_PUBLISHED,
+        binding=_published_binding(),
+        root=tmp_path,
+        recorded_at=DECISION_TIME,
+    )
+
+    def accept_entry() -> str:
+        try:
+            append_lifecycle_event(
+                receipt_hash=receipt_hash,
+                event_type=EVENT_ENTRY_ACCEPTED,
+                binding=_entry_binding(),
+                root=tmp_path,
+                recorded_at=ENTRY_TIME,
+            )
+        except BehaviorReceiptArchiveError as exc:
+            return str(exc)
+        return EVENT_ENTRY_ACCEPTED
+
+    def reject_entry() -> str:
+        try:
+            append_lifecycle_event(
+                receipt_hash=receipt_hash,
+                event_type=EVENT_NO_ENTRY_FINALIZED,
+                binding=build_no_entry_terminal_binding(
+                    prediction_id="pred-1",
+                    decision_time=DECISION_TIME,
+                    disposition_available_at=ENTRY_TIME,
+                    terminal_disposition="SAMPLED_HOLD_FINALIZED",
+                    reason_codes=["SAMPLED_HOLD"],
+                ),
+                root=tmp_path,
+                recorded_at=ENTRY_TIME,
+            )
+        except BehaviorReceiptArchiveError as exc:
+            return str(exc)
+        return EVENT_NO_ENTRY_FINALIZED
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        accepted_future = executor.submit(accept_entry)
+        rejected_future = executor.submit(reject_entry)
+        results = [accepted_future.result(), rejected_future.result()]
+
+    entry_errors = {
+        "LIFECYCLE_ENTRY_RECEIPT_BINDING_MISMATCH",
+        "LIFECYCLE_TERMINAL_PATH_CONFLICT",
+    }
+    assert sum(result in entry_errors for result in results) == 1
+    assert results.count(EVENT_NO_ENTRY_FINALIZED) == 1
+    status = receipt_lifecycle_status(receipt_hash, root=tmp_path)
+    assert status["entry_accepted_durable"] is False
+    assert status["no_entry_finalized_durable"] is True

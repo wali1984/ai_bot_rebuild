@@ -19,7 +19,7 @@ from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from v2.backend.app.services.native_trainer.adaptive_sampling_plan_contract import (
     U53_DENOMINATOR,
@@ -51,9 +51,15 @@ DEFAULT_ARCHIVE_REL = Path(
 RECEIPT_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 UPDATE_KEY_RE = re.compile(r"^[0-9a-f]{64}$")
 SAMPLING_PLAN_AUTH_KEY_ID_RE = re.compile(r"^[A-Za-z0-9_.:@/-]{1,128}$")
+NO_ENTRY_REASON_RE = re.compile(r"^[A-Z0-9][A-Z0-9_:.\-/]{0,159}$")
+NO_ENTRY_PREDICTION_ID_RE = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9_.:@/\-]{0,255}$"
+)
+MAX_NO_ENTRY_REASON_CODES = 128
 SAMPLING_COHORT_TERMINAL_DISPOSITIONS = frozenset(
     {
         "ENTRY_OUTCOME_FINALIZED",
+        "SAMPLED_HOLD_FINALIZED",
     }
 )
 SAMPLING_COHORT_MANIFEST_FIELDS = frozenset(
@@ -83,21 +89,48 @@ SAMPLING_COHORT_MANIFEST_FIELDS = frozenset(
 )
 
 EVENT_PUBLISHED = "PUBLISHED"
+EVENT_NO_ENTRY_FINALIZED = "NO_ENTRY_FINALIZED"
 EVENT_ENTRY_ACCEPTED = "ENTRY_ACCEPTED"
 EVENT_OUTCOME_FINALIZED = "OUTCOME_FINALIZED"
 EVENT_TRAINER_CONSUMED = "TRAINER_CONSUMED"
 EVENT_ORDER = (
     EVENT_PUBLISHED,
+    EVENT_NO_ENTRY_FINALIZED,
     EVENT_ENTRY_ACCEPTED,
     EVENT_OUTCOME_FINALIZED,
     EVENT_TRAINER_CONSUMED,
 )
+EVENT_PREREQUISITES = {
+    EVENT_PUBLISHED: frozenset(),
+    EVENT_NO_ENTRY_FINALIZED: frozenset({EVENT_PUBLISHED}),
+    EVENT_ENTRY_ACCEPTED: frozenset({EVENT_PUBLISHED}),
+    EVENT_OUTCOME_FINALIZED: frozenset(
+        {EVENT_PUBLISHED, EVENT_ENTRY_ACCEPTED}
+    ),
+    EVENT_TRAINER_CONSUMED: frozenset(
+        {
+            EVENT_PUBLISHED,
+            EVENT_ENTRY_ACCEPTED,
+            EVENT_OUTCOME_FINALIZED,
+        }
+    ),
+}
 EVENT_SEMANTIC_TIME_FIELDS = {
     EVENT_PUBLISHED: ("decision_time",),
+    EVENT_NO_ENTRY_FINALIZED: (
+        "decision_time",
+        "disposition_available_at",
+    ),
     EVENT_ENTRY_ACCEPTED: ("decision_time", "entry_time"),
     EVENT_OUTCOME_FINALIZED: ("outcome_available_at",),
     EVENT_TRAINER_CONSUMED: ("ledger_recorded_utc",),
 }
+NO_ENTRY_TERMINAL_DISPOSITIONS = frozenset(
+    {"SAMPLED_HOLD_FINALIZED"}
+)
+NO_ENTRY_REASON_DIGEST_SCHEMA_VERSION = (
+    "v2_behavior_receipt_no_entry_reason_digest_v1"
+)
 DURABLE_RECEIPT_LINEAGE_FIELDS = (
     "behavior_policy_receipt_archive_schema_version",
     "behavior_policy_receipt_archive_write_success",
@@ -210,6 +243,124 @@ def _same_strict_utc(left: Any, right: Any) -> bool:
     return left_time is not None and left_time == right_time
 
 
+def _normalized_no_entry_reason_codes(value: Any) -> list[str]:
+    if (
+        type(value) is not list
+        or not value
+        or len(value) > MAX_NO_ENTRY_REASON_CODES
+        or any(
+            type(reason) is not str
+            or not NO_ENTRY_REASON_RE.fullmatch(reason)
+            for reason in value
+        )
+        or value != sorted(set(value))
+    ):
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_REASON_CODES_INVALID"
+        )
+    return list(value)
+
+
+def _no_entry_reason_codes_sha256(
+    *,
+    prediction_id: str,
+    terminal_disposition: str,
+    reason_codes: list[str],
+) -> str:
+    return canonical_sha256(
+        {
+            "schema_version": NO_ENTRY_REASON_DIGEST_SCHEMA_VERSION,
+            "prediction_id": prediction_id,
+            "terminal_disposition": terminal_disposition,
+            "reason_codes": reason_codes,
+        }
+    )
+
+
+def build_no_entry_terminal_binding(
+    *,
+    prediction_id: str,
+    decision_time: str,
+    disposition_available_at: str,
+    terminal_disposition: str,
+    reason_codes: list[str],
+) -> dict[str, Any]:
+    """Build exact evidence for one sampled action that created no entry."""
+
+    normalized_prediction_id = str(prediction_id or "")
+    if not NO_ENTRY_PREDICTION_ID_RE.fullmatch(normalized_prediction_id):
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_PREDICTION_ID_INVALID"
+        )
+    if terminal_disposition not in NO_ENTRY_TERMINAL_DISPOSITIONS:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_DISPOSITION_INVALID"
+        )
+    normalized_reasons = _normalized_no_entry_reason_codes(reason_codes)
+    if normalized_reasons != ["SAMPLED_HOLD"]:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_HOLD_REASONS_INVALID"
+        )
+    decision = _strict_utc(decision_time)
+    available = _strict_utc(disposition_available_at)
+    if decision is None or available is None or decision > available:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_TIME_INVALID"
+        )
+    binding = {
+        "prediction_id": normalized_prediction_id,
+        "decision_time": decision_time,
+        "disposition_available_at": disposition_available_at,
+        "terminal_disposition": terminal_disposition,
+        "reason_codes": normalized_reasons,
+    }
+    return {
+        **binding,
+        "reason_codes_sha256": _no_entry_reason_codes_sha256(
+            prediction_id=normalized_prediction_id,
+            terminal_disposition=terminal_disposition,
+            reason_codes=normalized_reasons,
+        ),
+    }
+
+
+def _validate_no_entry_terminal_binding(
+    binding: Mapping[str, Any],
+) -> dict[str, Any]:
+    if set(binding) != {
+        "prediction_id",
+        "decision_time",
+        "disposition_available_at",
+        "terminal_disposition",
+        "reason_codes",
+        "reason_codes_sha256",
+    }:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_BINDING_SHAPE_INVALID"
+        )
+    reason_codes = binding.get("reason_codes")
+    if type(reason_codes) is not list:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_REASON_CODES_INVALID"
+        )
+    validated = build_no_entry_terminal_binding(
+        prediction_id=str(binding.get("prediction_id") or ""),
+        decision_time=str(binding.get("decision_time") or ""),
+        disposition_available_at=str(
+            binding.get("disposition_available_at") or ""
+        ),
+        terminal_disposition=str(
+            binding.get("terminal_disposition") or ""
+        ),
+        reason_codes=cast(list[str], reason_codes),
+    )
+    if dict(binding) != validated:
+        raise BehaviorReceiptArchiveError(
+            "NO_ENTRY_TERMINAL_BINDING_DIGEST_INVALID"
+        )
+    return validated
+
+
 def _validated_event_recorded_time(
     *,
     event_type: str,
@@ -237,6 +388,8 @@ def _validated_event_semantic_times(
 ) -> dict[str, datetime]:
     """Return strict UTC semantic clocks required by one lifecycle event."""
 
+    if event_type == EVENT_NO_ENTRY_FINALIZED:
+        _validate_no_entry_terminal_binding(binding)
     semantic_times: dict[str, datetime] = {}
     for field in EVENT_SEMANTIC_TIME_FIELDS[event_type]:
         if field not in binding or binding.get(field) in (None, ""):
@@ -271,9 +424,23 @@ def _validate_lifecycle_semantic_order(
         )
 
     published = times_by_type.get(EVENT_PUBLISHED)
+    no_entry = times_by_type.get(EVENT_NO_ENTRY_FINALIZED)
     entry = times_by_type.get(EVENT_ENTRY_ACCEPTED)
     outcome = times_by_type.get(EVENT_OUTCOME_FINALIZED)
     consumed = times_by_type.get(EVENT_TRAINER_CONSUMED)
+    if no_entry is not None and entry is not None:
+        raise BehaviorReceiptArchiveError(
+            "LIFECYCLE_TERMINAL_PATH_CONFLICT"
+        )
+    if published is not None and no_entry is not None:
+        if no_entry["decision_time"] != published["decision_time"]:
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_NO_ENTRY_DECISION_TIME_BINDING_MISMATCH"
+            )
+        if no_entry["decision_time"] > no_entry["disposition_available_at"]:
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_EVENT_SEMANTIC_ORDER_INVALID"
+            )
     if published is not None and entry is not None:
         if entry["decision_time"] != published["decision_time"]:
             raise BehaviorReceiptArchiveError(
@@ -292,6 +459,72 @@ def _validate_lifecycle_semantic_order(
         if outcome["outcome_available_at"] > consumed["ledger_recorded_utc"]:
             raise BehaviorReceiptArchiveError(
                 "LIFECYCLE_EVENT_SEMANTIC_ORDER_INVALID"
+            )
+
+
+def _validate_lifecycle_receipt_binding(
+    *,
+    receipt: Mapping[str, Any],
+    events_by_type: Mapping[str, Mapping[str, Any]],
+) -> None:
+    receipt_prediction_id = receipt.get("prediction_id")
+    receipt_decision_time = receipt.get("decision_time")
+    receipt_action = receipt.get("selected_action")
+    published = events_by_type.get(EVENT_PUBLISHED)
+    if published is not None:
+        binding = published.get("binding")
+        if not isinstance(binding, Mapping):
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_EVENT_BINDING_INVALID"
+            )
+        if (
+            receipt_prediction_id not in (None, "")
+            and binding.get("prediction_id") != receipt_prediction_id
+        ) or (
+            receipt_decision_time not in (None, "")
+            and not _same_strict_utc(
+                binding.get("decision_time"), receipt_decision_time
+            )
+        ):
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_PUBLISHED_RECEIPT_BINDING_MISMATCH"
+            )
+    no_entry = events_by_type.get(EVENT_NO_ENTRY_FINALIZED)
+    if no_entry is not None:
+        binding = no_entry.get("binding")
+        if not isinstance(binding, Mapping):
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_EVENT_BINDING_INVALID"
+            )
+        validated = _validate_no_entry_terminal_binding(binding)
+        if (
+            validated["prediction_id"] != receipt_prediction_id
+            or not _same_strict_utc(
+                validated["decision_time"], receipt_decision_time
+            )
+            or receipt_action != "hold"
+        ):
+            raise BehaviorReceiptArchiveError(
+                "NO_ENTRY_TERMINAL_RECEIPT_BINDING_INVALID"
+            )
+    entry = events_by_type.get(EVENT_ENTRY_ACCEPTED)
+    if entry is not None:
+        binding = entry.get("binding")
+        if not isinstance(binding, Mapping):
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_EVENT_BINDING_INVALID"
+            )
+        if (
+            receipt_action not in (None, "", "long", "short")
+            or (
+                receipt_decision_time not in (None, "")
+                and not _same_strict_utc(
+                    binding.get("decision_time"), receipt_decision_time
+                )
+            )
+        ):
+            raise BehaviorReceiptArchiveError(
+                "LIFECYCLE_ENTRY_RECEIPT_BINDING_MISMATCH"
             )
 
 
@@ -1510,7 +1743,12 @@ def _verify_sampling_cohort_terminal_lifecycle(
     root: Path,
 ) -> None:
     proof_time = _strict_utc(proof.get("generated_at"))
-    if proof_time is None:
+    manifest_time = _strict_utc(manifest.get("generated_at"))
+    if (
+        proof_time is None
+        or manifest_time is None
+        or proof_time < manifest_time
+    ):
         raise BehaviorReceiptArchiveError(
             "SAMPLING_COHORT_COMPLETENESS_TIME_INVALID"
         )
@@ -1518,25 +1756,67 @@ def _verify_sampling_cohort_terminal_lifecycle(
         member["receipt_hash"]: member for member in manifest["members"]
     }
     for receipt_hash in proof["sampled_receipt_hashes"]:
-        load_behavior_receipt(receipt_hash, root=root)
+        receipt = load_behavior_receipt(receipt_hash, root=root)
         disposition = proof["terminal_dispositions"][receipt_hash]
         member = members_by_hash[receipt_hash]
         status = receipt_lifecycle_status(receipt_hash, root=root)
-        if (
-            disposition != "ENTRY_OUTCOME_FINALIZED"
-            or member["selected_action"] not in {"long", "short"}
-            or status.get("entry_accepted_durable") is not True
-            or status.get("outcome_finalized_durable") is not True
-        ):
+        event_bindings = status.get("event_bindings")
+        if not isinstance(event_bindings, Mapping):
             raise BehaviorReceiptArchiveError(
                 "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
             )
-        outcome_time = _strict_utc(
-            status.get("event_bindings", {})
-            .get(EVENT_OUTCOME_FINALIZED, {})
-            .get("outcome_available_at")
-        )
-        if outcome_time is None or outcome_time > proof_time:
+        if disposition == "ENTRY_OUTCOME_FINALIZED":
+            if (
+                member["selected_action"] not in {"long", "short"}
+                or status.get("no_entry_finalized_durable") is True
+                or status.get("entry_accepted_durable") is not True
+                or status.get("outcome_finalized_durable") is not True
+            ):
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
+                )
+            outcome_binding = event_bindings.get(EVENT_OUTCOME_FINALIZED)
+            if not isinstance(outcome_binding, Mapping):
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
+                )
+            terminal_time = _strict_utc(
+                outcome_binding.get("outcome_available_at")
+            )
+        else:
+            no_entry_binding = event_bindings.get(EVENT_NO_ENTRY_FINALIZED)
+            if not isinstance(no_entry_binding, Mapping):
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
+                )
+            validated_no_entry = _validate_no_entry_terminal_binding(
+                no_entry_binding
+            )
+            selected_action = member["selected_action"]
+            if (
+                status.get("no_entry_finalized_durable") is not True
+                or status.get("entry_accepted_durable") is True
+                or validated_no_entry["terminal_disposition"] != disposition
+                or validated_no_entry["prediction_id"]
+                != member["prediction_id"]
+                or validated_no_entry["prediction_id"]
+                != receipt.get("prediction_id")
+                or not _same_strict_utc(
+                    validated_no_entry["decision_time"],
+                    receipt.get("decision_time"),
+                )
+                or (
+                    disposition == "SAMPLED_HOLD_FINALIZED"
+                    and selected_action != "hold"
+                )
+            ):
+                raise BehaviorReceiptArchiveError(
+                    "SAMPLING_COHORT_MEMBER_NOT_DURABLY_TERMINALIZED"
+                )
+            terminal_time = _strict_utc(
+                validated_no_entry["disposition_available_at"]
+            )
+        if terminal_time is None or terminal_time > proof_time:
             raise BehaviorReceiptArchiveError(
                 "SAMPLING_COHORT_TERMINAL_TIME_INVALID"
             )
@@ -1700,6 +1980,7 @@ def lifecycle_events(
     if not RECEIPT_HASH_RE.fullmatch(value):
         raise BehaviorReceiptArchiveError("RECEIPT_HASH_INVALID")
     archive_root = root or default_archive_root()
+    receipt = load_behavior_receipt(value, root=archive_root)
     events: list[dict[str, Any]] = []
     for path in _event_files(archive_root, value):
         try:
@@ -1729,15 +2010,25 @@ def lifecycle_events(
     if len(event_types) != len(set(event_types)):
         raise BehaviorReceiptArchiveError("LIFECYCLE_DUPLICATE_EVENT_TYPE")
     present_types = set(event_types)
+    if (
+        EVENT_NO_ENTRY_FINALIZED in present_types
+        and EVENT_ENTRY_ACCEPTED in present_types
+    ):
+        raise BehaviorReceiptArchiveError(
+            "LIFECYCLE_TERMINAL_PATH_CONFLICT"
+        )
     for event_type in event_types:
-        prior_types = set(EVENT_ORDER[: EVENT_ORDER.index(event_type)])
-        if event_type != EVENT_PUBLISHED and not prior_types.issubset(present_types):
+        if not EVENT_PREREQUISITES[event_type].issubset(present_types):
             raise BehaviorReceiptArchiveError("LIFECYCLE_PREREQUISITE_MISSING")
     events_by_type = {
         str(event["event_type"]): event
         for event in events
     }
     _validate_lifecycle_semantic_order(events_by_type)
+    _validate_lifecycle_receipt_binding(
+        receipt=receipt,
+        events_by_type=events_by_type,
+    )
     previous_recorded_time: datetime | None = None
     for event_type in EVENT_ORDER:
         event = events_by_type.get(event_type)
@@ -1781,18 +2072,31 @@ def _append_lifecycle_event_locked(
     if event_type not in EVENT_ORDER:
         raise BehaviorReceiptArchiveError("LIFECYCLE_EVENT_TYPE_INVALID")
     archive_root = root or default_archive_root()
-    load_behavior_receipt(value, root=archive_root)
+    receipt = load_behavior_receipt(value, root=archive_root)
     existing = lifecycle_events(value, root=archive_root)
     existing_types = {str(row.get("event_type")) for row in existing}
-    prior_types = set(EVENT_ORDER[: EVENT_ORDER.index(event_type)])
-    if event_type != EVENT_PUBLISHED and not prior_types.issubset(existing_types):
+    if not EVENT_PREREQUISITES[event_type].issubset(existing_types):
         raise BehaviorReceiptArchiveError("LIFECYCLE_PREREQUISITE_MISSING")
+    if (
+        event_type == EVENT_NO_ENTRY_FINALIZED
+        and EVENT_ENTRY_ACCEPTED in existing_types
+    ) or (
+        event_type == EVENT_ENTRY_ACCEPTED
+        and EVENT_NO_ENTRY_FINALIZED in existing_types
+    ):
+        raise BehaviorReceiptArchiveError(
+            "LIFECYCLE_TERMINAL_PATH_CONFLICT"
+        )
     if event_type == EVENT_TRAINER_CONSUMED:
         update_key = str(binding.get("ppo_consumption_update_key") or "")
         if not UPDATE_KEY_RE.fullmatch(update_key):
             raise BehaviorReceiptArchiveError("TRAINER_CONSUMPTION_UPDATE_KEY_INVALID")
     identity_fields = {
         EVENT_PUBLISHED: ("prediction_id",),
+        EVENT_NO_ENTRY_FINALIZED: (
+            "prediction_id",
+            "terminal_disposition",
+        ),
         EVENT_ENTRY_ACCEPTED: ("paper_fill_id",),
         EVENT_OUTCOME_FINALIZED: (
             "finalized_outcome_id",
@@ -1839,11 +2143,15 @@ def _append_lifecycle_event_locked(
         "binding": dict(binding),
     }
     _validate_lifecycle_semantic_order(prospective_events)
+    _validate_lifecycle_receipt_binding(
+        receipt=receipt,
+        events_by_type=prospective_events,
+    )
     prior_recorded_times = [
         _strict_utc(event.get("recorded_at"))
         for event in existing
-        if EVENT_ORDER.index(str(event.get("event_type")))
-        < EVENT_ORDER.index(event_type)
+        if str(event.get("event_type"))
+        in EVENT_PREREQUISITES[event_type]
     ]
     if any(
         prior_time is not None and recorded_time < prior_time
@@ -1932,6 +2240,7 @@ def receipt_lifecycle_status(
         "event_bindings": event_bindings,
         "highest_lifecycle_event": highest,
         "published_durable": EVENT_PUBLISHED in types,
+        "no_entry_finalized_durable": EVENT_NO_ENTRY_FINALIZED in types,
         "entry_accepted_durable": EVENT_ENTRY_ACCEPTED in types,
         "outcome_finalized_durable": EVENT_OUTCOME_FINALIZED in types,
         "trainer_consumed_durable": EVENT_TRAINER_CONSUMED in types,
