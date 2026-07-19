@@ -225,6 +225,81 @@ def test_non_orderbook_source_with_causal_available_at_is_admitted() -> None:
     assert record.temporal_rejection_reasons == ()
 
 
+def test_exact_zero_from_primary_snapshot_is_not_replaced_by_fallbacks() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "features_latest": {
+                "feature_snapshot_id": "zero-is-observed",
+                "available_at": "2026-07-18T11:59:59Z",
+                "features": {
+                    "rsi_14": 0.0,
+                    "bid_ask_spread_bps": 0.0,
+                    "depth_imbalance": 0.0,
+                },
+                "rsi_14": 51.0,
+            },
+            "features_ta": {
+                "available_at": "2026-07-18T11:59:59Z",
+                "indicators": {"rsi_14": 61.0},
+            },
+            "orderbook": {
+                "available_at": "2026-07-18T11:59:59Z",
+                "best_bid": 100.0,
+                "best_ask": 100.1,
+                "best_bid_size": 9.0,
+                "best_ask_size": 1.0,
+            },
+        },
+    )
+
+    fields = _fields(record)
+    missing = _missing(record)
+    assert fields["rsi_14"] == 0.0
+    assert fields["bid_ask_spread_bps"] == 0.0
+    assert fields["depth_imbalance"] == 0.0
+    assert missing["rsi_14"] == 0
+    assert missing["bid_ask_spread_bps"] == 0
+    assert missing["depth_imbalance"] == 0
+
+
+def test_paper_position_zero_unrealized_bps_is_not_replaced_or_fabricated() -> None:
+    builder = V2UnifiedFeatureTensorBuilder()
+    causal_position = {
+        "symbol": "BTCUSDT",
+        "unrealized_pnl_bps": 0.0,
+        "unrealized_bps": 42.0,
+        "available_at": "2026-07-18T11:59:59Z",
+    }
+
+    exact_zero = builder.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={"paper_positions": [causal_position]},
+    )
+    missing_value = builder.build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "paper_positions": [
+                {
+                    "symbol": "BTCUSDT",
+                    "available_at": "2026-07-18T11:59:59Z",
+                }
+            ]
+        },
+    )
+
+    assert _fields(exact_zero)["paper_unrealized_bps"] == 0.0
+    assert _missing(exact_zero)["paper_unrealized_bps"] == 0
+    assert _fields(missing_value)["paper_unrealized_bps"] == 0.0
+    assert _missing(missing_value)["paper_unrealized_bps"] == 1
+
+
 def test_future_liquidity_zone_cannot_escape_through_sweep_risk_alias() -> None:
     record = V2UnifiedFeatureTensorBuilder().build(
         symbol="BTCUSDT",

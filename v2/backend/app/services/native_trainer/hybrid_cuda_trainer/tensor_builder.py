@@ -1497,14 +1497,12 @@ class V2UnifiedFeatureTensorBuilder:
         )
         derived_unrealized_bps = None
         if _position_rows:
-            try:
-                derived_unrealized_bps = float(
-                    _position_rows[0].get("unrealized_pnl_bps")
-                    or _position_rows[0].get("unrealized_bps")
-                    or 0.0
+            derived_unrealized_bps = _finite_float(
+                _first_present(
+                    _position_rows[0].get("unrealized_pnl_bps"),
+                    _position_rows[0].get("unrealized_bps"),
                 )
-            except (TypeError, ValueError):
-                derived_unrealized_bps = 0.0
+            )
         elif isinstance(paper_positions, list):
             derived_unrealized_bps = 0.0
         derived_risk_allow_rate = _allow_rate(risk, "risk_action", "action", "decision")
@@ -1966,7 +1964,11 @@ class V2UnifiedFeatureTensorBuilder:
         for name, _source in FEATURE_SPEC:
             if name in raw_by_name:
                 continue
-            raw_by_name[name] = _dig(latest_features, name) or _dig(latest, name) or _dig(ta_indicators, name)
+            raw_by_name[name] = _first_present(
+                _dig(latest_features, name),
+                _dig(latest, name),
+                _dig(ta_indicators, name),
+            )
         # WI feature-expansion: populate the taf_* TA features from the full TA-Lib
         # payload (v2:features:ta_full, already computed by v2_full_talib_ta_loop) via
         # the taf_->indicator name map. A missing indicator stays None -> honest
@@ -2027,10 +2029,23 @@ class V2UnifiedFeatureTensorBuilder:
             for taf_name, indicator_name in TA_FULL_FEATURE_MAP.items():
                 if raw_by_name.get(taf_name) is None:
                     raw_by_name[taf_name] = ta_full_indicators.get(indicator_name)
-        raw_by_name["bid_ask_spread_bps"] = raw_by_name["bid_ask_spread_bps"] or raw_by_name["orderbook_spread_bps"]
-        raw_by_name["depth_imbalance"] = raw_by_name["depth_imbalance"] or raw_by_name["orderbook_depth_imbalance"]
-        raw_by_name["micro_price"] = raw_by_name["micro_price"] or _dig(micro, "micro_price")
-        raw_by_name["toxicity_proxy"] = raw_by_name["toxicity_proxy"] or _dig(latest_features, "toxicity_proxy") or _dig(micro, "toxicity_proxy")
+        raw_by_name["bid_ask_spread_bps"] = _first_present(
+            raw_by_name["bid_ask_spread_bps"],
+            raw_by_name["orderbook_spread_bps"],
+        )
+        raw_by_name["depth_imbalance"] = _first_present(
+            raw_by_name["depth_imbalance"],
+            raw_by_name["orderbook_depth_imbalance"],
+        )
+        raw_by_name["micro_price"] = _first_present(
+            raw_by_name["micro_price"],
+            _dig(micro, "micro_price"),
+        )
+        raw_by_name["toxicity_proxy"] = _first_present(
+            raw_by_name["toxicity_proxy"],
+            _dig(latest_features, "toxicity_proxy"),
+            _dig(micro, "toxicity_proxy"),
+        )
         if raw_by_name.get("range_pct") is None:
             raw_by_name["range_pct"] = kline_range_pct
         if raw_by_name.get("body_pct") is None:
