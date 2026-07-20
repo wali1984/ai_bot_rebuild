@@ -9,14 +9,21 @@ contracts silently.
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
+from app.services.smart_money_wallets.canonical_cache import read_canonical_records
+from app.services.smart_money_wallets.endpoint_registry import (
+    MORALIS_EVM_CHAIN_ALIASES,
+    MORALIS_EVM_CHAIN_PARAMS,
+)
 
-TOKEN_MAP_KEY = "v2:moralis:token_map:{symbol}"
-TOKEN_MAP_STATUS_KEY = "v2:moralis:token_map_status"
+TOKEN_MAP_KEY = "v2:moralis:token_map:{symbol}"  # noqa: S105 - Redis key template
+TOKEN_MAP_STATUS_KEY = "v2:moralis:token_map_status"  # noqa: S105 - Redis key name
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[4] / "config" / "moralis" / "token_contract_map.yaml"
 SUPPORTED_CHAINS = {
     "arbitrum",
@@ -30,6 +37,8 @@ SUPPORTED_CHAINS = {
 }
 NATIVE_CONTRACT = "native"
 POLLABLE_MIN_CONFIDENCE = 0.80
+_TRADING_SYMBOL = re.compile(r"[A-Z0-9]{2,32}")
+_EVM_ADDRESS = re.compile(r"0x[0-9a-f]{40}")
 
 
 @dataclass(frozen=True)
@@ -81,7 +90,8 @@ class TokenContract:
 
 def load_token_contract_map(path: Path | str = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
     payload = _load_json_yaml(Path(path))
-    tokens = payload.get("tokens") if isinstance(payload.get("tokens"), list) else []
+    token_rows = payload.get("tokens")
+    tokens: list[Any] = token_rows if isinstance(token_rows, list) else []
     rows: dict[str, dict[str, Any]] = {}
     for item in tokens:
         if not isinstance(item, Mapping):
@@ -192,24 +202,215 @@ def read_pollable_tokens(redis_client: Any | None, *, symbol: str | None = None)
     if redis_client is None:
         return []
     symbols = [_symbol(symbol)] if symbol else _scan_token_symbols(redis_client)
+    authoritative = load_token_contract_map().get("symbols") or {}
     out: list[dict[str, str]] = []
     for item in symbols:
         if not item:
             continue
         payload = _read_json(redis_client, TOKEN_MAP_KEY.format(symbol=item))
-        if not isinstance(payload, Mapping):
+        seed_row = authoritative.get(item) if isinstance(authoritative, Mapping) else None
+        if payload is None or not _verified_symbol_payload(
+            payload,
+            seed_row=seed_row,
+            expected_symbol=item,
+        ):
             continue
         for contract in payload.get("contracts") or []:
-            if not isinstance(contract, Mapping) or contract.get("pollable") is not True:
+            if not isinstance(contract, Mapping):
+                continue
+            seed_contract = _matching_seed_contract(seed_row, contract)
+            if not _verified_pollable_contract(contract, seed_contract=seed_contract):
+                continue
+            cache = read_canonical_records(
+                redis_client,
+                endpoint_id="token_metadata",
+                chain=contract.get("chain"),
+                token=contract.get("contract_address"),
+            )
+            if not cache.ready or not _metadata_records_match(cache.records, contract):
                 continue
             out.append(
                 {
-                    "symbol": str(payload.get("symbol") or item),
-                    "chain": str(contract.get("chain") or ""),
-                    "token": str(contract.get("contract_address") or ""),
+                    "symbol": item,
+                    "chain": _evm_chain(contract.get("chain")),
+                    "token": str(contract.get("contract_address") or "").lower(),
+                    "metadata_available_at": str(cache.available_at or ""),
+                    "metadata_expires_at": str(cache.expires_at or ""),
+                    "metadata_envelope_sha256": str(cache.envelope_sha256 or ""),
                 }
             )
     return [row for row in out if row["chain"] and row["token"]]
+
+
+def read_metadata_validation_tokens(
+    redis_client: Any | None,
+    *,
+    symbol: str | None = None,
+) -> list[dict[str, str]]:
+    """Return source-bound EVM contracts eligible only for metadata polling.
+
+    These rows are intentionally broader than ``read_pollable_tokens`` so the
+    canonical scheduler can create the evidence needed to promote a new map.
+    They must never be used by holder/transfer/price endpoints before metadata
+    verification succeeds.
+    """
+
+    if redis_client is None:
+        return []
+    symbols = [_symbol(symbol)] if symbol else _scan_token_symbols(redis_client)
+    authoritative = load_token_contract_map().get("symbols") or {}
+    out: list[dict[str, str]] = []
+    for item in symbols:
+        if not item or _TRADING_SYMBOL.fullmatch(item) is None:
+            continue
+        payload = _read_json(redis_client, TOKEN_MAP_KEY.format(symbol=item))
+        seed_row = authoritative.get(item) if isinstance(authoritative, Mapping) else None
+        if payload is None or not _source_bound_symbol_payload(
+            payload,
+            seed_row=seed_row,
+            expected_symbol=item,
+        ):
+            continue
+        for contract in payload.get("contracts") or []:
+            if not isinstance(contract, Mapping):
+                continue
+            seed_contract = _matching_seed_contract(seed_row, contract)
+            if not _metadata_candidate_contract(contract, seed_contract=seed_contract):
+                continue
+            out.append(
+                {
+                    "symbol": item,
+                    "chain": _evm_chain(contract.get("chain")),
+                    "token": str(contract.get("contract_address") or "").lower(),
+                }
+            )
+    return [row for row in out if row["chain"] and row["token"]]
+
+
+def _verified_symbol_payload(
+    payload: Mapping[str, Any] | None,
+    *,
+    seed_row: object,
+    expected_symbol: str,
+) -> bool:
+    return bool(
+        _source_bound_symbol_payload(
+            payload,
+            seed_row=seed_row,
+            expected_symbol=expected_symbol,
+        )
+        and payload is not None
+        and payload.get("validation_errors") == []
+        and payload.get("manual_review_required") is False
+        and payload.get("tradeable_mapping_status") == "VERIFIED"
+    )
+
+
+def _source_bound_symbol_payload(
+    payload: Mapping[str, Any] | None,
+    *,
+    seed_row: object,
+    expected_symbol: str,
+) -> bool:
+    if not isinstance(payload, Mapping) or not isinstance(seed_row, Mapping):
+        return False
+    if (
+        payload.get("schema_version") != "moralis_token_map_symbol_v1"
+        or _TRADING_SYMBOL.fullmatch(expected_symbol) is None
+        or payload.get("symbol") != expected_symbol
+        or seed_row.get("symbol") != expected_symbol
+        or payload.get("base_asset") != seed_row.get("base_asset")
+        or str(payload.get("primary_chain") or "").lower()
+        != str(seed_row.get("primary_chain") or "").lower()
+        or not isinstance(payload.get("contracts"), list)
+    ):
+        return False
+    return True
+
+
+def _matching_seed_contract(
+    seed_row: object,
+    contract: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    if not isinstance(seed_row, Mapping):
+        return None
+    chain = str(contract.get("chain") or "").lower()
+    address = str(contract.get("contract_address") or "").lower()
+    for candidate in seed_row.get("contracts") or []:
+        if not isinstance(candidate, Mapping):
+            continue
+        if (
+            str(candidate.get("chain") or "").lower() == chain
+            and str(candidate.get("contract_address") or "").lower() == address
+        ):
+            return candidate
+    return None
+
+
+def _metadata_candidate_contract(
+    contract: Mapping[str, Any],
+    *,
+    seed_contract: Mapping[str, Any] | None,
+) -> bool:
+    if not isinstance(seed_contract, Mapping):
+        return False
+    chain = _evm_chain(contract.get("chain"))
+    address = str(contract.get("contract_address") or "").lower()
+    source = str(contract.get("mapping_source") or "")
+    seed_source = str(seed_contract.get("mapping_source") or "")
+    return bool(
+        chain in MORALIS_EVM_CHAIN_PARAMS
+        and _EVM_ADDRESS.fullmatch(address)
+        and contract.get("moralis_supported") is True
+        and contract.get("token_endpoint_supported") is True
+        and _float(contract.get("mapping_confidence")) >= POLLABLE_MIN_CONFIDENCE
+        and source
+        and seed_source
+        and source.startswith(seed_source)
+        and str(contract.get("token_symbol") or "").upper()
+        == str(seed_contract.get("token_symbol") or "").upper()
+        and (
+            seed_contract.get("decimals") is None
+            or contract.get("decimals") == seed_contract.get("decimals")
+        )
+        and contract.get("tradeable_mapping_status")
+        not in {"INVALID_METADATA_MISMATCH", "METADATA_VALIDATION_UNSUPPORTED_CHAIN"}
+    )
+
+
+def _verified_pollable_contract(
+    contract: Mapping[str, Any],
+    *,
+    seed_contract: Mapping[str, Any] | None,
+) -> bool:
+    return bool(
+        _metadata_candidate_contract(contract, seed_contract=seed_contract)
+        and contract.get("pollable") is True
+        and contract.get("manual_review_required") is False
+        and contract.get("tradeable_mapping_status") == "VERIFIED"
+        and contract.get("metadata_verified") is True
+    )
+
+
+def _metadata_records_match(
+    records: Iterable[Mapping[str, Any]],
+    contract: Mapping[str, Any],
+) -> bool:
+    address = str(contract.get("contract_address") or "").lower()
+    expected_symbol = str(contract.get("token_symbol") or "").upper()
+    expected_decimals = contract.get("decimals")
+    for row in records:
+        if str(row.get("address") or "").lower() != address:
+            continue
+        if str(row.get("symbol") or "").upper() != expected_symbol:
+            return False
+        return expected_decimals is None or str(row.get("decimals")) == str(expected_decimals)
+    return False
+
+
+def _evm_chain(value: object) -> str:
+    raw = str(value or "").strip().lower()
+    return MORALIS_EVM_CHAIN_ALIASES.get(raw, raw)
 
 
 def _contract_from_row(symbol: str, item: Mapping[str, Any], contract: Mapping[str, Any]) -> TokenContract:
@@ -312,4 +513,4 @@ def _float(value: Any) -> float:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")

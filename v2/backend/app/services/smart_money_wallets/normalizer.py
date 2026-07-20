@@ -8,6 +8,9 @@ from typing import Any
 
 from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
 
+_INBOUND_DIRECTIONS = frozenset({"in", "inbound", "incoming", "receive", "received"})
+_OUTBOUND_DIRECTIONS = frozenset({"out", "outbound", "outgoing", "send", "sent"})
+
 
 def normalize_moralis_payload(
     *,
@@ -19,6 +22,7 @@ def normalize_moralis_payload(
     payload: Any,
 ) -> dict[str, Any]:
     rows = _rows(payload)
+    canonical_records = _canonical_cache_projection(spec.group, rows)
     features: dict[str, float] = {}
     if spec.group in {"wallet_balances", "wallet_token_balances_price"}:
         usd_value = sum(_float(row.get("usd_value")) or 0.0 for row in rows)
@@ -94,6 +98,12 @@ def normalize_moralis_payload(
         "event_time": _event_time(rows),
         "generated_at": _now(),
         "features": features,
+        # Bounded, endpoint-specific public-chain records are retained so
+        # metadata validation and wallet bootstrap can consume the canonical
+        # scheduler result without owning another HTTP/CU path.  This is a
+        # projection, never an unbounded copy of the provider response.
+        "canonical_records": canonical_records,
+        "canonical_record_count": len(canonical_records),
         "actual_payload_present": actual,
         "heartbeat_only": not actual,
         "core_system_blocked": False,
@@ -125,17 +135,50 @@ def _flow_usd(rows: list[Mapping[str, Any]]) -> tuple[float, float]:
     in_usd = 0.0
     out_usd = 0.0
     for row in rows:
-        value = (
-            _float(row.get("value_usd") or row.get("usd_value") or row.get("value_decimal")) or 0.0
-        )
-        direction = str(row.get("direction") or row.get("category") or "").lower()
-        if "in" in direction:
+        # ``value_decimal`` is a token quantity, not a USD amount.  Treating it
+        # as USD silently changes units and can fabricate flow magnitude.
+        value = _float(row.get("value_usd") or row.get("usd_value")) or 0.0
+        # Direction is accepted only from the explicit direction field and only
+        # for an exact semantic value. ``category`` describes activity type, not
+        # flow direction; substring matching misclassified values such as
+        # ``mint`` and ``without_context``.
+        direction = str(row.get("direction") or "").strip().lower()
+        if direction in _INBOUND_DIRECTIONS:
             in_usd += value
-        elif "out" in direction:
+        elif direction in _OUTBOUND_DIRECTIONS:
             out_usd += value
-        else:
-            out_usd += value
+        # Unknown direction is deliberately omitted rather than defaulted to
+        # outflow.  The feature remains masked when no semantically valid rows
+        # contribute.
     return in_usd, out_usd
+
+
+def _canonical_cache_projection(
+    group: str,
+    rows: list[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    fields: tuple[str, ...]
+    if group == "token_metadata":
+        fields = ("address", "name", "symbol", "decimals")
+    elif group == "token_holders":
+        fields = (
+            "owner_address",
+            "owner_address_label",
+            "is_contract",
+            "usd_value",
+            "balance",
+            "balance_decimal",
+            "balance_formatted",
+        )
+    else:
+        return []
+    # Provider pagination already bounds a response.  Keep a second local
+    # safety bound so a malformed response cannot create an unbounded Redis
+    # envelope; bootstrap applies its requested rank limit after this read.
+    return [
+        {field: row.get(field) for field in fields if field in row}
+        for row in rows[:250]
+    ]
 
 
 def _swap_usd(rows: list[Mapping[str, Any]]) -> tuple[float, float]:

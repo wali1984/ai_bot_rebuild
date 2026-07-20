@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -24,15 +24,50 @@ from app.services.smart_money_wallets.cu_budget import (
 )
 
 BACKOFF_STATE_KEY = "v2:provider:moralis:backoff"
+DISTRIBUTED_RPS_WINDOW_PREFIX = "v2:provider:moralis:rps_window"
 
+_DISTRIBUTED_RPS_SCRIPT = """
+local now = redis.call('TIME')
+local window_key = KEYS[1] .. ':' .. now[1]
+local count = redis.call('INCR', window_key)
+if count == 1 then
+  redis.call('EXPIRE', window_key, 2)
+end
+if count > tonumber(ARGV[1]) then
+  return {0, count}
+end
+return {1, count}
+"""
+
+MORALIS_DOCUMENTED_PUBLIC_RPS_LIMIT = 40
+MORALIS_DOCUMENTED_MONTHLY_CU_LIMIT = 2_000_000
+# A fixed UTC-second limiter can overlap five buckets inside an arbitrary
+# rolling four-second provider window. Thirty per bucket bounds that worst case
+# at 150 requests, below the documented 160-request four-second allowance.
+MORALIS_FIXED_WINDOW_SAFE_RPS_LIMIT = 30
 MORALIS_PLAN = os.getenv("MORALIS_PLAN", "starter")
-MORALIS_PUBLIC_RPS = int(os.getenv("MORALIS_PUBLIC_RPS", "40"))
-MORALIS_PUBLIC_CU_MONTHLY = int(os.getenv("MORALIS_PUBLIC_CU_MONTHLY", "2000000"))
-MORALIS_DAILY_CU_BUDGET = int(os.getenv("MORALIS_DAILY_CU_BUDGET", "55000"))
-MORALIS_DAILY_CU_RESERVE = int(os.getenv("MORALIS_DAILY_CU_RESERVE", "10000"))
+MORALIS_PUBLIC_RPS = min(
+    MORALIS_DOCUMENTED_PUBLIC_RPS_LIMIT,
+    max(1, int(os.getenv("MORALIS_PUBLIC_RPS", "40"))),
+)
+MORALIS_PUBLIC_CU_MONTHLY = min(
+    MORALIS_DOCUMENTED_MONTHLY_CU_LIMIT,
+    max(1, int(os.getenv("MORALIS_PUBLIC_CU_MONTHLY", "2000000"))),
+)
+MORALIS_DAILY_CU_BUDGET = min(
+    MORALIS_PUBLIC_CU_MONTHLY,
+    max(0, int(os.getenv("MORALIS_DAILY_CU_BUDGET", "55000"))),
+)
+MORALIS_DAILY_CU_RESERVE = min(
+    MORALIS_DAILY_CU_BUDGET,
+    max(0, int(os.getenv("MORALIS_DAILY_CU_RESERVE", "10000"))),
+)
 MORALIS_NORMAL_RPS = int(os.getenv("MORALIS_NORMAL_RPS", "5"))
 MORALIS_CATCHUP_RPS = int(os.getenv("MORALIS_CATCHUP_RPS", "10"))
-MORALIS_HARD_RPS = int(os.getenv("MORALIS_HARD_RPS", "30"))
+MORALIS_HARD_RPS = min(
+    MORALIS_FIXED_WINDOW_SAFE_RPS_LIMIT,
+    max(1, int(os.getenv("MORALIS_HARD_RPS", "30"))),
+)
 MORALIS_TIMEOUT_SECONDS = float(os.getenv("MORALIS_TIMEOUT_SECONDS", "10"))
 MORALIS_BACKOFF_ON_429_SECONDS = int(os.getenv("MORALIS_BACKOFF_ON_429_SECONDS", "120"))
 MORALIS_BACKOFF_ON_402_403_SECONDS = int(os.getenv("MORALIS_BACKOFF_ON_402_403_SECONDS", "3600"))
@@ -46,7 +81,7 @@ class MoralisRequestDecision:
     reservation: MoralisCuReservationOutcome | None = None
     actual_cu_from_headers: int | None = None
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[bool | str]:
         yield self.allowed
         yield self.reason
 
@@ -67,7 +102,15 @@ class MoralisRateLimiter:
     ) -> None:
         del _ledger
         selected_rps = rps if rps is not None else _rps_for_mode(mode)
-        self.rps = min(int(selected_rps), MORALIS_HARD_RPS, MORALIS_PUBLIC_RPS)
+        self.rps = max(
+            1,
+            min(
+                int(selected_rps),
+                MORALIS_HARD_RPS,
+                MORALIS_PUBLIC_RPS,
+                MORALIS_FIXED_WINDOW_SAFE_RPS_LIMIT,
+            ),
+        )
         self.bucket = TokenBucket(
             capacity=float(self.rps),
             refill_per_second=float(self.rps),
@@ -82,7 +125,10 @@ class MoralisRateLimiter:
         self.cu = (
             MoralisCuBudget(
                 redis_client,
-                monthly_limit=MORALIS_PUBLIC_CU_MONTHLY,
+                monthly_limit=min(
+                    MORALIS_PUBLIC_CU_MONTHLY,
+                    MORALIS_DOCUMENTED_MONTHLY_CU_LIMIT,
+                ),
                 daily_hard_cap=max(0, MORALIS_DAILY_CU_BUDGET - MORALIS_DAILY_CU_RESERVE),
                 now_factory=ledger_now_factory,
             )
@@ -93,6 +139,9 @@ class MoralisRateLimiter:
         self._pending_actual_cu: int | None = None
         self._last_reconciliation: MoralisCuReconciliationOutcome | None = None
         self._ledger_health_reason = "READY" if self.cu is not None else "CU_LEDGER_NOT_CONFIGURED"
+        self._distributed_rps_health_reason = (
+            "READY" if redis_client is not None else "RPS_LEDGER_NOT_CONFIGURED"
+        )
         if self.cu is not None:
             snapshot = self.cu.snapshot()
             if snapshot.available:
@@ -145,6 +194,15 @@ class MoralisRateLimiter:
             return MoralisRequestDecision(False, str(self.backoff.reason), estimate)
         if not self.bucket.consume(1.0):
             return MoralisRequestDecision(False, "RPS_CAP", estimate)
+
+        # Every Redis-backed Moralis caller shares this provider-wide window.
+        # The local bucket still smooths a single process; this atomic guard
+        # prevents canonical, bootstrap, and any operator process from each
+        # independently consuming the advertised RPS allowance.
+        if self.redis is not None:
+            distributed_rps_reason = self._consume_distributed_rps()
+            if distributed_rps_reason is not None:
+                return MoralisRequestDecision(False, distributed_rps_reason, estimate)
 
         if self.cu is None:
             if self.require_persistent_ledger:
@@ -286,7 +344,17 @@ class MoralisRateLimiter:
             "catchup_rps": MORALIS_CATCHUP_RPS,
             "hard_rps": MORALIS_HARD_RPS,
             "current_rps": self.rps,
+            "self_imposed_rps_window_seconds": 1,
+            "self_imposed_rps_policy": "FIXED_UTC_SECOND_ATOMIC_REDIS_WINDOW",
+            "provider_documented_rps_window_seconds": 4,
+            "provider_documented_rps_semantics": "REQUESTS_PER_SECOND_OVER_ROLLING_FOUR_SECONDS",
+            "fixed_window_rolling_safe_rps_limit": (
+                MORALIS_FIXED_WINDOW_SAFE_RPS_LIMIT
+            ),
             "tokens_available": snap.tokens_available,
+            "distributed_rps_guard": self.redis is not None,
+            "distributed_rps_guard_required": self.redis is not None,
+            "distributed_rps_guard_reason": self._distributed_rps_health_reason,
             "timeout_seconds": MORALIS_TIMEOUT_SECONDS,
             "compute_budget": self.budget.as_dict(),
             "persistent_cu_ledger": persistent,
@@ -300,6 +368,7 @@ class MoralisRateLimiter:
                 or reconciliation_pending
                 or request_in_flight
                 or self._ledger_health_reason != "READY"
+                or self._distributed_rps_health_reason != "READY"
             ),
             "pending_reservation": reservation_as_dict(self._pending_reservation),
             "request_in_flight": request_in_flight,
@@ -311,11 +380,33 @@ class MoralisRateLimiter:
             "core_system_blocked": False,
         }
 
+    def _consume_distributed_rps(self) -> str | None:
+        if self.redis is None:
+            return None
+        try:
+            raw = self.redis.eval(
+                _DISTRIBUTED_RPS_SCRIPT,
+                1,
+                DISTRIBUTED_RPS_WINDOW_PREFIX,
+                self.rps,
+            )
+            if not isinstance(raw, list | tuple) or len(raw) != 2:
+                self._distributed_rps_health_reason = "RPS_LEDGER_INVALID_RESPONSE"
+                return self._distributed_rps_health_reason
+            allowed = int(raw[0]) == 1
+        except Exception:
+            self._distributed_rps_health_reason = "RPS_LEDGER_UNAVAILABLE"
+            return self._distributed_rps_health_reason
+        self._distributed_rps_health_reason = "READY"
+        return None if allowed else "DISTRIBUTED_RPS_CAP"
+
     def _persistent_ledger_snapshot(self) -> dict[str, object] | None:
         if self.cu is None:
             return None
         snapshot = self.cu.snapshot()
         if snapshot.available:
+            if self._pending_actual_cu is None and self._pending_reservation is None:
+                self._ledger_health_reason = "READY"
             self._sync_local_budget(
                 day_spent=snapshot.day_spent_cu,
                 month_spent=snapshot.month_spent_cu,

@@ -9,6 +9,19 @@ MORALIS_DATA_API_CU_PRICING_SOURCE = "https://docs.moralis.com/data-api/pricing"
 MORALIS_STREAMS_CU_PRICING_SOURCE = "https://docs.moralis.com/streams/pricing"
 MORALIS_CU_PRICING_VERIFIED_ON = "2026-07-19"
 MORALIS_DEEP_INDEX_BASE_URL = "https://deep-index.moralis.io/api/v2.2"
+MORALIS_SCHEDULER_STATUS_KEY = "v2:provider:moralis:scheduler_status"
+MORALIS_EVM_CHAIN_ALIASES = {
+    "arbitrum": "arbitrum",
+    "avalanche": "avalanche",
+    "base": "base",
+    "binance-smart-chain": "bsc",
+    "bsc": "bsc",
+    "eth": "eth",
+    "ethereum": "eth",
+    "optimism": "optimism",
+    "polygon": "polygon",
+}
+MORALIS_EVM_CHAIN_PARAMS = frozenset(MORALIS_EVM_CHAIN_ALIASES.values())
 
 
 @dataclass(frozen=True)
@@ -34,6 +47,7 @@ class MoralisEndpointSpec:
     cu_cost_unit: str = "PER_REQUEST"
     polling_supported: bool = True
     polling_block_reason: str | None = None
+    transport_alias_of: str | None = None
     contract_reference: str = MORALIS_DATA_API_CU_PRICING_SOURCE
 
     def as_dict(self) -> dict[str, Any]:
@@ -218,7 +232,9 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             query_parameter_shape=("chain={chain}",),
             request_body_shape=None,
             cu_cost_unit="PER_REQUEST",
-            polling_supported=True,
+            polling_supported=False,
+            polling_block_reason="DUPLICATE_TRANSPORT_ALIAS_NOT_DIRECTLY_POLLED",
+            transport_alias_of="token_transfers",
             contract_reference=(
                 "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers"
             ),

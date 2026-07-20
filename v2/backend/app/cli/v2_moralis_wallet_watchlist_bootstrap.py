@@ -1,8 +1,8 @@
 """Bootstrap the Moralis wallet watchlist from on-chain evidence.
 
-For every VERIFIED+pollable token in the map, pulls top ERC20 holders and
-recent transfer participants from Moralis (CU-charged against the daily
-budget), classifies every address through the exclusion system (exchange /
+For every VERIFIED+pollable token in the map, consumes the canonical
+scheduler's fresh ERC20-holder cache, classifies every address
+through the exclusion system (exchange /
 bridge / contract wallets are recorded as exclusions, never smart money), and
 tiers the survivors:
 
@@ -18,25 +18,25 @@ Writes the seed file + publishes v2:moralis:wallet_watchlist.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
-from datetime import datetime, timezone
+import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.services.smart_money_wallets.budgeted_http import (
-    MoralisBudgetedHttpResult,
-    budgeted_moralis_get_json,
-)
+from app.services.smart_money_wallets.canonical_cache import read_canonical_records
+from app.services.smart_money_wallets.client import prepare_request_identity
 from app.services.smart_money_wallets.endpoint_registry import moralis_endpoint_registry
-from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
+from app.services.smart_money_wallets.token_contract_mapper import read_pollable_tokens
 
 BASE = "https://deep-index.moralis.io/api/v2.2"
-CHAIN_PARAM = {"ethereum": "eth", "arbitrum": "arbitrum", "optimism": "optimism", "bsc": "bsc"}
 SEED_PATH = Path("v2/config/moralis/wallet_watchlist_seed.yaml")
-_ENDPOINT_COSTS = {spec.endpoint_id: int(spec.cu_cost) for spec in moralis_endpoint_registry()}
-HOLDERS_CU = _ENDPOINT_COSTS["token_holders"]
-TRANSFERS_CU = _ENDPOINT_COSTS["token_address_transfers"]
+_ENDPOINT_SPECS = {spec.endpoint_id: spec for spec in moralis_endpoint_registry()}
+_TOKEN_IDENTITY_SPEC = _ENDPOINT_SPECS["token_holders"]
+_WALLET_IDENTITY_SPEC = _ENDPOINT_SPECS["wallet_transactions"]
+_SYMBOL = re.compile(r"[A-Z0-9]{2,32}")
 T0_CAP = 20
 T1_CAP = 250
 
@@ -49,19 +49,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--transfers-per-token", type=int, default=50)
     args = parser.parse_args(argv)
     try:
-        from v2.backend.app.services.safe_env_loader import bootstrap_process_env
+        from v2.backend.app.services.safe_env_loader import (  # type: ignore[import-untyped]
+            bootstrap_process_env,
+        )
 
         bootstrap_process_env(apply=True)
-    except Exception:
+    except Exception:  # noqa: S110 - optional environment bootstrap
         pass
-    api_key = os.environ.get("MORALIS_API_KEY", "")
-    if not api_key:
-        print(json.dumps({"status": "BLOCKED", "reason": "MORALIS_API_KEY_ABSENT"}))
-        return 2
     r = _redis_client(args.redis_url)
     report = bootstrap_watchlist(
         r,
-        api_key=api_key,
         holders_per_token=args.holders_per_token,
         transfers_per_token=args.transfers_per_token,
     )
@@ -71,60 +68,91 @@ def main(argv: list[str] | None = None) -> int:
         (out / "wallet_watchlist_bootstrap.json").write_text(
             json.dumps(report, indent=2, sort_keys=True, default=str) + "\n", encoding="utf-8"
         )
-    print(json.dumps({k: report[k] for k in ("status", "t0_count", "t1_count", "excluded_count", "cu_spent")}, sort_keys=True))
+    summary_keys = ("status", "t0_count", "t1_count", "excluded_count", "cu_spent")
+    print(json.dumps({key: report[key] for key in summary_keys}, sort_keys=True))
     return 0
 
 
 def bootstrap_watchlist(
     r: Any,
     *,
-    api_key: str,
+    api_key: str = "",
     holders_per_token: int = 20,
     transfers_per_token: int = 50,
-    limiter: MoralisRateLimiter | None = None,
+    limiter: Any | None = None,
     http_client: Any | None = None,
 ) -> dict[str, Any]:
-    from v2.backend.app.services.smart_money_wallets.address_classifier import (
+    # Kept in the callable contract for existing operators.  Token-transfer
+    # polling is exclusively owned by the canonical scheduler, so bootstrap
+    # never dispatches that duplicate transport.
+    del api_key, transfers_per_token, limiter, http_client
+    from v2.backend.app.services.smart_money_wallets.address_classifier import (  # type: ignore[import-untyped]
         classify_address,
     )
-    from v2.backend.app.services.smart_money_wallets.wallet_watchlist import (
+    from v2.backend.app.services.smart_money_wallets.wallet_watchlist import (  # type: ignore[import-untyped]
         publish_wallet_watchlist,
     )
 
     now = _now()
-    request_limiter = limiter or MoralisRateLimiter(redis_client=r, mode="catchup")
     tokens = _pollable_tokens(r)
-    evidence: dict[str, dict[str, Any]] = {}
+    evidence: dict[tuple[str, str], dict[str, Any]] = {}
     excluded: list[dict[str, Any]] = []
+    quarantined_tokens: list[dict[str, Any]] = []
+    invalid_provider_address_count = 0
     cu_spent = 0
     tokens_polled = 0
+    canonical_cache_hit_count = 0
 
     for token in tokens:
-        chain = CHAIN_PARAM.get(str(token["chain"]).lower())
-        if chain is None:
-            continue
-        contract = token["contract_address"]
-        symbol = token["symbol"]
-        holders_outcome = _get(
-            api_key,
-            f"/erc20/{contract}/owners",
-            endpoint_id="token_holders",
-            estimated_cu=HOLDERS_CU,
-            limiter=request_limiter,
-            http_client=http_client,
-            chain=chain,
-            limit=holders_per_token,
-            order="DESC",
+        raw_contract = token.get("contract_address")
+        symbol = str(token.get("symbol") or "").strip().upper()
+        identity = prepare_request_identity(
+            _TOKEN_IDENTITY_SPEC,
+            chain=token.get("chain"),
+            token=raw_contract,
         )
-        if not holders_outcome.request_dispatched:
-            break
-        cu_spent += holders_outcome.accounted_cu
+        if identity.error_class is not None or _SYMBOL.fullmatch(symbol) is None:
+            quarantined_tokens.append(
+                {
+                    "reason": identity.error_class or "SYMBOL_INVALID",
+                    "target_fingerprint": _fingerprint(raw_contract),
+                }
+            )
+            continue
+        chain = identity.chain
+        contract = identity.token
+        if contract is None:
+            quarantined_tokens.append(
+                {
+                    "reason": "TOKEN_REQUIRED",
+                    "target_fingerprint": _fingerprint(raw_contract),
+                }
+            )
+            continue
+        cached_holders = read_canonical_records(
+            r,
+            endpoint_id="token_holders",
+            chain=chain,
+            token=contract,
+        )
+        if not cached_holders.ready:
+            quarantined_tokens.append(
+                {
+                    "reason": cached_holders.reason,
+                    "target_fingerprint": _fingerprint(contract),
+                }
+            )
+            continue
         tokens_polled += 1
+        canonical_cache_hit_count += 1
 
-        holders = holders_outcome.payload if holders_outcome.ok else None
-        for rank, row in enumerate((holders or {}).get("result") or [], start=1):
-            address = str(row.get("owner_address") or "").lower()
-            if not address:
+        for rank, row in enumerate(
+            cached_holders.records[: max(0, int(holders_per_token))],
+            start=1,
+        ):
+            address = _validated_wallet_address(chain, row.get("owner_address"))
+            if address is None:
+                invalid_provider_address_count += 1
                 continue
             meta = {
                 "is_contract": bool(row.get("is_contract")),
@@ -132,10 +160,17 @@ def bootstrap_watchlist(
             }
             cls = classify_address(chain=chain, address=address, metadata=meta)
             if not cls.get("smart_wallet_eligible"):
-                excluded.append({"address": address, "chain": chain, "category": cls.get("category"),
-                                 "label": cls.get("label"), "source": f"top_holder:{symbol}:rank={rank}"})
+                excluded.append(
+                    {
+                        "address": address,
+                        "chain": chain,
+                        "category": cls.get("category"),
+                        "label": cls.get("label"),
+                        "source": f"top_holder:{symbol}:rank={rank}",
+                    }
+                )
                 continue
-            entry = evidence.setdefault(address, {
+            entry = evidence.setdefault((chain, address), {
                 "address": address, "chain": chain, "sources": [], "tokens": set(),
                 "holder_best_rank": None, "holder_usd": 0.0, "transfer_hits": 0,
                 "label": row.get("owner_address_label"),
@@ -146,42 +181,6 @@ def bootstrap_watchlist(
             usd = _f(row.get("usd_value"))
             if usd:
                 entry["holder_usd"] = max(entry["holder_usd"], usd)
-
-        transfers_outcome = _get(
-            api_key,
-            f"/erc20/{contract}/transfers",
-            endpoint_id="token_address_transfers",
-            estimated_cu=TRANSFERS_CU,
-            limiter=request_limiter,
-            http_client=http_client,
-            chain=chain,
-            limit=transfers_per_token,
-            order="DESC",
-        )
-        cu_spent += transfers_outcome.accounted_cu
-        transfers = transfers_outcome.payload if transfers_outcome.ok else None
-        for row in (transfers or {}).get("result") or []:
-            for field in ("from_address", "to_address"):
-                address = str(row.get(field) or "").lower()
-                if not address:
-                    continue
-                label_field = f"{field}_label"
-                meta = {"is_contract": False, "label": row.get(label_field)}
-                cls = classify_address(chain=chain, address=address, metadata=meta)
-                if not cls.get("smart_wallet_eligible"):
-                    if cls.get("category") not in (None, "unknown"):
-                        excluded.append({"address": address, "chain": chain, "category": cls.get("category"),
-                                         "label": cls.get("label"), "source": f"transfer:{symbol}"})
-                    continue
-                entry = evidence.setdefault(address, {
-                    "address": address, "chain": chain, "sources": [], "tokens": set(),
-                    "holder_best_rank": None, "holder_usd": 0.0, "transfer_hits": 0,
-                    "label": row.get(label_field),
-                })
-                entry["transfer_hits"] += 1
-                entry["tokens"].add(symbol)
-                if f"transfer_participant:{symbol}" not in entry["sources"]:
-                    entry["sources"].append(f"transfer_participant:{symbol}")
 
     ranked = sorted(
         evidence.values(),
@@ -212,10 +211,18 @@ def bootstrap_watchlist(
         })
 
     seed = json.loads(SEED_PATH.read_text(encoding="utf-8"))
-    manual = [w for w in (seed.get("wallets") or []) if str(w.get("added_by") or "") != "v2_moralis_wallet_watchlist_bootstrap"]
+    manual = [
+        wallet
+        for wallet in (seed.get("wallets") or [])
+        if str(wallet.get("added_by") or "")
+        != "v2_moralis_wallet_watchlist_bootstrap"
+    ]
     seed["wallets"] = manual + wallets
     seed["bootstrap_generated_utc"] = now
-    SEED_PATH.write_text(json.dumps(seed, indent=2, sort_keys=False, default=str) + "\n", encoding="utf-8")
+    SEED_PATH.write_text(
+        json.dumps(seed, indent=2, sort_keys=False, default=str) + "\n",
+        encoding="utf-8",
+    )
 
     status = publish_wallet_watchlist(r, path=SEED_PATH)
     if excluded:
@@ -226,7 +233,11 @@ def bootstrap_watchlist(
         )
     t0 = sum(1 for w in wallets if w["tier"] == "T0")
     t1 = sum(1 for w in wallets if w["tier"] == "T1")
-    result_status = "WATCHLIST_READY" if (t0 + t1) else "MORALIS_WATCHLIST_INSUFFICIENT_QUALIFIED_WALLETS"
+    result_status = (
+        "WATCHLIST_READY"
+        if (t0 + t1)
+        else "MORALIS_WATCHLIST_INSUFFICIENT_QUALIFIED_WALLETS"
+    )
     return {
         "schema_version": "moralis_wallet_watchlist_bootstrap_v1",
         "generated_utc": now,
@@ -235,7 +246,15 @@ def bootstrap_watchlist(
         "t0_count": t0,
         "t1_count": t1,
         "excluded_count": len(excluded),
+        "quarantined_token_count": len(quarantined_tokens),
+        "quarantined_tokens": quarantined_tokens,
+        "invalid_provider_address_count": invalid_provider_address_count,
         "cu_spent": cu_spent,
+        "canonical_holder_cache_hit_count": canonical_cache_hit_count,
+        "holder_http_request_count": 0,
+        "token_transfer_request_count": 0,
+        "token_holder_transport_owner": "CANONICAL_PROVIDER_SCHEDULER",
+        "token_transfer_transport_owner": "CANONICAL_PROVIDER_SCHEDULER",
         "publish_status": status,
         "no_wallet_labeled_verified_smart_money": True,
         "raw_key_exposed": False,
@@ -243,45 +262,31 @@ def bootstrap_watchlist(
 
 
 def _pollable_tokens(r: Any) -> list[dict[str, str]]:
-    tokens: list[dict[str, str]] = []
-    for key in r.scan_iter("v2:moralis:token_map:*", count=500):
-        if key.endswith("_status"):
-            continue
-        try:
-            row = json.loads(r.get(key) or "{}")
-        except (TypeError, ValueError):
-            continue
-        for contract in row.get("contracts") or []:
-            if isinstance(contract, dict) and contract.get("pollable") is True:
-                tokens.append({
-                    "symbol": str(row.get("symbol")),
-                    "chain": str(contract.get("chain")),
-                    "contract_address": str(contract.get("contract_address")),
-                })
-    return tokens
+    return [
+        {
+            "symbol": row["symbol"],
+            "chain": row["chain"],
+            "contract_address": row["token"],
+        }
+        for row in read_pollable_tokens(r)
+    ]
 
 
-def _get(
-    api_key: str,
-    path: str,
-    *,
-    endpoint_id: str,
-    estimated_cu: int,
-    limiter: MoralisRateLimiter,
-    http_client: Any | None,
-    **params: Any,
-) -> MoralisBudgetedHttpResult:
-    return budgeted_moralis_get_json(
-        api_key=api_key,
-        endpoint_id=endpoint_id,
-        path=path,
-        params=params,
-        estimated_cu=estimated_cu,
-        limiter=limiter,
-        base_url=BASE,
-        timeout_seconds=20.0,
-        http_client=http_client,
+def _validated_wallet_address(chain: str, value: object) -> str | None:
+    identity = prepare_request_identity(
+        _WALLET_IDENTITY_SPEC,
+        chain=chain,
+        wallet=value,
     )
+    return identity.wallet if identity.error_class is None else None
+
+
+def _fingerprint(value: object | None) -> str | None:
+    if value is None:
+        return None
+    return hashlib.sha256(
+        str(value).encode("utf-8", errors="replace")
+    ).hexdigest()[:16]
 
 
 def _f(value: Any) -> float | None:
@@ -294,13 +299,13 @@ def _f(value: Any) -> float | None:
 
 
 def _redis_client(redis_url: str) -> Any:
-    import redis  # type: ignore[import-not-found]
+    import redis
 
     return redis.Redis.from_url(redis_url, decode_responses=True)
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 if __name__ == "__main__":

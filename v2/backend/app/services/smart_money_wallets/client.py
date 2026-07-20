@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote, urlencode
 
 import httpx
 from app.services.smart_money_wallets.endpoint_registry import (
     MORALIS_DEEP_INDEX_BASE_URL,
+    MORALIS_EVM_CHAIN_ALIASES,
     MoralisEndpointSpec,
 )
 from app.services.smart_money_wallets.models import MoralisResponse
@@ -19,6 +23,54 @@ from app.services.smart_money_wallets.rate_limit import (
 )
 
 DEFAULT_BASE_URL = MORALIS_DEEP_INDEX_BASE_URL
+_EVM_ADDRESS = re.compile(r"0x[0-9a-f]{40}", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class MoralisRequestIdentity:
+    chain: str
+    wallet: str | None
+    token: str | None
+    error_class: str | None = None
+
+
+def prepare_request_identity(
+    spec: MoralisEndpointSpec,
+    *,
+    chain: object,
+    wallet: object | None = None,
+    token: object | None = None,
+) -> MoralisRequestIdentity:
+    """Normalize and validate every value that can enter a request URL."""
+
+    raw_chain = str(chain or "").strip().lower()
+    if not raw_chain:
+        return MoralisRequestIdentity("", None, None, "CHAIN_REQUIRED")
+    normalized_chain = MORALIS_EVM_CHAIN_ALIASES.get(raw_chain)
+    if normalized_chain is None:
+        return MoralisRequestIdentity(raw_chain, None, None, "CHAIN_UNSUPPORTED")
+
+    raw_wallet = None if wallet is None else str(wallet).strip().lower()
+    raw_token = None if token is None else str(token).strip().lower()
+    if spec.requires_wallet and not raw_wallet:
+        return MoralisRequestIdentity(normalized_chain, None, raw_token, "WALLET_REQUIRED")
+    if spec.requires_token and not raw_token:
+        return MoralisRequestIdentity(normalized_chain, raw_wallet, None, "TOKEN_REQUIRED")
+    if raw_wallet is not None and _EVM_ADDRESS.fullmatch(raw_wallet) is None:
+        return MoralisRequestIdentity(
+            normalized_chain,
+            raw_wallet,
+            raw_token,
+            "WALLET_ADDRESS_INVALID",
+        )
+    if raw_token is not None and _EVM_ADDRESS.fullmatch(raw_token) is None:
+        return MoralisRequestIdentity(
+            normalized_chain,
+            raw_wallet,
+            raw_token,
+            "TOKEN_ADDRESS_INVALID",
+        )
+    return MoralisRequestIdentity(normalized_chain, raw_wallet, raw_token)
 
 
 def key_hash_prefix(api_key: str | None) -> str | None:
@@ -82,39 +134,26 @@ class MoralisClient:
                 None,
                 error_class=contract_error,
             )
-        if not str(chain).strip():
+        identity = prepare_request_identity(
+            spec,
+            chain=chain,
+            wallet=wallet,
+            token=token,
+        )
+        if identity.error_class is not None:
             return MoralisResponse(
                 spec.endpoint_id,
-                chain,
-                wallet,
-                token,
+                identity.chain,
+                identity.wallet,
+                identity.token,
                 symbol,
                 None,
                 None,
-                error_class="CHAIN_REQUIRED",
+                error_class=identity.error_class,
             )
-        if spec.requires_wallet and not str(wallet or "").strip():
-            return MoralisResponse(
-                spec.endpoint_id,
-                chain,
-                wallet,
-                token,
-                symbol,
-                None,
-                None,
-                error_class="WALLET_REQUIRED",
-            )
-        if spec.requires_token and not str(token or "").strip():
-            return MoralisResponse(
-                spec.endpoint_id,
-                chain,
-                wallet,
-                token,
-                symbol,
-                None,
-                None,
-                error_class="TOKEN_REQUIRED",
-            )
+        chain = identity.chain
+        wallet = identity.wallet
+        token = identity.token
         if not self.api_key_present:
             return MoralisResponse(
                 spec.endpoint_id,
@@ -127,7 +166,12 @@ class MoralisClient:
                 error_class="API_KEY_MISSING",
             )
         try:
-            path = spec.path_template.format(chain=chain, wallet=wallet or "", token=token or "")
+            path = _encoded_request_path(
+                spec,
+                chain=chain,
+                wallet=wallet,
+                token=token,
+            )
         except Exception as exc:  # No request was attempted and no CU was reserved.
             return MoralisResponse(
                 spec.endpoint_id,
@@ -151,10 +195,12 @@ class MoralisClient:
                 None,
                 error_class=decision.reason,
             )
+        request_dispatched = False
         try:
             close_client = self.http_client is None
             client = self.http_client or httpx.Client(timeout=MORALIS_TIMEOUT_SECONDS)
             try:
+                request_dispatched = True
                 response = client.get(
                     f"{self.base_url}{path}",
                     headers={"X-API-Key": str(self.api_key), "accept": "application/json"},
@@ -164,7 +210,7 @@ class MoralisClient:
                     with suppress(Exception):
                         client.close()
             payload = _safe_json(response)
-            headers = dict(response.headers)
+            headers: dict[str, object] = dict(response.headers)
             self.limiter.observe_response(response.status_code)
             reconciliation = self.limiter.reconcile_response(
                 reservation=decision.reservation,
@@ -185,6 +231,7 @@ class MoralisClient:
                     None,
                     headers=headers,
                     error_class=reconciliation.reason,
+                    request_dispatched=True,
                 )
             return MoralisResponse(
                 spec.endpoint_id,
@@ -195,12 +242,17 @@ class MoralisClient:
                 response.status_code,
                 payload,
                 headers=headers,
+                request_dispatched=True,
             )
         except Exception as exc:  # noqa: BLE001
             self.limiter.observe_response(None)
-            # Delivery is ambiguous after dispatch.  Retain the pre-call
-            # reservation conservatively; a process crash does the same.
-            self.limiter.retain_ambiguous_reservation(decision.reservation)
+            if request_dispatched:
+                # Delivery is ambiguous after dispatch. Retain the pre-call
+                # reservation conservatively; a process crash does the same.
+                self.limiter.retain_ambiguous_reservation(decision.reservation)
+            else:
+                # Client construction failed before transport dispatch.
+                self.limiter.refund_pending(request_was_not_sent=True)
             return MoralisResponse(
                 spec.endpoint_id,
                 chain,
@@ -210,6 +262,7 @@ class MoralisClient:
                 None,
                 None,
                 error_class=type(exc).__name__,
+                request_dispatched=request_dispatched,
             )
 
 
@@ -218,6 +271,8 @@ def _request_contract_error(
     *,
     actual_base_url: str | None = None,
 ) -> str | None:
+    if spec.transport_alias_of is not None:
+        return "ENDPOINT_TRANSPORT_ALIAS_NOT_DIRECTLY_POLLED"
     if not spec.polling_supported:
         return spec.polling_block_reason or "ENDPOINT_REQUEST_CONTRACT_UNSUPPORTED"
     if spec.http_method != "GET":
@@ -232,7 +287,35 @@ def _request_contract_error(
     actual_query_shape = tuple(component for component in query.split("&") if component)
     if actual_query_shape != spec.query_parameter_shape:
         return "ENDPOINT_QUERY_CONTRACT_MISMATCH"
+    for component in spec.query_parameter_shape:
+        key, separator, _value = component.partition("=")
+        if not separator or re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", key) is None:
+            return "ENDPOINT_QUERY_CONTRACT_MISMATCH"
     return None
+
+
+def _encoded_request_path(
+    spec: MoralisEndpointSpec,
+    *,
+    chain: str,
+    wallet: str | None,
+    token: str | None,
+) -> str:
+    values = {
+        "chain": chain,
+        "wallet": wallet or "",
+        "token": token or "",
+    }
+    path_template = spec.path_template.partition("?")[0]
+    encoded_values = {name: quote(value, safe="") for name, value in values.items()}
+    path = path_template.format(**encoded_values)
+    query_pairs: list[tuple[str, str]] = []
+    for component in spec.query_parameter_shape:
+        key, separator, value_template = component.partition("=")
+        if not separator:
+            raise ValueError("query component is missing '='")
+        query_pairs.append((key, value_template.format(**values)))
+    return f"{path}?{urlencode(query_pairs)}" if query_pairs else path
 
 
 def _safe_json(response: httpx.Response) -> Any:

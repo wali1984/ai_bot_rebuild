@@ -8,11 +8,13 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import httpx
 import pytest
 import redis
 
+from v2.backend.app.services.smart_money_wallets import rate_limit as rate_limit_module
 from v2.backend.app.services.smart_money_wallets.client import MoralisClient
 from v2.backend.app.services.smart_money_wallets.cu_budget import (
     DAY_KEY,
@@ -25,6 +27,25 @@ from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
     moralis_endpoint_registry,
 )
 from v2.backend.app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
+
+VALID_TOKEN_ADDRESS = "0x" + ("1" * 40)
+
+
+def test_environment_overrides_cannot_raise_documented_rps_or_monthly_cu_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rate_limit_module, "MORALIS_PUBLIC_RPS", 1_000)
+    monkeypatch.setattr(rate_limit_module, "MORALIS_HARD_RPS", 1_000)
+    monkeypatch.setattr(rate_limit_module, "MORALIS_PUBLIC_CU_MONTHLY", 99_000_000)
+
+    limiter = MoralisRateLimiter(redis_client=_FailingRedis(), rps=1_000)
+
+    assert limiter.rps == rate_limit_module.MORALIS_FIXED_WINDOW_SAFE_RPS_LIMIT
+    assert limiter.cu is not None
+    assert (
+        limiter.cu.monthly_limit
+        == rate_limit_module.MORALIS_DOCUMENTED_MONTHLY_CU_LIMIT
+    )
 
 
 class _MutableUtcClock:
@@ -312,6 +333,48 @@ def test_restart_rehydrates_reserved_spend_and_never_resets_budget(redis_socket:
     assert status["cu_ledger_available"] is True
 
 
+def test_distributed_rps_guard_is_shared_across_limiter_instances(
+    redis_socket: str,
+) -> None:
+    redis_client = _redis_client(redis_socket)
+    limiters = [
+        MoralisRateLimiter(redis_client=redis_client, rps=2)
+        for _index in range(3)
+    ]
+
+    decisions = [limiter.allow_request(estimated_cu=1) for limiter in limiters]
+
+    assert sum(decision.allowed for decision in decisions) == 2
+    assert decisions[-1].reason == "DISTRIBUTED_RPS_CAP"
+    assert limiters[-1].as_dict()["distributed_rps_guard"] is True
+    assert limiters[-1].as_dict()["distributed_rps_guard_reason"] == "READY"
+
+
+def test_stale_cu_health_never_bypasses_distributed_rps_guard(
+    redis_socket: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    limiter = MoralisRateLimiter(redis_client=_redis_client(redis_socket))
+    assert limiter.cu is not None
+    reserve = Mock(wraps=limiter.cu.reserve)
+    monkeypatch.setattr(limiter.cu, "reserve", reserve)
+    monkeypatch.setattr(
+        limiter,
+        "_consume_distributed_rps",
+        lambda: "DISTRIBUTED_RPS_CAP",
+    )
+    limiter._ledger_health_reason = "DAILY_CU_BUDGET_EXHAUSTED"
+
+    decision = limiter.allow_request(estimated_cu=10)
+
+    assert decision.allowed is False
+    assert decision.reason == "DISTRIBUTED_RPS_CAP"
+    assert reserve.call_count == 0
+    status = limiter.as_dict()
+    assert status["self_imposed_rps_window_seconds"] == 1
+    assert status["provider_documented_rps_window_seconds"] == 4
+
+
 def test_reconcile_uses_original_period_keys_across_utc_midnight(redis_socket: str) -> None:
     clock = _MutableUtcClock(datetime(2026, 7, 31, 23, 59, 59, tzinfo=UTC))
     authority = MoralisCuBudget(
@@ -383,10 +446,11 @@ def test_every_received_http_response_reconciles_provider_headers(
         api_key="fixture-key",  # noqa: S106 - non-secret test fixture
         limiter=limiter,
         http_client=http_client,  # type: ignore[arg-type]
-    ).get(_token_transfers_spec(), token="0xtoken")  # noqa: S106
+    ).get(_token_transfers_spec(), token=VALID_TOKEN_ADDRESS)
 
     assert response.http_status == status_code
     assert response.error_class is None
+    assert response.request_dispatched is True
     assert int(redis_client.get(DAY_KEY.format(day="2026-07-19")) or 0) == expected_spend
     assert int(redis_client.get(MONTH_KEY.format(month="2026-07")) or 0) == expected_spend
 
@@ -404,9 +468,10 @@ def test_timeout_retains_reservation_across_restart(redis_socket: str) -> None:
         api_key="fixture-key",  # noqa: S106 - non-secret test fixture
         limiter=limiter,
         http_client=http_client,  # type: ignore[arg-type]
-    ).get(_token_transfers_spec(), token="0xtoken")  # noqa: S106
+    ).get(_token_transfers_spec(), token=VALID_TOKEN_ADDRESS)
 
     assert response.error_class == "ReadTimeout"
+    assert response.request_dispatched is True
     assert int(redis_client.get(DAY_KEY.format(day="2026-07-19")) or 0) == 50
     restarted = MoralisRateLimiter(
         redis_client=_redis_client(redis_socket),
@@ -445,7 +510,7 @@ def test_lost_reconcile_reply_is_idempotently_retried_before_next_poll(
         http_client=_StaticHttpClient(
             httpx.Response(200, headers={"x-moralis-compute-units": "7"}, json={"ok": True})
         ),  # type: ignore[arg-type]
-    ).get(_token_transfers_spec(), token="0xtoken")  # noqa: S106
+    ).get(_token_transfers_spec(), token=VALID_TOKEN_ADDRESS)
 
     assert response.payload is None
     assert response.error_class == "CU_LEDGER_UNAVAILABLE_RESERVATION_RETAINED"
@@ -469,9 +534,10 @@ def test_redis_outage_fails_optional_polling_closed_without_http_call() -> None:
         http_client=http_client,  # type: ignore[arg-type]
     )
 
-    response = client.get(_token_transfers_spec(), token="0xtoken")  # noqa: S106
+    response = client.get(_token_transfers_spec(), token=VALID_TOKEN_ADDRESS)
 
-    assert response.error_class == "CU_LEDGER_UNAVAILABLE"
+    assert response.error_class == "RPS_LEDGER_UNAVAILABLE"
+    assert response.request_dispatched is False
     assert http_client.calls == 0
     status = limiter.as_dict()
     assert status["cu_ledger_available"] is False
@@ -484,7 +550,8 @@ def test_default_client_without_durable_ledger_never_polls() -> None:
     response = MoralisClient(
         api_key="fixture-key",  # noqa: S106 - non-secret test fixture
         http_client=http_client,  # type: ignore[arg-type]
-    ).get(_token_transfers_spec(), token="0xtoken")  # noqa: S106
+    ).get(_token_transfers_spec(), token=VALID_TOKEN_ADDRESS)
 
     assert response.error_class == "CU_LEDGER_REQUIRED"
+    assert response.request_dispatched is False
     assert http_client.calls == 0

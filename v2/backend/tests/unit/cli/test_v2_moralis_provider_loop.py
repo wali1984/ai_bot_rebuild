@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from v2.backend.app.cli.v2_moralis_provider_loop import run_once
 from v2.backend.app.cli.v2_moralis_token_map_bootstrap import build_phase0_state
 from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
+
+VALID_TOKEN_ADDRESS = "0x" + ("1" * 40)
+VALID_WALLET_ADDRESS = "0x" + ("2" * 40)
 
 
 class FakeRedis:
@@ -12,11 +16,22 @@ class FakeRedis:
         self.data: dict[str, str] = {}
         self.ttls: dict[str, int] = {}
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:
+    def set(
+        self,
+        key: str,
+        value: str,
+        ex: int | None = None,
+        nx: bool = False,
+    ) -> bool:
+        if nx and key in self.data:
+            return False
         self.data[key] = value
         if ex is not None:
             self.ttls[key] = ex
         return True
+
+    def delete(self, key: str) -> int:
+        return int(self.data.pop(key, None) is not None)
 
     def get(self, key: str):
         return self.data.get(key)
@@ -24,12 +39,43 @@ class FakeRedis:
     def exists(self, key: str) -> int:
         return 1 if key in self.data else 0
 
+    def eval(self, script: str, numkeys: int, *args: Any) -> Any:
+        keys = [str(item) for item in args[:numkeys]]
+        argv = [str(item) for item in args[numkeys:]]
+        if "MORALIS_FENCED_CADENCE_CLAIM_V1" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return [-1, 0]
+            if keys[1] in self.data:
+                return [0, 1]
+            self.data[keys[1]] = argv[1]
+            return [1, 1]
+        if "MORALIS_FENCED_CURSOR_WRITE_V1" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            self.data[keys[1]] = argv[1]
+            return 1
+        if "EXPIRE" in script:
+            return int(self.data.get(keys[0]) == argv[0])
+        if "DEL" in script:
+            if self.data.get(keys[0]) != argv[0]:
+                return 0
+            return self.delete(keys[0])
+        raise AssertionError("unexpected Redis script")
+
 
 class FakeLimiter:
     def as_dict(self) -> dict[str, object]:
         return {
             "current_rps": 5,
+            "normal_rps": 5,
+            "catchup_rps": 10,
+            "hard_rps": 30,
+            "cu_ledger_required": False,
+            "provider_polling_blocked": False,
             "compute_budget": {
+                "daily_budget": 55_000,
+                "daily_reserve": 10_000,
+                "monthly_budget": 2_000_000,
                 "used_today": 0,
                 "used_month": 0,
                 "remaining_today": 45_000,
@@ -55,6 +101,7 @@ class FakeClient:
             symbol,
             200,
             {"result": [{"direction": "out", "value_usd": 100, "block_timestamp": "2026-07-08T12:00:00Z"}]},
+            request_dispatched=True,
         )
 
 
@@ -77,6 +124,7 @@ def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypa
     assert client.calls == []
     assert status["status"] == "CONFIGURED_NO_WATCHLIST"
     assert status["request_count"] == 0
+    assert status["canonical_token_transfer_transport_owner"] is False
     health = json.loads(redis_client.data["v2:provider:moralis:health"])
     assert health["status"] == "CONFIGURED_NO_WATCHLIST"
     assert health["dashboard_color"] == "GRAY"
@@ -102,8 +150,8 @@ def test_moralis_loop_operator_lists_still_schedule_without_every_symbol_minute(
         redis_client,
         client=client,
         chain="eth",
-        wallets=["0xwallet"],
-        tokens=["0xtoken"],
+        wallets=[VALID_WALLET_ADDRESS],
+        tokens=[VALID_TOKEN_ADDRESS],
         symbol="BTCUSDT",
         scheduler_state={},
         force=False,

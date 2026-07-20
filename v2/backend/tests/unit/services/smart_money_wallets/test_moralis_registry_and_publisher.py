@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import replace
 from unittest.mock import Mock
 
+import httpx
 import pytest
 
+from v2.backend.app.cli import v2_moralis_token_metadata_validate as metadata_validator
 from v2.backend.app.services.feature_pipeline.unified_feature_bridge import (
     build_unified_feature_payload,
 )
 from v2.backend.app.services.smart_money_wallets import moralis_feature_bridge
 from v2.backend.app.services.smart_money_wallets import publisher as moralis_publisher
 from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
+from v2.backend.app.services.smart_money_wallets.canonical_cache import (
+    read_canonical_records,
+)
 from v2.backend.app.services.smart_money_wallets.client import (
     MoralisClient,
     _request_contract_error,
@@ -30,17 +36,27 @@ from v2.backend.app.services.smart_money_wallets.moralis_feature_bridge import (
     build_moralis_feature_payload,
     publish_moralis_feature_payload,
 )
+from v2.backend.app.services.smart_money_wallets.normalizer import (
+    normalize_moralis_payload,
+)
 from v2.backend.app.services.smart_money_wallets.publisher import publish_moralis_result
 from v2.backend.app.services.smart_money_wallets.smart_wallet_scorer import score_wallet_candidate
 from v2.backend.app.services.smart_money_wallets.streams_registry import build_streams_registry
 from v2.backend.app.services.smart_money_wallets.token_contract_mapper import (
     load_token_contract_map,
+    read_metadata_validation_tokens,
+    read_pollable_tokens,
 )
 from v2.backend.app.services.smart_money_wallets.wallet_watchlist import (
     TIER_LIMITS,
     load_wallet_watchlist_seed,
+    publish_wallet_watchlist,
+    read_wallet_watchlist,
     wallet_watchlist_status,
 )
+
+VALID_TOKEN_ADDRESS = "0x" + ("1" * 40)
+VALID_WALLET_ADDRESS = "0x" + ("2" * 40)
 
 
 class FakeRedis:
@@ -61,6 +77,32 @@ class FakeRedis:
         if key not in self.data:
             return -2
         return self.ttls.get(key, -1)
+
+    def scan_iter(self, pattern: str, count: int = 500):
+        del count
+        prefix = pattern.removesuffix("*")
+        yield from (key for key in sorted(self.data) if key.startswith(prefix))
+
+
+def _seed_link_token_map(redis_client: FakeRedis) -> tuple[dict[str, object], str]:
+    loaded = load_token_contract_map()
+    row = deepcopy(loaded["symbols"]["LINKUSDT"])
+    contract = row["contracts"][0]
+    token = str(contract["contract_address"])
+    redis_client.set("v2:moralis:token_map:LINKUSDT", json.dumps(row), ex=3600)
+    redis_client.set(
+        "v2:moralis:token_map_status",
+        json.dumps(
+            {
+                "schema_version": "moralis_token_map_status_v1",
+                "status": "TOKEN_MAP_READY",
+                "symbols": ["LINKUSDT"],
+                "token_map_count": 1,
+            }
+        ),
+        ex=3600,
+    )
+    return row, token
 
 
 def test_registry_exposes_wallet_token_stream_cadence_and_cu() -> None:
@@ -192,8 +234,8 @@ def test_registry_matches_current_official_request_contracts_endpoint_by_endpoin
             None,
             50,
             "PER_REQUEST",
-            True,
-            None,
+            False,
+            "DUPLICATE_TRANSPORT_ALIAS_NOT_DIRECTLY_POLLED",
             "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers",
         ),
         "token_holders": (
@@ -309,6 +351,13 @@ def test_all_admitted_polling_specs_pass_the_client_request_contract_guard() -> 
     ]
     assert admitted
     assert all(_request_contract_error(spec) is None for spec in admitted)
+    alias = next(
+        spec
+        for spec in moralis_endpoint_registry()
+        if spec.endpoint_id == "token_address_transfers"
+    )
+    assert alias.transport_alias_of == "token_transfers"
+    assert _request_contract_error(alias) == "ENDPOINT_TRANSPORT_ALIAS_NOT_DIRECTLY_POLLED"
 
 
 def test_unsupported_batch_contract_fails_before_cu_reservation_or_http() -> None:
@@ -318,11 +367,13 @@ def test_unsupported_batch_contract_fails_before_cu_reservation_or_http() -> Non
     limiter = Mock()
     http_client = Mock()
     response = MoralisClient(
-        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+        api_key="secret",
+        limiter=limiter,
+        http_client=http_client,  # type: ignore[arg-type]
     ).get(
         spec,
         chain="eth",
-        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        token=VALID_TOKEN_ADDRESS,
         symbol="LINKUSDT",
     )
 
@@ -377,25 +428,26 @@ def test_mismatched_request_contract_fails_before_cu_reservation_or_http(
     limiter = Mock()
     http_client = Mock()
     response = MoralisClient(
-        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+        api_key="secret",
+        limiter=limiter,
+        http_client=http_client,  # type: ignore[arg-type]
     ).get(
         spec,
         chain="eth",
-        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        token=VALID_TOKEN_ADDRESS,
         symbol="LINKUSDT",
     )
 
     assert response.error_class == expected_error
     assert response.http_status is None
     assert response.payload is None
+    assert response.request_dispatched is False
     limiter.allow_request.assert_not_called()
     http_client.get.assert_not_called()
 
 
 def test_client_base_url_mismatch_fails_before_cu_reservation_or_http() -> None:
-    spec = next(
-        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_price"
-    )
+    spec = next(spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_price")
     limiter = Mock()
     http_client = Mock()
     response = MoralisClient(
@@ -406,7 +458,7 @@ def test_client_base_url_mismatch_fails_before_cu_reservation_or_http() -> None:
     ).get(
         spec,
         chain="eth",
-        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        token=VALID_TOKEN_ADDRESS,
         symbol="LINKUSDT",
     )
 
@@ -421,7 +473,22 @@ def test_client_base_url_mismatch_fails_before_cu_reservation_or_http() -> None:
     [
         ("wallet_history", "eth", None, None, "WALLET_REQUIRED"),
         ("token_price", "eth", None, None, "TOKEN_REQUIRED"),
-        ("token_price", "", None, "0xtoken", "CHAIN_REQUIRED"),
+        ("token_price", "", None, VALID_TOKEN_ADDRESS, "CHAIN_REQUIRED"),
+        (
+            "token_price",
+            "eth?chain=polygon",
+            None,
+            VALID_TOKEN_ADDRESS,
+            "CHAIN_UNSUPPORTED",
+        ),
+        ("token_price", "eth", None, f"{VALID_TOKEN_ADDRESS}&limit=1", "TOKEN_ADDRESS_INVALID"),
+        (
+            "wallet_history",
+            "eth",
+            f"{VALID_WALLET_ADDRESS}/history",
+            None,
+            "WALLET_ADDRESS_INVALID",
+        ),
     ],
 )
 def test_required_request_identity_fails_before_cu_reservation_or_http(
@@ -435,14 +502,41 @@ def test_required_request_identity_fails_before_cu_reservation_or_http(
     limiter = Mock()
     http_client = Mock()
     response = MoralisClient(
-        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+        api_key="secret",
+        limiter=limiter,
+        http_client=http_client,  # type: ignore[arg-type]
     ).get(spec, chain=chain, wallet=wallet, token=token)
 
     assert response.error_class == expected_error
     assert response.http_status is None
     assert response.payload is None
+    assert response.request_dispatched is False
     limiter.allow_request.assert_not_called()
     http_client.get.assert_not_called()
+
+
+def test_client_normalizes_identity_and_builds_query_without_string_injection() -> None:
+    spec = next(spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_price")
+    limiter = Mock()
+    limiter.allow_request.return_value = Mock(allowed=True, reservation=None)
+    limiter.reconcile_response.return_value = Mock(applied=True)
+    http_client = Mock()
+    http_client.get.return_value = httpx.Response(200, json={"usdPrice": 1.0})
+    mixed_case_token = "0x" + ("Ab" * 20)
+
+    response = MoralisClient(
+        api_key="secret",  # noqa: S106 - non-secret test fixture
+        limiter=limiter,  # type: ignore[arg-type]
+        http_client=http_client,
+    ).get(spec, chain=" Ethereum ", token=mixed_case_token)
+
+    assert response.request_dispatched is True
+    assert response.chain == "eth"
+    assert response.token == mixed_case_token.lower()
+    requested_url = http_client.get.call_args.args[0]
+    assert requested_url == (
+        f"{MORALIS_DEEP_INDEX_BASE_URL}/erc20/{mixed_case_token.lower()}/price?chain=eth"
+    )
 
 
 def test_stream_endpoint_is_not_polled_by_client() -> None:
@@ -864,6 +958,9 @@ def test_address_classifier_never_counts_burn_or_contract_as_smart_money() -> No
     contract = classify_address(chain="eth", address="0xabc", metadata={"is_contract": True})
     assert contract["category"] == "unknown_contract"
     assert contract["smart_wallet_eligible"] is False
+    candidate = classify_address(chain="eth", address=VALID_WALLET_ADDRESS)
+    assert candidate["smart_wallet_eligible"] is True
+    assert candidate["counts_as_smart_money"] is False
 
 
 def test_wallet_watchlist_seed_bootstraps_candidate_rows_with_tier_limits() -> None:
@@ -1302,3 +1399,246 @@ def test_moralis_feature_payload_blocks_invalid_temporal_ordering(
     assert payload["event_time"] is None
     assert payload["feature_cutoff"] is None
     assert payload["available_at"] is None
+
+
+def test_metadata_validator_consumes_only_canonical_cache_and_promotes_source_bound_map() -> None:
+    redis_client = FakeRedis()
+    _row, token = _seed_link_token_map(redis_client)
+    candidates = read_metadata_validation_tokens(redis_client)
+    assert candidates == [
+        {"symbol": "LINKUSDT", "chain": "eth", "token": token}
+    ]
+    assert read_pollable_tokens(redis_client) == []
+
+    metadata_spec = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_metadata"
+    )
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "fixture-key"},
+        spec=metadata_spec,
+        chain="eth",
+        symbol=None,
+        token=token,
+        http_status=200,
+        payload=[
+            {
+                "address": token,
+                "name": "Chainlink",
+                "symbol": "LINK",
+                "decimals": "18",
+            }
+        ],
+        budget_status={"compute_budget": {"used_today": 10, "used_month": 10}},
+    )
+
+    report = metadata_validator.validate_token_map(
+        redis_client,
+        api_key="ignored-by-cache-only-validator",
+    )
+
+    assert report["verified_count"] == 1
+    assert report["cache_pending_count"] == 0
+    assert report["http_request_count"] == 0
+    assert report["compute_units_spent"] == 0
+    pollable = read_pollable_tokens(redis_client)
+    assert len(pollable) == 1
+    assert pollable[0]["symbol"] == "LINKUSDT"
+    assert pollable[0]["token"] == token
+    assert len(pollable[0]["metadata_envelope_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("mapping_confidence", "expected_decimals", "provider_decimals"),
+    [
+        ("not-a-number", 18, "18"),
+        (0.99, None, "not-an-int"),
+    ],
+)
+def test_metadata_validator_quarantines_malformed_numeric_fields_without_crashing(
+    mapping_confidence: object,
+    expected_decimals: object,
+    provider_decimals: object,
+) -> None:
+    redis_client = FakeRedis()
+    row, token = _seed_link_token_map(redis_client)
+    contract = row["contracts"][0]
+    contract["mapping_confidence"] = mapping_confidence
+    contract["decimals"] = expected_decimals
+    redis_client.set("v2:moralis:token_map:LINKUSDT", json.dumps(row), ex=3600)
+    metadata_spec = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_metadata"
+    )
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "fixture-key"},
+        spec=metadata_spec,
+        chain="eth",
+        symbol=None,
+        token=token,
+        http_status=200,
+        payload=[
+            {
+                "address": token,
+                "name": "Chainlink",
+                "symbol": "LINK",
+                "decimals": provider_decimals,
+            }
+        ],
+        budget_status={"compute_budget": {"used_today": 10, "used_month": 10}},
+    )
+
+    report = metadata_validator.validate_token_map(redis_client)
+
+    assert report["pollable_count"] == 0
+    assert read_pollable_tokens(redis_client) == []
+    stored = json.loads(redis_client.data["v2:moralis:token_map:LINKUSDT"])
+    stored_contract = stored["contracts"][0]
+    assert stored_contract.get("tradeable_mapping_status") != "VERIFIED"
+    assert stored_contract.get("metadata_verified") is not True
+
+
+def test_flow_normalizer_rejects_category_and_substring_direction_inference() -> None:
+    spec = next(
+        item for item in moralis_endpoint_registry() if item.endpoint_id == "wallet_history"
+    )
+
+    normalized = normalize_moralis_payload(
+        spec=spec,
+        symbol="LINKUSDT",
+        chain="eth",
+        wallet=VALID_WALLET_ADDRESS,
+        token=None,
+        payload={
+            "result": [
+                {
+                    "category": "mint",
+                    "value_usd": 125.5,
+                    "block_timestamp": "2026-07-08T12:00:00Z",
+                },
+                {
+                    "direction": "without_context",
+                    "value_usd": 77.0,
+                    "block_timestamp": "2026-07-08T12:00:01Z",
+                },
+                {
+                    "direction": "unknown",
+                    "value_decimal": "999999",
+                    "block_timestamp": "2026-07-08T12:00:02Z",
+                },
+            ]
+        },
+    )
+
+    assert normalized["features"] == {}
+    assert normalized["actual_payload_present"] is False
+
+
+def test_canonical_cache_rejects_invalid_utf8_instead_of_replacement_hashing() -> None:
+    redis_client = FakeRedis()
+    token = VALID_TOKEN_ADDRESS
+    now = "2026-07-19T12:00:00Z"
+    envelope = {
+        "schema_version": "moralis_normalized_payload_v1",
+        "provider": "moralis",
+        "endpoint_id": "token_metadata",
+        "chain": "eth",
+        "token": token,
+        "provider_ready": True,
+        "actual_payload_present": True,
+        "subscription_status": "READY",
+        "auth_status": "READY",
+        "available_at": now,
+        "ingested_at": now,
+        "generated_at": now,
+        "ttl_seconds": 86_400,
+        "canonical_records": [
+            {"address": token, "symbol": "LINK", "name": "BYTE_MARKER", "decimals": 18}
+        ],
+    }
+    raw = json.dumps(envelope).encode("utf-8").replace(b"BYTE_MARKER", b"\x80")
+    redis_client.data[f"v2:moralis:token_metadata:eth:{token}"] = raw  # type: ignore[assignment]
+
+    result = read_canonical_records(
+        redis_client,
+        endpoint_id="token_metadata",
+        chain="eth",
+        token=token,
+    )
+
+    assert result.ready is False
+    assert result.reason == "CACHE_UTF8_INVALID"
+    assert result.envelope_sha256 is None
+
+
+def test_mutable_redis_pollable_claim_without_full_provenance_is_rejected() -> None:
+    redis_client = FakeRedis()
+    redis_client.set(
+        "v2:moralis:token_map_status",
+        json.dumps({"symbols": ["RAW:UNVERIFIED"], "token_map_count": 1}),
+    )
+    redis_client.set(
+        "v2:moralis:token_map:RAW:UNVERIFIED",
+        json.dumps(
+            {
+                "symbol": "RAW:UNVERIFIED",
+                "contracts": [
+                    {
+                        "chain": "eth",
+                        "contract_address": VALID_TOKEN_ADDRESS,
+                        "pollable": True,
+                    }
+                ],
+            }
+        ),
+    )
+
+    assert read_pollable_tokens(redis_client) == []
+    assert read_metadata_validation_tokens(redis_client) == []
+
+
+def test_wallet_reader_rederives_source_identity_and_classification(
+    tmp_path,
+) -> None:
+    redis_client = FakeRedis()
+    seed_path = tmp_path / "watchlist.json"
+    seed_path.write_text(
+        json.dumps(
+            {
+                "wallets": [
+                    {
+                        "chain": "eth",
+                        "address": VALID_WALLET_ADDRESS,
+                        "tier": "T0",
+                        "source": "unit_fixture_source",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    publish_wallet_watchlist(redis_client, path=seed_path)
+    assert read_wallet_watchlist(redis_client, path=seed_path) == [
+        {
+            "chain": "eth",
+            "address": VALID_WALLET_ADDRESS,
+            "tier": "T0",
+            "source": "unit_fixture_source",
+        }
+    ]
+
+    payload = json.loads(redis_client.data["v2:moralis:wallet_watchlist"])
+    payload["rows"][0]["source"] = ""
+    redis_client.set("v2:moralis:wallet_watchlist", json.dumps(payload))
+    assert read_wallet_watchlist(redis_client, path=seed_path) == []
+
+    forged_address = "0x" + ("3" * 40)
+    forged = json.loads(redis_client.data["v2:moralis:wallet_watchlist"])
+    forged["rows"][0] = {
+        **forged["rows"][0],
+        "address": forged_address,
+        "source": "self_asserted_redis_source",
+        "classification": classify_address(chain="eth", address=forged_address),
+    }
+    redis_client.set("v2:moralis:wallet_watchlist", json.dumps(forged))
+    assert read_wallet_watchlist(redis_client, path=seed_path) == []

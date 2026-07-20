@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+import re
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from app.services.smart_money_wallets.address_classifier import classify_address
-
+from app.services.smart_money_wallets.endpoint_registry import (
+    MORALIS_EVM_CHAIN_ALIASES,
+    MORALIS_EVM_CHAIN_PARAMS,
+)
 
 WALLET_WATCHLIST_KEY = "v2:moralis:wallet_watchlist"
 WALLET_WATCHLIST_STATUS_KEY = "v2:moralis:wallet_watchlist_status"
@@ -16,6 +21,7 @@ WALLET_PROFILE_KEY = "v2:moralis:wallet_profile:{chain}:{address}"
 WALLET_ACTIVITY_KEY = "v2:moralis:wallet_activity:{chain}:{address}"
 DEFAULT_SEED_PATH = Path(__file__).resolve().parents[4] / "config" / "moralis" / "wallet_watchlist_seed.yaml"
 TIER_LIMITS = {"T0": 50, "T1": 250}
+_EVM_ADDRESS = re.compile(r"0x[0-9a-f]{40}")
 
 
 def load_wallet_watchlist_seed(path: Path | str = DEFAULT_SEED_PATH) -> list[dict[str, Any]]:
@@ -68,7 +74,11 @@ def publish_wallet_watchlist(
     return status
 
 
-def wallet_watchlist_status(rows: list[Mapping[str, Any]], *, source_path: str) -> dict[str, Any]:
+def wallet_watchlist_status(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    source_path: str,
+) -> dict[str, Any]:
     counts = {tier: sum(1 for row in rows if row.get("tier") == tier) for tier in ("T0", "T1", "T2")}
     total = len(rows)
     return {
@@ -90,20 +100,89 @@ def wallet_watchlist_status(rows: list[Mapping[str, Any]], *, source_path: str) 
     }
 
 
-def read_wallet_watchlist(redis_client: Any | None) -> list[dict[str, str]]:
+def read_wallet_watchlist(
+    redis_client: Any | None,
+    *,
+    path: Path | str = DEFAULT_SEED_PATH,
+) -> list[dict[str, str]]:
     if redis_client is None:
         return []
     payload = _read_json(redis_client, WALLET_WATCHLIST_KEY)
-    rows = payload.get("rows") if isinstance(payload, Mapping) else []
-    out = []
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("schema_version") != "moralis_wallet_watchlist_v1"
+        or payload.get("status") != "WATCHLIST_READY"
+    ):
+        return []
+    rows = payload.get("rows")
+    if not isinstance(rows, list):
+        return []
+    try:
+        expected_path = Path(path).resolve(strict=False)
+        published_path = Path(str(payload.get("source_path") or "")).resolve(
+            strict=False
+        )
+        authoritative_rows = load_wallet_watchlist_seed(expected_path)
+    except (OSError, RuntimeError, ValueError):
+        return []
+    if published_path != expected_path:
+        return []
+    authoritative_by_identity: dict[tuple[str, str], dict[str, Any]] = {}
+    for seed_row in authoritative_rows:
+        identity = (
+            _evm_chain(seed_row.get("chain")),
+            str(seed_row.get("address") or "").strip().lower(),
+        )
+        if identity in authoritative_by_identity:
+            return []
+        authoritative_by_identity[identity] = seed_row
+    if (
+        type(payload.get("wallet_watchlist_count")) is not int
+        or payload.get("wallet_watchlist_count") != len(authoritative_rows)
+        or len(rows) != len(authoritative_rows)
+    ):
+        return []
+    out: list[dict[str, str]] = []
+    seen_identities: set[tuple[str, str]] = set()
     for row in rows or []:
         if not isinstance(row, Mapping):
-            continue
-        chain = str(row.get("chain") or "")
-        address = str(row.get("address") or "")
-        tier = str(row.get("tier") or "T2")
-        if chain and address:
-            out.append({"chain": chain, "address": address, "tier": tier})
+            return []
+        chain = _evm_chain(row.get("chain"))
+        address = str(row.get("address") or "").strip().lower()
+        identity = (chain, address)
+        tier = str(row.get("tier") or "T2").upper()
+        source = str(row.get("source") or "").strip()
+        classification = row.get("classification")
+        expected_row = authoritative_by_identity.get(identity)
+        if (
+            chain not in MORALIS_EVM_CHAIN_PARAMS
+            or _EVM_ADDRESS.fullmatch(address) is None
+            or identity in seen_identities
+            or tier not in {"T0", "T1", "T2"}
+            or not source
+            or expected_row is None
+            or dict(row) != expected_row
+            or row.get("bootstrap_status") != "SEEDED_NOT_VERIFIED"
+            or not isinstance(classification, Mapping)
+            or classification.get("schema_version") != "moralis_address_classification_v1"
+            or _evm_chain(classification.get("chain")) != chain
+            or str(classification.get("address") or "").strip().lower() != address
+            or classification.get("smart_wallet_eligible") is not True
+            or classification.get("counts_as_smart_money") is not False
+            or not str(classification.get("source") or "").strip()
+        ):
+            return []
+        seen_identities.add(identity)
+        out.append(
+            {
+                "chain": chain,
+                "address": address,
+                "tier": tier,
+                "source": source,
+            }
+        )
+    if seen_identities != set(authoritative_by_identity):
+        return []
     return out
 
 
@@ -164,4 +243,9 @@ def _read_json(redis_client: Any, key: str) -> dict[str, Any] | None:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _evm_chain(value: object) -> str:
+    raw = str(value or "").strip().lower()
+    return MORALIS_EVM_CHAIN_ALIASES.get(raw, raw)

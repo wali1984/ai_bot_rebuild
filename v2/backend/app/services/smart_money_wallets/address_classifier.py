@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping
-
+from typing import Any
 
 EXCLUDED_ADDRESSES_KEY = "v2:moralis:excluded_addresses"
 ADDRESS_CLASSIFICATION_KEY = "v2:moralis:address_classification:{chain}:{address}"
@@ -145,7 +145,10 @@ def _payload(
         "label": None if label is None else str(label),
         "source": None if source is None else str(source),
         "smart_wallet_eligible": bool(smart_wallet_eligible and category not in SMART_BLOCKING_CATEGORIES),
-        "counts_as_smart_money": bool(smart_wallet_eligible and category not in SMART_BLOCKING_CATEGORIES),
+        # Classification only establishes whether an address may be observed.
+        # It cannot mint a smart-money claim; behavioral scoring and temporal
+        # evidence are separate downstream requirements.
+        "counts_as_smart_money": False,
         "raw_key_exposed": False,
         "core_system_blocked": False,
     }
@@ -172,4 +175,4 @@ def _address(value: Any) -> str:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")

@@ -17,6 +17,7 @@ class MoralisResponse:
     payload: Any
     headers: dict[str, object] = field(default_factory=dict)
     error_class: str | None = None
+    request_dispatched: bool = False
 
     @property
     def ok(self) -> bool:
