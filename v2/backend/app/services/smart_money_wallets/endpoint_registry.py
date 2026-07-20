@@ -8,6 +8,7 @@ from typing import Any
 MORALIS_DATA_API_CU_PRICING_SOURCE = "https://docs.moralis.com/data-api/pricing"
 MORALIS_STREAMS_CU_PRICING_SOURCE = "https://docs.moralis.com/streams/pricing"
 MORALIS_CU_PRICING_VERIFIED_ON = "2026-07-19"
+MORALIS_DEEP_INDEX_BASE_URL = "https://deep-index.moralis.io/api/v2.2"
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,14 @@ class MoralisEndpointSpec:
     requires_wallet: bool = False
     requires_token: bool = False
     stream_based: bool = False
+    http_method: str = "GET"
+    documented_base_url: str | None = MORALIS_DEEP_INDEX_BASE_URL
+    query_parameter_shape: tuple[str, ...] = ()
+    request_body_shape: str | None = None
+    cu_cost_unit: str = "PER_REQUEST"
+    polling_supported: bool = True
+    polling_block_reason: str | None = None
+    contract_reference: str = MORALIS_DATA_API_CU_PRICING_SOURCE
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -49,6 +58,15 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_whale_net_flow_usd",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/wallet/token-balances"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="wallet_history",
@@ -67,14 +85,21 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_net_exchange_flow_usd",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/wallet/wallet-history",
         ),
         MoralisEndpointSpec(
             endpoint_id="wallet_transactions",
             group="wallet_transactions",
-            path_template="/wallets/{wallet}/transactions?chain={chain}",
+            path_template="/{wallet}?chain={chain}",
             purpose="wallet transaction activity and realized flow proxy",
             priority="MEDIUM_HIGH",
-            cu_cost=100,
+            cu_cost=30,
             cadence_seconds_tier0=900,
             cadence_seconds_tier1=3600,
             cadence_seconds_full_watchlist=21600,
@@ -85,11 +110,20 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_net_exchange_flow_usd",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/wallet/wallet-transactions"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="wallet_networth",
             group="wallet_networth",
-            path_template="/wallets/{wallet}/net-worth?chain={chain}",
+            path_template="/wallets/{wallet}/net-worth?chains={chain}",
             purpose="wallet size and whale-score context",
             priority="MEDIUM",
             cu_cost=250,
@@ -102,14 +136,21 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_smart_wallet_accumulation_score",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chains={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_CHAIN",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/wallet/net-worth",
         ),
         MoralisEndpointSpec(
             endpoint_id="wallet_address_transfers",
             group="wallet_address_transfers",
-            path_template="/wallets/{wallet}/history?chain={chain}",
+            path_template="/{wallet}/erc20/transfers?chain={chain}",
             purpose="wallet address transfer flow",
             priority="MEDIUM_HIGH",
-            cu_cost=150,
+            cu_cost=50,
             cadence_seconds_tier0=900,
             cadence_seconds_tier1=3600,
             cadence_seconds_full_watchlist=21600,
@@ -120,6 +161,13 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_net_exchange_flow_usd",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/wallet/token-transfers",
         ),
         MoralisEndpointSpec(
             endpoint_id="token_transfers",
@@ -138,6 +186,15 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_net_exchange_flow_usd",
             ),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="token_address_transfers",
@@ -156,6 +213,15 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_net_exchange_flow_usd",
             ),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="token_holders",
@@ -173,6 +239,15 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_token_holder_delta",
             ),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/token/holders/token-holders"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="wallet_swaps",
@@ -191,6 +266,13 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_dex_flow_imbalance_usd",
             ),
             requires_wallet=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/wallet/wallet-swaps",
         ),
         MoralisEndpointSpec(
             endpoint_id="token_swaps",
@@ -209,6 +291,13 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_dex_flow_imbalance_usd",
             ),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/token/swaps/token-swaps",
         ),
         MoralisEndpointSpec(
             endpoint_id="token_metadata",
@@ -216,7 +305,7 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             path_template="/erc20/metadata?chain={chain}&addresses={token}",
             purpose="metadata validation for symbol-to-contract map",
             priority="LOW_MEDIUM",
-            cu_cost=25,
+            cu_cost=10,
             cadence_seconds_tier0=21600,
             cadence_seconds_tier1=21600,
             cadence_seconds_full_watchlist=86400,
@@ -226,6 +315,13 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_onchain_risk_score",
             ),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}", "addresses={token}"),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/token/metadata/token-metadata",
         ),
         MoralisEndpointSpec(
             endpoint_id="token_price",
@@ -240,11 +336,18 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             ttl_seconds=900,
             feature_outputs=("moralis_onchain_risk_score",),
             requires_token=True,
+            http_method="GET",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape=None,
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=True,
+            contract_reference="https://docs.moralis.com/data-api/evm/token/prices/token-price",
         ),
         MoralisEndpointSpec(
             endpoint_id="multiple_token_prices",
             group="multiple_token_prices",
-            path_template="/erc20/prices?chain={chain}&tokens={token}",
+            path_template="/erc20/prices?chain={chain}",
             purpose="batched token price confirmation where supported",
             priority="LOW",
             cu_cost=100,
@@ -254,6 +357,16 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             ttl_seconds=900,
             feature_outputs=("moralis_onchain_risk_score",),
             requires_token=True,
+            http_method="POST",
+            documented_base_url=MORALIS_DEEP_INDEX_BASE_URL,
+            query_parameter_shape=("chain={chain}",),
+            request_body_shape='{"tokens":[{"token_address":"{token}"}]}',
+            cu_cost_unit="PER_REQUEST",
+            polling_supported=False,
+            polling_block_reason="ENDPOINT_POST_BATCH_BODY_AND_SCHEDULING_UNSUPPORTED",
+            contract_reference=(
+                "https://docs.moralis.com/data-api/evm/token/prices/token-prices-batch"
+            ),
         ),
         MoralisEndpointSpec(
             endpoint_id="streams",
@@ -272,6 +385,14 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
                 "moralis_whale_net_flow_usd",
             ),
             stream_based=True,
+            http_method="WEBHOOK",
+            documented_base_url=None,
+            query_parameter_shape=(),
+            request_body_shape="PROVIDER_STREAM_EVENT",
+            cu_cost_unit="PER_CONFIRMED_RECORD",
+            polling_supported=False,
+            polling_block_reason="STREAM_ENDPOINT_NOT_POLLED",
+            contract_reference=MORALIS_STREAMS_CU_PRICING_SOURCE,
         ),
     )
 

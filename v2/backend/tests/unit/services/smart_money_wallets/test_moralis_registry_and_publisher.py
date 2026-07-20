@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
+from unittest.mock import Mock
 
 import pytest
 
@@ -10,10 +12,14 @@ from v2.backend.app.services.feature_pipeline.unified_feature_bridge import (
 from v2.backend.app.services.smart_money_wallets import moralis_feature_bridge
 from v2.backend.app.services.smart_money_wallets import publisher as moralis_publisher
 from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
-from v2.backend.app.services.smart_money_wallets.client import MoralisClient
+from v2.backend.app.services.smart_money_wallets.client import (
+    MoralisClient,
+    _request_contract_error,
+)
 from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
     MORALIS_CU_PRICING_VERIFIED_ON,
     MORALIS_DATA_API_CU_PRICING_SOURCE,
+    MORALIS_DEEP_INDEX_BASE_URL,
     MORALIS_STREAMS_CU_PRICING_SOURCE,
     moralis_endpoint_registry,
     registry_payload,
@@ -77,7 +83,7 @@ def test_registry_cu_reservations_cover_verified_official_costs() -> None:
         "wallet_history": 150,
         "wallet_transactions": 30,
         "wallet_networth": 250,
-        "wallet_address_transfers": 150,
+        "wallet_address_transfers": 50,
         "token_transfers": 50,
         "token_address_transfers": 50,
         "token_holders": 50,
@@ -102,6 +108,341 @@ def test_registry_cu_reservations_cover_verified_official_costs() -> None:
         "verified_on": MORALIS_CU_PRICING_VERIFIED_ON,
         "estimate_policy": "OFFICIAL_CURRENT_OR_CONSERVATIVE_WHEN_IDENTITY_UNVERIFIED",
     }
+
+
+def test_registry_matches_current_official_request_contracts_endpoint_by_endpoint() -> None:
+    endpoint_contracts = {
+        "wallet_token_balances_price": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/wallets/{wallet}/tokens?chain={chain}",
+            ("chain={chain}",),
+            None,
+            100,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/token-balances",
+        ),
+        "wallet_history": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/wallets/{wallet}/history?chain={chain}",
+            ("chain={chain}",),
+            None,
+            150,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/wallet-history",
+        ),
+        "wallet_transactions": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/{wallet}?chain={chain}",
+            ("chain={chain}",),
+            None,
+            30,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/wallet-transactions",
+        ),
+        "wallet_networth": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/wallets/{wallet}/net-worth?chains={chain}",
+            ("chains={chain}",),
+            None,
+            250,
+            "PER_CHAIN",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/net-worth",
+        ),
+        "wallet_address_transfers": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/{wallet}/erc20/transfers?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/token-transfers",
+        ),
+        "token_transfers": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/{token}/transfers?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers",
+        ),
+        "token_address_transfers": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/{token}/transfers?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/transfers/token-transfers",
+        ),
+        "token_holders": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/{token}/owners?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/holders/token-holders",
+        ),
+        "wallet_swaps": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/wallets/{wallet}/swaps?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/wallet/wallet-swaps",
+        ),
+        "token_swaps": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/{token}/swaps?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/swaps/token-swaps",
+        ),
+        "token_metadata": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/metadata?chain={chain}&addresses={token}",
+            ("chain={chain}", "addresses={token}"),
+            None,
+            10,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/metadata/token-metadata",
+        ),
+        "token_price": (
+            "GET",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/{token}/price?chain={chain}",
+            ("chain={chain}",),
+            None,
+            50,
+            "PER_REQUEST",
+            True,
+            None,
+            "https://docs.moralis.com/data-api/evm/token/prices/token-price",
+        ),
+        "multiple_token_prices": (
+            "POST",
+            MORALIS_DEEP_INDEX_BASE_URL,
+            "/erc20/prices?chain={chain}",
+            ("chain={chain}",),
+            '{"tokens":[{"token_address":"{token}"}]}',
+            100,
+            "PER_REQUEST",
+            False,
+            "ENDPOINT_POST_BATCH_BODY_AND_SCHEDULING_UNSUPPORTED",
+            "https://docs.moralis.com/data-api/evm/token/prices/token-prices-batch",
+        ),
+        "streams": (
+            "WEBHOOK",
+            None,
+            "webhook",
+            (),
+            "PROVIDER_STREAM_EVENT",
+            10,
+            "PER_CONFIRMED_RECORD",
+            False,
+            "STREAM_ENDPOINT_NOT_POLLED",
+            MORALIS_STREAMS_CU_PRICING_SOURCE,
+        ),
+    }
+    specs = {spec.endpoint_id: spec for spec in moralis_endpoint_registry()}
+
+    assert set(specs) == set(endpoint_contracts)
+    for endpoint_id, expected_contract in endpoint_contracts.items():
+        spec = specs[endpoint_id]
+        actual_contract = (
+            spec.http_method,
+            spec.documented_base_url,
+            spec.path_template,
+            spec.query_parameter_shape,
+            spec.request_body_shape,
+            spec.cu_cost,
+            spec.cu_cost_unit,
+            spec.polling_supported,
+            spec.polling_block_reason,
+            spec.contract_reference,
+        )
+        assert actual_contract == expected_contract, endpoint_id
+
+
+def test_all_admitted_polling_specs_pass_the_client_request_contract_guard() -> None:
+    admitted = [
+        spec
+        for spec in moralis_endpoint_registry()
+        if spec.polling_supported and not spec.stream_based
+    ]
+    assert admitted
+    assert all(_request_contract_error(spec) is None for spec in admitted)
+
+
+def test_unsupported_batch_contract_fails_before_cu_reservation_or_http() -> None:
+    spec = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "multiple_token_prices"
+    )
+    limiter = Mock()
+    http_client = Mock()
+    response = MoralisClient(
+        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+    ).get(
+        spec,
+        chain="eth",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        symbol="LINKUSDT",
+    )
+
+    assert response.error_class == "ENDPOINT_POST_BATCH_BODY_AND_SCHEDULING_UNSUPPORTED"
+    assert response.http_status is None
+    assert response.payload is None
+    limiter.allow_request.assert_not_called()
+    http_client.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected_error"),
+    [
+        (
+            replace(
+                next(
+                    spec
+                    for spec in moralis_endpoint_registry()
+                    if spec.endpoint_id == "multiple_token_prices"
+                ),
+                polling_supported=True,
+            ),
+            "ENDPOINT_HTTP_METHOD_UNSUPPORTED",
+        ),
+        (
+            replace(
+                next(
+                    spec
+                    for spec in moralis_endpoint_registry()
+                    if spec.endpoint_id == "token_price"
+                ),
+                documented_base_url="https://api.moralis.example/v1",
+            ),
+            "ENDPOINT_BASE_URL_UNSUPPORTED",
+        ),
+        (
+            replace(
+                next(
+                    spec
+                    for spec in moralis_endpoint_registry()
+                    if spec.endpoint_id == "token_price"
+                ),
+                path_template="/erc20/{token}/price?chains={chain}",
+            ),
+            "ENDPOINT_QUERY_CONTRACT_MISMATCH",
+        ),
+    ],
+)
+def test_mismatched_request_contract_fails_before_cu_reservation_or_http(
+    spec, expected_error: str
+) -> None:
+    limiter = Mock()
+    http_client = Mock()
+    response = MoralisClient(
+        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+    ).get(
+        spec,
+        chain="eth",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        symbol="LINKUSDT",
+    )
+
+    assert response.error_class == expected_error
+    assert response.http_status is None
+    assert response.payload is None
+    limiter.allow_request.assert_not_called()
+    http_client.get.assert_not_called()
+
+
+def test_client_base_url_mismatch_fails_before_cu_reservation_or_http() -> None:
+    spec = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_price"
+    )
+    limiter = Mock()
+    http_client = Mock()
+    response = MoralisClient(
+        api_key="secret",  # noqa: S106 - non-secret test fixture
+        base_url="https://untrusted.example",
+        limiter=limiter,  # type: ignore[arg-type]
+        http_client=http_client,
+    ).get(
+        spec,
+        chain="eth",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        symbol="LINKUSDT",
+    )
+
+    assert response.error_class == "ENDPOINT_CLIENT_BASE_URL_MISMATCH"
+    assert response.http_status is None
+    limiter.allow_request.assert_not_called()
+    http_client.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("endpoint_id", "chain", "wallet", "token", "expected_error"),
+    [
+        ("wallet_history", "eth", None, None, "WALLET_REQUIRED"),
+        ("token_price", "eth", None, None, "TOKEN_REQUIRED"),
+        ("token_price", "", None, "0xtoken", "CHAIN_REQUIRED"),
+    ],
+)
+def test_required_request_identity_fails_before_cu_reservation_or_http(
+    endpoint_id: str,
+    chain: str,
+    wallet: str | None,
+    token: str | None,
+    expected_error: str,
+) -> None:
+    spec = next(spec for spec in moralis_endpoint_registry() if spec.endpoint_id == endpoint_id)
+    limiter = Mock()
+    http_client = Mock()
+    response = MoralisClient(
+        api_key="secret", limiter=limiter, http_client=http_client  # type: ignore[arg-type]
+    ).get(spec, chain=chain, wallet=wallet, token=token)
+
+    assert response.error_class == expected_error
+    assert response.http_status is None
+    assert response.payload is None
+    limiter.allow_request.assert_not_called()
+    http_client.get.assert_not_called()
 
 
 def test_stream_endpoint_is_not_polled_by_client() -> None:

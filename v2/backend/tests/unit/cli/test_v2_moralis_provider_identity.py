@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from typing import Any
 
 from v2.backend.app.cli import v2_moralis_provider_loop as provider_loop
@@ -237,3 +238,52 @@ def test_verified_token_is_requested_and_published_under_its_own_symbol(monkeypa
     assert [row["symbol"] for row in published] == ["LINKUSDT"]
     assert status["resolved_symbols"] == ["LINKUSDT"]
     assert status["quarantined_contract_count"] == 0
+
+
+def test_unsupported_endpoint_contract_is_quarantined_before_client_or_publish(
+    monkeypatch: Any,
+) -> None:
+    redis_client = FakeRedis()
+    _seed_token_map(redis_client, [("LINKUSDT", "ethereum", "0xlink")])
+    client = RecordingClient()
+    published: list[dict[str, Any]] = []
+    unsupported_spec = replace(
+        TOKEN_SPEC,
+        http_method="POST",
+        request_body_shape='{"tokens":[{"token_address":"{token}"}]}',
+        polling_supported=False,
+        polling_block_reason="ENDPOINT_POST_BATCH_BODY_AND_SCHEDULING_UNSUPPORTED",
+    )
+    monkeypatch.setattr(provider_loop, "moralis_endpoint_registry", lambda: (unsupported_spec,))
+    monkeypatch.setattr(
+        provider_loop,
+        "publish_moralis_result",
+        lambda *args, **kwargs: published.append(kwargs),
+    )
+    monkeypatch.setattr(
+        provider_loop,
+        "publish_moralis_feature_payload",
+        lambda *args, **kwargs: {},
+    )
+
+    status = provider_loop.run_once(
+        redis_client,
+        client=client,
+        chain="eth",
+        wallets=[],
+        tokens=["0xlink"],
+        symbol="BTCUSDT",
+    )
+
+    assert client.calls == []
+    assert published == []
+    assert status["request_count"] == 0
+    assert status["unsupported_endpoint_contract_count"] == 1
+    assert status["unsupported_endpoint_contracts"] == [
+        {
+            "endpoint_id": "token_transfers",
+            "http_method": "POST",
+            "reason": "ENDPOINT_POST_BATCH_BODY_AND_SCHEDULING_UNSUPPORTED",
+        }
+    ]
+    assert status["schedule_plan"]["estimated_compute_units_per_cycle"] == 0

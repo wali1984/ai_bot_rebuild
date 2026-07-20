@@ -8,14 +8,17 @@ from contextlib import suppress
 from typing import Any
 
 import httpx
-from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
+from app.services.smart_money_wallets.endpoint_registry import (
+    MORALIS_DEEP_INDEX_BASE_URL,
+    MoralisEndpointSpec,
+)
 from app.services.smart_money_wallets.models import MoralisResponse
 from app.services.smart_money_wallets.rate_limit import (
     MORALIS_TIMEOUT_SECONDS,
     MoralisRateLimiter,
 )
 
-DEFAULT_BASE_URL = "https://deep-index.moralis.io/api/v2.2"
+DEFAULT_BASE_URL = MORALIS_DEEP_INDEX_BASE_URL
 
 
 def key_hash_prefix(api_key: str | None) -> str | None:
@@ -63,6 +66,54 @@ class MoralisClient:
                 None,
                 None,
                 error_class="STREAM_ENDPOINT_NOT_POLLED",
+            )
+        contract_error = _request_contract_error(
+            spec,
+            actual_base_url=self.base_url,
+        )
+        if contract_error is not None:
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class=contract_error,
+            )
+        if not str(chain).strip():
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class="CHAIN_REQUIRED",
+            )
+        if spec.requires_wallet and not str(wallet or "").strip():
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class="WALLET_REQUIRED",
+            )
+        if spec.requires_token and not str(token or "").strip():
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class="TOKEN_REQUIRED",
             )
         if not self.api_key_present:
             return MoralisResponse(
@@ -160,6 +211,28 @@ class MoralisClient:
                 None,
                 error_class=type(exc).__name__,
             )
+
+
+def _request_contract_error(
+    spec: MoralisEndpointSpec,
+    *,
+    actual_base_url: str | None = None,
+) -> str | None:
+    if not spec.polling_supported:
+        return spec.polling_block_reason or "ENDPOINT_REQUEST_CONTRACT_UNSUPPORTED"
+    if spec.http_method != "GET":
+        return "ENDPOINT_HTTP_METHOD_UNSUPPORTED"
+    if spec.documented_base_url != MORALIS_DEEP_INDEX_BASE_URL:
+        return "ENDPOINT_BASE_URL_UNSUPPORTED"
+    if actual_base_url is not None and actual_base_url.rstrip("/") != spec.documented_base_url:
+        return "ENDPOINT_CLIENT_BASE_URL_MISMATCH"
+    if spec.request_body_shape is not None:
+        return "ENDPOINT_REQUEST_BODY_UNSUPPORTED"
+    query = spec.path_template.partition("?")[2]
+    actual_query_shape = tuple(component for component in query.split("&") if component)
+    if actual_query_shape != spec.query_parameter_shape:
+        return "ENDPOINT_QUERY_CONTRACT_MISMATCH"
+    return None
 
 
 def _safe_json(response: httpx.Response) -> Any:

@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.smart_money_wallets.client import MoralisClient
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         from v2.backend.app.services.safe_env_loader import bootstrap_process_env
 
         bootstrap_process_env(apply=True)
-    except Exception:
+    except Exception:  # noqa: S110 - optional environment bootstrap has an explicit fallback
         pass  # fall back to whatever the process env already carries
     redis_client = _redis_client(args.redis_url)
     wallets = _csv(args.wallets)
@@ -125,12 +125,24 @@ def run_once(
     results: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     quarantined: list[dict[str, Any]] = []
+    unsupported_endpoint_contracts: list[dict[str, Any]] = []
     published_symbols: set[str] = set()
     contract_symbol_map = bootstrap.get("contract_symbol_map") or {}
     ambiguous_contract_keys = set(bootstrap.get("ambiguous_contract_keys") or ())
     now_value = time.monotonic() if now_monotonic is None else float(now_monotonic)
     for spec in moralis_endpoint_registry():
         if spec.stream_based:
+            continue
+        if not spec.polling_supported:
+            unsupported_endpoint_contracts.append(
+                {
+                    "endpoint_id": spec.endpoint_id,
+                    "http_method": spec.http_method,
+                    "reason": (
+                        spec.polling_block_reason or "ENDPOINT_REQUEST_CONTRACT_UNSUPPORTED"
+                    ),
+                }
+            )
             continue
         targets = _targets_for_spec(spec, wallets=wallets, tokens=tokens)
         for target_index, (wallet, token) in enumerate(targets):
@@ -174,7 +186,10 @@ def run_once(
                         "endpoint_id": spec.endpoint_id,
                         "target": target_id,
                         "cadence_seconds": cadence_seconds,
-                        "seconds_until_due": max(0.0, cadence_seconds - (now_value - float(last_polled))),
+                        "seconds_until_due": max(
+                            0.0,
+                            cadence_seconds - (now_value - float(last_polled)),
+                        ),
                     }
                 )
                 continue
@@ -249,6 +264,8 @@ def run_once(
         "resolved_symbol_count": len(published_symbols),
         "quarantined_contract_count": len(quarantined),
         "quarantined_contracts": quarantined[:50],
+        "unsupported_endpoint_contract_count": len(unsupported_endpoint_contracts),
+        "unsupported_endpoint_contracts": unsupported_endpoint_contracts,
         "ambiguous_contract_identity_count": len(ambiguous_contract_keys),
         "identity_rejected_request_count": len(quarantined),
         "context_symbol_attribution_disabled": True,
@@ -260,7 +277,11 @@ def run_once(
         "core_system_blocked": False,
     }
     if redis_client is not None:
-        redis_client.set(SCHEDULER_STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=300)
+        redis_client.set(
+            SCHEDULER_STATUS_KEY,
+            json.dumps(status, sort_keys=True, default=str),
+            ex=300,
+        )
     return status
 
 
@@ -282,6 +303,8 @@ def moralis_scheduler_plan(*, wallets: list[str], tokens: list[str]) -> dict[str
                 "target_count": target_count,
                 "estimated_compute_units_per_cycle": endpoint_cu,
                 "stream_based": spec.stream_based,
+                "polling_supported": spec.polling_supported,
+                "polling_block_reason": spec.polling_block_reason,
                 "feature_outputs": list(spec.feature_outputs),
             }
         )
@@ -305,7 +328,7 @@ def _targets_for_spec(
     wallets: list[str],
     tokens: list[str],
 ) -> list[tuple[str | None, str | None]]:
-    if spec.stream_based:
+    if spec.stream_based or not spec.polling_supported:
         return []
     if spec.requires_wallet:
         return [(wallet, None) for wallet in wallets[:3]]
@@ -493,10 +516,26 @@ def _no_watchlist_status(
                 "decision_time_safe": bridge_payload.get("decision_time_safe"),
             }
         )
-        redis_client.set("v2:provider:moralis:health", json.dumps(health, sort_keys=True, default=str), ex=3600)
-        redis_client.set("v2:provider:moralis:usage", json.dumps(usage, sort_keys=True, default=str), ex=3600)
-        redis_client.set("v2:provider:moralis:endpoint_status", json.dumps(endpoint_status, sort_keys=True, default=str), ex=3600)
-        redis_client.set(SCHEDULER_STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=300)
+        redis_client.set(
+            "v2:provider:moralis:health",
+            json.dumps(health, sort_keys=True, default=str),
+            ex=3600,
+        )
+        redis_client.set(
+            "v2:provider:moralis:usage",
+            json.dumps(usage, sort_keys=True, default=str),
+            ex=3600,
+        )
+        redis_client.set(
+            "v2:provider:moralis:endpoint_status",
+            json.dumps(endpoint_status, sort_keys=True, default=str),
+            ex=3600,
+        )
+        redis_client.set(
+            SCHEDULER_STATUS_KEY,
+            json.dumps(status, sort_keys=True, default=str),
+            ex=300,
+        )
     return status
 
 
@@ -539,7 +578,7 @@ def _csv(raw: str) -> list[str]:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 if __name__ == "__main__":
