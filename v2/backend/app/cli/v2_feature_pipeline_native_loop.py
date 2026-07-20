@@ -17,6 +17,7 @@ import math
 import os
 import sys
 import time
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -39,6 +40,9 @@ from v2.backend.app.services.feature_pipeline_and_ta.service import (
 from v2.backend.app.services.feature_pipeline_and_ta.service import (
     _sma as _ta_sma,
 )
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    REQUIRED_DECISION_TIMEFRAMES,
+)
 from v2.backend.app.services.market_structure import (
     compute_cvd_features,
     compute_fvg,
@@ -47,18 +51,31 @@ from v2.backend.app.services.market_structure import (
     compute_volume_profile,
     compute_vwap_features,
 )
+from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
+    AtomicRedisSourceReadError,
+    read_atomic_redis_sources,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     FEATURE_REQUIREMENT_POLICY_ID,
     feature_requirement_classes_for_names,
 )
+from v2.backend.app.services.native_trainer.feature_window_dependency_contract import (
+    FeatureWindowContractError,
+    bind_full_contiguous_core_ta_input,
+)
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FEATURE_SPEC,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    OHLCVClosedWindowValidationError,
+    validate_ohlcv_closed_window,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
-DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+DEFAULT_TIMEFRAMES = REQUIRED_DECISION_TIMEFRAMES
+OHLCV_CONSUMER_SELECTION_SCHEMA_VERSION = "v2_feature_ohlcv_consumer_selection_v1"
 LEGACY_RL_OBSERVATION_CORE_FIELDS = (
     "ret_pct",
     "log_return",
@@ -347,6 +364,42 @@ def _connect_redis():
         return None
 
 
+def _connect_ohlcv_binary_redis():
+    """Return the raw Redis client required by the exact OHLCV transport."""
+
+    try:
+        import redis  # type: ignore
+    except Exception:
+        return None
+    try:
+        return redis.Redis(
+            host="127.0.0.1",
+            port=6379,
+            db=0,
+            decode_responses=False,
+        )
+    except Exception:
+        return None
+
+
+def _ohlcv_binary_client_for(redis_client):
+    """Reuse an already-raw client, otherwise create a dedicated binary view."""
+
+    if redis_client is None:
+        return None
+    if redis_client is not None:
+        try:
+            connection_kwargs = redis_client.get_connection_kwargs()
+        except Exception:
+            connection_kwargs = None
+        if (
+            type(connection_kwargs) is dict
+            and connection_kwargs.get("decode_responses") is False
+        ):
+            return redis_client
+    return _connect_ohlcv_binary_redis()
+
+
 def _safe_write(r, key: str, value: str, ex: int | None = None) -> bool:
     if r is None or not key.startswith(V2_REDIS_PREFIX):
         return False
@@ -547,117 +600,258 @@ def _read_klines_with_lineage(
     r,
     symbol: str,
     interval: str = "1m",
-    *,
-    decision_ms: int | None = None,
 ) -> tuple[list | None, dict]:
     closed_key = f"{V2_REDIS_PREFIX}market:ohlcv_closed:binance:{symbol}:{interval}"
-    raw_key = f"{V2_REDIS_PREFIX}market:ohlcv:binance:{symbol}:{interval}"
+    observation_cutoff_ms: int | None = None
+    lineage: dict = {
+        "schema_version": OHLCV_CONSUMER_SELECTION_SCHEMA_VERSION,
+        "selection_mode": "ATOMIC_CANONICAL_CLOSED_SELECTION_HELD",
+        "selected_source_keys": [],
+        "legacy_raw_key_considered": False,
+        "closed_key": closed_key,
+        "raw_key_row_count": 0,
+        "closed_key_row_count": 0,
+        "selected_row_count": 0,
+        "consumer_observation_cutoff_ms": None,
+        "consumer_observation_clock_source": None,
+        "expected_latest_finalized_close_time": None,
+        "atomic_source_read_succeeded": False,
+        "atomic_batch_id": None,
+        "atomic_batch_material_json": None,
+        "atomic_batch_material_sha256": None,
+        "atomic_server_observed_at": None,
+        "exact_payload_sha256": None,
+        "exact_payload_byte_count": 0,
+        "exact_source_schema_validated": False,
+        "entire_contiguous_suffix_bound": False,
+        "selected_source_start_index": None,
+        "selected_source_end_index_exclusive": None,
+        "selected_candle_ids": None,
+        "selected_first_candle_id": None,
+        "selected_latest_candle_id": None,
+        "selected_identity_storage": "HASH_CHAIN_AND_BOUNDARIES_ONLY",
+        "selected_candle_id_chain_sha256": None,
+        "source_gap_indices": [],
+        "source_gap_missing_interval_counts": [],
+        "selected_source_provenance_counts": {},
+        "selected_backfilled_row_count": 0,
+        "binding_selection_material_json": None,
+        "binding_selection_sha256": None,
+        "consumer_selection_material_json": None,
+        "consumer_selection_sha256": None,
+        "selection_material_retained_in_snapshot": False,
+        "selection_rejection_reasons": [],
+        # This slice binds exact input selection only. It is not a durable
+        # source receipt, feature publication, or trainer admission.
+        "durable_source_receipt_emitted": False,
+        "feature_publication_receipt_emitted": False,
+        "consumer_eligible": False,
+        "trainer_admission_granted": False,
+        "live_execution_authorized": False,
+    }
 
-    def _selection(
-        rows: list | None,
-        *,
-        mode: str,
-        source_keys: list[str],
-        raw_rows: list | None,
-        closed_rows: list | None,
-    ) -> tuple[list | None, dict]:
-        return rows, {
-            "selection_mode": mode,
-            "selected_source_keys": source_keys,
-            "raw_key": raw_key,
-            "closed_key": closed_key,
-            "raw_key_row_count": len(raw_rows or []),
-            "closed_key_row_count": len(closed_rows or []),
-            "selected_row_count": len(rows or []),
-        }
+    def _record_observation_clock(*, local_clock_source: str) -> int:
+        nonlocal observation_cutoff_ms
+        if observation_cutoff_ms is None:
+            observation_cutoff_ms = int(time.time() * 1000)
+            lineage["consumer_observation_clock_source"] = local_clock_source
+        lineage["consumer_observation_cutoff_ms"] = observation_cutoff_ms
+        lineage["expected_latest_finalized_close_time"] = (
+            _expected_latest_finalized_close_ms(
+                decision_ms=observation_cutoff_ms,
+                timeframe=interval,
+            )
+            if interval in DEFAULT_TIMEFRAMES
+            else None
+        )
+        return observation_cutoff_ms
+
+    def _held(reason: str) -> tuple[None, dict]:
+        _record_observation_clock(
+            local_clock_source="LOCAL_CLOCK_AT_HOLD_EVALUATION"
+        )
+        lineage["selection_rejection_reasons"] = [reason]
+        return None, lineage
 
     if r is None:
-        return _selection(
-            None,
-            mode="REDIS_UNAVAILABLE",
-            source_keys=[],
-            raw_rows=None,
-            closed_rows=None,
-        )
-    current_decision_ms = int(decision_ms if decision_ms is not None else time.time() * 1000)
-    closed_rows = _load_json_list_key(r, closed_key)
-    raw_rows = _load_json_list_key(r, raw_key)
-    closed_latest = _latest_closed_close_ms(closed_rows, decision_ms=current_decision_ms)
-    raw_latest = _latest_closed_close_ms(raw_rows, decision_ms=current_decision_ms)
-    if raw_latest is not None and (closed_latest is None or raw_latest > closed_latest):
-        return _selection(
-            raw_rows,
-            mode="RAW_KEY_NEWER",
-            source_keys=[raw_key],
-            raw_rows=raw_rows,
-            closed_rows=closed_rows,
-        )
-    # The ohlcv_closed key's history is TTL-truncated for intervals longer
-    # than its TTL (e.g. 15m holds 1-2 rows, 1h/4h expire entirely), which
-    # starves history-window features (atr_percentile needs 34+ candles).
-    # On a freshness tie prefer the deeper raw buffer; _closed_klines()
-    # downstream still filters to confirmed-closed rows only.
-    if (
-        raw_latest is not None
-        and closed_latest is not None
-        and raw_latest == closed_latest
-        and isinstance(raw_rows, list)
-        and isinstance(closed_rows, list)
-        and len(raw_rows) > len(closed_rows)
-    ):
-        # Retain the deeper history, but replace its newest equal-cutoff row
-        # with the canonical closed-key row when available. Otherwise a REST
-        # list can erase exact event/ingest/availability clocks precisely on a
-        # freshness tie, making a valid finalized decision unverifiable.
-        canonical_latest = next(
-            (
-                row
-                for row in reversed(closed_rows)
-                if isinstance(row, dict)
-                and _kline_close_ms(row) == closed_latest
-            ),
-            None,
-        )
-        if canonical_latest is not None:
-            merged_rows = list(raw_rows)
-            for index in range(len(merged_rows) - 1, -1, -1):
-                if _kline_close_ms(merged_rows[index]) == raw_latest:
-                    merged_rows[index] = canonical_latest
-                    return _selection(
-                        merged_rows,
-                        mode="HYBRID_RAW_HISTORY_CANONICAL_CLOSED_LATEST",
-                        source_keys=[raw_key, closed_key],
-                        raw_rows=raw_rows,
-                        closed_rows=closed_rows,
-                    )
-        return _selection(
-            raw_rows,
-            mode="RAW_KEY_DEEPER_TIE_NO_CANONICAL_LATEST",
-            source_keys=[raw_key],
-            raw_rows=raw_rows,
-            closed_rows=closed_rows,
-        )
-    return _selection(
-        closed_rows,
-        mode="CLOSED_KEY_SELECTED" if closed_rows is not None else "NO_KLINES",
-        source_keys=[closed_key] if closed_rows is not None else [],
-        raw_rows=raw_rows,
-        closed_rows=closed_rows,
+        return _held("ATOMIC_OHLCV_RAW_REDIS_CLIENT_UNAVAILABLE")
+    if interval not in DEFAULT_TIMEFRAMES:
+        return _held("ATOMIC_OHLCV_TIMEFRAME_NOT_REQUIRED")
+
+    try:
+        batch = read_atomic_redis_sources(r, (closed_key,))
+    except AtomicRedisSourceReadError as exc:
+        return _held(str(exc))
+
+    # This is the earliest local clock at which the exact transaction result
+    # is possessed by this process. Redis TIME is a server-side command clock,
+    # not the consumer-observation clock, and a pre-read request clock cannot
+    # truthfully substitute for it.
+    current_decision_ms = _record_observation_clock(
+        local_clock_source="LOCAL_CLOCK_AFTER_ATOMIC_RESPONSE"
     )
+
+    lineage.update(
+        {
+            "atomic_source_read_succeeded": True,
+            "atomic_batch_id": batch.batch_id,
+            # Full material stays transient. Recurring latest/archive
+            # snapshots retain its hash only to avoid per-cycle Redis
+            # amplification.
+            "atomic_batch_material_json": None,
+            "atomic_batch_material_sha256": batch.batch_material_sha256,
+            "atomic_server_observed_at": batch.server_observed_at,
+        }
+    )
+    if len(batch.results) != 1 or batch.results[0].source_key != closed_key:
+        return _held("ATOMIC_OHLCV_SOURCE_RESULT_BINDING_INVALID")
+    source_result = batch.results[0]
+    if not source_result.present or source_result.exact_payload_bytes is None:
+        return _held("ATOMIC_OHLCV_CLOSED_SOURCE_KEY_MISSING")
+
+    lineage.update(
+        {
+            "exact_payload_sha256": source_result.payload_sha256,
+            "exact_payload_byte_count": source_result.payload_byte_count,
+        }
+    )
+    try:
+        validated = validate_ohlcv_closed_window(
+            source_result.exact_payload_bytes,
+            symbol=symbol,
+            timeframe=interval,
+        )
+        identity_rows = [asdict(row) for row in validated.rows]
+        binding = bind_full_contiguous_core_ta_input(
+            identity_rows,
+            expected_symbol=symbol,
+            timeframe=interval,
+            consumer_observed_at_ms=current_decision_ms,
+            expected_latest_finalized_close_time=(
+                lineage["expected_latest_finalized_close_time"]
+            ),
+        )
+    except (OHLCVClosedWindowValidationError, FeatureWindowContractError) as exc:
+        return _held(str(exc))
+
+    if (
+        validated.source_key != closed_key
+        or validated.exact_payload_sha256 != source_result.payload_sha256
+        or validated.exact_payload_byte_count != source_result.payload_byte_count
+    ):
+        return _held("ATOMIC_OHLCV_EXACT_PAYLOAD_BINDING_INVALID")
+
+    selected_validated_rows = validated.rows[
+        binding.selected_source_start_index : binding.selected_source_end_index_exclusive
+    ]
+    if (
+        len(selected_validated_rows) != binding.selected_row_count
+        or tuple(row.candle_id for row in selected_validated_rows)
+        != binding.selected_candle_ids
+    ):
+        return _held("ATOMIC_OHLCV_SELECTED_ROW_BINDING_INVALID")
+
+    selected_rows = [asdict(row) for row in selected_validated_rows]
+    provenance_counts = {
+        source: sum(row.source == source for row in selected_validated_rows)
+        for source in ("binance_rest", "binance_wss")
+        if any(row.source == source for row in selected_validated_rows)
+    }
+    selection_material = {
+        "schema_version": OHLCV_CONSUMER_SELECTION_SCHEMA_VERSION,
+        "source_key": closed_key,
+        "atomic_batch_id": batch.batch_id,
+        "atomic_batch_material_sha256": batch.batch_material_sha256,
+        "exact_payload_sha256": validated.exact_payload_sha256,
+        "exact_payload_byte_count": validated.exact_payload_byte_count,
+        "consumer_observation_cutoff_ms": current_decision_ms,
+        "expected_latest_finalized_close_time": (
+            binding.expected_latest_finalized_close_time
+        ),
+        "binding_selection_sha256": binding.selection_sha256,
+        "selected_source_start_index": binding.selected_source_start_index,
+        "selected_source_end_index_exclusive": (
+            binding.selected_source_end_index_exclusive
+        ),
+        "selected_row_count": binding.selected_row_count,
+        "selected_candle_ids": list(binding.selected_candle_ids),
+        "selected_candle_id_chain_sha256": (
+            binding.selected_candle_id_chain_sha256
+        ),
+        "selected_raw_payload_hashes": [
+            row.raw_payload_hash for row in selected_validated_rows
+        ],
+        "selected_source_provenance": [
+            {
+                "candle_id": row.candle_id,
+                "source": row.source,
+                "is_backfilled": row.is_backfilled,
+                "source_sequence_id": row.source_sequence_id,
+                "raw_payload_hash": row.raw_payload_hash,
+            }
+            for row in selected_validated_rows
+        ],
+        "durable_source_receipt_emitted": False,
+        "feature_publication_receipt_emitted": False,
+        "consumer_eligible": False,
+        "trainer_admission_granted": False,
+        "live_execution_authorized": False,
+    }
+    selection_material_json = json.dumps(
+        selection_material,
+        ensure_ascii=True,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    selection_sha256 = hashlib.sha256(
+        selection_material_json.encode("ascii")
+    ).hexdigest()
+    lineage.update(
+        {
+            "selection_mode": "ATOMIC_CANONICAL_CLOSED_FULL_CONTIGUOUS_SUFFIX_BOUND",
+            "selected_source_keys": [closed_key],
+            "closed_key_row_count": validated.row_count,
+            "selected_row_count": binding.selected_row_count,
+            "exact_source_schema_validated": True,
+            "entire_contiguous_suffix_bound": True,
+            "selected_source_start_index": binding.selected_source_start_index,
+            "selected_source_end_index_exclusive": (
+                binding.selected_source_end_index_exclusive
+            ),
+            "selected_candle_ids": None,
+            "selected_first_candle_id": binding.selected_candle_ids[0],
+            "selected_latest_candle_id": binding.selected_candle_ids[-1],
+            "selected_candle_id_chain_sha256": (
+                binding.selected_candle_id_chain_sha256
+            ),
+            "source_gap_indices": list(binding.gap_indices),
+            "source_gap_missing_interval_counts": list(
+                binding.gap_missing_interval_counts
+            ),
+            "selected_source_provenance_counts": provenance_counts,
+            "selected_backfilled_row_count": sum(
+                row.is_backfilled for row in selected_validated_rows
+            ),
+            "binding_selection_material_json": None,
+            "binding_selection_sha256": binding.selection_sha256,
+            "consumer_selection_material_json": None,
+            "consumer_selection_sha256": selection_sha256,
+            "selection_rejection_reasons": [],
+        }
+    )
+    return selected_rows, lineage
 
 
 def _read_klines(
     r,
     symbol: str,
     interval: str = "1m",
-    *,
-    decision_ms: int | None = None,
 ) -> list | None:
     rows, _lineage = _read_klines_with_lineage(
         r,
         symbol,
         interval,
-        decision_ms=decision_ms,
     )
     return rows
 
@@ -725,6 +919,7 @@ def _exact_candle_temporal_lineage(
     feature_generated_ms: int | None,
     expected_symbol: str,
     expected_timeframe: str,
+    atomic_canonical_selection_bound: bool = False,
 ) -> tuple[dict[str, str | bool | None], list[str]]:
     """Retain only producer-owned exact clocks; aliases never qualify."""
 
@@ -790,11 +985,16 @@ def _exact_candle_temporal_lineage(
         reasons.append("CANDLE_EXCHANGE_BINDING_MISMATCH")
     if row.get("timeframe") != expected_timeframe:
         reasons.append("CANDLE_TIMEFRAME_BINDING_MISMATCH")
-    if source != "binance_wss":
+    atomic_schema_bound_rest = (
+        source == "binance_rest"
+        and is_backfilled is True
+        and atomic_canonical_selection_bound is True
+    )
+    if source != "binance_wss" and not atomic_schema_bound_rest:
         reasons.append("LIVE_CANDLE_SOURCE_NOT_EXACT_BINANCE_WSS")
     if type(is_backfilled) is not bool:
         reasons.append("LIVE_CANDLE_BACKFILL_FLAG_MISSING_OR_INVALID")
-    elif is_backfilled:
+    elif is_backfilled and not atomic_schema_bound_rest:
         reasons.append("LIVE_CANDLE_BACKFILL_NOT_EXACT_OBSERVATION")
     if row.get("is_closed") is not True:
         reasons.append("EXACT_CANDLE_FINALITY_FLAG_INVALID")
@@ -2017,6 +2217,7 @@ def _feature_snapshot_archive_key(snapshot_id: str) -> str:
 def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot: bool = True) -> dict:
     started_at = _utc_iso()
     r = _connect_redis()
+    ohlcv_binary_r = _ohlcv_binary_client_for(r)
     (
         paper_position_presence,
         paper_position_value_source_status,
@@ -2026,14 +2227,20 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
     snapshots: list[dict] = []
     missing: list[str] = []
     for sym in symbols:
-        decision_ms = int(time.time() * 1000)
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
         raw_klines, ohlcv_selection_lineage = _read_klines_with_lineage(
-            r,
+            ohlcv_binary_r,
             sym,
             timeframe,
-            decision_ms=decision_ms,
+        )
+        observed_cutoff = ohlcv_selection_lineage.get(
+            "consumer_observation_cutoff_ms"
+        )
+        decision_ms = (
+            observed_cutoff
+            if type(observed_cutoff) is int
+            else int(time.time() * 1000)
         )
         selected_ohlcv_source_keys = [
             str(key)
@@ -2134,6 +2341,10 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
                 feature_generated_ms=generated_ms,
                 expected_symbol=sym,
                 expected_timeframe=timeframe,
+                atomic_canonical_selection_bound=bool(
+                    ohlcv_selection_lineage.get("exact_source_schema_validated") is True
+                    and ohlcv_selection_lineage.get("entire_contiguous_suffix_bound") is True
+                ),
             )
         )
         expected_finalized_close_ms = (
@@ -2359,6 +2570,7 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_selection_mode": ohlcv_selection_lineage[
                 "selection_mode"
             ],
+            "ohlcv_consumer_selection": ohlcv_selection_lineage,
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
             "market_cost_evidence_source_fields": {
