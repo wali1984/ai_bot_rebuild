@@ -193,10 +193,11 @@ def _build_policy(tmp_path: Path) -> dict[str, object]:
     for ordinal, (role, relative_path) in enumerate(PROJECT_CODE_CLOSURE_V4):
         path = project_root / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        if role == "canonical_ohlcv_hermetic_replay_protocol_v4":
+        if role in policy_module._PINNED_CODE_SHA256_BY_ROLE:
             payload = (_REPOSITORY_ROOT / relative_path).read_bytes()
-            assert hashlib.sha256(payload).hexdigest() == (
-                CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256
+            assert (
+                hashlib.sha256(payload).hexdigest()
+                == (policy_module._PINNED_CODE_SHA256_BY_ROLE[role])
             )
         else:
             payload = f"# fixture {ordinal}: {role}\n".encode()
@@ -624,10 +625,10 @@ def test_changed_code_bytes_fail_the_pinned_digest(tmp_path: Path) -> None:
     policy = _build_policy(tmp_path)
     entries = policy["code_closure"]
     assert type(entries) is list
-    first = entries[0]
-    path = Path(str(policy["project_root"])) / str(first["relative_path"])
+    target = next(entry for entry in entries if int(entry["byte_count"]) > 0)
+    path = Path(str(policy["project_root"])) / str(target["relative_path"])
     changed = b"# changed but same byte count\n"
-    original_count = int(first["byte_count"])
+    original_count = int(target["byte_count"])
     path.write_bytes(changed[:original_count].ljust(original_count, b"x"))
     with pytest.raises(
         CanonicalOhlcvHermeticReplayPolicyV4Error, match="code_file_digest_mismatch"
@@ -1001,18 +1002,32 @@ def test_manifest_names_every_required_replay_dependency_and_package_init() -> N
     assert len(paths) == len(set(paths))
 
 
-def test_frozen_protocol_dependency_is_exactly_pinned_in_schema_and_code_closure(
+def test_static_replay_dependencies_are_exactly_pinned_in_code_closure(
     tmp_path: Path,
 ) -> None:
     protocol_path = _REPOSITORY_ROOT / CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_RELATIVE_PATH
     assert hashlib.sha256(protocol_path.read_bytes()).hexdigest() == (
         CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256
     )
-    assert policy_module._PINNED_CODE_SHA256_BY_ROLE == {
-        "canonical_ohlcv_hermetic_replay_protocol_v4": (
-            CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256
-        )
+    pinned = dict(policy_module._PINNED_CODE_SHA256_BY_ROLE)
+    assert set(pinned) == {
+        role
+        for role, _relative_path in PROJECT_CODE_CLOSURE_V4
+        if role
+        not in {
+            "canonical_ohlcv_hermetic_replay_policy_v4",
+            "canonical_ohlcv_hermetic_replay_worker_v4",
+        }
     }
+    for role, relative_path in PROJECT_CODE_CLOSURE_V4:
+        if role in pinned:
+            assert (
+                hashlib.sha256((_REPOSITORY_ROOT / relative_path).read_bytes()).hexdigest()
+                == (pinned[role])
+            )
+    assert pinned["canonical_ohlcv_hermetic_replay_protocol_v4"] == (
+        CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256
+    )
     assert _ACCEPTED_SCHEMAS["hermetic_replay_protocol_contract"] == (
         "canonical_ohlcv_hermetic_replay_protocol_contract_v4"
     )
@@ -1044,6 +1059,26 @@ def test_frozen_protocol_dependency_is_exactly_pinned_in_schema_and_code_closure
     forged = b"x" * int(protocol_entry["byte_count"])
     fixture_protocol_path.write_bytes(forged)
     protocol_entry["sha256"] = hashlib.sha256(forged).hexdigest()
+    with pytest.raises(
+        CanonicalOhlcvHermeticReplayPolicyV4Error,
+        match="pinned_code_digest_mismatch",
+    ):
+        _validate(policy)
+
+    policy = _build_policy(tmp_path / "semantic")
+    entries = policy["code_closure"]
+    assert type(entries) is list
+    semantic_entry = next(
+        entry
+        for entry in entries
+        if type(entry) is dict
+        and entry.get("role") == "canonical_ohlcv_manifest_semantic_replay_v4"
+    )
+    semantic_path = Path(str(policy["project_root"])) / str(semantic_entry["relative_path"])
+    forged_semantic = semantic_path.read_bytes() + b"\n# alternate semantic implementation\n"
+    semantic_path.write_bytes(forged_semantic)
+    semantic_entry["byte_count"] = len(forged_semantic)
+    semantic_entry["sha256"] = hashlib.sha256(forged_semantic).hexdigest()
     with pytest.raises(
         CanonicalOhlcvHermeticReplayPolicyV4Error,
         match="pinned_code_digest_mismatch",

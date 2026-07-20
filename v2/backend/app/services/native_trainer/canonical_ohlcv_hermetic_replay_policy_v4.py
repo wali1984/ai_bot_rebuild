@@ -31,9 +31,13 @@ The worker path and role are fixed, but its digest is deliberately not
 hardcoded before that separate slice is frozen.  Its exact digest is declared
 inside the policy's ordered code closure, is transitively bound by the
 separately supplied expected policy digest, and must match the worker file in
-both reopen passes.  The already-frozen protocol dependency is pinned here
-exactly.  These are validation-time file facts only; no runtime service or
-sandbox enforcement may be inferred.
+both reopen passes.  Every static package and replay dependency is pinned here
+exactly; the policy cannot therefore bless alternate semantic code merely
+because an unauthenticated channel supplied a self-consistent closure.  The
+policy source cannot pin itself, and the worker remains policy-document-bound
+to avoid a policy-source/worker-source digest cycle.  These are validation-
+time file facts only; no runtime service or sandbox enforcement may be
+inferred.
 """
 
 from __future__ import annotations
@@ -298,9 +302,44 @@ PROJECT_CODE_CLOSURE_V4: tuple[tuple[str, str], ...] = (
 
 _PINNED_CODE_SHA256_BY_ROLE: MappingProxyType[str, str] = MappingProxyType(
     {
+        "v2_package_init": ("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        "backend_package_init": (
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ),
+        "app_package_init": ("974634ebe423ae821445c65e986d43c0d18d0f6f6c8284f7e02d31e0d33c1cbc"),
+        "services_package_init": (
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        ),
+        "native_trainer_package_init": (
+            "7cf4123619e25f613411cfd1be68ee896b52683fcce956940bd6f48dd9ace291"
+        ),
+        "ohlcv_closed_window_validator": (
+            "337e3d1b8f3c9ebb43f87e8472c4e7bd952278952a6df1b9931ba4e89a040966"
+        ),
+        "feature_window_dependency_contract": (
+            "ee9d6f463c2089dcd5f67fff4caaa28c2509b6b19ab4aba1672c36689f7191a2"
+        ),
+        "source_read_receipt_v4": (
+            "6f65909c2e683b7df2c891e046e8b3387473fd7a108081c57a739522815d2be5"
+        ),
+        "immutable_source_payload_store": (
+            "7b29fb5db68829410486c5f03384bd3a5f8e7620ff96902942df68f276e22925"
+        ),
+        "immutable_source_payload_reader_v4": (
+            "2148bed5d47f897ba55b4ef515c712797237bfa164e5dc8dd92901ebe76248f9"
+        ),
+        "atomic_redis_source_reader": (
+            "b40e8752ff5cd35bdb05907295776b6cb06635e9e8a71422816f3c59ca62eb82"
+        ),
+        "canonical_ohlcv_atomic_receipt_adapter": (
+            "a2da3769419f855bd1c9f4d0d498f7175ba2ece80c81d0d101e41fd70ac39c0b"
+        ),
+        "canonical_ohlcv_manifest_semantic_replay_v4": (
+            "a4a88e6444ac3248dce5badac291cf51457d8a4589628e5a70941c5f75790eae"
+        ),
         "canonical_ohlcv_hermetic_replay_protocol_v4": (
             CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256
-        )
+        ),
     }
 )
 
