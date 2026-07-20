@@ -5,9 +5,8 @@ Locks in the three gap fixes that closed the CoinAnk consumption gaps:
   Gap 1  v2_coinank_intel_bridge mirrors fresh legacy ``features:global_coinank:*``
          and ``latest:coinank:*`` into the V2 namespace (``v2:coinank:*`` /
          ``v2:features:coinank:*``) that every V2 consumer actually reads.
-  Gap 2  the alt-data confluence engine accepts CoinAnk as a provider input, so a
-         symbol with ONLY CoinAnk present still produces derivatives-pressure and
-         liquidation-sweep scores instead of an empty confluence payload.
+  Gap 2  the alt-data consumer honors CoinAnk's explicit trainer/prediction/paper
+         holds, so a source-visible but non-consumable payload remains masked.
   Gap 3  the alt-data symbol-scoring contract exposes the CoinAnk sub-scores
          without mutating the weighted ``altdata_symbol_score`` aggregate.
 
@@ -117,13 +116,13 @@ def test_gap1_bridge_mirrors_legacy_coinank_into_v2_namespace() -> None:
     assert client.get("features:global_coinank:total_oi:latest") is not None
 
 
-def test_gap2_confluence_uses_coinank_when_it_is_the_only_provider() -> None:
+def test_gap2_confluence_honors_coinank_consumption_hold() -> None:
     client = FakeRedis()
     _seed_legacy_coinank(client, "RAVEUSDT", "4h")
     bridge.run_once(client)
 
     coinank = load_coinank_input(client, "RAVEUSDT", "4h")
-    assert coinank.present is True
+    assert coinank.present is False
     assert coinank.stale is False
 
     payload = build_confluence(
@@ -135,12 +134,13 @@ def test_gap2_confluence_uses_coinank_when_it_is_the_only_provider() -> None:
         generated_utc="2026-07-14T21:15:00Z",
     )
 
-    assert payload["providers_present"] == ["coinank"]
-    assert payload["actual_payload_present"] is True
+    assert payload["providers_present"] == []
+    assert payload["actual_payload_present"] is False
+    assert payload["heartbeat_only"] is True
+    assert payload["decision_time_safe"] is False
     feats = payload["features"]
-    # Before Gap 2 these were None (empty confluence); CoinAnk now fills them.
-    assert feats["altdata_derivatives_pressure_score"] is not None
-    assert feats["altdata_liquidation_sweep_risk_score"] is not None
+    assert feats["altdata_derivatives_pressure_score"] is None
+    assert feats["altdata_liquidation_sweep_risk_score"] is None
     assert payload["single_provider_can_approve"] is False
     assert payload["raw_key_exposed"] is False
     assert "STANDALONE_APPROVE" in payload["forbidden_actions"]
