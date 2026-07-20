@@ -1038,7 +1038,18 @@ def test_feature_snapshot_carries_point_in_time_cost_evidence_from_orderbook(mon
     }
 
 
-def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidence() -> None:
+def test_every_feature_built_from_selected_market_inputs_is_reserved() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+
+    canonical_features = mod._features_from_market(_market_payload())  # noqa: SLF001
+
+    assert set(canonical_features) <= set(mod.CANONICAL_MARKET_INPUT_FIELDS)
+    assert set(canonical_features) <= set(mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS)
+
+
+def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidence(
+    monkeypatch,
+) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
     injected = {
@@ -1046,8 +1057,14 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
         for index, field in enumerate(sorted(mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS))
     }
     injected["optional_external_signal"] = 0.73
-    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
-        {"indicators": injected}
+    monkeypatch.setattr(
+        mod,
+        "_read_hash_key",
+        lambda _redis, key: (
+            injected
+            if key == "v2:unified_features:BTCUSDT:1m"
+            else None
+        ),
     )
     features = {
         field: None for field in mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS
@@ -1067,14 +1084,68 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
         for field in mod.EXTERNAL_ENRICHMENT_RESERVED_FIELDS
     )
     assert features["optional_external_signal"] == 0.73
-    assert "v2:features:ta_full" in result["sources_present"]
+    assert "v2:unified_features" in result["sources_present"]
 
 
-def test_external_enrichment_cannot_backfill_missing_canonical_open_interest() -> None:
+def test_live_ta_full_is_not_read_or_merged() -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     fake = FakeRedis()
-    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
-        {"indicators": {"open_interest": 987654.0}}
+    ta_key = "v2:features:ta_full:BTCUSDT:1m"
+    fake.store[ta_key] = json.dumps(
+        {
+            "symbol": "ETHUSDT",
+            "timeframe": "1h",
+            "generated_utc": "2099-01-01T00:00:00Z",
+            "source_label": "V2_FULL_TALIB_TA_LIVE",
+            "indicators": {
+                "open": 1.0,
+                "high": 2.0,
+                "low": 0.5,
+                "close": 1.5,
+                "volume": 99.0,
+                "open_interest": 987654.0,
+                "optional_external_signal": 0.73,
+            },
+        }
+    )
+    features = {
+        "open": None,
+        "high": None,
+        "low": None,
+        "close": None,
+        "volume": None,
+        "open_interest": None,
+    }
+
+    result = mod._merge_external_v2_features(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        "1m",
+        features,
+        selected_closed_klines=[],
+        ohlcv_selection_lineage={},
+    )
+
+    assert ta_key not in fake.get_calls
+    assert all(value is None for value in features.values())
+    assert "optional_external_signal" not in features
+    assert "v2:features:ta_full" not in result["sources_present"]
+    assert result["fields_merged"] == 0
+
+
+def test_unified_enrichment_cannot_backfill_missing_canonical_open_interest(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    monkeypatch.setattr(
+        mod,
+        "_read_hash_key",
+        lambda _redis, key: (
+            {"open_interest": 987654.0}
+            if key == "v2:unified_features:BTCUSDT:1m"
+            else None
+        ),
     )
     features = {"open_interest": None}
 
@@ -1090,32 +1161,86 @@ def test_external_enrichment_cannot_backfill_missing_canonical_open_interest() -
     assert "open_interest" in mod.CANONICAL_MARKET_INPUT_FIELDS
     assert features["open_interest"] is None
     assert result["fields_merged"] == 0
-    assert "v2:features:ta_full" in result["sources_present"]
+    assert "v2:unified_features" in result["sources_present"]
 
 
 def test_snapshot_quarantines_missing_canonical_open_interest_despite_enrichment(
     monkeypatch,
 ) -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    provider_features = importlib.import_module(
+        "v2.backend.app.services.provider_features"
+    )
     fake = FakeRedis()
     close_ms = _latest_finalized_close_ms(mod, "1m")
     fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
     fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
         _canonical_closed_window(close_ms)
     )
-    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
-        {"indicators": {"open_interest": 987654.0}}
+    ta_key = "v2:features:ta_full:BTCUSDT:1m"
+    fake.store[ta_key] = json.dumps(
+        {
+            "symbol": "ETHUSDT",
+            "timeframe": "1h",
+            "generated_utc": "2099-01-01T00:00:00Z",
+            "source_label": "V2_FULL_TALIB_TA_LIVE",
+            "indicators": {
+                "open": 1.0,
+                "mark_price": 2.0,
+                "volume": 3.0,
+                "open_interest": 987654.0,
+            },
+        }
+    )
+    original_read_hash = mod._read_hash_key  # noqa: SLF001
+
+    def read_hash(redis_client, key):
+        if key == "v2:unified_features:BTCUSDT:1m":
+            return {
+                "open": "4.0",
+                "mark_price": "5.0",
+                "volume": "6.0",
+                "open_interest": "765432.0",
+                "optional_external_signal": "0.5",
+            }
+        return original_read_hash(redis_client, key)
+
+    monkeypatch.setattr(mod, "_read_hash_key", read_hash)
+    monkeypatch.setattr(
+        provider_features,
+        "build_provider_consumer_context",
+        lambda *_args, **_kwargs: {
+            "provider_features": {
+                "open": 7.0,
+                "mark_price": 8.0,
+                "volume": 9.0,
+                "open_interest": 654321.0,
+                "optional_provider_signal": 0.75,
+            }
+        },
     )
     monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
 
     mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
 
     payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert payload["features"]["open"] == 99.0
+    assert payload["features"]["mark_price"] == 100.0
+    assert payload["features"]["volume"] == 1000.0
     assert payload["features"]["open_interest"] is None
+    assert payload["features"]["optional_external_signal"] == 0.5
+    assert "optional_provider_signal" not in payload["features"]
+    assert payload["provider_features"]["open_interest"] == 654321.0
+    assert "v2:features:ta_full" not in payload["external_v2_sources_present"]
+    assert "v2:unified_features" in payload["external_v2_sources_present"]
     assert "open_interest" in payload["missing_feature_flags"]
     assert "open_interest" in payload["required_model_feature_missing_fields"]
     assert payload["required_model_feature_value_contract_valid"] is False
+    assert payload["required_model_feature_pit_coverage_valid"] is False
+    assert payload["exact_feature_availability_valid"] is False
     assert payload["trainer_consumable"] is False
+    assert payload["valid_for_prediction"] is False
+    assert payload["valid_for_paper"] is False
 
 
 def test_explicit_orderbook_imbalance_must_be_inside_unit_interval() -> None:
@@ -1997,7 +2122,7 @@ def test_unmanifested_external_values_cannot_release_snapshot(monkeypatch) -> No
     assert snapshot["exact_feature_availability_rejection_reasons"] == [
         "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
     ]
-    assert snapshot["features"]["unmanifested_ta_signal"] == 0.75
+    assert "unmanifested_ta_signal" not in snapshot["features"]
     assert snapshot["features"]["unmanifested_unified_signal"] == 0.5
     assert snapshot["trainer_consumable"] is False
     assert snapshot["valid_for_prediction"] is False
@@ -2314,10 +2439,20 @@ def test_external_enrichment_cannot_override_canonical_paper_position_presence(
         {
             "indicators": {
                 "paper_position_present": 0,
-                "optional_external_signal": 0.75,
             }
         }
     )
+    original_read_hash = fp._read_hash_key  # noqa: SLF001
+
+    def read_hash(redis_client, key):
+        if key == "v2:unified_features:BTCUSDT:1m":
+            return {
+                "paper_position_present": 0,
+                "optional_external_signal": 0.75,
+            }
+        return original_read_hash(redis_client, key)
+
+    monkeypatch.setattr(fp, "_read_hash_key", read_hash)
     monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
 
     fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
@@ -2326,4 +2461,5 @@ def test_external_enrichment_cannot_override_canonical_paper_position_presence(
     assert snapshot["features"]["paper_position_present"] == 1
     assert snapshot["features"]["optional_external_signal"] == 0.75
     assert snapshot["external_v2_feature_fields_merged"] == 1
-    assert "v2:features:ta_full" in snapshot["external_v2_sources_present"]
+    assert "v2:features:ta_full" not in snapshot["external_v2_sources_present"]
+    assert "v2:unified_features" in snapshot["external_v2_sources_present"]

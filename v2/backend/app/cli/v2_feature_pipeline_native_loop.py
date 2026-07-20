@@ -136,10 +136,67 @@ CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "_expected_slippage_source",
 )
 CANONICAL_MARKET_INPUT_FIELDS = (
-    # This value is selected from the canonical native-ingestor payload in
-    # ``_features_from_market``.  If that source reports it unavailable, an
-    # older/unreceipted enrichment surface must not silently fill the gap.
+    # Every value emitted directly by ``_features_from_market`` is selected or
+    # derived from the exact market inputs chosen for this snapshot.  If that
+    # path reports a value unavailable, a mutable/unreceipted enrichment
+    # surface must not silently manufacture it.  Keep the unit-test invariant
+    # in sync whenever ``_features_from_market`` gains another output field.
+    "open",
+    "high",
+    "low",
+    "close",
+    "last_price",
+    "mark_price",
+    "index_price",
+    "basis_pct",
+    "volume",
+    "quote_volume",
+    "num_trades",
+    "taker_buy_base_vol",
+    "taker_buy_quote_vol",
+    "ret_pct",
+    "log_return",
+    "range_pct",
+    "body_pct",
+    "true_range_pct",
+    "gap_pct",
+    "ema_12",
+    "ema_26",
+    "sma_20",
+    "rsi_14",
+    "macd",
+    "macd_signal",
+    "macd_hist",
+    "atr_14",
+    "atr_percentile",
+    "bb_width_pct",
+    "htf_ret_pct",
+    "htf_rsi_14",
+    "bid_ask_spread_bps",
+    "actual_observed_spread_entry_bps",
+    "bid_depth_usd",
+    "ask_depth_usd",
+    "orderbook_depth_usd",
+    "fee_bps",
+    "_fee_bps_source",
+    "expected_slippage_bps",
+    "_expected_slippage_source",
+    "expected_funding_bps",
+    "depth_imbalance",
+    "micro_price",
+    "toxicity_proxy",
+    "funding_rate",
     "open_interest",
+    "long_short_ratio",
+    "long_account_ratio",
+    "short_account_ratio",
+    "taker_sell_base_vol",
+    "taker_sell_quote_vol",
+    "taker_buy_ratio",
+    "taker_sell_ratio",
+    "oi_change_pct",
+    "last_liq_bps_24h",
+    "paper_position_present",
 )
 # Enrichment must never replace the legacy core values computed from the exact
 # market inputs selected for this snapshot or its market-cost evidence.  This
@@ -1537,12 +1594,11 @@ def _merge_external_v2_features(
     fields_merged += a_plus_merged
     sources_present.extend(a_plus_sources)
 
-    ta_full = _read_json_key(r, f"v2:features:ta_full:{symbol}:{timeframe}")
-    if isinstance(ta_full, dict):
-        indicators = ta_full.get("indicators")
-        if isinstance(indicators, dict):
-            fields_merged += _merge_numeric_features(features, indicators)
-            sources_present.append("v2:features:ta_full")
+    # Deliberately do not read ``v2:features:ta_full`` here.  That mutable
+    # producer surface may include the unfinished candle and does not bind its
+    # values to this consumer's exact closed-window selection.  A future
+    # ``ta_closed`` integration must carry an exact source-read receipt before
+    # any of its values can enter this snapshot.
 
     liq = _read_hash_key(r, f"v2:liquidations:levels:{symbol}:{timeframe}")
     if isinstance(liq, dict):
