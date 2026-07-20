@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from v2.backend.app.cli.v2_coinglass_provider_loop import run_once
 from v2.backend.app.cli.v2_moralis_provider_loop import run_once as run_moralis_once
 from v2.backend.app.cli.v2_provider_scheduler_status import build_status
@@ -155,6 +157,22 @@ def test_coinglass_loop_honors_endpoint_cadence() -> None:
 
 def test_moralis_loop_honors_wallet_token_cadence() -> None:
     redis_client = FakeRedis()
+    redis_client.data["v2:moralis:token_map_status"] = json.dumps(
+        {"token_map_count": 1, "symbols": ["BTCUSDT"]}
+    )
+    redis_client.data["v2:moralis:token_map:BTCUSDT"] = json.dumps(
+        {
+            "symbol": "BTCUSDT",
+            "contracts": [
+                {
+                    "chain": "ethereum",
+                    "contract_address": "0xtoken1",
+                    "pollable": True,
+                    "tradeable_mapping_status": "VERIFIED",
+                }
+            ],
+        }
+    )
     client = FakeMoralisClient()
     state: dict[str, float] = {}
 

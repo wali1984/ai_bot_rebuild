@@ -15,10 +15,10 @@ from app.services.smart_money_wallets.endpoint_registry import (
     moralis_endpoint_registry,
     registry_payload,
 )
-from app.services.smart_money_wallets.publisher import publish_moralis_result
-from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
 from app.services.smart_money_wallets.health import build_moralis_health
 from app.services.smart_money_wallets.moralis_feature_bridge import publish_moralis_feature_payload
+from app.services.smart_money_wallets.publisher import publish_moralis_result
+from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
 from app.services.smart_money_wallets.token_contract_mapper import (
     read_pollable_tokens,
 )
@@ -27,8 +27,8 @@ from app.services.smart_money_wallets.wallet_watchlist import (
     watchlist_counts,
 )
 
-
 SCHEDULER_STATUS_KEY = "v2:provider:moralis:scheduler_status"
+ContractIdentityKey = tuple[str, str]
 
 # Canonical token-map chain name -> Moralis EVM chain param. The token map stores
 # "ethereum"/"bsc"; Moralis endpoints take "eth"/"bsc". Kept in sync with
@@ -127,12 +127,38 @@ def run_once(
     quarantined: list[dict[str, Any]] = []
     published_symbols: set[str] = set()
     contract_symbol_map = bootstrap.get("contract_symbol_map") or {}
+    ambiguous_contract_keys = set(bootstrap.get("ambiguous_contract_keys") or ())
     now_value = time.monotonic() if now_monotonic is None else float(now_monotonic)
     for spec in moralis_endpoint_registry():
         if spec.stream_based:
             continue
         targets = _targets_for_spec(spec, wallets=wallets, tokens=tokens)
         for target_index, (wallet, token) in enumerate(targets):
+            publish_symbol: str | None = None
+            if token:
+                identity_key = _contract_identity_key(chain=chain, token=token)
+                if identity_key in ambiguous_contract_keys:
+                    quarantined.append(
+                        {
+                            "contract": token,
+                            "chain": identity_key[0],
+                            "endpoint_id": spec.endpoint_id,
+                            "reason": "AMBIGUOUS_VERIFIED_SYMBOL_MAPPING",
+                        }
+                    )
+                    continue
+                resolved = contract_symbol_map.get(identity_key)
+                if not resolved or not resolved.get("symbol"):
+                    quarantined.append(
+                        {
+                            "contract": token,
+                            "chain": identity_key[0],
+                            "endpoint_id": spec.endpoint_id,
+                            "reason": "NO_VERIFIED_SYMBOL_MAPPING",
+                        }
+                    )
+                    continue
+                publish_symbol = str(resolved["symbol"])
             cadence_seconds = _cadence_seconds_for_target(spec, target_index=target_index)
             target_id = wallet or token or symbol
             state_key = f"{spec.endpoint_id}:{chain}:{target_id}"
@@ -157,30 +183,16 @@ def run_once(
                 chain=chain,
                 wallet=wallet,
                 token=token,
-                symbol=symbol,
+                symbol=publish_symbol,
             )
             if scheduler_state is not None:
                 scheduler_state[state_key] = now_value
             # IDENTITY: attribute a token endpoint to that token's OWN verified
             # trading symbol, never the fixed context symbol (which merged
             # LINK/UNI/WBTC/PEPE/SHIB/CRV flow into a single BTCUSDT bucket).
-            # Wallet/global targets and contracts with no verified symbol mapping
-            # get symbol=None: their raw contract-addressed data is still stored,
-            # but no per-symbol feature/aggregate/score is fabricated.
-            publish_symbol: str | None = None
-            if token:
-                resolved = contract_symbol_map.get(str(token).strip().lower())
-                if resolved and resolved.get("chain") == _norm_chain(chain) and resolved.get("symbol"):
-                    publish_symbol = str(resolved["symbol"])
-                else:
-                    quarantined.append(
-                        {
-                            "contract": token,
-                            "chain": _norm_chain(chain),
-                            "endpoint_id": spec.endpoint_id,
-                            "reason": "NO_VERIFIED_SYMBOL_MAPPING",
-                        }
-                    )
+            # Unmapped or ambiguous contracts are quarantined before client.get,
+            # so they cannot reserve CU or make an HTTP request. Wallet/global
+            # targets keep symbol=None and cannot fabricate per-symbol features.
             result = publish_moralis_result(
                 redis_client,
                 env=os.environ,
@@ -237,6 +249,8 @@ def run_once(
         "resolved_symbol_count": len(published_symbols),
         "quarantined_contract_count": len(quarantined),
         "quarantined_contracts": quarantined[:50],
+        "ambiguous_contract_identity_count": len(ambiguous_contract_keys),
+        "identity_rejected_request_count": len(quarantined),
         "context_symbol_attribution_disabled": True,
         "actual_payload_results": sum(1 for row in results if row.get("actual_payload_present")),
         "does_not_poll_every_symbol_every_minute": True,
@@ -316,13 +330,16 @@ def _resolve_bootstrap_inputs(
             for row in read_wallet_watchlist(redis_client)
             if row.get("chain") == str(chain).lower()
         ]
-    token_map_tokens = read_pollable_tokens(redis_client, symbol=symbol)
+    scoped_token_map_tokens = read_pollable_tokens(redis_client, symbol=symbol)
+    all_token_map_tokens = read_pollable_tokens(redis_client, symbol=None)
+    identity_token_rows = all_token_map_tokens or scoped_token_map_tokens
+    token_map_tokens = scoped_token_map_tokens
     if not any(_norm_chain(row.get("chain")) == _norm_chain(chain) for row in token_map_tokens):
         # The default context symbol (e.g. BTCUSDT) has no ERC-20 pollable
         # contracts, so per-symbol scoping yields zero token whale-flow features.
         # Fall back to every pollable token in the map so whale-flow / exchange-flow
         # features populate across the tracked universe (LINK, CRV, AAVE, ...).
-        token_map_tokens = read_pollable_tokens(redis_client, symbol=None)
+        token_map_tokens = all_token_map_tokens
     if not tokens:
         # The token map stores the canonical chain name ("ethereum") while the loop
         # runs with the Moralis chain param ("eth"); normalize both before matching
@@ -332,18 +349,15 @@ def _resolve_bootstrap_inputs(
             for row in token_map_tokens
             if _norm_chain(row.get("chain")) == _norm_chain(chain)
         ]
-    # Reverse identity map: contract address -> its OWN verified trading symbol.
+    # Reverse identity map: (canonical chain, contract) -> its OWN verified
+    # trading symbol. Identity is always indexed from the complete published map,
+    # even when an operator supplies a token outside the context symbol's scope.
     # Because token-map native perps (BTCUSDT/ETHUSDT -> contract "native") are
     # non-pollable, they never appear here, so an ERC-20 (e.g. WBTC) can never be
     # attributed to BTCUSDT. This replaces the old fixed-context-symbol attribution.
-    contract_symbol_map = {
-        str(row.get("token") or "").strip().lower(): {
-            "symbol": str(row.get("symbol") or "").upper(),
-            "chain": _norm_chain(row.get("chain")),
-        }
-        for row in token_map_tokens
-        if str(row.get("token") or "").strip() and str(row.get("symbol") or "").strip()
-    }
+    # Any repeated identity is omitted from the resolvable map and reported as
+    # ambiguous; there is deliberately no first/last-writer-wins behavior.
+    contract_symbol_map, ambiguous_contract_keys = _build_contract_symbol_map(identity_token_rows)
     counts = watchlist_counts(redis_client)
     token_map_count = _token_map_count(redis_client)
     wallet_count = int(counts.get("wallet_watchlist_count") or 0)
@@ -364,7 +378,36 @@ def _resolve_bootstrap_inputs(
         "operator_supplied_tokens": explicit_tokens,
         "pollable_token_count": len(token_map_tokens),
         "contract_symbol_map": contract_symbol_map,
+        "ambiguous_contract_keys": ambiguous_contract_keys,
     }
+
+
+def _build_contract_symbol_map(
+    token_rows: list[dict[str, str]],
+) -> tuple[dict[ContractIdentityKey, dict[str, str]], set[ContractIdentityKey]]:
+    candidates: dict[ContractIdentityKey, list[dict[str, str]]] = {}
+    for row in token_rows:
+        token = str(row.get("token") or "").strip().lower()
+        symbol = str(row.get("symbol") or "").strip().upper()
+        chain = _norm_chain(row.get("chain"))
+        if not token or not symbol or not chain:
+            continue
+        identity_key = (chain, token)
+        candidates.setdefault(identity_key, []).append(
+            {"symbol": symbol, "chain": chain, "contract": token}
+        )
+
+    ambiguous = {identity_key for identity_key, rows in candidates.items() if len(rows) != 1}
+    resolved = {
+        identity_key: rows[0]
+        for identity_key, rows in candidates.items()
+        if identity_key not in ambiguous
+    }
+    return resolved, ambiguous
+
+
+def _contract_identity_key(*, chain: Any, token: Any) -> ContractIdentityKey:
+    return (_norm_chain(chain), str(token or "").strip().lower())
 
 
 def _no_watchlist_status(
