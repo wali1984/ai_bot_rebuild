@@ -30,8 +30,8 @@ from v2.backend.app.services.binance_unified_websocket_transport import (
     resolve_binance_credential_binding,
 )
 
-SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_v2"
-STATUS_SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_status_v2"
+SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_v3"
+STATUS_SCHEMA_VERSION = "v2_binance_usdm_leverage_bracket_evidence_status_v3"
 PRODUCER = "v2_binance_usdm_leverage_bracket_evidence"
 SOURCE = "BINANCE_USDM_USER_DATA_GET_FAPI_V1_LEVERAGE_BRACKET"
 ENDPOINT = "/fapi/v1/leverageBracket"
@@ -67,6 +67,7 @@ DEFAULT_CACHE_TTL_SECONDS = 900
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
 _SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _HEX_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+_READ_ONLY_CREDENTIAL_REF_RE = re.compile(r"^[A-Z0-9]+_BINANCE(?:_[A-Z0-9]+)*_READONLY$")
 
 
 class LeverageBracketEvidenceError(ValueError):
@@ -97,6 +98,11 @@ class EvidenceSecurityContext:
             "base_url_origin": self.base_url_origin,
             "credential_binding_id": self.binding_id,
             "credential_account_specific": self.credential_account_specific,
+            "credential_ref_read_only_assertion": True,
+            "credential_ref_read_only_assertion_semantics": (
+                "OPERATOR_USAGE_LABEL_NOT_BINANCE_PERMISSION_PROOF"
+            ),
+            "exchange_key_permissions_proven_by_connector": False,
             "evidence_auth_algorithm": AUTH_ALGORITHM,
             "evidence_auth_key_id": self.auth_key_id,
             "evidence_auth_key_stored": False,
@@ -185,6 +191,12 @@ def _safe_identity(value: Any, *, field_name: str) -> str:
     return identity
 
 
+def _credential_ref_is_explicitly_read_only(credential_ref: str) -> bool:
+    """Accept the case-sensitive, structured read-only usage-label grammar."""
+
+    return _READ_ONLY_CREDENTIAL_REF_RE.fullmatch(credential_ref) is not None
+
+
 def _canonical_origin(base_url: Any) -> str:
     if not isinstance(base_url, str) or not base_url.strip():
         raise LeverageBracketEvidenceError("BINANCE_BASE_URL_MISSING")
@@ -231,6 +243,8 @@ def build_evidence_security_context(
     safe_key_id = _safe_identity(auth_key_id, field_name="EVIDENCE_AUTH_KEY_ID")
     if credential_account_specific is not True:
         raise LeverageBracketEvidenceError("CREDENTIAL_BINDING_NOT_ACCOUNT_SPECIFIC")
+    if not _credential_ref_is_explicitly_read_only(safe_credential_ref):
+        raise LeverageBracketEvidenceError("CREDENTIAL_REF_NOT_EXPLICITLY_READ_ONLY")
     origin = _canonical_origin(base_url)
     environment = exchange_environment_from_base_url(origin)
     if isinstance(hmac_key, str):
@@ -291,6 +305,8 @@ def evidence_security_context_for_adapter(
         )
     if binding.account_specific is not True:
         raise LeverageBracketEvidenceError("CREDENTIAL_BINDING_NOT_ACCOUNT_SPECIFIC")
+    if getattr(binding, "read_only_ref", False) is not True:
+        raise LeverageBracketEvidenceError("CREDENTIAL_REF_NOT_EXPLICITLY_READ_ONLY")
     adapter_api_key = getattr(adapter, "api_key", None)
     adapter_api_secret = getattr(adapter, "api_secret", None)
     if not (
@@ -308,11 +324,13 @@ def evidence_security_context_for_adapter(
         evidence_key_bytes = bytes(evidence_hmac_key)
     else:
         evidence_key_bytes = b""
-    if evidence_key_bytes and hmac.compare_digest(
-        evidence_key_bytes,
-        binding.api_secret.encode("utf-8"),
-    ):
-        raise LeverageBracketEvidenceError("EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_SECRET")
+    if evidence_key_bytes:
+        if hmac.compare_digest(evidence_key_bytes, binding.api_key.encode("utf-8")):
+            raise LeverageBracketEvidenceError(
+                "EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_API_KEY"
+            )
+        if hmac.compare_digest(evidence_key_bytes, binding.api_secret.encode("utf-8")):
+            raise LeverageBracketEvidenceError("EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_SECRET")
     return evidence_security_context_from_env(
         trader_id=binding.trader_id,
         credential_ref=binding.credential_ref,

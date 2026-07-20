@@ -195,6 +195,8 @@ def _select(
 
 
 def test_security_context_requires_safe_exact_account_environment_and_auth() -> None:
+    assert mod.SCHEMA_VERSION == "v2_binance_usdm_leverage_bracket_evidence_v3"
+    assert mod.STATUS_SCHEMA_VERSION == "v2_binance_usdm_leverage_bracket_evidence_status_v3"
     assert SECURITY.exchange_environment == "mainnet"
     assert SECURITY.base_url_origin == mod.MAINNET_BASE_URL
     assert SECURITY.binding_id == ("mainnet:trader-test:TEST_BINANCE_READONLY")

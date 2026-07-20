@@ -98,6 +98,7 @@ def test_shared_security_context_helper_binds_credentials_and_separate_key(
         api_secret=TEST_EXCHANGE_SECRET,
         trader_id="trader-test",
         credential_ref="TEST_BINANCE_READONLY",
+        read_only_ref=True,
     )
     adapter = SimpleNamespace(
         api_key="exchange-api-key",
@@ -138,10 +139,25 @@ def test_shared_security_context_helper_binds_credentials_and_separate_key(
             "CREDENTIAL_BINDING_NOT_ACCOUNT_SPECIFIC",
         ),
         (
+            {"read_only_ref": False},
+            {},
+            {},
+            "CREDENTIAL_REF_NOT_EXPLICITLY_READ_ONLY",
+        ),
+        (
             {},
             {"api_secret": "different-secret"},
             {},
             "ADAPTER_CREDENTIAL_BINDING_MISMATCH",
+        ),
+        (
+            {},
+            {},
+            {
+                mod.HMAC_KEY_ENV: "exchange-api-key",
+                mod.HMAC_KEY_ID_ENV: TEST_HMAC_KEY_ID,
+            },
+            "EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_API_KEY",
         ),
         (
             {},
@@ -174,6 +190,7 @@ def test_shared_security_context_helper_fails_closed_on_unsafe_configuration(
         "api_secret": TEST_EXCHANGE_SECRET,
         "trader_id": "trader-test",
         "credential_ref": "TEST_BINANCE_READONLY",
+        "read_only_ref": True,
         **binding_overrides,
     }
     adapter_values = {
