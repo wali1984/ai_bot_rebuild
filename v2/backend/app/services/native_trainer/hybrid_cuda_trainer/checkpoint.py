@@ -16,10 +16,14 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from .confidence import CONFIDENCE_HEAD_ACTIONS, CONFIDENCE_HEAD_SCHEMA_VERSION
-from .config import CHECKPOINT_SOURCE, LIVE_GATE_BLOCKED
+from .config import ACTION_COUNT, CHECKPOINT_SOURCE, LIVE_GATE_BLOCKED
 from .model import (
     ConfidenceHeadCheckpointIncompatibleError,
     V2HybridPolicyModel,
+    _strict_npz_json,
+    _strict_npz_member_keys,
+    _strict_npz_scalar_int64,
+    _strict_npz_scalar_text,
 )
 
 CHECKPOINT_EVIDENCE_SCHEMA_VERSION = "v2_hybrid_checkpoint_evidence_v1"
@@ -27,6 +31,13 @@ CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION = "v2_hybrid_checkpoint_causal_order_v1"
 _CHECKPOINT_CAUSAL_LEDGER_NAME = ".checkpoint-causal-order.jsonl"
 _CHECKPOINT_CAUSAL_LOCK_NAME = ".checkpoint-causal-order.lock"
 _CHECKPOINT_CAUSAL_GENESIS_DIGEST = "0" * 64
+_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD = "checkpoint_feature_abi_binding_v4"
+# Immutable process-integrity bound for the anonymous in-memory checkpoint
+# snapshot. The current deployed model serializes far below this envelope; a
+# larger artifact must be rejected before memfd allocation instead of allowing
+# an untrusted manifest/path to consume unbounded RAM. This is not a market,
+# strategy, trainer-admission, or risk threshold.
+MAX_PRIVATE_CHECKPOINT_COPY_BYTES = 512 * 1024 * 1024
 _CHECKPOINT_STORE_SUBDIRECTORIES = frozenset(
     {"non_serving_training_candidates", "rejected_optimizer_attempts"}
 )
@@ -40,6 +51,14 @@ _CAUSAL_EVIDENCE_FIELDS = frozenset(
         "checkpoint_causal_record_digest",
     }
 )
+
+
+def _checkpoint_feature_abi_v4_module() -> Any:
+    """Import registry-bound v4 code only for an explicit declaration."""
+
+    return importlib.import_module(
+        "v2.backend.app.services.native_trainer.checkpoint_feature_abi_binding_v4"
+    )
 
 
 def _utc_iso() -> str:
@@ -113,51 +132,147 @@ def _sha256_private_stream(stream: BinaryIO) -> str:
 
 
 @contextmanager
-def _private_checkpoint_copy(path: Path) -> Iterator[_PrivateCheckpointCopy]:
+def _private_checkpoint_copy(
+    path: Path,
+    *,
+    require_sealed: bool = False,
+) -> Iterator[_PrivateCheckpointCopy]:
     """Copy a mutable checkpoint path once into a private anonymous stream.
 
     The source handle is opened and consumed exactly once.  Hashing, safe NPZ
     inspection, and model restoration then share the anonymous temporary file,
     so replacing the source path cannot change the bytes admitted to the model.
     """
-    with tempfile.TemporaryFile(mode="w+b") as private_stream:
+    if not require_sealed:
+        # Preserve the pre-v4 portable TemporaryFile behavior for every
+        # undeclared checkpoint. It requires neither memfd nor /procfs.
+        with tempfile.TemporaryFile(mode="w+b") as private_stream:
+            size_bytes = 0
+            with path.open("rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    private_stream.write(chunk)
+                    size_bytes += len(chunk)
+            private_stream.flush()
+            private_stream.seek(0)
+            with os.fdopen(os.dup(private_stream.fileno()), "rb") as read_stream:
+                observed_sha256 = _sha256_private_stream(read_stream)
+                yield _PrivateCheckpointCopy(
+                    stream=read_stream,
+                    sha256=observed_sha256,
+                    size_bytes=size_bytes,
+                )
+        return
+    try:
+        initial_size_bytes = path.stat().st_size
+    except OSError as exc:
+        raise OSError("checkpoint_private_copy_source_stat_failed") from exc
+    if initial_size_bytes > MAX_PRIVATE_CHECKPOINT_COPY_BYTES:
+        raise OSError("checkpoint_private_copy_size_limit_exceeded")
+    required_os_flags = ("MFD_ALLOW_SEALING", "MFD_CLOEXEC")
+    required_seals = (
+        "F_ADD_SEALS",
+        "F_GET_SEALS",
+        "F_SEAL_GROW",
+        "F_SEAL_SEAL",
+        "F_SEAL_SHRINK",
+        "F_SEAL_WRITE",
+    )
+    if (
+        not hasattr(os, "memfd_create")
+        or any(not hasattr(os, name) for name in required_os_flags)
+        or any(not hasattr(fcntl, name) for name in required_seals)
+    ):
+        raise OSError("sealed_private_checkpoint_copy_unavailable")
+    write_fd = os.memfd_create(
+        "v2-checkpoint-private",
+        flags=os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
+    )
+    read_fd: int | None = None
+    try:
         size_bytes = 0
         with path.open("rb") as source:
             for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                private_stream.write(chunk)
+                if size_bytes + len(chunk) > MAX_PRIVATE_CHECKPOINT_COPY_BYTES:
+                    raise OSError("checkpoint_private_copy_size_limit_exceeded")
+                view = memoryview(chunk)
+                while view:
+                    written = os.write(write_fd, view)
+                    if written <= 0:
+                        raise OSError("sealed_private_checkpoint_copy_short_write")
+                    view = view[written:]
                 size_bytes += len(chunk)
-        private_stream.flush()
-        private_stream.seek(0)
-        with os.fdopen(os.dup(private_stream.fileno()), "rb") as read_only_stream:
+        os.fsync(write_fd)
+        seals = fcntl.F_SEAL_SEAL | fcntl.F_SEAL_SHRINK | fcntl.F_SEAL_GROW | fcntl.F_SEAL_WRITE
+        fcntl.fcntl(write_fd, fcntl.F_ADD_SEALS, seals)
+        if fcntl.fcntl(write_fd, fcntl.F_GET_SEALS) != seals:
+            raise OSError("sealed_private_checkpoint_copy_seal_mismatch")
+        os.lseek(write_fd, 0, os.SEEK_SET)
+        read_fd = os.open(
+            f"/proc/self/fd/{write_fd}",
+            os.O_RDONLY | os.O_CLOEXEC,
+        )
+        os.close(write_fd)
+        write_fd = -1
+        if fcntl.fcntl(read_fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY:
+            raise OSError("sealed_private_checkpoint_copy_not_read_only")
+        with os.fdopen(read_fd, "rb") as read_only_stream:
+            read_fd = None
             observed_sha256 = _sha256_private_stream(read_only_stream)
             yield _PrivateCheckpointCopy(
                 stream=read_only_stream,
                 sha256=observed_sha256,
                 size_bytes=size_bytes,
             )
+    finally:
+        if read_fd is not None:
+            os.close(read_fd)
+        if write_fd >= 0:
+            os.close(write_fd)
 
 
 def _reject_json_constant(value: str) -> None:
     raise ValueError(f"noncanonical_json_constant:{value}")
 
 
+def _reject_duplicate_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    parsed: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in parsed:
+            raise ValueError(f"duplicate_json_key:{key}")
+        parsed[key] = value
+    return parsed
+
+
 def _strict_json_loads(value: str) -> Any:
-    return json.loads(value, parse_constant=_reject_json_constant)
+    legacy = json.loads(value, parse_constant=_reject_json_constant)
+    evidence = (
+        legacy.get("checkpoint_evidence") if isinstance(legacy, dict) else None
+    )
+    if not (
+        isinstance(evidence, dict)
+        and _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD in evidence
+    ):
+        return legacy
+    return json.loads(
+        value,
+        object_pairs_hook=_reject_duplicate_json_pairs,
+        parse_constant=_reject_json_constant,
+    )
 
 
-def _safe_npz_semantics(
-    source: Path | BinaryIO,
+def _legacy_safe_npz_semantics(
+    source: BinaryIO,
     *,
     model_id: str,
 ) -> dict[str, Any]:
-    """Read safe NPZ semantics without constructing or mutating a model."""
+    """Preserve pre-v4 undeclared NPZ inspection semantics exactly."""
+
     np = importlib.import_module("numpy")
     digest = hashlib.sha256()
     digest.update(b"v2_in_memory_served_policy_parameters_v1\0")
     digest.update(str(model_id).encode("utf-8"))
     digest.update(b"\0")
-    if hasattr(source, "seek"):
-        source.seek(0)
+    source.seek(0)
     with np.load(source, allow_pickle=False) as data:
         format_values = data.get("__format_version")
         input_dim_values = data.get("__input_dim")
@@ -173,8 +288,16 @@ def _safe_npz_semantics(
             or calibration_values is None
         ):
             raise ValueError("checkpoint_npz_semantic_metadata_missing")
-        head_actions = tuple(_strict_json_loads(str(head_actions_values[0])))
-        calibration_state = _strict_json_loads(str(calibration_values[0]))
+        head_actions = tuple(
+            json.loads(
+                str(head_actions_values[0]),
+                parse_constant=_reject_json_constant,
+            )
+        )
+        calibration_state = json.loads(
+            str(calibration_values[0]),
+            parse_constant=_reject_json_constant,
+        )
         if not isinstance(calibration_state, dict):
             raise ValueError("checkpoint_npz_calibration_state_not_object")
         torch_keys = sorted(
@@ -192,9 +315,10 @@ def _safe_npz_semantics(
                 digest.update(str(array.dtype).encode("ascii"))
                 digest.update(b"\0")
                 digest.update(
-                    json.dumps(list(array.shape), separators=(",", ":")).encode(
-                        "ascii"
-                    )
+                    json.dumps(
+                        list(array.shape),
+                        separators=(",", ":"),
+                    ).encode("ascii")
                 )
                 digest.update(b"\0")
                 digest.update(memoryview(array).cast("B"))
@@ -209,6 +333,181 @@ def _safe_npz_semantics(
         return {
             "input_dim": int(input_dim_values[0]),
             "confidence_head_schema_version": str(head_schema_values[0]),
+            "confidence_head_actions": head_actions,
+            "confidence_calibration_state": calibration_state,
+            "model_parameter_fingerprint": digest.hexdigest(),
+        }
+
+
+def _safe_npz_semantics(
+    source: BinaryIO,
+    *,
+    model_id: str,
+    model: V2HybridPolicyModel | None = None,
+    checkpoint_feature_abi_binding: object | None = None,
+) -> dict[str, Any]:
+    """Read safe NPZ semantics without constructing or mutating a model."""
+    if checkpoint_feature_abi_binding is None:
+        return _legacy_safe_npz_semantics(source, model_id=model_id)
+
+    binding_module = _checkpoint_feature_abi_v4_module()
+    binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+        checkpoint_feature_abi_binding,
+        checkpoint_input_dim=(
+            model.input_dim
+            if model is not None
+            else binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_MODEL_INPUT_DIM
+        ),
+    )
+    # The strict ZIP and NPY-header preflight runs before NumPy is imported.
+    member_keys = frozenset(_strict_npz_member_keys(source))
+    np = importlib.import_module("numpy")
+    digest = hashlib.sha256()
+    digest.update(b"v2_in_memory_served_policy_parameters_v1\0")
+    digest.update(str(model_id).encode("utf-8"))
+    digest.update(b"\0")
+    if hasattr(source, "seek"):
+        source.seek(0)
+    if not hasattr(source, "read") or not hasattr(source, "seek"):
+        raise ValueError("checkpoint_npz_seekable_stream_required")
+    with np.load(source, allow_pickle=False) as data:
+        format_version = _strict_npz_scalar_text(data, "__format_version")
+        input_dim = _strict_npz_scalar_int64(data, "__input_dim")
+        _strict_npz_scalar_int64(data, "__seed")
+        torch_available = _strict_npz_scalar_int64(
+            data,
+            "__torch_available",
+        )
+        head_schema = _strict_npz_scalar_text(
+            data,
+            "__confidence_head_schema_version",
+        )
+        head_actions_json = _strict_npz_scalar_text(
+            data,
+            "__confidence_head_actions_json",
+        )
+        calibration_json = _strict_npz_scalar_text(
+            data,
+            "__confidence_calibration_state_json",
+        )
+        if format_version != "v2_hybrid_policy_npz_v2":
+            raise ValueError("checkpoint_npz_format_version_invalid")
+        if type(input_dim) is not int or input_dim <= 0:
+            raise ValueError("checkpoint_npz_input_dim_invalid")
+        if torch_available not in (0, 1):
+            raise ValueError("checkpoint_npz_torch_available_invalid")
+        expected_metadata = {
+            "__format_version",
+            "__input_dim",
+            "__seed",
+            "__torch_available",
+            "__confidence_head_schema_version",
+            "__confidence_head_actions_json",
+            "__confidence_calibration_state_json",
+        }
+        feature_abi_binding_json: str | None = None
+        feature_abi_binding_sha256: str | None = None
+        if "__checkpoint_feature_abi_binding_v4_json" in member_keys:
+            expected_metadata.add("__checkpoint_feature_abi_binding_v4_json")
+            feature_abi_binding_json = _strict_npz_scalar_text(
+                data,
+                "__checkpoint_feature_abi_binding_v4_json",
+            )
+            verification = binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+                feature_abi_binding_json,
+                checkpoint_input_dim=input_dim,
+            )
+            feature_abi_binding_sha256 = str(verification["binding_sha256"])
+            if (
+                feature_abi_binding_sha256
+                != binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+            ):
+                raise ValueError("checkpoint_npz_feature_abi_binding_mismatch")
+        head_actions_raw = _strict_npz_json(head_actions_json)
+        if type(head_actions_raw) is not list:
+            raise ValueError("checkpoint_npz_head_actions_not_array")
+        head_actions = tuple(head_actions_raw)
+        calibration_state = _strict_npz_json(calibration_json)
+        if type(calibration_state) is not dict:
+            raise ValueError("checkpoint_npz_calibration_state_not_object")
+        torch_keys = tuple(
+            sorted(key for key in member_keys if key.startswith("torch::"))
+        )
+        fallback_present = "fallback::weights" in member_keys
+        if bool(torch_keys) == fallback_present:
+            raise ValueError("checkpoint_npz_parameter_family_ambiguous")
+        if torch_keys:
+            if torch_available != 1:
+                raise ValueError("checkpoint_npz_torch_family_metadata_mismatch")
+            expected_state: dict[str, Any] | None = None
+            if model is not None:
+                if model.model_id != model_id:
+                    raise ValueError("checkpoint_npz_model_id_argument_mismatch")
+                if model.torch is None or model.net is None:
+                    raise ValueError("checkpoint_npz_torch_family_target_mismatch")
+                expected_state = dict(model.net.state_dict())
+                expected_torch_keys = frozenset(
+                    f"torch::{name}" for name in expected_state
+                )
+                if frozenset(torch_keys) != expected_torch_keys:
+                    raise ValueError("checkpoint_npz_torch_key_set_mismatch")
+            if member_keys != frozenset(expected_metadata) | frozenset(torch_keys):
+                raise ValueError("checkpoint_npz_unexpected_keys")
+            for key in torch_keys:
+                name = key.removeprefix("torch::")
+                array = data[key]
+                if expected_state is not None:
+                    existing = expected_state[name]
+                    expected_shape = tuple(existing.shape)
+                    expected_dtype = str(
+                        existing.detach().cpu().numpy().dtype
+                    )
+                else:
+                    expected_shape = tuple(array.shape)
+                    expected_dtype = "float32"
+                if (
+                    not expected_shape
+                    or tuple(array.shape) != expected_shape
+                    or str(array.dtype) != expected_dtype
+                ):
+                    raise ValueError(
+                        "checkpoint_npz_parameter_shape_or_dtype_invalid"
+                    )
+                if not bool(np.isfinite(array).all()):
+                    raise ValueError("checkpoint_npz_parameter_nonfinite")
+                array = np.ascontiguousarray(array)
+                digest.update(name.encode("utf-8"))
+                digest.update(b"\0")
+                digest.update(str(array.dtype).encode("ascii"))
+                digest.update(b"\0")
+                digest.update(
+                    json.dumps(list(array.shape), separators=(",", ":")).encode(
+                        "ascii"
+                    )
+                )
+                digest.update(b"\0")
+                digest.update(memoryview(array).cast("B"))
+        else:
+            if torch_available != 0:
+                raise ValueError("checkpoint_npz_fallback_family_metadata_mismatch")
+            if member_keys != frozenset(expected_metadata) | {"fallback::weights"}:
+                raise ValueError("checkpoint_npz_unexpected_keys")
+            values = data["fallback::weights"]
+            if (
+                tuple(values.shape) != (input_dim * ACTION_COUNT,)
+                or str(values.dtype) != "float64"
+                or not bool(np.isfinite(values).all())
+            ):
+                raise ValueError("checkpoint_npz_fallback_parameters_invalid")
+            for value in values.tolist():
+                digest.update(struct.pack("!d", float(value)))
+        return {
+            "input_dim": input_dim,
+            "checkpoint_feature_abi_binding_json": feature_abi_binding_json,
+            "checkpoint_feature_abi_binding_sha256": (
+                feature_abi_binding_sha256
+            ),
+            "confidence_head_schema_version": head_schema,
             "confidence_head_actions": head_actions,
             "confidence_calibration_state": calibration_state,
             "model_parameter_fingerprint": digest.hexdigest(),
@@ -240,6 +539,93 @@ def _is_sha256(value: Any) -> bool:
     text = str(value or "")
     return len(text) == 64 and all(
         character in "0123456789abcdef" for character in text
+    )
+
+
+def _verify_checkpoint_feature_abi_evidence(
+    *,
+    input_dim: int,
+    evidence: dict[str, Any],
+) -> None:
+    if _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD in evidence:
+        binding_module = _checkpoint_feature_abi_v4_module()
+        supplied = evidence[_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD]
+        if type(supplied) is not dict:
+            raise ValueError("checkpoint_feature_abi_binding_not_exact_dict")
+        binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+            supplied,
+            checkpoint_input_dim=input_dim,
+        )
+
+
+def _bind_checkpoint_feature_abi_evidence(
+    *,
+    input_dim: int,
+    evidence: dict[str, Any],
+    feature_abi_declaration: dict[str, object] | None = None,
+) -> dict[str, Any]:
+    """Bind an optional model declaration without granting tensor authority."""
+
+    bound = dict(evidence)
+    if feature_abi_declaration is not None:
+        binding_module = _checkpoint_feature_abi_v4_module()
+        if type(feature_abi_declaration) is not dict:
+            raise ValueError("checkpoint_feature_abi_declaration_not_exact_dict")
+        binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+            feature_abi_declaration,
+            checkpoint_input_dim=input_dim,
+        )
+        supplied_present = _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD in bound
+        supplied = bound.get(_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD)
+        if supplied_present:
+            if type(supplied) is not dict:
+                raise ValueError("checkpoint_feature_abi_binding_not_exact_dict")
+            binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+                supplied,
+                checkpoint_input_dim=input_dim,
+            )
+        expected = binding_module.deployed_checkpoint_feature_abi_binding_v4()
+        if feature_abi_declaration != expected:
+            raise ValueError("checkpoint_feature_abi_declaration_mismatch")
+        if supplied_present and supplied != expected:
+            raise ValueError("checkpoint_feature_abi_binding_mismatch")
+        bound[_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD] = expected
+    elif _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD in bound:
+        raise ValueError("checkpoint_feature_abi_declaration_missing")
+    _verify_checkpoint_feature_abi_evidence(
+        input_dim=input_dim,
+        evidence=bound,
+    )
+    return bound
+
+
+def _checkpoint_feature_abi_matches_npz(
+    *,
+    input_dim: int,
+    evidence: dict[str, Any],
+    safe_semantics: dict[str, Any],
+) -> bool:
+    try:
+        _verify_checkpoint_feature_abi_evidence(
+            input_dim=input_dim,
+            evidence=evidence,
+        )
+    except ValueError:
+        return False
+    declared = evidence.get(_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD)
+    if declared is None:
+        return (
+            safe_semantics.get("checkpoint_feature_abi_binding_json") is None
+            and safe_semantics.get("checkpoint_feature_abi_binding_sha256") is None
+        )
+    binding_module = _checkpoint_feature_abi_v4_module()
+    return (
+        safe_semantics.get("checkpoint_feature_abi_binding_json")
+        == binding_module.canonical_deployed_checkpoint_feature_abi_binding_v4_json()
+        and safe_semantics.get("checkpoint_feature_abi_binding_sha256")
+        == binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+        and evidence.get(_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD)
+        == binding_module.deployed_checkpoint_feature_abi_binding_v4()
     )
 
 
@@ -389,7 +775,27 @@ def _load_private_checkpoint_copy(
         }
 
     try:
-        with _private_checkpoint_copy(source_path) as snapshot:
+        model_feature_abi_declaration = model.checkpoint_feature_abi_declaration
+    except Exception as exc:  # noqa: BLE001 - fail before reading artifact bytes
+        return failure(
+            "CHECKPOINT_FEATURE_ABI_DECLARATION_INVALID",
+            checkpoint_feature_abi_binding_verified=False,
+            load_error_reason=str(exc) or type(exc).__name__,
+        )
+    manifest_feature_abi_binding = manifest.checkpoint_evidence.get(
+        _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD
+    )
+    if model_feature_abi_declaration != manifest_feature_abi_binding:
+        return failure(
+            "CHECKPOINT_FEATURE_ABI_BINDING_MISMATCH",
+            checkpoint_feature_abi_binding_verified=False,
+        )
+
+    try:
+        with _private_checkpoint_copy(
+            source_path,
+            require_sealed=(model_feature_abi_declaration is not None),
+        ) as snapshot:
             expected_sha256 = str(manifest.weight_file_sha256 or "")
             if not _is_sha256(expected_sha256):
                 return failure(
@@ -424,10 +830,19 @@ def _load_private_checkpoint_copy(
                     observed_weight_file_size_bytes=snapshot.size_bytes,
                 )
             try:
-                safe_semantics = _safe_npz_semantics(
-                    snapshot.stream,
-                    model_id=manifest.model_id,
-                )
+                feature_abi_binding = manifest_feature_abi_binding
+                if feature_abi_binding is None:
+                    safe_semantics = _safe_npz_semantics(
+                        snapshot.stream,
+                        model_id=manifest.model_id,
+                    )
+                else:
+                    safe_semantics = _safe_npz_semantics(
+                        snapshot.stream,
+                        model_id=manifest.model_id,
+                        model=model,
+                        checkpoint_feature_abi_binding=feature_abi_binding,
+                    )
             except Exception as exc:  # noqa: BLE001 - fail before model mutation
                 confidence_head_incompatible = isinstance(exc, ValueError) and (
                     "checkpoint_npz_semantic_metadata_missing" in str(exc)
@@ -460,6 +875,18 @@ def _load_private_checkpoint_copy(
                     "SAFE_NPZ_INPUT_DIM_MISMATCH",
                     pre_deserialization_semantic_verification=False,
                     checkpoint_confidence_head_compatible=False,
+                    checkpoint_identity_verified=False,
+                    weight_file_sha256_verified=True,
+                )
+            if not _checkpoint_feature_abi_matches_npz(
+                input_dim=model.input_dim,
+                evidence=dict(manifest.checkpoint_evidence),
+                safe_semantics=safe_semantics,
+            ):
+                return failure(
+                    "CHECKPOINT_FEATURE_ABI_BINDING_MISMATCH",
+                    pre_deserialization_semantic_verification=False,
+                    checkpoint_feature_abi_binding_verified=False,
                     checkpoint_identity_verified=False,
                     weight_file_sha256_verified=True,
                 )
@@ -769,7 +1196,15 @@ class V2HybridCheckpointManager:
             raw.get("weight_file_size_bytes"),
             field_name="weight_file_size_bytes",
         )
-        with _private_checkpoint_copy(resolved) as snapshot:
+        evidence = raw.get("checkpoint_evidence")
+        require_sealed = (
+            type(evidence) is dict
+            and _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD in evidence
+        )
+        with _private_checkpoint_copy(
+            resolved,
+            require_sealed=require_sealed,
+        ) as snapshot:
             if (
                 not _is_sha256(expected_sha256)
                 or snapshot.sha256 != expected_sha256
@@ -777,10 +1212,22 @@ class V2HybridCheckpointManager:
                 raise ValueError("checkpoint_lineage_weight_sha256_invalid")
             if expected_size <= 0 or snapshot.size_bytes != expected_size:
                 raise ValueError("checkpoint_lineage_weight_size_invalid")
-            semantics = _safe_npz_semantics(
-                snapshot.stream,
-                model_id=str(raw.get("model_id") or ""),
+            feature_abi_binding = (
+                evidence.get(_CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD)
+                if type(evidence) is dict
+                else None
             )
+            if feature_abi_binding is None:
+                semantics = _safe_npz_semantics(
+                    snapshot.stream,
+                    model_id=str(raw.get("model_id") or ""),
+                )
+            else:
+                semantics = _safe_npz_semantics(
+                    snapshot.stream,
+                    model_id=str(raw.get("model_id") or ""),
+                    checkpoint_feature_abi_binding=feature_abi_binding,
+                )
         if (
             semantics.get("input_dim")
             != _manifest_int(raw.get("input_dim"), field_name="input_dim")
@@ -790,6 +1237,13 @@ class V2HybridCheckpointManager:
             != raw.get("confidence_calibration_state")
         ):
             raise ValueError("checkpoint_lineage_weight_semantics_invalid")
+        raw_evidence = raw.get("checkpoint_evidence")
+        if not _checkpoint_feature_abi_matches_npz(
+            input_dim=_manifest_int(raw.get("input_dim"), field_name="input_dim"),
+            evidence=(dict(raw_evidence) if isinstance(raw_evidence, dict) else {}),
+            safe_semantics=semantics,
+        ):
+            raise ValueError("checkpoint_lineage_feature_abi_binding_invalid")
 
     def _validate_causal_manifest(
         self,
@@ -850,6 +1304,10 @@ class V2HybridCheckpointManager:
         evidence = raw.get("checkpoint_evidence")
         if not isinstance(evidence, dict):
             raise ValueError("checkpoint_causal_evidence_missing")
+        _verify_checkpoint_feature_abi_evidence(
+            input_dim=_manifest_int(raw.get("input_dim"), field_name="input_dim"),
+            evidence=dict(evidence),
+        )
         evidence_bindings = {
             "checkpoint_causal_order_schema_version": (
                 CHECKPOINT_CAUSAL_ORDER_SCHEMA_VERSION
@@ -1097,14 +1555,25 @@ class V2HybridCheckpointManager:
         training_partition_digest: str | None = None,
         checkpoint_evidence: dict[str, Any] | None = None,
         checkpoint_evidence_digest: str | None = None,
+        checkpoint_feature_abi_declaration: dict[str, object] | None = None,
         _causal_record: _CausalGenerationRecord | None = None,
         _semantic_digest: str | None = None,
     ) -> CheckpointManifest:
         self._validate_model_dir()
-        self.model_dir.mkdir(parents=True, exist_ok=True)
+        if (
+            checkpoint_feature_abi_declaration is not None
+            and type(input_dim) is not int
+        ):
+            raise ValueError("input_dim_not_integer")
+        strict_input_dim = _manifest_int(input_dim, field_name="input_dim")
         calibration = dict(confidence_calibration_state or {})
         ordered_consumed_keys = tuple(dict.fromkeys(consumed_ppo_update_keys))
-        base_evidence = _base_checkpoint_evidence(dict(checkpoint_evidence or {}))
+        base_evidence = _bind_checkpoint_feature_abi_evidence(
+            input_dim=strict_input_dim,
+            evidence=_base_checkpoint_evidence(dict(checkpoint_evidence or {})),
+            feature_abi_declaration=checkpoint_feature_abi_declaration,
+        )
+        self.model_dir.mkdir(parents=True, exist_ok=True)
         semantic_digest = _semantic_digest
         if semantic_digest is None:
             semantic_digest = _checkpoint_semantic_digest(
@@ -1149,6 +1618,9 @@ class V2HybridCheckpointManager:
                     training_partition_digest=training_partition_digest,
                     checkpoint_evidence=base_evidence,
                     checkpoint_evidence_digest=checkpoint_evidence_digest,
+                    checkpoint_feature_abi_declaration=(
+                        checkpoint_feature_abi_declaration
+                    ),
                     _causal_record=record,
                     _semantic_digest=semantic_digest,
                 )
@@ -1189,7 +1661,7 @@ class V2HybridCheckpointManager:
             path=str(self.model_dir / f"{checkpoint_id}.json"),
             generated_utc=_causal_record.generated_utc,
             model_id=model_id,
-            input_dim=int(input_dim),
+            input_dim=strict_input_dim,
             device=device,
             cuda_active=bool(cuda_active),
             weight_blob_written=bool(weight_blob_written),
@@ -1274,7 +1746,57 @@ class V2HybridCheckpointManager:
         training_partition_digest: str | None = None,
         checkpoint_evidence: dict[str, Any] | None = None,
     ) -> CheckpointManifest:
+        """Write atomically while rolling model state back on every failure."""
+
+        # Checkpoint writing can normalize calibration metadata but does not
+        # mutate model parameters. Avoid duplicating the deployed model on GPU.
+        model_state_before = model._mutable_state_snapshot(
+            include_model_parameters=False,
+        )
+        try:
+            return self._write_checkpoint_impl(
+                model=model,
+                input_dim=input_dim,
+                device=device,
+                cuda_active=cuda_active,
+                write_weight_blob=write_weight_blob,
+                lineage_kind=lineage_kind,
+                parent_checkpoint_id=parent_checkpoint_id,
+                parent_policy_fingerprint=parent_policy_fingerprint,
+                consumed_ppo_update_keys=consumed_ppo_update_keys,
+                training_partition_digest=training_partition_digest,
+                checkpoint_evidence=checkpoint_evidence,
+            )
+        except Exception:
+            model._restore_mutable_state_snapshot(model_state_before)
+            raise
+
+    def _write_checkpoint_impl(
+        self,
+        *,
+        model: V2HybridPolicyModel,
+        input_dim: int,
+        device: str,
+        cuda_active: bool,
+        write_weight_blob: bool = True,
+        lineage_kind: str = "SERVING_CANDIDATE",
+        parent_checkpoint_id: str | None = None,
+        parent_policy_fingerprint: str | None = None,
+        consumed_ppo_update_keys: tuple[str, ...] = (),
+        training_partition_digest: str | None = None,
+        checkpoint_evidence: dict[str, Any] | None = None,
+    ) -> CheckpointManifest:
         self._validate_model_dir()
+        try:
+            parsed_input_dim = _manifest_int(input_dim, field_name="input_dim")
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError("checkpoint_model_input_dim_mismatch") from exc
+        if parsed_input_dim != model.input_dim:
+            raise ValueError("checkpoint_model_input_dim_mismatch")
+        feature_abi_declaration = model.checkpoint_feature_abi_declaration
+        if feature_abi_declaration is not None and type(input_dim) is not int:
+            raise ValueError("checkpoint_model_input_dim_mismatch")
+        input_dim = parsed_input_dim
         from .on_policy_behavior import model_parameter_fingerprint
 
         calibration_state = model.set_confidence_calibration_state(
@@ -1291,15 +1813,19 @@ class V2HybridCheckpointManager:
             ).encode("utf-8")
         ).hexdigest()
         ordered_consumed_keys = tuple(dict.fromkeys(consumed_ppo_update_keys))
-        base_evidence = {
-            **dict(checkpoint_evidence or {}),
-            "schema_version": CHECKPOINT_EVIDENCE_SCHEMA_VERSION,
-            "lineage_kind": str(lineage_kind),
-            "parent_checkpoint_id": parent_checkpoint_id,
-            "parent_policy_fingerprint": parent_policy_fingerprint,
-            "consumed_ppo_update_keys": list(ordered_consumed_keys),
-            "training_partition_digest": training_partition_digest,
-        }
+        base_evidence = _bind_checkpoint_feature_abi_evidence(
+            input_dim=input_dim,
+            evidence={
+                **dict(checkpoint_evidence or {}),
+                "schema_version": CHECKPOINT_EVIDENCE_SCHEMA_VERSION,
+                "lineage_kind": str(lineage_kind),
+                "parent_checkpoint_id": parent_checkpoint_id,
+                "parent_policy_fingerprint": parent_policy_fingerprint,
+                "consumed_ppo_update_keys": list(ordered_consumed_keys),
+                "training_partition_digest": training_partition_digest,
+            },
+            feature_abi_declaration=feature_abi_declaration,
+        )
         with self._exclusive_write_lock():
             semantic_digest = _checkpoint_semantic_digest(
                 model_id=model.model_id,
@@ -1453,6 +1979,7 @@ class V2HybridCheckpointManager:
                 training_partition_digest=training_partition_digest,
                 checkpoint_evidence=evidence,
                 checkpoint_evidence_digest=evidence_digest,
+                checkpoint_feature_abi_declaration=feature_abi_declaration,
                 _causal_record=causal_record,
                 _semantic_digest=semantic_digest,
             )
@@ -1506,7 +2033,10 @@ class V2HybridCheckpointManager:
                 raw = _strict_json_loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError, ValueError) as exc:
                 self._manifest_scan_errors.append(
-                    {"path": str(path), "reason": type(exc).__name__}
+                    {
+                        "path": str(path),
+                        "reason": str(exc) or type(exc).__name__,
+                    }
                 )
                 continue
             if not isinstance(raw, dict) or any(
@@ -1528,6 +2058,11 @@ class V2HybridCheckpointManager:
                 )
                 if raw_input_dim <= 0:
                     raise ValueError("input_dim_not_positive")
+                raw_evidence = raw.get("checkpoint_evidence")
+                _verify_checkpoint_feature_abi_evidence(
+                    input_dim=raw_input_dim,
+                    evidence=(dict(raw_evidence) if isinstance(raw_evidence, dict) else {}),
+                )
                 if not isinstance(raw.get("checkpoint_id"), str) or not str(
                     raw.get("checkpoint_id")
                 ):
@@ -1798,14 +2333,32 @@ class V2HybridCheckpointManager:
         semantics: dict[str, Any] = {}
         if resolved_weight_path is not None and resolved_weight_path.is_file():
             try:
-                with _private_checkpoint_copy(resolved_weight_path) as snapshot:
+                with _private_checkpoint_copy(
+                    resolved_weight_path,
+                    require_sealed=(
+                        _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD
+                        in manifest.checkpoint_evidence
+                    ),
+                ) as snapshot:
                     observed_sha256 = snapshot.sha256
                     observed_size_bytes = snapshot.size_bytes
                     try:
-                        semantics = _safe_npz_semantics(
-                            snapshot.stream,
-                            model_id=manifest.model_id,
+                        feature_abi_binding = manifest.checkpoint_evidence.get(
+                            _CHECKPOINT_FEATURE_ABI_EVIDENCE_FIELD
                         )
+                        if feature_abi_binding is None:
+                            semantics = _safe_npz_semantics(
+                                snapshot.stream,
+                                model_id=manifest.model_id,
+                            )
+                        else:
+                            semantics = _safe_npz_semantics(
+                                snapshot.stream,
+                                model_id=manifest.model_id,
+                                checkpoint_feature_abi_binding=(
+                                    feature_abi_binding
+                                ),
+                            )
                     except Exception as exc:  # noqa: BLE001 - fail-closed evidence
                         reasons.append(
                             "WEIGHT_BLOB_SEMANTIC_READ_FAILED:"
@@ -1861,6 +2414,12 @@ class V2HybridCheckpointManager:
                 reasons.append("CONFIDENCE_CALIBRATION_STATE_MISMATCH")
 
         evidence = dict(manifest.checkpoint_evidence)
+        if not _checkpoint_feature_abi_matches_npz(
+            input_dim=manifest.input_dim,
+            evidence=evidence,
+            safe_semantics=semantics,
+        ):
+            reasons.append("CHECKPOINT_FEATURE_ABI_BINDING_MISMATCH")
         evidence_digest = str(manifest.checkpoint_evidence_digest or "")
         if (
             manifest.checkpoint_evidence_schema_version
@@ -2158,12 +2717,14 @@ class V2HybridCheckpointManager:
                     "checkpoint_identity_verified": True,
                     "load_status": "CHECKPOINT_MODEL_ARCHITECTURE_ID_MISMATCH",
                 }
+        model_state_before = model._mutable_state_snapshot()
         private_load = _load_private_checkpoint_copy(
             source_path=resolved_weight_path,
             manifest=manifest,
             model=model,
         )
         if private_load.get("private_checkpoint_copy_verified") is not True:
+            model._restore_mutable_state_snapshot(model_state_before)
             return {
                 "checkpoint_manifest_exists": True,
                 "checkpoint_id": manifest.checkpoint_id,
@@ -2174,11 +2735,25 @@ class V2HybridCheckpointManager:
         loaded = dict(private_load["loaded"])
         from .on_policy_behavior import model_parameter_fingerprint
 
-        restored_fingerprint = model_parameter_fingerprint(model)
+        try:
+            restored_fingerprint = model_parameter_fingerprint(model)
+        except Exception as exc:  # noqa: BLE001 - restore before fail-closed return
+            model._restore_mutable_state_snapshot(model_state_before)
+            return {
+                "checkpoint_manifest_exists": True,
+                "checkpoint_id": manifest.checkpoint_id,
+                "weight_blob_written": True,
+                "latest_checkpoint_loadable": False,
+                "model_state_restored": False,
+                "model_parameter_fingerprint_verified": False,
+                "load_error_reason": str(exc) or type(exc).__name__,
+                "load_status": "MODEL_PARAMETER_FINGERPRINT_UNAVAILABLE",
+            }
         if (
             manifest.model_parameter_fingerprint
             and restored_fingerprint != manifest.model_parameter_fingerprint
         ):
+            model._restore_mutable_state_snapshot(model_state_before)
             return {
                 "checkpoint_manifest_exists": True,
                 "checkpoint_id": manifest.checkpoint_id,
@@ -2222,6 +2797,7 @@ class V2HybridCheckpointManager:
                 manifest.model_id != model.model_id
                 or manifest.checkpoint_id != expected_checkpoint_id
             ):
+                model._restore_mutable_state_snapshot(model_state_before)
                 return {
                     "checkpoint_manifest_exists": True,
                     "checkpoint_id": manifest.checkpoint_id,

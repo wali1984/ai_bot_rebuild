@@ -1,14 +1,18 @@
 """Lazy-torch PPO/MASA model for V2 paper/shadow CUDA training."""
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib
 import json
 import math
 import os
 import random
+import struct
 import tempfile
+import zipfile
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, BinaryIO, Sequence
@@ -29,6 +33,239 @@ from .tensor_builder import FeatureTensorRecord
 
 TRAINER_CUDA_MEMORY_CAP_BYTES = 12 * 1024 * 1024 * 1024
 TRAINER_CUDA_MEMORY_CAP_FRACTION = 0.75
+
+_WEIGHT_BLOB_REQUIRED_METADATA_KEYS = frozenset(
+    {
+        "__format_version",
+        "__input_dim",
+        "__seed",
+        "__torch_available",
+        "__confidence_head_schema_version",
+        "__confidence_head_actions_json",
+        "__confidence_calibration_state_json",
+    }
+)
+_WEIGHT_BLOB_FEATURE_ABI_KEY = "__checkpoint_feature_abi_binding_v4_json"
+_WEIGHT_BLOB_FALLBACK_KEY = "fallback::weights"
+
+# Immutable parser/allocation bounds for explicitly declared v4 checkpoint
+# artifacts. They are process-integrity constraints, not market thresholds.
+MAX_V4_NPZ_MEMBER_COUNT = 512
+MAX_V4_NPZ_MEMBER_UNCOMPRESSED_BYTES = 256 * 1024 * 1024
+MAX_V4_NPZ_AGGREGATE_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024
+MAX_V4_NPZ_COMPRESSION_RATIO = 200
+MAX_V4_NPY_HEADER_BYTES = 64 * 1024
+MAX_V4_NPY_DIMENSIONS = 8
+
+
+def _checkpoint_feature_abi_v4_module() -> Any:
+    """Import the optional registry-bound contract only after explicit opt-in."""
+
+    return importlib.import_module(
+        "v2.backend.app.services.native_trainer.checkpoint_feature_abi_binding_v4"
+    )
+
+
+def _npy_descr_itemsize(descr: object) -> int:
+    if type(descr) is not str or not descr:
+        raise ValueError("checkpoint_npy_dtype_invalid")
+    text = descr
+    if text[0] in "<>=|":
+        text = text[1:]
+    if len(text) < 2 or text[0] not in "?biufcSU":
+        raise ValueError("checkpoint_npy_dtype_invalid")
+    try:
+        width = int(text[1:])
+    except ValueError as exc:
+        raise ValueError("checkpoint_npy_dtype_invalid") from exc
+    if width <= 0:
+        raise ValueError("checkpoint_npy_dtype_invalid")
+    if text[0] == "U":
+        width *= 4
+    if width > MAX_V4_NPZ_MEMBER_UNCOMPRESSED_BYTES:
+        raise ValueError("checkpoint_npy_dtype_allocation_bound_exceeded")
+    return width
+
+
+def _strict_npy_header(stream: BinaryIO, *, member_size: int) -> None:
+    magic = stream.read(8)
+    if len(magic) != 8 or magic[:6] != b"\x93NUMPY":
+        raise ValueError("checkpoint_npy_magic_invalid")
+    version = (magic[6], magic[7])
+    if version == (1, 0):
+        raw_length = stream.read(2)
+        if len(raw_length) != 2:
+            raise ValueError("checkpoint_npy_header_truncated")
+        header_length = struct.unpack("<H", raw_length)[0]
+        prefix_bytes = 10
+        encoding = "latin1"
+    elif version in {(2, 0), (3, 0)}:
+        raw_length = stream.read(4)
+        if len(raw_length) != 4:
+            raise ValueError("checkpoint_npy_header_truncated")
+        header_length = struct.unpack("<I", raw_length)[0]
+        prefix_bytes = 12
+        encoding = "utf-8" if version == (3, 0) else "latin1"
+    else:
+        raise ValueError("checkpoint_npy_version_unsupported")
+    if (
+        header_length <= 0
+        or header_length > MAX_V4_NPY_HEADER_BYTES
+        or prefix_bytes + header_length > member_size
+    ):
+        raise ValueError("checkpoint_npy_header_size_invalid")
+    raw_header = stream.read(header_length)
+    if len(raw_header) != header_length:
+        raise ValueError("checkpoint_npy_header_truncated")
+    try:
+        header = ast.literal_eval(raw_header.decode(encoding))
+    except (SyntaxError, UnicodeDecodeError, ValueError) as exc:
+        raise ValueError("checkpoint_npy_header_invalid") from exc
+    if type(header) is not dict or frozenset(header) != {
+        "descr",
+        "fortran_order",
+        "shape",
+    }:
+        raise ValueError("checkpoint_npy_header_fields_invalid")
+    if type(header["fortran_order"]) is not bool:
+        raise ValueError("checkpoint_npy_fortran_order_invalid")
+    shape = header["shape"]
+    if type(shape) is not tuple or len(shape) > MAX_V4_NPY_DIMENSIONS:
+        raise ValueError("checkpoint_npy_shape_invalid")
+    element_count = 1
+    for dimension in shape:
+        if type(dimension) is not int or dimension < 0:
+            raise ValueError("checkpoint_npy_shape_invalid")
+        if dimension and element_count > (
+            MAX_V4_NPZ_MEMBER_UNCOMPRESSED_BYTES // dimension
+        ):
+            raise ValueError("checkpoint_npy_shape_allocation_bound_exceeded")
+        element_count *= dimension
+    itemsize = _npy_descr_itemsize(header["descr"])
+    if element_count > (
+        MAX_V4_NPZ_MEMBER_UNCOMPRESSED_BYTES // itemsize
+    ):
+        raise ValueError("checkpoint_npy_shape_allocation_bound_exceeded")
+    expected_size = prefix_bytes + header_length + (element_count * itemsize)
+    if expected_size != member_size:
+        raise ValueError("checkpoint_npy_payload_size_mismatch")
+
+
+def _strict_npz_member_keys(source: BinaryIO) -> tuple[str, ...]:
+    """Preflight a declared-v4 NPZ completely before any NumPy access."""
+
+    source.seek(0)
+    try:
+        with zipfile.ZipFile(source, mode="r") as archive:
+            infos = archive.infolist()
+            if not infos or len(infos) > MAX_V4_NPZ_MEMBER_COUNT:
+                raise ValueError("checkpoint_npz_member_count_invalid")
+            member_names = [info.filename for info in infos]
+            if len(member_names) != len(set(member_names)):
+                raise ValueError("checkpoint_npz_duplicate_zip_members")
+            aggregate_uncompressed = 0
+            aggregate_compressed = 0
+            keys: list[str] = []
+            allowed_flag_bits = 0x08 | 0x800
+            allowed_compression = {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}
+            for info in infos:
+                name = info.filename
+                if (
+                    type(name) is not str
+                    or not name.isascii()
+                    or name.startswith("/")
+                    or "/" in name
+                    or "\\" in name
+                    or not name.endswith(".npy")
+                    or len(name) <= 4
+                ):
+                    raise ValueError("checkpoint_npz_zip_member_name_invalid")
+                if (
+                    info.is_dir()
+                    or info.flag_bits & 0x1
+                    or info.flag_bits & ~allowed_flag_bits
+                    or info.compress_type not in allowed_compression
+                ):
+                    raise ValueError("checkpoint_npz_zip_member_flags_invalid")
+                if (
+                    info.file_size <= 0
+                    or info.file_size > MAX_V4_NPZ_MEMBER_UNCOMPRESSED_BYTES
+                    or info.compress_size <= 0
+                ):
+                    raise ValueError("checkpoint_npz_member_size_invalid")
+                if (
+                    info.file_size
+                    > info.compress_size * MAX_V4_NPZ_COMPRESSION_RATIO
+                ):
+                    raise ValueError("checkpoint_npz_compression_ratio_exceeded")
+                aggregate_uncompressed += info.file_size
+                aggregate_compressed += info.compress_size
+                if (
+                    aggregate_uncompressed
+                    > MAX_V4_NPZ_AGGREGATE_UNCOMPRESSED_BYTES
+                    or aggregate_uncompressed
+                    > aggregate_compressed * MAX_V4_NPZ_COMPRESSION_RATIO
+                ):
+                    raise ValueError("checkpoint_npz_aggregate_size_invalid")
+                with archive.open(info, mode="r") as member:
+                    _strict_npy_header(member, member_size=info.file_size)
+                keys.append(name[:-4])
+            if len(keys) != len(set(keys)):
+                raise ValueError("checkpoint_npz_duplicate_keys")
+            return tuple(keys)
+    except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile) as exc:
+        raise ValueError("checkpoint_npz_zip_invalid") from exc
+    finally:
+        source.seek(0)
+
+
+def _reject_duplicate_json_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    parsed: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in parsed:
+            raise ValueError("checkpoint_npz_json_duplicate_key")
+        parsed[key] = value
+    return parsed
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"checkpoint_npz_json_constant_forbidden:{value}")
+
+
+def _strict_npz_json(value: str) -> Any:
+    parsed = json.loads(
+        value,
+        object_pairs_hook=_reject_duplicate_json_pairs,
+        parse_constant=_reject_json_constant,
+    )
+    canonical = json.dumps(
+        parsed,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+    if value != canonical:
+        raise ValueError("checkpoint_npz_json_not_canonical")
+    return parsed
+
+
+def _strict_npz_scalar_text(data: Any, key: str) -> str:
+    if key not in data.files:
+        raise ValueError(f"checkpoint_npz_metadata_missing:{key}")
+    values = data[key]
+    if tuple(values.shape) != (1,) or values.dtype.kind != "U":
+        raise ValueError(f"checkpoint_npz_metadata_scalar_text_invalid:{key}")
+    return str(values[0])
+
+
+def _strict_npz_scalar_int64(data: Any, key: str) -> int:
+    if key not in data.files:
+        raise ValueError(f"checkpoint_npz_metadata_missing:{key}")
+    values = data[key]
+    if tuple(values.shape) != (1,) or str(values.dtype) != "int64":
+        raise ValueError(f"checkpoint_npz_metadata_scalar_int64_invalid:{key}")
+    return int(values[0])
 
 
 class ConfidenceHeadCheckpointIncompatibleError(ValueError):
@@ -70,9 +307,37 @@ class ModelForwardResult:
 class V2HybridPolicyModel:
     """Shared encoder with PPO, value, expected-move, confidence, MASA heads."""
 
-    def __init__(self, *, input_dim: int, seed: int = 0xC0DE_55) -> None:
-        self.input_dim = int(input_dim)
+    def __init__(
+        self,
+        *,
+        input_dim: int,
+        seed: int = 0xC0DE_55,
+        checkpoint_feature_abi_binding: object | None = None,
+    ) -> None:
+        if checkpoint_feature_abi_binding is None:
+            # Preserve the pre-v4 constructor contract for every ordinary
+            # runtime, including NumPy integer inputs.
+            self.input_dim = int(input_dim)
+        else:
+            if type(input_dim) is not int or input_dim <= 0:
+                raise ValueError("model_input_dim_must_be_builtin_positive_int")
+            self.input_dim = input_dim
         self.seed = int(seed)
+        self._checkpoint_feature_abi_binding_json: str | None = None
+        if checkpoint_feature_abi_binding is not None:
+            binding_module = _checkpoint_feature_abi_v4_module()
+            verification = binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+                checkpoint_feature_abi_binding,
+                checkpoint_input_dim=self.input_dim,
+            )
+            if (
+                verification["binding_sha256"]
+                != binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+            ):
+                raise ValueError("checkpoint_feature_abi_binding_mismatch")
+            self._checkpoint_feature_abi_binding_json = (
+                binding_module.canonical_deployed_checkpoint_feature_abi_binding_v4_json()
+            )
         # Legacy-trainer alignment: the legacy hybrid trainer saturated the RTX
         # GPU with a much larger encoder (LSTM 512x2 + attention backbone).
         # Width/depth are env-tunable so capacity can scale with the 1.7M-row
@@ -150,6 +415,12 @@ class V2HybridPolicyModel:
             arch_identity += f"|attn=1x{self.attention_heads}"
         if self.temporal_encoder_enabled:
             arch_identity += f"|temporal={self.temporal_encoder}x{self.temporal_hidden}p{self.temporal_proj_dim}"
+        if self._checkpoint_feature_abi_binding_json is not None:
+            binding_module = _checkpoint_feature_abi_v4_module()
+            arch_identity += (
+                "|checkpoint_feature_abi="
+                f"{binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256}"
+            )
         self._model_id = "v2_hybrid_policy_" + hashlib.sha256(
             arch_identity.encode()
         ).hexdigest()[:24]
@@ -163,6 +434,29 @@ class V2HybridPolicyModel:
     @property
     def model_id(self) -> str:
         return self._model_id
+
+    @property
+    def checkpoint_feature_abi_declaration(self) -> dict[str, object] | None:
+        """Return the optional audit-only input ABI declared by this model.
+
+        A declaration constrains checkpoint artifact compatibility only. It is
+        not evidence about tensor values, resolved sources, receipts, clocks,
+        trainer admission, or prediction authorization.
+        """
+
+        if self._checkpoint_feature_abi_binding_json is None:
+            return None
+        binding_module = _checkpoint_feature_abi_v4_module()
+        verification = binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+            self._checkpoint_feature_abi_binding_json,
+            checkpoint_input_dim=self.input_dim,
+        )
+        if (
+            verification["binding_sha256"]
+            != binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+        ):
+            raise ValueError("checkpoint_feature_abi_binding_mismatch")
+        return binding_module.deployed_checkpoint_feature_abi_binding_v4()
 
     @property
     def confidence_calibration_state(self) -> dict[str, Any]:
@@ -511,45 +805,118 @@ class V2HybridPolicyModel:
             "input_dim": int(self.input_dim),
         }
 
+    def _mutable_state_snapshot(
+        self,
+        *,
+        include_model_parameters: bool = True,
+    ) -> dict[str, Any]:
+        state: dict[str, Any] = {
+            "confidence_calibration_state": deepcopy(
+                self._confidence_calibration_state
+            ),
+            "fallback_weights": tuple(self._fallback_weights),
+            "torch_state": None,
+            "torch_training": (
+                bool(self._net.training) if self._net is not None else None
+            ),
+        }
+        if (
+            include_model_parameters
+            and self._torch is not None
+            and self._net is not None
+        ):
+            state["torch_state"] = {
+                # Keep rollback state off the accelerator. Cloning a deployed
+                # checkpoint-sized model on GPU can itself exhaust the device
+                # before restoration begins.
+                name: tensor.detach().cpu().clone()
+                for name, tensor in self._net.state_dict().items()
+            }
+        return state
+
+    def _restore_mutable_state_snapshot(self, snapshot: dict[str, Any]) -> None:
+        torch_state = snapshot.get("torch_state")
+        if torch_state is not None:
+            if self._net is None:
+                raise RuntimeError("checkpoint_model_rollback_net_unavailable")
+            self._net.load_state_dict(torch_state, strict=True)
+            self._net.train(bool(snapshot.get("torch_training")))
+        self._fallback_weights = list(snapshot["fallback_weights"])
+        self._confidence_calibration_state = deepcopy(
+            snapshot["confidence_calibration_state"]
+        )
+
     def save_weight_blob(self, path: Path) -> dict[str, Any]:
         """Persist local model weights in an explicit npz tensor format."""
         np = importlib.import_module("numpy")
-        # Revalidate the cryptographic binding immediately before persistence;
-        # weights changed after fitting must make the calibration fail closed.
-        self.set_confidence_calibration_state(self._confidence_calibration_state)
         target = Path(path)
         if target.suffix != ".npz":
             raise ValueError("weight blob path must use .npz")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        payload: dict[str, Any] = {
-            "__format_version": np.array(["v2_hybrid_policy_npz_v2"]),
-            "__input_dim": np.array([self.input_dim], dtype=np.int64),
-            "__seed": np.array([self.seed], dtype=np.int64),
-            "__torch_available": np.array([1 if self.torch_available else 0], dtype=np.int64),
-            "__confidence_head_schema_version": np.array(
-                [CONFIDENCE_HEAD_SCHEMA_VERSION]
-            ),
-            "__confidence_head_actions_json": np.array(
-                [json.dumps(list(CONFIDENCE_HEAD_ACTIONS), separators=(",", ":"))]
-            ),
-            "__confidence_calibration_state_json": np.array(
-                [
-                    json.dumps(
-                        self.confidence_calibration_state,
-                        sort_keys=True,
-                        separators=(",", ":"),
-                        allow_nan=False,
-                    )
-                ]
-            ),
-        }
-        if self._torch is not None and self._net is not None:
-            for name, tensor in self._net.state_dict().items():
-                payload[f"torch::{name}"] = tensor.detach().cpu().numpy()
-        else:
-            payload["fallback::weights"] = np.asarray(self._fallback_weights, dtype=np.float64)
+        feature_abi_binding_json = self._checkpoint_feature_abi_binding_json
+        # Saving mutates calibration metadata only; cloning all model tensors
+        # here would duplicate the deployed model for no rollback benefit.
+        state_before = self._mutable_state_snapshot(
+            include_model_parameters=False,
+        )
         tmp: Path | None = None
         try:
+            # Revalidate calibration against the exact weights immediately
+            # before persistence. Any later failure rolls this mutation back.
+            self.set_confidence_calibration_state(
+                self._confidence_calibration_state
+            )
+            target.parent.mkdir(parents=True, exist_ok=True)
+            payload: dict[str, Any] = {
+                "__format_version": np.array(["v2_hybrid_policy_npz_v2"]),
+                "__input_dim": np.array([self.input_dim], dtype=np.int64),
+                "__seed": np.array([self.seed], dtype=np.int64),
+                "__torch_available": np.array(
+                    [1 if self.torch_available else 0], dtype=np.int64
+                ),
+                "__confidence_head_schema_version": np.array(
+                    [CONFIDENCE_HEAD_SCHEMA_VERSION]
+                ),
+                "__confidence_head_actions_json": np.array(
+                    [
+                        json.dumps(
+                            list(CONFIDENCE_HEAD_ACTIONS),
+                            separators=(",", ":"),
+                        )
+                    ]
+                ),
+                "__confidence_calibration_state_json": np.array(
+                    [
+                        json.dumps(
+                            self.confidence_calibration_state,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            allow_nan=False,
+                        )
+                    ]
+                ),
+            }
+            if feature_abi_binding_json is not None:
+                binding_module = _checkpoint_feature_abi_v4_module()
+                verification = binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+                    feature_abi_binding_json,
+                    checkpoint_input_dim=self.input_dim,
+                )
+                if (
+                    verification["binding_sha256"]
+                    != binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+                ):
+                    raise ValueError("checkpoint_feature_abi_binding_mismatch")
+                payload[_WEIGHT_BLOB_FEATURE_ABI_KEY] = np.array(
+                    [feature_abi_binding_json]
+                )
+            if self._torch is not None and self._net is not None:
+                for name, tensor in self._net.state_dict().items():
+                    payload[f"torch::{name}"] = tensor.detach().cpu().numpy()
+            else:
+                payload[_WEIGHT_BLOB_FALLBACK_KEY] = np.asarray(
+                    self._fallback_weights,
+                    dtype=np.float64,
+                )
             with tempfile.NamedTemporaryFile(
                 "wb",
                 dir=target.parent,
@@ -560,6 +927,9 @@ class V2HybridPolicyModel:
                 tmp = Path(handle.name)
                 np.savez_compressed(handle, **payload)
             tmp.replace(target)
+        except Exception:
+            self._restore_mutable_state_snapshot(state_before)
+            raise
         finally:
             if tmp is not None and tmp.exists():
                 tmp.unlink()
@@ -595,16 +965,202 @@ class V2HybridPolicyModel:
         the caller ensures semantic verification and model mutation consume the
         exact same immutable byte copy instead of reopening a mutable path.
         """
+        if self._checkpoint_feature_abi_binding_json is None:
+            return self._load_legacy_weight_blob_stream(
+                stream,
+                source_label=source_label,
+            )
+        feature_abi_binding_json = self._checkpoint_feature_abi_binding_json
+        member_keys = frozenset(_strict_npz_member_keys(stream))
+        np = importlib.import_module("numpy")
+        stream.seek(0)
+        with np.load(stream, allow_pickle=False) as data:
+            format_version = _strict_npz_scalar_text(data, "__format_version")
+            input_dim = _strict_npz_scalar_int64(data, "__input_dim")
+            seed = _strict_npz_scalar_int64(data, "__seed")
+            torch_available = _strict_npz_scalar_int64(
+                data,
+                "__torch_available",
+            )
+            if format_version != "v2_hybrid_policy_npz_v2":
+                raise ValueError("checkpoint_npz_format_version_invalid")
+            if input_dim != self.input_dim:
+                raise ValueError("checkpoint input_dim does not match model")
+            if torch_available not in (0, 1):
+                raise ValueError("checkpoint_npz_torch_available_invalid")
+
+            expected_metadata = set(_WEIGHT_BLOB_REQUIRED_METADATA_KEYS)
+            if feature_abi_binding_json is not None:
+                expected_metadata.add(_WEIGHT_BLOB_FEATURE_ABI_KEY)
+                binding_json = _strict_npz_scalar_text(
+                    data,
+                    _WEIGHT_BLOB_FEATURE_ABI_KEY,
+                )
+                binding_module = _checkpoint_feature_abi_v4_module()
+                feature_abi_verification = (
+                    binding_module.verify_deployed_checkpoint_feature_abi_binding_v4(
+                        binding_json,
+                        checkpoint_input_dim=self.input_dim,
+                    )
+                )
+                if (
+                    binding_json != feature_abi_binding_json
+                    or feature_abi_verification["binding_sha256"]
+                    != binding_module.CHECKPOINT_FEATURE_ABI_BINDING_V4_SHA256
+                ):
+                    raise ValueError("checkpoint_feature_abi_binding_v4_mismatch")
+            elif _WEIGHT_BLOB_FEATURE_ABI_KEY in member_keys:
+                raise ValueError("checkpoint_feature_abi_binding_v4_unexpected")
+            if seed != self.seed:
+                raise ValueError("checkpoint seed does not match model")
+
+            checkpoint_head_schema = _strict_npz_scalar_text(
+                data,
+                "__confidence_head_schema_version",
+            )
+            actions_json = _strict_npz_scalar_text(
+                data,
+                "__confidence_head_actions_json",
+            )
+            checkpoint_head_actions_raw = _strict_npz_json(actions_json)
+            if type(checkpoint_head_actions_raw) is not list:
+                raise ConfidenceHeadCheckpointIncompatibleError(
+                    "CHECKPOINT_CONFIDENCE_HEAD_NOT_PER_DIRECTIONAL_ACTION_V1"
+                )
+            checkpoint_head_actions = tuple(checkpoint_head_actions_raw)
+            if (
+                checkpoint_head_schema != CONFIDENCE_HEAD_SCHEMA_VERSION
+                or checkpoint_head_actions != CONFIDENCE_HEAD_ACTIONS
+            ):
+                raise ConfidenceHeadCheckpointIncompatibleError(
+                    "CHECKPOINT_CONFIDENCE_HEAD_NOT_PER_DIRECTIONAL_ACTION_V1"
+                )
+
+            calibration_json = _strict_npz_scalar_text(
+                data,
+                "__confidence_calibration_state_json",
+            )
+            decoded_calibration = _strict_npz_json(calibration_json)
+            if type(decoded_calibration) is not dict:
+                raise ValueError("checkpoint_calibration_state_not_object")
+            calibration_state = normalize_calibration_state(decoded_calibration)
+            if calibration_state.get("fitted") is True and not calibration_state.get(
+                "model_parameter_fingerprint"
+            ):
+                calibration_state = unfitted_calibration_state(
+                    "CHECKPOINT_CALIBRATION_MODEL_FINGERPRINT_MISSING"
+                )
+
+            torch_keys = frozenset(
+                key for key in member_keys if key.startswith("torch::")
+            )
+            fallback_present = _WEIGHT_BLOB_FALLBACK_KEY in member_keys
+            if bool(torch_keys) == fallback_present:
+                raise ValueError("checkpoint_npz_parameter_family_ambiguous")
+            if torch_keys:
+                if torch_available != 1 or self._torch is None or self._net is None:
+                    raise ValueError("checkpoint_npz_torch_family_target_mismatch")
+                state = self._net.state_dict()
+                expected_torch_keys = frozenset(
+                    f"torch::{name}" for name in state
+                )
+                if torch_keys != expected_torch_keys:
+                    raise ValueError("checkpoint_npz_torch_key_set_mismatch")
+                expected_keys = frozenset(expected_metadata) | expected_torch_keys
+                if member_keys != expected_keys:
+                    raise ValueError("checkpoint_npz_unexpected_keys")
+                restored: dict[str, Any] = {}
+                for name, existing in state.items():
+                    array = data[f"torch::{name}"]
+                    expected_dtype = str(existing.detach().cpu().numpy().dtype)
+                    if tuple(array.shape) != tuple(existing.shape):
+                        raise ValueError(f"shape mismatch for tensor: {name}")
+                    if str(array.dtype) != expected_dtype:
+                        raise ValueError(f"dtype mismatch for tensor: {name}")
+                    if not bool(np.isfinite(array).all()):
+                        raise ValueError(f"non_finite_tensor_in_checkpoint: {name}")
+                    restored[name] = self._torch.as_tensor(
+                        array,
+                        dtype=existing.dtype,
+                        device=self._device,
+                    )
+                pending_fallback: list[float] | None = None
+            else:
+                if torch_available != 0 or self._torch is not None or self._net is not None:
+                    raise ValueError("checkpoint_npz_fallback_family_target_mismatch")
+                expected_keys = frozenset(expected_metadata) | {
+                    _WEIGHT_BLOB_FALLBACK_KEY
+                }
+                if member_keys != expected_keys:
+                    raise ValueError("checkpoint_npz_unexpected_keys")
+                fallback = data[_WEIGHT_BLOB_FALLBACK_KEY]
+                if (
+                    tuple(fallback.shape) != (len(self._fallback_weights),)
+                    or str(fallback.dtype) != "float64"
+                    or not bool(np.isfinite(fallback).all())
+                ):
+                    raise ValueError("checkpoint_npz_fallback_parameters_invalid")
+                pending_fallback = [float(value) for value in fallback.tolist()]
+                restored = {}
+
+        state_before = self._mutable_state_snapshot()
+        try:
+            if restored:
+                if self._net is None:
+                    raise RuntimeError("checkpoint_model_net_unavailable")
+                self._net.load_state_dict(restored, strict=True)
+                self._net.eval()
+                calibration_state = self.set_confidence_calibration_state(
+                    calibration_state
+                )
+                restored_count = len(restored)
+            else:
+                if pending_fallback is None:
+                    raise RuntimeError("checkpoint_fallback_payload_unavailable")
+                self._fallback_weights = pending_fallback
+                calibration_state = self.set_confidence_calibration_state(
+                    unfitted_calibration_state(
+                        "CPU_FALLBACK_HAS_NO_PROFITABILITY_CONFIDENCE_HEAD"
+                    )
+                )
+                restored_count = 1
+        except Exception:
+            self._restore_mutable_state_snapshot(state_before)
+            raise
+        return {
+            "weight_file_path": source_label,
+            "weight_file_format": "npz",
+            "model_state_restored": True,
+            "restored_tensor_count": restored_count,
+            "confidence_calibration_fitted": (
+                calibration_state.get("fitted") is True
+            ),
+            "confidence_calibration_reason": calibration_state.get("reason"),
+        }
+
+    def _load_legacy_weight_blob_stream(
+        self,
+        stream: BinaryIO,
+        *,
+        source_label: str,
+    ) -> dict[str, Any]:
+        """Preserve the pre-v4 undeclared checkpoint contract exactly."""
+
         np = importlib.import_module("numpy")
         stream.seek(0)
         with np.load(stream, allow_pickle=False) as data:
             input_dim_values = data.get("__input_dim")
-            if input_dim_values is not None and int(input_dim_values[0]) != self.input_dim:
+            if (
+                input_dim_values is not None
+                and int(input_dim_values[0]) != self.input_dim
+            ):
                 raise ValueError("checkpoint input_dim does not match model")
             head_schema_values = data.get("__confidence_head_schema_version")
             head_actions_values = data.get("__confidence_head_actions_json")
             checkpoint_head_schema = (
-                str(head_schema_values[0]) if head_schema_values is not None else None
+                str(head_schema_values[0])
+                if head_schema_values is not None
+                else None
             )
             try:
                 checkpoint_head_actions = (
@@ -659,8 +1215,14 @@ class V2HybridPolicyModel:
                     if tuple(array.shape) != tuple(existing.shape):
                         raise ValueError(f"shape mismatch for tensor: {name}")
                     if not bool(np.isfinite(array).all()):
-                        raise ValueError(f"non_finite_tensor_in_checkpoint: {name}")
-                    restored[name] = self._torch.as_tensor(array, dtype=existing.dtype, device=self._device)
+                        raise ValueError(
+                            f"non_finite_tensor_in_checkpoint: {name}"
+                        )
+                    restored[name] = self._torch.as_tensor(
+                        array,
+                        dtype=existing.dtype,
+                        device=self._device,
+                    )
                 self._net.load_state_dict(restored, strict=True)
                 self._net.eval()
                 calibration_state = self.set_confidence_calibration_state(
@@ -674,14 +1236,20 @@ class V2HybridPolicyModel:
                     "confidence_calibration_fitted": (
                         calibration_state.get("fitted") is True
                     ),
-                    "confidence_calibration_reason": calibration_state.get("reason"),
+                    "confidence_calibration_reason": calibration_state.get(
+                        "reason"
+                    ),
                 }
-            fallback = data.get("fallback::weights")
+            fallback = data.get(_WEIGHT_BLOB_FALLBACK_KEY)
             if fallback is None:
-                raise ValueError("checkpoint has no fallback weights for CPU fallback model")
+                raise ValueError(
+                    "checkpoint has no fallback weights for CPU fallback model"
+                )
             if not bool(np.isfinite(fallback).all()):
-                raise ValueError("non_finite_tensor_in_checkpoint: fallback::weights")
-            values = [float(v) for v in fallback.tolist()]
+                raise ValueError(
+                    "non_finite_tensor_in_checkpoint: fallback::weights"
+                )
+            values = [float(value) for value in fallback.tolist()]
             if len(values) != len(self._fallback_weights):
                 raise ValueError("fallback checkpoint length does not match model")
             self._fallback_weights = values
@@ -695,7 +1263,9 @@ class V2HybridPolicyModel:
                 "weight_file_format": "npz",
                 "model_state_restored": True,
                 "restored_tensor_count": 1,
-                "confidence_calibration_fitted": calibration_state.get("fitted") is True,
+                "confidence_calibration_fitted": (
+                    calibration_state.get("fitted") is True
+                ),
                 "confidence_calibration_reason": calibration_state.get("reason"),
             }
 
