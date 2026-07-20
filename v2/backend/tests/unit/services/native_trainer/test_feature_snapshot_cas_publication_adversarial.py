@@ -5,13 +5,17 @@ import importlib
 import inspect
 import json
 import os
+from collections.abc import Iterator
 from dataclasses import FrozenInstanceError, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
+from v2.backend.app.services.market_state_integrity.canonical_candles import (
+    canonical_from_binance_wss,
+)
 from v2.backend.app.services.native_trainer.feature_snapshot_cas_publication import (
     CAS_ARTIFACT_BINDING_SCHEMA_VERSION,
     CAS_ARTIFACT_EVIDENCE_CLASSIFICATION,
@@ -31,21 +35,98 @@ from v2.backend.app.services.native_trainer.immutable_source_payload_store impor
     SourcePayloadAddress,
     SourcePayloadIntegrityError,
 )
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
+)
 
 BASE = datetime(2026, 7, 18, 12, 0, tzinfo=UTC)
 OBSERVED = BASE + timedelta(minutes=1, seconds=1)
 _RUN_ONCE_NOW_MS = 1_800_000_030_000
 
 
+class _RunOnceAtomicPipeline:
+    def __init__(self, redis_client: _RunOnceFakeRedis) -> None:
+        self.redis_client = redis_client
+        self.commands: list[tuple[str, str, int | None, int | None]] = []
+
+    def type(self, key: str) -> _RunOnceAtomicPipeline:
+        self.commands.append(("TYPE", key, None, None))
+        return self
+
+    def getrange(
+        self,
+        key: str,
+        start: int,
+        end: int,
+    ) -> _RunOnceAtomicPipeline:
+        self.commands.append(("GETRANGE", key, start, end))
+        return self
+
+    def pttl(self, key: str) -> _RunOnceAtomicPipeline:
+        self.commands.append(("PTTL", key, None, None))
+        return self
+
+    def time(self) -> _RunOnceAtomicPipeline:
+        self.commands.append(("TIME", "", None, None))
+        return self
+
+    def execute(self) -> list[object]:
+        responses: list[object] = []
+        for command, key, first, second in self.commands:
+            if command == "TYPE":
+                responses.append(b"string" if key in self.redis_client.store else b"none")
+            elif command == "GETRANGE":
+                value = self.redis_client.store.get(key)
+                if value is None:
+                    responses.append(b"")
+                else:
+                    payload = value if isinstance(value, bytes) else value.encode("utf-8")
+                    assert type(first) is int and type(second) is int
+                    responses.append(payload[first : second + 1])
+            elif command == "PTTL":
+                if key not in self.redis_client.store:
+                    responses.append(-2)
+                else:
+                    responses.append(self.redis_client.pttls_ms.get(key, -1))
+            elif command == "TIME":
+                responses.append(
+                    (
+                        _RUN_ONCE_NOW_MS // 1_000,
+                        (_RUN_ONCE_NOW_MS % 1_000) * 1_000,
+                    )
+                )
+        return responses
+
+    def reset(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
 class _RunOnceFakeRedis:
     def __init__(self) -> None:
-        self.store: dict[str, str] = {}
+        self.store: dict[str, str | bytes] = {}
+        self.pttls_ms: dict[str, int] = {}
+        self.pipeline_transactions: list[bool] = []
+        self.pipelines: list[_RunOnceAtomicPipeline] = []
 
-    def get(self, key: str) -> str | None:
+    def get_connection_kwargs(self) -> dict[str, bool]:
+        return {"decode_responses": False}
+
+    def pipeline(self, *, transaction: bool) -> _RunOnceAtomicPipeline:
+        assert transaction is True
+        self.pipeline_transactions.append(transaction)
+        pipeline = _RunOnceAtomicPipeline(self)
+        self.pipelines.append(pipeline)
+        return pipeline
+
+    def get(self, key: str) -> str | bytes | None:
         return self.store.get(key)
 
-    def set(self, key: str, value: str, ex: int | None = None) -> bool:  # noqa: ARG002
+    def set(self, key: str, value: str, ex: int | None = None) -> bool:
         self.store[key] = value
+        self.pttls_ms[key] = -1 if ex is None else ex * 1_000
         return True
 
     def exists(self, key: str) -> int:
@@ -62,7 +143,11 @@ class _RunOnceFakeRedis:
     ) -> list[object]:
         return []
 
-    def scan_iter(self, match: str | None = None, count: int = 500):  # noqa: ARG002
+    def scan_iter(
+        self,
+        match: str | None = None,
+        count: int = 500,  # noqa: ARG002
+    ) -> Iterator[str]:
         if match is None:
             yield from tuple(self.store)
             return
@@ -90,6 +175,116 @@ def _run_once_market_payload() -> dict[str, object]:
         },
         "open_interest": {},
     }
+
+
+def _run_once_canonical_wss_row(
+    close_ms: int,
+    *,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+) -> dict[str, object]:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    open_ms = close_ms - duration_ms + 1
+    event_ms = close_ms + 100
+    row = canonical_from_binance_wss(
+        {
+            "E": event_ms,
+            "k": {
+                "s": symbol,
+                "i": timeframe,
+                "t": open_ms,
+                "T": close_ms,
+                "o": "99.0",
+                "h": "101.0",
+                "l": "98.0",
+                "c": "100.0",
+                "v": "1000.0",
+                "q": "100000.0",
+                "n": 20,
+                "V": "500.0",
+                "Q": "50000.0",
+                "B": "0",
+                "x": True,
+            },
+        },
+        symbol=symbol,
+        timeframe=timeframe,
+        ingested_at=event_ms + 100,
+    ).to_dict()
+    return cast(dict[str, object], row)
+
+
+def _run_once_canonical_wss_window(
+    latest_close_ms: int,
+    *,
+    count: int = 80,
+    symbol: str = "BTCUSDT",
+    timeframe: str = "1m",
+) -> list[dict[str, object]]:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    return [
+        _run_once_canonical_wss_row(
+            latest_close_ms - ((count - 1 - index) * duration_ms),
+            symbol=symbol,
+            timeframe=timeframe,
+        )
+        for index in range(count)
+    ]
+
+
+def _run_once_with_closed_rows(
+    producer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    rows: list[dict[str, object]],
+) -> tuple[_RunOnceFakeRedis, dict[str, Any]]:
+    fake = _RunOnceFakeRedis()
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_run_once_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(rows)
+
+    def external_binary_redis_forbidden() -> None:
+        raise AssertionError("hermetic run_once fixture attempted external Redis")
+
+    monkeypatch.setattr(producer, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(
+        producer,
+        "_connect_ohlcv_binary_redis",
+        external_binary_redis_forbidden,
+    )
+    monkeypatch.setattr(producer.time, "time", lambda: _RUN_ONCE_NOW_MS / 1000.0)
+    monkeypatch.setattr(
+        producer,
+        "_utc_iso",
+        lambda: producer._ms_to_utc_iso(_RUN_ONCE_NOW_MS),  # noqa: SLF001
+    )
+    heartbeat = cast(
+        dict[str, Any],
+        producer.run_once(
+            ("BTCUSDT",),
+            "1m",
+            write_trainer_snapshot=False,
+        ),
+    )
+    return fake, heartbeat
+
+
+def _assert_nonconsumable_receipt_holds(snapshot: dict[str, object]) -> None:
+    assert snapshot["available_at"] is None
+    assert snapshot["feature_available_at"] is None
+    assert snapshot["exact_feature_availability_valid"] is False
+    assert snapshot["exact_feature_availability_rejection_reasons"] == [
+        "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
+    ]
+    assert snapshot["required_model_feature_pit_coverage_valid"] is False
+    assert snapshot["required_model_feature_pit_rejection_reasons"] == [
+        "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
+    ]
+    assert snapshot["ohlcv_history_payload_receipts_valid"] is False
+    assert snapshot["ohlcv_history_payload_receipt_rejection_reasons"] == [
+        "IMMUTABLE_OHLCV_HISTORY_PAYLOAD_RECEIPTS_REQUIRED"
+    ]
+    assert snapshot["trainer_consumable"] is False
+    assert snapshot["valid_for_prediction"] is False
+    assert snapshot["valid_for_paper"] is False
 
 
 def _native_ms(value: datetime) -> str:
@@ -336,61 +531,84 @@ def test_actual_run_once_output_uses_trusted_key_context_and_stays_non_consumabl
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     producer = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
-    fake = _RunOnceFakeRedis()
     latest_key = "v2:features:latest:BTCUSDT:1m"
     index_key = "v2:features:snapshots"
+    closed_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
     close_ms = producer._expected_latest_finalized_close_ms(  # noqa: SLF001
         decision_ms=_RUN_ONCE_NOW_MS,
         timeframe="1m",
     )
-    open_ms = close_ms - 60_000 + 1
-    event_ms = close_ms + 100
-    ingested_ms = event_ms + 100
-    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_run_once_market_payload())
-    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
-        [
-            {
-                "candle_open_time": open_ms,
-                "candle_close_time": close_ms,
-                "event_time": event_ms,
-                "ingested_at": ingested_ms,
-                "available_at": ingested_ms,
-                "symbol": "BTCUSDT",
-                "exchange": "binance",
-                "timeframe": "1m",
-                "source": "binance_wss",
-                "is_backfilled": False,
-                "is_closed": True,
-                "feature_eligible": True,
-                "source_sequence_id": str(event_ms),
-                "raw_payload_hash": "b" * 64,
-                "open": "99.0",
-                "high": "101.0",
-                "low": "98.0",
-                "close": "100.0",
-                "volume": "1000",
-            }
-        ]
-    )
-    monkeypatch.setattr(producer, "_connect_redis", lambda: fake)
-    monkeypatch.setattr(producer.time, "time", lambda: _RUN_ONCE_NOW_MS / 1000.0)
-    monkeypatch.setattr(
+    rows = _run_once_canonical_wss_window(close_ms, count=80)
+    fake, heartbeat = _run_once_with_closed_rows(
         producer,
-        "_utc_iso",
-        lambda: producer._ms_to_utc_iso(_RUN_ONCE_NOW_MS),  # noqa: SLF001
-    )
-
-    heartbeat = producer.run_once(
-        ("BTCUSDT",),
-        "1m",
-        write_trainer_snapshot=False,
+        monkeypatch,
+        rows,
     )
 
     assert heartbeat["snapshots_built"] == 1
     assert latest_key in heartbeat["v2_features_keys_written"]
     assert index_key in heartbeat["v2_features_keys_written"]
-    raw_redis_bytes = fake.store[latest_key].encode("utf-8")
+    assert fake.pipeline_transactions == [True]
+    assert len(fake.pipelines) == 1
+    assert fake.pipelines[0].commands == [
+        ("TYPE", closed_key, None, None),
+        ("GETRANGE", closed_key, 0, 1_048_576),
+        ("PTTL", closed_key, None, None),
+        ("TIME", "", None, None),
+    ]
+
+    raw_latest = fake.store[latest_key]
+    assert type(raw_latest) is str
+    raw_redis_bytes = raw_latest.encode("utf-8")
     snapshot = json.loads(raw_redis_bytes)
+    assert type(snapshot) is dict
+    assert snapshot["candle_closed_confirmed"] is True
+    assert snapshot["candle_open_time"] == producer._ms_to_utc_iso(  # noqa: SLF001
+        close_ms - TIMEFRAME_DURATION_MS["1m"] + 1
+    )
+    assert snapshot["candle_close_time"] == producer._ms_to_utc_iso(  # noqa: SLF001
+        close_ms
+    )
+    assert snapshot["feature_cutoff"] == producer._ms_to_utc_iso(close_ms)  # noqa: SLF001
+    assert snapshot["event_time"] == producer._ms_to_utc_iso(close_ms + 100)  # noqa: SLF001
+    assert snapshot["ingested_at"] == producer._ms_to_utc_iso(close_ms + 200)  # noqa: SLF001
+    assert snapshot["source_available_at"] == producer._ms_to_utc_iso(  # noqa: SLF001
+        close_ms + 200
+    )
+    assert snapshot["source"] == "binance_wss"
+    assert snapshot["is_backfilled"] is False
+    assert snapshot["source_sequence_id"] == str(close_ms + 100)
+    assert snapshot["exact_source_clock_valid"] is True
+    assert snapshot["exact_source_clock_rejection_reasons"] == []
+    assert snapshot["latest_finalized_candle_available_at_decision"] is True
+    assert snapshot["temporal_rejection_reasons"] == []
+
+    selection = snapshot["ohlcv_consumer_selection"]
+    assert type(selection) is dict
+    assert selection["selection_mode"] == ("ATOMIC_CANONICAL_CLOSED_FULL_CONTIGUOUS_SUFFIX_BOUND")
+    assert selection["atomic_source_read_succeeded"] is True
+    assert selection["consumer_observation_cutoff_ms"] == _RUN_ONCE_NOW_MS
+    assert selection["consumer_observation_clock_source"] == ("LOCAL_CLOCK_AFTER_ATOMIC_RESPONSE")
+    assert selection["expected_latest_finalized_close_time"] == close_ms
+    assert selection["selected_source_keys"] == [closed_key]
+    assert selection["closed_key_row_count"] == 80
+    assert selection["selected_row_count"] == 80
+    assert selection["selected_source_start_index"] == 0
+    assert selection["selected_source_end_index_exclusive"] == 80
+    assert selection["exact_source_schema_validated"] is True
+    assert selection["entire_contiguous_suffix_bound"] is True
+    assert selection["source_gap_indices"] == []
+    assert selection["source_gap_missing_interval_counts"] == []
+    assert selection["selected_source_provenance_counts"] == {"binance_wss": 80}
+    assert selection["selected_backfilled_row_count"] == 0
+    assert selection["selection_rejection_reasons"] == []
+    assert selection["durable_source_receipt_emitted"] is False
+    assert selection["feature_publication_receipt_emitted"] is False
+    assert selection["consumer_eligible"] is False
+    assert selection["trainer_admission_granted"] is False
+    assert selection["live_execution_authorized"] is False
+    _assert_nonconsumable_receipt_holds(snapshot)
+
     artifact_bytes = canonical_feature_snapshot_bytes(snapshot)
     # The artifact serialization is intentionally new evidence, not a claim
     # that the producer's Redis transport bytes were captured exactly.
@@ -398,7 +616,9 @@ def test_actual_run_once_output_uses_trusted_key_context_and_stays_non_consumabl
 
     trusted_prefix, expected_symbol, expected_timeframe = latest_key.rsplit(":", 2)
     assert trusted_prefix == "v2:features:latest"
-    trusted_snapshot_ids = json.loads(fake.store[index_key])
+    raw_index = fake.store[index_key]
+    assert type(raw_index) is str
+    trusted_snapshot_ids = json.loads(raw_index)
     assert len(trusted_snapshot_ids) == 1
     expected_snapshot_id = trusted_snapshot_ids[0]
     assert isinstance(expected_snapshot_id, str)
@@ -421,6 +641,70 @@ def test_actual_run_once_output_uses_trusted_key_context_and_stays_non_consumabl
     assert binding["trainer_evidence"] is False
     assert binding["ledger_source_evidence"] is False
     assert binding["source_transport_bytes_verified"] is False
+
+
+def test_actual_run_once_holds_seventy_row_core_ta_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    close_ms = producer._expected_latest_finalized_close_ms(  # noqa: SLF001
+        decision_ms=_RUN_ONCE_NOW_MS,
+        timeframe="1m",
+    )
+    fake, heartbeat = _run_once_with_closed_rows(
+        producer,
+        monkeypatch,
+        _run_once_canonical_wss_window(close_ms, count=70),
+    )
+
+    assert heartbeat["snapshots_built"] == 1
+    raw_latest = fake.store["v2:features:latest:BTCUSDT:1m"]
+    assert type(raw_latest) is str
+    snapshot = json.loads(raw_latest)
+    assert type(snapshot) is dict
+    selection = snapshot["ohlcv_consumer_selection"]
+    assert type(selection) is dict
+    assert selection["selection_mode"] == "ATOMIC_CANONICAL_CLOSED_SELECTION_HELD"
+    assert selection["atomic_source_read_succeeded"] is True
+    assert selection["exact_source_schema_validated"] is False
+    assert selection["entire_contiguous_suffix_bound"] is False
+    assert selection["selected_row_count"] == 0
+    assert selection["selection_rejection_reasons"] == [
+        "feature_window_core_ta_minimum_coverage_unavailable"
+    ]
+    assert snapshot["feature_freshness_state"] == "MISSING_CLOSED_OHLCV"
+    assert snapshot["exact_source_clock_valid"] is False
+    _assert_nonconsumable_receipt_holds(snapshot)
+
+
+def test_actual_run_once_holds_partial_canonical_ohlcv_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    producer = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    close_ms = producer._expected_latest_finalized_close_ms(  # noqa: SLF001
+        decision_ms=_RUN_ONCE_NOW_MS,
+        timeframe="1m",
+    )
+    rows = _run_once_canonical_wss_window(close_ms, count=80)
+    rows[-1].pop("quote_volume")
+    fake, heartbeat = _run_once_with_closed_rows(producer, monkeypatch, rows)
+
+    assert heartbeat["snapshots_built"] == 1
+    raw_latest = fake.store["v2:features:latest:BTCUSDT:1m"]
+    assert type(raw_latest) is str
+    snapshot = json.loads(raw_latest)
+    assert type(snapshot) is dict
+    selection = snapshot["ohlcv_consumer_selection"]
+    assert type(selection) is dict
+    assert selection["selection_mode"] == "ATOMIC_CANONICAL_CLOSED_SELECTION_HELD"
+    assert selection["atomic_source_read_succeeded"] is True
+    assert selection["exact_source_schema_validated"] is False
+    assert selection["entire_contiguous_suffix_bound"] is False
+    assert selection["selected_row_count"] == 0
+    assert selection["selection_rejection_reasons"] == ["ohlcv_closed_row_field_set_invalid"]
+    assert snapshot["feature_freshness_state"] == "MISSING_CLOSED_OHLCV"
+    assert snapshot["exact_source_clock_valid"] is False
+    _assert_nonconsumable_receipt_holds(snapshot)
 
 
 def test_binding_is_persisted_only_after_artifact_put_and_exact_get(
