@@ -16,11 +16,12 @@ import argparse
 import json
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.full_talib_ta.service import (
+    DEFAULT_MIN_CANDLES,
     FULL_TALIB_TA_SCHEMA_VERSION,
     build_full_talib_ta_payload,
     filter_closed_ohlcv_rows,
@@ -29,7 +30,6 @@ from v2.backend.app.services.v2_symbol_runtime_universe import (
     is_valid_runtime_symbol,
     resolve_symbols_with_provenance,
 )
-
 
 WORKER_ID = "v2_full_talib_ta_loop"
 V2_REDIS_PREFIX = "v2:"
@@ -45,7 +45,7 @@ LOCAL_STATUS_PATH = REPO_ROOT / "v2/runtime/v2_full_talib_ta/latest/v2_full_tali
 
 
 def _utc_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _connect_redis():
@@ -109,12 +109,15 @@ def _ohlcv_row_ts(row: Any) -> Any:
             or row.get("candle_open_time")
             or row.get("open_time")
         )
-    if isinstance(row, (list, tuple)) and row:
+    if isinstance(row, list | tuple) and row:
         return row[0]
     return None
 
 
-def _merge_ohlcv_history(history_rows: list[Any] | None, current_rows: list[Any] | None) -> list[Any]:
+def _merge_ohlcv_history(
+    history_rows: list[Any] | None,
+    current_rows: list[Any] | None,
+) -> list[Any]:
     """Merge closed-candle HISTORY under the live key's latest rows.
 
     The live v2:market:ohlcv key often carries only the newest candle while
@@ -197,7 +200,14 @@ def _copy_compact_ta_payload(
         "field_count": len(indicators),
         "indicator_count": len(indicators),
         "indicators": dict(sorted(indicators.items())),
-        "families_present": sorted({name.split("_", 2)[1] if name.startswith("ta_") and "_" in name[3:] else name.split("_", 1)[0].upper() for name in indicators}),
+        "families_present": sorted(
+            {
+                name.split("_", 2)[1]
+                if name.startswith("ta_") and "_" in name[3:]
+                else name.split("_", 1)[0].upper()
+                for name in indicators
+            }
+        ),
         "classification": "V2_FULL_TALIB_TA_BLOCKED_COMPACT_FALLBACK_FRESH",
         "trainer_consumable": True,
         "legacy_ta_field_parity_target": "about_160_fields_from_LEGACY_SYSTEM_FULL_AUDIT",
@@ -315,7 +325,7 @@ def run_once(
             source_key = f"v2:market:ohlcv:binance:{symbol}:{timeframe}"
             source_payload = _read_json(redis_client, source_key)
             rows = _extract_ohlcv_rows(source_payload)
-            if rows is None or len(rows) < 50:
+            if rows is None or len(rows) < DEFAULT_MIN_CANDLES:
                 closed_history = _extract_ohlcv_rows(
                     _read_json(
                         redis_client,

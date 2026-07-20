@@ -123,3 +123,25 @@ def test_run_once_writes_v2_ta_keys_and_status(
         assert payload["field_count"] >= 100
         assert payload["trainer_consumable"] is True
     assert json.loads((tmp_path / "public.json").read_text())["worker_id"] == worker.WORKER_ID
+
+
+def test_run_once_merges_closed_history_when_live_window_is_below_ta_minimum(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeRedis()
+    history = _klines(100)
+    fake.store["v2:market:ohlcv:binance:BTCUSDT:1h"] = json.dumps(history[-50:])
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1h"] = json.dumps(history)
+    monkeypatch.setattr(worker, "PUBLIC_STATUS_PATH", tmp_path / "public.json")
+    monkeypatch.setattr(worker, "LOCAL_STATUS_PATH", tmp_path / "local.json")
+
+    worker.run_once(
+        symbols_arg="BTCUSDT",
+        timeframes_arg="1h",
+        redis_client=fake,
+    )
+
+    payload = json.loads(fake.store["v2:features:ta_full:BTCUSDT:1h"])
+    assert payload["candle_count"] == 100
+    assert payload["classification"] != "BLOCKED_INSUFFICIENT_OHLCV_HISTORY"
