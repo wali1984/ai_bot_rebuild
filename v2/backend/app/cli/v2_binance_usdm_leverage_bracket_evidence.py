@@ -8,180 +8,37 @@ changes leverage or margin mode.
 from __future__ import annotations
 
 import argparse
-import hmac
 import json
 import os
-import re
-import stat
 import threading
-from collections.abc import Callable, Iterable, Mapping
-from pathlib import Path
+from collections.abc import Callable, Iterable
 from typing import Any
 
+from v2.backend.app.services import (
+    binance_usdm_leverage_bracket_runtime_credentials as runtime_credentials,
+)
 from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (
     DEFAULT_CACHE_TTL_SECONDS,
     DEFAULT_FRESHNESS_SECONDS,
     STATUS_SCHEMA_VERSION,
     EvidenceSecurityContext,
     LeverageBracketEvidenceError,
-    build_evidence_security_context,
     evidence_security_context_for_adapter,
     fetch_and_cache_leverage_brackets,
 )
 from v2.backend.app.services.execution.binance_usdm_adapter import BinanceUSDMAdapter
 
 DEFAULT_INTERVAL_SECONDS = 300
-
-SYSTEMD_CREDENTIALS_DIRECTORY_ENV = "CREDENTIALS_DIRECTORY"
-TRADER_ID_ENV = "ALPHAFORGE_INITIAL_TRADER_ID"
-CREDENTIAL_REF_ENV = "ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF"
-BASE_URL_ENV = "BINANCE_USDM_REST_BASE_URL"
-EVIDENCE_AUTH_KEY_ID_ENV = "BINANCE_BRACKET_EVIDENCE_HMAC_KEY_ID"
-EVIDENCE_HMAC_SYSTEMD_CREDENTIAL = "binance_bracket_evidence_hmac_key"
-MAX_SYSTEMD_CREDENTIAL_BYTES = 4096
-_SYSTEMD_CREDENTIAL_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
-
-
-def _binding_credential_name(*, trader_id: str, credential_ref: str, suffix: str) -> str:
-    """Bind a systemd credential slot to one exact public account identity."""
-
-    for field_name, value in (
-        ("TRADER_ID", trader_id),
-        ("CREDENTIAL_REF", credential_ref),
-        ("CREDENTIAL_SUFFIX", suffix),
-    ):
-        if not isinstance(value, str) or not _SYSTEMD_CREDENTIAL_COMPONENT_RE.fullmatch(value):
-            raise LeverageBracketEvidenceError(f"{field_name}_UNSAFE_FOR_SYSTEMD_CREDENTIAL")
-    name = f"{trader_id}--{credential_ref}--{suffix}"
-    if len(name.encode("utf-8")) > 240:
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIAL_NAME_TOO_LONG")
-    return name
-
-
-def _open_systemd_credentials_directory(directory: Path) -> int:
-    if not directory.is_absolute() or directory.anchor != os.sep or ".." in directory.parts:
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
-    flags = (
-        os.O_RDONLY
-        | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_DIRECTORY", 0)
-        | getattr(os, "O_NOFOLLOW", 0)
-    )
-    descriptor = -1
-    try:
-        descriptor = os.open(os.sep, flags)
-        for component in directory.parts[1:]:
-            next_descriptor = os.open(component, flags, dir_fd=descriptor)
-            os.close(descriptor)
-            descriptor = next_descriptor
-        metadata = os.fstat(descriptor)
-    except OSError as exc:
-        if descriptor >= 0:
-            os.close(descriptor)
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIALS_DIRECTORY_INVALID") from exc
-    if not stat.S_ISDIR(metadata.st_mode):
-        os.close(descriptor)
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
-    return descriptor
-
-
-def _read_systemd_credential(directory_descriptor: int, name: str) -> str:
-    """Read one single-line credential without ever including its value in errors."""
-
-    if not _SYSTEMD_CREDENTIAL_COMPONENT_RE.fullmatch(name):
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIAL_NAME_UNSAFE")
-    flags = (
-        os.O_RDONLY
-        | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_NOFOLLOW", 0)
-        | getattr(os, "O_NONBLOCK", 0)
-    )
-    try:
-        descriptor = os.open(name, flags, dir_fd=directory_descriptor)
-    except OSError as exc:
-        raise LeverageBracketEvidenceError(
-            f"SYSTEMD_CREDENTIAL_UNAVAILABLE_{name.upper()}"
-        ) from exc
-    try:
-        metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode):
-            raise LeverageBracketEvidenceError(f"SYSTEMD_CREDENTIAL_NOT_REGULAR_{name.upper()}")
-        with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            raw = stream.read(MAX_SYSTEMD_CREDENTIAL_BYTES + 1)
-    except OSError as exc:
-        raise LeverageBracketEvidenceError(f"SYSTEMD_CREDENTIAL_UNREADABLE_{name.upper()}") from exc
-    finally:
-        os.close(descriptor)
-    if len(raw) > MAX_SYSTEMD_CREDENTIAL_BYTES:
-        raise LeverageBracketEvidenceError(f"SYSTEMD_CREDENTIAL_TOO_LARGE_{name.upper()}")
-    try:
-        value = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise LeverageBracketEvidenceError(f"SYSTEMD_CREDENTIAL_NOT_UTF8_{name.upper()}") from exc
-    value = value.removesuffix("\n").removesuffix("\r")
-    if not value or value != value.strip() or any(char in value for char in "\r\n\x00"):
-        raise LeverageBracketEvidenceError(f"SYSTEMD_CREDENTIAL_NOT_SINGLE_LINE_{name.upper()}")
-    return value
-
-
-def _adapter_and_security_context_from_systemd_credentials(
-    *,
-    environ: Mapping[str, str] | None = None,
-) -> tuple[BinanceUSDMAdapter, EvidenceSecurityContext]:
-    """Build an exact binding from systemd's encrypted credential directory.
-
-    Presence of ``CREDENTIALS_DIRECTORY`` selects this strict path. Missing or
-    malformed credentials never fall back to repository env files.
-    """
-
-    values = os.environ if environ is None else environ
-    directory_text = values.get(SYSTEMD_CREDENTIALS_DIRECTORY_ENV, "")
-    directory = Path(directory_text)
-    if not directory_text:
-        raise LeverageBracketEvidenceError("SYSTEMD_CREDENTIALS_DIRECTORY_INVALID")
-    trader_id = values.get(TRADER_ID_ENV, "")
-    credential_ref = values.get(CREDENTIAL_REF_ENV, "")
-    base_url = values.get(BASE_URL_ENV, "")
-    auth_key_id = values.get(EVIDENCE_AUTH_KEY_ID_ENV, "")
-    api_key_name = _binding_credential_name(
-        trader_id=trader_id,
-        credential_ref=credential_ref,
-        suffix="api_key",
-    )
-    api_secret_name = _binding_credential_name(
-        trader_id=trader_id,
-        credential_ref=credential_ref,
-        suffix="api_secret",
-    )
-    directory_descriptor = _open_systemd_credentials_directory(directory)
-    try:
-        api_key = _read_systemd_credential(directory_descriptor, api_key_name)
-        api_secret = _read_systemd_credential(directory_descriptor, api_secret_name)
-        evidence_hmac_key = _read_systemd_credential(
-            directory_descriptor,
-            EVIDENCE_HMAC_SYSTEMD_CREDENTIAL,
-        )
-    finally:
-        os.close(directory_descriptor)
-    evidence_hmac_key_bytes = evidence_hmac_key.encode("utf-8")
-    if hmac.compare_digest(evidence_hmac_key_bytes, api_key.encode("utf-8")):
-        raise LeverageBracketEvidenceError("EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_API_KEY")
-    if hmac.compare_digest(evidence_hmac_key_bytes, api_secret.encode("utf-8")):
-        raise LeverageBracketEvidenceError("EVIDENCE_HMAC_KEY_MUST_DIFFER_FROM_EXCHANGE_SECRET")
-    context = build_evidence_security_context(
-        trader_id=trader_id,
-        credential_ref=credential_ref,
-        base_url=base_url,
-        credential_account_specific=True,
-        hmac_key=evidence_hmac_key,
-        auth_key_id=auth_key_id,
-    )
-    adapter = BinanceUSDMAdapter(
-        api_key=api_key,
-        api_secret=api_secret,
-        base_url=context.base_url_origin,
-    )
-    return adapter, context
+SYSTEMD_CREDENTIALS_DIRECTORY_ENV = runtime_credentials.SYSTEMD_CREDENTIALS_DIRECTORY_ENV
+TRADER_ID_ENV = runtime_credentials.TRADER_ID_ENV
+CREDENTIAL_REF_ENV = runtime_credentials.CREDENTIAL_REF_ENV
+BASE_URL_ENV = runtime_credentials.BASE_URL_ENV
+EVIDENCE_AUTH_KEY_ID_ENV = runtime_credentials.EVIDENCE_AUTH_KEY_ID_ENV
+EVIDENCE_HMAC_SYSTEMD_CREDENTIAL = runtime_credentials.EVIDENCE_HMAC_SYSTEMD_CREDENTIAL
+MAX_SYSTEMD_CREDENTIAL_BYTES = runtime_credentials.MAX_SYSTEMD_CREDENTIAL_BYTES
+_adapter_and_security_context_from_systemd_credentials = (
+    runtime_credentials.adapter_and_security_context_from_systemd_credentials
+)
 
 
 def _redis_client(redis_url: str | None = None) -> Any:
