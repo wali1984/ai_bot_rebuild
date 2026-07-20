@@ -3,10 +3,18 @@
 This file is an absolute-path script, not an importable trainer service.  Its
 bootstrap imports only the standard library.  Before any project package can
 be imported it requires CPython ``-I -S -B``, derives the repository root from
-its exact absolute ``__file__``, descriptor-reads the frozen protocol and
-policy sources, verifies their compiled-in digests, and executes those exact
-captured bytes as private importlib modules without importing package init
-files.
+its supervisor-supplied nominal absolute worker path, descriptor-reads the
+frozen protocol and policy sources, verifies their compiled-in digests, and
+executes those exact captured bytes as private importlib modules without
+importing package init files.  The supervisor launch mode executes immutable
+sealed worker-source bytes through ``/proc/self/fd`` and binds those bytes back
+to the nominal policy closure; the legacy direct-path test mode remains
+fail-closed and separately validated.
+
+As the first ``main`` step, after CPython bootstrap but before request, policy,
+project, or CAS processing, the worker applies and verifies the fixed process
+resource ceilings.  This is deliberately not described as pre-exec or
+pre-interpreter enforcement.
 
 The separately supplied policy channel must be a read-only Linux memfd with
 all immutable seals (WRITE, GROW, SHRINK, and SEAL).  Sealing establishes only
@@ -42,6 +50,7 @@ import json
 import math
 import os
 import re
+import resource
 import stat
 import sys
 from datetime import UTC, datetime, timedelta
@@ -113,6 +122,25 @@ MAX_HERMETIC_REPLAY_SELECTED_ROW_BYTES_V4 = 64 * 1024
 MAX_HERMETIC_REPLAY_BOOTSTRAP_SOURCE_BYTES_V4 = 2 * 1024 * 1024
 MAX_HERMETIC_REPLAY_PYTHON_EXECUTABLE_BYTES_V4 = 64 * 1024 * 1024
 _READ_CHUNK_BYTES = 1024 * 1024
+
+# These are process safety ceilings from the frozen policy, not market or
+# trading thresholds.  Python cannot safely run a ``preexec_fn`` in a
+# potentially threaded supervisor.  The fresh isolated worker therefore
+# applies these as its first ``main`` bootstrap step, after CPython itself has
+# initialized but before request, policy, project, or CAS processing.
+_POST_INTERPRETER_BOOTSTRAP_RESOURCE_CEILINGS = MappingProxyType(
+    {
+        "process_core_limit_bytes": (resource.RLIMIT_CORE, 0),
+        "process_cpu_time_limit_seconds": (resource.RLIMIT_CPU, 30),
+        "process_address_space_limit_bytes": (
+            resource.RLIMIT_AS,
+            2 * 1024 * 1024 * 1024,
+        ),
+        "process_open_file_descriptor_limit": (resource.RLIMIT_NOFILE, 32),
+        "process_count_limit": (resource.RLIMIT_NPROC, 1),
+        "process_file_write_limit_bytes": (resource.RLIMIT_FSIZE, 0),
+    }
+)
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _CANDLE_ID_RE = re.compile(r"^[0-9a-f]{24}$", re.ASCII)
@@ -887,7 +915,47 @@ def _require_sha256(value: object, *, reason: str) -> str:
     return value
 
 
-def _verify_direct_isolated_invocation() -> tuple[str, str, int]:
+def _apply_and_verify_post_interpreter_bootstrap_resource_limits() -> dict[str, int]:
+    applied: dict[str, int] = {}
+    for field, (kind, ceiling) in _POST_INTERPRETER_BOOTSTRAP_RESOURCE_CEILINGS.items():
+        try:
+            _, current_hard = resource.getrlimit(kind)
+            bounded = (
+                ceiling
+                if current_hard == resource.RLIM_INFINITY
+                else min(
+                    ceiling,
+                    current_hard,
+                )
+            )
+            if type(bounded) is not int or bounded < 0:
+                _fail("hermetic_replay_worker_resource_limit_invalid")
+            resource.setrlimit(kind, (bounded, bounded))
+            actual_soft, actual_hard = resource.getrlimit(kind)
+        except (OSError, ValueError):
+            _fail("hermetic_replay_worker_resource_limit_apply_failed")
+        if (
+            type(actual_soft) is not int
+            or type(actual_hard) is not int
+            or actual_soft != bounded
+            or actual_hard != bounded
+            or actual_soft > ceiling
+        ):
+            _fail("hermetic_replay_worker_resource_limit_verification_failed")
+        applied[field] = actual_soft
+    return applied
+
+
+def _parse_descriptor_argument(value: str, *, reason: str) -> int:
+    if not value.isascii() or not value.isdecimal() or value.startswith("0"):
+        _fail(reason)
+    descriptor = int(value)
+    if descriptor < 3 or str(descriptor) != value:
+        _fail(reason)
+    return descriptor
+
+
+def _verify_direct_isolated_invocation() -> tuple[str, str, int, int, str | None]:
     if __name__ != "__main__" or __package__ not in {None, ""} or __spec__ is not None:
         _fail("hermetic_replay_worker_direct_script_invocation_required")
     if (
@@ -909,38 +977,57 @@ def _verify_direct_isolated_invocation() -> tuple[str, str, int]:
         or bool(sys.warnoptions)
     ):
         _fail("hermetic_replay_worker_isolated_python_flags_required")
-    if len(sys.argv) != 3 or sys.argv[1] != "--policy-fd":
+    if len(sys.argv) not in {3, 5} or sys.argv[1] != "--policy-fd":
         _fail("hermetic_replay_worker_arguments_invalid")
-    descriptor_text = sys.argv[2]
-    if (
-        not descriptor_text.isascii()
-        or not descriptor_text.isdecimal()
-        or descriptor_text.startswith("0")
-    ):
-        _fail("hermetic_replay_worker_policy_fd_invalid")
-    policy_fd = int(descriptor_text)
-    if policy_fd < 3 or str(policy_fd) != descriptor_text:
-        _fail("hermetic_replay_worker_policy_fd_invalid")
+    policy_fd = _parse_descriptor_argument(
+        sys.argv[2],
+        reason="hermetic_replay_worker_policy_fd_invalid",
+    )
 
     source_path = globals().get("__file__")
+    if type(source_path) is not str or sys.argv[0] != source_path:
+        _fail("hermetic_replay_worker_absolute_script_path_required")
+    executing_worker_fd = -1
+    executing_worker_sha256: str | None = None
+    if len(sys.argv) == 5:
+        if sys.argv[3] != "--worker-path":
+            _fail("hermetic_replay_worker_arguments_invalid")
+        prefix = "/proc/self/fd/"
+        if not source_path.startswith(prefix):
+            _fail("hermetic_replay_worker_descriptor_script_required")
+        executing_worker_fd = _parse_descriptor_argument(
+            source_path[len(prefix) :],
+            reason="hermetic_replay_worker_source_fd_invalid",
+        )
+        if executing_worker_fd == policy_fd:
+            _fail("hermetic_replay_worker_source_fd_invalid")
+        executing_worker_sha256 = _verify_sealed_worker_source_descriptor(executing_worker_fd)
+        worker_path = sys.argv[4]
+    else:
+        worker_path = source_path
     if (
-        type(source_path) is not str
-        or not source_path.startswith("/")
-        or os.path.normpath(source_path) != source_path
-        or sys.argv[0] != source_path
+        not worker_path.startswith("/")
+        or os.path.normpath(worker_path) != worker_path
+        or worker_path.endswith("/")
     ):
         _fail("hermetic_replay_worker_absolute_script_path_required")
     suffix = "/" + CANONICAL_OHLCV_HERMETIC_REPLAY_WORKER_V4_RELATIVE_PATH
-    if not source_path.endswith(suffix):
+    if not worker_path.endswith(suffix):
         _fail("hermetic_replay_worker_repository_layout_invalid")
-    project_root = source_path[: -len(suffix)]
+    project_root = worker_path[: -len(suffix)]
     if not project_root or project_root == "/" or os.path.normpath(project_root) != project_root:
         _fail("hermetic_replay_worker_repository_layout_invalid")
     if project_root in {entry for entry in sys.path if type(entry) is str}:
         _fail("hermetic_replay_worker_project_root_preloaded")
     if any(name == "v2" or name.startswith("v2.") for name in sys.modules):
         _fail("hermetic_replay_worker_project_import_preloaded")
-    return project_root, source_path, policy_fd
+    return (
+        project_root,
+        worker_path,
+        policy_fd,
+        executing_worker_fd,
+        executing_worker_sha256,
+    )
 
 
 def _required_seal_mask() -> int:
@@ -952,6 +1039,57 @@ def _required_seal_mask() -> int:
     for value in values:
         mask |= value
     return mask
+
+
+def _verify_sealed_worker_source_descriptor(worker_fd: int) -> str:
+    if sys.platform != "linux" or not hasattr(fcntl, "F_GET_SEALS"):
+        _fail("hermetic_replay_worker_source_memfd_required")
+    try:
+        access_flags = fcntl.fcntl(worker_fd, fcntl.F_GETFL)
+        link_target = os.readlink(f"/proc/self/fd/{worker_fd}")
+        initial_seals = fcntl.fcntl(worker_fd, fcntl.F_GET_SEALS)
+        initial_stat = os.fstat(worker_fd)
+    except OSError:
+        _fail("hermetic_replay_worker_source_fd_invalid")
+    required_seals = _required_seal_mask()
+    if (
+        access_flags & os.O_ACCMODE != os.O_RDONLY
+        or not link_target.startswith("/memfd:canonical-ohlcv-worker-v4")
+        or not link_target.endswith(" (deleted)")
+        or initial_seals & required_seals != required_seals
+        or not stat.S_ISREG(initial_stat.st_mode)
+        or int(initial_stat.st_nlink) != 0
+        or not 1 <= int(initial_stat.st_size) <= MAX_HERMETIC_REPLAY_BOOTSTRAP_SOURCE_BYTES_V4
+    ):
+        _fail("hermetic_replay_worker_source_fd_identity_invalid")
+    initial = _file_fingerprint(initial_stat)
+    digest = hashlib.sha256()
+    offset = 0
+    remaining = int(initial_stat.st_size)
+    while remaining:
+        try:
+            chunk = os.pread(worker_fd, min(remaining, _READ_CHUNK_BYTES), offset)
+        except OSError:
+            _fail("hermetic_replay_worker_source_fd_read_failed")
+        if not chunk:
+            _fail("hermetic_replay_worker_source_fd_read_failed")
+        digest.update(chunk)
+        offset += len(chunk)
+        remaining -= len(chunk)
+    try:
+        overflow = os.pread(worker_fd, 1, offset)
+        final_stat = os.fstat(worker_fd)
+        final_seals = fcntl.fcntl(worker_fd, fcntl.F_GET_SEALS)
+    except OSError:
+        _fail("hermetic_replay_worker_source_fd_changed_during_read")
+    if (
+        overflow
+        or _file_fingerprint(final_stat) != initial
+        or final_seals != initial_seals
+        or final_seals & required_seals != required_seals
+    ):
+        _fail("hermetic_replay_worker_source_fd_changed_during_read")
+    return digest.hexdigest()
 
 
 def _read_sealed_policy_channel(policy_fd: int) -> bytes:
@@ -2482,6 +2620,7 @@ def _build_result(
     validated_policy: dict[str, object],
     policy_document: bytes,
     selected: dict[str, object],
+    post_bootstrap_resource_limits: dict[str, int],
 ) -> bytes:
     manifest_address = dict(cast(Any, request["manifest_address"]))
     selected_address = dict(cast(Any, request["selected_row_address"]))
@@ -2580,6 +2719,10 @@ def _build_result(
         "selected_row_binding_replayed": True,
         "runtime_network_disable_required": True,
         "runtime_filesystem_write_disable_required": True,
+        "process_resource_limits_applied_after_interpreter_bootstrap": True,
+        "process_resource_limits_verified_at_validation": True,
+        "process_resource_limits_enforced_before_interpreter_bootstrap": False,
+        **post_bootstrap_resource_limits,
         **{field: False for field in _WORKER_FALSE_FIELDS},
         "audit_only": True,
     }
@@ -2595,8 +2738,14 @@ def _build_result(
     return encoded
 
 
-def _execute() -> bytes:
-    project_root, worker_path, policy_fd = _verify_direct_isolated_invocation()
+def _execute(*, post_bootstrap_resource_limits: dict[str, int]) -> bytes:
+    (
+        project_root,
+        worker_path,
+        policy_fd,
+        executing_worker_fd,
+        executing_worker_sha256,
+    ) = _verify_direct_isolated_invocation()
     protocol_path = os.path.join(
         project_root,
         CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_RELATIVE_PATH,
@@ -2633,6 +2782,11 @@ def _execute() -> bytes:
         maximum_byte_count=MAX_HERMETIC_REPLAY_BOOTSTRAP_SOURCE_BYTES_V4,
         reason_prefix="hermetic_replay_worker_self_source",
     )
+    if executing_worker_sha256 is not None and not hmac.compare_digest(
+        executing_worker_sha256,
+        worker_sha256,
+    ):
+        _fail("hermetic_replay_worker_executing_source_digest_mismatch")
 
     protocol = _load_private_exact_module(
         name="_canonical_ohlcv_hermetic_replay_protocol_v4_bootstrap",
@@ -2712,6 +2866,18 @@ def _execute() -> bytes:
         or final_worker_fingerprint != worker_fingerprint
     ):
         _fail("hermetic_replay_worker_frozen_source_changed_during_validation")
+    if executing_worker_fd >= 0:
+        final_executing_worker_sha256 = _verify_sealed_worker_source_descriptor(executing_worker_fd)
+        if (
+            executing_worker_sha256 is None
+            or not hmac.compare_digest(
+                final_executing_worker_sha256,
+                executing_worker_sha256,
+            )
+            or not hmac.compare_digest(final_executing_worker_sha256, worker_sha256)
+        ):
+            _fail("hermetic_replay_worker_executing_source_changed_during_validation")
+        _close_descriptor(executing_worker_fd)
 
     captured_sources, package_names = _capture_validated_project_closure(
         policy,
@@ -2740,6 +2906,7 @@ def _execute() -> bytes:
         validated_policy=validated_policy,
         policy_document=policy_document,
         selected=selected,
+        post_bootstrap_resource_limits=post_bootstrap_resource_limits,
     )
 
 
@@ -2785,7 +2952,12 @@ def main() -> int:
     """Run one bounded request; never emit a traceback or partial success JSON."""
 
     try:
-        result = _execute()
+        post_bootstrap_resource_limits = (
+            _apply_and_verify_post_interpreter_bootstrap_resource_limits()
+        )
+        result = _execute(
+            post_bootstrap_resource_limits=post_bootstrap_resource_limits,
+        )
     except CanonicalOhlcvHermeticReplayWorkerV4Error as exc:
         try:
             _write_all(2, _error_document(exc.reason))

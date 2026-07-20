@@ -553,6 +553,7 @@ def test_worker_source_bootstrap_is_stdlib_only_and_frozen_inputs_match() -> Non
         "math",
         "os",
         "re",
+        "resource",
         "stat",
         "sys",
         "types",
@@ -781,6 +782,15 @@ def test_success_is_deterministic_bounded_scalar_and_source_path_hash_bound(
     assert result["selected_row_binding_replayed"] is True
     assert result["runtime_network_disable_required"] is True
     assert result["runtime_filesystem_write_disable_required"] is True
+    assert result["process_resource_limits_applied_after_interpreter_bootstrap"] is True
+    assert result["process_resource_limits_verified_at_validation"] is True
+    assert result["process_resource_limits_enforced_before_interpreter_bootstrap"] is False
+    assert result["process_core_limit_bytes"] == 0
+    assert result["process_cpu_time_limit_seconds"] == 30
+    assert result["process_address_space_limit_bytes"] == 2 * 1024 * 1024 * 1024
+    assert result["process_open_file_descriptor_limit"] == 32
+    assert result["process_count_limit"] == 1
+    assert result["process_file_write_limit_bytes"] == 0
     assert result["generated_at"] is None
     assert result["execution_time"] is None
     for field in (
@@ -805,6 +815,37 @@ def test_success_is_deterministic_bounded_scalar_and_source_path_hash_bound(
     tampered = dict(result)
     tampered["matched_candle_id"] = "tampered"
     assert supplied_digest != _domain_hash(_RESULT_DOMAIN_SEPARATOR, tampered)
+
+
+def test_post_interpreter_bootstrap_resource_limits_preserve_tighter_hard_limit() -> None:
+    probe = "\n".join(
+        (
+            "import json, resource",
+            "from v2.backend.app.services.native_trainer import "
+            "canonical_ohlcv_hermetic_replay_worker_v4 as worker",
+            "resource.setrlimit(resource.RLIMIT_NOFILE, (16, 16))",
+            "result = worker._apply_and_verify_post_interpreter_bootstrap_resource_limits()",
+            "print(json.dumps(result, sort_keys=True))",
+        )
+    )
+    process = subprocess.run(  # noqa: S603 - current test interpreter and fixed probe
+        [sys.executable, "-c", probe],
+        cwd=_REPOSITORY_ROOT,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=15,
+    )
+    assert process.returncode == 0, process.stderr
+    result = cast(dict[str, int], json.loads(process.stdout))
+    assert result == {
+        "process_core_limit_bytes": 0,
+        "process_cpu_time_limit_seconds": 30,
+        "process_address_space_limit_bytes": 2 * 1024 * 1024 * 1024,
+        "process_open_file_descriptor_limit": 16,
+        "process_count_limit": 1,
+        "process_file_write_limit_bytes": 0,
+    }
 
 
 @pytest.mark.parametrize(
