@@ -4,17 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import os
+from contextlib import suppress
 from typing import Any
 
 import httpx
-
 from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
 from app.services.smart_money_wallets.models import MoralisResponse
 from app.services.smart_money_wallets.rate_limit import (
     MORALIS_TIMEOUT_SECONDS,
     MoralisRateLimiter,
 )
-
 
 DEFAULT_BASE_URL = "https://deep-index.moralis.io/api/v2.2"
 
@@ -36,7 +35,9 @@ class MoralisClient:
     ) -> None:
         self.api_key = api_key if api_key is not None else os.getenv("MORALIS_API_KEY")
         self.base_url = (base_url or os.getenv("MORALIS_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
-        self.limiter = limiter or MoralisRateLimiter()
+        # A real client without a durable ledger must fail closed.  Tests that
+        # exercise the local-only limiter can still opt into it explicitly.
+        self.limiter = limiter or MoralisRateLimiter(require_persistent_ledger=True)
         self.http_client = http_client
 
     @property
@@ -53,14 +54,53 @@ class MoralisClient:
         symbol: str | None = None,
     ) -> MoralisResponse:
         if spec.stream_based:
-            return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, None, None, error_class="STREAM_ENDPOINT_NOT_POLLED")
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class="STREAM_ENDPOINT_NOT_POLLED",
+            )
         if not self.api_key_present:
-            return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, 401, None, error_class="API_KEY_MISSING")
-        decision = self.limiter.allow_request(estimated_cu=spec.cu_cost)
-        if not decision.allowed:
-            return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, None, None, error_class=decision.reason)
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                401,
+                None,
+                error_class="API_KEY_MISSING",
+            )
         try:
             path = spec.path_template.format(chain=chain, wallet=wallet or "", token=token or "")
+        except Exception as exc:  # No request was attempted and no CU was reserved.
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class=type(exc).__name__,
+            )
+        decision = self.limiter.allow_request(estimated_cu=spec.cu_cost)
+        if not decision.allowed:
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class=decision.reason,
+            )
+        try:
             close_client = self.http_client is None
             client = self.http_client or httpx.Client(timeout=MORALIS_TIMEOUT_SECONDS)
             try:
@@ -70,21 +110,56 @@ class MoralisClient:
                 )
             finally:
                 if close_client:
-                    client.close()
+                    with suppress(Exception):
+                        client.close()
             payload = _safe_json(response)
             headers = dict(response.headers)
             self.limiter.observe_response(response.status_code)
-            if 200 <= response.status_code <= 299:
-                # Reconcile the pre-call reservation to the real header CU.
-                self.limiter.charge(estimated_cu=spec.cu_cost, headers=headers)
-            else:
-                # Non-2xx: release the reservation (the provider did not serve data).
-                self.limiter.refund_pending()
-            return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, response.status_code, payload, headers=headers)
+            reconciliation = self.limiter.reconcile_response(
+                reservation=decision.reservation,
+                headers=headers,
+                estimated_cu=spec.cu_cost,
+                http_status=response.status_code,
+            )
+            if not reconciliation.applied:
+                # The provider is optional.  Never publish a response whose CU
+                # accounting could not be durably reconciled.
+                return MoralisResponse(
+                    spec.endpoint_id,
+                    chain,
+                    wallet,
+                    token,
+                    symbol,
+                    response.status_code,
+                    None,
+                    headers=headers,
+                    error_class=reconciliation.reason,
+                )
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                response.status_code,
+                payload,
+                headers=headers,
+            )
         except Exception as exc:  # noqa: BLE001
             self.limiter.observe_response(None)
-            self.limiter.refund_pending()
-            return MoralisResponse(spec.endpoint_id, chain, wallet, token, symbol, None, None, error_class=type(exc).__name__)
+            # Delivery is ambiguous after dispatch.  Retain the pre-call
+            # reservation conservatively; a process crash does the same.
+            self.limiter.retain_ambiguous_reservation(decision.reservation)
+            return MoralisResponse(
+                spec.endpoint_id,
+                chain,
+                wallet,
+                token,
+                symbol,
+                None,
+                None,
+                error_class=type(exc).__name__,
+            )
 
 
 def _safe_json(response: httpx.Response) -> Any:

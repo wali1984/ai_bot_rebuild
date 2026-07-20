@@ -1,12 +1,14 @@
-"""Moralis request and compute-unit limiter."""
+"""Moralis request limiter backed by the durable CU reservation authority."""
 
 from __future__ import annotations
 
 import json
 import os
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from datetime import datetime
+from typing import Any
 
 from app.services.provider_rate_limits import (
     BackoffPolicy,
@@ -14,7 +16,12 @@ from app.services.provider_rate_limits import (
     ProviderBackoff,
     TokenBucket,
 )
-from app.services.smart_money_wallets.cu_budget import MoralisCuBudget
+from app.services.smart_money_wallets.cu_budget import (
+    MoralisCuBudget,
+    MoralisCuReconciliationOutcome,
+    MoralisCuReservationOutcome,
+    reservation_as_dict,
+)
 
 BACKOFF_STATE_KEY = "v2:provider:moralis:backoff"
 
@@ -36,6 +43,7 @@ class MoralisRequestDecision:
     allowed: bool
     reason: str
     estimated_cu: int
+    reservation: MoralisCuReservationOutcome | None = None
     actual_cu_from_headers: int | None = None
 
     def __iter__(self):
@@ -53,8 +61,11 @@ class MoralisRateLimiter:
         used_month: int = 0,
         rps: int | None = None,
         mode: str = "normal",
-        clock=None,
+        clock: Callable[[], float] | None = None,
+        ledger_now_factory: Callable[[], datetime] | None = None,
+        require_persistent_ledger: bool | None = None,
     ) -> None:
+        del _ledger
         selected_rps = rps if rps is not None else _rps_for_mode(mode)
         self.rps = min(int(selected_rps), MORALIS_HARD_RPS, MORALIS_PUBLIC_RPS)
         self.bucket = TokenBucket(
@@ -62,15 +73,33 @@ class MoralisRateLimiter:
             refill_per_second=float(self.rps),
             clock=clock,
         )
-        # Persistent CU ledger (authoritative when Redis is available). Rehydrate the
-        # in-memory budget from the durable month/day counters so a process restart
-        # continues real spend instead of resetting to a fresh 2M month.
         self.redis = redis_client
-        self.cu = MoralisCuBudget(redis_client) if redis_client is not None else None
-        self._pending_reserve = 0
+        self.require_persistent_ledger = (
+            redis_client is not None
+            if require_persistent_ledger is None
+            else bool(require_persistent_ledger)
+        )
+        self.cu = (
+            MoralisCuBudget(
+                redis_client,
+                monthly_limit=MORALIS_PUBLIC_CU_MONTHLY,
+                daily_hard_cap=max(0, MORALIS_DAILY_CU_BUDGET - MORALIS_DAILY_CU_RESERVE),
+                now_factory=ledger_now_factory,
+            )
+            if redis_client is not None
+            else None
+        )
+        self._pending_reservation: MoralisCuReservationOutcome | None = None
+        self._pending_actual_cu: int | None = None
+        self._last_reconciliation: MoralisCuReconciliationOutcome | None = None
+        self._ledger_health_reason = "READY" if self.cu is not None else "CU_LEDGER_NOT_CONFIGURED"
         if self.cu is not None:
-            used_today = self.cu.day_spent()
-            used_month = self.cu.month_spent()
+            snapshot = self.cu.snapshot()
+            if snapshot.available:
+                used_today = int(snapshot.day_spent_cu or 0)
+                used_month = int(snapshot.month_spent_cu or 0)
+            else:
+                self._ledger_health_reason = snapshot.reason
         self.budget = ComputeUnitBudget(
             daily_budget=MORALIS_DAILY_CU_BUDGET,
             monthly_budget=MORALIS_PUBLIC_CU_MONTHLY,
@@ -96,29 +125,108 @@ class MoralisRateLimiter:
         lane: str | None = None,
     ) -> MoralisRequestDecision:
         del lane
-        estimate = int(estimated_cu if estimated_cu is not None else cost_cu if cost_cu is not None else 0)
-        # Persisted backoff survives restarts: a 402/403 penalty must not be forgotten
-        # by a process bounce and resume hammering an unsubscribed endpoint.
+        try:
+            estimate = int(
+                estimated_cu if estimated_cu is not None else cost_cu if cost_cu is not None else 0
+            )
+        except (TypeError, ValueError, OverflowError):
+            return MoralisRequestDecision(False, "INVALID_CU_AMOUNT", 0)
+        if estimate <= 0:
+            return MoralisRequestDecision(False, "INVALID_CU_AMOUNT", estimate)
+        retry_reason = self._retry_pending_reconciliation()
+        if retry_reason is not None:
+            return MoralisRequestDecision(False, retry_reason, estimate)
+        if self._pending_reservation is not None:
+            return MoralisRequestDecision(False, "CU_REQUEST_ALREADY_IN_FLIGHT", estimate)
         persisted = self._persisted_backoff_reason()
         if persisted is not None:
             return MoralisRequestDecision(False, persisted, estimate)
         if self.backoff.is_active():
             return MoralisRequestDecision(False, str(self.backoff.reason), estimate)
-        budget_decision = self.budget.decide(estimate)
-        if not budget_decision.allowed:
-            return MoralisRequestDecision(False, budget_decision.reason, estimate)
-        # Authoritative persistent gate (both the 45k/day sub-cap AND the 2M/month cap).
-        if self.cu is not None and not self.cu.can_spend(estimate):
-            return MoralisRequestDecision(False, "CU_BUDGET_DAILY_OR_MONTHLY_EXCEEDED", estimate)
         if not self.bucket.consume(1.0):
             return MoralisRequestDecision(False, "RPS_CAP", estimate)
-        # All checks passed -> RESERVE the estimate BEFORE the call (atomic Redis
-        # INCRBY) so a concurrent poller cannot also pass the same budget check.
-        if self.cu is not None:
-            self.cu.charge(estimate)
-            self._pending_reserve = estimate
-            self.budget.charge(estimate)
-        return MoralisRequestDecision(True, "ALLOWED", estimate)
+
+        if self.cu is None:
+            if self.require_persistent_ledger:
+                self._ledger_health_reason = "CU_LEDGER_REQUIRED"
+                return MoralisRequestDecision(False, "CU_LEDGER_REQUIRED", estimate)
+            budget_decision = self.budget.decide(estimate)
+            if not budget_decision.allowed:
+                return MoralisRequestDecision(False, budget_decision.reason, estimate)
+            return MoralisRequestDecision(True, "ALLOWED_LOCAL_ONLY", estimate)
+
+        reservation = self.cu.reserve(estimate)
+        if not reservation.allowed:
+            self._ledger_health_reason = reservation.reason
+            return MoralisRequestDecision(False, reservation.reason, estimate, reservation)
+        self._ledger_health_reason = "READY"
+        self._pending_reservation = reservation
+        self._sync_local_budget(
+            day_spent=reservation.day_spent_cu,
+            month_spent=reservation.month_spent_cu,
+        )
+        return MoralisRequestDecision(True, "ALLOWED_RESERVED", estimate, reservation)
+
+    def reconcile_response(
+        self,
+        *,
+        reservation: MoralisCuReservationOutcome | None,
+        headers: Mapping[str, object] | None,
+        estimated_cu: int,
+        http_status: int,
+    ) -> MoralisCuReconciliationOutcome:
+        """Account every received HTTP response, independent of status class.
+
+        A valid provider CU header is authoritative, including zero.  If no
+        usable header is present, the conservative estimate remains charged.
+        """
+        del http_status
+        header_cu = moralis_cu_from_headers(headers or {})
+        reserved_cu = int(reservation.reserved_cu if reservation is not None else estimated_cu)
+        actual_cu = header_cu if header_cu is not None else reserved_cu
+
+        if self.cu is None:
+            decision = self.budget.charge(actual_cu)
+            return MoralisCuReconciliationOutcome(
+                applied=decision.allowed,
+                reason="LOCAL_ONLY_RECONCILED" if decision.allowed else decision.reason,
+                reserved_cu=reserved_cu,
+                actual_cu=actual_cu,
+                delta_cu=actual_cu - reserved_cu,
+                ledger_available=False,
+                idempotent=False,
+                day_spent_cu=self.budget.used_today,
+                month_spent_cu=self.budget.used_month,
+            )
+        if reservation is None:
+            self._ledger_health_reason = "CU_RESERVATION_NOT_FOUND"
+            return MoralisCuReconciliationOutcome(
+                applied=False,
+                reason="CU_RESERVATION_NOT_FOUND",
+                reserved_cu=0,
+                actual_cu=actual_cu,
+                delta_cu=actual_cu,
+                ledger_available=True,
+                idempotent=False,
+                day_spent_cu=None,
+                month_spent_cu=None,
+            )
+
+        self._pending_actual_cu = actual_cu
+        return self._reconcile_persistent(reservation, actual_cu=actual_cu)
+
+    def retain_ambiguous_reservation(
+        self,
+        reservation: MoralisCuReservationOutcome | None,
+    ) -> MoralisCuReconciliationOutcome | None:
+        """Settle an ambiguous request at its conservative reserved estimate."""
+        if self.cu is None or reservation is None:
+            return None
+        self._pending_actual_cu = reservation.reserved_cu
+        return self._reconcile_persistent(
+            reservation,
+            actual_cu=reservation.reserved_cu,
+        )
 
     def charge(
         self,
@@ -127,35 +235,147 @@ class MoralisRateLimiter:
         headers: Mapping[str, object] | None = None,
         endpoint: str | None = None,
     ) -> int:
+        """Compatibility wrapper; new callers should use ``reconcile_response``."""
         del endpoint
-        actual = moralis_cu_from_headers(headers or {}) or int(estimated_cu or 0)
-        if self._pending_reserve:
-            # Reserved path (Redis): reconcile the reservation to the real header CU.
-            delta = int(actual) - int(self._pending_reserve)
-            if self.cu is not None and delta:
-                self.cu.charge(delta)
-            self.budget.charge(delta)
-            self._pending_reserve = 0
-        else:
-            # Non-reserved path (no Redis / legacy): charge actual after the fact.
-            self.budget.charge(int(actual))
-        return int(actual)
+        estimate = int(estimated_cu or 0)
+        header_cu = moralis_cu_from_headers(headers or {})
+        actual = header_cu if header_cu is not None else estimate
+        if self.cu is None:
+            self.budget.charge(actual)
+            return actual
+        self.reconcile_response(
+            reservation=self._pending_reservation,
+            headers=headers,
+            estimated_cu=estimate,
+            http_status=200,
+        )
+        return actual
 
-    def refund_pending(self) -> int:
-        """Release a pre-call reservation when the request did not succeed, so a
-        failed/denied call does not permanently consume budget."""
-        refunded = int(self._pending_reserve)
-        if refunded:
-            if self.cu is not None:
-                self.cu.charge(-refunded)
-            self.budget.charge(-refunded)
-            self._pending_reserve = 0
-        return refunded
+    def refund_pending(self, *, request_was_not_sent: bool = False) -> int:
+        """Refund only when the caller can prove no HTTP request was sent.
+
+        Timeouts and transport exceptions are ambiguous and therefore return
+        zero while leaving the reservation charged.
+        """
+        reservation = self._pending_reservation
+        if not request_was_not_sent or reservation is None or self.cu is None:
+            return 0
+        self._pending_actual_cu = 0
+        outcome = self._reconcile_persistent(reservation, actual_cu=0)
+        if not outcome.applied:
+            return 0
+        return reservation.reserved_cu
 
     def observe_response(self, status: int | None) -> str:
         self.backoff.record_http_status(status)
         self._persist_backoff(status)
         return classify_status(status)
+
+    def as_dict(self) -> dict[str, object]:
+        snap = self.bucket.snapshot()
+        persistent = self._persistent_ledger_snapshot()
+        ledger_available = bool(persistent and persistent.get("ledger_available"))
+        reconciliation_pending = self._pending_actual_cu is not None
+        request_in_flight = self._pending_reservation is not None
+        return {
+            "schema_version": "moralis_compute_budget_status_v2",
+            "provider": "moralis",
+            "plan": MORALIS_PLAN,
+            "public_rps": MORALIS_PUBLIC_RPS,
+            "normal_rps": MORALIS_NORMAL_RPS,
+            "catchup_rps": MORALIS_CATCHUP_RPS,
+            "hard_rps": MORALIS_HARD_RPS,
+            "current_rps": self.rps,
+            "tokens_available": snap.tokens_available,
+            "timeout_seconds": MORALIS_TIMEOUT_SECONDS,
+            "compute_budget": self.budget.as_dict(),
+            "persistent_cu_ledger": persistent,
+            "cu_ledger_persistent": self.cu is not None,
+            "cu_ledger_required": self.require_persistent_ledger,
+            "cu_ledger_available": ledger_available,
+            "cu_ledger_reason": self._ledger_health_reason,
+            "provider_polling_blocked": self.require_persistent_ledger
+            and (
+                not ledger_available
+                or reconciliation_pending
+                or request_in_flight
+                or self._ledger_health_reason != "READY"
+            ),
+            "pending_reservation": reservation_as_dict(self._pending_reservation),
+            "request_in_flight": request_in_flight,
+            "reconciliation_pending": reconciliation_pending,
+            "ambiguous_delivery_reservation_retained": True,
+            "atomic_cross_process_reservation": self.cu is not None,
+            "backoff": self.backoff.as_dict(),
+            "raw_key_exposed": False,
+            "core_system_blocked": False,
+        }
+
+    def _persistent_ledger_snapshot(self) -> dict[str, object] | None:
+        if self.cu is None:
+            return None
+        snapshot = self.cu.snapshot()
+        if snapshot.available:
+            self._sync_local_budget(
+                day_spent=snapshot.day_spent_cu,
+                month_spent=snapshot.month_spent_cu,
+            )
+        return {
+            "ledger_available": snapshot.available,
+            "reason": snapshot.reason,
+            "monthly_limit_cu": snapshot.monthly_limit_cu,
+            "month_spent_cu": snapshot.month_spent_cu,
+            "remaining_month_cu": snapshot.remaining_month_cu,
+            "daily_limit_cu": snapshot.daily_limit_cu,
+            "day_spent_cu": snapshot.day_spent_cu,
+            "remaining_today_cu": snapshot.remaining_today_cu,
+        }
+
+    def _sync_local_budget(
+        self,
+        *,
+        day_spent: int | None,
+        month_spent: int | None,
+    ) -> None:
+        if day_spent is not None:
+            self.budget.used_today = max(0, int(day_spent))
+        if month_spent is not None:
+            self.budget.used_month = max(0, int(month_spent))
+
+    def _retry_pending_reconciliation(self) -> str | None:
+        if self._pending_actual_cu is None:
+            return None
+        if self.cu is None or self._pending_reservation is None:
+            self._ledger_health_reason = "CU_RECONCILIATION_STATE_INVALID"
+            return self._ledger_health_reason
+        outcome = self._reconcile_persistent(
+            self._pending_reservation,
+            actual_cu=self._pending_actual_cu,
+        )
+        return None if outcome.applied else f"CU_RECONCILIATION_PENDING:{outcome.reason}"
+
+    def _reconcile_persistent(
+        self,
+        reservation: MoralisCuReservationOutcome,
+        *,
+        actual_cu: int,
+    ) -> MoralisCuReconciliationOutcome:
+        if self.cu is None:
+            raise RuntimeError("persistent reconciliation requires a CU ledger")
+        outcome = self.cu.reconcile(reservation, actual_cu=actual_cu)
+        self._last_reconciliation = outcome
+        if outcome.applied:
+            self._ledger_health_reason = "READY"
+            self._pending_actual_cu = None
+            self._sync_local_budget(
+                day_spent=outcome.day_spent_cu,
+                month_spent=outcome.month_spent_cu,
+            )
+            if self._pending_reservation == reservation:
+                self._pending_reservation = None
+        else:
+            self._ledger_health_reason = outcome.reason
+        return outcome
 
     def _persist_backoff(self, status: int | None) -> None:
         if self.redis is None:
@@ -176,7 +396,8 @@ class MoralisRateLimiter:
                 ex=penalty + 60,
             )
         except Exception:
-            pass
+            # CU reservations remain authoritative; backoff persistence is diagnostic.
+            return
 
     def _persisted_backoff_reason(self) -> str | None:
         if self.redis is None:
@@ -203,39 +424,6 @@ class MoralisRateLimiter:
             return None
         return f"PERSISTED_BACKOFF:{state.get('reason') or 'BACKOFF'}"
 
-    def as_dict(self) -> dict[str, object]:
-        snap = self.bucket.snapshot()
-        return {
-            "schema_version": "moralis_compute_budget_status_v1",
-            "provider": "moralis",
-            "plan": MORALIS_PLAN,
-            "public_rps": MORALIS_PUBLIC_RPS,
-            "normal_rps": MORALIS_NORMAL_RPS,
-            "catchup_rps": MORALIS_CATCHUP_RPS,
-            "hard_rps": MORALIS_HARD_RPS,
-            "current_rps": self.rps,
-            "tokens_available": snap.tokens_available,
-            "timeout_seconds": MORALIS_TIMEOUT_SECONDS,
-            "compute_budget": self.budget.as_dict(),
-            "persistent_cu_ledger": self._persistent_ledger_snapshot(),
-            "cu_ledger_persistent": self.cu is not None,
-            "pending_reserve_cu": self._pending_reserve,
-            "backoff": self.backoff.as_dict(),
-            "raw_key_exposed": False,
-            "core_system_blocked": False,
-        }
-
-    def _persistent_ledger_snapshot(self) -> dict[str, object] | None:
-        if self.cu is None:
-            return None
-        return {
-            "monthly_limit_cu": self.cu.monthly_limit,
-            "month_spent_cu": self.cu.month_spent(),
-            "remaining_month_cu": self.cu.remaining_month(),
-            "day_spent_cu": self.cu.day_spent(),
-            "remaining_today_cu": self.cu.remaining_today(),
-        }
-
 
 def moralis_cu_from_headers(headers: Mapping[str, object]) -> int | None:
     for name in (
@@ -249,6 +437,8 @@ def moralis_cu_from_headers(headers: Mapping[str, object]) -> int | None:
             try:
                 parsed = int(float(str(value)))
             except (TypeError, ValueError):
+                return None
+            if parsed < 0:
                 return None
             return parsed * 10 if name == "x-records-charged" else parsed
     return None
