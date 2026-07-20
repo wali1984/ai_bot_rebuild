@@ -1,16 +1,40 @@
 import Foundation
 import Observation
 
+// MARK: - Additive payload decoding
+//
+// /api/v2/mobile/paper-summary carries an additive `pnl_windows` block
+// (1d/7d/30d realized NET PnL) alongside the typed MobilePaperSummary
+// fields. Both are decoded from the same JSON object in a single
+// request / stream message — no second fetch.
+
+private struct PaperSummaryExtras: Decodable {
+    let pnl_windows: [PnLWindow]?
+}
+
+struct PaperSummaryPayload: Decodable {
+    let summary: MobilePaperSummary
+    let pnlWindows: [PnLWindow]
+
+    init(from decoder: Decoder) throws {
+        summary = try MobilePaperSummary(from: decoder)
+        pnlWindows = ((try? PaperSummaryExtras(from: decoder))?.pnl_windows) ?? []
+    }
+}
+
 @MainActor
 @Observable
 public final class PaperViewModel {
 
     public private(set) var summary: MobilePaperSummary?
+    public private(set) var pnlWindows: [PnLWindow] = []
     public private(set) var isLoading = false
     public private(set) var error: String?
     public private(set) var streamLabel = "Connecting"
     public private(set) var sourceType: String?
+    public private(set) var transport: String?
     public private(set) var lastUpdatedAt: String?
+    public private(set) var lagMs: Double?
     public private(set) var isStale = false
     public private(set) var streamWarnings: [String] = []
     public private(set) var missingFields: [String] = []
@@ -70,13 +94,17 @@ public final class PaperViewModel {
         isLoading = true
         error = nil
         do {
-            summary = try await APIClient.shared.get(
+            let payload: PaperSummaryPayload = try await APIClient.shared.get(
                 path: APIEndpoints.mobilePaperSummary,
                 token: token,
                 baseURL: baseURL
             )
+            summary = payload.summary
+            pnlWindows = payload.pnlWindows
             sourceType = "api"
-            lastUpdatedAt = summary?.generated_utc
+            transport = "http"
+            lastUpdatedAt = payload.summary.generated_utc
+            lagMs = nil
             isStale = false
             streamWarnings = []
             missingFields = []
@@ -88,11 +116,14 @@ public final class PaperViewModel {
 
     private func applyStream(_ message: String) {
         do {
-            let snapshot = try decodeMobileResourceSnapshot(MobilePaperSummary.self, from: message)
-            summary = snapshot.payload
+            let snapshot = try decodeMobileResourceSnapshot(PaperSummaryPayload.self, from: message)
+            summary = snapshot.payload.summary
+            pnlWindows = snapshot.payload.pnlWindows
             streamLabel = "Realtime"
             sourceType = snapshot.sourceType ?? snapshot.transport ?? "websocket"
-            lastUpdatedAt = snapshot.timestamp ?? snapshot.receivedAt ?? snapshot.payload.generated_utc
+            transport = snapshot.transport ?? "websocket"
+            lastUpdatedAt = snapshot.timestamp ?? snapshot.receivedAt ?? snapshot.payload.summary.generated_utc
+            lagMs = snapshot.lagMs
             isStale = snapshot.stale
             streamWarnings = snapshot.warnings
             missingFields = snapshot.missingFields

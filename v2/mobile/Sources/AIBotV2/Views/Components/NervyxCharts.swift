@@ -250,6 +250,159 @@ struct DivergingBars: View {
     }
 }
 
+/// Sparkline with min/max/last value labels and a dashed zero baseline —
+/// equity curves and PnL trends where the axis context matters.
+struct AxisSparkline: View {
+    let values: [Double]
+    var color: Color = NerVyx.signal
+    var fill: Bool = true
+    var lineWidth: CGFloat = 2
+    var height: CGFloat = 96
+    var valueFormatter: (Double) -> String = { String(format: "%.2f", $0) }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            ZStack {
+                if showZeroBaseline {
+                    GeometryReader { geo in
+                        let y = zeroY(in: geo.size)
+                        Path { path in
+                            path.move(to: CGPoint(x: 4, y: y))
+                            path.addLine(to: CGPoint(x: geo.size.width - 4, y: y))
+                        }
+                        .stroke(
+                            NerVyx.textMuted.opacity(0.45),
+                            style: StrokeStyle(lineWidth: 1, dash: [3, 4])
+                        )
+                    }
+                }
+                Sparkline(values: values, color: color, fill: fill, lineWidth: lineWidth)
+            }
+            .frame(height: height)
+
+            if let minValue = values.min(), let maxValue = values.max(), let last = values.last {
+                VStack(alignment: .trailing, spacing: 0) {
+                    axisLabel(valueFormatter(maxValue))
+                    Spacer()
+                    Text(valueFormatter(last))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(color)
+                        .lineLimit(1)
+                    Spacer()
+                    axisLabel(valueFormatter(minValue))
+                }
+                .frame(height: height)
+                .fixedSize(horizontal: true, vertical: false)
+            }
+        }
+    }
+
+    private func axisLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+            .foregroundStyle(NerVyx.textMuted)
+            .lineLimit(1)
+    }
+
+    private var showZeroBaseline: Bool {
+        guard let minValue = values.min(), let maxValue = values.max() else { return false }
+        return minValue < 0 && maxValue > 0
+    }
+
+    private func zeroY(in size: CGSize) -> CGFloat {
+        guard let minValue = values.min(), let maxValue = values.max(), maxValue > minValue else {
+            return size.height / 2
+        }
+        let inset: CGFloat = 4
+        let usable = max(size.height - inset * 2, 1)
+        let normalizedZero = (0 - minValue) / (maxValue - minValue)
+        return inset + usable * (1 - CGFloat(normalizedZero))
+    }
+}
+
+/// Label + horizontal magnitude bar + value — funding rates, expectancy,
+/// per-symbol comparisons. Sign-colored when `signed` (buy/sell), single
+/// series color otherwise.
+struct HBarRow: View {
+    let label: String
+    let value: Double
+    let maxAbsValue: Double
+    var valueText: String? = nil
+    var color: Color = NerVyx.signal
+    var signed: Bool = false
+    var labelWidth: CGFloat = 76
+    var barHeight: CGFloat = 8
+
+    private var barColor: Color {
+        signed ? (value >= 0 ? NerVyx.buy : NerVyx.sell) : color
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(NerVyx.textSecondary)
+                .lineLimit(1)
+                .frame(width: labelWidth, alignment: .leading)
+            GeometryReader { geo in
+                let denominator = max(abs(maxAbsValue), 0.0001)
+                let frac = CGFloat(min(abs(value) / denominator, 1))
+                ZStack(alignment: .leading) {
+                    Capsule().fill(NerVyx.borderSubtle.opacity(0.6))
+                    Capsule()
+                        .fill(barColor.opacity(0.85))
+                        .frame(width: max(frac * geo.size.width, value == 0 ? 0 : 2))
+                }
+            }
+            .frame(height: barHeight)
+            Text(valueText ?? String(format: "%.2f", value))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(barColor)
+                .lineLimit(1)
+                .frame(minWidth: 52, alignment: .trailing)
+        }
+    }
+}
+
+/// Two-segment composition bar (long vs short, positive vs negative funding).
+/// Semantic colors only: left defaults to buy, right to sell.
+struct SplitBar: View {
+    let leftValue: Double
+    let rightValue: Double
+    var leftLabel: String = "LONG"
+    var rightLabel: String = "SHORT"
+    var leftColor: Color = NerVyx.buy
+    var rightColor: Color = NerVyx.sell
+    var height: CGFloat = 10
+
+    private var total: Double { max(leftValue + rightValue, 0.0001) }
+    private var leftFraction: CGFloat { CGFloat(min(max(leftValue / total, 0), 1)) }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    Capsule()
+                        .fill(leftColor)
+                        .frame(width: max(leftFraction * (geo.size.width - 2), leftValue > 0 ? 2 : 0))
+                    Capsule()
+                        .fill(rightColor)
+                }
+            }
+            .frame(height: height)
+            HStack {
+                Text("\(leftLabel) \(Int((leftFraction * 100).rounded()))%")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(leftColor)
+                Spacer()
+                Text("\(rightLabel) \(Int(((1 - leftFraction) * 100).rounded()))%")
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(rightColor)
+            }
+        }
+    }
+}
+
 /// Rolling numeric series recorder for client-side sparkline history.
 struct RollingSeries {
     private(set) var values: [Double] = []

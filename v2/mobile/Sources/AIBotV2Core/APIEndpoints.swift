@@ -34,6 +34,21 @@ public enum APIEndpoints {
     public static let realtimeResources  = "/api/v2/realtime/resources"
     public static let realtimeHealth     = "/api/v2/realtime/health"
 
+    // Website-parity surfaces (same endpoints the web pages consume)
+    public static let marketOverview     = "/api/v2/market/overview"
+    public static let derivatives        = "/api/v2/derivatives"
+    public static let mobileDerivativesSummary = "/api/v2/mobile/derivatives-summary"
+    public static let mobileSignalMatrix = "/api/v2/mobile/signal-matrix"
+    public static let goalTrajectory1000x = "/api/v2/goal/trajectory-1000x"
+    public static let portfolio          = "/api/v2/portfolio"
+    public static let dataHealth         = "/api/v2/data-health"
+    public static let systemHealth       = "/api/v2/system/health"
+    public static let systemMetrics      = "/api/v2/system/metrics"
+    public static let trainerSummary     = "/api/v2/trainer/summary"
+    public static let ingestorsStatus    = "/api/v2/ingestors/status"
+    public static let executionExecutions = "/api/v2/execution/executions"
+    public static let executionOrders    = "/api/v2/execution/orders"
+
     public static let wsResource         = "/api/v2/ws/resource"
     public static let wsRealtime         = "/api/v2/realtime/ws"
     public static let wsMarketData       = "/ws/market-data"

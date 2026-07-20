@@ -235,7 +235,7 @@ struct LiveReadinessView: View {
 // MARK: - Gate Row
 
 struct GateRowView: View {
-    let gate: LiveReadinessGate
+    let gate: LiveReadinessGateRow
 
     var body: some View {
         HStack(spacing: 12) {

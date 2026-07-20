@@ -709,7 +709,7 @@ final class AIBotV2CoreTests: XCTestCase {
             "ViewModels/AlertsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobileAlerts",
-                "decodeMobileResourceMessage",
+                "decodeMobileResourceSnapshot",
                 "WatchSyncCenter.shared.updateAlerts",
             ],
             "ViewModels/PaperViewModel.swift": [
@@ -1221,6 +1221,21 @@ final class AIBotV2CoreTests: XCTestCase {
             "case historical = \"Historical\"",
             "case .historical: return vm.historicalPositions",
             "NavigationLink(destination: PositionDetailView(position: pos))",
+        ] {
+            XCTAssertTrue(
+                text.contains(snippet),
+                "PositionsView must keep open/closed/historical position list evidence snippet: \(snippet)"
+            )
+        }
+
+        // Detail evidence moved to the shared Infra-owned component
+        // (Views/Components/PositionDetailView.swift) so Portfolio, Execute and
+        // Executions push the SAME evidence-grade detail view.
+        let detailURL = packageRoot.appendingPathComponent("Sources/AIBotV2/Views/Components/PositionDetailView.swift")
+        let detailText = try String(contentsOf: detailURL, encoding: .utf8)
+
+        for snippet in [
+            "guard let value, value > 0 else { return \"Unavailable\" }",
             "SectionHeader(title: \"AI Reasoning\", accent: NerVyx.primary)",
             "DataRow(label: \"Signal\", value: reasoning.signal_id ?? position.signal_id ?? \"Unavailable\", mono: true)",
             "DataRow(label: \"Prediction\", value: reasoning.prediction_id ?? position.prediction_id ?? \"Unavailable\", mono: true)",
@@ -1230,8 +1245,8 @@ final class AIBotV2CoreTests: XCTestCase {
             "DataRow(label: \"Mark Source\", value: position.mark_price_source ?? \"Unavailable\", mono: true)",
         ] {
             XCTAssertTrue(
-                text.contains(snippet),
-                "PositionsView must keep open/closed/historical position detail evidence snippet: \(snippet)"
+                detailText.contains(snippet),
+                "PositionDetailView component must keep position detail evidence snippet: \(snippet)"
             )
         }
     }
@@ -1439,5 +1454,110 @@ final class AIBotV2CoreTests: XCTestCase {
             guard let swiftRange = Range(match.range, in: text) else { return nil }
             return String(text[swiftRange])
         }
+    }
+
+    // MARK: - Website-parity contract fixtures (shapes captured from the live backend 2026-07-19)
+
+    func testMobileDerivativesSummaryDecodesLivePayloadShape() throws {
+        let json = Data("""
+        {"schema_version":"mobile_derivatives_summary_v1","generated_utc":"2026-07-19T23:41:00Z",
+         "payload_generated_utc":"2026-07-19T23:40:49Z","source":"operator_runtime/v2_derivatives/latest/derivatives_payload.json",
+         "staleness_seconds":4.19,"freshness_status":"fresh","live_gate":"blocked_human_only","places_real_order":false,
+         "aggregate":{"total_oi_usd":38731715815.092,"total_liq_24h":780457.88,"avg_funding":0.000020225,
+                      "aggregate_long_short_ratio":1.885,"funding_positive_count":33,"funding_negative_count":14},
+         "global_regime":{"market_sentiment":-0.342,"avg_funding_rate":0.000020225,"aggregate_long_short_ratio":1.885,
+                          "total_open_interest_usd":38731715815.092,"total_liquidations_usd":780457.88,
+                          "total_volume_usd":92876147.89,"data_status":"CURRENT_OR_RECENT","is_fresh":true,"age_seconds":12.5},
+         "top_symbols":[{"symbol":"BTCUSDT","funding_rate":0.00005055,"oi_usd":6617097182.21,"long_short_ratio":1.3798,
+                         "basis_bps":-4.86,"cascade_risk":0.701,"mark_price":64632.63},
+                        {"symbol":"XUSDT","funding_rate":null,"oi_usd":null,"long_short_ratio":null,
+                         "basis_bps":null,"cascade_risk":null,"mark_price":null}],
+         "symbol_count":48}
+        """.utf8)
+        let summary = try JSONDecoder().decode(MobileDerivativesSummary.self, from: json)
+        XCTAssertEqual(summary.live_gate, "blocked_human_only")
+        XCTAssertEqual(summary.places_real_order, false)
+        XCTAssertEqual(summary.aggregate?.funding_positive_count, 33)
+        XCTAssertEqual(summary.top_symbols?.first?.symbol, "BTCUSDT")
+        // Absent per-symbol values decode as nil (rendered "—", never 0).
+        XCTAssertNil(summary.top_symbols?.last?.funding_rate)
+    }
+
+    func testMobileSignalMatrixDecodesSlimCells() throws {
+        let json = Data("""
+        {"schema_version":"mobile_signal_matrix_v1","generated_utc":"2026-07-19T23:41:00Z",
+         "payload_generated_utc":"2026-07-19T19:30:34-04:00","source":"operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json",
+         "staleness_seconds":120.0,"freshness_status":"aging","live_gate":"blocked_human_only","places_real_order":false,
+         "timeframes":["1m","5m","15m","1h","4h"],"symbol_count":156,"cell_count":780,"actionable_count":0,
+         "cells":[{"s":"0GUSDT","tf":"1m","a":"short","c":0.5267,"act":false,"g":"MISSING_CRITICAL_FEATURE_FAMILY"},
+                  {"s":"BTCUSDT","tf":"4h","a":"long","c":0.998,"act":true,"g":null}]}
+        """.utf8)
+        let matrix = try JSONDecoder().decode(MobileSignalMatrix.self, from: json)
+        XCTAssertEqual(matrix.cells.count, 2)
+        XCTAssertEqual(matrix.cells[0].g, "MISSING_CRITICAL_FEATURE_FAMILY")
+        XCTAssertEqual(matrix.cells[1].act, true)
+        XCTAssertNil(matrix.cells[1].g)  // actionable cells carry no gate reason
+        XCTAssertEqual(matrix.timeframes?.count, 5)
+    }
+
+    func testSignalPredictionAccuracyAndPnLWindowsDecode() throws {
+        let accuracyJSON = Data("""
+        {"source":"v2:paper:closed_trades","accuracy_definition":"winner_rate","overall_accuracy":0.3696,
+         "evaluated_row_count":92,"correct_count":34,"incorrect_count":58,
+         "by_timeframe":[{"timeframe":"4h","evaluated_count":37,"correct_count":14,"incorrect_count":23,"accuracy":0.3784}]}
+        """.utf8)
+        let accuracy = try JSONDecoder().decode(SignalPredictionAccuracy.self, from: accuracyJSON)
+        XCTAssertEqual(accuracy.accuracy_definition, "winner_rate")  // winner flag, never sign(pnl)
+        XCTAssertEqual(accuracy.correct_count, 34)
+        XCTAssertEqual(accuracy.by_timeframe?.first?.timeframe, "4h")
+
+        let windowJSON = Data("""
+        [{"window":"1d","realized_pnl_usd":0,"closed_trade_count":0,"winning_trade_count":0,
+          "losing_trade_count":0,"win_rate":null,"profit_factor":null},
+         {"window":"7d","realized_pnl_usd":-14.4053,"closed_trade_count":92,"winning_trade_count":34,
+          "losing_trade_count":58,"win_rate":0.3696,"profit_factor":0.6362}]
+        """.utf8)
+        let windows = try JSONDecoder().decode([PnLWindow].self, from: windowJSON)
+        XCTAssertEqual(windows.count, 2)
+        XCTAssertNil(windows[0].win_rate)  // empty window is honest-null, not 0
+        XCTAssertEqual(windows[1].realized_pnl_usd, -14.4053)
+    }
+
+    func testGoalTrajectoryAndMarketOverviewDecodeLiveShapes() throws {
+        let goalJSON = Data("""
+        {"schema_version":"goal_trajectory_1000x_contract_v1","source":"redis:v2:goal:trajectory_1000x",
+         "generated_at_utc":"2026-07-19T23:30:04Z","staleness_seconds":172.3,"freshness_status":"fresh",
+         "live_gate":"blocked_human_only","places_real_order":false,
+         "data":{"objective":"1000x_in_90_days_research_objective_not_a_promise","multiple_now":0.995198,
+                 "target_multiple":1000.0,"target_days":90.0,"days_elapsed":6.179,
+                 "required_daily_rate_pct":7.978,"actual_daily_rate_pct":-0.0779,"on_track":false,
+                 "growth_stage":{"stage":"EDGE_REPAIR","closes_24h":0,"rolling_25_pf":0.209,"rolling_25_weighted_bps":-103.152},
+                 "binding_constraint":{"constraint":"PERFORMANCE_CIRCUIT_HALTED","detail":"entry circuit halted"},
+                 "equity_gap_vs_required_usd":-1834.96,"days_to_target_at_required_rate_from_here":90.1,
+                 "equity_usd":2985.59,"starting_equity_usd":3000.0,"closed_trade_count":92,"open_position_count":0,
+                 "paper_session_id":"paper_3000_final_pre_live_20260713T190904Z","live_gate":"blocked_human_only",
+                 "paper_only":true,"places_real_order":false,"is_stale":false,"age_seconds":172.3}}
+        """.utf8)
+        let goal = try JSONDecoder().decode(GoalTrajectoryResponse.self, from: goalJSON)
+        XCTAssertEqual(goal.data.growth_stage?.stage, "EDGE_REPAIR")
+        XCTAssertEqual(goal.data.on_track, false)
+        XCTAssertEqual(goal.data.binding_constraint?.constraint, "PERFORMANCE_CIRCUIT_HALTED")
+
+        let marketJSON = Data("""
+        {"schema_version":"api_v2_readonly_envelope_v1","source_type":"redis_live","stale":false,
+         "live_gate":"blocked_human_only","lag_ms":100,
+         "data":{"symbols":["BTCUSDT"],"count":1,"timeframes":["1m"],
+                 "canonical_runtime_source":"redis:v2:market:kline_current:binance:*:1m",
+                 "tickers":[{"symbol":"BTCUSDT","last_price":64642.1,"change_24h":-0.00241,"high_24h":64948.8,
+                             "low_24h":64259.5,"volume_24h":4058906144.59,"turnover_24h":50937.91,
+                             "funding_rate":0.00005414,"mark_price":64642.72,"open_interest":null,
+                             "long_short_ratio":1.3798,"source":"binance_wss","event_time":"2026-07-19T23:30:03.640000Z",
+                             "candle_closed_confirmed":false,"display_only_current_candle":true,
+                             "index_price":64675.80}]}}
+        """.utf8)
+        let market = try JSONDecoder().decode(MarketOverviewResponse.self, from: marketJSON)
+        XCTAssertEqual(market.data.tickers.first?.symbol, "BTCUSDT")
+        XCTAssertNil(market.data.tickers.first?.open_interest)
+        XCTAssertEqual(market.data.tickers.first?.candle_closed_confirmed, false)
     }
 }

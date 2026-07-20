@@ -81,6 +81,41 @@ extension Color {
     }
 }
 
+// MARK: - Ambient Screen Background (NERVYX MOBILE VISUAL LANGUAGE v2)
+
+/// Ambient screen backdrop: base #070A12 with two soft radial glows
+/// (primary purple top-leading, signal teal bottom-trailing) plus a very
+/// subtle vertical darkening gradient. Apply via `.nerVyxScreen()` at the
+/// SCREEN level only — never stack inside cards.
+struct NerVyxScreenBackground: View {
+    var body: some View {
+        ZStack {
+            NerVyx.bg
+            GeometryReader { geo in
+                let radius = max(geo.size.width, geo.size.height)
+                RadialGradient(
+                    colors: [NerVyx.primary.opacity(0.08), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: radius * 0.85
+                )
+                RadialGradient(
+                    colors: [NerVyx.signal.opacity(0.06), .clear],
+                    center: .bottomTrailing,
+                    startRadius: 0,
+                    endRadius: radius * 0.9
+                )
+            }
+            LinearGradient(
+                colors: [.clear, Color.black.opacity(0.22)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .ignoresSafeArea()
+    }
+}
+
 // MARK: - View Modifiers
 extension View {
     func nerVyxCard(accent: Color = NerVyx.borderSubtle) -> some View {
@@ -101,6 +136,35 @@ extension View {
 
     func nerVyxScreenBackground() -> some View {
         self.background(NerVyx.bg.ignoresSafeArea())
+    }
+
+    /// Screen-level ambient background. Replaces `NerVyx.bg.ignoresSafeArea()`.
+    func nerVyxScreen() -> some View {
+        self.background(NerVyxScreenBackground())
+    }
+
+    /// Premium glass card: ultra-thin material over the ambient gradient,
+    /// continuous-corner 16pt radius, 1pt white glass edge (0.14 → 0.03)
+    /// plus the semantic accent stroke at 0.3 opacity, and a soft shadow.
+    /// Use over `.nerVyxScreen()`; safety banners (LIVE BLOCKED, kill switch)
+    /// keep their sell-red fills and must NOT migrate to glass.
+    func nerVyxGlassCard(accent: Color = NerVyx.borderSubtle, cornerRadius: CGFloat = 16) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return self
+            .padding(16)
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .overlay(shape.stroke(accent.opacity(0.3), lineWidth: 1))
+            .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
     }
 }
 
@@ -245,5 +309,107 @@ struct DataRow: View {
                 .foregroundStyle(valueColor)
                 .lineLimit(1)
         }
+    }
+}
+
+// MARK: - Type Scale (NERVYX MOBILE VISUAL LANGUAGE v2)
+
+/// Hero number: 32–38pt heavy monospaced with numeric count-up transitions.
+/// Absent data must be passed as "—" (never 0 or a placeholder number).
+struct HeroMetricText: View {
+    let text: String
+    var size: CGFloat = 34
+    var color: Color = NerVyx.textPrimary
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: min(max(size, 32), 38), weight: .heavy, design: .monospaced))
+            .foregroundStyle(color)
+            .contentTransition(.numericText())
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+}
+
+/// Micro-label: 9–10pt semibold uppercase, tracking 0.6.
+struct MicroLabel: View {
+    let text: String
+    var color: Color = NerVyx.textMuted
+    var size: CGFloat = 10
+
+    var body: some View {
+        Text(text.uppercased())
+            .font(.system(size: min(max(size, 9), 10), weight: .semibold))
+            .foregroundStyle(color)
+            .tracking(0.6)
+            .lineLimit(1)
+    }
+}
+
+/// Compact inline label+value chip for stat strips (glass-friendly).
+struct StatChip: View {
+    let label: String
+    let value: String
+    var color: Color = NerVyx.textSecondary
+    var accent: Color = NerVyx.borderSubtle
+
+    var body: some View {
+        HStack(spacing: 6) {
+            MicroLabel(text: label, size: 9)
+            Text(value)
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+                .contentTransition(.numericText())
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(NerVyx.panel.opacity(0.6))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(accent.opacity(0.35), lineWidth: 1))
+    }
+}
+
+/// Formatting helper honoring the honesty rule: nil renders "—", never 0.
+enum NerVyxFormat {
+    static func money(_ value: Double?, decimals: Int = 2, signed: Bool = false) -> String {
+        guard let value, value.isFinite else { return "—" }
+        let sign = signed && value > 0 ? "+" : ""
+        return "\(sign)$\(String(format: "%.\(decimals)f", value))"
+    }
+
+    static func percent(_ fraction: Double?, decimals: Int = 1) -> String {
+        guard let fraction, fraction.isFinite else { return "—" }
+        return String(format: "%.\(decimals)f%%", fraction * 100)
+    }
+
+    static func number(_ value: Double?, decimals: Int = 2) -> String {
+        guard let value, value.isFinite else { return "—" }
+        return String(format: "%.\(decimals)f", value)
+    }
+
+    static func count(_ value: Int?) -> String {
+        guard let value else { return "—" }
+        return String(value)
+    }
+
+    static func compactUSD(_ value: Double?) -> String {
+        guard let value, value.isFinite else { return "—" }
+        let absValue = abs(value)
+        let sign = value < 0 ? "-" : ""
+        switch absValue {
+        case 1_000_000_000...: return "\(sign)$\(String(format: "%.1f", absValue / 1_000_000_000))B"
+        case 1_000_000...:     return "\(sign)$\(String(format: "%.1f", absValue / 1_000_000))M"
+        case 1_000...:         return "\(sign)$\(String(format: "%.1f", absValue / 1_000))K"
+        default:               return "\(sign)$\(String(format: "%.2f", absValue))"
+        }
+    }
+
+    static func age(_ seconds: Double?) -> String {
+        guard let seconds, seconds.isFinite, seconds >= 0 else { return "—" }
+        if seconds < 60 { return "\(Int(seconds))s" }
+        if seconds < 3600 { return "\(Int(seconds / 60))m" }
+        if seconds < 86_400 { return String(format: "%.1fh", seconds / 3600) }
+        return String(format: "%.1fd", seconds / 86_400)
     }
 }

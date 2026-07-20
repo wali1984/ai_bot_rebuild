@@ -1272,3 +1272,363 @@ public struct BacktestResults: Decodable, Sendable, Equatable {
     public let generalization: BacktestGeneralization?
     public let replay_feedback: ReplayFeedback?
 }
+
+// MARK: - Website-parity models (Markets / Goal / Portfolio / Trainer deep / Derivatives / Matrix)
+// Same shapes as the AIBotV2 app target; kept in Core so the Linux CLI and
+// tests can decode the parity surfaces and validate the contracts.
+
+public struct MarketTicker: Decodable, Sendable {
+    public let symbol: String
+    public let last_price: Double?
+    public let mark_price: Double?
+    public let index_price: Double?
+    public let change_24h: Double?
+    public let high_24h: Double?
+    public let low_24h: Double?
+    public let volume_24h: Double?
+    public let turnover_24h: Double?
+    public let funding_rate: Double?
+    public let open_interest: Double?
+    public let long_short_ratio: Double?
+    public let source: String?
+    public let event_time: String?
+    public let candle_closed_confirmed: Bool?
+    public let display_only_current_candle: Bool?
+}
+
+public struct MarketOverviewData: Decodable, Sendable {
+    public let symbols: [String]?
+    public let count: Int?
+    public let timeframes: [String]?
+    public let tickers: [MarketTicker]
+    public let canonical_runtime_source: String?
+}
+
+public struct MarketOverviewResponse: Decodable, Sendable {
+    public let schema_version: String?
+    public let data: MarketOverviewData
+    public let source: String?
+    public let source_type: String?
+    public let generated_at_utc: String?
+    public let lag_ms: Double?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let stale: Bool?
+    public let live_gate: String?
+}
+
+public struct GoalGrowthStage: Decodable, Sendable {
+    public let stage: String?
+    public let stage_order: [String]?
+    public let closes_24h: Int?
+    public let rolling_25_pf: Double?
+    public let rolling_25_weighted_bps: Double?
+    public let rate_formula: String?
+    public let edge_repair_exit: String?
+    public let throughput_exit: String?
+    public let scale_exit: String?
+}
+
+public struct GoalBindingConstraint: Decodable, Sendable {
+    public let constraint: String?
+    public let detail: String?
+}
+
+public struct GoalTrajectoryData: Decodable, Sendable {
+    public let objective: String?
+    public let multiple_now: Double?
+    public let target_multiple: Double?
+    public let target_days: Double?
+    public let days_elapsed: Double?
+    public let required_daily_rate_pct: Double?
+    public let actual_daily_rate_pct: Double?
+    public let on_track: Bool?
+    public let growth_stage: GoalGrowthStage?
+    public let binding_constraint: GoalBindingConstraint?
+    public let equity_gap_vs_required_usd: Double?
+    public let days_to_target_at_required_rate_from_here: Double?
+    public let required_equity_today_usd: Double?
+    public let equity_usd: Double?
+    public let starting_equity_usd: Double?
+    public let realized_pnl_usd: Double?
+    public let unrealized_pnl_usd: Double?
+    public let closed_trade_count: Int?
+    public let open_position_count: Int?
+    public let paper_session_id: String?
+    public let session_started_utc: String?
+    public let generated_utc: String?
+    public let live_gate: String?
+    public let paper_only: Bool?
+    public let places_real_order: Bool?
+    public let is_stale: Bool?
+    public let age_seconds: Double?
+}
+
+public struct GoalTrajectoryResponse: Decodable, Sendable {
+    public let schema_version: String?
+    public let data: GoalTrajectoryData
+    public let source: String?
+    public let generated_at_utc: String?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let live_gate: String?
+    public let places_real_order: Bool?
+}
+
+public struct PortfolioCanonicalData: Decodable, Sendable {
+    public let pnl_source_key: String?
+    public let pnl_source_type: String?
+    public let equity: Double?
+    public let paper_equity_usd: Double?
+    public let available_balance_usd: Double?
+    public let starting_equity_usd: Double?
+    public let initial_capital: Double?
+    public let realized_net_pnl_usd: Double?
+    public let realized_gross_pnl_usd: Double?
+    public let realized_pnl_usd: Double?
+    public let unrealized_pnl_usd: Double?
+    public let total_pnl_usd: Double?
+    public let open_position_count: Int?
+    public let closed_trade_count: Int?
+    public let total_open_notional: Double?
+    public let paper_session_id: String?
+    public let mode: String?
+    public let paper_or_live: String?
+    public let equity_trusted: Bool?
+    public let pnl_trusted: Bool?
+    public let pnl_conflict_detected: Bool?
+    public let freshness_status: String?
+    public let staleness_seconds: Double?
+    public let source_generated_utc: String?
+}
+
+public struct PortfolioCanonicalResponse: Decodable, Sendable {
+    public let schema_version: String?
+    public let data: PortfolioCanonicalData
+    public let source: String?
+    public let source_type: String?
+    public let generated_at_utc: String?
+    public let lag_ms: Double?
+    public let stale: Bool?
+    public let live_gate: String?
+    public let mode: String?
+}
+
+public struct TrainerGPURuntime: Decodable, Sendable {
+    public let gpu_name: String?
+    public let cuda_available: Bool?
+    public let model_device: String?
+    public let current_vram_used_mb: Double?
+    public let vram_reserved_mb: Double?
+    public let vram_cap_mb: Double?
+    public let gpu_utilization_limit_percent: Double?
+    public let gpu_train_time_ms: Double?
+    public let data_loader_time_ms: Double?
+    public let backtest_rows_per_second: Double?
+    public let throughput_predictions_per_second: Double?
+    public let training_steps_per_minute: Double?
+    public let mixed_precision_enabled: Bool?
+    public let oom_count: Double?
+    public let target_batch_size: Double?
+    public let actual_batch_size: Double?
+}
+
+public struct TrainerModelEdgeBacktest: Decodable, Sendable {
+    public let win_rate: Double?
+    public let expectancy_after_cost_bps: Double?
+    public let profit_factor_proxy: Double?
+    public let rows_evaluated: Double?
+    public let a_plus_readiness_signal: String?
+    public let evidence_class: String?
+    public let status: String?
+}
+
+public struct TrainerRuntimeMode: Decodable, Sendable {
+    public let effective_trainer_mode: String?
+    public let online_learning_status: String?
+    public let cuda_inference_status: String?
+    public let trainer_process_status: String?
+    public let prediction_publication_status: String?
+    public let prediction_examples_built: Double?
+    public let prediction_failure_count: Double?
+    public let replay_buffer_size: Double?
+    public let replay_buffer_limit: Double?
+    public let symbols_count: Double?
+    public let timeframes: [String]?
+    public let examples_built: Double?
+    public let paper_shadow_only: Bool?
+    public let checkpoint_promoted_this_cycle: Bool?
+    public let checkpoint_promotion_reason: String?
+}
+
+public struct TrainerLearningMetricsExtra: Decodable, Sendable {
+    public let train_val_generalization_gap: Double?
+    public let validation_loss_delta: Double?
+    public let validation_supervised_loss: Double?
+    public let validation_supervised_loss_before: Double?
+    public let validation_supervised_loss_after: Double?
+    public let loss_after: Double?
+    public let overfit_gap_warning: Bool?
+}
+
+public struct TrainerOfflinePretrainStatus: Decodable, Sendable {
+    public let generated_utc: String?
+    public let phase: String?
+    public let promoted: Bool?
+    public let auto_promote: Bool?
+    public let require_risk_gate: Bool?
+    public let duration_seconds: Double?
+    public let h2l_decision: String?
+    public let sortino_offline: Double?
+    public let cvar_offline: Double?
+}
+
+public struct TrainerDeepStatus: Decodable, Sendable {
+    public let state: String?
+    public let checkpoint_id: String?
+    public let model_id: String?
+    public let model_source: String?
+    public let cuda_active: Bool?
+    public let data_coverage: Double?
+    public let uptime_days: Double?
+    public let win_rate_30d: Double?
+    public let episodes_total: Int?
+    public let drift_watch_count: Int?
+    public let drift_alarm_count: Int?
+    public let runtime_mode: TrainerRuntimeMode?
+    public let gpu_runtime: TrainerGPURuntime?
+    public let model_edge_backtest: TrainerModelEdgeBacktest?
+    public let learning_metrics_extra: TrainerLearningMetricsExtra?
+    public let offline_pretrain_status: TrainerOfflinePretrainStatus?
+    public let champion_challenger_status: ChampionChallengerStatus?
+    public let generated_at_utc: String?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let live_gate: String?
+    public let exact_no_live_reason: String?
+    public let readiness_blockers: [String]?
+    public let live_ready: Bool?
+}
+
+public struct DerivativesAggregate: Decodable, Sendable {
+    public let total_oi_usd: Double?
+    public let total_liq_24h: Double?
+    public let avg_funding: Double?
+    public let aggregate_long_short_ratio: Double?
+    public let funding_positive_count: Int?
+    public let funding_negative_count: Int?
+}
+
+public struct DerivativesGlobalRegime: Decodable, Sendable {
+    public let market_sentiment: Double?
+    public let avg_funding_rate: Double?
+    public let aggregate_long_short_ratio: Double?
+    public let total_open_interest_usd: Double?
+    public let total_liquidations_usd: Double?
+    public let total_volume_usd: Double?
+    public let data_status: String?
+    public let is_fresh: Bool?
+    public let age_seconds: Double?
+}
+
+public struct DerivativesSymbolRow: Decodable, Sendable {
+    public let symbol: String
+    public let funding_rate: Double?
+    public let oi_usd: Double?
+    public let long_short_ratio: Double?
+    public let basis_bps: Double?
+    public let cascade_risk: Double?
+    public let mark_price: Double?
+}
+
+public struct MobileDerivativesSummary: Decodable, Sendable {
+    public let schema_version: String?
+    public let generated_utc: String?
+    public let payload_generated_utc: String?
+    public let live_gate: String?
+    public let places_real_order: Bool?
+    public let aggregate: DerivativesAggregate?
+    public let global_regime: DerivativesGlobalRegime?
+    public let top_symbols: [DerivativesSymbolRow]?
+    public let symbol_count: Int?
+    public let source: String?
+    public let freshness_status: String?
+    public let staleness_seconds: Double?
+}
+
+public struct SignalMatrixCell: Decodable, Sendable {
+    public let s: String
+    public let tf: String
+    public let a: String?
+    public let c: Double?
+    public let act: Bool?
+    public let g: String?
+}
+
+public struct MobileSignalMatrix: Decodable, Sendable {
+    public let schema_version: String?
+    public let generated_utc: String?
+    public let payload_generated_utc: String?
+    public let live_gate: String?
+    public let timeframes: [String]?
+    public let symbol_count: Int?
+    public let cell_count: Int?
+    public let actionable_count: Int?
+    public let cells: [SignalMatrixCell]
+    public let source: String?
+    public let freshness_status: String?
+    public let staleness_seconds: Double?
+}
+
+public struct PredictionAccuracyTimeframe: Decodable, Sendable {
+    public let timeframe: String
+    public let evaluated_count: Int?
+    public let correct_count: Int?
+    public let incorrect_count: Int?
+    public let accuracy: Double?
+}
+
+public struct SignalPredictionAccuracy: Decodable, Sendable {
+    public let accuracy_definition: String?
+    public let overall_accuracy: Double?
+    public let evaluated_row_count: Int?
+    public let correct_count: Int?
+    public let incorrect_count: Int?
+    public let by_timeframe: [PredictionAccuracyTimeframe]?
+}
+
+public struct PnLWindow: Decodable, Sendable {
+    public let window: String
+    public let realized_pnl_usd: Double?
+    public let closed_trade_count: Int?
+    public let winning_trade_count: Int?
+    public let losing_trade_count: Int?
+    public let win_rate: Double?
+    public let profit_factor: Double?
+}
+
+public struct DataFeedSurface: Decodable, Sendable {
+    public let name: String
+    public let endpoint: String?
+    public let status: String?
+    public let description: String?
+    public let actual_payload_count: Int?
+    public let source_type: String?
+    public let stale: Bool?
+    public let lag_ms: Double?
+    public let last_success: String?
+}
+
+public struct DataHealthData: Decodable, Sendable {
+    public let overall: String?
+    public let surfaces: [DataFeedSurface]?
+    public let count: Int?
+}
+
+public struct DataHealthResponse: Decodable, Sendable {
+    public let schema_version: String?
+    public let data: DataHealthData
+    public let generated_at_utc: String?
+    public let stale: Bool?
+    public let live_gate: String?
+}

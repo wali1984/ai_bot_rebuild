@@ -11,6 +11,8 @@ public final class ProviderStatusViewModel {
     public private(set) var streamLabel = "Connecting"
     public private(set) var lastUpdatedAt: String?
     public private(set) var sourceType: String?
+    public private(set) var transport: String?
+    public private(set) var lagMs: Double?
     public private(set) var isStale = false
     public private(set) var streamWarnings: [String] = []
     public private(set) var missingFields: [String] = []
@@ -25,6 +27,34 @@ public final class ProviderStatusViewModel {
 
     public var activeProviderCount: Int {
         providerStatus?.data.provider_count ?? providers.count
+    }
+
+    // MARK: - Coverage rollups (derived from providerDashboardTone truth)
+
+    public var toneCounts: [String: Int] {
+        providers.reduce(into: [:]) { counts, provider in
+            counts[provider.providerDashboardTone, default: 0] += 1
+        }
+    }
+
+    public var greenProviderCount: Int { toneCounts["green"] ?? 0 }
+    public var yellowProviderCount: Int { toneCounts["yellow"] ?? 0 }
+    public var redProviderCount: Int { toneCounts["red"] ?? 0 }
+    public var grayProviderCount: Int { (toneCounts["gray"] ?? 0) + (toneCounts["grey"] ?? 0) }
+
+    public var totalPayloadCount: Int {
+        providers.compactMap(\.actual_payload_count).reduce(0, +)
+    }
+
+    public var heartbeatOnlyGreenCount: Int {
+        providerStatus?.data.heartbeat_only_green_count ?? 0
+    }
+
+    /// Freshness age in seconds for the staleness chip: envelope lag wins,
+    /// then the canonical publisher staleness field. Nil when unknown.
+    public var freshnessAgeSeconds: Double? {
+        if let lagMs { return lagMs / 1000 }
+        return providerStatus?.staleness_seconds
     }
 
     public var requiredAltDataProvidersVisible: Bool {
@@ -99,16 +129,22 @@ public final class ProviderStatusViewModel {
             )
             providerStatus = status
             sourceType = "api"
+            transport = nil
+            lagMs = nil
             lastUpdatedAt = status.generated_at_utc
             isStale = status.freshness_status?.lowercased() == "stale"
             streamWarnings = []
             missingFields = []
             isLoading = false
             error = nil
+            if streamLabel != "Realtime" {
+                streamLabel = isStale ? "Stale" : "Poll"
+            }
         } catch {
             if providerStatus == nil {
                 self.error = error.localizedDescription
                 isLoading = false
+                streamLabel = "Offline"
             } else {
                 streamLabel = "Last good"
                 self.error = nil
@@ -121,6 +157,8 @@ public final class ProviderStatusViewModel {
             let snapshot = try decodeMobileResourceSnapshot(ControlCenterProviderStatus.self, from: message)
             providerStatus = snapshot.payload
             sourceType = snapshot.sourceType ?? snapshot.source
+            transport = snapshot.transport ?? "websocket"
+            lagMs = snapshot.lagMs
             lastUpdatedAt = snapshot.timestamp ?? snapshot.payload.generated_at_utc
             isStale = snapshot.stale || snapshot.payload.freshness_status?.lowercased() == "stale"
             streamWarnings = snapshot.warnings

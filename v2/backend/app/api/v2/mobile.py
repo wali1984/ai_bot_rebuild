@@ -1408,6 +1408,143 @@ def _recent_closed_trade_rows(rows: list[dict[str, Any]], limit: int = 200) -> l
     return projected[:limit]
 
 
+def _iso_age_seconds(value: Any) -> float | None:
+    """Age in seconds of an ISO-8601 timestamp (Z or offset), None if unparseable."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return None
+        return max(0.0, (datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds())
+    except (ValueError, TypeError):
+        return None
+
+
+def _trade_winner_flag(row: dict[str, Any]) -> bool | None:
+    """Canonical winner truth for a closed trade.
+
+    Uses the explicit winner flag / win_loss label written by the paper loop —
+    NEVER sign(pnl), which miscounts fee-eaten trades (accuracy honesty rule).
+    Returns None when the row carries no winner evidence (unevaluated).
+    """
+    winner = row.get("winner")
+    if isinstance(winner, bool):
+        return winner
+    win_loss = row.get("win_loss")
+    if isinstance(win_loss, str) and win_loss.strip():
+        lowered = win_loss.strip().lower()
+        if lowered in {"win", "winner", "won"}:
+            return True
+        if lowered in {"loss", "lose", "lost", "loser"}:
+            return False
+    return None
+
+
+def _trade_net_pnl_usd(row: dict[str, Any]) -> float:
+    """Canonical NET after-cost PnL for a closed trade (gross aliases last)."""
+    for field in ("realized_net_pnl_usd", "realized_net_pnl", "realized_pnl_usd", "realized_pnl"):
+        value = _optional_float(row.get(field))
+        if value is not None:
+            return value
+    return 0.0
+
+
+def _trade_closed_at(row: dict[str, Any]) -> str:
+    return str(
+        row.get("exit_price_utc")
+        or row.get("exit_time")
+        or row.get("closed_at")
+        or row.get("closed_utc")
+        or ""
+    )
+
+
+def _mobile_signal_prediction_accuracy(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Winner-flag prediction accuracy from v2:paper:closed_trades.
+
+    Additive parity block for the website Signals page accuracy panel
+    (same definition as adaptive-capital signal_prediction_accuracy_status).
+    """
+    correct = 0
+    incorrect = 0
+    by_tf: dict[str, dict[str, int]] = {}
+    for row in rows:
+        winner = _trade_winner_flag(row)
+        if winner is None:
+            continue
+        tf = str(row.get("timeframe") or "unknown")
+        bucket = by_tf.setdefault(tf, {"evaluated_count": 0, "correct_count": 0, "incorrect_count": 0})
+        bucket["evaluated_count"] += 1
+        if winner:
+            correct += 1
+            bucket["correct_count"] += 1
+        else:
+            incorrect += 1
+            bucket["incorrect_count"] += 1
+    evaluated = correct + incorrect
+    tf_order = ["1m", "5m", "15m", "1h", "4h"]
+    ordered_tfs = [tf for tf in tf_order if tf in by_tf] + sorted(set(by_tf) - set(tf_order))
+    return {
+        "source": "v2:paper:closed_trades",
+        "accuracy_definition": "winner_rate",
+        "overall_accuracy": round(correct / evaluated, 4) if evaluated else None,
+        "evaluated_row_count": evaluated,
+        "correct_count": correct,
+        "incorrect_count": incorrect,
+        "by_timeframe": [
+            {
+                "timeframe": tf,
+                "evaluated_count": by_tf[tf]["evaluated_count"],
+                "correct_count": by_tf[tf]["correct_count"],
+                "incorrect_count": by_tf[tf]["incorrect_count"],
+                "accuracy": round(
+                    by_tf[tf]["correct_count"] / by_tf[tf]["evaluated_count"], 4
+                )
+                if by_tf[tf]["evaluated_count"]
+                else None,
+            }
+            for tf in ordered_tfs
+        ],
+    }
+
+
+def _mobile_pnl_windows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """1d/7d/30d realized NET PnL windows from v2:paper:closed_trades.
+
+    Additive parity block for the website History page PnL windows.
+    """
+    windows = [("1d", 1), ("7d", 7), ("30d", 30)]
+    out: list[dict[str, Any]] = []
+    parsed_rows: list[tuple[float, float, bool | None]] = []
+    for row in rows:
+        age = _iso_age_seconds(_trade_closed_at(row))
+        if age is None:
+            continue
+        parsed_rows.append((age, _trade_net_pnl_usd(row), _trade_winner_flag(row)))
+    for label, days in windows:
+        horizon = days * 86_400
+        in_window = [entry for entry in parsed_rows if entry[0] <= horizon]
+        realized = sum(entry[1] for entry in in_window)
+        wins = sum(1 for entry in in_window if entry[2] is True)
+        losses = sum(1 for entry in in_window if entry[2] is False)
+        gains = sum(entry[1] for entry in in_window if entry[1] > 0)
+        drawdowns = sum(-entry[1] for entry in in_window if entry[1] < 0)
+        evaluated = wins + losses
+        out.append(
+            {
+                "window": label,
+                "realized_pnl_usd": round(realized, 4),
+                "closed_trade_count": len(in_window),
+                "winning_trade_count": wins,
+                "losing_trade_count": losses,
+                "win_rate": round(wins / evaluated, 4) if evaluated else None,
+                "profit_factor": round(gains / drawdowns, 4) if drawdowns > 0 else None,
+            }
+        )
+    return out
+
+
 def _alerts_from_redis(r: Any, limit: int = 30) -> list[dict[str, Any]]:
     return _redis_lrange_json(r, "v2:market:alerts", 0, limit - 1)
 
@@ -1983,6 +2120,11 @@ async def get_mobile_dashboard(
             "intents_blocked": _safe_int(hb.get("intents_blocked")),
             "classification": str(hb.get("classification") or "UNKNOWN"),
             "places_real_order": False,
+            # Additive parity block: website Signals-page prediction accuracy
+            # (winner_rate from v2:paper:closed_trades, ~1KB).
+            "signal_prediction_accuracy": _mobile_signal_prediction_accuracy(
+                _paper_closed_trades_from_redis(r) if r else []
+            ),
         },
         "trainer": {
             "state": trainer.get("state", "UNKNOWN"),
@@ -2409,6 +2551,11 @@ async def get_mobile_paper_summary(
             "consumable_rows": feedback_consumable,
             "quarantined_rows": feedback_quarantined,
         },
+        # Additive parity block: website History-page 1d/7d/30d PnL windows
+        # (NET realized PnL + winner-flag win rate from v2:paper:closed_trades).
+        "pnl_windows": _mobile_pnl_windows(
+            _paper_closed_trades_from_redis(r) if r else []
+        ),
         **_mobile_a_plus_runtime_truth(r),
     }
 
@@ -2769,4 +2916,222 @@ async def get_mobile_admin_summary(
         },
         "dangerous_controls_require_web_approval": True,
         "mobile_live_trading_blocked": True,
+    }
+
+
+# ── Mobile parity endpoints (additive, read-only) ───────────────────────────
+# Compact projections of heavy website payloads so cellular refreshes stay
+# small. Sources are the same operator_runtime artifacts the website consumes;
+# nothing here mutates Redis or exchange state.
+
+
+def _derivatives_freshness(age_seconds: float | None) -> str:
+    if age_seconds is None:
+        return "unavailable"
+    if age_seconds <= 90:
+        return "fresh"
+    if age_seconds <= 240:
+        return "aging"
+    return "stale"
+
+
+@router.get("/derivatives-summary")
+async def get_mobile_derivatives_summary(
+    actor: UserRecord | None = Depends(optional_auth),
+) -> dict[str, Any]:
+    """Compact derivatives rollup (aggregate + global regime + top symbols by OI).
+
+    Sourced from the same operator_runtime derivatives payload that backs
+    /api/v2/derivatives (~102KB); this projection stays ~5-10KB.
+    """
+    payload = _operator_runtime_json("v2_derivatives/latest/derivatives_payload.json") or {}
+    aggregate_raw = _as_object(payload.get("aggregate"))
+    regime_raw = _as_object(payload.get("global_regime"))
+    modules = _as_object(payload.get("modules"))
+
+    def _module_rows(name: str) -> list[dict[str, Any]]:
+        module = _as_object(modules.get(name))
+        rows = module.get("rows")
+        return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+    per_symbol: dict[str, dict[str, Any]] = {}
+
+    def _cell(symbol: str) -> dict[str, Any]:
+        return per_symbol.setdefault(symbol, {"symbol": symbol})
+
+    for row in _module_rows("funding"):
+        symbol = str(row.get("symbol") or "")
+        if not symbol:
+            continue
+        cell = _cell(symbol)
+        cell["funding_rate"] = _optional_float(row.get("funding_rate"))
+        cell["mark_price"] = _optional_positive_float(row.get("mark_price"))
+        cell["basis_bps"] = _optional_float(row.get("basis_bps"))
+    for row in _module_rows("open_interest"):
+        symbol = str(row.get("symbol") or "")
+        if not symbol:
+            continue
+        cell = _cell(symbol)
+        open_interest = _optional_positive_float(row.get("open_interest"))
+        mark_price = cell.get("mark_price")
+        cell["oi_usd"] = (
+            round(open_interest * mark_price, 2)
+            if open_interest is not None and isinstance(mark_price, float)
+            else None
+        )
+    for row in _module_rows("long_short"):
+        symbol = str(row.get("symbol") or "")
+        if not symbol:
+            continue
+        _cell(symbol)["long_short_ratio"] = _optional_float(row.get("long_short_ratio"))
+    for row in _module_rows("liquidations"):
+        symbol = str(row.get("symbol") or "")
+        if not symbol:
+            continue
+        _cell(symbol)["cascade_risk"] = _optional_float(row.get("cascade_risk"))
+
+    ranked = sorted(
+        per_symbol.values(),
+        key=lambda cell: cell.get("oi_usd") if isinstance(cell.get("oi_usd"), float) else -1.0,
+        reverse=True,
+    )
+    top_symbols = [
+        {
+            "symbol": cell.get("symbol"),
+            "funding_rate": cell.get("funding_rate"),
+            "oi_usd": cell.get("oi_usd"),
+            "long_short_ratio": cell.get("long_short_ratio"),
+            "basis_bps": cell.get("basis_bps"),
+            "cascade_risk": cell.get("cascade_risk"),
+            "mark_price": cell.get("mark_price"),
+        }
+        for cell in ranked[:20]
+    ]
+
+    payload_generated = payload.get("generated_utc")
+    age_seconds = _iso_age_seconds(payload_generated)
+    return {
+        "schema_version": "mobile_derivatives_summary_v1",
+        "generated_utc": _utc_now(),
+        "payload_generated_utc": payload_generated,
+        "source": "operator_runtime/v2_derivatives/latest/derivatives_payload.json",
+        "staleness_seconds": age_seconds,
+        "freshness_status": _derivatives_freshness(age_seconds),
+        "live_gate": "blocked_human_only",
+        "live_gate_detail": _live_gate_status(),
+        "places_real_order": False,
+        "routes_to_live": False,
+        "aggregate": {
+            "total_oi_usd": _optional_float(aggregate_raw.get("total_oi_usd")),
+            "total_liq_24h": _optional_float(aggregate_raw.get("total_liq_24h")),
+            "avg_funding": _optional_float(aggregate_raw.get("avg_funding")),
+            "aggregate_long_short_ratio": _optional_float(
+                aggregate_raw.get("aggregate_long_short_ratio")
+            ),
+            "funding_positive_count": _safe_int(aggregate_raw.get("funding_positive_count")),
+            "funding_negative_count": _safe_int(aggregate_raw.get("funding_negative_count")),
+        }
+        if aggregate_raw
+        else None,
+        "global_regime": {
+            "market_sentiment": _optional_float(regime_raw.get("market_sentiment")),
+            "avg_funding_rate": _optional_float(regime_raw.get("avg_funding_rate")),
+            "aggregate_long_short_ratio": _optional_float(
+                regime_raw.get("aggregate_long_short_ratio")
+            ),
+            "total_open_interest_usd": _optional_float(regime_raw.get("total_open_interest_usd")),
+            "total_liquidations_usd": _optional_float(regime_raw.get("total_liquidations_usd")),
+            "total_volume_usd": _optional_float(regime_raw.get("total_volume_usd")),
+            "data_status": regime_raw.get("data_status"),
+            "is_fresh": regime_raw.get("is_fresh"),
+            "age_seconds": _optional_float(regime_raw.get("age_seconds")),
+        }
+        if regime_raw
+        else None,
+        "top_symbols": top_symbols,
+        "symbol_count": len(per_symbol),
+    }
+
+
+@router.get("/signal-matrix")
+async def get_mobile_signal_matrix(
+    symbols: str | None = None,
+    actor: UserRecord | None = Depends(optional_auth),
+) -> dict[str, Any]:
+    """Compact full-universe signal matrix (one slim cell per symbol × timeframe).
+
+    The full /api/v2/signals/matrix is ~1.8MB; this projection keeps the whole
+    156×5 grid in ~30-60KB with single-letter cell keys:
+      s=symbol, tf=timeframe, a=action, c=executable confidence,
+      act=paper-fill actionable, g=gate reason code when blocked.
+    Optional ?symbols=BTCUSDT,ETHUSDT filter passthrough.
+    """
+    payload = (
+        _operator_runtime_json(
+            "v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json"
+        )
+        or {}
+    )
+    raw_rows = payload.get("prediction_rows")
+    rows = [row for row in raw_rows if isinstance(row, dict)] if isinstance(raw_rows, list) else []
+
+    sym_filter: set[str] | None = None
+    if symbols:
+        sym_filter = {s.strip().upper() for s in symbols.split(",") if s.strip()} or None
+
+    allowed_tfs = ("1m", "5m", "15m", "1h", "4h")
+    cells: list[dict[str, Any]] = []
+    seen_symbols: set[str] = set()
+    actionable_count = 0
+    for row in rows:
+        symbol = str(row.get("symbol") or "").strip().upper()
+        timeframe = str(row.get("timeframe") or "").strip()
+        if not symbol or timeframe not in allowed_tfs:
+            continue
+        if sym_filter and symbol not in sym_filter:
+            continue
+        seen_symbols.add(symbol)
+        action = row.get("selected_action") or row.get("best_side")
+        confidence = _optional_float(row.get("confidence_executable_trade"))
+        actionable = row.get("paper_fill_allowed") is True
+        gate_reason: str | None = None
+        if not actionable:
+            block_reasons = row.get("paper_fill_gate_block_reasons")
+            if isinstance(block_reasons, list) and block_reasons:
+                gate_reason = str(block_reasons[0])
+            else:
+                gate_reason = str(
+                    row.get("paper_fill_gate_status") or row.get("status") or "UNKNOWN"
+                )
+        else:
+            actionable_count += 1
+        cells.append(
+            {
+                "s": symbol,
+                "tf": timeframe,
+                "a": str(action) if action else None,
+                "c": round(confidence, 4) if confidence is not None else None,
+                "act": actionable,
+                "g": gate_reason,
+            }
+        )
+
+    payload_generated = payload.get("generated_utc") or payload.get("generated_est")
+    age_seconds = _iso_age_seconds(payload_generated)
+    return {
+        "schema_version": "mobile_signal_matrix_v1",
+        "generated_utc": _utc_now(),
+        "payload_generated_utc": payload_generated,
+        "source": "operator_runtime/v2_signals/latest/all_symbol_all_timeframe_cuda_prediction_status.json",
+        "staleness_seconds": age_seconds,
+        "freshness_status": _derivatives_freshness(age_seconds),
+        "live_gate": "blocked_human_only",
+        "live_gate_detail": _live_gate_status(),
+        "places_real_order": False,
+        "routes_to_live": False,
+        "timeframes": list(allowed_tfs),
+        "symbol_count": len(seen_symbols),
+        "cell_count": len(cells),
+        "actionable_count": actionable_count,
+        "cells": cells,
     }

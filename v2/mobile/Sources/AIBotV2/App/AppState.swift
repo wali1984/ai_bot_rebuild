@@ -42,4 +42,7 @@ public enum AppTab: Hashable {
     case readiness
     case audit
     case backtestReplay
+    case markets
+    case derivatives
+    case trainerTelemetry
 }

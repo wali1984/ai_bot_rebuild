@@ -1,5 +1,8 @@
 import SwiftUI
 
+// MARK: - Honesty helpers
+// Non-positive prices are NOT real prices and must render "Unavailable", never $0.
+
 private func positionPriceText(_ value: Double?) -> String {
     guard let value, value > 0 else { return "Unavailable" }
     return String(format: "%.6f", value)
@@ -8,13 +11,6 @@ private func positionPriceText(_ value: Double?) -> String {
 private func positionMoneyText(_ value: Double?) -> String {
     guard let value else { return "Unavailable" }
     return String(format: "%@$%.4f", value >= 0 ? "+" : "", value)
-}
-
-private func positionAgeText(_ value: Double?) -> String {
-    guard let value else { return "Age unavailable" }
-    if value < 60 { return "\(Int(value.rounded()))s" }
-    if value < 3_600 { return "\(Int(value / 60))m" }
-    return "\(Int(value / 3_600))h"
 }
 
 private func positionStreamStatusText(
@@ -48,35 +44,28 @@ private enum PositionLane: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+// MARK: - Portfolio (Positions) screen
+
 struct PositionsView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
     @State private var vm = PositionsViewModel()
     @State private var selectedLane: PositionLane = .open
-    @State private var pnlSeries = RollingSeries(capacity: 80)
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                NerVyx.bg.ignoresSafeArea()
-                Group {
-                    if vm.isLoading && !hasPositionRows {
-                        VStack(spacing: 12) {
-                            ProgressView().tint(NerVyx.primary)
-                            Text("Connecting positions stream…").font(.system(size: 14)).foregroundStyle(NerVyx.textMuted)
-                        }
-                    } else if let err = vm.error, !hasPositionRows {
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle").font(.system(size: 32)).foregroundStyle(NerVyx.warning)
-                            Text(err).foregroundStyle(NerVyx.textSecondary).multilineTextAlignment(.center)
-                            Button("Retry") { Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) } }
-                                .foregroundStyle(NerVyx.signal)
-                        }.padding(32)
-                    } else {
-                        positionsList
+            Group {
+                if vm.isLoading && !hasAnyData {
+                    loadingSkeleton
+                } else if let err = vm.error, !hasAnyData {
+                    ErrorStateView(message: err) {
+                        Task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
                     }
+                } else {
+                    positionsList
                 }
             }
+            .nerVyxScreen()
             .navigationTitle("Portfolio")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -91,13 +80,10 @@ struct PositionsView: View {
         .task { await vm.load(token: auth.currentToken(), baseURL: appState.baseURL) }
         .onAppear { vm.startAutoRefresh(token: auth.currentToken(), baseURL: appState.baseURL) }
         .onDisappear { vm.stopAutoRefresh() }
-        .onChange(of: vm.summary?.total_pnl_usd) { _, newValue in
-            if let newValue { pnlSeries.append(newValue) }
-        }
     }
 
-    private var hasPositionRows: Bool {
-        !vm.positions.isEmpty || !vm.closedPositions.isEmpty || !vm.historicalPositions.isEmpty
+    private var hasAnyData: Bool {
+        vm.response != nil || vm.portfolio != nil
     }
 
     private var selectedRows: [MobilePosition] {
@@ -116,19 +102,21 @@ struct PositionsView: View {
         }
     }
 
+    // MARK: List body
+
     private var positionsList: some View {
         ScrollView {
             VStack(spacing: 12) {
                 streamStatusCard
-                RuntimeTruthLiveCard(title: "Runtime Truth")
+                equityCard
                 if let s = vm.summary {
                     summaryCard(s)
                 }
+                performanceCard
                 if let pricing = vm.response?.position_pricing {
                     pricingCard(pricing)
                 }
-                closedPerformanceSection
-
+                RuntimeTruthLiveCard(title: "Runtime Truth")
                 lanePicker
                 positionsSection(rows: selectedRows)
             }
@@ -137,61 +125,13 @@ struct PositionsView: View {
         }
     }
 
-    @ViewBuilder
-    private var closedPerformanceSection: some View {
-        let ordered = vm.closedPositions.sorted { ($0.closed_at ?? "") < ($1.closed_at ?? "") }
-        if !ordered.isEmpty {
-            let perTrade = ordered.map { $0.realized_pnl }
-            let wins = perTrade.filter { $0 > 0 }.count
-            let losses = perTrade.filter { $0 < 0 }.count
-            let winRate: Double? = (wins + losses) > 0 ? Double(wins) / Double(wins + losses) : nil
-            let trend: [Double] = {
-                var cum = 0.0
-                return [0.0] + ordered.map { cum += $0.realized_pnl; return cum }
-            }()
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text("Performance")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(NerVyx.textPrimary)
-                    Spacer()
-                    Text("\(ordered.count) closed")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                }
-                if trend.count > 1 {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("CUMULATIVE PNL")
-                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
-                        Sparkline(values: trend, color: NerVyx.primary).frame(height: 90)
-                    }
-                }
-                HStack(alignment: .top, spacing: 16) {
-                    if (wins + losses) > 0 {
-                        DonutChart(
-                            slices: [
-                                .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
-                                .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
-                            ],
-                            centerText: winRate != nil ? "\(Int((winRate ?? 0) * 100))%" : "—",
-                            centerLabel: "WIN RATE"
-                        )
-                    }
-                    if !perTrade.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("PER-TRADE PNL")
-                                .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
-                            DivergingBars(values: perTrade)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                }
-            }
-            .padding(16)
-            .background(NerVyx.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(NerVyx.borderSubtle, lineWidth: 1))
+    // MARK: Stream truth
+
+    private var streamFreshnessChip: StalenessChip {
+        if vm.response == nil {
+            return StalenessChip.offline()
         }
+        return StalenessChip.from(stale: vm.isStale, lagMs: vm.lagMs, transport: vm.transport)
     }
 
     private var streamStatusCard: some View {
@@ -203,10 +143,11 @@ struct PositionsView: View {
                     .foregroundStyle(NerVyx.textPrimary)
                 Spacer()
                 NerVyxBadge(
-                    text: vm.isStale ? "STALE" : vm.streamLabel.uppercased(),
-                    color: vm.isStale ? NerVyx.warning : NerVyx.signal,
+                    text: vm.response?.places_real_order == true ? "EXCHANGE LIVE" : "OPERATOR GATED",
+                    color: NerVyx.liveBlocked,
                     small: true
                 )
+                streamFreshnessChip
             }
             Text(
                 positionStreamStatusText(
@@ -226,8 +167,252 @@ struct PositionsView: View {
                     .lineLimit(2)
             }
         }
-        .nerVyxCard(accent: (vm.isStale ? NerVyx.warning : NerVyx.signal).opacity(0.3))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nerVyxGlassCard(accent: vm.isStale ? NerVyx.warning : NerVyx.signal)
     }
+
+    // MARK: Canonical equity headline (/api/v2/portfolio)
+
+    private var equityCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                MicroLabel(text: "CANONICAL PAPER EQUITY")
+                Spacer()
+                if vm.portfolio == nil {
+                    StalenessChip.offline()
+                } else if vm.portfolioStale {
+                    StalenessChip(mode: .stale, ageText: vm.portfolioStalenessSeconds.map { NerVyxFormat.age($0) })
+                } else {
+                    StalenessChip(mode: .poll)
+                }
+            }
+            HeroMetricText(text: NerVyxFormat.money(vm.canonicalEquity))
+            HStack(spacing: 8) {
+                StatChip(
+                    label: "START",
+                    value: NerVyxFormat.money(vm.canonicalStartingEquity, decimals: 0)
+                )
+                StatChip(
+                    label: "AVAILABLE",
+                    value: NerVyxFormat.money(vm.canonicalAvailableBalance)
+                )
+                StatChip(
+                    label: "TOTAL PNL",
+                    value: NerVyxFormat.money(vm.canonicalTotalPnl, signed: true),
+                    color: NerVyx.pnlColor(vm.canonicalTotalPnl ?? 0)
+                )
+            }
+            reconcileRow
+            if vm.portfolio == nil, let err = vm.portfolioError {
+                Text("Canonical portfolio unavailable: \(err)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(NerVyx.warning)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nerVyxGlassCard(accent: NerVyx.primary)
+    }
+
+    @ViewBuilder
+    private var reconcileRow: some View {
+        HStack(spacing: 6) {
+            if vm.equityTrusted == false || vm.pnlTrusted == false {
+                NerVyxBadge(text: "UNTRUSTED", color: NerVyx.warning, small: true)
+            }
+            if let delta = vm.pnlDivergenceUSD {
+                if vm.pnlDiverges {
+                    NerVyxBadge(
+                        text: String(format: "MOBILE Δ %+.2f VS CANONICAL", delta),
+                        color: NerVyx.warning,
+                        small: true
+                    )
+                } else {
+                    NerVyxBadge(text: "RECONCILED", color: NerVyx.validation, small: true)
+                }
+            }
+            Spacer()
+        }
+    }
+
+    // MARK: Mobile summary
+
+    @ViewBuilder
+    private func marksBadge(openCount: Int) -> some View {
+        if vm.degradedMarkCount > 0 {
+            NerVyxBadge(text: "\(vm.degradedMarkCount) STALE MARKS", color: NerVyx.warning)
+        } else if vm.isStale {
+            NerVyxBadge(text: "MARKS STALE", color: NerVyx.warning)
+        } else if openCount == 0 {
+            NerVyxBadge(text: "NO OPEN MARKS", color: NerVyx.neutral)
+        } else if vm.markToMarketLive {
+            NerVyxBadge(text: "MARKS LIVE", color: NerVyx.validation)
+        } else {
+            NerVyxBadge(text: "MARKS NOT LIVE", color: NerVyx.warning)
+        }
+    }
+
+    private func summaryCard(_ s: PositionSummary) -> some View {
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    MicroLabel(text: "TOTAL PNL")
+                    HeroMetricText(
+                        text: NerVyxFormat.money(s.total_pnl_usd, signed: true),
+                        size: 32,
+                        color: NerVyx.pnlColor(s.total_pnl_usd)
+                    )
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: 4) {
+                    MicroLabel(text: "OPEN / CLOSED")
+                    Text("\(s.open_count) / \(s.closed_count ?? vm.closedPositions.count)")
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                        .foregroundStyle(NerVyx.textPrimary)
+                        .contentTransition(.numericText())
+                }
+            }
+            NerVyxDivider()
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Realized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(NerVyxFormat.money(s.realized_pnl_usd, signed: true))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(s.realized_pnl_usd))
+                }
+                Spacer()
+                VStack(alignment: .center, spacing: 3) {
+                    Text("Unrealized")
+                        .font(.system(size: 11))
+                        .foregroundStyle(NerVyx.textMuted)
+                    Text(NerVyxFormat.money(s.unrealized_pnl_usd, signed: true))
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(NerVyx.pnlColor(s.unrealized_pnl_usd))
+                }
+                Spacer()
+                marksBadge(openCount: s.open_count)
+            }
+            if vm.cumulativePnlSeries.count > 1 {
+                VStack(alignment: .leading, spacing: 4) {
+                    MicroLabel(text: "CUMULATIVE NET PNL · SERVER LEDGER", size: 9)
+                    AxisSparkline(
+                        values: vm.cumulativePnlSeries,
+                        color: NerVyx.pnlColor(s.total_pnl_usd),
+                        height: 56,
+                        valueFormatter: { String(format: "%+.2f", $0) }
+                    )
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nerVyxGlassCard(accent: NerVyx.pnlColor(s.total_pnl_usd))
+    }
+
+    // MARK: Performance (server winner-flag truth — never recomputed locally)
+
+    @ViewBuilder
+    private var performanceCard: some View {
+        let curve = vm.cumulativePnlSeries
+        let perTrade = vm.perTradePnlSeries
+        let wins = vm.serverWinCount ?? 0
+        let losses = vm.serverLossCount ?? 0
+        if curve.count > 1 || (wins + losses) > 0 {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(
+                    title: "Performance",
+                    accent: NerVyx.primary,
+                    trailing: "\(vm.serverEvaluatedCount ?? (wins + losses)) evaluated"
+                )
+                if curve.count > 1 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        MicroLabel(text: "CUMULATIVE NET PNL · LAST \(curve.count) CLOSED", size: 9)
+                        AxisSparkline(
+                            values: curve,
+                            color: NerVyx.primary,
+                            height: 90,
+                            valueFormatter: { String(format: "%+.2f", $0) }
+                        )
+                    }
+                }
+                HStack(alignment: .top, spacing: 16) {
+                    if (wins + losses) > 0 {
+                        DonutChart(
+                            slices: [
+                                .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
+                                .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
+                            ],
+                            centerText: vm.serverWinRate.map { "\(Int(($0 * 100).rounded()))%" } ?? "—",
+                            centerLabel: "WIN RATE"
+                        )
+                    }
+                    if !perTrade.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            MicroLabel(text: "PER-TRADE NET PNL", size: 9)
+                            DivergingBars(values: perTrade)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                Text("Winner-flag truth · \(vm.winnerAccuracy?.source ?? "v2:paper:closed_trades") · \(vm.winRateDefinition)")
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(NerVyx.textMuted)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .nerVyxGlassCard(accent: NerVyx.primary)
+        } else if let err = vm.performanceError {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader(title: "Performance", accent: NerVyx.warning)
+                Text("Server performance series unavailable: \(err)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(NerVyx.warning)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .nerVyxGlassCard(accent: NerVyx.warning)
+        } else if vm.performance != nil {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader(title: "Performance", accent: NerVyx.primary)
+                Text("No evaluated closed trades in the server ledger yet.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(NerVyx.textMuted)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .nerVyxGlassCard()
+        }
+    }
+
+    // MARK: Mark pricing
+
+    private func pricingCard(_ pricing: PositionPricing) -> some View {
+        VStack(spacing: 10) {
+            HStack {
+                SectionHeader(title: "Realtime Mark Pricing", accent: NerVyx.signal)
+                Spacer()
+                marksBadge(openCount: vm.summary?.open_count ?? vm.positions.count)
+            }
+            DataRow(label: "Realtime marks", value: "\(pricing.live_mark_price_count ?? 0)", mono: true)
+            DataRow(
+                label: "Stale marks",
+                value: "\(pricing.stale_mark_price_count ?? 0)",
+                valueColor: (pricing.stale_mark_price_count ?? 0) > 0 ? NerVyx.warning : NerVyx.textSecondary,
+                mono: true
+            )
+            DataRow(
+                label: "Missing marks",
+                value: "\(pricing.missing_mark_price_count ?? 0)",
+                valueColor: (pricing.missing_mark_price_count ?? 0) > 0 ? NerVyx.sell : NerVyx.textSecondary,
+                mono: true
+            )
+            DataRow(label: "Open notional", value: positionMoneyText(pricing.total_open_notional), mono: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .nerVyxGlassCard(accent: NerVyx.signal)
+    }
+
+    // MARK: Lanes + rows
 
     private var lanePicker: some View {
         Picker("Position set", selection: $selectedLane) {
@@ -263,94 +448,90 @@ struct PositionsView: View {
                         .foregroundStyle(NerVyx.textMuted)
                         .multilineTextAlignment(.center)
                 }
-                .padding(32)
+                .padding(16)
                 .frame(maxWidth: .infinity)
-                .background(NerVyx.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.borderSubtle, lineWidth: 1))
+                .nerVyxGlassCard()
             } else {
+                let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
                 VStack(spacing: 0) {
-                    SectionHeader(title: "\(selectedLane.rawValue) Positions (\(rows.count))", accent: selectedLane == .open ? NerVyx.buy : NerVyx.primary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                    SectionHeader(
+                        title: "\(selectedLane.rawValue) Positions (\(rows.count))",
+                        accent: selectedLane == .open ? NerVyx.buy : NerVyx.primary
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
 
                     ForEach(rows) { pos in
                         NavigationLink(destination: PositionDetailView(position: pos)) {
                             PositionRowView(position: pos)
                         }
                         .buttonStyle(.plain)
-                        NerVyxDivider().padding(.horizontal, 16)
+                        if pos.id != rows.last?.id {
+                            NerVyxDivider().padding(.horizontal, 16)
+                        }
                     }
                 }
-                .background(NerVyx.panel)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.borderSubtle, lineWidth: 1))
+                .background(.ultraThinMaterial, in: shape)
+                .clipShape(shape)
+                .overlay(
+                    shape.stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.14), Color.white.opacity(0.03)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                )
+                .overlay(shape.stroke((selectedLane == .open ? NerVyx.buy : NerVyx.primary).opacity(0.3), lineWidth: 1))
+                .shadow(color: .black.opacity(0.3), radius: 18, y: 8)
             }
         }
     }
 
-    private func summaryCard(_ s: PositionSummary) -> some View {
-        VStack(spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("TOTAL PnL")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                        .tracking(0.6)
-                    Text(String(format: "%@$%.2f", s.total_pnl_usd >= 0 ? "+" : "", s.total_pnl_usd))
-                        .font(.system(size: 30, weight: .bold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(s.total_pnl_usd))
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("OPEN / CLOSED")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                        .tracking(0.6)
-                    Text("\(s.open_count) / \(s.closed_count ?? vm.closedPositions.count)")
-                        .font(.system(size: 24, weight: .bold, design: .monospaced))
-                        .foregroundStyle(NerVyx.textPrimary)
-                }
-            }
-            NerVyxDivider()
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Realized")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(String(format: "$%.2f", s.realized_pnl_usd))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(s.realized_pnl_usd))
-                }
-                Spacer()
-                VStack(alignment: .center, spacing: 3) {
-                    Text("Unrealized")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(String(format: "$%.2f", s.unrealized_pnl_usd))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(s.unrealized_pnl_usd))
-                }
-                Spacer()
-                    NerVyxBadge(text: "MARKS LIVE", color: NerVyx.signal)
-            }
-            if pnlSeries.values.count > 1 {
-                Sparkline(values: pnlSeries.values, color: NerVyx.pnlColor(s.total_pnl_usd))
-                    .frame(height: 44)
-            }
-        }
-        .nerVyxElevatedCard(accent: NerVyx.pnlColor(s.total_pnl_usd))
-    }
+    // MARK: Redacted-replica loading skeleton
 
-    private func pricingCard(_ pricing: PositionPricing) -> some View {
-        VStack(spacing: 10) {
-            SectionHeader(title: "Realtime Mark Pricing", accent: NerVyx.signal)
-            DataRow(label: "Realtime marks", value: "\(pricing.live_mark_price_count ?? 0)", mono: true)
-            DataRow(label: "Stale marks", value: "\(pricing.stale_mark_price_count ?? 0)", valueColor: (pricing.stale_mark_price_count ?? 0) > 0 ? NerVyx.warning : NerVyx.textSecondary, mono: true)
-            DataRow(label: "Missing marks", value: "\(pricing.missing_mark_price_count ?? 0)", valueColor: (pricing.missing_mark_price_count ?? 0) > 0 ? NerVyx.sell : NerVyx.textSecondary, mono: true)
-            DataRow(label: "Open notional", value: positionMoneyText(pricing.total_open_notional), mono: true)
+    private var loadingSkeleton: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 10) {
+                    MicroLabel(text: "CANONICAL PAPER EQUITY")
+                    HeroMetricText(text: "—")
+                    HStack(spacing: 8) {
+                        StatChip(label: "START", value: "—")
+                        StatChip(label: "AVAILABLE", value: "—")
+                        StatChip(label: "TOTAL PNL", value: "—")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .nerVyxGlassCard(accent: NerVyx.primary)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    MicroLabel(text: "TOTAL PNL")
+                    HeroMetricText(text: "—", size: 32)
+                    NerVyxDivider()
+                    HStack {
+                        Text("Realized —").font(.system(size: 13)).foregroundStyle(NerVyx.textMuted)
+                        Spacer()
+                        Text("Unrealized —").font(.system(size: 13)).foregroundStyle(NerVyx.textMuted)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .nerVyxGlassCard()
+
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(title: "Performance", accent: NerVyx.primary)
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(NerVyx.borderSubtle.opacity(0.5))
+                        .frame(height: 90)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .nerVyxGlassCard()
+            }
+            .padding(16)
+            .redacted(reason: .placeholder)
         }
-        .nerVyxCard(accent: NerVyx.signal.opacity(0.35))
+        .scrollDisabled(true)
     }
 }
 
@@ -366,6 +547,7 @@ struct PositionRowView: View {
     private var terminalLabel: String { isClosed ? "Exit" : "Mark" }
     private var terminalPrice: Double? { isClosed ? position.exit_price : position.mark_price }
     private var rowPnl: Double? { isClosed ? position.realized_pnl : position.unrealized_pnl }
+    private var sideColor: Color { position.isBuy ? NerVyx.buy : NerVyx.sell }
     private var reasoningSummary: String {
         if let reason = position.decision_reasoning?.reason, !reason.isEmpty {
             return nervyxPublicRuntimeText(reason)
@@ -382,8 +564,14 @@ struct PositionRowView: View {
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 3)
-                .fill(position.isBuy ? NerVyx.buy : NerVyx.sell)
-                .frame(width: 4, height: 58)
+                .fill(
+                    LinearGradient(
+                        colors: [sideColor, sideColor.opacity(0.15)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 4, height: 62)
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
@@ -394,10 +582,7 @@ struct PositionRowView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundStyle(NerVyx.textMuted)
                     Spacer()
-                    NerVyxBadge(
-                        text: position.side.uppercased(),
-                        color: position.isBuy ? NerVyx.buy : NerVyx.sell
-                    )
+                    NerVyxBadge(text: position.side.uppercased(), color: sideColor)
                 }
                 HStack {
                     Text("Entry \(positionPriceText(position.entry_price))")
@@ -419,124 +604,28 @@ struct PositionRowView: View {
                     .foregroundStyle(NerVyx.textSecondary)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
+                if let confidence = position.decision_reasoning?.confidence {
+                    HStack(spacing: 6) {
+                        ConfidenceBar(value: confidence)
+                            .frame(maxWidth: .infinity)
+                        Text("\(Int((confidence * 100).rounded()))%")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                            .foregroundStyle(NerVyx.confidenceColor(confidence))
+                        if let risk = position.decision_reasoning?.risk_state, !risk.isEmpty {
+                            NerVyxBadge(
+                                text: nervyxPublicRuntimeText(risk).uppercased(),
+                                color: NerVyx.statusColor(risk),
+                                small: true
+                            )
+                        }
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(NerVyx.panel)
         .contentShape(Rectangle())
     }
 }
 
-// MARK: - Position Detail
-
-struct PositionDetailView: View {
-    let position: MobilePosition
-
-    var body: some View {
-        ZStack {
-            NerVyx.bg.ignoresSafeArea()
-            ScrollView {
-                VStack(spacing: 12) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(position.shortSymbol)
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundStyle(NerVyx.textPrimary)
-                            Text(position.symbol).font(.system(size: 13)).foregroundStyle(NerVyx.textMuted)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 6) {
-                            NerVyxBadge(
-                                text: position.side.uppercased(),
-                                color: position.isBuy ? NerVyx.buy : NerVyx.sell
-                            )
-                            NerVyxBadge(text: position.status.uppercased(), color: NerVyx.paper, small: true)
-                        }
-                    }
-                    .nerVyxElevatedCard(accent: position.isBuy ? NerVyx.buy : NerVyx.sell)
-
-                    VStack(spacing: 10) {
-                        SectionHeader(title: "PnL", accent: NerVyx.pnlColor(position.total_pnl))
-                        HStack {
-                            Text("TOTAL")
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(NerVyx.textMuted)
-                                .tracking(0.6)
-                            Spacer()
-                            Text(String(format: "%@$%.4f", position.total_pnl >= 0 ? "+" : "", position.total_pnl))
-                                .font(.system(size: 22, weight: .bold, design: .monospaced))
-                                .foregroundStyle(NerVyx.pnlColor(position.total_pnl))
-                        }
-                        NerVyxDivider()
-                        DataRow(
-                            label: "Unrealized",
-                            value: positionMoneyText(position.unrealized_pnl),
-                            valueColor: NerVyx.pnlColor(position.unrealized_pnl ?? 0),
-                            mono: true
-                        )
-                        DataRow(
-                            label: "Realized",
-                            value: String(format: "$%.4f", position.realized_pnl),
-                            valueColor: NerVyx.pnlColor(position.realized_pnl),
-                            mono: true
-                        )
-                    }
-                    .nerVyxCard()
-
-                    VStack(spacing: 10) {
-                        SectionHeader(title: "Prices", accent: NerVyx.inference)
-                        DataRow(label: "Quantity", value: String(format: "%.6f", position.qty), mono: true)
-                        DataRow(label: "Entry Price", value: positionPriceText(position.entry_price), mono: true)
-                        DataRow(label: "Entry Source", value: position.entry_price_source ?? "Unavailable", mono: true)
-                        if position.exit_price != nil || position.status.lowercased().contains("closed") {
-                            DataRow(label: "Exit Price", value: positionPriceText(position.exit_price), mono: true)
-                            DataRow(label: "Exit Source", value: position.exit_price_source ?? "Unavailable", mono: true)
-                        }
-                        DataRow(
-                            label: "Mark Price",
-                            value: positionPriceText(position.mark_price),
-                            valueColor: position.mark_price_stale == true ? NerVyx.warning : NerVyx.textPrimary,
-                            mono: true
-                        )
-                        DataRow(label: "Mark Age", value: positionAgeText(position.mark_price_age_seconds), mono: true)
-                        DataRow(label: "Mark Source", value: position.mark_price_source ?? "Unavailable", mono: true)
-                    }
-                    .nerVyxCard()
-
-                    if let reasoning = position.decision_reasoning {
-                        VStack(spacing: 10) {
-                            SectionHeader(title: "AI Reasoning", accent: NerVyx.primary)
-                            DataRow(label: "Action", value: reasoning.action ?? "Unavailable", mono: true)
-                            DataRow(label: "Decision Confidence", value: reasoning.confidence.map { "\(Int(($0 * 100).rounded()))%" } ?? "Unavailable", mono: true)
-                            DataRow(label: "Reason", value: nervyxPublicRuntimeText(reasoning.reason ?? "Unavailable"), mono: false)
-                            DataRow(label: "Risk", value: nervyxPublicRuntimeText(reasoning.risk_state ?? "Unavailable"), mono: true)
-                            DataRow(label: "Regime", value: nervyxPublicRuntimeText(reasoning.market_regime ?? "Unavailable"), mono: true)
-                            DataRow(label: "Signal", value: reasoning.signal_id ?? position.signal_id ?? "Unavailable", mono: true)
-                            DataRow(label: "Prediction", value: reasoning.prediction_id ?? position.prediction_id ?? "Unavailable", mono: true)
-                            DataRow(label: "Source", value: reasoning.source ?? "Unavailable", mono: true)
-                        }
-                        .nerVyxCard(accent: NerVyx.primary.opacity(0.35))
-                    }
-
-                    VStack(spacing: 10) {
-                        SectionHeader(title: "Meta", accent: NerVyx.textMuted)
-                        DataRow(label: "ID", value: String(position.id.prefix(20)) + "…", mono: true)
-                        DataRow(label: "Opened", value: String(position.opened_at.prefix(19)), mono: true)
-                        if let closedAt = position.closed_at, !closedAt.isEmpty {
-                            DataRow(label: "Closed", value: String(closedAt.prefix(19)), mono: true)
-                        }
-                        if let reason = position.close_reason, !reason.isEmpty {
-                            DataRow(label: "Close Reason", value: nervyxPublicRuntimeText(reason), mono: false)
-                        }
-                    }
-                    .nerVyxCard(accent: NerVyx.borderSubtle)
-                }
-                .padding(16)
-                .padding(.bottom, 24)
-            }
-        }
-        .navigationTitle(position.shortSymbol)
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
+// PositionDetailView lives in Views/Components/PositionDetailView.swift (shared, Infra-owned).

@@ -82,6 +82,9 @@ struct iPadLayout: View {
                     sidebarRow(.alerts,     "Alerts",           "bell.badge")
                 }
                 Section("NERVYX CORE") {
+                    sidebarRow(.markets,     "Markets",         "chart.bar.xaxis")
+                    sidebarRow(.derivatives, "Derivatives",     "percent")
+                    sidebarRow(.trainerTelemetry, "Trainer Telemetry", "brain.head.profile")
                     sidebarRow(.predictions, "Signal Matrix",   "waveform.path.ecg.rectangle")
                     sidebarRow(.backtestReplay, "Backtest & Replay", "chart.xyaxis.line")
                     sidebarRow(.activity,    "Executions",      "clock.arrow.circlepath")
@@ -142,6 +145,9 @@ struct iPadLayout: View {
         case .readiness:   LiveReadinessView()
         case .audit:       AuditLedgerView()
         case .backtestReplay: BacktestReplayScreen()
+        case .markets:     MarketsView()
+        case .derivatives: DerivativesView()
+        case .trainerTelemetry: TrainerTelemetryView()
         }
     }
 }
@@ -166,6 +172,15 @@ struct MoreView: View {
                     NavigationLink("Risk Control", destination: RiskControlView())
                 }
                 Section("NERVYX CORE") {
+                    NavigationLink(destination: MarketsView()) {
+                        Label("Markets", systemImage: "chart.bar.xaxis")
+                    }
+                    NavigationLink(destination: DerivativesView()) {
+                        Label("Derivatives", systemImage: "percent")
+                    }
+                    NavigationLink(destination: TrainerTelemetryView()) {
+                        Label("Trainer Telemetry", systemImage: "brain.head.profile")
+                    }
                     NavigationLink("Signal Matrix", destination: TrainerPredictionView())
                     NavigationLink("Backtest & Replay", destination: BacktestReplayScreen())
                     NavigationLink("Executions", destination: ActivityView())

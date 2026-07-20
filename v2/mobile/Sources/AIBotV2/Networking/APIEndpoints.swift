@@ -66,6 +66,31 @@ public enum APIEndpoints {
     public static let realtimeHealth = "/api/v2/realtime/health"
     public static let wsRealtime = "/api/v2/realtime/ws"
 
+    // MARK: - Website-parity surfaces (same endpoints the web pages consume)
+    /// Per-symbol tickers — canonical Markets source (~10.5KB).
+    public static let marketOverview = "/api/v2/market/overview"
+    /// Full derivatives payload (~102KB — prefer mobileDerivativesSummary on cellular).
+    public static let derivatives = "/api/v2/derivatives"
+    /// Compact mobile derivatives rollup (aggregate + regime + top symbols).
+    public static let mobileDerivativesSummary = "/api/v2/mobile/derivatives-summary"
+    /// Compact full-universe signal matrix (one slim cell per symbol × timeframe).
+    public static let mobileSignalMatrix = "/api/v2/mobile/signal-matrix"
+    /// Goal / 1000x trajectory (compact, carries live_gate safety fields).
+    public static let goalTrajectory1000x = "/api/v2/goal/trajectory-1000x"
+    /// Canonical paper portfolio PnL (realized/unrealized/total/equity).
+    public static let portfolio = "/api/v2/portfolio"
+    /// Per-surface data-feed health with lag (System Health page source).
+    public static let dataHealth = "/api/v2/data-health"
+    /// Backend service health (small).
+    public static let systemHealth = "/api/v2/system/health"
+    /// CPU/mem/disk/network runtime internals (small).
+    public static let systemMetrics = "/api/v2/system/metrics"
+    /// Trainer deep telemetry — same payload the website AI page consumes.
+    public static let trainerSummary = "/api/v2/trainer/summary"
+    /// Account-scoped execution surfaces (all small).
+    public static let executionExecutions = "/api/v2/execution/executions"
+    public static let executionOrders = "/api/v2/execution/orders"
+
     // MARK: - Helpers
     public static func pushUnregister(token: String) -> String {
         "/api/v2/mobile/push/\(token)"
