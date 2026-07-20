@@ -14,9 +14,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 V2_REDIS_PREFIX = "v2:"
-PUBLIC_ROOT = Path("v2/frontend/public")
-DEFAULT_PAYLOAD_PATH = Path(
-    "v2/frontend/public/operator_runtime/v2_ingestors_status/latest/v2_ingestors_status.json"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+PUBLIC_ROOT = REPO_ROOT / "v2/frontend/public"
+DEFAULT_PAYLOAD_PATH = (
+    PUBLIC_ROOT
+    / "operator_runtime/v2_ingestors_status/latest/v2_ingestors_status.json"
 )
 PUBLIC_STATUS_PATHS = {
     "kucoin": PUBLIC_ROOT / "operator_runtime/v2_kucoin_ingestor/latest/v2_kucoin_ingestor_status.json",

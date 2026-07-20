@@ -1,9 +1,32 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from v2.backend.app.cli import v2_ingestors_status_publisher as publisher
+
+
+def test_default_output_and_evidence_paths_are_repo_rooted(
+    monkeypatch, tmp_path: Path
+) -> None:
+    """The systemd unit may start outside the repository."""
+
+    monkeypatch.chdir(tmp_path)
+    expected_root = Path(publisher.__file__).resolve().parents[4]
+    expected_public_root = expected_root / "v2/frontend/public"
+
+    assert publisher.REPO_ROOT == expected_root
+    assert publisher.PUBLIC_ROOT == expected_public_root
+    assert publisher.DEFAULT_PAYLOAD_PATH == (
+        expected_public_root
+        / "operator_runtime/v2_ingestors_status/latest/v2_ingestors_status.json"
+    )
+    assert all(path.is_absolute() for path in publisher.PUBLIC_STATUS_PATHS.values())
+    assert all(
+        path.is_relative_to(expected_public_root)
+        for path in publisher.PUBLIC_STATUS_PATHS.values()
+    )
 
 
 class FakeRedis:
