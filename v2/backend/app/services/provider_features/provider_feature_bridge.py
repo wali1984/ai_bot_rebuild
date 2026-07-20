@@ -214,9 +214,18 @@ class ProviderFeatureBridge:
                 feature_count=0,
                 features={},
             )
-        raw_features = payload.get("features") if isinstance(payload.get("features"), Mapping) else {}
-        actual = bool(payload.get("actual_payload_present")) and bool(raw_features) and not bool(payload.get("heartbeat_only"))
-        status = str(payload.get("subscription_status") or payload.get("status") or ("READY" if actual else "UNAVAILABLE"))
+        raw_features_value = payload.get("features")
+        raw_features: Mapping[str, Any] = (
+            raw_features_value if isinstance(raw_features_value, Mapping) else {}
+        )
+        actual_payload_flag = payload.get("actual_payload_present")
+        heartbeat_only_flag = payload.get("heartbeat_only")
+        actual = (
+            actual_payload_flag is True
+            and heartbeat_only_flag is False
+            and bool(raw_features)
+        )
+        status = _provider_status(payload, actual=actual)
         available_at = _first_str(payload, "available_at", "generated_at", "generated_utc")
         feature_cutoff = _first_str(payload, "feature_cutoff", "event_time", "available_at")
         generated_at = _first_str(payload, "generated_at", "generated_utc")
@@ -225,6 +234,10 @@ class ProviderFeatureBridge:
         if ttl == -1:
             ttl_valid = False
             excluded.append(f"{provider}:ttl_contract_violation:no_expiry:{key}")
+        if actual_payload_flag is not True:
+            excluded.append(f"{provider}:actual_payload_present_not_literal_true")
+        if heartbeat_only_flag is not False:
+            excluded.append(f"{provider}:heartbeat_only_not_literal_false")
         if not actual:
             excluded.append(f"{provider}:heartbeat_only_or_empty_payload")
         parsed_decision = _parse_time(decision_time)
@@ -235,9 +248,17 @@ class ProviderFeatureBridge:
                 excluded.append(f"{provider}:future_leak_available_at_after_decision_time")
             if parsed_cutoff is not None and parsed_cutoff > parsed_decision:
                 excluded.append(f"{provider}:future_leak_feature_cutoff_after_decision_time")
-        stale = bool(payload.get("stale") or payload.get("is_stale"))
+        stale_reasons = [
+            f"{provider}:stale_payload_flag:{field}"
+            for field in ("stale", "is_stale")
+            if _explicit_stale(payload.get(field))
+        ]
         if status in {"RATE_LIMITED", "DEGRADED"}:
-            stale = True
+            stale_reasons.append(f"{provider}:stale_provider_status:{status}")
+        elif status == "INVALID":
+            stale_reasons.append(f"{provider}:provider_status_invalid")
+        excluded.extend(stale_reasons)
+        stale = bool(stale_reasons)
         features = _canonicalize_features(raw_features, canonical_map) if not excluded else {}
         color = _dashboard_color(
             enabled=True,
@@ -408,6 +429,39 @@ def _float(value: Any) -> float | None:
     if parsed != parsed or abs(parsed) == float("inf"):
         return None
     return parsed
+
+
+def _provider_status(payload: Mapping[str, Any], *, actual: bool) -> str:
+    for field in ("subscription_status", "status"):
+        if field not in payload:
+            continue
+        value = payload.get(field)
+        if value is None or value == "":
+            continue
+        if not isinstance(value, str):
+            return "INVALID"
+        normalized = value.strip().upper()
+        return normalized or "INVALID"
+    return "READY" if actual else "UNAVAILABLE"
+
+
+def _explicit_stale(value: Any) -> bool:
+    """Interpret false spellings narrowly and fail closed on hostile values."""
+
+    if value is None or value is False:
+        return False
+    if value is True:
+        return True
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"", "0", "false", "no", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        return True
+    if isinstance(value, int | float):
+        return value != 0
+    return True
 
 
 def _dashboard_color(*, enabled: bool, status: str, actual: bool, stale: bool) -> str:
