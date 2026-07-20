@@ -535,6 +535,7 @@ def run_once(
         if not scheduler_lease_released:
             scheduler_lease_state_available = False
             rotation_state_available = False
+    cu_budget_status = _publish_persistent_cu_budget_status(client.limiter)
     plan = moralis_scheduler_plan(
         wallets=wallets,
         tokens=tokens,
@@ -602,6 +603,10 @@ def run_once(
         "stream_endpoints_are_webhook_only": True,
         "heartbeat_only_green_allowed": False,
         "response_semantics_quarantined_from_trainer": True,
+        "durable_cu_budget_status_key": "v2:provider:moralis:cu_budget_status",
+        "durable_cu_budget_status_published": bool(
+            cu_budget_status and cu_budget_status.get("status_publish_succeeded") is True
+        ),
         "raw_key_exposed": False,
         "core_system_blocked": False,
     }
@@ -1431,6 +1436,7 @@ def _no_watchlist_status(
         actual_payload_count_1h=0,
     )
     usage = limiter.as_dict()
+    cu_budget_status = _publish_persistent_cu_budget_status(limiter)
     endpoint_status = {
         "schema_version": "moralis_endpoint_status_v1",
         "provider": "moralis",
@@ -1480,6 +1486,10 @@ def _no_watchlist_status(
         "scheduler_lease_released": False,
         "scheduler_run_suppressed_reason": "CONFIGURED_NO_WATCHLIST",
         "response_semantics_quarantined_from_trainer": True,
+        "durable_cu_budget_status_key": "v2:provider:moralis:cu_budget_status",
+        "durable_cu_budget_status_published": bool(
+            cu_budget_status and cu_budget_status.get("status_publish_succeeded") is True
+        ),
         "raw_key_exposed": False,
         "core_system_blocked": False,
     }
@@ -1534,6 +1544,30 @@ def _no_watchlist_status(
             ex=300,
         )
     return status
+
+
+def _publish_persistent_cu_budget_status(
+    limiter: MoralisRateLimiter,
+) -> dict[str, Any] | None:
+    """Refresh the bounded durable-CU status without changing authorization."""
+
+    authority = getattr(limiter, "cu", None)
+    publish_status = getattr(authority, "publish_status", None)
+    if not callable(publish_status):
+        return None
+    try:
+        usage = limiter.as_dict()
+        published = publish_status(
+            extra={
+                "provider_polling_blocked": usage.get("provider_polling_blocked"),
+                "distributed_rps_guard": usage.get("distributed_rps_guard"),
+                "cu_ledger_required": usage.get("cu_ledger_required"),
+                "status_key": "v2:provider:moralis:cu_budget_status",
+            }
+        )
+    except Exception:
+        return None
+    return dict(published) if isinstance(published, Mapping) else None
 
 
 def _token_map_count(redis_client: Any | None) -> int:

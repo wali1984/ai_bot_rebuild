@@ -64,12 +64,16 @@ class FakeRedis:
 
 
 class FakeLimiter:
+    def __init__(self, redis_client: FakeRedis | None = None) -> None:
+        self.cu = FakePersistentCuBudget(redis_client) if redis_client is not None else None
+
     def as_dict(self) -> dict[str, object]:
         return {
             "current_rps": 5,
             "normal_rps": 5,
             "catchup_rps": 10,
             "hard_rps": 30,
+            "distributed_rps_guard": True,
             "cu_ledger_required": False,
             "provider_polling_blocked": False,
             "compute_budget": {
@@ -86,9 +90,32 @@ class FakeLimiter:
         }
 
 
+class FakePersistentCuBudget:
+    def __init__(self, redis_client: FakeRedis) -> None:
+        self.redis_client = redis_client
+
+    def publish_status(
+        self,
+        *,
+        extra: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        payload: dict[str, object] = {
+            "schema_version": "moralis_cu_budget_status_v2",
+            "ledger_available": True,
+            **(extra or {}),
+            "status_publish_succeeded": True,
+        }
+        self.redis_client.set(
+            "v2:provider:moralis:cu_budget_status",
+            json.dumps(payload),
+            ex=6 * 3_600,
+        )
+        return payload
+
+
 class FakeClient:
-    def __init__(self) -> None:
-        self.limiter = FakeLimiter()
+    def __init__(self, redis_client: FakeRedis | None = None) -> None:
+        self.limiter = FakeLimiter(redis_client)
         self.calls: list[str] = []
 
     def get(self, spec, *, chain: str, wallet: str | None = None, token: str | None = None, symbol: str | None = None):
@@ -108,7 +135,7 @@ class FakeClient:
 def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypatch) -> None:
     monkeypatch.setenv("MORALIS_API_KEY", "secret")
     redis_client = FakeRedis()
-    client = FakeClient()
+    client = FakeClient(redis_client)
     status = run_once(
         redis_client,
         client=client,
@@ -141,11 +168,16 @@ def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypa
     feature_status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
     assert feature_status["token_map_count"] == 0
     assert feature_status["wallet_watchlist_count"] == 0
+    cu_status = json.loads(redis_client.data["v2:provider:moralis:cu_budget_status"])
+    assert cu_status["schema_version"] == "moralis_cu_budget_status_v2"
+    assert cu_status["ledger_available"] is True
+    assert cu_status["status_key"] == "v2:provider:moralis:cu_budget_status"
+    assert status["durable_cu_budget_status_published"] is True
 
 
 def test_moralis_loop_operator_lists_still_schedule_without_every_symbol_minute() -> None:
     redis_client = FakeRedis()
-    client = FakeClient()
+    client = FakeClient(redis_client)
     status = run_once(
         redis_client,
         client=client,
@@ -161,6 +193,8 @@ def test_moralis_loop_operator_lists_still_schedule_without_every_symbol_minute(
     assert status["request_count"] > 0
     assert status["does_not_poll_every_symbol_every_minute"] is True
     assert status["core_system_blocked"] is False
+    assert status["durable_cu_budget_status_published"] is True
+    assert redis_client.ttls["v2:provider:moralis:cu_budget_status"] == 6 * 3_600
     assert client.calls
 
 
