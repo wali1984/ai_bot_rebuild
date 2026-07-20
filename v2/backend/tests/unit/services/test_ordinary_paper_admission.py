@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 
 import pytest
 
@@ -17,11 +18,13 @@ from v2.backend.app.services.ordinary_paper_admission import (
     ORDINARY_PAPER_ADMISSION_MODE,
     ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION,
     ORDINARY_PAPER_QUALITY_FORMULA,
+    OrdinaryPaperAdmissionIntegrityError,
+    OrdinaryPaperAdmissionResult,
     assess_ordinary_paper_candidate,
     build_microstructure_trust_evidence,
+    ordinary_paper_admission_result_rejection_reasons,
     revalidate_ordinary_paper_transport,
 )
-
 
 _TENSOR_ID = "v2_hybrid_tensor_" + ("d" * 32)
 _TENSOR_SOURCE_LINEAGE_HASH = "e" * 64
@@ -83,9 +86,7 @@ def _bind_microstructure_evidence(
             "feature_tensor_id": _TENSOR_ID,
             "tensor_source_lineage_hash": _TENSOR_SOURCE_LINEAGE_HASH,
             "microstructure_trust_evidence_sha256": evidence["evidence_sha256"],
-            "microstructure_trust_source_payload_sha256": evidence[
-                "source_payload_sha256"
-            ],
+            "microstructure_trust_source_payload_sha256": evidence["source_payload_sha256"],
         }
     )
 
@@ -129,9 +130,7 @@ def _cost_provenance(symbol: str) -> dict[str, object]:
         "depth_used_usd": 100.0,
         "notional_usd_assumed": 100.0,
         "notional_configuration_evidence": notional_evidence,
-        "notional_configuration_evidence_sha256": canonical_sha256(
-            notional_evidence
-        ),
+        "notional_configuration_evidence_sha256": canonical_sha256(notional_evidence),
         "freshness_status": "FRESH_ORDERBOOK",
         "conservative_floor_applied": False,
         "flat_baseline_round_trip_bps": 12.0,
@@ -149,9 +148,7 @@ def _cost_provenance(symbol: str) -> dict[str, object]:
         "source_future_clock_invalid": False,
         "adaptive_max_age_seconds": 120.0,
         "adaptive_freshness_sample_count": 3,
-        "adaptive_freshness_method": (
-            "RECENT_DISTINCT_SOURCE_INTERVAL_MEDIAN_PLUS_MAD"
-        ),
+        "adaptive_freshness_method": ("RECENT_DISTINCT_SOURCE_INTERVAL_MEDIAN_PLUS_MAD"),
         "adaptive_freshness_proven": True,
         "expires_at": "2026-07-18T00:02:01Z",
         "publication_ttl_seconds": 81,
@@ -214,12 +211,8 @@ def ordinary_source(
         "cycle_id": "cycle_test",
         "process_instance_id": "process_test",
         "candidate_policy_fingerprint": "c" * 64,
-        "ordinary_paper_admission_schema_version": (
-            ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION
-        ),
-        "ordinary_paper_quality_schema_version": (
-            ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION
-        ),
+        "ordinary_paper_admission_schema_version": (ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION),
+        "ordinary_paper_quality_schema_version": (ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION),
         "ordinary_paper_admission_mode": ORDINARY_PAPER_ADMISSION_MODE,
         "ordinary_paper_fill_allowed": True,
         "ordinary_paper_admission_rejection_reasons": [],
@@ -342,9 +335,7 @@ def _assess(
         source,
         market_state_integrity_score=market_score,
         market_state_reject_reasons=[],
-        market_state_quality_reasons=(
-            ["LATENCY_ABOVE_GATE"] if not latency_within_bound else []
-        ),
+        market_state_quality_reasons=(["LATENCY_ABOVE_GATE"] if not latency_within_bound else []),
         microstructure_trust_score=trust_score,
         sweep_risk_score=sweep_risk,
         microstructure_action=action,
@@ -360,6 +351,70 @@ def _assess(
         ],
         replay_snapshot=replay_snapshot,
         replay_snapshot_observed_ttl_seconds=current_ttl,
+    )
+
+
+def test_admission_result_requires_factory_and_dataclass_replace_cannot_reseal() -> None:
+    source, replay = ordinary_source()
+    assessment = _assess(
+        source,
+        replay,
+        market_score=80.0,
+        trust_score=0.5,
+        sweep_risk=0.2,
+        action="REDUCE_SIZE",
+    )
+    assert (
+        ordinary_paper_admission_result_rejection_reasons(
+            assessment,
+            require_accepted=True,
+        )
+        == []
+    )
+
+    with pytest.raises(
+        OrdinaryPaperAdmissionIntegrityError,
+        match="ORDINARY_PAPER_ADMISSION_RESULT_FACTORY_REQUIRED",
+    ):
+        OrdinaryPaperAdmissionResult(
+            claimed=True,
+            accepted=True,
+            rejection_reasons=(),
+            publisher_sizing_weight=assessment.publisher_sizing_weight,
+            effective_sizing_weight=assessment.effective_sizing_weight,
+            evidence_sha256=assessment.evidence_sha256,
+            _evidence_json="{}",
+        )
+    with pytest.raises(
+        OrdinaryPaperAdmissionIntegrityError,
+        match="ORDINARY_PAPER_ADMISSION_RESULT_FACTORY_REQUIRED",
+    ):
+        replace(assessment, accepted=False)
+
+
+def test_admission_evidence_access_is_a_fresh_hash_bound_copy() -> None:
+    source, replay = ordinary_source()
+    assessment = _assess(
+        source,
+        replay,
+        market_score=80.0,
+        trust_score=0.5,
+        sweep_risk=0.2,
+        action="REDUCE_SIZE",
+    )
+    first = assessment.evidence
+    second = assessment.evidence
+    assert first is not None and second is not None and first is not second
+    first["symbol"] = "FORGED"
+
+    assert assessment.evidence is not None
+    assert assessment.evidence["symbol"] == source["symbol"]
+    assert (
+        ordinary_paper_admission_result_rejection_reasons(
+            assessment,
+            require_accepted=True,
+        )
+        == []
     )
 
 
@@ -389,9 +444,7 @@ def test_legacy_threshold_epsilon_pair_is_continuous_not_a_cliff() -> None:
     assert above.effective_sizing_weight <= above.publisher_sizing_weight
     transport = below.transport_payload()
     assert transport["ordinary_paper_raw_microstructure_action"] == "SHADOW_ONLY"
-    assert transport["ordinary_paper_effective_microstructure_action"] == (
-        "REDUCE_SIZE"
-    )
+    assert transport["ordinary_paper_effective_microstructure_action"] == ("REDUCE_SIZE")
 
 
 def test_latency_false_is_degraded_evidence_not_an_admission_cliff() -> None:
@@ -446,9 +499,7 @@ def test_replay_ttl_must_be_current_positive_and_never_refreshed(
     )
 
     assert revalidated.accepted is False
-    assert "ordinary_paper_current_replay_ttl_invalid" in (
-        revalidated.rejection_reasons
-    )
+    assert "ordinary_paper_current_replay_ttl_invalid" in (revalidated.rejection_reasons)
 
 
 def test_transport_hash_and_weight_tampering_fail_closed() -> None:
@@ -463,9 +514,7 @@ def test_transport_hash_and_weight_tampering_fail_closed() -> None:
     )
     assert assessment.accepted is True
     tampered = deepcopy(assessment.transport_payload())
-    tampered["ordinary_paper_admission_evidence"][
-        "paper_quality_sizing_weight"
-    ] = 1.0
+    tampered["ordinary_paper_admission_evidence"]["paper_quality_sizing_weight"] = 1.0
 
     revalidated = revalidate_ordinary_paper_transport(
         tampered,

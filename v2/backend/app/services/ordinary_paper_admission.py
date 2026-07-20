@@ -8,13 +8,16 @@ reintroducing threshold cliffs.
 
 No function in this module can enable live trading or submit an exchange order.
 """
+
 from __future__ import annotations
 
 import copy
+import json
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import InitVar, dataclass
+from dataclasses import field as dataclass_field
+from datetime import UTC, datetime
 from typing import Any
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.confidence import (
@@ -27,18 +30,14 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.on_policy_behavi
     exact_cost_provenance_rejection_reasons,
 )
 
-ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION = (
-    "v2_native_trainer_ordinary_paper_scale_free_admission_v1"
-)
+ORDINARY_PAPER_ADMISSION_SCHEMA_VERSION = "v2_native_trainer_ordinary_paper_scale_free_admission_v1"
 ORDINARY_PAPER_ADMISSION_MODE = "SCALE_FREE_CONTINUOUS_QUALITY_PAPER_ONLY"
 ORDINARY_PAPER_QUALITY_FORMULA = (
     "(coverage_percent/100)*calibrated_profit_probability*"
     "(abs(after_cost_edge_bps)/(abs(after_cost_edge_bps)+round_trip_cost_bps))"
 )
 ORDINARY_PAPER_EVIDENCE_SCHEMA_VERSION = "v2_ordinary_paper_admission_evidence_v1"
-MICROSTRUCTURE_TRUST_EVIDENCE_SCHEMA_VERSION = (
-    "v2_native_trainer_microstructure_trust_evidence_v1"
-)
+MICROSTRUCTURE_TRUST_EVIDENCE_SCHEMA_VERSION = "v2_native_trainer_microstructure_trust_evidence_v1"
 MICROSTRUCTURE_TRUST_SOURCE_SCHEMA_VERSION = "microstructure_trust_score_v2"
 ORDINARY_PAPER_EFFECTIVE_SIZING_FORMULA = (
     "publisher_weight*(market_state_integrity_score/100)*"
@@ -47,6 +46,7 @@ ORDINARY_PAPER_EFFECTIVE_SIZING_FORMULA = (
 
 _PAPER_ONLY_LIVE_GATE = "blocked_human_only"
 _ALLOWED_MICROSTRUCTURE_ACTIONS = {"ALLOW", "REDUCE_SIZE"}
+_RESULT_FACTORY_TOKEN = object()
 _IDENTITY_FIELDS = (
     "prediction_id",
     "signal_id",
@@ -227,9 +227,7 @@ def build_microstructure_trust_evidence(
         "source_payload": observed,
         "source_payload_sha256": observed_hash,
         "source_payload_loaded_sha256": loaded_hash,
-        "source_readback_verified": bool(
-            loaded and observed and loaded_hash == observed_hash
-        ),
+        "source_readback_verified": bool(loaded and observed and loaded_hash == observed_hash),
         "source_observed_ttl_seconds": source_observed_ttl_seconds,
         "symbol": symbol,
         "timeframe": timeframe,
@@ -302,7 +300,9 @@ def microstructure_trust_evidence_rejection_reasons(
 def microstructure_admission_values(payload: Mapping[str, Any] | Any) -> dict[str, Any]:
     """Extract admission inputs only from the hash-bound source envelope."""
 
-    evidence = payload.get("microstructure_trust_evidence") if isinstance(payload, Mapping) else None
+    evidence = (
+        payload.get("microstructure_trust_evidence") if isinstance(payload, Mapping) else None
+    )
     source = evidence.get("source_payload") if isinstance(evidence, Mapping) else None
     source = source if isinstance(source, Mapping) else {}
     return {
@@ -314,9 +314,7 @@ def microstructure_admission_values(payload: Mapping[str, Any] | Any) -> dict[st
         "latency_within_bound": source.get("latency_within_bound"),
         "sequence_gap_free": source.get("sequence_gap_free"),
         "sweep_direction_uncertain": source.get("sweep_direction_uncertain"),
-        "microstructure_missing_components": copy.deepcopy(
-            source.get("missing_components")
-        ),
+        "microstructure_missing_components": copy.deepcopy(source.get("missing_components")),
     }
 
 
@@ -363,8 +361,7 @@ def _microstructure_trust_evidence_core_rejection_reasons(
     if evidence.get("timeframe") != timeframe or str(source.get("timeframe") or "") != timeframe:
         reasons.append("microstructure_trust_timeframe_identity_mismatch")
     if (
-        evidence.get("source_schema_version")
-        != MICROSTRUCTURE_TRUST_SOURCE_SCHEMA_VERSION
+        evidence.get("source_schema_version") != MICROSTRUCTURE_TRUST_SOURCE_SCHEMA_VERSION
         or source.get("schema_version") != MICROSTRUCTURE_TRUST_SOURCE_SCHEMA_VERSION
     ):
         reasons.append("microstructure_trust_source_schema_invalid")
@@ -386,8 +383,7 @@ def _microstructure_trust_evidence_core_rejection_reasons(
     source_decision = _strict_utc(source.get("decision_time"))
     generated_at = _strict_utc(source.get("generated_at"))
     if any(
-        clock is None
-        for clock in (tensor_decision, available_at, source_decision, generated_at)
+        clock is None for clock in (tensor_decision, available_at, source_decision, generated_at)
     ):
         reasons.append("microstructure_trust_source_clock_invalid")
     else:
@@ -396,8 +392,7 @@ def _microstructure_trust_evidence_core_rejection_reasons(
         assert source_decision is not None
         assert generated_at is not None
         if not (
-            available_at <= source_decision <= tensor_decision
-            and generated_at <= tensor_decision
+            available_at <= source_decision <= tensor_decision and generated_at <= tensor_decision
         ):
             reasons.append("microstructure_trust_source_clock_order_invalid")
         if expected_ppo_decision_time not in (None, ""):
@@ -417,9 +412,19 @@ def _microstructure_trust_evidence_core_rejection_reasons(
     composite = _finite(source.get("composite_microstructure_trust_score"))
     sweep = _finite(source.get("sweep_risk_score"))
     sweep_alias = _finite(source.get("sweep_risk"))
-    if trust is None or composite is None or not 0.0 <= trust <= 1.0 or not _numbers_close(trust, composite):
+    if (
+        trust is None
+        or composite is None
+        or not 0.0 <= trust <= 1.0
+        or not _numbers_close(trust, composite)
+    ):
         reasons.append("microstructure_trust_score_binding_invalid")
-    if sweep is None or sweep_alias is None or not 0.0 <= sweep <= 1.0 or not _numbers_close(sweep, sweep_alias):
+    if (
+        sweep is None
+        or sweep_alias is None
+        or not 0.0 <= sweep <= 1.0
+        or not _numbers_close(sweep, sweep_alias)
+    ):
         reasons.append("microstructure_trust_sweep_binding_invalid")
     if str(source.get("microstructure_action") or "").upper() not in {
         "ALLOW",
@@ -438,12 +443,14 @@ def _microstructure_trust_evidence_core_rejection_reasons(
         if not isinstance(source.get(field), bool):
             reasons.append(f"microstructure_trust_{field}_missing")
     sequence_gap_flag = _finite(source.get("sequence_gap_flag"))
+    book_sequence_gap = source.get("book_sequence_gap")
+    sequence_gap_free = source.get("sequence_gap_free")
     if (
-        isinstance(source.get("book_sequence_gap"), bool)
-        and isinstance(source.get("sequence_gap_free"), bool)
+        isinstance(book_sequence_gap, bool)
+        and isinstance(sequence_gap_free, bool)
         and (
-            source.get("book_sequence_gap") is source.get("sequence_gap_free")
-            or sequence_gap_flag != float(int(source.get("book_sequence_gap")))
+            book_sequence_gap is sequence_gap_free
+            or sequence_gap_flag != float(int(book_sequence_gap))
         )
     ):
         reasons.append("microstructure_trust_sequence_binding_invalid")
@@ -452,32 +459,75 @@ def _microstructure_trust_evidence_core_rejection_reasons(
     return sorted(set(reasons))
 
 
-@dataclass(frozen=True)
+class OrdinaryPaperAdmissionIntegrityError(ValueError):
+    """An admission result was not issued by this module or lost its binding."""
+
+
+@dataclass(frozen=True, slots=True)
 class OrdinaryPaperAdmissionResult:
-    """Explicit admission and sizing result shared by downstream consumers."""
+    """Factory-issued immutable admission result shared by PAPER consumers.
+
+    Evidence is retained as strict canonical JSON and exposed only as a fresh
+    parse.  Consequently a caller cannot mutate the authenticated result by
+    retaining or changing a source dictionary.  Direct construction and
+    ``dataclasses.replace`` fail because neither has the private factory token.
+    """
 
     claimed: bool
     accepted: bool
     rejection_reasons: tuple[str, ...]
     publisher_sizing_weight: float | None
     effective_sizing_weight: float | None
-    evidence: dict[str, Any] | None
     evidence_sha256: str | None
+    _evidence_json: str | None = dataclass_field(repr=False, compare=False)
+    _factory_binding: object = dataclass_field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _factory_token: InitVar[object | None] = None
+
+    def __post_init__(self, _factory_token: object | None) -> None:
+        if _factory_token is not _RESULT_FACTORY_TOKEN:
+            raise OrdinaryPaperAdmissionIntegrityError(
+                "ORDINARY_PAPER_ADMISSION_RESULT_FACTORY_REQUIRED"
+            )
+        object.__setattr__(self, "_factory_binding", _RESULT_FACTORY_TOKEN)
+        reasons = ordinary_paper_admission_result_rejection_reasons(self)
+        if reasons:
+            raise OrdinaryPaperAdmissionIntegrityError(";".join(reasons))
+
+    @property
+    def evidence(self) -> dict[str, Any] | None:
+        """Return a fresh exact parse of the hash-bound canonical evidence."""
+
+        if self._evidence_json is None:
+            return None
+        try:
+            parsed = json.loads(self._evidence_json)
+        except (TypeError, ValueError, RecursionError) as exc:  # pragma: no cover
+            raise OrdinaryPaperAdmissionIntegrityError(
+                "ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_JSON_INVALID"
+            ) from exc
+        if not isinstance(parsed, dict):  # pragma: no cover - factory invariant
+            raise OrdinaryPaperAdmissionIntegrityError(
+                "ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_NOT_OBJECT"
+            )
+        return parsed
 
     def transport_payload(self) -> dict[str, Any]:
         """Return the hash-bound fields that must travel with the candidate."""
 
-        evidence = copy.deepcopy(self.evidence) if self.evidence is not None else None
+        integrity_reasons = ordinary_paper_admission_result_rejection_reasons(self)
+        if integrity_reasons:
+            raise OrdinaryPaperAdmissionIntegrityError(";".join(integrity_reasons))
+        evidence = self.evidence
         payload: dict[str, Any] = {
             "ordinary_scale_free_paper_admission_revalidated": self.accepted,
-            "ordinary_scale_free_paper_admission_rejection_reasons": list(
-                self.rejection_reasons
-            ),
+            "ordinary_scale_free_paper_admission_rejection_reasons": list(self.rejection_reasons),
             "publisher_paper_quality_sizing_weight": self.publisher_sizing_weight,
             "ordinary_paper_effective_sizing_weight": self.effective_sizing_weight,
-            "ordinary_paper_effective_sizing_formula": (
-                ORDINARY_PAPER_EFFECTIVE_SIZING_FORMULA
-            ),
+            "ordinary_paper_effective_sizing_formula": (ORDINARY_PAPER_EFFECTIVE_SIZING_FORMULA),
             "ordinary_paper_admission_evidence": evidence,
             "ordinary_paper_admission_evidence_sha256": self.evidence_sha256,
         }
@@ -497,9 +547,7 @@ class OrdinaryPaperAdmissionResult:
                 "microstructure_trust_factor": evidence.get(
                     "orchestrator_microstructure_trust_factor"
                 ),
-                "sweep_survival_factor": evidence.get(
-                    "orchestrator_sweep_survival_factor"
-                ),
+                "sweep_survival_factor": evidence.get("orchestrator_sweep_survival_factor"),
             }
             payload["ordinary_paper_raw_microstructure_action"] = evidence.get(
                 "orchestrator_microstructure_action"
@@ -508,8 +556,7 @@ class OrdinaryPaperAdmissionResult:
                 "ordinary_paper_effective_microstructure_action"
             )
             payload["ordinary_paper_legacy_microstructure_block_reasons"] = list(
-                evidence.get("orchestrator_legacy_microstructure_block_reasons")
-                or []
+                evidence.get("orchestrator_legacy_microstructure_block_reasons") or []
             )
             payload["microstructure_trust_evidence"] = copy.deepcopy(
                 evidence.get("microstructure_trust_evidence")
@@ -522,6 +569,148 @@ class OrdinaryPaperAdmissionResult:
                 "source_prediction_observed_ttl_seconds"
             )
         return payload
+
+
+def _canonical_evidence_json(evidence: Mapping[str, Any]) -> str:
+    return json.dumps(
+        dict(evidence),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
+
+
+def _ordinary_paper_admission_result(
+    *,
+    claimed: bool,
+    accepted: bool,
+    rejection_reasons: Sequence[str],
+    publisher_sizing_weight: float | None,
+    effective_sizing_weight: float | None,
+    evidence: Mapping[str, Any] | None,
+    evidence_sha256: str | None,
+) -> OrdinaryPaperAdmissionResult:
+    evidence_json: str | None = None
+    if evidence is not None:
+        try:
+            evidence_json = _canonical_evidence_json(evidence)
+        except (TypeError, ValueError, OverflowError, RecursionError):
+            evidence_json = None
+            evidence_sha256 = None
+    return OrdinaryPaperAdmissionResult(
+        claimed=claimed,
+        accepted=accepted,
+        rejection_reasons=tuple(rejection_reasons),
+        publisher_sizing_weight=publisher_sizing_weight,
+        effective_sizing_weight=effective_sizing_weight,
+        evidence_sha256=evidence_sha256,
+        _evidence_json=evidence_json,
+        _factory_token=_RESULT_FACTORY_TOKEN,
+    )
+
+
+def ordinary_paper_admission_result_rejection_reasons(
+    result: Any,
+    *,
+    require_accepted: bool = False,
+) -> list[str]:
+    """Validate exact type, factory identity, canonical content, and hash.
+
+    The check is deliberately public so every in-process PAPER boundary can
+    reject fabricated dataclasses, subclasses, replaced instances, or any
+    result whose frozen fields were altered through low-level reflection.
+    """
+
+    if type(result) is not OrdinaryPaperAdmissionResult:
+        return ["ORDINARY_PAPER_ADMISSION_RESULT_EXACT_TYPE_REQUIRED"]
+    reasons: list[str] = []
+    if getattr(result, "_factory_binding", None) is not _RESULT_FACTORY_TOKEN:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_FACTORY_BINDING_INVALID")
+    if type(result.claimed) is not bool or type(result.accepted) is not bool:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_BOOLEAN_FIELDS_INVALID")
+    rejection_reasons = result.rejection_reasons
+    if (
+        type(rejection_reasons) is not tuple
+        or any(type(reason) is not str or not reason for reason in rejection_reasons)
+        or tuple(sorted(set(rejection_reasons))) != rejection_reasons
+    ):
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_REASONS_INVALID")
+    if result.accepted is not (result.claimed and not rejection_reasons):
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_DECISION_BINDING_INVALID")
+    if require_accepted and result.accepted is not True:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_NOT_ACCEPTED")
+
+    evidence: dict[str, Any] | None = None
+    if result._evidence_json is not None:
+        try:
+            evidence = json.loads(result._evidence_json)
+        except (TypeError, ValueError, RecursionError):
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_JSON_INVALID")
+        if not isinstance(evidence, dict):
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_NOT_OBJECT")
+            evidence = None
+        elif _canonical_evidence_json(evidence) != result._evidence_json:
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_NOT_CANONICAL")
+
+    if result.claimed is False:
+        if any(
+            value is not None
+            for value in (
+                result.publisher_sizing_weight,
+                result.effective_sizing_weight,
+                result.evidence_sha256,
+                result._evidence_json,
+            )
+        ):
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_UNCLAIMED_CONTENT_INVALID")
+        return sorted(set(reasons))
+
+    if evidence is None:
+        if result.accepted:
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_ACCEPTED_EVIDENCE_MISSING")
+        if result.evidence_sha256 is not None:
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_HASH_ORPHANED")
+    else:
+        try:
+            computed_hash = canonical_sha256(evidence)
+        except (TypeError, ValueError, OverflowError, RecursionError):
+            computed_hash = None
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_NOT_HASHABLE")
+        if computed_hash != result.evidence_sha256:
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EVIDENCE_HASH_MISMATCH")
+
+    publisher_weight = _finite(result.publisher_sizing_weight)
+    effective_weight = _finite(result.effective_sizing_weight)
+    if result.publisher_sizing_weight is not None and publisher_weight is None:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_PUBLISHER_WEIGHT_INVALID")
+    if result.effective_sizing_weight is not None and effective_weight is None:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EFFECTIVE_WEIGHT_INVALID")
+    if result.accepted:
+        if publisher_weight is None or not 0.0 < publisher_weight <= 1.0:
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_PUBLISHER_WEIGHT_UNBOUND")
+        if (
+            effective_weight is None
+            or publisher_weight is None
+            or not 0.0 < effective_weight <= publisher_weight
+        ):
+            reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EFFECTIVE_WEIGHT_UNBOUND")
+        if evidence is not None:
+            if not _numbers_close(evidence.get("paper_quality_sizing_weight"), publisher_weight):
+                reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_PUBLISHER_EVIDENCE_MISMATCH")
+            if not _numbers_close(
+                evidence.get("ordinary_paper_effective_sizing_weight"),
+                effective_weight,
+            ):
+                reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EFFECTIVE_EVIDENCE_MISMATCH")
+            if (
+                evidence.get("ordinary_paper_effective_sizing_formula")
+                != ORDINARY_PAPER_EFFECTIVE_SIZING_FORMULA
+            ):
+                reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_EFFECTIVE_FORMULA_INVALID")
+    elif result.effective_sizing_weight is not None:
+        reasons.append("ORDINARY_PAPER_ADMISSION_RESULT_REJECTED_EFFECTIVE_WEIGHT_PRESENT")
+    return sorted(set(reasons))
 
 
 def claims_ordinary_paper_admission(payload: Mapping[str, Any] | Any) -> bool:
@@ -588,13 +777,18 @@ def assess_ordinary_paper_candidate(
     """
 
     if not claims_ordinary_paper_admission(payload):
-        return OrdinaryPaperAdmissionResult(False, False, (), None, None, None, None)
+        return _ordinary_paper_admission_result(
+            claimed=False,
+            accepted=False,
+            rejection_reasons=(),
+            publisher_sizing_weight=None,
+            effective_sizing_weight=None,
+            evidence=None,
+            evidence_sha256=None,
+        )
     evidence = {
         "schema_version": ORDINARY_PAPER_EVIDENCE_SCHEMA_VERSION,
-        **{
-            field: copy.deepcopy(payload.get(field))
-            for field in _SOURCE_EVIDENCE_FIELDS
-        },
+        **{field: copy.deepcopy(payload.get(field)) for field in _SOURCE_EVIDENCE_FIELDS},
         "orchestrator_market_state_integrity_score": market_state_integrity_score,
         "orchestrator_market_state_reject_reasons": [
             str(reason) for reason in market_state_reject_reasons if reason
@@ -616,16 +810,12 @@ def assess_ordinary_paper_candidate(
         "orchestrator_legacy_microstructure_block_reasons": [
             str(reason) for reason in legacy_microstructure_block_reasons if reason
         ],
-        "orchestrator_replay_snapshot_observed_ttl_seconds": (
-            replay_snapshot_observed_ttl_seconds
-        ),
+        "orchestrator_replay_snapshot_observed_ttl_seconds": (replay_snapshot_observed_ttl_seconds),
     }
     return _assess_evidence(
         evidence,
         replay_snapshot=replay_snapshot,
-        replay_snapshot_observed_ttl_seconds=(
-            replay_snapshot_observed_ttl_seconds
-        ),
+        replay_snapshot_observed_ttl_seconds=(replay_snapshot_observed_ttl_seconds),
     )
 
 
@@ -641,18 +831,26 @@ def revalidate_ordinary_paper_transport(
     """Revalidate a transported evidence packet and every direct binding."""
 
     if not claims_ordinary_paper_admission(payload):
-        return OrdinaryPaperAdmissionResult(False, False, (), None, None, None, None)
+        return _ordinary_paper_admission_result(
+            claimed=False,
+            accepted=False,
+            rejection_reasons=(),
+            publisher_sizing_weight=None,
+            effective_sizing_weight=None,
+            evidence=None,
+            evidence_sha256=None,
+        )
     reasons: list[str] = []
     evidence = payload.get("ordinary_paper_admission_evidence")
     if not isinstance(evidence, Mapping):
-        return OrdinaryPaperAdmissionResult(
-            True,
-            False,
-            ("ordinary_paper_evidence_missing",),
-            None,
-            None,
-            None,
-            None,
+        return _ordinary_paper_admission_result(
+            claimed=True,
+            accepted=False,
+            rejection_reasons=("ordinary_paper_evidence_missing",),
+            publisher_sizing_weight=None,
+            effective_sizing_weight=None,
+            evidence=None,
+            evidence_sha256=None,
         )
     evidence = copy.deepcopy(dict(evidence))
     try:
@@ -663,13 +861,8 @@ def revalidate_ordinary_paper_transport(
     if evidence_sha256 != payload.get("ordinary_paper_admission_evidence_sha256"):
         reasons.append("ordinary_paper_evidence_hash_mismatch")
 
-    if (
-        source_prediction is not None
-        or source_prediction_observed_ttl_seconds is not None
-    ):
-        prior_source_ttl = _finite(
-            evidence.get("source_prediction_observed_ttl_seconds")
-        )
+    if source_prediction is not None or source_prediction_observed_ttl_seconds is not None:
+        prior_source_ttl = _finite(evidence.get("source_prediction_observed_ttl_seconds"))
         current_source_ttl = _finite(source_prediction_observed_ttl_seconds)
         if (
             current_source_ttl is None
@@ -689,17 +882,13 @@ def revalidate_ordinary_paper_transport(
                 }:
                     continue
                 if source_prediction.get(field) != evidence.get(field):
-                    reasons.append(
-                        f"ordinary_paper_source_prediction_readback_{field}_mismatch"
-                    )
+                    reasons.append(f"ordinary_paper_source_prediction_readback_{field}_mismatch")
                     break
 
     assessed = _assess_evidence(
         evidence,
         replay_snapshot=replay_snapshot,
-        replay_snapshot_observed_ttl_seconds=(
-            replay_snapshot_observed_ttl_seconds
-        ),
+        replay_snapshot_observed_ttl_seconds=(replay_snapshot_observed_ttl_seconds),
     )
     reasons.extend(assessed.rejection_reasons)
     for field in (
@@ -737,9 +926,7 @@ def revalidate_ordinary_paper_transport(
     if payload.get("ordinary_paper_effective_microstructure_action") != evidence.get(
         "ordinary_paper_effective_microstructure_action"
     ):
-        reasons.append(
-            "ordinary_paper_transport_effective_microstructure_action_mismatch"
-        )
+        reasons.append("ordinary_paper_transport_effective_microstructure_action_mismatch")
     if expected_identity is not None:
         for field in _IDENTITY_FIELDS:
             expected = expected_identity.get(field)
@@ -747,19 +934,15 @@ def revalidate_ordinary_paper_transport(
                 expected = expected_identity.get("winner_proposal_id")
             if field == "selected_action" and expected in (None, ""):
                 expected = expected_identity.get("side")
-            if expected not in (None, "") and str(evidence.get(field) or "") != str(
-                expected
-            ):
+            if expected not in (None, "") and str(evidence.get(field) or "") != str(expected):
                 reasons.append(f"ordinary_paper_transport_{field}_identity_mismatch")
     reasons = sorted(set(reasons))
-    return OrdinaryPaperAdmissionResult(
+    return _ordinary_paper_admission_result(
         claimed=True,
         accepted=not reasons,
         rejection_reasons=tuple(reasons),
         publisher_sizing_weight=assessed.publisher_sizing_weight,
-        effective_sizing_weight=(
-            assessed.effective_sizing_weight if not reasons else None
-        ),
+        effective_sizing_weight=(assessed.effective_sizing_weight if not reasons else None),
         evidence=evidence,
         evidence_sha256=evidence_sha256,
     )
@@ -772,6 +955,7 @@ def _assess_evidence(
     replay_snapshot_observed_ttl_seconds: Any,
 ) -> OrdinaryPaperAdmissionResult:
     evidence = copy.deepcopy(dict(evidence))
+    assert isinstance(evidence, dict)
     reasons: list[str] = []
     if evidence.get("schema_version") != ORDINARY_PAPER_EVIDENCE_SCHEMA_VERSION:
         reasons.append("ordinary_paper_evidence_schema_invalid")
@@ -817,24 +1001,18 @@ def _assess_evidence(
         expected_timeframe=evidence.get("timeframe"),
         expected_tensor_id=source_hashes.get("feature_tensor_id"),
         expected_feature_snapshot_id=evidence.get("feature_snapshot_id"),
-        expected_tensor_source_lineage_hash=source_hashes.get(
-            "tensor_source_lineage_hash"
-        ),
+        expected_tensor_source_lineage_hash=source_hashes.get("tensor_source_lineage_hash"),
         expected_ppo_decision_time=evidence.get("ppo_decision_time"),
     )
-    reasons.extend(
-        f"ordinary_paper_{reason}" for reason in microstructure_reasons
-    )
+    reasons.extend(f"ordinary_paper_{reason}" for reason in microstructure_reasons)
     inner_microstructure_hash = (
         microstructure_evidence.get("evidence_sha256")
         if isinstance(microstructure_evidence, Mapping)
         else None
     )
     if (
-        evidence.get("microstructure_trust_evidence_sha256")
-        != inner_microstructure_hash
-        or source_hashes.get("microstructure_trust_evidence_sha256")
-        != inner_microstructure_hash
+        evidence.get("microstructure_trust_evidence_sha256") != inner_microstructure_hash
+        or source_hashes.get("microstructure_trust_evidence_sha256") != inner_microstructure_hash
     ):
         reasons.append("ordinary_paper_microstructure_evidence_hash_not_bound")
     source_payload_hash = (
@@ -878,19 +1056,11 @@ def _assess_evidence(
         reasons.append("ordinary_paper_live_gate_not_blocked")
     if evidence.get("live_symbols") != []:
         reasons.append("ordinary_paper_live_symbols_not_empty")
-    canonical_prediction_key = (
-        f"v2:prediction:{evidence.get('symbol')}:{evidence.get('timeframe')}"
-    )
+    canonical_prediction_key = f"v2:prediction:{evidence.get('symbol')}:{evidence.get('timeframe')}"
     if evidence.get("source_redis_key") != canonical_prediction_key:
         reasons.append("ordinary_paper_prediction_source_redis_key_invalid")
-    prediction_ttl = _finite(
-        evidence.get("source_prediction_observed_ttl_seconds")
-    )
-    if (
-        prediction_ttl is None
-        or prediction_ttl <= 0.0
-        or not prediction_ttl.is_integer()
-    ):
+    prediction_ttl = _finite(evidence.get("source_prediction_observed_ttl_seconds"))
+    if prediction_ttl is None or prediction_ttl <= 0.0 or not prediction_ttl.is_integer():
         reasons.append("ordinary_paper_prediction_source_ttl_not_positive")
     if str(evidence.get("row_classification") or "").upper() != "TRAINABLE":
         reasons.append("ordinary_paper_row_not_trainable")
@@ -934,9 +1104,7 @@ def _assess_evidence(
         _replay_rejection_reasons(
             evidence,
             replay_snapshot=replay_snapshot,
-            replay_snapshot_observed_ttl_seconds=(
-                replay_snapshot_observed_ttl_seconds
-            ),
+            replay_snapshot_observed_ttl_seconds=(replay_snapshot_observed_ttl_seconds),
         )
     )
 
@@ -1015,9 +1183,7 @@ def _assess_evidence(
     else:
         effective_microstructure_action = None
         reasons.append("ordinary_paper_microstructure_action_not_routeable")
-    evidence["ordinary_paper_effective_microstructure_action"] = (
-        effective_microstructure_action
-    )
+    evidence["ordinary_paper_effective_microstructure_action"] = effective_microstructure_action
 
     effective_weight: float | None = None
     if (
@@ -1053,7 +1219,7 @@ def _assess_evidence(
         evidence_sha256 = None
         reasons.append("ordinary_paper_evidence_not_canonically_hashable")
     reasons = sorted(set(reasons))
-    return OrdinaryPaperAdmissionResult(
+    return _ordinary_paper_admission_result(
         claimed=True,
         accepted=not reasons,
         rejection_reasons=tuple(reasons),
@@ -1118,10 +1284,8 @@ def _confidence_rejection_reasons(evidence: Mapping[str, Any]) -> list[str]:
         and calibration.get("calibration_fitted") is True
         and calibration.get("probability_semantics_valid") is True
         and calibration.get("label_semantics") == CONFIDENCE_LABEL_SEMANTICS
-        and calibration.get("confidence_head_schema_version")
-        == CONFIDENCE_HEAD_SCHEMA_VERSION
-        and tuple(calibration.get("confidence_head_actions") or ())
-        == CONFIDENCE_HEAD_ACTIONS
+        and calibration.get("confidence_head_schema_version") == CONFIDENCE_HEAD_SCHEMA_VERSION
+        and tuple(calibration.get("confidence_head_actions") or ()) == CONFIDENCE_HEAD_ACTIONS
         and calibration.get("selected_action_is_directional") is True
         and calibration.get("selected_action") == action
         and _is_sha256(calibration.get("model_parameter_fingerprint"))
@@ -1148,8 +1312,7 @@ def _temporal_rejection_reasons(evidence: Mapping[str, Any]) -> list[str]:
         evidence.get("source_event_time_est") or evidence.get("source_event_time")
     )
     clocks["source_received_time"] = _strict_utc(
-        evidence.get("source_received_time_est")
-        or evidence.get("source_received_time")
+        evidence.get("source_received_time_est") or evidence.get("source_received_time")
     )
     for field, clock in clocks.items():
         if clock is None:
@@ -1229,9 +1392,7 @@ def _replay_rejection_reasons(
     ttl_seconds = _finite(evidence.get("replay_snapshot_ttl_seconds"))
     if ttl_seconds is None or ttl_seconds <= 0.0:
         reasons.append("ordinary_paper_replay_snapshot_expiry_not_proven")
-    orchestrator_ttl = _finite(
-        evidence.get("orchestrator_replay_snapshot_observed_ttl_seconds")
-    )
+    orchestrator_ttl = _finite(evidence.get("orchestrator_replay_snapshot_observed_ttl_seconds"))
     current_ttl = _finite(replay_snapshot_observed_ttl_seconds)
     if (
         orchestrator_ttl is None
@@ -1259,7 +1420,7 @@ def _strict_utc(value: Any) -> datetime | None:
         return None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _finite(value: Any) -> float | None:
@@ -1296,6 +1457,7 @@ __all__ = [
     "ORDINARY_PAPER_EVIDENCE_SCHEMA_VERSION",
     "ORDINARY_PAPER_PROVENANCE_FIELDS",
     "ORDINARY_PAPER_QUALITY_FORMULA",
+    "OrdinaryPaperAdmissionIntegrityError",
     "OrdinaryPaperAdmissionResult",
     "assess_ordinary_paper_candidate",
     "build_microstructure_trust_evidence",
@@ -1303,5 +1465,6 @@ __all__ = [
     "copy_ordinary_paper_provenance",
     "microstructure_admission_values",
     "microstructure_trust_evidence_rejection_reasons",
+    "ordinary_paper_admission_result_rejection_reasons",
     "revalidate_ordinary_paper_transport",
 ]
