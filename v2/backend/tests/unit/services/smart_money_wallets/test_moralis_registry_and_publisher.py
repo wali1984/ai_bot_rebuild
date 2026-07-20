@@ -12,6 +12,9 @@ from v2.backend.app.services.smart_money_wallets import publisher as moralis_pub
 from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
 from v2.backend.app.services.smart_money_wallets.client import MoralisClient
 from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
+    MORALIS_CU_PRICING_VERIFIED_ON,
+    MORALIS_DATA_API_CU_PRICING_SOURCE,
+    MORALIS_STREAMS_CU_PRICING_SOURCE,
     moralis_endpoint_registry,
     registry_payload,
 )
@@ -64,6 +67,41 @@ def test_registry_exposes_wallet_token_stream_cadence_and_cu() -> None:
     assert endpoints["token_metadata"]["requires_token"] is True
     assert endpoints["streams"]["stream_based"] is True
     assert endpoints["streams"]["cadence_seconds_tier0"] == 0
+
+
+def test_registry_cu_reservations_cover_verified_official_costs() -> None:
+    payload = registry_payload()
+    endpoints = {row["endpoint_id"]: row for row in payload["endpoints"]}
+    official_cost_floor = {
+        "wallet_token_balances_price": 100,
+        "wallet_history": 150,
+        "wallet_transactions": 30,
+        "wallet_networth": 250,
+        "wallet_address_transfers": 150,
+        "token_transfers": 50,
+        "token_address_transfers": 50,
+        "token_holders": 50,
+        "wallet_swaps": 50,
+        "token_swaps": 50,
+        "token_metadata": 10,
+        "token_price": 50,
+        "multiple_token_prices": 100,
+        "streams": 10,
+    }
+
+    assert set(endpoints) == set(official_cost_floor)
+    assert all(
+        endpoints[endpoint_id]["cu_cost"] >= official_cost
+        for endpoint_id, official_cost in official_cost_floor.items()
+    )
+    assert endpoints["wallet_networth"]["cu_cost"] == 250
+    assert endpoints["multiple_token_prices"]["cu_cost"] == 100
+    assert payload["compute_unit_pricing"] == {
+        "data_api_source": MORALIS_DATA_API_CU_PRICING_SOURCE,
+        "streams_source": MORALIS_STREAMS_CU_PRICING_SOURCE,
+        "verified_on": MORALIS_CU_PRICING_VERIFIED_ON,
+        "estimate_policy": "OFFICIAL_CURRENT_OR_CONSERVATIVE_WHEN_IDENTITY_UNVERIFIED",
+    }
 
 
 def test_stream_endpoint_is_not_polled_by_client() -> None:

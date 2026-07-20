@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+MORALIS_DATA_API_CU_PRICING_SOURCE = "https://docs.moralis.com/data-api/pricing"
+MORALIS_STREAMS_CU_PRICING_SOURCE = "https://docs.moralis.com/streams/pricing"
+MORALIS_CU_PRICING_VERIFIED_ON = "2026-07-19"
+
 
 @dataclass(frozen=True)
 class MoralisEndpointSpec:
@@ -88,7 +92,7 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             path_template="/wallets/{wallet}/net-worth?chain={chain}",
             purpose="wallet size and whale-score context",
             priority="MEDIUM",
-            cu_cost=100,
+            cu_cost=250,
             cadence_seconds_tier0=1800,
             cadence_seconds_tier1=7200,
             cadence_seconds_full_watchlist=21600,
@@ -243,7 +247,7 @@ def moralis_endpoint_registry() -> tuple[MoralisEndpointSpec, ...]:
             path_template="/erc20/prices?chain={chain}&tokens={token}",
             purpose="batched token price confirmation where supported",
             priority="LOW",
-            cu_cost=50,
+            cu_cost=100,
             cadence_seconds_tier0=900,
             cadence_seconds_tier1=900,
             cadence_seconds_full_watchlist=21600,
@@ -285,6 +289,12 @@ def registry_payload() -> dict[str, Any]:
         "normal_max_rps": 5,
         "catchup_max_rps": 10,
         "hard_max_rps": 30,
+        "compute_unit_pricing": {
+            "data_api_source": MORALIS_DATA_API_CU_PRICING_SOURCE,
+            "streams_source": MORALIS_STREAMS_CU_PRICING_SOURCE,
+            "verified_on": MORALIS_CU_PRICING_VERIFIED_ON,
+            "estimate_policy": "OFFICIAL_CURRENT_OR_CONSERVATIVE_WHEN_IDENTITY_UNVERIFIED",
+        },
         "endpoint_count": len(endpoints),
         "endpoints": endpoints,
         "wallet_token_stream_cadence_contract": {
