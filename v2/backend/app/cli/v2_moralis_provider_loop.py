@@ -44,6 +44,7 @@ SCHEDULER_STATUS_KEY = MORALIS_SCHEDULER_STATUS_KEY
 ROTATION_CURSOR_KEY = "v2:provider:moralis:rotation_cursor:{chain}"
 SCHEDULER_LEASE_KEY = "v2:provider:moralis:scheduler_lease:{chain}"
 CADENCE_CLAIM_KEY = "v2:provider:moralis:cadence_claim:{chain}:{job_digest}"
+LOOP_LOG_SCHEMA_VERSION = "moralis_provider_loop_log_v1"
 ContractIdentityKey = tuple[str, str]
 PollJob = tuple[MoralisEndpointSpec, int, str | None, str | None]
 
@@ -97,6 +98,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--symbol", default=os.environ.get("MORALIS_SYMBOL", "BTCUSDT"))
     parser.add_argument("--timeframe", default=os.environ.get("MORALIS_TIMEFRAME", "1m"))
     parser.add_argument("--once", action="store_true")
+    parser.add_argument(
+        "--full-loop-report",
+        action="store_true",
+        help="print the complete scheduler document on every loop iteration",
+    )
     parser.add_argument("--sleep-seconds", type=float, default=300.0)
     args = parser.parse_args(argv)
     try:
@@ -126,10 +132,75 @@ def main(argv: list[str] | None = None) -> int:
             scheduler_state=scheduler_state,
             force=args.once,
         )
-        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+        printable = report if args.once or args.full_loop_report else _loop_log_report(report)
+        print(
+            json.dumps(
+                printable,
+                indent=2 if args.once or args.full_loop_report else None,
+                sort_keys=True,
+                separators=None if args.once or args.full_loop_report else (",", ":"),
+                default=str,
+            ),
+            flush=True,
+        )
         if args.once:
             return 0
         time.sleep(max(60.0, args.sleep_seconds))
+
+
+def _loop_log_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Project one bounded console heartbeat from the Redis-published report.
+
+    The loop separately attempts to publish the complete scheduler document,
+    endpoint registry, and skipped-job details to
+    ``MORALIS_SCHEDULER_STATUS_KEY``.  Reprinting those multi-megabyte
+    structures every five minutes adds no evidence and can grow the service log
+    by gigabytes per day.
+    """
+
+    schedule = report.get("schedule_plan")
+    schedule_plan = schedule if isinstance(schedule, Mapping) else {}
+    return {
+        "schema_version": LOOP_LOG_SCHEMA_VERSION,
+        "provider": "moralis",
+        "generated_utc": report.get("generated_utc"),
+        "status": report.get("status"),
+        "bootstrap_status": report.get("bootstrap_status"),
+        "chain": report.get("chain"),
+        "token_count": report.get("token_count"),
+        "token_map_count": report.get("token_map_count"),
+        "wallet_watchlist_count": report.get("wallet_watchlist_count"),
+        "request_count": report.get("request_count"),
+        "result_count": report.get("result_count"),
+        "actual_payload_results": report.get("actual_payload_results"),
+        "dispatched_request_count": report.get("dispatched_request_count"),
+        "skipped_not_due_count": report.get("skipped_not_due_count"),
+        "scheduler_run_suppressed_reason": report.get(
+            "scheduler_run_suppressed_reason"
+        ),
+        "durable_cu_budget_status_published": report.get(
+            "durable_cu_budget_status_published"
+        ),
+        "durable_fair_rotation": report.get("durable_fair_rotation"),
+        "budget_authority": schedule_plan.get("budget_authority"),
+        "budget_authority_available": schedule_plan.get(
+            "budget_authority_available"
+        ),
+        "remaining_today_compute_units": schedule_plan.get(
+            "remaining_today_compute_units"
+        ),
+        "estimated_compute_units_per_day": schedule_plan.get(
+            "estimated_compute_units_per_day"
+        ),
+        "effective_daily_compute_unit_limit": schedule_plan.get(
+            "effective_daily_compute_unit_limit"
+        ),
+        "full_scheduler_report_target_redis_key": SCHEDULER_STATUS_KEY,
+        "full_scheduler_report_console_omitted": True,
+        "raw_key_exposed": False,
+        "places_real_order": False,
+        "routes_to_live": False,
+    }
 
 
 def run_once(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from v2.backend.app.cli.v2_moralis_provider_loop import run_once
+from v2.backend.app.cli.v2_moralis_provider_loop import _loop_log_report, run_once
 from v2.backend.app.cli.v2_moralis_token_map_bootstrap import build_phase0_state
 from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
 
@@ -130,6 +130,53 @@ class FakeClient:
             {"result": [{"direction": "out", "value_usd": 100, "block_timestamp": "2026-07-08T12:00:00Z"}]},
             request_dispatched=True,
         )
+
+
+def test_loop_log_report_is_bounded_and_keeps_operational_truth() -> None:
+    report = {
+        "generated_utc": "2026-07-20T11:03:24Z",
+        "status": "READY",
+        "bootstrap_status": "WATCHLIST_READY",
+        "chain": "eth",
+        "token_count": 6,
+        "token_map_count": 6,
+        "wallet_watchlist_count": 0,
+        "request_count": 2,
+        "result_count": 2,
+        "actual_payload_results": 0,
+        "dispatched_request_count": 2,
+        "skipped_not_due_count": 28,
+        "scheduler_run_suppressed_reason": None,
+        "durable_cu_budget_status_published": True,
+        "durable_fair_rotation": True,
+        "schedule_plan": {
+            "budget_authority": "DURABLE_CU_LEDGER",
+            "budget_authority_available": True,
+            "remaining_today_compute_units": 31_440,
+            "estimated_compute_units_per_day": 44_520,
+            "effective_daily_compute_unit_limit": 45_000,
+            "endpoints": [{"payload": "x" * 100_000}] * 20,
+        },
+        "registry": {"payload": "y" * 1_000_000},
+        "skipped_not_due": [{"payload": "z" * 100_000}] * 20,
+        "api_key": "must-not-reach-console",
+    }
+
+    compact = _loop_log_report(report)
+    encoded = json.dumps(compact, sort_keys=True, separators=(",", ":"))
+
+    assert compact["schema_version"] == "moralis_provider_loop_log_v1"
+    assert compact["actual_payload_results"] == 0
+    assert compact["budget_authority"] == "DURABLE_CU_LEDGER"
+    assert compact["remaining_today_compute_units"] == 31_440
+    assert compact["full_scheduler_report_console_omitted"] is True
+    assert compact["raw_key_exposed"] is False
+    assert compact["places_real_order"] is False
+    assert compact["routes_to_live"] is False
+    assert "registry" not in compact
+    assert "skipped_not_due" not in compact
+    assert "api_key" not in compact
+    assert len(encoded.encode("utf-8")) < 4_096
 
 
 def test_moralis_loop_no_watchlist_publishes_gray_and_makes_no_requests(monkeypatch) -> None:
