@@ -443,6 +443,42 @@ def _parse_symbols(raw: str) -> tuple[str, ...]:
     return symbols or _resolve_universe_symbols()
 
 
+def _bounded_loop_log_summary(summary: dict[str, Any]) -> dict[str, Any]:
+    """Return bounded loop telemetry while the full dashboard stays on disk."""
+
+    non_current = summary.get("non_current_symbols")
+    non_current_symbols = (
+        [symbol for symbol in non_current if isinstance(symbol, str)]
+        if isinstance(non_current, list)
+        else []
+    )
+    sample_limit = 16
+    return {
+        "schema_version": "v2_market_chart_payload_publisher_loop_log_v1",
+        "worker_id": WORKER_ID,
+        "generated_utc": summary.get("generated_utc"),
+        "generated_est": summary.get("generated_est"),
+        "status": summary.get("status"),
+        "symbols_count": summary.get("symbols_count"),
+        "timeframe": summary.get("timeframe"),
+        "require_wsds": summary.get("require_wsds"),
+        "status_counts": summary.get("status_counts"),
+        "current_wsds_count": summary.get("current_wsds_count"),
+        "non_current_symbol_count": len(non_current_symbols),
+        "non_current_symbols_sample": non_current_symbols[:sample_limit],
+        "non_current_symbols_omitted_count": max(
+            0,
+            len(non_current_symbols) - sample_limit,
+        ),
+        "full_status_path": (
+            "/operator_runtime/v2_market_chart/latest/operator_dashboard_payload.json"
+        ),
+        "full_payloads_omitted_from_loop_log": True,
+        "live_gate": summary.get("live_gate"),
+        "writes_exchange_orders": False,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--symbols", default="auto", help="Comma-separated symbols, or auto/all/universe for the full V2 symbol universe.")
@@ -468,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
                 sample_interval_seconds=float(args.sample_interval_seconds),
                 require_wsds=bool(args.require_wsds),
             )
-            print(json.dumps(summary, sort_keys=True), flush=True)
+            print(json.dumps(_bounded_loop_log_summary(summary), sort_keys=True), flush=True)
             time.sleep(max(0.5, float(args.interval_seconds)))
     else:
         summary = publish(
