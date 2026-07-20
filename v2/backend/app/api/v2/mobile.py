@@ -3053,6 +3053,65 @@ async def get_mobile_derivatives_summary(
     }
 
 
+@router.get("/markets")
+async def get_mobile_markets(
+    actor: UserRecord | None = Depends(optional_auth),
+) -> dict[str, Any]:
+    """Compact markets list for iOS (one slim row per tracked symbol).
+
+    Reuses the same enriched overview rows as /api/v2/market/overview (bounded
+    explicit Redis reads with a short-TTL process cache) and projects ~16
+    scalars per symbol so the payload stays a few KB on cellular. Absent
+    upstream keys yield honest nulls — nothing is fabricated.
+    """
+    from app.api.v2.market_contracts import (  # noqa: PLC0415 - avoid import cycle at module load
+        _redis_market_overview_rows,
+    )
+
+    try:
+        rows, rows_timestamp = _redis_market_overview_rows()
+    except Exception:
+        rows, rows_timestamp = [], None
+    markets = [
+        {
+            "symbol": row.get("symbol"),
+            "last_price": _optional_float(row.get("last_price")),
+            "change_24h": _optional_float(row.get("change_24h")),
+            "change_1h": _optional_float(row.get("change_1h")),
+            "change_7d": _optional_float(row.get("change_7d")),
+            "funding_rate": _optional_float(row.get("funding_rate")),
+            "next_funding_time": row.get("next_funding_time"),
+            "open_interest": _optional_float(row.get("open_interest")),
+            "open_interest_delta_1h_usd": _optional_float(row.get("open_interest_delta_1h_usd")),
+            "long_short_ratio": _optional_float(row.get("long_short_ratio")),
+            "turnover_24h_usd": _optional_float(row.get("volume_24h_quote_usd")),
+            "spread_bps": _optional_float(row.get("spread_bps")),
+            "liquidation_cascade_risk": _optional_float(row.get("liquidation_cascade_risk")),
+            "liq_direction_bias_1h": _optional_float(row.get("liq_direction_bias_1h")),
+            "rsi_1m": _optional_float(row.get("rsi_1m")),
+            "htf_trend": row.get("htf_trend"),
+            "altdata_symbol_score": _optional_float(row.get("altdata_symbol_score")),
+            "market_cap_rank": row.get("market_cap_rank"),
+        }
+        for row in rows
+        if isinstance(row, dict) and row.get("symbol")
+    ]
+    age_seconds = _iso_age_seconds(rows_timestamp)
+    return {
+        "schema_version": "mobile_markets_v1",
+        "generated_utc": _utc_now(),
+        "payload_generated_utc": rows_timestamp,
+        "source": "redis:v2:market:kline_current + per-symbol enrichment (shared with /api/v2/market/overview)",
+        "staleness_seconds": age_seconds,
+        "freshness_status": _derivatives_freshness(age_seconds),
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "routes_to_live": False,
+        "markets": markets,
+        "count": len(markets),
+    }
+
+
 @router.get("/signal-matrix")
 async def get_mobile_signal_matrix(
     symbols: str | None = None,

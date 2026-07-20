@@ -361,13 +361,18 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
         "title": "Moralis Smart-Money Flow",
         # Raw on-chain payload namespace the provider loop actually writes
         # (token_transfers/swaps/token_holders/token_price/metadata per contract) —
-        # small, scannable (~19 keys). The legacy `v2:market:moralis:*` symbol-keyed
-        # bridge namespace is not yet populated, so the ingestor read from an empty
+        # small (~19 keys). The legacy `v2:market:moralis:*` symbol-keyed bridge
+        # namespace is not yet populated, so the ingestor read from an empty
         # pattern and falsely showed offline; point it at the live raw namespace so
-        # status reflects genuine ingestion. Downstream feature-bridge/consumer state
+        # status reflects genuine ingestion. Because this namespace is SPARSE, the
+        # amortized deadline-bounded v2:* key-map scan can intermittently miss it
+        # (flapping live->offline); the provider health key below is re-stamped
+        # every loop cycle and acts as the authoritative liveness heartbeat, same
+        # mechanism as CoinAnk. Downstream feature-bridge/consumer state
         # (whether these payloads become trainer features) is the authoritative
         # /api/v2/providers/status provider card (never green from heartbeat alone).
         "pattern": "v2:moralis:*",
+        "heartbeat_key": "v2:provider:moralis:health",
         "ts_field": None,
         "value_fields": {},
     },

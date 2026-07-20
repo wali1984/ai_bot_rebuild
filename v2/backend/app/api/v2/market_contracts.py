@@ -1052,7 +1052,26 @@ async def _cancel_websocket_disconnect_task(task: "asyncio.Task[Any]") -> None:
 
 def _readonly_resource_ws_payload(target: str, payload: Any, started: float) -> dict[str, Any]:
     elapsed_ms = round((time.monotonic() - started) * 1000)
-    if isinstance(payload, dict) and isinstance(payload.get("source"), str) and isinstance(payload.get("source_type"), str):
+    # Pass through anything that already looks like a contract envelope. The
+    # client unwraps `.data` exactly once whenever ANY contract metadata field
+    # is present (source, source_type, endpoint, mode, missing_fields,
+    # warnings) — so re-wrapping such a payload double-nests it and the
+    # client's single unwrap yields the envelope itself as "data", making every
+    # field lookup miss (providers/status: all cards MISSING on the first WS
+    # tick after a clean HTTP load).
+    payload_is_envelope = (
+        isinstance(payload, dict)
+        and "data" in payload
+        and (
+            isinstance(payload.get("source"), str)
+            or isinstance(payload.get("source_type"), str)
+            or isinstance(payload.get("endpoint"), str)
+            or isinstance(payload.get("mode"), str)
+            or isinstance(payload.get("missing_fields"), list)
+            or isinstance(payload.get("warnings"), list)
+        )
+    )
+    if payload_is_envelope:
         result = {
             **payload,
             "transport": "websocket",
@@ -1062,6 +1081,8 @@ def _readonly_resource_ws_payload(target: str, payload: Any, started: float) -> 
             result["endpoint"] = target
         if "lag_ms" not in result:
             result["lag_ms"] = elapsed_ms
+        if "source_type" not in result:
+            result["source_type"] = "api"
         return result
 
     source_type = "static_payload" if target.split("?", 1)[0].endswith(".json") else "api"
@@ -4113,6 +4134,227 @@ def _symbol_from_payload(symbol: str | None, terminal: dict[str, Any] | None) ->
     return "BTCUSDT"
 
 
+# --- Per-symbol market enrichment (additive; bounded explicit reads only) ---
+# Short-TTL in-process cache so the WS auto-stream cadence (~2.5s) re-serves the
+# parsed enrichment instead of re-reading/re-parsing ~10 Redis payloads/symbol.
+MARKET_ENRICHMENT_CACHE_TTL_SECONDS = float(
+    os.environ.get("ALPHAFORGE_MARKET_ENRICHMENT_CACHE_TTL_SECONDS", "2.5")
+)
+MARKET_ROW_ENRICHMENT_MAX_SYMBOLS = int(
+    os.environ.get("ALPHAFORGE_MARKET_ROW_ENRICHMENT_MAX_SYMBOLS", "48")
+)
+MARKET_ENRICHMENT_CACHE_LOCK = threading.Lock()
+MARKET_ENRICHMENT_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+
+# Explicit known key templates per symbol — never glob/SCAN (1.58M-key Redis).
+_MARKET_ENRICHMENT_KEY_TEMPLATES = (
+    "v2:altdata:coingecko:symbol:{s}",
+    "v2:orderbook:features:binance:{s}",
+    "v2:liquidations:levels:{s}:1m",
+    "v2:market:liquidations:aggregate:{s}",
+    "v2:features:ta_closed:{s}:1m",
+    "v2:regime:gate:{s}:1m",
+    "v2:altdata:symbol_score:{s}",
+    "v2:coinglass:open_interest:{s}",
+    "v2:market:agg_trades:{s}",
+)
+
+
+def _json_dict_or_none(raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    try:
+        payload = json.loads(str(raw))
+    except (TypeError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _pct_to_fraction(value: Any) -> float | None:
+    """CoinGecko percentage fields (0.8 == +0.8%) -> fraction, matching change_24h."""
+    number = _float(value)
+    return (number / 100.0) if number is not None else None
+
+
+def _taker_buy_ratio_from_agg_trades(agg: dict[str, Any] | None) -> tuple[float | None, int | None]:
+    """Quote-volume-weighted taker-buy share from v2:market:agg_trades trades[].m.
+
+    Binance semantics: m=True means the BUYER was the maker, i.e. the taker SOLD.
+    Taker-buy flow is therefore the m=False side. Returns (ratio, trade_count).
+    """
+    if not isinstance(agg, dict):
+        return None, None
+    trades = agg.get("trades")
+    if not isinstance(trades, list) or not trades:
+        return None, _int(agg.get("trade_count"))
+    taker_buy_quote = 0.0
+    total_quote = 0.0
+    for trade in trades[:500]:
+        if not isinstance(trade, dict):
+            continue
+        price = _float(trade.get("p"))
+        qty = _float(trade.get("q"))
+        if price is None or qty is None:
+            continue
+        quote = price * qty
+        total_quote += quote
+        if trade.get("m") is False:
+            taker_buy_quote += quote
+    if total_quote <= 0:
+        return None, _int(agg.get("trade_count")) or len(trades)
+    return round(taker_buy_quote / total_quote, 6), _int(agg.get("trade_count")) or len(trades)
+
+
+def _min_defined(*values: float | None) -> float | None:
+    present = [value for value in values if value is not None]
+    return min(present) if present else None
+
+
+def _symbol_enrichment_fields(payloads: dict[str, dict[str, Any] | None]) -> dict[str, Any]:
+    """Project the per-symbol Redis payload set into compact row-level fields.
+
+    Every field is None-safe: absent upstream keys yield honest nulls, never
+    fabricated values.
+    """
+    coingecko = payloads.get("coingecko")
+    orderbook = payloads.get("orderbook_features")
+    liq_levels = payloads.get("liquidation_levels")
+    liq_aggregate = payloads.get("liquidations_aggregate")
+    ta_closed = payloads.get("ta_closed_1m")
+    regime = payloads.get("regime_gate_1m")
+    symbol_score = payloads.get("altdata_symbol_score")
+    coinglass_oi = payloads.get("coinglass_open_interest")
+    agg_trades = payloads.get("agg_trades")
+
+    indicators = (
+        ta_closed.get("indicators")
+        if isinstance(ta_closed, dict) and isinstance(ta_closed.get("indicators"), dict)
+        else {}
+    )
+    regime_inputs = (
+        regime.get("inputs")
+        if isinstance(regime, dict) and isinstance(regime.get("inputs"), dict)
+        else {}
+    )
+    coinglass_features = (
+        coinglass_oi.get("features")
+        if isinstance(coinglass_oi, dict) and isinstance(coinglass_oi.get("features"), dict)
+        else {}
+    )
+    distance_long = (
+        _float(liq_levels.get("distance_to_long_liq_bps")) if isinstance(liq_levels, dict) else None
+    )
+    distance_short = (
+        _float(liq_levels.get("distance_to_short_liq_bps")) if isinstance(liq_levels, dict) else None
+    )
+    taker_buy_ratio, taker_trade_count = _taker_buy_ratio_from_agg_trades(agg_trades)
+    return {
+        # Momentum across horizons (CoinGecko; fraction units to match change_24h)
+        "change_1h": _pct_to_fraction(coingecko.get("price_change_percentage_1h")) if isinstance(coingecko, dict) else None,
+        "change_7d": _pct_to_fraction(coingecko.get("price_change_percentage_7d")) if isinstance(coingecko, dict) else None,
+        "market_cap_rank": _int(coingecko.get("market_cap_rank")) if isinstance(coingecko, dict) else None,
+        "market_cap_usd": _float(coingecko.get("market_cap")) if isinstance(coingecko, dict) else None,
+        # Microstructure (250ms direct Binance orderbook feed)
+        "spread_bps": _float(orderbook.get("spread_bps")) if isinstance(orderbook, dict) else None,
+        "orderbook_imbalance": _float(orderbook.get("depth_imbalance")) if isinstance(orderbook, dict) else None,
+        "estimated_price_impact_bps": _float(orderbook.get("estimated_price_impact_bps")) if isinstance(orderbook, dict) else None,
+        # Liquidation-level proximity + cascade heat (1m engine)
+        "liquidation_cascade_risk": _float(liq_levels.get("liquidation_cascade_risk")) if isinstance(liq_levels, dict) else None,
+        "distance_to_long_liq_bps": distance_long,
+        "distance_to_short_liq_bps": distance_short,
+        "distance_to_nearest_liq_bps": _min_defined(distance_long, distance_short),
+        # Realized liquidation flow (event aggregates)
+        "liq_notional_1h": _float(liq_aggregate.get("notional_1h")) if isinstance(liq_aggregate, dict) else None,
+        "liq_count_1h": _int(liq_aggregate.get("count_1h")) if isinstance(liq_aggregate, dict) else None,
+        "liq_direction_bias_1h": _float(liq_aggregate.get("direction_bias_1h")) if isinstance(liq_aggregate, dict) else None,
+        # TA chips (closed 1m candles only)
+        "rsi_1m": _float(indicators.get("rsi_14") if indicators.get("rsi_14") is not None else indicators.get("ta_RSI_14")),
+        "atr_1m": _float(indicators.get("atr_14") if indicators.get("atr_14") is not None else indicators.get("ta_ATR_14")),
+        "adx_1m": _float(indicators.get("ta_ADX")),
+        "htf_trend": regime_inputs.get("htf_trend") if isinstance(regime_inputs.get("htf_trend"), str) else None,
+        "rsi_zone": regime_inputs.get("rsi_zone") if isinstance(regime_inputs.get("rsi_zone"), str) else None,
+        "macd_direction": regime_inputs.get("macd_direction") if isinstance(regime_inputs.get("macd_direction"), str) else None,
+        # Composite alt-data quality
+        "altdata_symbol_score": _float(symbol_score.get("altdata_symbol_score")) if isinstance(symbol_score, dict) else None,
+        "altdata_symbol_rank": _int(symbol_score.get("altdata_symbol_rank")) if isinstance(symbol_score, dict) else None,
+        "coinank_derivatives_score": _float(symbol_score.get("coinank_derivatives_score")) if isinstance(symbol_score, dict) else None,
+        # CoinGlass derivatives deltas
+        "open_interest_delta_1h_usd": _float(coinglass_features.get("coinglass_open_interest_delta_usd_1h")),
+        "coinglass_open_interest_usd": _float(coinglass_features.get("coinglass_open_interest_usd")),
+        # Volume quality (taker flow from the public aggTrade websocket tape)
+        "taker_buy_ratio": taker_buy_ratio,
+        "taker_flow_trade_count": taker_trade_count,
+    }
+
+
+def _market_symbol_enrichment(redis_client: Any, symbols: list[str]) -> dict[str, dict[str, Any]]:
+    """Bounded pipelined per-symbol enrichment with a short-TTL process cache.
+
+    Reads only explicit known keys (9 GETs/symbol, capped symbol count); returns
+    {symbol: fields}. Failures degrade to empty dicts — never raises.
+    """
+    if redis_client is None or not symbols:
+        return {}
+    bounded_symbols = [
+        symbol for symbol in symbols[:MARKET_ROW_ENRICHMENT_MAX_SYMBOLS] if isinstance(symbol, str)
+    ]
+    now = time.monotonic()
+    results: dict[str, dict[str, Any]] = {}
+    misses: list[str] = []
+    with MARKET_ENRICHMENT_CACHE_LOCK:
+        for symbol in bounded_symbols:
+            cached = MARKET_ENRICHMENT_CACHE.get(symbol)
+            if cached and cached[0] > now:
+                results[symbol] = cached[1]
+            else:
+                misses.append(symbol)
+    if not misses:
+        return results
+    payload_names = (
+        "coingecko",
+        "orderbook_features",
+        "liquidation_levels",
+        "liquidations_aggregate",
+        "ta_closed_1m",
+        "regime_gate_1m",
+        "altdata_symbol_score",
+        "coinglass_open_interest",
+        "agg_trades",
+    )
+    try:
+        pipe = redis_client.pipeline()
+        for symbol in misses:
+            for template in _MARKET_ENRICHMENT_KEY_TEMPLATES:
+                pipe.get(template.format(s=symbol))
+        raw_results = pipe.execute()
+    except Exception:
+        return results
+    stride = len(_MARKET_ENRICHMENT_KEY_TEMPLATES)
+    expires = time.monotonic() + MARKET_ENRICHMENT_CACHE_TTL_SECONDS
+    for index, symbol in enumerate(misses):
+        chunk = raw_results[index * stride : index * stride + stride]
+        try:
+            payloads = {
+                name: _json_dict_or_none(raw)
+                for name, raw in zip(payload_names, chunk, strict=False)
+            }
+            fields = _symbol_enrichment_fields(payloads)
+        except Exception:
+            fields = {}
+        results[symbol] = fields
+        with MARKET_ENRICHMENT_CACHE_LOCK:
+            MARKET_ENRICHMENT_CACHE[symbol] = (expires, fields)
+            if len(MARKET_ENRICHMENT_CACHE) > 600:
+                stale_keys = [
+                    key for key, (deadline, _) in MARKET_ENRICHMENT_CACHE.items() if deadline <= now
+                ]
+                for key in stale_keys:
+                    MARKET_ENRICHMENT_CACHE.pop(key, None)
+    return results
+
+
 def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
     """Merge ingestor-published funding/OI/long-short into overview rows.
 
@@ -4139,6 +4381,7 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
             pipe.get(f"v2:market:long_short:{symbol}")
             pipe.get(f"v2:market:prices:{symbol}")
         results = pipe.execute()
+        enrichment_by_symbol = _market_symbol_enrichment(redis_client, ordered_symbols)
         for index, symbol in enumerate(ordered_symbols):
             row = rows_by_symbol[symbol]
             funding_raw, oi_raw, ls_raw, prices_raw = results[index * 4 : index * 4 + 4]
@@ -4148,14 +4391,36 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                     row["funding_rate"] = _float(funding.get("lastFundingRate"))
                     row["mark_price"] = _float(funding.get("markPrice"))
                     row["index_price"] = _float(funding.get("indexPrice"))
+                    # Additive: settlement countdown + mark/index basis per row.
+                    row["next_funding_time_ms"] = _int(funding.get("next_funding_time_ms"))
+                    row["next_funding_time"] = _iso_from_ms(funding.get("next_funding_time_ms"))
+                    _mark = row.get("mark_price")
+                    _index = row.get("index_price")
+                    row["basis_bps"] = (
+                        round((_mark - _index) / _index * 10_000, 4)
+                        if _mark is not None and _index not in (None, 0)
+                        else None
+                    )
                 oi = json.loads(oi_raw) if oi_raw else None
                 if isinstance(oi, dict):
-                    row["open_interest"] = _float(oi.get("openInterest"))
+                    # FIX: the standalone v2:market:open_interest payload publishes
+                    # snake_case open_interest (no camelCase openInterest), which
+                    # left this field null on every overview row.
+                    row["open_interest"] = _float(
+                        oi.get("openInterest")
+                        if oi.get("openInterest") is not None
+                        else oi.get("open_interest")
+                    )
+                    row["open_interest_fetched_utc"] = oi.get("fetched_utc")
                 long_short = json.loads(ls_raw) if ls_raw else None
                 if isinstance(long_short, dict):
                     row["long_short_ratio"] = _float(
                         long_short.get("long_short_ratio") or long_short.get("longShortRatio")
                     )
+                    row["long_account_ratio"] = _float(long_short.get("long_account_ratio"))
+                    row["short_account_ratio"] = _float(long_short.get("short_account_ratio"))
+                    # Upstream fetch can lag the key TTL; surface honest freshness.
+                    row["long_short_fetched_utc"] = long_short.get("fetched_utc")
                 # 24h aggregates from the Binance 24hr ticker (change/volume/high/low)
                 # were null on the overview rows, blanking dashboard Market Pulse.
                 prices = json.loads(prices_raw) if prices_raw else None
@@ -4177,6 +4442,37 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                         row["low_24h"] = _float(ticker.get("lowPrice"))
                     if row.get("last_price") is None:
                         row["last_price"] = _float(ticker.get("lastPrice"))
+                    # FIX volume semantics: Redis-kline rows (marked by the
+                    # display_only_current_candle field, which only that builder
+                    # sets) carried the CURRENT 1m candle quote volume in
+                    # turnover_24h (e.g. 1.49M for BTC vs the real 5.06B 24h quote
+                    # volume). Repoint turnover_24h at the true 24h quote-USD
+                    # turnover and keep the old 1m value under an honest name.
+                    # REST-inventory rows already carry 24h semantics — untouched.
+                    if "display_only_current_candle" in row:
+                        _quote_24h = _float(ticker.get("quoteVolume"))
+                        _base_24h = _float(ticker.get("volume"))
+                        if _quote_24h is not None:
+                            _previous_turnover = _float(row.get("turnover_24h"))
+                            if (
+                                _previous_turnover is not None
+                                and abs(_previous_turnover - _quote_24h) > max(1.0, 0.01 * _quote_24h)
+                            ):
+                                row["quote_volume_1m"] = _previous_turnover
+                            row["turnover_24h"] = _quote_24h
+                        row["volume_24h_base"] = _base_24h
+                        row["volume_24h_quote_usd"] = _quote_24h
+                # Explicit unit-suffixed volume fields for REST-inventory rows,
+                # labeled from the row's own already-24h values.
+                if "display_only_current_candle" not in row:
+                    row.setdefault("volume_24h_base", _float(row.get("volume_24h")))
+                    row.setdefault("volume_24h_quote_usd", _float(row.get("turnover_24h")))
+                # Additive per-symbol enrichment (momentum horizons, microstructure,
+                # liquidation heat, TA chips, alt-data scores, taker flow). Never
+                # clobbers an existing non-null row value.
+                for field, value in (enrichment_by_symbol.get(symbol) or {}).items():
+                    if row.get(field) is None:
+                        row[field] = value
             except (TypeError, ValueError):
                 continue
     except Exception:
@@ -4930,6 +5226,201 @@ async def get_ai_predictions(
         )
 
 
+def _parsed_liquidation_ladder(levels: dict[str, Any]) -> dict[str, Any] | None:
+    """Parse the embedded liquidation_levels_json ladder (top_long/top_short)."""
+    raw = levels.get("liquidation_levels_json")
+    if not isinstance(raw, str) or not raw:
+        return None
+    try:
+        ladder = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(ladder, dict):
+        return None
+
+    def _levels_list(name: str) -> list[dict[str, Any]]:
+        rows = ladder.get(name)
+        if not isinstance(rows, list):
+            return []
+        return [
+            {"price": _float(row.get("price")), "strength": _float(row.get("strength"))}
+            for row in rows[:6]
+            if isinstance(row, dict)
+        ]
+
+    return {
+        "current_price": _float(ladder.get("current_price")),
+        "step": _float(ladder.get("step")),
+        "top_long": _levels_list("top_long"),
+        "top_short": _levels_list("top_short"),
+    }
+
+
+def _market_detail_redis_enrichment(symbol: str) -> tuple[dict[str, Any], list[str]]:
+    """Rich single-symbol Redis enrichment for the market detail contract.
+
+    Additive-only: compact row-level fields plus full ta_1m / liquidation /
+    orderbook / regime / alt-data blocks. Bounded explicit key reads (one
+    pipeline); absent keys yield honest nulls. Never raises.
+    """
+    warnings: list[str] = []
+    redis_client = get_redis()
+    if redis_client is None:
+        return {}, ["Redis unavailable for market detail enrichment; enrichment fields omitted"]
+    compact = dict((_market_symbol_enrichment(redis_client, [symbol]) or {}).get(symbol) or {})
+    keys = [
+        f"v2:features:ta_closed:{symbol}:1m",
+        f"v2:liquidations:levels:{symbol}:1m",
+        f"v2:liquidation:enhanced:{symbol}",
+        f"v2:market:liquidations:aggregate:{symbol}",
+        f"v2:market:long_short:{symbol}",
+        f"v2:orderbook:features:binance:{symbol}",
+        f"v2:coinglass:funding:{symbol}",
+        f"v2:market:funding:{symbol}",
+        f"v2:regime:gate:{symbol}:1m",
+    ]
+    try:
+        pipe = redis_client.pipeline()
+        for key in keys:
+            pipe.get(key)
+        raw_rows = pipe.execute()
+    except Exception:
+        return compact, ["Redis pipeline failed for market detail enrichment; compact fields only"]
+    (
+        ta_payload,
+        levels_payload,
+        enhanced_payload,
+        aggregate_payload,
+        long_short_payload,
+        orderbook_payload,
+        coinglass_funding_payload,
+        funding_payload,
+        regime_payload,
+    ) = [_json_dict_or_none(raw) for raw in raw_rows]
+
+    if isinstance(ta_payload, dict) and isinstance(ta_payload.get("indicators"), dict):
+        compact["ta_1m"] = {
+            "indicators": ta_payload["indicators"],
+            "indicator_count": _int(ta_payload.get("indicator_count")),
+            "candle_count": _int(ta_payload.get("candle_count")),
+            "closed_candles_only": bool(ta_payload.get("closed_candles_only")),
+            "generated_utc": ta_payload.get("generated_utc"),
+        }
+    if isinstance(levels_payload, dict):
+        compact["liquidation_levels"] = {
+            "distance_to_long_liq_bps": _float(levels_payload.get("distance_to_long_liq_bps")),
+            "distance_to_short_liq_bps": _float(levels_payload.get("distance_to_short_liq_bps")),
+            "liquidation_cascade_risk": _float(levels_payload.get("liquidation_cascade_risk")),
+            "cascade_risk_semantics": levels_payload.get("liquidation_cascade_risk_semantics"),
+            "levels_count_long": _int(levels_payload.get("liquidation_levels_count_long")),
+            "levels_count_short": _int(levels_payload.get("liquidation_levels_count_short")),
+            "nearest_level_above": _float(levels_payload.get("nearest_liquidation_level_above")),
+            "nearest_level_below": _float(levels_payload.get("nearest_liquidation_level_below")),
+            "sweep_target_short": _float(levels_payload.get("liquidation_sweep_target_short")),
+            "sweep_target_short_distance_bps": _float(levels_payload.get("liquidation_sweep_target_short_distance_bps")),
+            "sweep_target_long": _float(levels_payload.get("liquidation_sweep_target_long")),
+            "sweep_target_long_distance_bps": _float(levels_payload.get("liquidation_sweep_target_long_distance_bps")),
+            "updated_ts_ms": _int(levels_payload.get("liquidation_updated_ts")),
+            "ladder": _parsed_liquidation_ladder(levels_payload),
+        }
+    if isinstance(enhanced_payload, dict):
+        compact["liquidation_enhanced"] = {
+            "cascade_probability": _float(enhanced_payload.get("liquidation_cascade_probability")),
+            "predicted_long_liq_zone": _float(enhanced_payload.get("predicted_long_liq_zone")),
+            "predicted_short_liq_zone": _float(enhanced_payload.get("predicted_short_liq_zone")),
+            "market_stress_indicator": _float(enhanced_payload.get("market_stress_indicator")),
+            "synthetic_data": bool(enhanced_payload.get("synthetic_data")),
+            "generated_utc": enhanced_payload.get("generated_utc"),
+        }
+    if isinstance(aggregate_payload, dict):
+        compact["liquidation_flow"] = {
+            "notional_1h": _float(aggregate_payload.get("notional_1h")),
+            "count_1h": _int(aggregate_payload.get("count_1h")),
+            "long_count_1h": _int(aggregate_payload.get("long_count_1h")),
+            "short_count_1h": _int(aggregate_payload.get("short_count_1h")),
+            "direction_bias_1h": _float(aggregate_payload.get("direction_bias_1h")),
+            "notional_24h": _float(aggregate_payload.get("notional_24h")),
+            "count_24h": _int(aggregate_payload.get("count_24h")),
+            "as_of": _iso_from_ms(aggregate_payload.get("as_of_ms")),
+        }
+    if isinstance(long_short_payload, dict):
+        compact["long_short"] = {
+            "long_short_ratio": _float(
+                long_short_payload.get("long_short_ratio") or long_short_payload.get("longShortRatio")
+            ),
+            "long_account_ratio": _float(long_short_payload.get("long_account_ratio")),
+            "short_account_ratio": _float(long_short_payload.get("short_account_ratio")),
+            "period": long_short_payload.get("period"),
+            "fetched_utc": long_short_payload.get("fetched_utc"),
+        }
+    if isinstance(orderbook_payload, dict):
+        compact["orderbook"] = {
+            "best_bid": _float(orderbook_payload.get("best_bid")),
+            "best_bid_size": _float(orderbook_payload.get("best_bid_size")),
+            "best_ask": _float(orderbook_payload.get("best_ask")),
+            "best_ask_size": _float(orderbook_payload.get("best_ask_size")),
+            "mid": _float(orderbook_payload.get("mid")),
+            "spread_bps": _float(orderbook_payload.get("spread_bps")),
+            "depth_imbalance": _float(orderbook_payload.get("depth_imbalance")),
+            "depth_20_bid_usd": _float(orderbook_payload.get("depth_20_bid_usd")),
+            "depth_20_ask_usd": _float(orderbook_payload.get("depth_20_ask_usd")),
+            "depth_slope": _float(orderbook_payload.get("depth_slope")),
+            "estimated_price_impact_bps": _float(orderbook_payload.get("estimated_price_impact_bps")),
+            "source_latency_ms": _int(orderbook_payload.get("source_latency_ms")),
+            "generated_at": orderbook_payload.get("generated_at"),
+        }
+    if isinstance(funding_payload, dict):
+        _mark = _float(funding_payload.get("mark_price"))
+        _index = _float(funding_payload.get("index_price"))
+        compact["funding_detail"] = {
+            "funding_rate": _float(funding_payload.get("funding_rate")),
+            "mark_price": _mark,
+            "index_price": _index,
+            "basis_bps": (
+                round((_mark - _index) / _index * 10_000, 4)
+                if _mark is not None and _index not in (None, 0)
+                else None
+            ),
+            "next_funding_time_ms": _int(funding_payload.get("next_funding_time_ms")),
+            "next_funding_time": _iso_from_ms(funding_payload.get("next_funding_time_ms")),
+            "estimated_settle_price": _float(funding_payload.get("estimated_settle_price")),
+            "generated_at": funding_payload.get("generated_at"),
+        }
+        compact.setdefault("next_funding_time", _iso_from_ms(funding_payload.get("next_funding_time_ms")))
+        compact.setdefault("basis_bps", compact["funding_detail"]["basis_bps"])
+    coinglass_funding_features = (
+        coinglass_funding_payload.get("features")
+        if isinstance(coinglass_funding_payload, dict)
+        and isinstance(coinglass_funding_payload.get("features"), dict)
+        else {}
+    )
+    if coinglass_funding_features or compact.get("coinglass_open_interest_usd") is not None:
+        compact["coinglass"] = {
+            "open_interest_usd": compact.get("coinglass_open_interest_usd"),
+            "open_interest_delta_1h_usd": compact.get("open_interest_delta_1h_usd"),
+            "funding_rate": _float(coinglass_funding_features.get("coinglass_funding_rate")),
+            "funding_rate_zscore": _float(coinglass_funding_features.get("coinglass_funding_rate_zscore")),
+            "next_funding_minutes": _float(coinglass_funding_features.get("coinglass_next_funding_minutes")),
+        }
+    if isinstance(regime_payload, dict):
+        regime_inputs = regime_payload.get("inputs") if isinstance(regime_payload.get("inputs"), dict) else {}
+        compact["regime_1m"] = {
+            "regime": regime_payload.get("regime"),
+            "confidence": _float(regime_payload.get("confidence")),
+            "htf_trend": regime_inputs.get("htf_trend"),
+            "rsi_zone": regime_inputs.get("rsi_zone"),
+            "macd_direction": regime_inputs.get("macd_direction"),
+            "market_risk_state": regime_inputs.get("market_risk_state"),
+            "missing_inputs": regime_payload.get("missing_inputs"),
+            "generated_utc": regime_payload.get("generated_utc"),
+        }
+    # No funding-history key family exists in Redis yet (checked
+    # v2:market:funding_history / v2:history:funding / v2:coinglass:funding_rate);
+    # stay honest instead of fabricating a series.
+    warnings.append("funding_history omitted: no funding-history key family exists in Redis yet")
+    return compact, warnings
+
+
 @router.get("/market/{symbol}")
 async def get_market_detail(symbol: str) -> dict[str, Any]:
     safe_symbol = _strict_market_symbol(symbol)
@@ -4937,11 +5428,19 @@ async def get_market_detail(symbol: str) -> dict[str, Any]:
         return _invalid_market_symbol_response("/api/v2/market/{symbol}")
     endpoint = f"/api/v2/market/{safe_symbol}"
     api_data, api_missing, api_warnings, api_sources = await run_in_threadpool(_binance_market_snapshot, safe_symbol)
+    detail_enrichment, enrichment_warnings = await run_in_threadpool(
+        _market_detail_redis_enrichment, safe_symbol
+    )
     if api_data is not None:
+        # Additive Redis enrichment; never clobbers a non-null Binance field.
+        for field, value in detail_enrichment.items():
+            if api_data.get(field) is None:
+                api_data[field] = value
+        api_missing = [field for field in api_missing if api_data.get(field) is None]
         return _base_response(
             endpoint=endpoint,
             data=api_data,
-            source=" + ".join(api_sources),
+            source=" + ".join([*api_sources, "redis:v2 per-symbol enrichment"]),
             source_type="api",
             timestamp=_utc_now(),
             missing_fields=api_missing,
@@ -4949,6 +5448,7 @@ async def get_market_detail(symbol: str) -> dict[str, Any]:
                 "Binance public USD-M market data; read-only source",
                 "Realtime stream is still pending; this endpoint refreshes per request",
                 *api_warnings,
+                *enrichment_warnings,
             ],
             symbol=safe_symbol,
             mode="read_only",
@@ -4984,6 +5484,12 @@ async def get_market_detail(symbol: str) -> dict[str, Any]:
         "ask": terminal.get("ask"),
         "spread_bps": terminal.get("spread_bps"),
     }
+    # Additive Redis enrichment on the fallback path as well (honest nulls when
+    # Redis lacks the symbol); never clobbers a non-null fallback field.
+    for field, value in detail_enrichment.items():
+        if data.get(field) is None:
+            data[field] = value
+    warnings.extend(enrichment_warnings)
     missing = [key for key, value in data.items() if value is None and key != "symbol"]
     return _base_response(
         endpoint=endpoint,
