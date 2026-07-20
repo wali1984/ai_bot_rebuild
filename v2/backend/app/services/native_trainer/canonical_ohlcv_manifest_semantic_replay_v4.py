@@ -87,6 +87,16 @@ CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_EVIDENCE_CLASSIFICATION = (
 CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_DOWNSTREAM_STATUS = (
     "NO_FACTORY_UPSTREAM_TRANSPORT_LEDGER_DEPENDENCY_FEATURE_TRAINER_OR_EXECUTION_AUTHORITY"
 )
+CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_SCHEMA_VERSION = "canonical_ohlcv_selected_row_binding_v4"
+CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_EVIDENCE_CLASSIFICATION = (
+    "UNIQUE_MANIFEST_MEMBER_SELECTED_ROW_CAS_SEMANTIC_AUDIT_ONLY"
+)
+CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_DOWNSTREAM_STATUS = (
+    "NO_FACTORY_UPSTREAM_TRANSPORT_LEDGER_DEPENDENCY_FEATURE_TRAINER_OR_EXECUTION_AUTHORITY"
+)
+CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_HASH_DOMAIN = (
+    "canonical_ohlcv_selected_row_binding_v4/result_sha256/v1"
+)
 
 _CLOCK_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
@@ -537,6 +547,39 @@ def _snapshot_manifest_address(
         reason=reason,
     )
     return detached, detached.payload_sha256, detached.payload_byte_count
+
+
+def _snapshot_selected_row_address(
+    value: object,
+) -> tuple[SourcePayloadAddress, str, int, str]:
+    """Detach one bounded row address before any replay or CAS I/O occurs."""
+
+    reason = "canonical_ohlcv_selected_row_binding_address_invalid"
+    if type(value) is not SourcePayloadAddress:
+        _fail(reason)
+    try:
+        schema_version = object.__getattribute__(value, "schema_version")
+        payload_sha256 = object.__getattribute__(value, "payload_sha256")
+        payload_byte_count = object.__getattribute__(value, "payload_byte_count")
+        relative_path = object.__getattribute__(value, "relative_path")
+    except (AttributeError, TypeError):
+        _fail(reason)
+    detached = _address_from_material(
+        {
+            "schema_version": schema_version,
+            "payload_sha256": payload_sha256,
+            "payload_byte_count": payload_byte_count,
+            "relative_path": relative_path,
+        },
+        maximum_byte_count=MAX_OHLCV_CLOSED_PAYLOAD_BYTES,
+        reason=reason,
+    )
+    return (
+        detached,
+        detached.payload_sha256,
+        detached.payload_byte_count,
+        detached.relative_path,
+    )
 
 
 def _read_cas(
@@ -1218,10 +1261,318 @@ def replay_canonical_ohlcv_manifest_semantics_v4(
     return MappingProxyType(detached)
 
 
+def _unique_selected_row_member(
+    manifest: dict[str, object],
+    *,
+    requested_sha256: str,
+    requested_byte_count: int,
+    requested_relative_path: str,
+) -> tuple[dict[str, object], SourcePayloadAddress, int, int, int, int]:
+    reason = "canonical_ohlcv_selected_row_binding_not_unique_manifest_member"
+    selected_values = _exact_list(manifest.get("selected_rows"), reason=reason)
+    declared_count = _exact_int(
+        manifest.get("selected_row_count"),
+        minimum=1,
+        maximum=MAX_OHLCV_CLOSED_ROWS,
+        reason=reason,
+    )
+    if declared_count != len(selected_values):
+        _fail(reason)
+    matches: list[tuple[dict[str, object], SourcePayloadAddress, int, int, int, int]] = []
+    for raw_row in selected_values:
+        row = _exact_dict(raw_row, fields=_SELECTED_ROW_FIELDS, reason=reason)
+        ordinal = _exact_int(row["selected_ordinal"], minimum=0, reason=reason)
+        source_index = _exact_int(row["source_index"], minimum=0, reason=reason)
+        start = _exact_int(row["byte_start"], minimum=0, reason=reason)
+        end = _exact_int(row["byte_end_exclusive"], minimum=1, reason=reason)
+        if end <= start:
+            _fail(reason)
+        span_count = end - start
+        row_sha256 = _required_sha256(row["exact_payload_sha256"], reason=reason)
+        row_byte_count = _exact_int(
+            row["exact_payload_byte_count"],
+            minimum=1,
+            maximum=MAX_OHLCV_CLOSED_PAYLOAD_BYTES,
+            reason=reason,
+        )
+        address = _address_from_material(
+            row["source_payload_cas_address"],
+            maximum_byte_count=span_count,
+            expected_byte_count=span_count,
+            reason=reason,
+        )
+        if (
+            row_byte_count != span_count
+            or address.payload_sha256 != row_sha256
+            or address.payload_byte_count != row_byte_count
+        ):
+            _fail(reason)
+        if (
+            address.payload_sha256 == requested_sha256
+            and address.payload_byte_count == requested_byte_count
+            and address.relative_path == requested_relative_path
+        ):
+            matches.append((row, address, ordinal, source_index, start, end))
+    if len(matches) != 1:
+        _fail(reason)
+    return matches[0]
+
+
+def bind_canonical_ohlcv_selected_row_v4(
+    *,
+    cas_root: str,
+    manifest_address: SourcePayloadAddress,
+    selected_row_address: SourcePayloadAddress,
+    expected_symbol: str,
+    expected_timeframe: str,
+    decision_time: str,
+) -> Mapping[str, object]:
+    """Bind one exact selected-row CAS member to a complete manifest replay.
+
+    The caller-selected row address is snapshotted and bounded before any I/O.
+    Success remains audit-only and cannot grant any downstream authority.
+    """
+
+    (
+        detached_selected_address,
+        selected_payload_sha256,
+        selected_payload_byte_count,
+        selected_relative_path,
+    ) = _snapshot_selected_row_address(selected_row_address)
+    (
+        detached_manifest_address,
+        manifest_payload_sha256,
+        manifest_payload_byte_count,
+    ) = _snapshot_manifest_address(manifest_address)
+
+    base_replay = replay_canonical_ohlcv_manifest_semantics_v4(
+        cas_root=cas_root,
+        manifest_address=detached_manifest_address,
+        expected_symbol=expected_symbol,
+        expected_timeframe=expected_timeframe,
+        decision_time=decision_time,
+    )
+    base_reason = "canonical_ohlcv_selected_row_binding_base_replay_invalid"
+    base_replay_sha256 = _required_sha256(
+        base_replay.get("semantic_replay_sha256"),
+        reason=base_reason,
+    )
+    if (
+        base_replay.get("schema_version")
+        != CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_SCHEMA_VERSION
+        or base_replay.get("manifest_sha256") != manifest_payload_sha256
+        or base_replay.get("manifest_byte_count") != manifest_payload_byte_count
+        or base_replay.get("symbol") != expected_symbol
+        or base_replay.get("timeframe") != expected_timeframe
+        or base_replay.get("decision_time") != decision_time
+        or base_replay.get("generated_at") is not None
+        or base_replay.get("execution_time") is not None
+        or base_replay.get("audit_only") is not True
+        or any(base_replay.get(name) is not False for name in _RESULT_FALSE_AUTHORITY_FIELDS)
+    ):
+        _fail(base_reason)
+    consumer_observed_at = _exact_str(
+        base_replay.get("consumer_observed_at"),
+        reason=base_reason,
+    )
+    decision_text = _exact_str(base_replay.get("decision_time"), reason=base_reason)
+
+    try:
+        reader = ImmutableSourcePayloadReaderV4(cas_root)
+    except ImmutableSourcePayloadReaderV4Error as exc:
+        raise CanonicalOhlcvManifestSemanticReplayV4Error(
+            "canonical_ohlcv_selected_row_binding_cas_root_invalid"
+        ) from exc
+    manifest_bytes = _read_cas(
+        reader,
+        detached_manifest_address,
+        reason="canonical_ohlcv_selected_row_binding_manifest_cas_read_failed",
+    )
+    manifest = _parse_exact_canonical_object(
+        manifest_bytes,
+        fields=_MANIFEST_FIELDS,
+        reason="canonical_ohlcv_selected_row_binding_manifest_json_invalid",
+    )
+    (
+        selected_manifest_row,
+        manifest_row_address,
+        selected_ordinal,
+        source_index,
+        byte_start,
+        byte_end_exclusive,
+    ) = _unique_selected_row_member(
+        manifest,
+        requested_sha256=selected_payload_sha256,
+        requested_byte_count=selected_payload_byte_count,
+        requested_relative_path=selected_relative_path,
+    )
+    if (
+        manifest_row_address.schema_version != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
+        or manifest_row_address.payload_sha256 != selected_payload_sha256
+        or manifest_row_address.payload_byte_count != selected_payload_byte_count
+        or manifest_row_address.relative_path != selected_relative_path
+    ):
+        _fail("canonical_ohlcv_selected_row_binding_address_mismatch")
+
+    selected_row_bytes = _read_cas(
+        reader,
+        detached_selected_address,
+        reason="canonical_ohlcv_selected_row_binding_row_cas_read_failed",
+    )
+    if (
+        hashlib.sha256(selected_row_bytes).hexdigest() != selected_payload_sha256
+        or len(selected_row_bytes) != selected_payload_byte_count
+    ):
+        _fail("canonical_ohlcv_selected_row_binding_row_payload_invalid")
+    try:
+        selected_window = validate_ohlcv_closed_window(
+            b"[" + selected_row_bytes + b"]",
+            symbol=expected_symbol,
+            timeframe=expected_timeframe,
+        )
+    except OHLCVClosedWindowValidationError as exc:
+        raise CanonicalOhlcvManifestSemanticReplayV4Error(
+            "canonical_ohlcv_selected_row_binding_row_schema_invalid"
+        ) from exc
+    if selected_window.row_count != 1:
+        _fail("canonical_ohlcv_selected_row_binding_row_schema_invalid")
+    selected_source_row = selected_window.rows[0]
+    if not _row_metadata_matches(
+        selected_manifest_row,
+        selected_source_row,
+        ordinal=selected_ordinal,
+        source_index=source_index,
+        span=(byte_start, byte_end_exclusive),
+    ):
+        _fail("canonical_ohlcv_selected_row_binding_row_identity_invalid")
+    receipt_reason = "canonical_ohlcv_selected_row_binding_source_read_receipt_invalid"
+    consumer_observed_text = _exact_str(
+        manifest.get("consumer_observed_at"),
+        reason=receipt_reason,
+    )
+    source_key = _exact_str(manifest.get("source_key"), reason=receipt_reason)
+    source_key_version = _exact_str(
+        manifest.get("source_key_version"),
+        reason=receipt_reason,
+    )
+    _, decision_datetime, _ = _parse_clock(decision_text, reason=receipt_reason)
+    try:
+        selected_row_source_read_receipt_sha256, _ = _validate_receipt(
+            selected_manifest_row,
+            source=selected_source_row,
+            source_key=source_key,
+            source_key_version=source_key_version,
+            consumer_observed_at=consumer_observed_text,
+            decision_datetime=decision_datetime,
+        )
+    except CanonicalOhlcvManifestSemanticReplayV4Error as exc:
+        raise CanonicalOhlcvManifestSemanticReplayV4Error(receipt_reason) from exc
+
+    result: dict[str, object] = {
+        "schema_version": CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_SCHEMA_VERSION,
+        "evidence_classification": (
+            CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_EVIDENCE_CLASSIFICATION
+        ),
+        "downstream_status": CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_DOWNSTREAM_STATUS,
+        "base_replay_schema_version": (CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_SCHEMA_VERSION),
+        "base_replay_sha256": base_replay_sha256,
+        "selected_row_binding_hash_domain": (CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_HASH_DOMAIN),
+        "manifest_sha256": manifest_payload_sha256,
+        "manifest_byte_count": manifest_payload_byte_count,
+        "requested_selected_row_address_schema_version": (SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION),
+        "requested_selected_row_payload_sha256": selected_payload_sha256,
+        "requested_selected_row_payload_byte_count": selected_payload_byte_count,
+        "requested_selected_row_cas_relative_path": selected_relative_path,
+        "matched_selected_row_address_schema_version": manifest_row_address.schema_version,
+        "matched_selected_row_payload_sha256": manifest_row_address.payload_sha256,
+        "matched_selected_row_payload_byte_count": manifest_row_address.payload_byte_count,
+        "matched_selected_row_cas_relative_path": manifest_row_address.relative_path,
+        "symbol": expected_symbol,
+        "timeframe": expected_timeframe,
+        "matched_selected_ordinal": selected_ordinal,
+        "matched_source_index": source_index,
+        "matched_byte_start": byte_start,
+        "matched_byte_end_exclusive": byte_end_exclusive,
+        "matched_candle_id": selected_source_row.candle_id,
+        "matched_candle_open_time_ms": selected_source_row.candle_open_time,
+        "matched_candle_close_time_ms": selected_source_row.candle_close_time,
+        "matched_producer_event_time_ms": selected_source_row.event_time,
+        "matched_ingested_at_ms": selected_source_row.ingested_at,
+        "matched_available_at_ms": selected_source_row.available_at,
+        "matched_source": selected_source_row.source,
+        "matched_source_sequence_id": selected_source_row.source_sequence_id,
+        "matched_raw_payload_hash": selected_source_row.raw_payload_hash,
+        "matched_is_backfilled": selected_source_row.is_backfilled,
+        "selected_row_source_read_receipt_sha256": (selected_row_source_read_receipt_sha256),
+        "economic_event_time": _ms_to_clock(
+            selected_source_row.candle_close_time,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        ),
+        "producer_event_time": _ms_to_clock(
+            selected_source_row.event_time,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        ),
+        "ingested_at": _ms_to_clock(
+            selected_source_row.ingested_at,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        ),
+        "available_at": _ms_to_clock(
+            selected_source_row.available_at,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        ),
+        "consumer_observed_at": consumer_observed_at,
+        "feature_cutoff": _ms_to_clock(
+            selected_source_row.candle_close_time,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        ),
+        "decision_time": decision_text,
+        "generated_at": None,
+        "execution_time": None,
+        "base_manifest_semantic_replay_verified": True,
+        "manifest_independently_reopened": True,
+        "selected_row_manifest_membership_unique": True,
+        "selected_row_cas_reopened": True,
+        "selected_row_payload_schema_replayed": True,
+        "selected_row_identity_bound": True,
+        "selected_row_source_read_receipt_revalidated": True,
+        "decision_context_bound": True,
+        **{name: False for name in _RESULT_FALSE_AUTHORITY_FIELDS},
+        "audit_only": True,
+    }
+    result["selected_row_binding_sha256"] = hashlib.sha256(
+        CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_HASH_DOMAIN.encode("ascii")
+        + b"\x00"
+        + _canonical_json_bytes(
+            result,
+            reason="canonical_ohlcv_selected_row_binding_result_invalid",
+        )
+    ).hexdigest()
+    detached_result = cast(
+        dict[str, object],
+        json.loads(
+            _canonical_json_bytes(
+                result,
+                reason="canonical_ohlcv_selected_row_binding_result_invalid",
+            )
+        ),
+    )
+    if any(
+        type(value) not in {str, int, bool} and value is not None
+        for value in detached_result.values()
+    ):
+        _fail("canonical_ohlcv_selected_row_binding_result_invalid")
+    return MappingProxyType(detached_result)
+
+
 __all__ = [
     "CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_DOWNSTREAM_STATUS",
     "CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_EVIDENCE_CLASSIFICATION",
     "CANONICAL_OHLCV_MANIFEST_SEMANTIC_REPLAY_V4_SCHEMA_VERSION",
+    "CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_DOWNSTREAM_STATUS",
+    "CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_EVIDENCE_CLASSIFICATION",
+    "CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_HASH_DOMAIN",
+    "CANONICAL_OHLCV_SELECTED_ROW_BINDING_V4_SCHEMA_VERSION",
     "CanonicalOhlcvManifestSemanticReplayV4Error",
+    "bind_canonical_ohlcv_selected_row_v4",
     "replay_canonical_ohlcv_manifest_semantics_v4",
 ]
