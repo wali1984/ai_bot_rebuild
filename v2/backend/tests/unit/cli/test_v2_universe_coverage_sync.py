@@ -817,6 +817,37 @@ def test_fresh_non_ohlcv_payloads_require_real_content(
     assert expected_reason in result["content_rejection_reasons"]
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "symbol": SYMBOL,
+            "bids": [[100.0, 1.5]],
+            "asks": [[101.0, 2.5]],
+        },
+        {
+            "symbol": SYMBOL,
+            "best_bid": 100.0,
+            "best_bid_qty": 1.5,
+            "best_ask": 101.0,
+            "best_ask_qty": 2.5,
+        },
+        {
+            "symbol": SYMBOL,
+            "best_bid": 100.0,
+            "best_bid_size": 1.5,
+            "best_ask": 101.0,
+            "best_ask_size": 2.5,
+            "schema_version": "direct_orderbook_top_v1",
+        },
+    ],
+)
+def test_orderbook_validator_accepts_each_published_quantity_schema(
+    payload: dict[str, Any],
+) -> None:
+    assert coverage._orderbook_content_rejections(payload, SYMBOL) == ()
+
+
 def test_valid_ta_payload_remains_held_until_finalized_input_receipt_is_bound(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

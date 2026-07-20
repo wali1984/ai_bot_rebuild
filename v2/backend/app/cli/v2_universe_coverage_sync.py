@@ -658,7 +658,22 @@ def _book_level(payload: Any, field: str, fallback: str) -> tuple[float, float] 
             if _finite(price) and _finite(quantity):
                 return float(price), float(quantity)
     price = payload.get(fallback) if isinstance(payload, dict) else None
-    quantity = payload.get(f"{fallback}_qty") if isinstance(payload, dict) else None
+    side = fallback.removeprefix("best_")
+    quantity = None
+    if isinstance(payload, dict):
+        quantity = next(
+            (
+                payload.get(quantity_field)
+                for quantity_field in (
+                    f"{fallback}_qty",
+                    f"{fallback}_size",
+                    f"{side}_qty",
+                    f"{side}_size",
+                )
+                if payload.get(quantity_field) is not None
+            ),
+            None,
+        )
     if _finite(price) and _finite(quantity):
         return float(price), float(quantity)
     return None
