@@ -553,8 +553,21 @@ export function useRealtimeResource<T>(
     };
 
     if (streamable && subscribeResourcePath) {
+      // WS-first with REST failover: track per-path frame liveness. If the
+      // shared WebSocket stops delivering THIS path (socket drop, server-side
+      // path-resolver timeout, path missing from the stream rotation), fall
+      // back to HTTP polling so the panel never freezes on "connecting" with
+      // aging data; when WS frames resume, stop polling and ride the stream.
+      let lastFrameAt = 0;
+      let pollingActive = false;
+      let watchdogTimer: ReturnType<typeof setInterval> | null = null;
       const unsubscribe = subscribeResourcePath(url, (raw) => {
         if (cancelled) return;
+        lastFrameAt = Date.now();
+        if (pollingActive) {
+          pollingActive = false;
+          clearFallback();
+        }
         try {
           applyRawEnvelope(raw, Date.now(), 0, 'websocket');
           setLoading(false);
@@ -577,10 +590,22 @@ export function useRealtimeResource<T>(
           if (!cancelled) void fetchData();
         }, sharedStreamFallbackDelayMs(url, pollIntervalMs));
       }
+      if (httpFallback) {
+        const watchdogMs = Math.max(staleThresholdMs, pollIntervalMs, 10_000);
+        watchdogTimer = setInterval(() => {
+          if (cancelled || pollingActive) return;
+          if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+          if (Date.now() - lastFrameAt >= watchdogMs) {
+            pollingActive = true;
+            startFallback(0);
+          }
+        }, Math.min(watchdogMs, 5_000));
+      }
       return () => {
         cancelled = true;
         unsubscribe();
         clearFallback();
+        if (watchdogTimer) clearInterval(watchdogTimer);
         inFlightRef.current.forEach(controller => controller.abort());
         inFlightRef.current.clear();
       };
@@ -593,7 +618,7 @@ export function useRealtimeResource<T>(
       inFlightRef.current.forEach(controller => controller.abort());
       inFlightRef.current.clear();
     };
-  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, initialFetchWhenStreaming, mode, pollIntervalMs, subscribeResourcePath, unwrapShape, url]);
+  }, [applyRawEnvelope, enabled, fetchData, httpFallback, initialFetch, initialFetchWhenStreaming, mode, pollIntervalMs, staleThresholdMs, subscribeResourcePath, unwrapShape, url]);
 
   return { envelope, loading, error, refetch: fetchData };
 }
