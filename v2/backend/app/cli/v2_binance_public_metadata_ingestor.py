@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+import math
 import sys
 import time
 import urllib.error
@@ -48,10 +48,7 @@ FAPI_BASE = "https://fapi.binance.com"
 # of truth. The 3 symbols below are smoke-test-only and surfaced only when
 # ``--smoke-test`` or ``V2_SYMBOL_PROFILE=smoke_test`` is set.
 from v2.backend.app.services.v2_symbol_runtime_universe import (  # noqa: E402
-    BASELINE_25_SYMBOLS,
-    SMOKE_TEST_SYMBOLS,
     resolve_symbols,
-    resolve_symbols_with_provenance,
 )
 from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
     REST_FALLBACK_ENV,
@@ -59,7 +56,6 @@ from v2.backend.app.services.binance_unified_websocket_transport import (  # noq
     report_binance_rest_response,
     require_binance_rest_fallback,
 )
-from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price  # noqa: E402
 # Shared CoinAnk open-interest backup mapper (contracts; single source of
 # truth for provider-tier semantics lives in the native ingestors loop).
 from v2.backend.app.cli.v2_native_ingestors_live_loop import (  # noqa: E402
@@ -71,7 +67,17 @@ HTTP_TIMEOUT_S = 6.0
 
 LIVE_GATE = "blocked_human_only"
 
+# This is an upstream publication-cadence safety bound, not an entry or
+# strategy threshold.  Both metadata loops read keys they also write; without
+# an event-time age check a dead premium-index sample can be re-published with
+# a fresh Redis TTL forever.
+PREMIUM_INDEX_CACHE_MAX_AGE_SECONDS = 120.0
+
 PUBLIC_OUT_DIR = REPO / "v2/frontend/public/v2_binance_public_metadata/latest"
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number rejected: {value}")
 
 
 def _est_iso() -> str:
@@ -95,7 +101,10 @@ def _http_get_json(url: str) -> Any:
     req = urllib.request.Request(url, method="GET")
     try:
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
-            return json.loads(resp.read().decode())
+            return json.loads(
+                resp.read().decode(),
+                parse_constant=_reject_nonfinite_json,
+            )
     except urllib.error.HTTPError as exc:
         # Ban protection: 429/418 arms the shared cross-process cooldown so
         # ALL Binance fallback traffic on this host stops before escalation.
@@ -121,7 +130,10 @@ def _read_json(r: Any, key: str) -> Any:
     if not raw:
         return None
     try:
-        return json.loads(raw if isinstance(raw, str) else raw.decode("utf-8", errors="ignore"))
+        return json.loads(
+            raw if isinstance(raw, str) else raw.decode("utf-8", errors="ignore"),
+            parse_constant=_reject_nonfinite_json,
+        )
     except (TypeError, ValueError):
         return None
 
@@ -130,92 +142,199 @@ def _safe_float(value: Any) -> float | None:
     if isinstance(value, bool) or value in (None, ""):
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _cache_transport(payload: Any) -> str:
     if not isinstance(payload, dict):
         return "websocket_cache_primary"
-    source = str(payload.get("source") or payload.get("transport") or "")
-    return "rest_fallback_cache" if "rest" in source.lower() else "websocket_cache_primary"
+    provenance = " ".join(
+        str(payload.get(field) or "") for field in ("source", "transport")
+    ).lower()
+    return "rest_fallback_cache" if "rest" in provenance else "websocket_cache_primary"
+
+
+def _premium_index_cache_event_epoch_seconds(payload: dict[str, Any]) -> float | None:
+    """Return a non-future producer event epoch for candidate ordering."""
+    event_value = (
+        payload.get("event_time")
+        or payload.get("time")
+        or payload.get("timestamp")
+        or payload.get("binance_time_ms")
+        or payload.get("E")
+    )
+    event_number = _safe_float(event_value)
+    if event_number is not None and event_number > 0:
+        epoch_seconds = event_number / 1000.0 if event_number > 10_000_000_000 else event_number
+    elif isinstance(event_value, str) and event_value:
+        try:
+            parsed = datetime.fromisoformat(event_value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return None
+        epoch_seconds = parsed.timestamp()
+    else:
+        return None
+    return epoch_seconds if epoch_seconds <= time.time() else None
+
+
+def _premium_index_cache_age_seconds(payload: dict[str, Any]) -> float | None:
+    """Return source-event age; never use a refreshed Redis TTL as freshness."""
+    event_epoch_seconds = _premium_index_cache_event_epoch_seconds(payload)
+    return (
+        time.time() - event_epoch_seconds
+        if event_epoch_seconds is not None
+        else None
+    )
+
+
+def _premium_index_cache_candidates(
+    symbol: str,
+    *,
+    redis_client: Any,
+) -> list[tuple[str, dict[str, Any]]]:
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for key in (
+        f"v2:market:mark_price:{symbol}",
+        f"v2:market:funding:{symbol}",
+        f"v2:market:prices:{symbol}",
+    ):
+        payload = _read_json(redis_client, key)
+        if not isinstance(payload, dict):
+            continue
+        if key.endswith(f"prices:{symbol}") and isinstance(payload.get("funding"), dict):
+            candidates.append((f"{key}.funding", payload["funding"]))
+        candidates.append((key, payload))
+    return candidates
 
 
 def fetch_premium_index(symbol: str, *, redis_client: Any = None) -> Dict[str, Any]:
-    prices = _read_json(redis_client, f"v2:market:prices:{symbol}")
-    funding = _read_json(redis_client, f"v2:market:funding:{symbol}")
-    try:
-        current = resolve_current_price(redis_client, symbol) if redis_client is not None else {}
-    except Exception:
-        current = {}
-    funding_map = funding if isinstance(funding, dict) else {}
-    prices_map = prices if isinstance(prices, dict) else {}
-    nested_funding = prices_map.get("funding") if isinstance(prices_map.get("funding"), dict) else {}
-    mark_price = _safe_float(
-        prices_map.get("mark_price")
-        or prices_map.get("markPrice")
-        or funding_map.get("mark_price")
-        or funding_map.get("markPrice")
-        or nested_funding.get("mark_price")
-        or nested_funding.get("markPrice")
-        or (current.get("price") if isinstance(current, dict) and str(current.get("source") or "").startswith("mark_price") else None)
-    )
-    index_price = _safe_float(
-        prices_map.get("index_price")
-        or prices_map.get("indexPrice")
-        or funding_map.get("index_price")
-        or funding_map.get("indexPrice")
-        or nested_funding.get("index_price")
-        or nested_funding.get("indexPrice")
-    )
-    funding_rate = _safe_float(
-        funding_map.get("lastFundingRate")
-        or funding_map.get("last_funding_rate")
-        or funding_map.get("funding_rate")
-        or nested_funding.get("lastFundingRate")
-        or nested_funding.get("funding_rate")
-    )
-    if mark_price is not None or index_price is not None or funding_rate is not None:
-        source_payload = funding_map or prices_map or (current if isinstance(current, dict) else {})
+    valid_candidates: list[tuple[float, bool, str, dict[str, Any], float, float, float | None]] = []
+    for source_key, source_payload in _premium_index_cache_candidates(
+        symbol,
+        redis_client=redis_client,
+    ):
+        event_epoch_seconds = _premium_index_cache_event_epoch_seconds(source_payload)
+        if event_epoch_seconds is None:
+            continue
+        if time.time() - event_epoch_seconds > PREMIUM_INDEX_CACHE_MAX_AGE_SECONDS:
+            continue
+        mark_price = _safe_float(source_payload.get("mark_price") or source_payload.get("markPrice"))
+        index_price = _safe_float(source_payload.get("index_price") or source_payload.get("indexPrice"))
+        funding_rate = _safe_float(
+            source_payload.get("lastFundingRate")
+            or source_payload.get("last_funding_rate")
+            or source_payload.get("funding_rate")
+        )
+        if (
+            mark_price is None
+            or index_price is None
+            or mark_price <= 0.0
+            or index_price <= 0.0
+        ):
+            continue
+        valid_candidates.append(
+            (
+                event_epoch_seconds,
+                _cache_transport(source_payload) == "websocket_cache_primary",
+                source_key,
+                source_payload,
+                mark_price,
+                index_price,
+                funding_rate,
+            )
+        )
+    if valid_candidates:
+        (
+            _,
+            _,
+            source_key,
+            source_payload,
+            mark_price,
+            index_price,
+            funding_rate,
+        ) = max(valid_candidates, key=lambda candidate: (candidate[0], candidate[1]))
+        observed_at = _utc_now_iso()
+        event_time = (
+            source_payload.get("event_time")
+            or source_payload.get("time")
+            or source_payload.get("timestamp")
+            or source_payload.get("binance_time_ms")
+            or source_payload.get("E")
+        )
+        binance_time_ms: int | None = None
+        raw_binance_time = (
+            source_payload.get("binance_time_ms")
+            or source_payload.get("time")
+            or source_payload.get("E")
+        )
+        parsed_binance_time = _safe_float(raw_binance_time)
+        if parsed_binance_time is not None and parsed_binance_time >= 10_000_000_000:
+            binance_time_ms = int(parsed_binance_time)
+        source_generated_at = source_payload.get("generated_at")
+        source_available_at = source_payload.get("available_at") or source_payload.get(
+            "received_at"
+        )
+        source_update_interval = _safe_float(
+            source_payload.get("expected_update_interval_seconds")
+        )
+        if source_update_interval is not None and source_update_interval <= 0.0:
+            source_update_interval = None
         return {
             "symbol": symbol,
             "mark_price": mark_price,
             "index_price": index_price,
             "estimated_settle_price": _safe_float(
-                funding_map.get("estimatedSettlePrice") or nested_funding.get("estimatedSettlePrice")
+                source_payload.get("estimatedSettlePrice")
+                or source_payload.get("estimated_settle_price")
             ),
             "last_funding_rate": funding_rate,
-            "next_funding_time_ms": funding_map.get("nextFundingTime") or nested_funding.get("nextFundingTime"),
-            "interest_rate": _safe_float(funding_map.get("interestRate") or nested_funding.get("interestRate")),
-            "binance_time_ms": funding_map.get("time") or nested_funding.get("time"),
-            "source": source_payload.get("source") or "binance_public_websocket_cache_primary",
+            "next_funding_time_ms": source_payload.get("nextFundingTime")
+            or source_payload.get("next_funding_time_ms"),
+            "interest_rate": _safe_float(
+                source_payload.get("interestRate") or source_payload.get("interest_rate")
+            ),
+            "binance_time_ms": binance_time_ms,
+            "event_time": event_time,
+            "generated_at": source_generated_at,
+            "available_at": source_available_at,
+            "consumer_observed_at": observed_at,
+            "republished_at": observed_at,
+            "expected_update_interval_seconds": source_update_interval,
+            "source_key": source_key,
+            "source": source_payload.get("source")
+            or "binance_public_websocket_cache_primary",
             "transport": _cache_transport(source_payload),
         }
     body = _http_get_json(
         f"{FAPI_BASE}/fapi/v1/premiumIndex?symbol={urllib.parse.quote(symbol)}"
     )
+    if not isinstance(body, dict):
+        raise ValueError("BINANCE_PREMIUM_INDEX_RESPONSE_NOT_OBJECT")
+    mark_price = _safe_float(body.get("markPrice"))
+    index_price = _safe_float(body.get("indexPrice"))
+    if mark_price is None or index_price is None or mark_price <= 0.0 or index_price <= 0.0:
+        raise ValueError("BINANCE_PREMIUM_INDEX_RESPONSE_PRICE_INVALID")
+    observed_at = _utc_now_iso()
     out: Dict[str, Any] = {
         "symbol": body.get("symbol"),
-        "mark_price": float(body.get("markPrice")) if body.get("markPrice") is not None else None,
-        "index_price": float(body.get("indexPrice")) if body.get("indexPrice") is not None else None,
-        "estimated_settle_price": (
-            float(body.get("estimatedSettlePrice"))
-            if body.get("estimatedSettlePrice") is not None
-            else None
-        ),
-        "last_funding_rate": (
-            float(body.get("lastFundingRate"))
-            if body.get("lastFundingRate") is not None
-            else None
-        ),
+        "mark_price": mark_price,
+        "index_price": index_price,
+        "estimated_settle_price": _safe_float(body.get("estimatedSettlePrice")),
+        "last_funding_rate": _safe_float(body.get("lastFundingRate")),
         "next_funding_time_ms": body.get("nextFundingTime"),
-        "interest_rate": (
-            float(body.get("interestRate"))
-            if body.get("interestRate") is not None
-            else None
-        ),
+        "interest_rate": _safe_float(body.get("interestRate")),
         "binance_time_ms": body.get("time"),
+        "event_time": body.get("time"),
+        "generated_at": observed_at,
+        "available_at": observed_at,
+        "consumer_observed_at": observed_at,
+        "republished_at": observed_at,
+        "expected_update_interval_seconds": float(DEFAULT_INTERVAL_S),
         "source": "binance_public_rest_premium_index_fallback",
         "transport": "rest_fallback",
     }
@@ -235,7 +354,11 @@ OPEN_INTEREST_CACHE_MAX_AGE_SECONDS = 120.0
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return (
+        datetime.now(ZoneInfo("UTC"))
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _open_interest_cache_age_seconds(payload: Dict[str, Any]) -> Optional[float]:

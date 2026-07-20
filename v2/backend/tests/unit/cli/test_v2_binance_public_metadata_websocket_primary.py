@@ -38,13 +38,18 @@ def _fail_rest(_url: str) -> Any:
 
 
 def test_public_metadata_fetches_websocket_cache_before_rest(monkeypatch: pytest.MonkeyPatch) -> None:
+    producer_available_at = _now_iso()
     redis_client = FakeRedis(
         {
-            "v2:market:funding:BTCUSDT": {
+            "v2:market:mark_price:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "mark_price": 62840.2,
                 "index_price": 62864.8,
                 "funding_rate": 0.00006873,
+                "event_time": producer_available_at,
+                "generated_at": producer_available_at,
+                "available_at": producer_available_at,
+                "expected_update_interval_seconds": 1.0,
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:market:open_interest:BTCUSDT": {
@@ -73,6 +78,11 @@ def test_public_metadata_fetches_websocket_cache_before_rest(monkeypatch: pytest
 
     assert premium["transport"] == "websocket_cache_primary"
     assert premium["mark_price"] == 62840.2
+    assert premium["generated_at"] == producer_available_at
+    assert premium["available_at"] == producer_available_at
+    assert premium["consumer_observed_at"] == premium["republished_at"]
+    assert premium["expected_update_interval_seconds"] == 1.0
+    assert premium["binance_time_ms"] is None
     assert open_interest["transport"] == "websocket_cache_primary"
     assert open_interest["open_interest_contracts"] == 99398.552
     assert orderbook["transport"] == "websocket_cache_primary"
@@ -87,6 +97,7 @@ def test_public_metadata_report_records_no_rest_when_cache_primary(monkeypatch: 
                 "mark_price": 62840.2,
                 "index_price": 62864.8,
                 "funding_rate": 0.00006873,
+                "time": _now_ms(),
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:market:open_interest:BTCUSDT": {
@@ -131,6 +142,7 @@ def test_public_metadata_blocks_rest_when_cache_missing_and_fallback_disabled(
 
 
 def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: pytest.MonkeyPatch) -> None:
+    producer_available_at = _now_iso()
     redis_client = FakeRedis(
         {
             "v2:market:prices:BTCUSDT": {
@@ -148,6 +160,10 @@ def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: py
             "v2:market:funding:BTCUSDT": {
                 "symbol": "BTCUSDT",
                 "funding_rate": 0.00006873,
+                "time": _now_ms(),
+                "generated_at": producer_available_at,
+                "available_at": producer_available_at,
+                "expected_update_interval_seconds": 1.0,
                 "source": "binance_public_websocket_cache_primary",
             },
             "v2:market:open_interest:BTCUSDT": {
@@ -193,7 +209,162 @@ def test_native_ingestor_bundle_uses_websocket_cache_before_rest(monkeypatch: py
     assert bundle["rest_fallback_used"] is False
     assert bundle["symbol_info"]["cache_primary_field_count"] >= 4
     assert bundle["ticker"]["transport"] == "websocket_cache_primary"
+    assert bundle["funding"]["generated_at"] == producer_available_at
+    assert bundle["funding"]["available_at"] == producer_available_at
+    assert bundle["funding"]["consumer_observed_at"] == bundle["funding"]["republished_at"]
+    assert bundle["funding"]["expected_update_interval_seconds"] == 1.0
     assert bundle["klines_by_timeframe"]["1m"][0]["source"] == "binance_wss"
+
+
+def test_public_metadata_rejects_stale_self_echo_and_uses_fresh_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale_ms = _now_ms() - 60 * 60 * 1000
+    fresh_ms = _now_ms()
+    redis_client = FakeRedis(
+        {
+            "v2:market:mark_price:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "mark_price": 1.0,
+                "index_price": 1.0,
+                "binance_time_ms": stale_ms,
+                "source": "binance_public_rest_premium_index_fallback",
+            },
+            "v2:market:funding:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "markPrice": "1.0",
+                "indexPrice": "1.0",
+                "time": stale_ms,
+                "source": "binance_public_websocket_cache_primary",
+            },
+        }
+    )
+    monkeypatch.setattr(
+        metadata,
+        "_http_get_json",
+        lambda _url: {
+            "symbol": "BTCUSDT",
+            "markPrice": "2.0",
+            "indexPrice": "1.9",
+            "lastFundingRate": "0.0001",
+            "time": fresh_ms,
+        },
+    )
+
+    premium = metadata.fetch_premium_index("BTCUSDT", redis_client=redis_client)
+
+    assert premium["mark_price"] == 2.0
+    assert premium["index_price"] == 1.9
+    assert premium["binance_time_ms"] == fresh_ms
+    assert premium["source"] == "binance_public_rest_premium_index_fallback"
+    assert premium["transport"] == "rest_fallback"
+    assert premium["generated_at"] == premium["available_at"]
+
+
+def test_native_ingestor_rejects_stale_funding_echo_and_uses_fresh_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale_ms = _now_ms() - 60 * 60 * 1000
+    fresh_ms = _now_ms()
+    redis_client = FakeRedis(
+        {
+            "v2:market:funding:BTCUSDT": {
+                "symbol": "BTCUSDT",
+                "markPrice": "1.0",
+                "indexPrice": "1.0",
+                "time": stale_ms,
+                "source": "binance_public_websocket_cache_primary",
+            }
+        }
+    )
+    monkeypatch.setenv("BINANCE_REST_FALLBACK_ALLOWED", "true")
+    monkeypatch.setattr(
+        native_loop,
+        "_http_get_json",
+        lambda _url, *, fallback_reason: {
+            "symbol": "BTCUSDT",
+            "markPrice": "2.0",
+            "indexPrice": "1.9",
+            "lastFundingRate": "0.0001",
+            "time": fresh_ms,
+        },
+    )
+
+    funding = native_loop._fetch_funding("BTCUSDT", redis_client=redis_client)
+
+    assert funding is not None
+    assert funding["markPrice"] == "2.0"
+    assert funding["time"] == fresh_ms
+    assert funding["source"] == "binance_public_rest_premium_index_fallback"
+    assert funding["transport"] == "rest_fallback"
+    assert funding["generated_at"] == funding["available_at"]
+
+
+def test_premium_index_cache_age_rejects_future_event_time() -> None:
+    future_ms = _now_ms() + 60_000
+
+    assert metadata._premium_index_cache_age_seconds({"event_time": future_ms}) is None
+    assert native_loop._funding_cache_age_seconds({"event_time": future_ms}) is None
+
+
+def test_premium_index_selects_freshest_valid_candidate_then_websocket() -> None:
+    now_ms = _now_ms()
+    producer_available_at = _now_iso()
+    redis_client = FakeRedis(
+        {
+            "v2:market:mark_price:BTCUSDT": {
+                "mark_price": 1.0,
+                "index_price": 1.0,
+                "event_time": now_ms - 10_000,
+                "source": "binance",
+                "transport": "rest_fallback",
+            },
+            "v2:market:funding:BTCUSDT": {
+                "mark_price": 2.0,
+                "index_price": 1.9,
+                "event_time": now_ms - 1_000,
+                "source": "binance",
+                "transport": "rest_fallback_cache",
+            },
+            "v2:market:prices:BTCUSDT": {
+                "funding": {
+                    "mark_price": 3.0,
+                    "index_price": 2.9,
+                    "event_time": now_ms - 1_000,
+                    "generated_at": producer_available_at,
+                    "available_at": producer_available_at,
+                    "expected_update_interval_seconds": 1.0,
+                    "source": "binance_usdm_wss_mark_price_all_symbols",
+                    "transport": "websocket_primary",
+                },
+                "generated_at": producer_available_at,
+                "available_at": producer_available_at,
+            },
+        }
+    )
+
+    premium = metadata.fetch_premium_index("BTCUSDT", redis_client=redis_client)
+    funding = native_loop._fetch_funding("BTCUSDT", redis_client=redis_client)
+
+    assert premium["mark_price"] == 3.0
+    assert premium["source_key"] == "v2:market:prices:BTCUSDT.funding"
+    assert funding is not None
+    assert funding["markPrice"] == 3.0
+    assert funding["source_key"] == "v2:market:prices:BTCUSDT.funding"
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), "NaN", "Inf"])
+def test_market_numeric_parser_rejects_nonfinite_values(value: object) -> None:
+    assert metadata._safe_float(value) is None
+    assert native_loop._safe_float(value) is None
+
+
+def test_cache_transport_uses_both_source_and_transport_fields() -> None:
+    conflicting = {"source": "binance", "transport": "rest_fallback"}
+
+    assert metadata._cache_transport(conflicting) == "rest_fallback_cache"
+    assert native_loop._cache_transport(conflicting) == "rest_fallback_cache"
+    assert native_loop._is_websocket_cache_payload(conflicting) is False
 
 
 def test_native_ingestor_does_not_treat_rest_kline_cache_as_websocket_primary(

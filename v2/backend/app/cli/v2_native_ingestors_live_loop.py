@@ -14,14 +14,16 @@ Default behavior:
 from __future__ import annotations
 
 import argparse
-import datetime
 import json
+import math
 import sys
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -37,7 +39,10 @@ from v2.backend.app.services.market_state_integrity.canonical_candles import (
     closed_candle_key,
     current_candle_key,
 )
-from v2.backend.app.services.v2_symbol_runtime_universe import is_valid_runtime_symbol, resolve_symbols
+from v2.backend.app.services.v2_symbol_runtime_universe import (
+    is_valid_runtime_symbol,
+    resolve_symbols,
+)
 
 V2_REDIS_PREFIX = "v2:"
 DEFAULT_PAYLOAD_PATH = Path(
@@ -49,9 +54,23 @@ HTTP_TIMEOUT_S = 2.0
 MAX_FETCH_WORKERS = 12
 DEFAULT_KLINE_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 
+# Source-event freshness bound for the premium-index cache. This is a market
+# publication safety contract, not a strategy/admission threshold. The loop
+# reads keys it also writes, so an event-time check is required to prevent a
+# dead row from acquiring a fresh Redis TTL forever.
+FUNDING_CACHE_MAX_AGE_SECONDS = 120.0
+
+
+def _reject_nonfinite_json(value: str) -> None:
+    raise ValueError(f"non-finite JSON number rejected: {value}")
+
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _utc_iso_precise() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _http_get_json(url: str, *, fallback_reason: str) -> Any:
@@ -64,7 +83,10 @@ def _http_get_json(url: str, *, fallback_reason: str) -> Any:
     req = urllib.request.Request(url, headers={"User-Agent": "v2-native-ingestor/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_S) as resp:
-            return json.loads(resp.read().decode("utf-8"))
+            return json.loads(
+                resp.read().decode("utf-8"),
+                parse_constant=_reject_nonfinite_json,
+            )
     except urllib.error.HTTPError as exc:
         # Ban protection: 429/418 arms the shared cross-process cooldown so
         # ALL fallback traffic on this host stops before Binance escalates.
@@ -94,7 +116,10 @@ def _read_json(r: Any, key: str) -> Any:
     if not raw:
         return None
     try:
-        return json.loads(raw if isinstance(raw, str) else raw.decode("utf-8", errors="ignore"))
+        return json.loads(
+            raw if isinstance(raw, str) else raw.decode("utf-8", errors="ignore"),
+            parse_constant=_reject_nonfinite_json,
+        )
     except (TypeError, ValueError):
         return None
 
@@ -102,19 +127,47 @@ def _read_json(r: Any, key: str) -> Any:
 def _cache_payload_source(payload: dict | None, *, default: str) -> str:
     if not isinstance(payload, dict):
         return default
-    source = str(payload.get("source") or payload.get("transport") or default)
-    if "rest" in source.lower():
+    provenance = " ".join(
+        str(payload.get(field) or "") for field in ("source", "transport")
+    ).lower()
+    if "rest" in provenance:
         return "binance_public_cache_rest_fallback"
     return "binance_public_websocket_cache_primary"
+
+
+def _cache_transport(payload: dict | None) -> str:
+    if not isinstance(payload, dict):
+        return "websocket_cache_primary"
+    provenance = " ".join(
+        str(payload.get(field) or "") for field in ("source", "transport")
+    ).lower()
+    return "rest_fallback_cache" if "rest" in provenance else "websocket_cache_primary"
+
+
+def _combined_cache_transport(*payloads: dict | None) -> str:
+    return (
+        "rest_fallback_cache"
+        if any(_cache_transport(payload) == "rest_fallback_cache" for payload in payloads)
+        else "websocket_cache_primary"
+    )
+
+
+def _first_present(*values: Any) -> Any:
+    return next((value for value in values if value not in (None, "")), None)
 
 
 def _is_websocket_cache_payload(payload: dict | None) -> bool:
     if not isinstance(payload, dict):
         return False
-    source = str(payload.get("source") or payload.get("transport") or "").lower()
-    if "rest" in source:
+    provenance = " ".join(
+        str(payload.get(field) or "") for field in ("source", "transport")
+    ).lower()
+    if "rest" in provenance:
         return False
-    return any(token in source for token in ("wss", "websocket", "ws_cache", "stream", "cache_primary"))
+    return any(
+        token in provenance
+        for token in ("wss", "websocket", "ws_cache", "stream", "cache_primary")
+    )
 
 
 def _connect_redis():
@@ -157,7 +210,7 @@ def _write_symbol_bundle(r: Any, sym: str, bundle: dict, keys_written: list[str]
     orderbook = bundle.get("orderbook")
     oi_hist = bundle.get("open_interest_hist")
     fetched_utc = _utc_iso()
-    payload = {
+    payload: dict[str, Any] = {
         "symbol": sym,
         "source": bundle.get("source") or "binance_public_websocket_cache_primary",
         "transport": bundle.get("transport") or "websocket_cache_primary",
@@ -223,9 +276,10 @@ def _safe_float(value: Any) -> float | None:
     if isinstance(value, bool):
         return None
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 def _ticker_cache_age_seconds(ticker: dict) -> float | None:
@@ -285,7 +339,7 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
                 "symbol": symbol,
                 "lastPrice": ticker.get("lastPrice") or last_price,
                 "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
-                "transport": "websocket_cache_primary",
+                "transport": _combined_cache_transport(cached, ticker),
             }
     # Cache stale, undated, or missing the 24h stats: the public REST 24hr
     # ticker is the only remaining source of quoteVolume/high/low once the
@@ -320,28 +374,141 @@ def _fetch_ticker_24hr(symbol: str, *, redis_client: Any = None) -> dict | None:
             "askPrice": resolved.get("ask"),
             "closeTime": resolved.get("available_at"),
             "source": resolved.get("source") or "binance_public_websocket_cache_primary",
-            "transport": "websocket_cache_primary",
+            "transport": _cache_transport(resolved),
         }
     return None
 
 
+def _funding_cache_event_epoch_seconds(payload: dict) -> float | None:
+    event_value = _first_present(
+        payload.get("event_time"),
+        payload.get("time"),
+        payload.get("timestamp"),
+        payload.get("binance_time_ms"),
+        payload.get("E"),
+    )
+    event_number = _safe_float(event_value)
+    if event_number is not None and event_number > 0:
+        epoch_seconds = event_number / 1000.0 if event_number > 10_000_000_000 else event_number
+    elif isinstance(event_value, str) and event_value:
+        try:
+            parsed = datetime.fromisoformat(event_value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            return None
+        epoch_seconds = parsed.timestamp()
+    else:
+        return None
+    return epoch_seconds if epoch_seconds <= time.time() else None
+
+
+def _funding_cache_age_seconds(payload: dict) -> float | None:
+    event_epoch_seconds = _funding_cache_event_epoch_seconds(payload)
+    return (
+        time.time() - event_epoch_seconds
+        if event_epoch_seconds is not None
+        else None
+    )
+
+
+def _fresh_funding_cache_candidates(symbol: str, *, redis_client: Any) -> list[tuple[str, dict]]:
+    candidates: list[tuple[str, dict]] = []
+    for key in (
+        f"{V2_REDIS_PREFIX}market:mark_price:{symbol}",
+        f"{V2_REDIS_PREFIX}market:funding:{symbol}",
+        f"{V2_REDIS_PREFIX}market:prices:{symbol}",
+    ):
+        payload = _read_json(redis_client, key)
+        if not isinstance(payload, dict):
+            continue
+        if key.endswith(f"prices:{symbol}") and isinstance(payload.get("funding"), dict):
+            candidates.append((f"{key}.funding", payload["funding"]))
+        candidates.append((key, payload))
+    return candidates
+
+
 def _fetch_funding(symbol: str, *, redis_client: Any = None) -> dict | None:
-    cached = _read_json(redis_client, f"{V2_REDIS_PREFIX}market:funding:{symbol}")
-    if isinstance(cached, dict) and cached:
+    valid_candidates: list[
+        tuple[float, bool, str, dict, float | None, float | None, float | None]
+    ] = []
+    for source_key, cached in _fresh_funding_cache_candidates(
+        symbol,
+        redis_client=redis_client,
+    ):
+        event_epoch_seconds = _funding_cache_event_epoch_seconds(cached)
+        if event_epoch_seconds is None:
+            continue
+        if time.time() - event_epoch_seconds > FUNDING_CACHE_MAX_AGE_SECONDS:
+            continue
+        mark_price = _safe_float(_first_present(cached.get("markPrice"), cached.get("mark_price")))
+        index_price = _safe_float(_first_present(cached.get("indexPrice"), cached.get("index_price")))
+        funding_rate = _safe_float(
+            _first_present(
+                cached.get("lastFundingRate"),
+                cached.get("last_funding_rate"),
+                cached.get("funding_rate"),
+            )
+        )
+        if not (
+            (mark_price is not None and mark_price > 0.0 and index_price is not None and index_price > 0.0)
+            or funding_rate is not None
+        ):
+            continue
+        valid_candidates.append(
+            (
+                event_epoch_seconds,
+                _cache_transport(cached) == "websocket_cache_primary",
+                source_key,
+                cached,
+                mark_price,
+                index_price,
+                funding_rate,
+            )
+        )
+    if valid_candidates:
+        (
+            _,
+            _,
+            source_key,
+            cached,
+            mark_price,
+            index_price,
+            funding_rate,
+        ) = max(valid_candidates, key=lambda candidate: (candidate[0], candidate[1]))
+        observed_at = _utc_iso_precise()
+        event_time = _first_present(
+            cached.get("event_time"),
+            cached.get("time"),
+            cached.get("timestamp"),
+            cached.get("binance_time_ms"),
+            cached.get("E"),
+        )
+        source_update_interval = _safe_float(
+            cached.get("expected_update_interval_seconds")
+        )
+        if source_update_interval is not None and source_update_interval <= 0.0:
+            source_update_interval = None
         return {
             **cached,
             "symbol": cached.get("symbol") or symbol,
-            "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
-            "transport": "websocket_cache_primary",
-        }
-    prices = _read_json(redis_client, f"{V2_REDIS_PREFIX}market:prices:{symbol}")
-    funding = prices.get("funding") if isinstance(prices, dict) and isinstance(prices.get("funding"), dict) else None
-    if isinstance(funding, dict) and funding:
-        return {
-            **funding,
-            "symbol": funding.get("symbol") or symbol,
-            "source": _cache_payload_source(prices, default="binance_public_websocket_cache_primary"),
-            "transport": "websocket_cache_primary",
+            "markPrice": mark_price,
+            "indexPrice": index_price,
+            "lastFundingRate": funding_rate,
+            "funding_rate": funding_rate,
+            "event_time": event_time,
+            "generated_at": cached.get("generated_at"),
+            "available_at": cached.get("available_at") or cached.get("received_at"),
+            "consumer_observed_at": observed_at,
+            "republished_at": observed_at,
+            "expected_update_interval_seconds": source_update_interval,
+            "source_key": source_key,
+            "source": cached.get("source")
+            or _cache_payload_source(
+                cached,
+                default="binance_public_websocket_cache_primary",
+            ),
+            "transport": _cache_transport(cached),
         }
     if _rest_fallback_disabled():
         return None
@@ -354,8 +521,15 @@ def _fetch_funding(symbol: str, *, redis_client: Any = None) -> dict | None:
         return None
     if not isinstance(data, dict):
         return None
+    observed_at = _utc_iso_precise()
     data["source"] = "binance_public_rest_premium_index_fallback"
     data["transport"] = "rest_fallback"
+    data["event_time"] = _first_present(data.get("time"), data.get("E"))
+    data["generated_at"] = observed_at
+    data["available_at"] = observed_at
+    data["consumer_observed_at"] = observed_at
+    data["republished_at"] = observed_at
+    data["expected_update_interval_seconds"] = 60.0
     return data
 
 
@@ -486,7 +660,7 @@ def _fetch_open_interest(symbol: str, *, redis_client: Any = None) -> dict | Non
                 **cached,
                 "symbol": cached.get("symbol") or symbol,
                 "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
-                "transport": "websocket_cache_primary",
+                "transport": _cache_transport(cached),
             }
         # Stale or undated cache payload: fail closed on the echo and fall
         # through to the provider-backup / public REST tiers.
@@ -652,7 +826,7 @@ def _fetch_long_short_ratio(symbol: str, period: str = "5m", limit: int = 1, *, 
             **cached,
             "symbol": str(cached.get("symbol") or symbol).upper(),
             "source": _cache_payload_source(cached, default="binance_public_websocket_cache_primary"),
-            "transport": "websocket_cache_primary",
+            "transport": _cache_transport(cached),
         }
     if _rest_fallback_disabled():
         return None
@@ -741,7 +915,7 @@ def _fetch_orderbook_top(symbol: str, depth: int = 20, *, redis_client: Any = No
                 **cached,
                 "symbol": cached.get("symbol") or symbol,
                 "source": _cache_payload_source(cached, default="binance_public_websocket_orderbook_cache_primary"),
-                "transport": "websocket_cache_primary",
+                "transport": _cache_transport(cached),
             }
     if _rest_fallback_disabled():
         return None
@@ -765,28 +939,87 @@ def _fetch_symbol_bundle(
     kline_timeframes: tuple[str, ...] = DEFAULT_KLINE_TIMEFRAMES,
     redis_client: Any = None,
 ) -> dict:
-    ticker = _fetch_ticker_24hr(symbol, redis_client=redis_client)
-    funding = _fetch_funding(symbol, redis_client=redis_client)
-    oi = _fetch_open_interest(symbol, redis_client=redis_client)
-    klines_by_timeframe = {
-        tf: rows
-        for tf in kline_timeframes
-        if (rows := _fetch_klines(symbol, interval=tf, limit=100, redis_client=redis_client)) is not None
-    }
+    fetch_errors: dict[str, str] = {}
+
+    def fetch_component(name: str, fetch: Callable[[], Any]) -> Any:
+        try:
+            value = fetch()
+        except Exception as exc:  # One unavailable family must not erase the others.
+            detail = " ".join(str(exc).split())[:240] or "NO_DETAIL"
+            fetch_errors[name] = f"{type(exc).__name__}:{detail}"
+            return None
+        if value is None or (isinstance(value, (dict, list)) and not value):
+            fetch_errors[name] = "UNAVAILABLE_OR_REJECTED_BY_SOURCE_GATE"
+            return None
+        return value
+
+    ticker = fetch_component(
+        "ticker_24hr",
+        lambda: _fetch_ticker_24hr(symbol, redis_client=redis_client),
+    )
+    funding = fetch_component(
+        "funding",
+        lambda: _fetch_funding(symbol, redis_client=redis_client),
+    )
+    oi = fetch_component(
+        "open_interest",
+        lambda: _fetch_open_interest(symbol, redis_client=redis_client),
+    )
+    klines_by_timeframe: dict[str, Any] = {}
+    for timeframe in kline_timeframes:
+        rows = fetch_component(
+            f"klines:{timeframe}",
+            partial(
+                _fetch_klines,
+                symbol,
+                interval=timeframe,
+                limit=100,
+                redis_client=redis_client,
+            ),
+        )
+        if rows is not None:
+            klines_by_timeframe[timeframe] = rows
     klines = klines_by_timeframe.get("1m")
-    orderbook = _fetch_orderbook_top(symbol, depth=20, redis_client=redis_client)
-    oi_hist = _fetch_open_interest_hist(symbol, period="5m", limit=13, redis_client=redis_client)
-    long_short = _fetch_long_short_ratio(symbol, period="5m", limit=1, redis_client=redis_client)
+    orderbook = fetch_component(
+        "orderbook",
+        lambda: _fetch_orderbook_top(symbol, depth=20, redis_client=redis_client),
+    )
+    oi_hist = fetch_component(
+        "open_interest_hist",
+        lambda: _fetch_open_interest_hist(
+            symbol,
+            period="5m",
+            limit=13,
+            redis_client=redis_client,
+        ),
+    )
+    long_short = fetch_component(
+        "long_short",
+        lambda: _fetch_long_short_ratio(
+            symbol,
+            period="5m",
+            limit=1,
+            redis_client=redis_client,
+        ),
+    )
+    kline_cache_primary_count = sum(
+        any(isinstance(row, dict) and _is_websocket_cache_payload(row) for row in rows)
+        for rows in klines_by_timeframe.values()
+        if isinstance(rows, list)
+    )
+    kline_rest_fallback_count = len(klines_by_timeframe) - kline_cache_primary_count
     cache_primary_count = sum(
         1
         for payload in (ticker, funding, oi, orderbook, long_short)
-        if isinstance(payload, dict) and str(payload.get("transport") or "").startswith("websocket")
-    ) + len(klines_by_timeframe)
+        if isinstance(payload, dict)
+        and _cache_transport(payload) == "websocket_cache_primary"
+    ) + kline_cache_primary_count
     rest_fallback_count = sum(
         1
         for payload in (ticker, funding, oi, orderbook, long_short)
-        if isinstance(payload, dict) and str(payload.get("transport") or "") == "rest_fallback"
-    )
+        if isinstance(payload, dict)
+        and _cache_transport(payload) == "rest_fallback_cache"
+    ) + kline_rest_fallback_count
     return {
         "symbol": symbol,
         "source": "binance_public_websocket_cache_primary",
@@ -800,6 +1033,8 @@ def _fetch_symbol_bundle(
         "klines_by_timeframe": klines_by_timeframe,
         "orderbook": orderbook,
         "open_interest_hist": oi_hist,
+        "fetch_errors": fetch_errors,
+        "partial_bundle": bool(fetch_errors),
         "symbol_info": {
             "symbol": symbol,
             "ticker_present": ticker is not None,
@@ -812,6 +1047,8 @@ def _fetch_symbol_bundle(
             "orderbook_present": orderbook is not None,
             "cache_primary_field_count": cache_primary_count,
             "rest_fallback_field_count": rest_fallback_count,
+            "fetch_errors": fetch_errors,
+            "partial_bundle": bool(fetch_errors),
         },
     }
 
@@ -842,7 +1079,8 @@ def run_once(
             sym = futures[future]
             try:
                 fetched_by_symbol[sym] = future.result()
-            except Exception:
+            except Exception as exc:
+                detail = " ".join(str(exc).split())[:240] or "NO_DETAIL"
                 fetched_by_symbol[sym] = {
                     "symbol": sym,
                     "ticker": None,
@@ -852,16 +1090,25 @@ def run_once(
                     "klines_by_timeframe": {},
                     "orderbook": None,
                     "open_interest_hist": None,
+                    "long_short": None,
+                    "fetch_errors": {
+                        "symbol_bundle": f"{type(exc).__name__}:{detail}",
+                    },
+                    "partial_bundle": True,
                     "symbol_info": {
                         "symbol": sym,
                         "ticker_present": False,
-                    "funding_present": False,
-                    "open_interest_present": False,
-                    "long_short_present": False,
-                    "open_interest_hist_present": False,
+                        "funding_present": False,
+                        "open_interest_present": False,
+                        "long_short_present": False,
+                        "open_interest_hist_present": False,
                         "klines_present": False,
                         "kline_timeframes_present": [],
                         "orderbook_present": False,
+                        "fetch_errors": {
+                            "symbol_bundle": f"{type(exc).__name__}:{detail}",
+                        },
+                        "partial_bundle": True,
                     },
                 }
             _write_symbol_bundle(r, sym, fetched_by_symbol[sym], keys_written)
