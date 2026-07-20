@@ -26608,6 +26608,61 @@ def _paper_runtime_market_evidence_rejection_reasons(
     return sorted(set(reason for reason in reasons if reason))
 
 
+def _paper_maintenance_bracket_security_context(
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> tuple[Any | None, dict[str, Any]]:
+    """Resolve one exact, secret-safe bracket consumer identity per cycle.
+
+    The consumer reads only the protected evidence HMAC credential plus its
+    public account/environment binding.  It never loads exchange API
+    credentials.  Configuration failures are data, not exceptions: callers
+    receive ``None`` and allocation remains fail-closed without exposing the
+    evidence-authentication secret.
+    """
+    from v2.backend.app.services.binance_usdm_leverage_bracket_evidence import (  # noqa: PLC0415
+        LeverageBracketEvidenceError,
+    )
+    from v2.backend.app.services.binance_usdm_leverage_bracket_runtime_credentials import (  # noqa: PLC0415
+        consumer_security_context_from_systemd_credentials,
+    )
+
+    base: dict[str, Any] = {
+        "schema_version": "v2_paper_maintenance_bracket_security_status_v2",
+        "paper_only": True,
+        "read_only": True,
+        "places_real_order": False,
+        "order_submitted": False,
+        "leverage_mutated": False,
+        "margin_mutated": False,
+        "credential_fields_exposed": False,
+        "evidence_auth_key_exposed": False,
+        "exchange_api_credentials_loaded": False,
+        "protected_systemd_hmac_credential_required": True,
+        "environment_secret_fallback_allowed": False,
+    }
+    try:
+        context = consumer_security_context_from_systemd_credentials(environ=environ)
+    except LeverageBracketEvidenceError as exc:
+        return None, {
+            **base,
+            "status": "BLOCKED",
+            "reason": str(exc),
+        }
+    except Exception as exc:  # pragma: no cover - defensive startup boundary
+        return None, {
+            **base,
+            "status": "BLOCKED",
+            "reason": f"SECURITY_CONTEXT_RESOLUTION_EXCEPTION_{type(exc).__name__.upper()}",
+        }
+    return context, {
+        **base,
+        **context.safe_metadata(),
+        "status": "READY",
+        "reason": "EXACT_PUBLIC_BINDING_AND_PROTECTED_EVIDENCE_AUTH_READY",
+    }
+
+
 def _build_volatility_liquidity_state(
     *,
     signal: dict[str, Any],

@@ -59,6 +59,29 @@ response, or failed Redis publication remains `BLOCKED` and cannot produce usabl
 evidence. Existing good evidence is still governed by its embedded account binding,
 authentication tag, observation time, and expiry.
 
+## Paper consumer credential boundary
+
+The checked-in candidate drop-in
+`tools/systemd_units/ai-bot-v2-trade-management-paper-loop.service.d/60-binance-usdm-leverage-bracket-consumer.conf`
+gives the paper loop only `binance_bracket_evidence_hmac_key` and the four public
+binding values listed above. It does not load the Binance API key or API secret. The
+paper loop never falls back to an HMAC environment variable or repository env file;
+an absent, empty, symlinked, non-regular, oversized, multiline, or invalid protected
+credential leaves maintenance-bracket verification `BLOCKED`.
+
+The producer and paper consumer must load the same encrypted HMAC blob and key ID.
+The consumer reconstructs the exact public trader, credential-reference, and Binance
+environment binding, then verifies both those fields and the HMAC on every cached
+payload. A mismatched key, key ID, or binding cannot authorize leverage or margin.
+This authentication does not prove the exchange key's Binance-side permissions;
+`exchange_key_permissions_proven_by_connector` remains `false` until a separate
+read-only permission proof is implemented and validated.
+
+The drop-in is a version-controlled candidate only. Installing it, reloading the
+user manager, and restarting the paper loop remain operator-controlled actions. Do
+not activate it before the producer credential and Binance permission checks above
+are complete.
+
 Before any operator-controlled start, validate the unit syntax and run focused tests:
 
 ```bash
@@ -66,7 +89,8 @@ systemd-analyze --user verify tools/systemd_units/ai-bot-v2-binance-usdm-leverag
 .venv/bin/python -m pytest -q \
   v2/backend/tests/unit/services/test_binance_usdm_leverage_bracket_evidence.py \
   v2/backend/tests/unit/cli/test_v2_binance_usdm_leverage_bracket_evidence.py \
-  v2/backend/tests/unit/cli/test_v2_binance_usdm_leverage_bracket_supervision.py
+  v2/backend/tests/unit/cli/test_v2_binance_usdm_leverage_bracket_supervision.py \
+  v2/backend/tests/unit/cli/test_v2_trade_management_paper_bracket_credentials.py
 ```
 
 Installation, credential creation, service start/restart, and the first signed read
