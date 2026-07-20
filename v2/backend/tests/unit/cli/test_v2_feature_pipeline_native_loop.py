@@ -1070,6 +1070,54 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
     assert "v2:features:ta_full" in result["sources_present"]
 
 
+def test_external_enrichment_cannot_backfill_missing_canonical_open_interest() -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {"indicators": {"open_interest": 987654.0}}
+    )
+    features = {"open_interest": None}
+
+    result = mod._merge_external_v2_features(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        "1m",
+        features,
+        selected_closed_klines=[],
+        ohlcv_selection_lineage={},
+    )
+
+    assert "open_interest" in mod.CANONICAL_MARKET_INPUT_FIELDS
+    assert features["open_interest"] is None
+    assert result["fields_merged"] == 0
+    assert "v2:features:ta_full" in result["sources_present"]
+
+
+def test_snapshot_quarantines_missing_canonical_open_interest_despite_enrichment(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
+        _canonical_closed_window(close_ms)
+    )
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {"indicators": {"open_interest": 987654.0}}
+    )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+
+    mod.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    payload = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert payload["features"]["open_interest"] is None
+    assert "open_interest" in payload["missing_feature_flags"]
+    assert "open_interest" in payload["required_model_feature_missing_fields"]
+    assert payload["required_model_feature_value_contract_valid"] is False
+    assert payload["trainer_consumable"] is False
+
+
 def test_explicit_orderbook_imbalance_must_be_inside_unit_interval() -> None:
     mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
     market = _market_payload()

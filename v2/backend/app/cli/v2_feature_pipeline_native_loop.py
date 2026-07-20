@@ -135,13 +135,23 @@ CORE_MARKET_COST_EVIDENCE_FIELDS = (
     "_fee_bps_source",
     "_expected_slippage_source",
 )
+CANONICAL_MARKET_INPUT_FIELDS = (
+    # This value is selected from the canonical native-ingestor payload in
+    # ``_features_from_market``.  If that source reports it unavailable, an
+    # older/unreceipted enrichment surface must not silently fill the gap.
+    "open_interest",
+)
 # Enrichment must never replace the legacy core values computed from the exact
 # market inputs selected for this snapshot or its market-cost evidence.  This
 # protection list is intentionally separate from the 446-slot tensor ABI:
 # many other required/optional slots are assembled from their own V2 sources,
 # but none is trainer-consumable until the immutable PIT ledger binds it.
 EXTERNAL_ENRICHMENT_RESERVED_FIELDS = frozenset(
-    (*LEGACY_RL_OBSERVATION_CORE_FIELDS, *CORE_MARKET_COST_EVIDENCE_FIELDS)
+    (
+        *LEGACY_RL_OBSERVATION_CORE_FIELDS,
+        *CORE_MARKET_COST_EVIDENCE_FIELDS,
+        *CANONICAL_MARKET_INPUT_FIELDS,
+    )
 )
 FEATURE_LATEST_TTL_SECONDS = 600
 PAPER_POSITIONS_SOURCE_KEY = f"{V2_REDIS_PREFIX}paper:positions"
