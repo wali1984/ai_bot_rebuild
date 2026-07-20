@@ -534,6 +534,84 @@
 }
 
 /* ─────────────────────────────────────────────
+   SYMBOL ENRICHMENT (positioning / TA / liq / scores)
+───────────────────────────────────────────── */
+
+.mdc-warn { color: var(--mdc-gold); }
+
+.mdc-enrich-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 18px;
+  align-items: start;
+}
+
+/* Long/short positioning bar */
+.mdc-ls-wrap {
+  margin-bottom: 12px;
+}
+
+.mdc-ls-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--mdc-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.mdc-ls-legend--empty {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  margin-bottom: 12px;
+}
+
+.mdc-ls-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mdc-ls-bar__long {
+  background: linear-gradient(90deg, rgba(18, 184, 134, 0.85), rgba(18, 184, 134, 0.5));
+}
+
+.mdc-ls-bar__short {
+  background: linear-gradient(90deg, rgba(255, 107, 107, 0.5), rgba(255, 107, 107, 0.85));
+}
+
+/* Honest-provenance footnote inside enrichment panels */
+.mdc-foot {
+  margin: 10px 0 0;
+  color: var(--mdc-muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+}
+
+@media (max-width: 1400px) {
+  .mdc-enrich-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .mdc-enrich-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─────────────────────────────────────────────
    RESPONSIVE
 ───────────────────────────────────────────── */
 

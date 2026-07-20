@@ -563,10 +563,19 @@ export function useRealtimeResource<T>(
       let watchdogTimer: ReturnType<typeof setInterval> | null = null;
       const unsubscribe = subscribeResourcePath(url, (raw) => {
         if (cancelled) return;
-        lastFrameAt = Date.now();
-        if (pollingActive) {
-          pollingActive = false;
-          clearFallback();
+        // Only data-bearing frames count as stream liveness. The server pushes
+        // {data: null, source_type: 'unavailable'} frames when a path resolver
+        // times out — if those reset the watchdog, a persistently failing path
+        // would suppress REST failover forever while showing preserved data.
+        const frameHasData = raw && typeof raw === 'object' && 'data' in raw
+          ? (raw as { data?: unknown }).data != null
+          : raw != null;
+        if (frameHasData) {
+          lastFrameAt = Date.now();
+          if (pollingActive) {
+            pollingActive = false;
+            clearFallback();
+          }
         }
         try {
           applyRawEnvelope(raw, Date.now(), 0, 'websocket');

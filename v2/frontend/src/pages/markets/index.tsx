@@ -24,6 +24,33 @@ interface TickerRow {
   long_short_ratio?: number | null;
   mark_price?: number | null;
   index_price?: number | null;
+  // Enriched per-symbol fields (backend Redis enrichment, 2026-07)
+  change_1h?: number | null;
+  change_7d?: number | null;
+  market_cap_rank?: number | null;
+  market_cap_usd?: number | null;
+  basis_bps?: number | null;
+  next_funding_time?: string | null;
+  long_account_ratio?: number | null;
+  short_account_ratio?: number | null;
+  spread_bps?: number | null;
+  orderbook_imbalance?: number | null;
+  liquidation_cascade_risk?: number | null;
+  liq_notional_1h?: number | null;
+  liq_direction_bias_1h?: number | null;
+  rsi_1m?: number | null;
+  atr_1m?: number | null;
+  adx_1m?: number | null;
+  htf_trend?: string | null;
+  rsi_zone?: string | null;
+  macd_direction?: string | null;
+  altdata_symbol_score?: number | null;
+  altdata_symbol_rank?: number | null;
+  coinank_derivatives_score?: number | null;
+  open_interest_delta_1h_usd?: number | null;
+  coinglass_open_interest_usd?: number | null;
+  taker_buy_ratio?: number | null;
+  volume_24h_quote_usd?: number | null;
 }
 
 interface MarketOverviewData {
@@ -52,7 +79,15 @@ interface ProviderStatusData {
 }
 
 type TabId = 'overview' | 'gainers' | 'losers' | 'watchlist';
-type SortKey = 'symbol' | 'last_price' | 'change_24h' | 'turnover_24h' | 'volume_24h';
+type SortKey =
+  | 'symbol'
+  | 'last_price'
+  | 'change_1h'
+  | 'change_24h'
+  | 'turnover_24h'
+  | 'funding_rate'
+  | 'open_interest'
+  | 'altdata_symbol_score';
 
 const MARKET_PROVIDER_ORDER = [
   ['binance', 'Binance'],
@@ -191,6 +226,183 @@ function fmtCompact(n: number | null | undefined): string {
 function fmtSmallCount(value: number | null | undefined): string {
   if (value == null) return '—';
   return value.toLocaleString('en-US');
+}
+
+function fmtPrice(n: number | null | undefined): string {
+  if (n == null) return '—';
+  const digits = n >= 100 ? 2 : n >= 1 ? 3 : 4;
+  return n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+function fmtFunding(rate: number | null | undefined): string {
+  if (rate == null) return '—';
+  return `${(rate * 100).toFixed(4)}%`;
+}
+
+function fmtOpenInterest(n: number | null | undefined): string {
+  if (n == null) return '—';
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+
+function changeColor(chg: number | null | undefined): string {
+  if (chg == null) return 'var(--text-muted)';
+  if (chg > 0) return 'var(--buy, #10b981)';
+  if (chg < 0) return 'var(--sell, #ef4444)';
+  return 'var(--text-secondary)';
+}
+
+function fundingColor(rate: number | null | undefined): string {
+  if (rate == null) return 'var(--text-muted)';
+  return rate >= 0 ? 'var(--buy, #10b981)' : 'var(--sell, #ef4444)';
+}
+
+function scoreColor(score: number | null | undefined): string {
+  if (score == null) return 'var(--text-muted)';
+  if (score >= 0.6) return 'var(--buy, #10b981)';
+  if (score >= 0.4) return 'var(--text-secondary)';
+  return 'var(--warn, #f59e0b)';
+}
+
+/** Compact TA trend chip: HTF trend direction + RSI(1m), colored by trend. */
+function TrendChip({ row }: { row: TickerRow }): JSX.Element {
+  const trend = String(row.htf_trend ?? '').toUpperCase();
+  const up = trend === 'UP';
+  const down = trend === 'DOWN';
+  const color = up ? 'var(--buy, #10b981)' : down ? 'var(--sell, #ef4444)' : 'var(--text-muted)';
+  const arrow = up ? '▲' : down ? '▼' : '—';
+  const rsi = row.rsi_1m != null ? Math.round(row.rsi_1m) : null;
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '2px 8px',
+        borderRadius: 999,
+        border: `1px solid color-mix(in oklch, ${color} 40%, transparent)`,
+        background: `color-mix(in oklch, ${color} 10%, transparent)`,
+        color,
+        fontSize: 10.5,
+        fontFamily: 'var(--font-mono)',
+        whiteSpace: 'nowrap',
+        lineHeight: 1.5,
+      }}
+    >
+      <span>{arrow} {trend || 'N/A'}</span>
+      {rsi != null && <span style={{ color: 'var(--text-secondary)' }}>RSI {rsi}</span>}
+    </span>
+  );
+}
+
+/** Rich glass card used by the Gainers / Losers / Watchlist tabs. */
+function MarketCard({
+  row,
+  isFav,
+  onToggleFav,
+  onOpen,
+}: {
+  row: TickerRow;
+  isFav: boolean;
+  onToggleFav: () => void;
+  onOpen: () => void;
+}): JSX.Element {
+  const chg = row.change_24h;
+  const chgColor = changeColor(chg);
+  const accent = chg == null || chg === 0 ? 'var(--border)' : chgColor;
+  return (
+    <div
+      data-testid={`market-card-${row.symbol}`}
+      onClick={onOpen}
+      style={{
+        cursor: 'pointer',
+        padding: '12px 14px',
+        borderRadius: 'var(--radius-md, 12px)',
+        border: `1px solid color-mix(in oklch, ${accent} 35%, var(--border))`,
+        background: 'color-mix(in oklch, var(--bg-panel) 78%, transparent)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 9,
+        minWidth: 0,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleFav();
+          }}
+          style={{ fontSize: 15, lineHeight: 1, color: isFav ? 'var(--warn, #f59e0b)' : 'var(--text-muted)', cursor: 'pointer' }}
+        >
+          {isFav ? '★' : '☆'}
+        </span>
+        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {row.symbol.replace('USDT', '')}
+          <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 11 }}>/USDT</span>
+        </span>
+        {row.market_cap_rank != null && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>#{row.market_cap_rank}</span>
+        )}
+        <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: 15, color: chgColor, fontFamily: 'var(--font-mono)' }}>
+          {fmtPct(chg)}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, fontFamily: 'var(--font-mono)' }}>
+        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{fmtPrice(row.last_price)}</span>
+        {row.change_1h != null && (
+          <span style={{ fontSize: 11, color: changeColor(row.change_1h) }}>1h {fmtPct(row.change_1h)}</span>
+        )}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '4px 12px',
+          fontSize: 11,
+          fontFamily: 'var(--font-mono)',
+          color: 'var(--text-secondary)',
+        }}
+      >
+        <span style={{ color: 'var(--text-muted)' }}>
+          Funding <b style={{ color: fundingColor(row.funding_rate) }}>{fmtFunding(row.funding_rate)}</b>
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          Turnover <b style={{ color: 'var(--text-secondary)' }}>{fmtCompact(row.turnover_24h)}</b>
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          OI <b style={{ color: 'var(--text-secondary)' }}>{fmtOpenInterest(row.open_interest)}</b>
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          Score{' '}
+          <b style={{ color: scoreColor(row.altdata_symbol_score) }}>
+            {row.altdata_symbol_score != null ? row.altdata_symbol_score.toFixed(2) : '—'}
+            {row.altdata_symbol_rank != null ? ` (#${row.altdata_symbol_rank})` : ''}
+          </b>
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <TrendChip row={row} />
+        {row.liquidation_cascade_risk != null && row.liquidation_cascade_risk >= 0.8 && (
+          <span
+            title="Liquidation cascade risk (1m levels engine)"
+            style={{
+              fontSize: 10,
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--warn, #f59e0b)',
+              border: '1px solid color-mix(in oklch, var(--warn, #f59e0b) 40%, transparent)',
+              borderRadius: 999,
+              padding: '2px 8px',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            LIQ RISK {(row.liquidation_cascade_risk * 100).toFixed(0)}%
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function providerMap(providers: ProviderCard[] | undefined): Map<string, ProviderCard> {
@@ -413,6 +625,17 @@ export default function MarketsPage(): JSX.Element {
   const totalTurnover = useMemo(() => allTickers.reduce((s, r) => s + (r.turnover_24h ?? 0), 0), [allTickers]);
   const hasPriceData = allTickers.some((r) => r.last_price != null);
   const hasDerivativesData = allTickers.some((r) => r.funding_rate != null || r.open_interest != null);
+  const hasChange1h = allTickers.some((r) => r.change_1h != null);
+  const hasScoreData = allTickers.some((r) => r.altdata_symbol_score != null);
+  const hasTrendData = allTickers.some((r) => r.htf_trend != null || r.rsi_1m != null);
+
+  // Gainers / Losers / Watchlist render as rich cards with a fixed, honest sort:
+  // gainers by 24h change desc, losers asc (worst first), watchlist by turnover.
+  const cardRows = useMemo((): TickerRow[] => {
+    if (tab === 'gainers') return [...filteredTickers].sort((a, b) => (b.change_24h ?? 0) - (a.change_24h ?? 0));
+    if (tab === 'losers') return [...filteredTickers].sort((a, b) => (a.change_24h ?? 0) - (b.change_24h ?? 0));
+    return [...filteredTickers].sort((a, b) => (b.turnover_24h ?? 0) - (a.turnover_24h ?? 0));
+  }, [filteredTickers, tab]);
   const canonicalBtcMarket = selectMarketBySymbol(traderSnapshot, 'BTCUSDT') ?? {};
   const canonicalMarketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, canonicalBtcMarket, fieldId);
 
@@ -706,13 +929,36 @@ export default function MarketsPage(): JSX.Element {
             {search
               ? `No symbols match "${search}"`
               : tab === 'watchlist'
-              ? 'No watchlist symbols'
+              ? 'No watchlist symbols yet — tap the ☆ star on any Overview row to pin it here.'
               : tab === 'gainers'
               ? 'No gaining symbols right now'
+              : tab === 'losers'
+              ? 'No losing symbols right now'
               : 'Market stream connecting'}
           </div>
         )}
-        {filteredTickers.length > 0 && (
+        {tab !== 'overview' && cardRows.length > 0 && (
+          <div
+            data-testid={`market-cards-${tab}`}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+              gap: 10,
+              padding: '16px 24px',
+            }}
+          >
+            {cardRows.map((row) => (
+              <MarketCard
+                key={row.symbol}
+                row={row}
+                isFav={favorites.has(row.symbol)}
+                onToggleFav={() => toggleFavorite(row.symbol)}
+                onOpen={() => navigate(`/market/${row.symbol}`)}
+              />
+            ))}
+          </div>
+        )}
+        {tab === 'overview' && filteredTickers.length > 0 && (
           <table
             style={{
               width: '100%',
@@ -756,6 +1002,15 @@ export default function MarketsPage(): JSX.Element {
                     onSort={handleSort}
                   />
                 )}
+                {hasChange1h && (
+                  <ColHeader
+                    label="1h %"
+                    sortKey="change_1h"
+                    currentKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
+                )}
                 {hasPriceData && (
                   <ColHeader
                     label="24h %"
@@ -774,28 +1029,36 @@ export default function MarketsPage(): JSX.Element {
                     onSort={handleSort}
                   />
                 )}
-                {hasPriceData && (
+                {hasDerivativesData && (
                   <ColHeader
-                    label="Volume 24h"
-                    sortKey="volume_24h"
+                    label="Funding"
+                    sortKey="funding_rate"
                     currentKey={sortKey}
                     dir={sortDir}
                     onSort={handleSort}
                   />
                 )}
                 {hasDerivativesData && (
-                  <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
-                    Funding
-                  </th>
+                  <ColHeader
+                    label="Open Int."
+                    sortKey="open_interest"
+                    currentKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 )}
-                {hasDerivativesData && (
-                  <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
-                    Open Int.
-                  </th>
+                {hasScoreData && (
+                  <ColHeader
+                    label="Score"
+                    sortKey="altdata_symbol_score"
+                    currentKey={sortKey}
+                    dir={sortDir}
+                    onSort={handleSort}
+                  />
                 )}
-                {hasDerivativesData && (
+                {hasTrendData && (
                   <th style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', whiteSpace: 'nowrap', background: 'var(--bg-elevated)', position: 'sticky', top: 0, zIndex: 1, borderBottom: '1px solid var(--border)' }}>
-                    L / S
+                    Trend
                   </th>
                 )}
               </tr>
@@ -845,7 +1108,7 @@ export default function MarketsPage(): JSX.Element {
                         {isFav ? '★' : '☆'}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 12px' }}>
+                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13 }}>
                         {row.symbol.replace('USDT', '')}
                         <span
@@ -858,6 +1121,9 @@ export default function MarketsPage(): JSX.Element {
                           /USDT
                         </span>
                       </span>
+                      {row.market_cap_rank != null && (
+                        <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-muted)' }}>#{row.market_cap_rank}</span>
+                      )}
                     </td>
                     {hasPriceData && (
                       <td
@@ -868,7 +1134,19 @@ export default function MarketsPage(): JSX.Element {
                           color: 'var(--text-primary)',
                         }}
                       >
-                        {fmt(row.last_price)}
+                        {fmtPrice(row.last_price)}
+                      </td>
+                    )}
+                    {hasChange1h && (
+                      <td
+                        style={{
+                          padding: '10px 12px',
+                          textAlign: 'right',
+                          fontSize: 11.5,
+                          color: changeColor(row.change_1h),
+                        }}
+                      >
+                        {fmtPct(row.change_1h)}
                       </td>
                     )}
                     {hasPriceData && (
@@ -894,43 +1172,34 @@ export default function MarketsPage(): JSX.Element {
                         {fmtCompact(row.turnover_24h)}
                       </td>
                     )}
-                    {hasPriceData && (
-                      <td
-                        style={{
-                          padding: '10px 12px',
-                          textAlign: 'right',
-                          color: 'var(--text-muted)',
-                          fontSize: 11.5,
-                        }}
-                      >
-                        {fmtCompact(row.volume_24h)}
-                      </td>
-                    )}
                     {hasDerivativesData && (
                       <td
                         style={{
                           padding: '10px 12px',
                           textAlign: 'right',
                           fontSize: 11.5,
-                          color:
-                            row.funding_rate == null
-                              ? 'var(--text-muted)'
-                              : row.funding_rate >= 0
-                              ? 'var(--buy, #10b981)'
-                              : 'var(--sell, #ef4444)',
+                          color: fundingColor(row.funding_rate),
                         }}
                       >
-                        {row.funding_rate != null ? `${(row.funding_rate * 100).toFixed(4)}%` : '—'}
+                        {fmtFunding(row.funding_rate)}
                       </td>
                     )}
                     {hasDerivativesData && (
                       <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                        {row.open_interest != null ? row.open_interest.toLocaleString('en-US', { maximumFractionDigits: 0 }) : '—'}
+                        {fmtOpenInterest(row.open_interest)}
                       </td>
                     )}
-                    {hasDerivativesData && (
-                      <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11.5, color: 'var(--text-secondary)' }}>
-                        {row.long_short_ratio != null ? row.long_short_ratio.toFixed(2) : '—'}
+                    {hasScoreData && (
+                      <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 11.5, color: scoreColor(row.altdata_symbol_score) }}>
+                        {row.altdata_symbol_score != null ? row.altdata_symbol_score.toFixed(2) : '—'}
+                        {row.altdata_symbol_rank != null && (
+                          <span style={{ color: 'var(--text-muted)', marginLeft: 4, fontSize: 10 }}>#{row.altdata_symbol_rank}</span>
+                        )}
+                      </td>
+                    )}
+                    {hasTrendData && (
+                      <td style={{ padding: '8px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                        <TrendChip row={row} />
                       </td>
                     )}
                   </tr>

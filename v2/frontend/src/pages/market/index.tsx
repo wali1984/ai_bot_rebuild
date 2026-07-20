@@ -85,6 +85,119 @@ interface SignalData {
   risk_reward?: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Symbol enrichment types — mirrors /api/v2/market/{symbol} Redis enrichment
+// blocks. Every field optional/nullable: alts with sparser data must render
+// honest '—' instead of crashing.
+// ---------------------------------------------------------------------------
+
+interface LongShortBlock {
+  long_short_ratio?: number | null;
+  long_account_ratio?: number | null;
+  short_account_ratio?: number | null;
+  period?: string | null;
+  fetched_utc?: string | null;
+}
+
+interface FundingDetailBlock {
+  funding_rate?: number | null;
+  basis_bps?: number | null;
+  next_funding_time?: string | null;
+  estimated_settle_price?: number | null;
+}
+
+interface CoinglassBlock {
+  open_interest_usd?: number | null;
+  open_interest_delta_1h_usd?: number | null;
+  funding_rate_zscore?: number | null;
+  next_funding_minutes?: number | null;
+}
+
+interface RegimeBlock {
+  regime?: string | null;
+  confidence?: number | null;
+  htf_trend?: string | null;
+  rsi_zone?: string | null;
+  macd_direction?: string | null;
+  market_risk_state?: string | null;
+  generated_utc?: string | null;
+}
+
+interface TaSummaryBlock {
+  indicator_count?: number | null;
+  candle_count?: number | null;
+  closed_candles_only?: boolean | null;
+  generated_utc?: string | null;
+}
+
+interface LiquidationLevelsBlock {
+  distance_to_long_liq_bps?: number | null;
+  distance_to_short_liq_bps?: number | null;
+  liquidation_cascade_risk?: number | null;
+  levels_count_long?: number | null;
+  levels_count_short?: number | null;
+  nearest_level_above?: number | null;
+  nearest_level_below?: number | null;
+  sweep_target_short?: number | null;
+  sweep_target_short_distance_bps?: number | null;
+  sweep_target_long?: number | null;
+  sweep_target_long_distance_bps?: number | null;
+  updated_ts_ms?: number | null;
+}
+
+interface LiquidationEnhancedBlock {
+  cascade_probability?: number | null;
+  predicted_long_liq_zone?: number | null;
+  predicted_short_liq_zone?: number | null;
+  market_stress_indicator?: number | null;
+}
+
+interface LiquidationFlowBlock {
+  notional_1h?: number | null;
+  count_1h?: number | null;
+  direction_bias_1h?: number | null;
+  notional_24h?: number | null;
+  count_24h?: number | null;
+}
+
+interface SymbolEnrichment {
+  change_7d?: number | null;
+  market_cap_rank?: number | null;
+  market_cap_usd?: number | null;
+  basis_bps?: number | null;
+  next_funding_time?: string | null;
+  liquidation_cascade_risk?: number | null;
+  distance_to_long_liq_bps?: number | null;
+  distance_to_short_liq_bps?: number | null;
+  distance_to_nearest_liq_bps?: number | null;
+  liq_notional_1h?: number | null;
+  liq_count_1h?: number | null;
+  liq_direction_bias_1h?: number | null;
+  rsi_1m?: number | null;
+  atr_1m?: number | null;
+  adx_1m?: number | null;
+  htf_trend?: string | null;
+  rsi_zone?: string | null;
+  macd_direction?: string | null;
+  altdata_symbol_score?: number | null;
+  altdata_symbol_rank?: number | null;
+  coinank_derivatives_score?: number | null;
+  open_interest_delta_1h_usd?: number | null;
+  coinglass_open_interest_usd?: number | null;
+  taker_buy_ratio?: number | null;
+  taker_flow_trade_count?: number | null;
+  ta_1m?: TaSummaryBlock | null;
+  liquidation_levels?: LiquidationLevelsBlock | null;
+  liquidation_enhanced?: LiquidationEnhancedBlock | null;
+  liquidation_flow?: LiquidationFlowBlock | null;
+  long_short?: LongShortBlock | null;
+  funding_detail?: FundingDetailBlock | null;
+  coinglass?: CoinglassBlock | null;
+  regime_1m?: RegimeBlock | null;
+}
+
+type EnrichedTickerData = MarketTickerData & SymbolEnrichment;
+
 function envelopeMatchesSymbol<T extends { symbol?: string | null }>(
   envelope: ApiV2Envelope<T> | null | undefined,
   expectedSymbol: string,
@@ -201,6 +314,15 @@ function fmtPrice(v: unknown): string {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: Math.min(2, dec), maximumFractionDigits: dec })}`;
 }
 
+/** Liquidation-level price sentinel: the 1m levels engine emits 0.0 when a
+ *  side has no usable level (raw evidence: v2:liquidations:levels:BTCUSDT:1m
+ *  nearest_liquidation_level_below=0.0 while sweep_target_long=null) — render
+ *  honest '—' instead of a fabricated "$0.00" price. */
+function posPriceOrNull(v: number | null | undefined): number | null {
+  const n = finite(v);
+  return n !== null && n > 0 ? n : null;
+}
+
 function fmtPct(v: unknown): string {
   const n = finite(v);
   if (n === null) return '—';
@@ -260,6 +382,82 @@ function fmtNextFunding(iso: string | null): string {
 function changeClass(v: number | null): string {
   if (v === null) return '';
   return v > 0 ? 'mdc-pos' : v < 0 ? 'mdc-neg' : '';
+}
+
+// ── Enrichment formatters ──
+
+/** Raw basis-point distances (e.g. 29.85 → "29.9 bps"). ≥9990 bps is the
+ *  backend "no level on this side" sentinel → honest '—'. */
+function fmtBpsDist(v: unknown): string {
+  const n = finite(v);
+  if (n === null || n >= 9990) return '—';
+  return `${n.toLocaleString('en-US', { maximumFractionDigits: 1 })} bps`;
+}
+
+/** 0..1 fraction as percent, e.g. 0.94 → "94.0%". */
+function fmtProbPct(v: unknown): string {
+  const n = finite(v);
+  return n === null ? '—' : `${(n * 100).toFixed(1)}%`;
+}
+
+function fmtScore(v: unknown): string {
+  const n = finite(v);
+  return n === null ? '—' : n.toFixed(3);
+}
+
+function fmtUsdCompact(v: unknown): string {
+  const n = finite(v);
+  if (n === null) return '—';
+  const a = Math.abs(n);
+  const s = n < 0 ? '-' : '';
+  if (a >= 1e12) return `${s}$${(a / 1e12).toFixed(2)}T`;
+  if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(2)}B`;
+  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(2)}M`;
+  if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1)}K`;
+  return `${s}$${a.toFixed(2)}`;
+}
+
+/** Liquidation direction bias −1..1 → "92% shorts" / "60% longs". */
+function fmtBias(v: unknown): string {
+  const n = finite(v);
+  if (n === null) return '—';
+  if (n === 0) return 'balanced';
+  return n > 0 ? `${(n * 100).toFixed(0)}% longs` : `${(-n * 100).toFixed(0)}% shorts`;
+}
+
+/** Honest upstream freshness: ISO string or epoch-ms → "5h 12m ago". */
+function fmtAgo(v: string | number | null | undefined): string {
+  if (v === null || v === undefined || v === '') return '—';
+  const ts = typeof v === 'number' ? v : Date.parse(v);
+  if (!Number.isFinite(ts)) return '—';
+  const ms = Date.now() - ts;
+  if (!Number.isFinite(ms)) return '—';
+  if (ms < 0) return 'now';
+  const m = Math.floor(ms / 60_000);
+  if (m < 1) return '<1m ago';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ${m % 60}m ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function trendTone(v: string | null | undefined): string {
+  if (!v) return '';
+  const u = v.toUpperCase();
+  if (u === 'UP' || u === 'BULLISH') return 'mdc-pos';
+  if (u === 'DOWN' || u === 'BEARISH') return 'mdc-neg';
+  if (u === 'MIXED') return 'mdc-warn';
+  return '';
+}
+
+function cascadeTone(v: number | null): string {
+  if (v === null) return '';
+  return v >= 0.7 ? 'mdc-neg' : v >= 0.4 ? 'mdc-warn' : 'mdc-pos';
+}
+
+function takerTone(v: number | null): string {
+  if (v === null) return '';
+  return v > 0.55 ? 'mdc-pos' : v < 0.45 ? 'mdc-neg' : '';
 }
 
 function mergeTicker(base: TickerData | null, patch: TickerData): TickerData {
@@ -515,6 +713,39 @@ function Stat({ label, value, tone }: { label: string; value: ReactNode; tone?: 
 }
 
 // ---------------------------------------------------------------------------
+// Long/short positioning bar (honest '—' when upstream ratios missing)
+// ---------------------------------------------------------------------------
+
+function LongShortBar({ long, short }: { long: number | null; short: number | null }): JSX.Element {
+  if (long === null || short === null || long + short <= 0) {
+    return (
+      <div className="mdc-ls-legend mdc-ls-legend--empty">
+        <span>Long / short accounts</span>
+        <span>—</span>
+      </div>
+    );
+  }
+  const longPct = (long / (long + short)) * 100;
+  const shortPct = 100 - longPct;
+  return (
+    <div className="mdc-ls-wrap">
+      <div className="mdc-ls-legend">
+        <span className="mdc-pos">Longs {longPct.toFixed(1)}%</span>
+        <span className="mdc-neg">Shorts {shortPct.toFixed(1)}%</span>
+      </div>
+      <div
+        className="mdc-ls-bar"
+        role="img"
+        aria-label={`Long accounts ${longPct.toFixed(1)} percent versus short accounts ${shortPct.toFixed(1)} percent`}
+      >
+        <span className="mdc-ls-bar__long" style={{ width: `${longPct}%` }} />
+        <span className="mdc-ls-bar__short" style={{ width: `${shortPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Signal panel
 // ---------------------------------------------------------------------------
 
@@ -728,6 +959,39 @@ export default function MarketPage(): JSX.Element {
   const liquidationLevels = derivatives?.liquidation_levels ?? null;
   const liquidationStatus = derivatives?.liquidation_stream_status ?? null;
 
+  // ── Symbol enrichment (Redis blocks on /api/v2/market/{symbol}) ──
+  // Read from the raw resource envelope: mergeTicker() strips extra fields.
+  const enrichment = useMemo(
+    () => resourceForSymbol(
+      tickerResource.envelope.data as EnrichedTickerData | null | undefined,
+      querySymbol,
+    ),
+    [tickerResource.envelope.data, querySymbol],
+  );
+  const longShort = enrichment?.long_short ?? null;
+  const fundingDetail = enrichment?.funding_detail ?? null;
+  const coinglass = enrichment?.coinglass ?? null;
+  const regime1m = enrichment?.regime_1m ?? null;
+  const ta1m = enrichment?.ta_1m ?? null;
+  const liqLevels = enrichment?.liquidation_levels ?? null;
+  const liqEnhanced = enrichment?.liquidation_enhanced ?? null;
+  const liqFlow = enrichment?.liquidation_flow ?? null;
+  // Sides with zero ladder levels report sentinel distances — render honest '—'.
+  const liqDistLong = (liqLevels?.levels_count_long ?? null) === 0
+    ? null
+    : finite(liqLevels?.distance_to_long_liq_bps ?? enrichment?.distance_to_long_liq_bps);
+  const liqDistShort = (liqLevels?.levels_count_short ?? null) === 0
+    ? null
+    : finite(liqLevels?.distance_to_short_liq_bps ?? enrichment?.distance_to_short_liq_bps);
+  const cascadeRisk = finite(liqLevels?.liquidation_cascade_risk ?? enrichment?.liquidation_cascade_risk);
+  const takerBuyRatio = finite(enrichment?.taker_buy_ratio);
+  const altScore = finite(enrichment?.altdata_symbol_score);
+  const altRank = finite(enrichment?.altdata_symbol_rank);
+  const htfTrendValue = regime1m?.htf_trend ?? enrichment?.htf_trend ?? null;
+  const rsiZoneValue = regime1m?.rsi_zone ?? enrichment?.rsi_zone ?? null;
+  const macdDirValue = regime1m?.macd_direction ?? enrichment?.macd_direction ?? null;
+  const regimeConfidence = finite(regime1m?.confidence);
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -891,6 +1155,159 @@ export default function MarketPage(): JSX.Element {
           </div>
         </aside>
       </div>
+
+      {/* ── Symbol enrichment: positioning, TA, liquidation proximity, scores ── */}
+      {safeSymbol && (
+        <div className="mdc-enrich-grid" data-testid="market-enrichment-section">
+          {/* Funding · OI · Long/Short positioning */}
+          <div className="mdc-panel" data-testid="enrich-positioning-panel">
+            <div className="mdc-panel__head">
+              <span className="mdc-panel__eyebrow">Positioning</span>
+              <h2>Funding · OI · Long/Short</h2>
+            </div>
+            <LongShortBar
+              long={finite(longShort?.long_account_ratio)}
+              short={finite(longShort?.short_account_ratio)}
+            />
+            <div className="mdc-stats-grid">
+              <Stat
+                label="L/S Ratio"
+                value={finite(longShort?.long_short_ratio) !== null ? `${(longShort?.long_short_ratio as number).toFixed(2)}x` : '—'}
+              />
+              <Stat
+                label="Basis"
+                value={fmtBpsDist(fundingDetail?.basis_bps ?? enrichment?.basis_bps ?? null)}
+                tone={changeClass(finite(fundingDetail?.basis_bps ?? enrichment?.basis_bps))}
+              />
+              <Stat
+                label="OI Δ 1h"
+                value={fmtUsdCompact(coinglass?.open_interest_delta_1h_usd ?? enrichment?.open_interest_delta_1h_usd ?? null)}
+                tone={changeClass(finite(coinglass?.open_interest_delta_1h_usd ?? enrichment?.open_interest_delta_1h_usd))}
+              />
+              <Stat
+                label="Coinglass OI"
+                value={fmtUsdCompact(coinglass?.open_interest_usd ?? enrichment?.coinglass_open_interest_usd ?? null)}
+              />
+              <Stat label="Funding z-score" value={fmtScore(coinglass?.funding_rate_zscore)} />
+              <Stat label="Est. Settle" value={fmtPrice(fundingDetail?.estimated_settle_price ?? null)} />
+            </div>
+            <p className="mdc-foot">
+              L/S accounts {longShort?.period ?? '—'} · upstream fetched {fmtAgo(longShort?.fetched_utc)}
+            </p>
+          </div>
+
+          {/* TA summary — 1m closed candles */}
+          <div className="mdc-panel" data-testid="enrich-ta-panel">
+            <div className="mdc-panel__head">
+              <span className="mdc-panel__eyebrow">Technicals · 1m</span>
+              <h2>TA Summary</h2>
+            </div>
+            <div className="mdc-stats-grid">
+              <Stat
+                label="RSI (14)"
+                value={finite(enrichment?.rsi_1m) !== null ? (enrichment?.rsi_1m as number).toFixed(1) : '—'}
+                tone={trendTone(rsiZoneValue)}
+              />
+              <Stat label="ATR" value={fmtPrice(enrichment?.atr_1m ?? null)} />
+              <Stat
+                label="ADX"
+                value={finite(enrichment?.adx_1m) !== null ? (enrichment?.adx_1m as number).toFixed(1) : '—'}
+              />
+              <Stat label="HTF Trend" value={htfTrendValue ?? '—'} tone={trendTone(htfTrendValue)} />
+              <Stat label="RSI Zone" value={rsiZoneValue ?? '—'} tone={trendTone(rsiZoneValue)} />
+              <Stat label="MACD" value={macdDirValue ?? '—'} tone={trendTone(macdDirValue)} />
+              <Stat
+                label="Regime"
+                value={regime1m?.regime
+                  ? `${regime1m.regime}${regimeConfidence !== null ? ` · ${(regimeConfidence * 100).toFixed(0)}%` : ''}`
+                  : '—'}
+              />
+              <Stat label="Risk State" value={regime1m?.market_risk_state ?? '—'} />
+            </div>
+            <p className="mdc-foot">
+              {finite(ta1m?.indicator_count) !== null ? `${ta1m?.indicator_count} indicators` : 'Indicator set —'}
+              {ta1m?.closed_candles_only ? ' · closed candles only' : ''}
+              {' · computed '}
+              {fmtAgo(ta1m?.generated_utc)}
+            </p>
+          </div>
+
+          {/* Liquidation proximity */}
+          <div className="mdc-panel" data-testid="enrich-liquidation-panel">
+            <div className="mdc-panel__head">
+              <span className="mdc-panel__eyebrow">Liquidations</span>
+              <h2>Level Proximity</h2>
+            </div>
+            <div className="mdc-stats-grid">
+              <Stat label="Cascade Risk" value={fmtProbPct(cascadeRisk)} tone={cascadeTone(cascadeRisk)} />
+              <Stat
+                label="Market Stress"
+                value={fmtProbPct(liqEnhanced?.market_stress_indicator)}
+                tone={cascadeTone(finite(liqEnhanced?.market_stress_indicator))}
+              />
+              <Stat label="To Long Liq" value={fmtBpsDist(liqDistLong)} />
+              <Stat label="To Short Liq" value={fmtBpsDist(liqDistShort)} />
+              <Stat label="Level Above" value={fmtPrice(posPriceOrNull(liqLevels?.nearest_level_above))} />
+              <Stat label="Level Below" value={fmtPrice(posPriceOrNull(liqLevels?.nearest_level_below))} />
+              <Stat label="Sweep ↑" value={fmtPrice(posPriceOrNull(liqLevels?.sweep_target_short))} />
+              <Stat label="Sweep ↓" value={fmtPrice(posPriceOrNull(liqLevels?.sweep_target_long))} />
+              <Stat
+                label="1h Liq Flow"
+                value={fmtUsdCompact(liqFlow?.notional_1h ?? enrichment?.liq_notional_1h ?? null)}
+              />
+              <Stat
+                label="1h Prints"
+                value={finite(liqFlow?.count_1h ?? enrichment?.liq_count_1h) !== null
+                  ? `${liqFlow?.count_1h ?? enrichment?.liq_count_1h} · ${fmtBias(liqFlow?.direction_bias_1h ?? enrichment?.liq_direction_bias_1h)}`
+                  : '—'}
+              />
+            </div>
+            <p className="mdc-foot">
+              Ladder {finite(liqLevels?.levels_count_long) !== null ? `${liqLevels?.levels_count_long}L / ${liqLevels?.levels_count_short ?? '—'}S levels` : '—'}
+              {' · updated '}
+              {fmtAgo(liqLevels?.updated_ts_ms ?? null)}
+            </p>
+          </div>
+
+          {/* Alt-data, CoinAnk, taker flow, smart money */}
+          <div className="mdc-panel" data-testid="enrich-scores-panel">
+            <div className="mdc-panel__head">
+              <span className="mdc-panel__eyebrow">Alt-Data &amp; Flow</span>
+              <h2>Symbol Scores</h2>
+            </div>
+            <div className="mdc-stats-grid">
+              <Stat
+                label="Symbol Score"
+                value={altScore !== null ? `${altScore.toFixed(3)}${altRank !== null ? ` · #${altRank}` : ''}` : '—'}
+              />
+              <Stat label="CoinAnk Deriv" value={fmtScore(enrichment?.coinank_derivatives_score)} />
+              <Stat
+                label="Mkt Cap Rank"
+                value={finite(enrichment?.market_cap_rank) !== null ? `#${enrichment?.market_cap_rank}` : '—'}
+              />
+              <Stat label="Market Cap" value={fmtUsdCompact(enrichment?.market_cap_usd ?? null)} />
+              <Stat
+                label="7d Change"
+                value={fmtPct(enrichment?.change_7d ?? null)}
+                tone={changeClass(finite(enrichment?.change_7d))}
+              />
+              <Stat
+                label="Taker Buys"
+                value={takerBuyRatio !== null ? `${(takerBuyRatio * 100).toFixed(1)}%` : '—'}
+                tone={takerTone(takerBuyRatio)}
+              />
+              <Stat
+                label="Flow Prints"
+                value={finite(enrichment?.taker_flow_trade_count) !== null ? `${enrichment?.taker_flow_trade_count} trades` : '—'}
+              />
+              <Stat label="Smart Money" value="—" />
+            </div>
+            <p className="mdc-foot">
+              Smart-money flag: no verified per-symbol source yet — shown only when evidence exists
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Lower grid: AI Signal + Derivatives + Source ── */}
       <div className="mdc-lower-grid">
