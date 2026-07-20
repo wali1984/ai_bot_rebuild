@@ -24,6 +24,10 @@ from v2.backend.app.services.native_trainer import (
 from v2.backend.app.services.native_trainer.canonical_ohlcv_atomic_receipt_adapter import (
     capture_canonical_closed_ohlcv_atomic_receipts,
 )
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    feature_abi_contract,
+    feature_requirement_classes_for_names,
+)
 from v2.backend.app.services.native_trainer.feature_snapshot_cas_publication import (
     NATIVE_FEATURE_SNAPSHOT_SCHEMA_VERSION,
     NATIVE_FEATURE_SNAPSHOT_WORKER_ID,
@@ -38,6 +42,8 @@ from v2.backend.app.services.native_trainer.feature_snapshot_publication_ledger_
     FEATURE_SNAPSHOT_PUBLICATION_LEDGER_V4_GENESIS_SHA256,
     FEATURE_SNAPSHOT_PUBLICATION_LEDGER_V4_HEAD_FILENAME,
     FEATURE_SNAPSHOT_PUBLICATION_LEDGER_V4_SCHEMA_VERSION,
+    INCOMPLETE_FALLBACK_ABI_ORIGIN,
+    NATIVE_MODEL_ABI_ORIGIN,
     SOURCE_SCOPE_INCOMPLETENESS_REASONS,
     UNRESOLVED_SOURCE_LABEL,
     FeatureSnapshotPublicationAppendResultV4,
@@ -47,6 +53,9 @@ from v2.backend.app.services.native_trainer.feature_snapshot_publication_ledger_
     FeatureSnapshotPublicationLedgerV4Error,
     FeatureSnapshotPublicationLedgerV4IntegrityError,
     FeatureSnapshotPublicationLedgerV4ValidationError,
+)
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FEATURE_SPEC,
 )
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     ImmutableSourcePayloadStore,
@@ -63,6 +72,22 @@ TIMEFRAME = "1m"
 BASE_MS = 1_700_000_000_000
 REDIS_TIME = (1_700_010_000, 123_456)
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+_MODEL_FEATURE_NAMES = tuple(name for name, _source in FEATURE_SPEC)
+_MODEL_REQUIREMENTS = feature_requirement_classes_for_names(_MODEL_FEATURE_NAMES)
+_REQUIRED_MODEL_FEATURE_NAMES = tuple(
+    name
+    for name, requirement in zip(_MODEL_FEATURE_NAMES, _MODEL_REQUIREMENTS, strict=True)
+    if requirement == "REQUIRED"
+)
+_OPTIONAL_MODEL_FEATURE_NAMES = tuple(
+    name
+    for name, requirement in zip(_MODEL_FEATURE_NAMES, _MODEL_REQUIREMENTS, strict=True)
+    if requirement == "OPTIONAL_EVENT_DEPENDENT"
+)
+_EXPECTED_MODEL_ABI_SHA256 = "e81b6dd95bfba930d67e694941f21a6d4ab5432142c25595848148c8bb42ddf9"
+_REQUIRED_THEN_OPTIONAL_ABI_SHA256 = (
+    "568ca431be3eedbfb31cc0ad1e039bd4927f2b66ab5784574394ddd2cb88b620"
+)
 
 
 class _FakePipeline:
@@ -264,6 +289,30 @@ def _snapshot_for_source(source_result: Any, **overrides: object) -> dict[str, o
     return snapshot
 
 
+def _declared_native_snapshot_for_source(
+    source_result: Any,
+    **overrides: object,
+) -> dict[str, object]:
+    snapshot = _snapshot_for_source(
+        source_result,
+        features={name: float(index + 1) for index, name in enumerate(_MODEL_FEATURE_NAMES)},
+        missing_feature_flags=[],
+        feature_requirement_policy_id="v2_hybrid_feature_requirements_v1",
+        model_feature_abi_slot_count=len(_MODEL_FEATURE_NAMES),
+        required_model_feature_count=len(_REQUIRED_MODEL_FEATURE_NAMES),
+        required_model_feature_fields=list(_REQUIRED_MODEL_FEATURE_NAMES),
+        required_model_feature_missing_fields=[],
+        required_model_feature_value_contract_valid=True,
+        optional_event_dependent_feature_count=len(_OPTIONAL_MODEL_FEATURE_NAMES),
+        optional_event_dependent_feature_fields=list(_OPTIONAL_MODEL_FEATURE_NAMES),
+        optional_event_dependent_feature_present_fields=sorted(_OPTIONAL_MODEL_FEATURE_NAMES),
+        optional_event_dependent_feature_missing_fields=[],
+    )
+    snapshot.update(overrides)
+    _reidentify(snapshot)
+    return snapshot
+
+
 def _publish_artifact(
     tmp_path: Path,
     snapshot: dict[str, object],
@@ -386,6 +435,7 @@ def test_append_binds_p0c_suffix_artifact_vector_clocks_and_fail_closed_flags(
     assert published["feature_snapshot_id"] == artifact.artifact_binding["feature_snapshot_id"]
     assert published["artifact_serialization_sha256"] == artifact.cas_address.payload_sha256
     vector = record["feature_vector_binding"]
+    assert vector["abi_origin"] == INCOMPLETE_FALLBACK_ABI_ORIGIN
     assert vector["ordered_feature_names"] == ["close", "fear_greed_score", "rsi_14"]
     assert vector["ordered_feature_values"] == [102.0, 0.0, 52.25]
     assert vector["missing_mask"] == [0, 1, 0]
@@ -527,6 +577,9 @@ def test_public_dataclass_flags_are_present_once_and_init_false() -> None:
         lambda record: record["feature_vector_binding"][
             "ordered_resolved_source_labels"
         ].__setitem__(0, "forged-source"),
+        lambda record: record["feature_vector_binding"].__setitem__(
+            "abi_origin", NATIVE_MODEL_ABI_ORIGIN
+        ),
         lambda record: record["derivation_binding"].__setitem__("producer_code_sha256", "a" * 64),
     ],
 )
@@ -849,21 +902,32 @@ def test_ledger_size_bound_fails_before_unbounded_read(
         ledger.read_entries()
 
 
-def test_declared_requirement_vector_is_frozen_and_checked(tmp_path: Path) -> None:
-    source_ledger, source_result, source_recorded_at = _source_ledger(tmp_path)
-    snapshot = _snapshot_for_source(
-        source_result,
-        feature_requirement_policy_id="v2_hybrid_feature_requirements_v1",
-        model_feature_abi_slot_count=3,
-        required_model_feature_count=2,
-        required_model_feature_fields=["close", "rsi_14"],
-        required_model_feature_missing_fields=[],
-        required_model_feature_value_contract_valid=True,
-        optional_event_dependent_feature_count=1,
-        optional_event_dependent_feature_fields=["fear_greed_score"],
-        optional_event_dependent_feature_present_fields=[],
-        optional_event_dependent_feature_missing_fields=["fear_greed_score"],
+def test_native_declared_vector_preserves_tensor_builder_model_abi_order(
+    tmp_path: Path,
+) -> None:
+    assert len(_MODEL_FEATURE_NAMES) == 446
+    assert len(set(_MODEL_FEATURE_NAMES)) == 446
+    assert len(_REQUIRED_MODEL_FEATURE_NAMES) == 384
+    assert len(_OPTIONAL_MODEL_FEATURE_NAMES) == 62
+    required_then_optional = _REQUIRED_MODEL_FEATURE_NAMES + _OPTIONAL_MODEL_FEATURE_NAMES
+    first_divergence = next(
+        index
+        for index, (model_name, concatenated_name) in enumerate(
+            zip(_MODEL_FEATURE_NAMES, required_then_optional, strict=True)
+        )
+        if model_name != concatenated_name
     )
+    assert first_divergence == 134
+    assert _MODEL_FEATURE_NAMES[134] == "last_liq_bps_24h"
+    assert _MODEL_REQUIREMENTS[134] == "OPTIONAL_EVENT_DEPENDENT"
+    assert required_then_optional[134] == "liquidation_is_stale"
+    model_abi = feature_abi_contract(_MODEL_FEATURE_NAMES)
+    concatenated_abi = feature_abi_contract(required_then_optional)
+    assert ledger_module._stable_sha256(model_abi) == _EXPECTED_MODEL_ABI_SHA256
+    assert ledger_module._stable_sha256(concatenated_abi) == _REQUIRED_THEN_OPTIONAL_ABI_SHA256
+
+    source_ledger, source_result, source_recorded_at = _source_ledger(tmp_path)
+    snapshot = _declared_native_snapshot_for_source(source_result)
     artifact = _publish_artifact(tmp_path / "artifact", snapshot)
     ledger = FeatureSnapshotPublicationLedgerV4(
         tmp_path / "publication-ledger",
@@ -876,25 +940,43 @@ def test_declared_requirement_vector_is_frozen_and_checked(tmp_path: Path) -> No
         source_recorded_at + timedelta(seconds=1),
     )
     vector = result.entry.record["feature_vector_binding"]
-    assert vector["abi_origin"] == "NATIVE_DECLARED_REQUIREMENT_ORDER"
-    assert vector["ordered_feature_names"] == ["close", "rsi_14", "fear_greed_score"]
-    assert vector["missing_mask"] == [0, 0, 1]
+    assert vector["abi_origin"] == NATIVE_MODEL_ABI_ORIGIN
+    assert vector["feature_count"] == 446
+    assert vector["ordered_feature_names"] == list(_MODEL_FEATURE_NAMES)
+    assert vector["ordered_feature_names"][134] == "last_liq_bps_24h"
+    assert vector["ordered_feature_requirement_classes"][134] == ("OPTIONAL_EVENT_DEPENDENT")
+    assert vector["feature_abi"] == model_abi
+    assert vector["feature_abi_sha256"] == _EXPECTED_MODEL_ABI_SHA256
+    assert vector["feature_abi_sha256"] != _REQUIRED_THEN_OPTIONAL_ABI_SHA256
+    assert vector["ordered_feature_names"] != list(required_then_optional)
+    persisted = ledger.read_entries()
+    assert len(persisted) == 1
+    assert (
+        persisted[0].record["feature_vector_binding"]["feature_abi_sha256"]
+        == _EXPECTED_MODEL_ABI_SHA256
+    )
+    replay = _append(
+        ledger,
+        source_result,
+        artifact,
+        source_recorded_at + timedelta(minutes=5),
+    )
+    assert replay.disposition == "EXACT_REPLAY"
+    assert replay.entry.entry_sha256 == result.entry.entry_sha256
+    assert (
+        replay.entry.record["feature_vector_binding"]["feature_abi_sha256"]
+        == _EXPECTED_MODEL_ABI_SHA256
+    )
+    _assert_downstream_false(replay)
+    _assert_downstream_false(replay.entry)
 
 
 def test_invalid_declared_missing_vector_fails_without_weakening(tmp_path: Path) -> None:
     source_ledger, source_result, source_recorded_at = _source_ledger(tmp_path)
-    snapshot = _snapshot_for_source(
+    snapshot = _declared_native_snapshot_for_source(
         source_result,
-        feature_requirement_policy_id="v2_hybrid_feature_requirements_v1",
-        model_feature_abi_slot_count=3,
-        required_model_feature_count=2,
-        required_model_feature_fields=["close", "rsi_14"],
         required_model_feature_missing_fields=["close"],
         required_model_feature_value_contract_valid=False,
-        optional_event_dependent_feature_count=1,
-        optional_event_dependent_feature_fields=["fear_greed_score"],
-        optional_event_dependent_feature_present_fields=[],
-        optional_event_dependent_feature_missing_fields=["fear_greed_score"],
     )
     artifact = _publish_artifact(tmp_path / "artifact", snapshot)
     ledger = FeatureSnapshotPublicationLedgerV4(
@@ -911,6 +993,71 @@ def test_invalid_declared_missing_vector_fails_without_weakening(tmp_path: Path)
             artifact,
             source_recorded_at + timedelta(seconds=1),
         )
+
+
+@pytest.mark.parametrize(
+    ("tamper", "error_reason"),
+    [
+        ("required_order_drift", "required_feature_declaration_mismatch"),
+        ("optional_order_drift", "optional_feature_declaration_mismatch"),
+        ("unknown_required_name", "required_feature_declaration_mismatch"),
+        ("duplicate_required_name", "required_feature_names_invalid"),
+        ("cross_class_duplicate", "declared_feature_names_not_unique"),
+        ("required_count", "required_count_mismatch"),
+        ("optional_count", "optional_count_mismatch"),
+        ("abi_count", "declared_abi_count_mismatch"),
+        ("policy", "requirement_policy_mismatch"),
+        ("partial_declaration", "partial_requirement_declaration"),
+    ],
+)
+def test_native_declaration_drift_and_tampering_fail_closed(
+    tmp_path: Path,
+    tamper: str,
+    error_reason: str,
+) -> None:
+    source_ledger, source_result, source_recorded_at = _source_ledger(tmp_path)
+    snapshot = _declared_native_snapshot_for_source(source_result)
+    required = cast(list[str], snapshot["required_model_feature_fields"])
+    optional = cast(list[str], snapshot["optional_event_dependent_feature_fields"])
+    if tamper == "required_order_drift":
+        required[0], required[1] = required[1], required[0]
+    elif tamper == "optional_order_drift":
+        optional[0], optional[1] = optional[1], optional[0]
+    elif tamper == "unknown_required_name":
+        required[0] = "unknown_native_model_feature"
+    elif tamper == "duplicate_required_name":
+        required[1] = required[0]
+    elif tamper == "cross_class_duplicate":
+        optional[0] = required[0]
+    elif tamper == "required_count":
+        snapshot["required_model_feature_count"] = len(required) + 1
+    elif tamper == "optional_count":
+        snapshot["optional_event_dependent_feature_count"] = len(optional) + 1
+    elif tamper == "abi_count":
+        snapshot["model_feature_abi_slot_count"] = len(_MODEL_FEATURE_NAMES) - 1
+    elif tamper == "policy":
+        snapshot["feature_requirement_policy_id"] = "tampered_requirement_policy"
+    elif tamper == "partial_declaration":
+        snapshot.pop("optional_event_dependent_feature_fields")
+    else:  # pragma: no cover - the parameter table is code-owned above.
+        raise AssertionError(f"unhandled test tamper: {tamper}")
+    _reidentify(snapshot)
+    artifact = _publish_artifact(tmp_path / "artifact", snapshot)
+    ledger = FeatureSnapshotPublicationLedgerV4(
+        tmp_path / "publication-ledger",
+        source_provenance_ledger=source_ledger,
+    )
+    with pytest.raises(
+        FeatureSnapshotPublicationLedgerV4IntegrityError,
+        match=error_reason,
+    ):
+        _append(
+            ledger,
+            source_result,
+            artifact,
+            source_recorded_at + timedelta(seconds=1),
+        )
+    assert not ledger.path.exists()
 
 
 def test_no_active_runtime_module_imports_unwired_p0d() -> None:

@@ -73,6 +73,9 @@ from v2.backend.app.services.native_trainer.feature_snapshot_cas_publication imp
     FeatureSnapshotCasArtifact,
     FeatureSnapshotPublicationError,
 )
+from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    FEATURE_SPEC,
+)
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
     SOURCE_PAYLOAD_STORE_SCHEMA_VERSION,
@@ -123,6 +126,8 @@ FEATURE_ARTIFACT_BINDING_SCHEMA_VERSION = "p0d_feature_artifact_binding_v4"
 FEATURE_PUBLICATION_IDENTITY_SCHEMA_VERSION = "feature_publication_identity_v4"
 
 UNRESOLVED_SOURCE_LABEL = "UNRESOLVED_NO_PER_FIELD_RECEIPT"
+NATIVE_MODEL_ABI_ORIGIN = "TENSOR_BUILDER_FEATURE_SPEC_CODE_ORDER_WITH_EXACT_DECLARATIONS"
+INCOMPLETE_FALLBACK_ABI_ORIGIN = "INCOMPLETE_NON_MODEL_ABI_SORTED_PRESENT_FEATURE_NAMES"
 SOURCE_SCOPE_INCOMPLETENESS_REASONS = (
     "PER_FIELD_SOURCE_READ_RECEIPTS_ABSENT",
     "PER_FIELD_AVAILABLE_AT_ABSENT",
@@ -949,17 +954,63 @@ def _exact_feature_name_list(value: object, *, reason: str) -> list[str]:
     return names
 
 
+def _code_owned_native_model_contract() -> tuple[list[str], list[str], list[str]]:
+    """Return the exact TensorBuilder order and its filtered declarations."""
+
+    if type(FEATURE_SPEC) is not tuple or not 1 <= len(FEATURE_SPEC) <= MAX_FEATURE_SLOTS:
+        _integrity_error("feature_publication_v4_code_owned_feature_spec_invalid")
+    names: list[str] = []
+    for item in FEATURE_SPEC:
+        if type(item) is not tuple or len(item) != 2:
+            _integrity_error("feature_publication_v4_code_owned_feature_spec_invalid")
+        name, source = item
+        names.append(
+            _required_label(
+                name,
+                reason="feature_publication_v4_code_owned_feature_spec_invalid",
+            )
+        )
+        _required_label(
+            source,
+            reason="feature_publication_v4_code_owned_feature_spec_invalid",
+        )
+    if len(names) != len(set(names)):
+        _integrity_error("feature_publication_v4_code_owned_feature_spec_not_unique")
+    try:
+        requirements = feature_requirement_classes_for_names(names)
+    except FeatureSnapshotValidationError as exc:
+        raise FeatureSnapshotPublicationLedgerV4IntegrityError(
+            "feature_publication_v4_code_owned_requirement_policy_invalid"
+        ) from exc
+    required = [
+        name
+        for name, requirement in zip(names, requirements, strict=True)
+        if requirement == "REQUIRED"
+    ]
+    optional = [
+        name
+        for name, requirement in zip(names, requirements, strict=True)
+        if requirement == "OPTIONAL_EVENT_DEPENDENT"
+    ]
+    if len(required) + len(optional) != len(names):
+        _integrity_error("feature_publication_v4_code_owned_requirement_policy_invalid")
+    return names, required, optional
+
+
 def _declared_model_order(
     snapshot: dict[str, Any],
     features: dict[str, Any],
 ) -> tuple[list[str], str]:
+    model_names, expected_required, expected_optional = _code_owned_native_model_contract()
     required_value = snapshot.get("required_model_feature_fields")
     optional_value = snapshot.get("optional_event_dependent_feature_fields")
     if required_value is None and optional_value is None:
         names = sorted(features)
         if not names:
             _integrity_error("feature_publication_v4_empty_feature_vector")
-        return names, "FALLBACK_SORTED_PRESENT_FEATURE_NAMES_INCOMPLETE"
+        if names == model_names:
+            _integrity_error("feature_publication_v4_native_model_abi_declarations_required")
+        return names, INCOMPLETE_FALLBACK_ABI_ORIGIN
     if required_value is None or optional_value is None:
         _integrity_error("feature_publication_v4_partial_requirement_declaration")
     required = _exact_feature_name_list(
@@ -970,23 +1021,29 @@ def _declared_model_order(
         optional_value,
         reason="feature_publication_v4_optional_feature_names_invalid",
     )
-    names = required + optional
-    if len(names) != len(set(names)) or len(names) > MAX_FEATURE_SLOTS:
+    declared_names = required + optional
+    if len(declared_names) != len(set(declared_names)):
         _integrity_error("feature_publication_v4_declared_feature_names_not_unique")
     if snapshot.get("feature_requirement_policy_id") != FEATURE_REQUIREMENT_POLICY_ID:
         _integrity_error("feature_publication_v4_requirement_policy_mismatch")
-    if snapshot.get("model_feature_abi_slot_count") != len(names):
+    if required != expected_required:
+        _integrity_error("feature_publication_v4_required_feature_declaration_mismatch")
+    if optional != expected_optional:
+        _integrity_error("feature_publication_v4_optional_feature_declaration_mismatch")
+    if snapshot.get("model_feature_abi_slot_count") != len(model_names):
         _integrity_error("feature_publication_v4_declared_abi_count_mismatch")
-    if snapshot.get("required_model_feature_count") != len(required):
+    if snapshot.get("required_model_feature_count") != len(expected_required):
         _integrity_error("feature_publication_v4_required_count_mismatch")
-    if snapshot.get("optional_event_dependent_feature_count") != len(optional):
+    if snapshot.get("optional_event_dependent_feature_count") != len(expected_optional):
         _integrity_error("feature_publication_v4_optional_count_mismatch")
-    expected_requirements = feature_requirement_classes_for_names(names)
-    if expected_requirements != tuple(
-        ["REQUIRED"] * len(required) + ["OPTIONAL_EVENT_DEPENDENT"] * len(optional)
+    expected_requirements = feature_requirement_classes_for_names(model_names)
+    if (
+        len(expected_requirements) != len(model_names)
+        or expected_requirements.count("REQUIRED") != len(expected_required)
+        or expected_requirements.count("OPTIONAL_EVENT_DEPENDENT") != len(expected_optional)
     ):
         _integrity_error("feature_publication_v4_declared_requirement_policy_violation")
-    return names, "NATIVE_DECLARED_REQUIREMENT_ORDER"
+    return model_names, NATIVE_MODEL_ABI_ORIGIN
 
 
 def _validate_native_missing_declarations(
@@ -1408,6 +1465,15 @@ def _validate_vector_binding(value: object) -> dict[str, Any]:
         names
     ) != len(set(names)):
         _integrity_error("feature_publication_v4_vector_names_invalid")
+    model_names, _model_required, _model_optional = _code_owned_native_model_contract()
+    if vector["abi_origin"] == NATIVE_MODEL_ABI_ORIGIN:
+        if names != model_names:
+            _integrity_error("feature_publication_v4_native_model_abi_order_invalid")
+    elif vector["abi_origin"] == INCOMPLETE_FALLBACK_ABI_ORIGIN:
+        if names != sorted(names) or names == model_names:
+            _integrity_error("feature_publication_v4_fallback_abi_origin_invalid")
+    else:
+        _integrity_error("feature_publication_v4_abi_origin_invalid")
     values = cast(list[Any], vector["ordered_feature_values"])
     if any(_canonical_float32(item) != item for item in values):
         _integrity_error("feature_publication_v4_vector_values_invalid")
