@@ -122,3 +122,59 @@ entirely outside my lane and must not be performed by me:
 
 No further Claude action is available until steps 1–2 occur. This refresh is evidence-integrity
 documentation only; no code, no Redis writes, no process changes, live gate BLOCKED.
+
+---
+
+## Re-validation — 2026-07-20T06:40Z (read-only, independent)
+
+**Both prior gating preconditions have now occurred:**
+1. Codex COMMITTED paper-lane fixes: ed115ac695 "make leverage continuous and side-aware"
+   (2026-07-18 14:18 EDT), b20c5afa7f, 57dfaa9df9 "enforce canonical writer ownership"
+   (2026-07-18 20:39 EDT), and later f8a1349061 "enforce earned leverage envelope"
+   (2026-07-19 04:59 EDT).
+2. Paper loop RESTARTED: **PID 1816509, started 2026-07-18 20:45:20 EDT (2026-07-19T00:45:20Z)**
+   — 6 minutes after 57dfaa9df9. Running ~30h at validation time. Note: the running process
+   PREDATES f8a1349061 by ~8h and the file remains dirty in Codex's tree (the recurring
+   process-code-mismatch persists for the newest fix).
+
+**Result: VALIDATION CANNOT CONCLUDE — the restarted loop has admitted NOTHING in 30h.**
+Method: same read-only invariant + L/S check (`v2:paper:closed_trades`, `v2:paper:positions`,
+both now JSON-string blobs) filtered to exits > 2026-07-19T00:45:20Z.
+
+- Closes after PID start: **0 of 92** (newest close remains 2026-07-17T22:48Z, pre-restart).
+- Open positions: **0**.
+- `v2:paper:trade_management:status` (stamped fresh every 60s cycle, 2026-07-20T06:35Z):
+  `intents_built: 0`, `candidate_count: 0`, `strategy_supply_sourced_count: 0`,
+  `accepted_count: 0`, `blocked_count: 0`, ALL rejection/block reason maps EMPTY.
+  This is not gate-blocking — **zero candidates reach the funnel at all**.
+- Upstream supply is FRESH at the same moment: `v2:strategy_supply:gate_clean_positive_hypotheses:*`
+  age ~20s (33 keys), `v2:opportunity:*` age ~124s (5 keys),
+  ai-bot-v2-orchestrator-arbitration-loop + a-plus-context + alt-data publisher all active.
+- Signal-consumption regression across the restart: prior PIDs logged
+  `DEBUG: Processing signal N/593` every cycle (stdout log, last written 2026-07-18 00:38 EDT);
+  the current PID has written **zero bytes** of signal-processing output in 30h
+  (process stdout confirmed bound to that log via /proc/1816509/fd/1).
+  **593 signals/cycle → 0 signals/cycle across the restart while supply stayed fresh.**
+- Historical note (not current): 94 `UnboundLocalError: local variable 'json'`
+  (v2_trade_management_paper_loop.py:30761, run_once) crashes in the .err log, last written
+  2026-07-16 15:14 EDT — an earlier crash-loop cause, apparently resolved before this PID.
+
+**NEW BLOCKING SUB-DEFECT (Codex-lane): signal intake severed in the restarted code state.**
+The loop cycles healthily (fresh status stamps, PASS writer-ownership validation, margin PASS)
+but consumes no signals, so no new closes can EVER accumulate to validate CG-F049/F050 —
+and G04-lane sample growth, G13/G14 recovery, and 1000x progress are all frozen with it.
+Most likely introduced between the pre-restart code state and the 2026-07-18 20:45 restart
+cohort (ed115ac695 / b20c5afa7f / 57dfaa9df9 or the then-dirty tree); the canonical-writer
+enforcement in 57dfaa9df9 is the natural first suspect for over-fencing the signal source read.
+
+### Verdict
+- CG-F050: **STILL PENDING** — 0 new closes to test (prior early-positive n=1 unchanged).
+- CG-F049: **STILL PENDING** — 0 new admissions; L/S rebalance unobservable.
+- WQ-R34: remains **BLOCKED_EXTERNAL_DEPENDENCY**, but the blocker has CHANGED:
+  it is no longer "PID predates fix" — it is (a) zero-candidate starvation in the running
+  loop (Codex must diagnose/fix the signal intake in v2_trade_management_paper_loop.py,
+  their actively-dirty file), then (b) another drain-safe restart that also picks up
+  f8a1349061, then (c) re-run this validation after ≥10 post-restart closes incl. ≥1
+  multi-fill accumulation close.
+
+Validator: Claude (read-only; no trading-flow code touched; live gate BLOCKED throughout).
