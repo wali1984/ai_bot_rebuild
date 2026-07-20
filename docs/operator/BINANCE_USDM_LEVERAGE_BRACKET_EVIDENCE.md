@@ -52,6 +52,16 @@ with at least 32 bytes of entropy, encode it as single-line base64 or hexadecima
 and label the encrypted input with the exact case-sensitive credential name in the
 table.
 
+Current negative permission evidence (2026-07-20 UTC): a signed, non-mutating
+`account.status` diagnostic using the legacy generic resolved credential succeeded
+and reported `canTrade=true`, `canDeposit=true`, and `canWithdraw=true`. Balances,
+positions, API-key bytes, and secret bytes were not retained in the operator record.
+That credential is therefore explicitly disqualified from this service: do not copy,
+rename, encrypt, or provision it into any credential slot listed above. This negative
+result does not set `exchange_key_permissions_proven_by_connector=true`; activation
+still requires a distinct account-scoped key whose Binance-side permissions are
+independently proven both non-trading and non-withdrawing.
+
 The checked-in unit intentionally has no optional secret fallback. A missing blob,
 wrong credential name, changed trader/reference, unrecognized HTTP origin, short or
 reused HMAC, unavailable Redis, disabled/budget-blocked REST fallback, invalid Binance
