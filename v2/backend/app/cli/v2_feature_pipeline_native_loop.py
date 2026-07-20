@@ -60,6 +60,7 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     feature_requirement_classes_for_names,
 )
 from v2.backend.app.services.native_trainer.feature_window_dependency_contract import (
+    CANDLE_ID_CHAIN_VERSION,
     FeatureWindowContractError,
     bind_full_contiguous_core_ta_input,
 )
@@ -579,6 +580,20 @@ def _exact_sha256(value: object) -> str | None:
     return value
 
 
+def _canonical_json_sha256(value: object) -> str | None:
+    try:
+        material = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+    except (OverflowError, RecursionError, TypeError, ValueError):
+        return None
+    return hashlib.sha256(material.encode("ascii")).hexdigest()
+
+
 def _exact_model_feature_value(value: object) -> bool:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return False
@@ -631,6 +646,7 @@ def _read_klines_with_lineage(
         "selected_latest_candle_id": None,
         "selected_identity_storage": "HASH_CHAIN_AND_BOUNDARIES_ONLY",
         "selected_candle_id_chain_sha256": None,
+        "selected_rows_material_sha256": None,
         "source_gap_indices": [],
         "source_gap_missing_interval_counts": [],
         "selected_source_provenance_counts": {},
@@ -752,6 +768,9 @@ def _read_klines_with_lineage(
         return _held("ATOMIC_OHLCV_SELECTED_ROW_BINDING_INVALID")
 
     selected_rows = [asdict(row) for row in selected_validated_rows]
+    selected_rows_material_sha256 = _canonical_json_sha256(selected_rows)
+    if selected_rows_material_sha256 is None:
+        return _held("ATOMIC_OHLCV_SELECTED_ROWS_MATERIAL_INVALID")
     provenance_counts = {
         source: sum(row.source == source for row in selected_validated_rows)
         for source in ("binance_rest", "binance_wss")
@@ -778,6 +797,7 @@ def _read_klines_with_lineage(
         "selected_candle_id_chain_sha256": (
             binding.selected_candle_id_chain_sha256
         ),
+        "selected_rows_material_sha256": selected_rows_material_sha256,
         "selected_raw_payload_hashes": [
             row.raw_payload_hash for row in selected_validated_rows
         ],
@@ -825,6 +845,7 @@ def _read_klines_with_lineage(
             "selected_candle_id_chain_sha256": (
                 binding.selected_candle_id_chain_sha256
             ),
+            "selected_rows_material_sha256": selected_rows_material_sha256,
             "source_gap_indices": list(binding.gap_indices),
             "source_gap_missing_interval_counts": list(
                 binding.gap_missing_interval_counts
@@ -1356,7 +1377,146 @@ def _maybe_poll_moralis_smart_money(r) -> None:
         return
 
 
-def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) -> dict:
+def _bound_market_structure_candles(
+    selected_closed_klines: object,
+    ohlcv_selection_lineage: object,
+    *,
+    symbol: str,
+    timeframe: str,
+) -> tuple[list[dict], dict]:
+    """Detach the exact selected rows or return an explicit fail-closed hold."""
+
+    rejection_reasons: list[str] = []
+    rows = selected_closed_klines if isinstance(selected_closed_klines, list) else []
+    lineage = ohlcv_selection_lineage if isinstance(ohlcv_selection_lineage, dict) else {}
+    if lineage.get("exact_source_schema_validated") is not True:
+        rejection_reasons.append("EXACT_SOURCE_SCHEMA_NOT_VALIDATED")
+    if lineage.get("entire_contiguous_suffix_bound") is not True:
+        rejection_reasons.append("ENTIRE_CONTIGUOUS_SUFFIX_NOT_BOUND")
+    if lineage.get("selection_rejection_reasons") not in ([], ()):
+        rejection_reasons.append("OHLCV_SELECTION_REJECTED")
+    if _exact_epoch_ms(lineage.get("consumer_observation_cutoff_ms")) is None:
+        rejection_reasons.append("CONSUMER_OBSERVATION_CUTOFF_INVALID")
+    if (
+        lineage.get("consumer_observation_clock_source")
+        != "LOCAL_CLOCK_AFTER_ATOMIC_RESPONSE"
+    ):
+        rejection_reasons.append("CONSUMER_OBSERVATION_CLOCK_SOURCE_INVALID")
+    selected_row_count = lineage.get("selected_row_count")
+    if type(selected_row_count) is not int or selected_row_count <= 0:
+        rejection_reasons.append("SELECTED_ROW_COUNT_INVALID")
+    elif selected_row_count != len(rows):
+        rejection_reasons.append("SELECTED_ROW_COUNT_MISMATCH")
+    if not rows or any(not isinstance(row, dict) for row in rows):
+        rejection_reasons.append("SELECTED_ROWS_INVALID")
+
+    required_hash_fields = (
+        "exact_payload_sha256",
+        "binding_selection_sha256",
+        "consumer_selection_sha256",
+        "selected_candle_id_chain_sha256",
+        "selected_rows_material_sha256",
+    )
+    for field in required_hash_fields:
+        if _exact_sha256(lineage.get(field)) is None:
+            rejection_reasons.append(f"{field.upper()}_INVALID")
+
+    candle_ids: list[str] = []
+    if not rejection_reasons:
+        for row in rows:
+            candle_id = row.get("candle_id")
+            if (
+                type(candle_id) is not str
+                or not candle_id
+                or row.get("symbol") != symbol
+                or row.get("timeframe") != timeframe
+            ):
+                rejection_reasons.append("SELECTED_ROW_IDENTITY_MISMATCH")
+                break
+            candle_ids.append(candle_id)
+
+    if not rejection_reasons:
+        if _canonical_json_sha256(rows) != lineage.get(
+            "selected_rows_material_sha256"
+        ):
+            rejection_reasons.append("SELECTED_ROWS_MATERIAL_MISMATCH")
+        chain_material = {
+            "schema_version": CANDLE_ID_CHAIN_VERSION,
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "selected_count": len(candle_ids),
+            "candle_ids": candle_ids,
+        }
+        chain_material_json = json.dumps(
+            chain_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            allow_nan=False,
+        )
+        chain_sha256 = hashlib.sha256(
+            chain_material_json.encode("ascii")
+        ).hexdigest()
+        if chain_sha256 != lineage.get("selected_candle_id_chain_sha256"):
+            rejection_reasons.append("SELECTED_CANDLE_ID_CHAIN_MISMATCH")
+        if (
+            lineage.get("selected_first_candle_id") != candle_ids[0]
+            or lineage.get("selected_latest_candle_id") != candle_ids[-1]
+        ):
+            rejection_reasons.append("SELECTED_CANDLE_BOUNDARY_MISMATCH")
+
+    binding = {
+        "schema_version": "v2_market_structure_ohlcv_binding_v1",
+        "status": (
+            "BOUND_TO_ATOMIC_CANONICAL_SELECTION"
+            if not rejection_reasons
+            else "HELD_UNBOUND_OHLCV_SELECTION"
+        ),
+        "selection_rejection_reasons": sorted(set(rejection_reasons)),
+        "selected_row_count": len(rows) if not rejection_reasons else 0,
+        "selected_first_candle_id": (
+            candle_ids[0] if candle_ids and not rejection_reasons else None
+        ),
+        "selected_latest_candle_id": (
+            candle_ids[-1] if candle_ids and not rejection_reasons else None
+        ),
+        "selected_candle_id_chain_sha256": (
+            lineage.get("selected_candle_id_chain_sha256")
+            if not rejection_reasons
+            else None
+        ),
+        "selected_rows_material_sha256": (
+            lineage.get("selected_rows_material_sha256")
+            if not rejection_reasons
+            else None
+        ),
+        "consumer_selection_sha256": (
+            lineage.get("consumer_selection_sha256")
+            if not rejection_reasons
+            else None
+        ),
+        "consumer_observation_cutoff_ms": lineage.get(
+            "consumer_observation_cutoff_ms"
+        ),
+        "durable_source_receipt_emitted": False,
+        "feature_publication_receipt_emitted": False,
+        "trainer_admission_granted": False,
+        "live_execution_authorized": False,
+    }
+    if rejection_reasons:
+        return [], binding
+    return [dict(row) for row in rows], binding
+
+
+def _merge_external_v2_features(
+    r,
+    symbol: str,
+    timeframe: str,
+    features: dict,
+    *,
+    selected_closed_klines: list,
+    ohlcv_selection_lineage: dict,
+) -> dict:
     """Merge real V2 feature surfaces into the live feature mirror."""
     sources_present: list[str] = []
     fields_merged = 0
@@ -1480,24 +1640,24 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
     # BOS/CHOCH structure. Computed from V2-owned closed candles + book +
     # liquidation + tape evidence and published for risk/orchestrator/paper
     # consumption. Missing candles yield explicit missing_evidence payloads.
+    structure_candles, structure_ohlcv_binding = _bound_market_structure_candles(
+        selected_closed_klines,
+        ohlcv_selection_lineage,
+        symbol=symbol,
+        timeframe=timeframe,
+    )
     try:
-        structure_candles = _read_json_key(
-            r, f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
-        )
-        if not isinstance(structure_candles, list):
-            structure_candles = []
         reference_price = None
         if structure_candles:
             last = structure_candles[-1]
-            if isinstance(last, dict):
-                for pf in ("close", "c"):
-                    try:
-                        reference_price = float(last.get(pf))
-                        break
-                    except (TypeError, ValueError):
-                        continue
+            for price_field in ("close", "c"):
+                candidate = _coerce_numeric(last.get(price_field))
+                if candidate is not None and math.isfinite(candidate) and candidate > 0:
+                    reference_price = float(candidate)
+                    break
         zones = compute_liquidity_zones(
             symbol=symbol,
+            timeframe=timeframe,
             candles=structure_candles,
             price=reference_price,
             orderbook_features=_read_json_key(
@@ -1510,6 +1670,7 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
                 r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
             ),
         )
+        zones["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
             f"v2:market:liquidity_zones:{symbol}",
             json.dumps(zones, default=str),
@@ -1531,6 +1692,7 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
             candles=structure_candles,
             price=reference_price,
         )
+        structure["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
             f"v2:market:structure:{symbol}:{timeframe}",
             json.dumps(structure, default=str),
@@ -1576,6 +1738,7 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
                 r, f"v2:microstructure:trade_tape_confirmation:{symbol}"
             ),
         )
+        fvg["ohlcv_selection_binding"] = dict(structure_ohlcv_binding)
         r.set(
             f"v2:market:fvg:{symbol}:{timeframe}",
             json.dumps(fvg, default=str),
@@ -1626,6 +1789,9 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
             # fake_breakout/breakdown_risk, cascade_continuation_probability).
             (f"v2:market:sweep_risk:{symbol}:{timeframe}", zones),
         ):
+            market_payload["ohlcv_selection_binding"] = dict(
+                structure_ohlcv_binding
+            )
             r.set(market_key, json.dumps(market_payload, default=str), ex=3600)
         sources_present.append("v2:market:structure_computed")
     except Exception as exc:  # noqa: BLE001 - never poison the feature cycle
@@ -1634,6 +1800,7 @@ def _merge_external_v2_features(r, symbol: str, timeframe: str, features: dict) 
     return {
         "sources_present": sorted(set(sources_present)),
         "fields_merged": fields_merged,
+        "market_structure_ohlcv_binding": structure_ohlcv_binding,
     }
 
 
@@ -2273,7 +2440,14 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             paper_position_presence.get(sym) if paper_position_presence is not None else None
         )
         feats = _features_from_market(m)
-        external = _merge_external_v2_features(r, sym, timeframe, feats)
+        external = _merge_external_v2_features(
+            r,
+            sym,
+            timeframe,
+            feats,
+            selected_closed_klines=closed_klines,
+            ohlcv_selection_lineage=ohlcv_selection_lineage,
+        )
         market_cost_sources = {
             "fee_bps": feats.pop("_fee_bps_source", None),
             "expected_slippage_bps": feats.pop("_expected_slippage_source", None),
@@ -2573,6 +2747,9 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_consumer_selection": ohlcv_selection_lineage,
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
+            "market_structure_ohlcv_binding": external[
+                "market_structure_ohlcv_binding"
+            ],
             "market_cost_evidence_source_fields": {
                 key: value for key, value in market_cost_sources.items() if value
             },

@@ -273,6 +273,32 @@ class _DecodedRedisView:
         return {"decode_responses": True}
 
 
+def _capture_market_structure_family_inputs(monkeypatch, mod) -> dict[str, dict]:
+    captures: dict[str, dict] = {}
+
+    def capture(family: str):
+        def compute(**kwargs):
+            captures[family] = {
+                "candles": [dict(row) for row in kwargs.get("candles") or []],
+                "price": kwargs.get("price"),
+                "timeframe": kwargs.get("timeframe"),
+            }
+            return {}
+
+        return compute
+
+    for attribute, family in (
+        ("compute_liquidity_zones", "liquidity_zones"),
+        ("compute_structure", "structure"),
+        ("compute_fvg", "fvg"),
+        ("compute_vwap_features", "vwap"),
+        ("compute_volume_profile", "volume_profile"),
+        ("compute_cvd_features", "cvd"),
+    ):
+        monkeypatch.setattr(mod, attribute, capture(family))
+    return captures
+
+
 def _market_payload() -> dict:
     return {
         "price": 100.0,
@@ -1032,6 +1058,8 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
         "BTCUSDT",
         "1m",
         features,
+        selected_closed_klines=[],
+        ohlcv_selection_lineage={},
     )
 
     assert all(
@@ -1429,6 +1457,7 @@ def test_atomic_canonical_selection_binds_full_window_for_every_required_timefra
     assert lineage["selected_candle_ids"] is None
     assert lineage["selected_first_candle_id"] == source_rows[0]["candle_id"]
     assert lineage["selected_latest_candle_id"] == source_rows[-1]["candle_id"]
+    assert re.fullmatch(r"[0-9a-f]{64}", lineage["selected_rows_material_sha256"])
     assert lineage["selected_source_start_index"] == 0
     assert lineage["selected_source_end_index_exclusive"] == 80
     assert lineage["entire_contiguous_suffix_bound"] is True
@@ -1663,6 +1692,268 @@ def test_exact_payload_and_selection_hashes_change_with_source_identity() -> Non
     assert first["selected_latest_candle_id"] != second["selected_latest_candle_id"]
     assert first["binding_selection_sha256"] != second["binding_selection_sha256"]
     assert first["consumer_selection_sha256"] != second["consumer_selection_sha256"]
+
+
+def test_market_structure_families_use_atomic_rows_after_source_mutation(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    latest_close_ms = _latest_finalized_close_ms(fp, "1m")
+    initial_rows = _canonical_closed_window(
+        latest_close_ms,
+        latest_values={"close_price": 101.25, "high_price": 102.0},
+    )
+    replacement_rows = _canonical_closed_window(
+        latest_close_ms,
+        latest_values={"close_price": 9_999.0, "high_price": 10_000.0},
+    )
+    source_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    initial_payload = json.dumps(initial_rows)
+    fake.store[source_key] = initial_payload
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    original_execute = _FakeAtomicPipeline.execute
+
+    def capture_then_replace(pipeline):
+        result = original_execute(pipeline)
+        pipeline.redis_client.store[source_key] = json.dumps(replacement_rows)
+        return result
+
+    monkeypatch.setattr(_FakeAtomicPipeline, "execute", capture_then_replace)
+    captures = _capture_market_structure_family_inputs(monkeypatch, fp)
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    assert set(captures) == {
+        "liquidity_zones",
+        "structure",
+        "fvg",
+        "vwap",
+        "volume_profile",
+        "cvd",
+    }
+    initial_ids = [row["candle_id"] for row in initial_rows]
+    for capture in captures.values():
+        assert [row["candle_id"] for row in capture["candles"]] == initial_ids
+        assert capture["candles"][-1]["close"] == 101.25
+        assert capture["price"] == 101.25
+        assert capture["timeframe"] == "1m"
+    assert source_key not in fake.get_calls
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["ohlcv_consumer_selection"]["exact_payload_sha256"] == (
+        hashlib.sha256(initial_payload.encode("utf-8")).hexdigest()
+    )
+    assert snapshot["market_structure_ohlcv_binding"]["status"] == (
+        "BOUND_TO_ATOMIC_CANONICAL_SELECTION"
+    )
+
+
+def test_market_structure_families_receive_only_bound_post_gap_suffix(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    duration_ms = TIMEFRAME_DURATION_MS["1m"]
+    latest_close_ms = _latest_finalized_close_ms(fp, "1m")
+    suffix = _canonical_closed_window(latest_close_ms)
+    prefix = _canonical_closed_window(
+        suffix[0]["candle_close_time"] - (2 * duration_ms),
+        count=10,
+    )
+    source_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    fake.store[source_key] = json.dumps(prefix + suffix)
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    captures = _capture_market_structure_family_inputs(monkeypatch, fp)
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    suffix_ids = [row["candle_id"] for row in suffix]
+    prefix_ids = {row["candle_id"] for row in prefix}
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["ohlcv_consumer_selection"]["selected_source_start_index"] == 10
+    assert snapshot["ohlcv_consumer_selection"]["selected_row_count"] == len(suffix)
+    for capture in captures.values():
+        captured_ids = [row["candle_id"] for row in capture["candles"]]
+        assert captured_ids == suffix_ids
+        assert prefix_ids.isdisjoint(captured_ids)
+
+
+def test_market_structure_binding_rejects_in_process_row_mutation() -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    latest_close_ms = _latest_finalized_close_ms(fp, "1m")
+    source_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    fake.store[source_key] = json.dumps(_canonical_closed_window(latest_close_ms))
+    selected, lineage = fp._read_klines_with_lineage(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        "1m",
+    )
+    assert selected is not None
+    mutated = [dict(row) for row in selected]
+    mutated[-1]["close"] = 9_999.0
+
+    bound, binding = fp._bound_market_structure_candles(  # noqa: SLF001
+        mutated,
+        lineage,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+
+    assert bound == []
+    assert binding["status"] == "HELD_UNBOUND_OHLCV_SELECTION"
+    assert binding["selection_rejection_reasons"] == [
+        "SELECTED_ROWS_MATERIAL_MISMATCH"
+    ]
+
+
+def test_market_structure_never_falls_back_when_atomic_selection_is_held(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    stale_close_ms = _latest_finalized_close_ms(fp, "1m") - (100 * 60_000)
+    source_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    fake.store[source_key] = json.dumps(_canonical_closed_window(stale_close_ms))
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    captures = _capture_market_structure_family_inputs(monkeypatch, fp)
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    assert source_key not in fake.get_calls
+    assert set(captures) == {
+        "liquidity_zones",
+        "structure",
+        "fvg",
+        "vwap",
+        "volume_profile",
+        "cvd",
+    }
+    assert all(capture["candles"] == [] for capture in captures.values())
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["market_structure_ohlcv_binding"]["status"] == (
+        "HELD_UNBOUND_OHLCV_SELECTION"
+    )
+    assert snapshot["market_structure_ohlcv_binding"][
+        "selection_rejection_reasons"
+    ]
+    for field in (
+        "liquidity_zone_above",
+        "liquidity_zone_below",
+        "distance_to_liquidity_zone_bps",
+        "liquidity_sweep_risk",
+        "fvg_size_bps",
+        "distance_to_fvg_bps",
+        "fvg_fill_percent",
+    ):
+        assert snapshot["features"].get(field) is None
+    assert snapshot["trainer_consumable"] is False
+    assert snapshot["valid_for_prediction"] is False
+    assert snapshot["valid_for_paper"] is False
+
+
+def test_market_structure_publications_share_selected_tail_identity(
+    monkeypatch,
+) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    latest_close_ms = _latest_finalized_close_ms(fp, "15m")
+    selected_rows = _canonical_closed_window(
+        latest_close_ms,
+        timeframe="15m",
+    )
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store[
+        "v2:market:ohlcv_closed:binance:BTCUSDT:15m"
+    ] = json.dumps(selected_rows)
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+
+    fp.run_once(("BTCUSDT",), "15m", write_trainer_snapshot=False)
+
+    publication_keys = (
+        "v2:market:liquidity_zones:BTCUSDT",
+        "v2:market:structure:BTCUSDT:15m",
+        "v2:market:fvg:BTCUSDT:15m",
+        "v2:market:vwap:BTCUSDT:15m",
+        "v2:market:volume_profile:BTCUSDT:15m",
+        "v2:market:cvd:BTCUSDT:15m",
+        "v2:market:sweep_risk:BTCUSDT:15m",
+    )
+    for key in publication_keys:
+        publication = json.loads(fake.store[key])
+        binding = publication["ohlcv_selection_binding"]
+        assert publication["timeframe"] == "15m"
+        assert fp._parse_time_ms(publication["event_time"]) == (  # noqa: SLF001
+            selected_rows[-1]["event_time"]
+        )
+        assert fp._parse_time_ms(publication["available_at"]) == (  # noqa: SLF001
+            selected_rows[-1]["available_at"]
+        )
+        assert publication["timestamp_lineage"]["input_rows"] == len(selected_rows)
+        assert publication["timestamp_lineage"]["usable_rows"] == len(selected_rows)
+        assert binding["selected_latest_candle_id"] == selected_rows[-1]["candle_id"]
+        assert binding["durable_source_receipt_emitted"] is False
+        assert binding["feature_publication_receipt_emitted"] is False
+        assert binding["trainer_admission_granted"] is False
+        assert binding["live_execution_authorized"] is False
+
+
+def test_unmanifested_external_values_cannot_release_snapshot(monkeypatch) -> None:
+    import v2.backend.app.cli.v2_feature_pipeline_native_loop as fp
+
+    fake = FakeRedis()
+    latest_close_ms = _latest_finalized_close_ms(fp, "1m")
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
+        _canonical_closed_window(latest_close_ms)
+    )
+    fake.store["v2:features:ta_full:BTCUSDT:1m"] = json.dumps(
+        {"indicators": {"unmanifested_ta_signal": 0.75}}
+    )
+    original_features_from_market = fp._features_from_market  # noqa: SLF001
+
+    def complete_required_features(market):
+        features = original_features_from_market(market)
+        for field in fp.TRAINER_REQUIRED_FEATURE_FIELDS:
+            features[field] = 1.0
+        return features
+
+    original_read_hash = fp._read_hash_key  # noqa: SLF001
+
+    def read_hash(redis_client, key):
+        if key == "v2:unified_features:BTCUSDT:1m":
+            return {"unmanifested_unified_signal": "0.5"}
+        return original_read_hash(redis_client, key)
+
+    monkeypatch.setattr(fp, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(fp, "_features_from_market", complete_required_features)
+    monkeypatch.setattr(fp, "_read_hash_key", read_hash)
+
+    fp.run_once(("BTCUSDT",), "1m", write_trainer_snapshot=False)
+
+    snapshot = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    assert snapshot["required_model_feature_value_contract_valid"] is True
+    assert snapshot["required_model_feature_pit_coverage_valid"] is False
+    assert snapshot["required_model_feature_pit_rejection_reasons"] == [
+        "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
+    ]
+    assert snapshot["exact_feature_availability_valid"] is False
+    assert snapshot["exact_feature_availability_rejection_reasons"] == [
+        "FEATURE_PUBLICATION_RECEIPT_REQUIRED"
+    ]
+    assert snapshot["features"]["unmanifested_ta_signal"] == 0.75
+    assert snapshot["features"]["unmanifested_unified_signal"] == 0.5
+    assert snapshot["trainer_consumable"] is False
+    assert snapshot["valid_for_prediction"] is False
+    assert snapshot["valid_for_paper"] is False
 
 
 def test_required_candle_features_use_closed_window_not_24h_ticker() -> None:
