@@ -704,7 +704,7 @@ final class AIBotV2CoreTests: XCTestCase {
             "ViewModels/SignalsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",
                 "APIEndpoints.mobileSignals",
-                "decodeMobileResourceMessage",
+                "decodeMobileResourceSnapshot",
             ],
             "ViewModels/AlertsViewModel.swift": [
                 "APIEndpoints.wsResourceURL",

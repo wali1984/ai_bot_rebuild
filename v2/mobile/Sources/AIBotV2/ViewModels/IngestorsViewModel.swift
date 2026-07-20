@@ -38,6 +38,24 @@ public final class IngestorsViewModel {
         }
     }
 
+    /// Canonical delivery-status classes in operator-priority order. Drives the
+    /// summary donut and the per-class count chips so every class is always
+    /// surfaced (including zero counts the backend `counts` block omits).
+    public static let canonicalStatusOrder = ["live", "stale", "upstream_error", "offline", "not_started"]
+
+    /// Full status breakdown in canonical order with real counts (0 when a class
+    /// is absent), followed by any non-canonical status the feed actually emits.
+    /// No class is invented — extras come only from live rows.
+    public var orderedStatusBreakdown: [(status: String, count: Int)] {
+        let counts = statusCounts
+        var out: [(status: String, count: Int)] = Self.canonicalStatusOrder.map { (status: $0, count: counts[$0] ?? 0) }
+        let extras = counts.keys
+            .filter { !Self.canonicalStatusOrder.contains($0) }
+            .sorted()
+        for key in extras { out.append((status: key, count: counts[key] ?? 0)) }
+        return out
+    }
+
     public func load(token: String?, baseURL: String) async {
         connect(token: token, baseURL: baseURL)
         await loadFallback(token: token, baseURL: baseURL)

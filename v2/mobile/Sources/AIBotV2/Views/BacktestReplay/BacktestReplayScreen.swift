@@ -156,6 +156,14 @@ struct BacktestReplayScreen: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                if vm.winRateTrend.count >= 2 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        MicroLabel(text: "Win Rate Trend · \(vm.winRateTrend.count) cycles")
+                        Sparkline(values: vm.winRateTrend, color: winRateColor(pb.win_rate))
+                            .frame(height: 34)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 DataRow(label: "Trainer Mode", value: vm.backtest?.effective_trainer_mode ?? "—", mono: true)
                 disclaimer(pb.evidence_class)
             } else {

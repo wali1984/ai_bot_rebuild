@@ -27,6 +27,13 @@ public final class BacktestReplayViewModel {
     public private(set) var lastTransport: String?
     public private(set) var lastReceivedAt: Date?
 
+    // Client-side trend of the headline backtest win-rate across cycles.
+    // RollingSeries dedupes unchanged values, so each point is a genuinely new
+    // backtest number (not a stream re-tick). Strictly additive — does not
+    // change the existing public surface; drives the win-rate trend sparkline.
+    public private(set) var winRateTrend: [Double] = []
+    private var winRateSeries = RollingSeries(capacity: 48)
+
     // Symbol/timeframe the summary alert is sampled from (a liquid major).
     public var alertSymbol = "BTCUSDT"
     public var alertTimeframe = "1h"
@@ -113,10 +120,20 @@ public final class BacktestReplayViewModel {
         return false
     }
 
+    /// Record the headline win-rate into the rolling trend series. RollingSeries
+    /// dedupe means only genuinely new backtest cycles add a point (stream
+    /// re-ticks of the same number are ignored).
+    private func recordTrend(_ results: BacktestResults) {
+        guard let winRate = results.policy_backtest?.win_rate, winRate.isFinite else { return }
+        winRateSeries.append(winRate)
+        winRateTrend = winRateSeries.values
+    }
+
     private func applyMessage(_ message: String) {
         do {
             let snapshot = try decodeMobileResourceSnapshot(BacktestResults.self, from: message)
             backtest = snapshot.payload
+            recordTrend(snapshot.payload)
             lastUpdatedAt = snapshot.timestamp ?? snapshot.payload.generated_utc
             envelopeStale = snapshot.stale
             lagMs = snapshot.lagMs
@@ -139,6 +156,7 @@ public final class BacktestReplayViewModel {
                 baseURL: baseURL
             )
             backtest = results
+            recordTrend(results)
             lastUpdatedAt = results.generated_utc
             envelopeStale = false
             lagMs = nil

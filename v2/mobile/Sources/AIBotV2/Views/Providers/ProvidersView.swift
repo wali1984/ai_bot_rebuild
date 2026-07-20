@@ -107,13 +107,16 @@ struct ProvidersView: View {
             VStack(spacing: 14) {
                 coverageStrip
                 summaryCard
+                if !vm.degradedProviders.isEmpty {
+                    degradedAttentionCard
+                }
                 if !vm.retiredActiveProviders.isEmpty {
                     retiredProviderWarning
                 }
                 if !vm.requiredAltDataProvidersVisible {
                     missingAltDataWarning
                 }
-                ForEach(vm.providers, id: \.provider) { provider in
+                ForEach(vm.sortedProviders, id: \.provider) { provider in
                     providerCard(provider)
                 }
             }
@@ -273,6 +276,44 @@ struct ProvidersView: View {
         }
     }
 
+    // MARK: - Attention callout (degraded providers surfaced at a glance)
+
+    private var degradedAttentionCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(
+                title: "Providers needing attention",
+                accent: NerVyx.warning,
+                trailing: "\(vm.degradedProviders.count) of \(vm.activeProviderCount)"
+            )
+            ForEach(vm.degradedProviders, id: \.provider) { provider in
+                let color = providerColor(provider.providerDashboardTone)
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        expandedProviders.insert(provider.provider)
+                    }
+                } label: {
+                    HStack(spacing: 10) {
+                        Circle().fill(color).frame(width: 8, height: 8)
+                        Text(provider.display_name ?? provider.provider.uppercased())
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(NerVyx.textPrimary)
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        Text(providerRuntimeText(provider.status))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(color)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                        NerVyxBadge(text: provider.providerDashboardBadgeText, color: color, small: true)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .nerVyxGlassCard(accent: NerVyx.warning)
+    }
+
     // MARK: - Safety warnings (kept verbatim)
 
     private var retiredProviderWarning: some View {
@@ -323,7 +364,12 @@ struct ProvidersView: View {
             .buttonStyle(.plain)
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                MetricCard(title: "Payloads", value: providerIntText(provider.actual_payload_count), icon: "tray.full")
+                MetricCard(
+                    title: "Payloads",
+                    value: providerIntText(provider.actual_payload_count),
+                    valueColor: (provider.actual_payload_count ?? 0) == 0 ? NerVyx.sell : NerVyx.textPrimary,
+                    icon: "tray.full"
+                )
                 MetricCard(title: "Features", value: providerIntText(provider.feature_count), icon: "slider.horizontal.3")
                 MetricCard(title: "Consumers", value: providerIntText(provider.consumer_count), icon: "arrow.triangle.branch")
                 MetricCard(title: "Symbols", value: providerIntText(provider.symbols_covered?.count), icon: "bitcoinsign.circle")
@@ -352,10 +398,11 @@ struct ProvidersView: View {
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(NerVyx.textPrimary)
                     .lineLimit(1)
-                Text(providerRuntimeText(provider.dashboard_color_reason))
+                Text(providerRuntimeText(provider.status))
                     .font(.system(size: 10))
                     .foregroundStyle(NerVyx.textMuted)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 6)
             NerVyxBadge(text: provider.providerDashboardBadgeText, color: color, small: true)
@@ -371,6 +418,7 @@ struct ProvidersView: View {
         VStack(alignment: .leading, spacing: 6) {
             NerVyxDivider()
             DataRow(label: "Status", value: providerRuntimeText(provider.status), valueColor: color)
+            DataRow(label: "Census source", value: providerRuntimeText(provider.dashboard_color_reason), mono: true)
             DataRow(label: "Tier", value: providerRuntimeText(provider.subscription_tier))
             DataRow(label: "Freshness", value: providerRuntimeText(provider.freshness_status))
             DataRow(label: "Source lag", value: NerVyxFormat.age(provider.source_lag_seconds), mono: true)

@@ -9,12 +9,23 @@ import Observation
 // already emits. Decode them here from the same payload in the same pass —
 // one HTTP request / one WS message, no duplicate fetch.
 
+public struct DashboardAccuracyTimeframe: Decodable, Equatable, Identifiable {
+    public let timeframe: String?
+    public let evaluated_count: Int?
+    public let correct_count: Int?
+    public let incorrect_count: Int?
+    public let accuracy: Double?
+
+    public var id: String { timeframe ?? "unknown" }
+}
+
 public struct DashboardPredictionAccuracy: Decodable, Equatable {
     public let accuracy_definition: String?
     public let overall_accuracy: Double?
     public let evaluated_row_count: Int?
     public let correct_count: Int?
     public let incorrect_count: Int?
+    public let by_timeframe: [DashboardAccuracyTimeframe]?
 }
 
 public struct DashboardPaperExtras: Decodable, Equatable {

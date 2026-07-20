@@ -1,17 +1,28 @@
+import Foundation
 import SwiftUI
+
+// MARK: - Mission Control (Dashboard)
+//
+// Premium glass rebuild on the NERVYX MOBILE VISUAL LANGUAGE v2 design system.
+// Every freshness signal is derived from real envelope metadata via the
+// StalenessChip — no hardcoded "LIVE" labels. Account KPIs (equity / available /
+// exposure / open positions / realized / risk) read the fields the backend
+// /api/v2/mobile/dashboard already emits (paper.equity, paper.available_balance_usd,
+// paper.used_balance). The 1000x goal card reads /api/v2/goal/trajectory-1000x.
+// Win rate is the backend winner-flag rate ONLY — never recomputed from
+// cumulative PnL. Live trading is BLOCKED and rendered as OPERATOR GATED.
 
 struct DashboardView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(AppState.self) private var appState
     @State private var vm = DashboardViewModel()
     @State private var healthVM = SelfHealingViewModel()
-    @State private var pnlSeries = RollingSeries(capacity: 80)
     @State private var gpuSeries = RollingSeries(capacity: 80)
 
     var body: some View {
         NavigationStack {
             ZStack {
-                NerVyx.bg.ignoresSafeArea()
+                NerVyxScreenBackground()
                 ScrollView {
                     VStack(spacing: 16) {
                         if let banner = healthVM.banner {
@@ -52,24 +63,38 @@ struct DashboardView: View {
             vm.stopAutoRefresh()
             healthVM.stop()
         }
-        .onChange(of: vm.dashboard?.paper.total_pnl) { _, newValue in
-            if let newValue { pnlSeries.append(newValue) }
-        }
         .onChange(of: vm.dashboard?.gpu.utilization_pct) { _, newValue in
             if let newValue { gpuSeries.append(newValue) }
         }
+    }
+
+    // MARK: - Freshness truth
+
+    /// Single source of freshness truth for the whole screen. Derived from the
+    /// decoded envelope (stale flag / lag_ms / transport) plus payload age —
+    /// never a hardcoded label.
+    private var freshnessChip: StalenessChip {
+        if vm.dashboard == nil { return StalenessChip.offline() }
+        return StalenessChip.from(
+            stale: vm.isEffectivelyStale,
+            lagMs: vm.dashboardLagMs,
+            transport: vm.dashboardTransport,
+            ageSeconds: vm.dataAgeSeconds
+        )
     }
 
     // MARK: - Stream bar
 
     private var streamBar: some View {
         HStack(spacing: 8) {
-            LivePulse(color: vm.dashboard != nil ? NerVyx.validation : NerVyx.textMuted)
+            freshnessChip
             Text(vm.streamSummary)
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(NerVyx.textMuted)
+                .lineLimit(1)
+                .truncationMode(.tail)
             Spacer()
-            NerVyxBadge(text: NervyxBrand.liveBlockedLabel.uppercased(), color: NerVyx.signal, small: true)
+            NerVyxBadge(text: NervyxBrand.liveBlockedLabel.uppercased(), color: NerVyx.sell, small: true)
         }
         .padding(.horizontal, 4)
         .padding(.top, 4)
@@ -77,13 +102,41 @@ struct DashboardView: View {
 
     // MARK: - Loading / Error
 
+    /// Redacted replica of the real layout (KPI grid + PnL hero + a chart card)
+    /// so the skeleton matches what resolves — not generic gray blocks.
     private var loadingContent: some View {
         VStack(spacing: 16) {
-            ForEach(0..<4, id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(NerVyx.panel)
-                    .frame(height: 80)
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Account", accent: NerVyx.primary)
+                LazyVGrid(columns: kpiColumns, spacing: 16) {
+                    KPICell(label: "Equity", value: "$1,000.00")
+                    KPICell(label: "Available", value: "$1,000.00", color: NerVyx.paper)
+                    KPICell(label: "Exposure", value: "$0.00", color: NerVyx.inference)
+                    KPICell(label: "Open Pos", value: "0", color: NerVyx.paper)
+                    KPICell(label: "Realized", value: "+$0.00", color: NerVyx.buy)
+                    KPICell(label: "Risk", value: "NORMAL", color: NerVyx.validation)
+                }
             }
+            .nerVyxGlassCard(accent: NerVyx.primary)
+
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Portfolio PnL", accent: NerVyx.buy)
+                HeroMetricText(text: "+$0.00", size: 36, color: NerVyx.buy)
+                HStack(spacing: 8) {
+                    NerVyxBadge(text: "REALIZED +$0.00", color: NerVyx.buy, small: true)
+                    NerVyxBadge(text: "UNREALIZED +$0.00", color: NerVyx.buy, small: true)
+                    Spacer()
+                }
+            }
+            .nerVyxGlassCard(accent: NerVyx.buy)
+
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Performance", accent: NerVyx.primary, trailing: "0 closed")
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(NerVyx.panel)
+                    .frame(height: 96)
+            }
+            .nerVyxGlassCard(accent: NerVyx.primary)
         }
         .redacted(reason: .placeholder)
     }
@@ -103,7 +156,7 @@ struct DashboardView: View {
             .foregroundStyle(NerVyx.signal)
         }
         .padding(24)
-        .nerVyxCard(accent: NerVyx.warning)
+        .nerVyxGlassCard(accent: NerVyx.warning)
     }
 
     // MARK: - Main content
@@ -111,23 +164,19 @@ struct DashboardView: View {
     @ViewBuilder
     private var mainContent: some View {
         if let d = vm.dashboard {
-            // Gate status banner
             gateStatusBanner(d.live_gate)
-            // Key stats row
-            signalTrainerStatsRow(d)
-            // PnL summary
+            kpiGrid(d, extras: vm.paperExtras)
+            runtimeChips(d)
             pnlSection(d.paper)
-            // Performance charts — equity curve, win/loss donut, per-trade PnL
-            performanceChartsSection(d.paper)
-            // Capital productivity quick stats
-            capitalQuickStats(d.paper)
-            // Paper loop
+            if let goal = vm.goal {
+                goalTrajectorySection(goal)
+            } else if let gErr = vm.goalError {
+                goalAbsentCard(gErr)
+            }
+            performanceChartsSection(d.paper, extras: vm.paperExtras)
             paperLoopSection(d.paper)
-            // Trainer
             trainerSection(d.trainer)
-            // GPU
             gpuSection(d.gpu)
-            // Alerts preview
             if !d.alerts_preview.isEmpty {
                 alertsPreview(d.alerts_preview)
             }
@@ -137,7 +186,7 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Gate banner (keeps sell-red safety styling — never glass)
 
     private func gateStatusBanner(_ gate: LiveGateState) -> some View {
         HStack(spacing: 12) {
@@ -168,195 +217,269 @@ struct DashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(NerVyx.sell.opacity(0.25), lineWidth: 1))
     }
 
-    private func signalTrainerStatsRow(_ d: MobileDashboard) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-            NerVyxStatCard(
-                label: "SIGNALS",
-                value: "\(d.active_signal_count ?? 0)",
-                valueColor: NerVyx.signal,
-                sublabel: "active now",
-                accent: NerVyx.signal
-            )
-            NerVyxStatCard(
-                label: "TRAINER",
-                value: d.trainer.shortState,
-                valueColor: NerVyx.statusColor(d.trainer.state),
-                sublabel: d.trainer.cuda_active ? "CUDA on" : "CPU mode",
-                accent: NerVyx.primary
-            )
-            NerVyxStatCard(
-                label: "GPU UTIL",
-                value: "\(Int(d.gpu.utilization_pct))%",
-                valueColor: d.gpu.utilization_pct > 80 ? NerVyx.warning : NerVyx.validation,
-                sublabel: d.gpu.displayName,
-                accent: NerVyx.inference
-            )
+    // MARK: - Account KPI grid (2x3)
+
+    private var kpiColumns: [GridItem] {
+        [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
+    }
+
+    private func kpiGrid(_ d: MobileDashboard, extras: DashboardPaperExtras?) -> some View {
+        let paper = d.paper
+        let equity = paper.effectiveEquity
+        let available = extras?.available_balance_usd
+        let exposure = extras?.used_balance
+        let realized = paper.realized_pnl_usd
+        let risk = riskStatus(paper)
+        return VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "Account", accent: NerVyx.primary, trailing: "PAPER SIM")
+            LazyVGrid(columns: kpiColumns, spacing: 16) {
+                KPICell(label: "Equity", value: NerVyxFormat.money(equity))
+                KPICell(label: "Available", value: NerVyxFormat.money(available), color: NerVyx.paper)
+                KPICell(
+                    label: "Exposure",
+                    value: NerVyxFormat.money(exposure),
+                    color: (exposure ?? 0) > 0 ? NerVyx.inference : NerVyx.textMuted
+                )
+                KPICell(
+                    label: "Open Pos",
+                    value: "\(paper.open_positions)",
+                    color: paper.open_positions > 0 ? NerVyx.paper : NerVyx.textMuted
+                )
+                KPICell(
+                    label: "Realized",
+                    value: NerVyxFormat.money(realized, signed: true),
+                    color: NerVyx.pnlColor(realized)
+                )
+                KPICell(label: "Risk", value: risk.text, color: risk.color)
+            }
+        }
+        .nerVyxGlassCard(accent: NerVyx.primary)
+    }
+
+    /// Risk-gate truth from the paper runtime's entry-freeze state. Distinct from
+    /// the live-execution gate (which is always BLOCKED); this reflects whether
+    /// the risk layer currently permits new paper entries.
+    private func riskStatus(_ paper: PaperState) -> (text: String, color: Color) {
+        if let allowed = paper.new_entries_allowed {
+            return allowed ? ("NORMAL", NerVyx.validation) : ("HALTED", NerVyx.warning)
+        }
+        return ("—", NerVyx.textMuted)
+    }
+
+    // MARK: - Runtime quick chips
+
+    private func runtimeChips(_ d: MobileDashboard) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                StatChip(label: "Signals", value: "\(d.active_signal_count ?? 0)", color: NerVyx.signal, accent: NerVyx.signal)
+                StatChip(label: "Trainer", value: d.trainer.shortState.uppercased(), color: NerVyx.statusColor(d.trainer.state), accent: NerVyx.primary)
+                StatChip(label: "GPU", value: "\(Int(d.gpu.utilization_pct))%", color: NerVyx.inference, accent: NerVyx.inference)
+                StatChip(label: "Redis", value: d.redis_connected ? "OK" : "OFF", color: d.redis_connected ? NerVyx.validation : NerVyx.sell, accent: NerVyx.borderStrong)
+            }
+            .padding(.horizontal, 2)
         }
     }
+
+    // MARK: - Portfolio PnL (hero + honest freshness)
 
     private func pnlSection(_ paper: PaperState) -> some View {
         let pnlColor = NerVyx.pnlColor(paper.total_pnl)
         return VStack(alignment: .leading, spacing: 12) {
             HStack {
-                SectionHeader(title: "Portfolio PnL", accent: pnlColor, trailing: nil)
+                SectionHeader(title: "Portfolio PnL", accent: pnlColor)
                 Spacer()
-                HStack(spacing: 5) {
-                    LivePulse(color: pnlColor)
-                    Text("LIVE")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(pnlColor)
-                        .tracking(1.0)
-                }
+                freshnessChip
             }
-            Text(String(format: "%@$%.2f", paper.total_pnl >= 0 ? "+" : "", paper.total_pnl))
-                .font(.system(size: 38, weight: .heavy, design: .monospaced))
-                .foregroundStyle(pnlColor)
-                .contentTransition(.numericText())
+            HeroMetricText(text: NerVyxFormat.money(paper.total_pnl, signed: true), size: 36, color: pnlColor)
             HStack(spacing: 8) {
                 NerVyxBadge(
-                    text: String(format: "REALIZED %@$%.2f", paper.realized_pnl_usd >= 0 ? "+" : "", paper.realized_pnl_usd),
+                    text: "REALIZED \(NerVyxFormat.money(paper.realized_pnl_usd, signed: true))",
                     color: NerVyx.pnlColor(paper.realized_pnl_usd),
                     small: true
                 )
                 NerVyxBadge(
-                    text: String(format: "UNREALIZED %@$%.2f", paper.unrealized_pnl_usd >= 0 ? "+" : "", paper.unrealized_pnl_usd),
+                    text: "UNREALIZED \(NerVyxFormat.money(paper.unrealized_pnl_usd, signed: true))",
                     color: NerVyx.pnlColor(paper.unrealized_pnl_usd),
                     small: true
                 )
                 Spacer()
-            }
-            if pnlSeries.values.count > 1 {
-                Sparkline(values: pnlSeries.values, color: pnlColor)
-                    .frame(height: 56)
+                StatChip(
+                    label: "Mode",
+                    value: nervyxPublicRuntimeText(paper.classification).uppercased(),
+                    color: NerVyx.paper,
+                    accent: NerVyx.paper
+                )
             }
         }
-        .padding(16)
-        .background(
-            LinearGradient(
-                colors: [NerVyx.panelElevated, NerVyx.panel],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(pnlColor.opacity(0.35), lineWidth: 1))
+        .nerVyxGlassCard(accent: pnlColor)
     }
 
+    // MARK: - Goal / 1000x trajectory
+
+    private func goalTrajectorySection(_ goal: GoalTrajectoryData) -> some View {
+        let target = goal.target_multiple ?? 1000
+        let mult = goal.multiple_now
+        let logProgress: Double = {
+            guard let m = mult, m > 0, target > 1 else { return 0 }
+            return max(0, min(1, log(m) / log(target)))
+        }()
+        let onTrack = goal.on_track == true
+        let ringColor = onTrack ? NerVyx.validation : NerVyx.warning
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                SectionHeader(title: "Goal · \(Int(target))x Trajectory", accent: NerVyx.validation)
+                Spacer()
+                StalenessChip.from(stale: vm.goalStale, transport: "http", ageSeconds: goal.age_seconds)
+            }
+            HStack(alignment: .top, spacing: 18) {
+                RingGauge(
+                    value: logProgress,
+                    label: "OF \(Int(target))x",
+                    centerText: mult.map { String(format: "%.2fx", $0) } ?? "—",
+                    color: ringColor,
+                    size: 96
+                )
+                VStack(alignment: .leading, spacing: 8) {
+                    DataRow(label: "Equity", value: NerVyxFormat.money(goal.equity_usd), mono: true)
+                    DataRow(label: "Start", value: NerVyxFormat.money(goal.starting_equity_usd), mono: true)
+                    DataRow(
+                        label: "Daily rate",
+                        value: "\(NerVyxFormat.number(goal.actual_daily_rate_pct, decimals: 2))% / \(NerVyxFormat.number(goal.required_daily_rate_pct, decimals: 2))% req",
+                        valueColor: onTrack ? NerVyx.validation : NerVyx.warning,
+                        mono: true
+                    )
+                    if let stage = goal.growth_stage?.stage, !stage.isEmpty {
+                        DataRow(label: "Stage", value: stage.uppercased(), valueColor: NerVyx.primary)
+                    }
+                    if let constraint = goal.binding_constraint?.constraint, !constraint.isEmpty {
+                        DataRow(label: "Binding", value: constraint.replacingOccurrences(of: "_", with: " ").uppercased(), valueColor: NerVyx.warning)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            HStack(spacing: 8) {
+                NerVyxBadge(text: onTrack ? "ON TRACK" : "BEHIND PACE", color: ringColor, small: true)
+                if let days = goal.days_elapsed {
+                    NerVyxBadge(text: "DAY \(Int(days))", color: NerVyx.primary, small: true)
+                }
+                Spacer()
+            }
+            Text("Research objective, not a promise. 1000x is a long-horizon target gated by evidence and survival-first risk controls.")
+                .font(.system(size: 10))
+                .foregroundStyle(NerVyx.textMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .nerVyxGlassCard(accent: NerVyx.validation)
+    }
+
+    private func goalAbsentCard(_ message: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Goal · 1000x Trajectory", accent: NerVyx.textMuted)
+            Text("Trajectory evidence unavailable")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(NerVyx.textSecondary)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(NerVyx.textMuted)
+                .lineLimit(2)
+        }
+        .nerVyxGlassCard(accent: NerVyx.borderStrong)
+    }
+
+    // MARK: - Performance charts
+
     @ViewBuilder
-    private func performanceChartsSection(_ paper: PaperState) -> some View {
+    private func performanceChartsSection(_ paper: PaperState, extras: DashboardPaperExtras?) -> some View {
         let trend = paper.equityTrend
         let perTrade = paper.perTradePnl
-        let wins = paper.win_count ?? perTrade.filter { $0 > 0 }.count
-        let losses = paper.loss_count ?? perTrade.filter { $0 < 0 }.count
-        let winRate = paper.win_rate ?? ((wins + losses) > 0 ? Double(wins) / Double(wins + losses) : nil)
-        if trend.count > 1 || !perTrade.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
+        let accuracy = extras?.signal_prediction_accuracy
+        if trend.count > 1 || !perTrade.isEmpty || paper.win_count != nil || accuracy?.overall_accuracy != nil {
+            VStack(alignment: .leading, spacing: 14) {
                 SectionHeader(title: "Performance", accent: NerVyx.primary, trailing: "\(paper.closed_trades) closed")
                 if trend.count > 1 {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("EQUITY CURVE")
-                            .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
-                        Sparkline(values: trend, color: NerVyx.primary).frame(height: 96)
+                    VStack(alignment: .leading, spacing: 6) {
+                        MicroLabel(text: "Equity Curve")
+                        AxisSparkline(
+                            values: trend,
+                            color: NerVyx.primary,
+                            height: 96,
+                            valueFormatter: { NerVyxFormat.compactUSD($0) }
+                        )
                     }
                 }
                 HStack(alignment: .top, spacing: 16) {
-                    if (wins + losses) > 0 {
-                        DonutChart(
-                            slices: [
-                                .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
-                                .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
-                            ],
-                            centerText: winRate != nil ? "\(Int((winRate ?? 0) * 100))%" : "—",
-                            centerLabel: "WIN RATE"
-                        )
-                    }
+                    winLossDonut(paper)
                     if !perTrade.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("PER-TRADE PNL")
-                                .font(.system(size: 9, weight: .semibold)).foregroundStyle(NerVyx.textMuted).tracking(0.6)
+                        VStack(alignment: .leading, spacing: 6) {
+                            MicroLabel(text: "Per-Trade PnL")
                             DivergingBars(values: perTrade)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
+                if let accuracy, let overall = accuracy.overall_accuracy {
+                    predictionAccuracy(accuracy, overall: overall)
+                }
             }
-            .padding(16)
-            .background(NerVyx.panel)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(NerVyx.borderSubtle, lineWidth: 1))
+            .nerVyxGlassCard(accent: NerVyx.primary)
         }
     }
 
-    private func capitalQuickStats(_ paper: PaperState) -> some View {
-        VStack(spacing: 10) {
-            SectionHeader(title: "Capital Snapshot", accent: NerVyx.inference, trailing: "\(paper.closed_trades) closed")
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                NerVyxStatCard(
-                    label: "OPEN",
-                    value: "\(paper.open_positions)",
-                    accent: NerVyx.paper
-                )
-                NerVyxStatCard(
-                    label: "CLOSED",
-                    value: "\(paper.closed_trades)",
-                    accent: NerVyx.borderStrong
-                )
-                NerVyxStatCard(
-                    label: "ACCEPT %",
-                    value: String(format: "%.0f%%", paper.acceptanceRate),
-                    valueColor: paper.acceptanceRate > 50 ? NerVyx.validation : NerVyx.warning,
-                    accent: NerVyx.signal
-                )
+    /// Win/loss donut using backend winner-flag counts VERBATIM. Never recompute
+    /// the rate from cumulative PnL — the true win rate (~37%) is the winner-flag
+    /// rate and must be trusted as-is; absent counts render "—".
+    @ViewBuilder
+    private func winLossDonut(_ paper: PaperState) -> some View {
+        if let wins = paper.win_count, let losses = paper.loss_count, (wins + losses) > 0 {
+            DonutChart(
+                slices: [
+                    .init(label: "Wins", value: Double(wins), color: NerVyx.buy),
+                    .init(label: "Losses", value: Double(losses), color: NerVyx.sell),
+                ],
+                centerText: NerVyxFormat.percent(paper.win_rate),
+                centerLabel: "WIN RATE"
+            )
+        } else {
+            VStack(spacing: 6) {
+                Text("—")
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .foregroundStyle(NerVyx.textMuted)
+                MicroLabel(text: "Win Rate")
             }
+            .frame(width: 96, height: 118)
+        }
+    }
+
+    private func predictionAccuracy(_ accuracy: DashboardPredictionAccuracy, overall: Double) -> some View {
+        let rows = (accuracy.by_timeframe ?? [])
+            .filter { $0.accuracy != nil }
+            .prefix(3)
+        return VStack(alignment: .leading, spacing: 8) {
+            NerVyxDivider()
             HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Realized")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(String(format: "$%.2f", paper.realized_pnl_usd))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(paper.realized_pnl_usd))
-                }
+                MicroLabel(text: "Prediction Accuracy")
                 Spacer()
-                VStack(alignment: .center, spacing: 3) {
-                    Text("Unrealized")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(String(format: "$%.2f", paper.unrealized_pnl_usd))
-                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(NerVyx.pnlColor(paper.unrealized_pnl_usd))
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text("Classification")
-                        .font(.system(size: 11))
-                        .foregroundStyle(NerVyx.textMuted)
-                    Text(nervyxPublicRuntimeText(paper.classification).uppercased())
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(NerVyx.paper)
-                        .lineLimit(1)
-                }
+                Text(NerVyxFormat.percent(overall))
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .foregroundStyle(overall >= 0.5 ? NerVyx.validation : NerVyx.warning)
+            }
+            ForEach(Array(rows)) { row in
+                HBarRow(
+                    label: (row.timeframe ?? "—").uppercased(),
+                    value: row.accuracy ?? 0,
+                    maxAbsValue: 1,
+                    valueText: NerVyxFormat.percent(row.accuracy),
+                    color: (row.accuracy ?? 0) >= 0.5 ? NerVyx.validation : NerVyx.warning
+                )
             }
         }
-        .nerVyxCard(accent: NerVyx.inference.opacity(0.25))
     }
+
+    // MARK: - Signal runtime loop
 
     private func paperLoopSection(_ paper: PaperState) -> some View {
-        VStack(spacing: 10) {
-            SectionHeader(title: "Runtime Loop", accent: NerVyx.paper, trailing: "\(paper.open_positions) open")
-                .padding(.bottom, 2)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                NerVyxStatCard(
-                    label: "OPEN",
-                    value: "\(paper.open_positions)",
-                    accent: NerVyx.paper
-                )
-                NerVyxStatCard(
-                    label: "CLOSED",
-                    value: "\(paper.closed_trades)",
-                    accent: NerVyx.borderStrong
-                )
-            }
+        VStack(spacing: 12) {
+            SectionHeader(title: "Signal Runtime Loop", accent: NerVyx.paper, trailing: "\(paper.closed_trades) closed")
             HStack(spacing: 16) {
                 MiniBarChart(entries: [
                     .init(label: "SEEN", value: Double(paper.signals_seen), color: NerVyx.paper),
@@ -373,8 +496,10 @@ struct DashboardView: View {
                 )
             }
         }
-        .nerVyxCard(accent: NerVyx.paper.opacity(0.3))
+        .nerVyxGlassCard(accent: NerVyx.paper)
     }
+
+    // MARK: - Trainer
 
     private func trainerSection(_ trainer: TrainerState) -> some View {
         VStack(spacing: 10) {
@@ -484,8 +609,10 @@ struct DashboardView: View {
                     .lineLimit(1)
             }
         }
-        .nerVyxElevatedCard(accent: NerVyx.primary)
+        .nerVyxGlassCard(accent: NerVyx.primary)
     }
+
+    // MARK: - GPU
 
     private func gpuSection(_ gpu: GPUState) -> some View {
         VStack(spacing: 12) {
@@ -504,10 +631,7 @@ struct DashboardView: View {
                     color: gpu.vramPercent > 85 ? NerVyx.warning : NerVyx.signal
                 )
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("UTIL TREND")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(NerVyx.textMuted)
-                        .tracking(0.6)
+                    MicroLabel(text: "Util Trend")
                     if gpuSeries.values.count > 1 {
                         Sparkline(values: gpuSeries.values, color: NerVyx.inference)
                             .frame(height: 52)
@@ -524,8 +648,10 @@ struct DashboardView: View {
                 .frame(maxWidth: .infinity)
             }
         }
-        .nerVyxCard(accent: NerVyx.inference.opacity(0.3))
+        .nerVyxGlassCard(accent: NerVyx.inference)
     }
+
+    // MARK: - Alerts
 
     private func alertsPreview(_ alerts: [MobileAlert]) -> some View {
         VStack(spacing: 8) {
@@ -550,8 +676,10 @@ struct DashboardView: View {
                 }
             }
         }
-        .nerVyxCard(accent: NerVyx.warning.opacity(0.3))
+        .nerVyxGlassCard(accent: NerVyx.warning)
     }
+
+    // MARK: - Health footer
 
     private func healthFooter(_ h: MobileHealth) -> some View {
         HStack(spacing: 8) {
@@ -575,5 +703,35 @@ struct DashboardView: View {
         case "warning": return NerVyx.warning
         default: return NerVyx.inference
         }
+    }
+}
+
+// MARK: - KPI cell
+
+/// Compact account KPI tile: micro-label + mono hero value with numeric
+/// count-up transition. Absent values arrive pre-rendered as "—".
+private struct KPICell: View {
+    let label: String
+    let value: String
+    var color: Color = NerVyx.textPrimary
+    var sub: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            MicroLabel(text: label)
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .contentTransition(.numericText())
+            if let sub {
+                Text(sub)
+                    .font(.system(size: 9))
+                    .foregroundStyle(NerVyx.textMuted)
+                    .lineLimit(1)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

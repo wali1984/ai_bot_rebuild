@@ -42,6 +42,35 @@ public final class ProviderStatusViewModel {
     public var redProviderCount: Int { toneCounts["red"] ?? 0 }
     public var grayProviderCount: Int { (toneCounts["gray"] ?? 0) + (toneCounts["grey"] ?? 0) }
 
+    /// Severity-first display order (red -> yellow -> gray -> green), then by
+    /// payload richness (desc), then provider id. Surfaces degraded providers at
+    /// the top without mutating the canonical `providers` list used for rollups.
+    public var sortedProviders: [EnterpriseProviderCard] {
+        func rank(_ tone: String) -> Int {
+            switch tone {
+            case "red": return 0
+            case "yellow": return 1
+            case "gray", "grey": return 2
+            default: return 3
+            }
+        }
+        return providers.sorted { lhs, rhs in
+            let lr = rank(lhs.providerDashboardTone)
+            let rr = rank(rhs.providerDashboardTone)
+            if lr != rr { return lr < rr }
+            let lp = lhs.actual_payload_count ?? 0
+            let rp = rhs.actual_payload_count ?? 0
+            if lp != rp { return lp > rp }
+            return lhs.provider < rhs.provider
+        }
+    }
+
+    /// Providers that are not fully green (red/yellow/gray), severity-ordered,
+    /// for the attention callout. Honest empty when every provider is green.
+    public var degradedProviders: [EnterpriseProviderCard] {
+        sortedProviders.filter { $0.providerDashboardTone != "green" }
+    }
+
     public var totalPayloadCount: Int {
         providers.compactMap(\.actual_payload_count).reduce(0, +)
     }

@@ -13,11 +13,34 @@ struct ServiceHealthView: View {
     @Environment(AppState.self) private var appState
     @State private var vm = SelfHealingViewModel()
 
-    // MARK: - Derived groups (single source of truth: SelfHealingService.tone)
+    // MARK: - Derived groups
+    //
+    // Tone comes from `SelfHealingService.tone` (the supervisor's current
+    // action), but the banner's `services` list is the authoritative
+    // "still down after auto-heal" truth — a service being RESTART_DEAD-ed
+    // every cycle without recovering must count as DOWN, not HEALING,
+    // so the header never contradicts the red banner above it.
 
-    private var okServices: [SelfHealingService] { vm.services.filter { $0.tone == "ok" } }
-    private var healingServices: [SelfHealingService] { vm.services.filter { $0.tone == "warn" } }
-    private var downServices: [SelfHealingService] { vm.services.filter { $0.tone == "error" } }
+    /// Services the backend banner reports as still down after auto-heal.
+    private var downSet: Set<String> {
+        Set((vm.status?.banner.services ?? []).map(\.id))
+    }
+
+    private func effectiveTone(_ svc: SelfHealingService) -> String {
+        if downSet.contains(svc.id) { return "error" }
+        return svc.tone
+    }
+
+    private var okServices: [SelfHealingService] { vm.services.filter { effectiveTone($0) == "ok" } }
+    private var healingServices: [SelfHealingService] { vm.services.filter { effectiveTone($0) == "warn" } }
+    private var downServices: [SelfHealingService] { vm.services.filter { effectiveTone($0) == "error" } }
+
+    /// Components flagged critical by the supervisor, and the subset still down
+    /// after auto-heal. "Any critical still down" is the single most important
+    /// operator fact on this screen, so it is elevated to the summary — not
+    /// buried in the per-row list.
+    private var criticalServices: [SelfHealingService] { vm.services.filter { $0.criticality == "critical" } }
+    private var criticalDownCount: Int { criticalServices.filter { effectiveTone($0) == "error" }.count }
 
     /// Units the supervisor restarted in its latest cycle (auto-heal evidence).
     private var restartedSet: Set<String> { Set(vm.status?.restarted_units ?? []) }
@@ -221,6 +244,14 @@ struct ServiceHealthView: View {
                     accent: NerVyx.primary
                 )
                 StatChip(
+                    label: "CRITICAL",
+                    value: criticalDownCount > 0
+                        ? "\(criticalDownCount)/\(criticalServices.count) DOWN"
+                        : "\(criticalServices.count) OK",
+                    color: criticalDownCount > 0 ? NerVyx.sell : NerVyx.textSecondary,
+                    accent: criticalDownCount > 0 ? NerVyx.sell : NerVyx.borderSubtle
+                )
+                StatChip(
                     label: "RESTARTED",
                     value: "\(restartedSet.count)",
                     color: restartedSet.isEmpty ? NerVyx.textSecondary : NerVyx.signal,
@@ -284,7 +315,8 @@ struct ServiceHealthView: View {
     }
 
     private func serviceRow(_ svc: SelfHealingService) -> some View {
-        let c = tone(svc.tone)
+        let effective = effectiveTone(svc)
+        let c = tone(effective)
         let wasRestarted = restartedSet.contains(svc.unit ?? "")
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
@@ -308,7 +340,7 @@ struct ServiceHealthView: View {
                 }
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(toneLabel(svc.tone))
+                    Text(toneLabel(effective))
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(c)
                         .padding(.horizontal, 8)
@@ -324,7 +356,7 @@ struct ServiceHealthView: View {
             if let age = svc.heartbeat_age_seconds, let maxAge = svc.max_staleness_seconds, maxAge > 0 {
                 heartbeatBar(age: age, maxAge: maxAge)
             }
-            if svc.tone != "ok", let action = svc.action, !action.isEmpty {
+            if effective != "ok", let action = svc.action, !action.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action)
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
