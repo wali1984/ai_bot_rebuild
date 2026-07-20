@@ -70,6 +70,7 @@ def _seed(
         "feature_snapshot_id": "v2_fsnap_BTCUSDT_1m_rl_core_clean_corrupt",
         "feature_freshness_state": "CURRENT",
         "freshness_state": "FRESH",
+        "trainer_consumable": True,
         "generated_at": "2026-06-11T00:01:00Z",
         "feature_cutoff": "2026-06-11T00:01:00Z",
         "available_at": "2026-06-11T00:01:00Z",

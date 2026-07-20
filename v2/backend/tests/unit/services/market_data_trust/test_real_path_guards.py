@@ -132,15 +132,30 @@ def _seed_loader(
     )
     client.set("v2:market:microstructure:BTCUSDT", json.dumps({"micro_price": 101.0, "toxicity_proxy": 0.1}))
     client.set("v2:market:liquidation_levels:BTCUSDT", json.dumps({"nearest_distance_bps": 150.0}))
-    client.set("v2:altdata:public_intel:symbol:BTCUSDT", json.dumps({"public_intel_score": 0.5}))
+    client.set(
+        "v2:altdata:public_intel:symbol:BTCUSDT",
+        json.dumps(
+            {
+                "available_at": "2026-06-11T00:01:00Z",
+                "public_intel_score": 0.5,
+            }
+        ),
+    )
     client.set(
         "v2:altdata:whale_walls:symbol:BTCUSDT",
-        json.dumps({"whale_wall_score": 0.8, "whale_bid_pressure_score": 0.85}),
+        json.dumps(
+            {
+                "available_at": "2026-06-11T00:01:00Z",
+                "whale_wall_score": 0.8,
+                "whale_bid_pressure_score": 0.85,
+            }
+        ),
     )
     client.set(
         "v2:altdata:symbol_score:BTCUSDT",
         json.dumps(
             {
+                "available_at": "2026-06-11T00:01:00Z",
                 "altdata_symbol_score": 0.5,
                 "provider_availability_score": 1.0,
                 "altdata_freshness_score": 1.0,
@@ -371,7 +386,9 @@ def test_data_loader_trusted_only_filters_future_masa_cutoff() -> None:
     trusted = loader.load_training_examples(symbols=("BTCUSDT",), timeframes=("1m",), trusted_only=True)
 
     assert example.row_classification == "MARKET_STATE_REJECTED"
-    assert "MASA_FEATURE_CUTOFF_AFTER_DECISION_TIME" in (example.trust_row or {}).get("reject_reasons", [])
+    assert "MASA_FEATURE_CUTOFF_AFTER_PPO_DECISION_TIME" in (
+        example.trust_row or {}
+    ).get("reject_reasons", [])
     assert trusted == []
 
 
@@ -406,7 +423,7 @@ def test_data_loader_trusted_only_filters_backfilled_live_example() -> None:
     assert trusted == []
 
 
-def test_snapshot_fast_path_derives_closed_higher_timeframe_candles_from_raw_ohlcv() -> None:
+def test_snapshot_fast_path_does_not_substitute_raw_for_missing_canonical_ohlcv() -> None:
     client = _MemoryClient()
     _seed_loader(client)
     rows_by_timeframe = {
@@ -423,12 +440,13 @@ def test_snapshot_fast_path_derives_closed_higher_timeframe_candles_from_raw_ohl
     example = loader.build_example(symbol="BTCUSDT", timeframe="1m", snapshot_fast_path=True)
     trust_row = example.trust_row or {}
 
-    assert trust_row["mtf_snapshot_valid"] is True
-    assert len(trust_row["all_tf_candle_timestamps"]) == 5
-    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h" not in trust_row.get("reject_reasons", [])
-    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h" not in trust_row.get("reject_reasons", [])
-    assert "v2:market:ohlcv:binance:BTCUSDT:1h" in example.payload_keys
-    assert "v2:market:ohlcv:binance:BTCUSDT:4h" in example.payload_keys
+    assert trust_row["mtf_snapshot_valid"] is False
+    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_1h" in trust_row.get("reject_reasons", [])
+    assert "MTF_SNAPSHOT:MISSING_CLOSED_CANDLE_4h" in trust_row.get("reject_reasons", [])
+    assert "v2:market:ohlcv:binance:BTCUSDT:1h" not in example.payload_keys
+    assert "v2:market:ohlcv:binance:BTCUSDT:4h" not in example.payload_keys
+    assert "v2:market:ohlcv_closed:binance:BTCUSDT:1h" in example.payload_keys
+    assert "v2:market:ohlcv_closed:binance:BTCUSDT:4h" in example.payload_keys
 
 
 def test_recorded_state_verification_passes_clean_export(tmp_path: Path) -> None:

@@ -495,6 +495,72 @@ def test_future_clock_in_row_source_masks_derived_aggregate() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("payload_name", "feature_name", "expected_reason"),
+    [
+        (
+            "paper_positions",
+            "paper_position_present",
+            "PAPER_POSITIONS_EMPTY_COLLECTION_RECEIPT_MISSING",
+        ),
+        (
+            "risk_decisions",
+            "risk_recent_allow_rate",
+            "RISK_DECISIONS_EMPTY_COLLECTION_RECEIPT_MISSING",
+        ),
+        (
+            "orchestrator_decisions",
+            "orchestrator_recent_allow_rate",
+            "ORCHESTRATOR_DECISIONS_EMPTY_COLLECTION_RECEIPT_MISSING",
+        ),
+    ],
+)
+def test_empty_row_source_without_availability_receipt_stays_missing(
+    payload_name: str,
+    feature_name: str,
+    expected_reason: str,
+) -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={payload_name: []},
+    )
+
+    assert _missing(record)[feature_name] == 1
+    assert _stale(record)[feature_name] == 1
+    assert expected_reason in record.temporal_rejection_reasons
+
+
+def test_empty_nested_rows_cannot_inherit_only_wrapper_availability() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "risk_decisions": {
+                "available_at": "2026-07-18T11:59:59Z",
+                "rows": [],
+            }
+        },
+    )
+
+    assert _missing(record)["risk_recent_allow_rate"] == 1
+    assert "RISK_DECISIONS_EMPTY_COLLECTION_RECEIPT_MISSING" in (record.temporal_rejection_reasons)
+
+
+def test_non_row_item_cannot_make_row_source_temporally_valid() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={"paper_positions": [0]},
+    )
+
+    assert _missing(record)["paper_position_present"] == 1
+    assert "PAPER_POSITIONS_ROW_TYPE_INVALID" in record.temporal_rejection_reasons
+
+
 def test_tensor_identity_binds_equal_values_to_source_hash_lineage() -> None:
     def build(source_hash: str):
         return V2UnifiedFeatureTensorBuilder().build(

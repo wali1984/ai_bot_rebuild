@@ -1414,26 +1414,24 @@ class V2HybridTrainerDataLoader:
         return closed_rows
 
     def _read_closed_candle_series(self, *, symbol: str, timeframe: str) -> tuple[Any, str]:
+        """Read only the canonical finalized OHLCV surface.
+
+        ``v2:market:ohlcv:binance:*`` is a legacy compatibility surface.  Its
+        rows do not carry the exact canonical identity and availability
+        contract required by trainer decisions.  It must therefore neither
+        replace a canonical row on timestamp collision nor stand in for a
+        missing canonical window.
+        """
+
         closed_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
         closed_payload = self._get(closed_key)
-        raw_key = f"v2:market:ohlcv:binance:{symbol}:{timeframe}"
-        raw_payload = self._get(raw_key)
-        closed_from_raw = self._closed_candle_series_from_raw(raw_payload, symbol=symbol, timeframe=timeframe)
         if isinstance(closed_payload, list) and closed_payload:
-            merged: dict[int, dict[str, Any]] = {}
-            for row in self._closed_candle_series_from_raw(closed_payload, symbol=symbol, timeframe=timeframe):
-                close_ms = parse_ms(row.get("candle_close_time") or row.get("close_time"))
-                if close_ms is not None:
-                    merged[int(close_ms)] = dict(row)
-            for row in closed_from_raw:
-                close_ms = parse_ms(row.get("candle_close_time") or row.get("close_time"))
-                if close_ms is not None:
-                    merged[int(close_ms)] = dict(row)
-            if merged:
-                return [merged[key] for key in sorted(merged)], f"{closed_key},{raw_key}"
-            return closed_payload, closed_key
-        if closed_from_raw:
-            return closed_from_raw, raw_key
+            closed_rows = self._closed_candle_series_from_raw(
+                closed_payload,
+                symbol=symbol,
+                timeframe=timeframe,
+            )
+            return closed_rows, closed_key
         return closed_payload, closed_key
 
     def _read_trusted_replay_label_candles(

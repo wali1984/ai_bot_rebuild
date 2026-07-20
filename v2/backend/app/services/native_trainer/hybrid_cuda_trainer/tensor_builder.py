@@ -484,6 +484,7 @@ def _source_temporal_state(
     available_at_override: Any = None,
     _seen_ids: set[int] | None = None,
 ) -> tuple[int | None, tuple[str, ...]]:
+    prefix = payload_name.upper()
     seen_ids = set() if _seen_ids is None else set(_seen_ids)
     if isinstance(payload, (Mapping, list, tuple)):
         payload_id = id(payload)
@@ -492,10 +493,20 @@ def _source_temporal_state(
         seen_ids.add(payload_id)
 
     if isinstance(payload, (list, tuple)):
+        if not payload:
+            if require_available_at:
+                # An empty collection is not evidence that the observed window
+                # was genuinely empty. A wrapper clock alone cannot distinguish
+                # that state from a failed, truncated, or rate-limited read.
+                # Until an authenticated typed-negative receipt is supplied by
+                # the canonical resolver, keep every derived value missing.
+                return None, (f"{prefix}_EMPTY_COLLECTION_RECEIPT_MISSING",)
+            return None, ()
         available_times: list[int] = []
         row_reasons: list[str] = []
         for row in payload:
             if not isinstance(row, (Mapping, list, tuple)):
+                row_reasons.append(f"{prefix}_ROW_TYPE_INVALID")
                 continue
             available_ms, reasons = _source_temporal_state(
                 payload_name=payload_name,
@@ -513,7 +524,6 @@ def _source_temporal_state(
     if not isinstance(payload, Mapping) or not payload:
         return None, ()
 
-    prefix = payload_name.upper()
     parsed_clocks: dict[str, datetime] = {}
     reasons: list[str] = []
     for field in _SOURCE_CLOCK_FIELDS:
