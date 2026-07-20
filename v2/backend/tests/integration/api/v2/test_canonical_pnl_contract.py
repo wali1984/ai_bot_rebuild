@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.api.v2.mobile import _paper_account_session_fields
@@ -86,6 +87,33 @@ def test_canonical_pnl_does_not_read_heavy_ledger_when_portfolio_is_complete() -
     assert payload["paper_total_pnl_usd"] == 2.0
     assert payload["source_keys"] == ["v2:portfolio:state", "v2:paper:session"]
     assert "v2:paper:ledger" not in redis.get_calls
+
+
+def test_static_session_creation_time_does_not_make_fresh_portfolio_stale() -> None:
+    now = datetime.now(UTC)
+    payload = build_canonical_pnl(
+        FakeRedis(
+            {
+                "v2:portfolio:state": {
+                    "generated_utc": (now - timedelta(seconds=5)).isoformat(),
+                    "paper_session_id": "session-current",
+                    "starting_equity_usd": 3000.0,
+                    "equity": 3001.0,
+                    "realized_net_pnl_usd": 1.0,
+                    "unrealized_pnl_usd": 0.0,
+                    "closed_trade_count": 1,
+                },
+                "v2:paper:session": {
+                    "generated_utc": (now - timedelta(days=6)).isoformat(),
+                    "paper_session_id": "session-current",
+                    "starting_equity_usd": 3000.0,
+                },
+            }
+        )
+    )
+
+    assert payload["freshness_status"] == "fresh"
+    assert 0.0 <= payload["staleness_seconds"] < 30.0
 
 
 def test_mobile_account_fields_do_not_read_heavy_ledger_when_portfolio_is_complete() -> None:
