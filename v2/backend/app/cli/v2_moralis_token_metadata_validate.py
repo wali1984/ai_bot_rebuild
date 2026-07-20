@@ -208,6 +208,8 @@ def validate_token_map(r: Any, *, api_key: str = "") -> dict[str, Any]:
 
     # Re-publish updated rows with row-level claims re-derived from contracts.
     pollable = 0
+    manual_review_required_count = 0
+    metadata_validation_required = False
     for key, row in rows_by_key.items():
         contracts = [item for item in row.get("contracts") or [] if isinstance(item, dict)]
         row_pollable = sum(1 for item in contracts if item.get("pollable") is True)
@@ -223,6 +225,11 @@ def validate_token_map(r: Any, *, api_key: str = "") -> dict[str, Any]:
         row["metadata_validated_utc"] = now
         r.set(key, json.dumps(row, sort_keys=True, default=str), ex=7 * 86400)
         pollable += row_pollable
+        manual_review_required_count += int(row["manual_review_required"] is True)
+        metadata_validation_required = metadata_validation_required or any(
+            item.get("tradeable_mapping_status") == "NEEDS_METADATA_VALIDATION"
+            for item in contracts
+        )
 
     loaded_status = _jget(r, TOKEN_MAP_STATUS_KEY)
     status_payload: dict[str, Any] = (
@@ -236,6 +243,13 @@ def validate_token_map(r: Any, *, api_key: str = "") -> dict[str, Any]:
             "metadata_unsupported_chain_count": len(unsupported),
             "metadata_cache_pending_count": len(cache_pending),
             "pollable_token_count": pollable,
+            # Replace bootstrap-era counts atomically with the claims derived
+            # from the exact canonical metadata cache read above.  Leaving the
+            # old zeros/manual-review flags in place makes an operationally
+            # verified map contradict its own status payload.
+            "pollable_contract_count": pollable,
+            "manual_review_required_count": manual_review_required_count,
+            "metadata_validation_required": metadata_validation_required,
         }
     )
     r.set(

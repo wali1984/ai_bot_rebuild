@@ -1446,6 +1446,11 @@ def test_metadata_validator_consumes_only_canonical_cache_and_promotes_source_bo
     assert pollable[0]["symbol"] == "LINKUSDT"
     assert pollable[0]["token"] == token
     assert len(pollable[0]["metadata_envelope_sha256"]) == 64
+    status = json.loads(redis_client.data["v2:moralis:token_map_status"])
+    assert status["pollable_token_count"] == 1
+    assert status["pollable_contract_count"] == 1
+    assert status["manual_review_required_count"] == 0
+    assert status["metadata_validation_required"] is False
 
 
 @pytest.mark.parametrize(
