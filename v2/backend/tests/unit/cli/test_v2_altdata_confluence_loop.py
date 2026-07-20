@@ -94,12 +94,60 @@ def test_run_once_keeps_legacy_symbol_list_when_current_candidates_disabled() ->
     assert "v2:altdata:confluence:DOGEUSDT:5m" not in written_keys
 
 
+def test_run_once_does_not_overwrite_provider_owned_bridge_status() -> None:
+    moralis_status_key = "v2:provider:moralis:feature_bridge_status"
+    coinglass_status_key = "v2:provider:coinglass:feature_bridge_status"
+    moralis_status = {
+        "schema_version": "moralis_feature_bridge_status_v1",
+        "status": "ISOLATED_BY_POLICY",
+        "trainer_isolation_active": True,
+        "trainer_consumption": False,
+    }
+    coinglass_status = {
+        "schema_version": "coinglass_feature_bridge_status_v1",
+        "status": "PAYLOADS_PENDING",
+        "trainer_consumption": False,
+    }
+    client = _FakeRedis(
+        {
+            moralis_status_key: moralis_status,
+            coinglass_status_key: coinglass_status,
+            "v2:features:moralis:BTCUSDT:1m": {
+                "status": "ISOLATED_BY_POLICY",
+                "actual_payload_present": False,
+                "feature_count": 0,
+            },
+            "v2:features:coinglass:BTCUSDT:1m": {
+                "status": "READY",
+                "actual_payload_present": True,
+                "feature_count": 2,
+                "features": {"one": 1.0, "two": 2.0},
+            },
+        }
+    )
+
+    loop.run_once(client, symbols=["BTCUSDT"], timeframe="1m")
+
+    provider_status_writes = [
+        key for key, _value, _ex in client.set_calls if key.startswith("v2:provider:")
+    ]
+    written_keys = {key for key, _value, _ex in client.set_calls}
+    assert provider_status_writes == []
+    assert "v2:altdata:provider_consumption_status" in written_keys
+    assert client._data[moralis_status_key] == moralis_status
+    assert client._data[coinglass_status_key] == coinglass_status
+
+
 def test_compact_report_summarizes_rows_for_log_output() -> None:
     report = {
         "schema_version": "altdata_confluence_loop_status_v1",
         "pair_count": 3,
         "rows": [
-            {"symbol": "BTCUSDT", "actual_payload_present": True, "providers_present": ["coinank", "moralis"]},
+            {
+                "symbol": "BTCUSDT",
+                "actual_payload_present": True,
+                "providers_present": ["coinank", "moralis"],
+            },
             {"symbol": "ETHUSDT", "actual_payload_present": True, "providers_present": ["moralis"]},
             {"symbol": "SUNUSDT", "actual_payload_present": False, "providers_present": []},
         ],
@@ -118,7 +166,9 @@ def test_main_universe_sentinel_resolves_runtime_universe(monkeypatch) -> None:
     monkeypatch.setattr(loop, "_redis_client", lambda url: _FakeRedis())
     monkeypatch.setattr(loop, "_universe_symbols", lambda: ["BTCUSDT", "SUNUSDT"])
 
-    def fake_run_once(client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs):
+    def fake_run_once(
+        client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs
+    ):
         captured["symbols"] = list(symbols)
         return {"rows": [], "pair_count": len(symbols)}
 
@@ -133,10 +183,14 @@ def test_main_explicit_symbols_stay_pinned(monkeypatch) -> None:
 
     monkeypatch.setattr(loop, "_redis_client", lambda url: _FakeRedis())
     monkeypatch.setattr(
-        loop, "_universe_symbols", lambda: (_ for _ in ()).throw(AssertionError("must not resolve universe"))
+        loop,
+        "_universe_symbols",
+        lambda: (_ for _ in ()).throw(AssertionError("must not resolve universe")),
     )
 
-    def fake_run_once(client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs):
+    def fake_run_once(
+        client, *, symbols, timeframe, include_current_candidates, max_candidate_pairs
+    ):
         captured["symbols"] = list(symbols)
         return {"rows": [], "pair_count": len(symbols)}
 

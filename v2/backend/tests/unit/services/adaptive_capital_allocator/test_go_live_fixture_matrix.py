@@ -364,7 +364,12 @@ def test_coinglass_consumed_by_risk_and_trainer() -> None:
                 "v2:provider:coinglass:feature_bridge_status": {"feature_count": 12, "status": "READY"},
                 "v2:provider:coinglass:health": {"actual_payload_count_5m": 5},
                 "v2:paper:preemptive_candidate_decision_matrix": {
-                    "rows": [{"altdata_trade_block_score": 0.2}]
+                    "rows": [
+                        {
+                            "altdata_trade_block_score": 0.2,
+                            "provider_features_used": ["coinglass"],
+                        }
+                    ]
                 },
             }
         )

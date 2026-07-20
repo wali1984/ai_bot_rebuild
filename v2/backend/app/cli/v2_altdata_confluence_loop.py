@@ -15,7 +15,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.altdata.altdata_confluence_engine import build_confluence
@@ -30,10 +30,6 @@ from app.services.altdata.provider_feature_bridge import (
 
 CONFLUENCE_KEY = "v2:altdata:confluence:{symbol}:{timeframe}"
 CONFLUENCE_TTL_SECONDS = 900
-COINGLASS_FEATURE_KEY = "v2:features:coinglass:{symbol}:{timeframe}"
-MORALIS_FEATURE_KEY = "v2:features:moralis:{symbol}:{timeframe}"
-COINGLASS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:coinglass:feature_bridge_status"
-MORALIS_FEATURE_BRIDGE_STATUS_KEY = "v2:provider:moralis:feature_bridge_status"
 PREEMPTIVE_MATRIX_KEY = "v2:paper:preemptive_candidate_decision_matrix"
 
 
@@ -116,7 +112,7 @@ def run_once(
     include_current_candidates: bool = False,
     max_candidate_pairs: int = 250,
 ) -> dict[str, Any]:
-    generated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated = datetime.now(UTC).isoformat(timespec="seconds")
     rows: list[dict[str, Any]] = []
     pairs, candidate_pairs = _symbol_timeframe_pairs(
         redis_client,
@@ -134,18 +130,16 @@ def run_once(
             coinank=load_coinank_input(redis_client, symbol, pair_timeframe),
             generated_utc=generated,
         )
+        # Consumer availability is stamped at the publication boundary.  It
+        # must not be inferred later from ``generated_utc`` or a provider
+        # event/cutoff clock.
+        payload["available_at"] = datetime.now(UTC).isoformat(timespec="microseconds")
         if redis_client is not None:
             key = CONFLUENCE_KEY.format(symbol=symbol, timeframe=pair_timeframe)
             redis_client.set(
                 key,
                 json.dumps(payload, sort_keys=True, default=str),
                 ex=CONFLUENCE_TTL_SECONDS,
-            )
-            _publish_provider_bridge_aliases(
-                redis_client,
-                symbol=symbol,
-                timeframe=pair_timeframe,
-                generated_utc=generated,
             )
         rows.append(
             {
@@ -156,7 +150,9 @@ def run_once(
                 "missing_feature_count": len(payload["missing_feature_flags"]),
             }
         )
-    consumption = publish_provider_consumption_status(redis_client) if redis_client is not None else {}
+    consumption = (
+        publish_provider_consumption_status(redis_client) if redis_client is not None else {}
+    )
     return {
         "schema_version": "altdata_confluence_loop_status_v1",
         "generated_utc": generated,
@@ -172,106 +168,6 @@ def run_once(
         "approves_live": False,
         "raw_key_exposed": False,
     }
-
-
-def _load_json(redis_client: Any, key: str) -> dict[str, Any]:
-    try:
-        raw = redis_client.get(key)
-    except Exception:
-        return {}
-    if isinstance(raw, bytes):
-        raw = raw.decode("utf-8", errors="replace")
-    if not raw:
-        return {}
-    try:
-        payload = json.loads(str(raw))
-    except (TypeError, ValueError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def _bridge_status(
-    provider: str,
-    payload: dict[str, Any],
-    *,
-    generated_utc: str,
-) -> dict[str, Any]:
-    features = payload.get("features") if isinstance(payload.get("features"), dict) else {}
-    feature_count = int(payload.get("feature_count") or len(features))
-    actual = bool(payload.get("actual_payload_present")) and feature_count > 0
-    status = payload.get("status") or payload.get("subscription_status") or (
-        "READY" if actual else "PAYLOADS_PENDING"
-    )
-    return {
-        "schema_version": f"{provider}_feature_bridge_status_v1",
-        "provider": provider,
-        "generated_utc": payload.get("generated_utc") or payload.get("generated_at") or generated_utc,
-        "symbol": payload.get("symbol"),
-        "timeframe": payload.get("timeframe"),
-        "available_at": payload.get("available_at"),
-        "feature_cutoff": payload.get("feature_cutoff"),
-        "decision_time_safe": payload.get("decision_time_safe"),
-        "status": status,
-        "feature_bridge_ready": bool(payload.get("feature_bridge_ready", actual)),
-        "feature_count": feature_count,
-        "missing_feature_flags": payload.get("missing_feature_flags") or [],
-        "stale_feature_flags": payload.get("stale_feature_flags") or [],
-        "missing_mask": payload.get("missing_mask") or {},
-        "missing_mask_true": bool(payload.get("missing_feature_flags")),
-        "stale_mask": payload.get("stale_mask") or {},
-        "stale_mask_true": bool(payload.get("stale_feature_flags")),
-        "actual_payload_present": actual,
-        "heartbeat_only": not actual,
-        "trainer_consumption": True,
-        "provider_tensor_consumption": True,
-        "ppo_consumption": True,
-        "masa_consumption": True,
-        "risk_consumption": True,
-        "orchestrator_consumption": True,
-        "allocator_consumption": True,
-        "paper_consumption": True,
-        "live_dryrun_consumption": True,
-        "feedback_attribution": True,
-        "single_provider_can_approve": False,
-        "provider_data_can_approve_trade_alone": False,
-        "core_system_blocked": False,
-        "raw_key_exposed": False,
-    }
-
-
-def _set_json(redis_client: Any, key: str, payload: dict[str, Any], *, ex: int) -> None:
-    redis_client.set(key, json.dumps(payload, sort_keys=True, default=str), ex=max(1, int(ex)))
-
-
-def _publish_provider_bridge_aliases(
-    redis_client: Any,
-    *,
-    symbol: str,
-    timeframe: str,
-    generated_utc: str,
-) -> None:
-    coinglass = _load_json(
-        redis_client,
-        COINGLASS_FEATURE_KEY.format(symbol=symbol, timeframe=timeframe),
-    )
-    if coinglass:
-        _set_json(
-            redis_client,
-            COINGLASS_FEATURE_BRIDGE_STATUS_KEY,
-            _bridge_status("coinglass", coinglass, generated_utc=generated_utc),
-            ex=3600,
-        )
-    moralis = _load_json(
-        redis_client,
-        MORALIS_FEATURE_KEY.format(symbol=symbol, timeframe=timeframe),
-    )
-    if moralis:
-        _set_json(
-            redis_client,
-            MORALIS_FEATURE_BRIDGE_STATUS_KEY,
-            _bridge_status("moralis", moralis, generated_utc=generated_utc),
-            ex=3600,
-        )
 
 
 def _symbols(raw: str) -> list[str]:
@@ -321,7 +217,9 @@ def _redis_client(redis_url: str) -> Any:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_altdata_confluence_loop")
-    parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+    parser.add_argument(
+        "--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    )
     parser.add_argument(
         "--symbols",
         default=os.environ.get("ALTDATA_CONFLUENCE_SYMBOLS", UNIVERSE_SENTINEL),
@@ -337,7 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         default=_env_bool("ALTDATA_CONFLUENCE_INCLUDE_CURRENT_CANDIDATES", True),
         help=(
             "also publish confluence for current preemptive matrix symbol/timeframe pairs; "
-            "use --no-include-current-candidates or ALTDATA_CONFLUENCE_INCLUDE_CURRENT_CANDIDATES=0 to disable"
+            "use --no-include-current-candidates or "
+            "ALTDATA_CONFLUENCE_INCLUDE_CURRENT_CANDIDATES=0 to disable"
         ),
     )
     parser.add_argument(

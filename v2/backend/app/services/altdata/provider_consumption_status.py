@@ -8,8 +8,9 @@ read them. Consumption claims come from live Redis evidence, not aspiration.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime
+from typing import Any
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
     FEATURE_SPEC,
@@ -87,9 +88,9 @@ def _first_scan_payload(redis_client: Any, pattern: str, limit: int = 2_000) -> 
 def _parse_utc(value: Any) -> datetime | None:
     if value in (None, ""):
         return None
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         try:
-            return datetime.fromtimestamp(float(value) / 1000.0, tz=timezone.utc)
+            return datetime.fromtimestamp(float(value) / 1000.0, tz=UTC)
         except Exception:
             return None
     try:
@@ -97,8 +98,8 @@ def _parse_utc(value: Any) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _real_feature_value_present(value: Any) -> bool:
@@ -131,31 +132,23 @@ def _bridge_freshness_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
     missing_mask = missing_mask if isinstance(missing_mask, Mapping) else {}
     stale_mask = payload.get("stale_mask")
     stale_mask = stale_mask if isinstance(stale_mask, Mapping) else {}
-    missing_features = [
-        str(name)
-        for name, value in missing_mask.items()
-        if value is True
-    ]
-    stale_features = [
-        str(name)
-        for name, value in stale_mask.items()
-        if value is True
-    ]
+    missing_features = [str(name) for name, value in missing_mask.items() if value is True]
+    stale_features = [str(name) for name, value in stale_mask.items() if value is True]
     return {
         "status": payload.get("status"),
-        "feature_bridge_ready": payload.get("feature_bridge_ready"),
-        "actual_payload_present": bool(payload.get("actual_payload_present")),
-        "feature_count": int(payload.get("feature_count") or 0),
+        "feature_bridge_ready": payload.get("feature_bridge_ready") is True,
+        "actual_payload_present": payload.get("actual_payload_present") is True,
+        "feature_count": _exact_nonnegative_int(payload.get("feature_count")),
         "available_at": payload.get("available_at"),
         "feature_cutoff": payload.get("feature_cutoff"),
         "generated_utc": payload.get("generated_utc") or payload.get("generated_at"),
-        "decision_time_safe": payload.get("decision_time_safe"),
+        "decision_time_safe": payload.get("decision_time_safe") is True,
         "missing_feature_count": len(missing_features),
         "stale_feature_count": len(stale_features),
         "missing_feature_sample": missing_features[:20],
         "stale_feature_sample": stale_features[:20],
-        "missing_mask_true": bool(payload.get("missing_mask_true")) or bool(missing_features),
-        "stale_mask_true": bool(payload.get("stale_mask_true")) or bool(stale_features),
+        "missing_mask_true": payload.get("missing_mask_true") is True or bool(missing_features),
+        "stale_mask_true": payload.get("stale_mask_true") is True or bool(stale_features),
     }
 
 
@@ -179,6 +172,7 @@ def _decision_altdata_consumption(
     }
     provider_counts: dict[str, dict[str, int]] = {}
     provider_used_counts: dict[str, int] = {}
+    provider_presence_counts: dict[str, int] = {}
     provider_feature_used_counts: dict[str, int] = {}
     provider_missing_counts: dict[str, int] = {}
     rows_scanned = 0
@@ -197,24 +191,33 @@ def _decision_altdata_consumption(
         )
         alt_cutoff = _parse_utc(raw_row.get("altdata_feature_cutoff"))
         stale_flags = set()
-        for field in ("stale_feature_flags", "provider_stale_feature_flags", "altdata_stale_feature_flags"):
+        for field in (
+            "stale_feature_flags",
+            "provider_stale_feature_flags",
+            "altdata_stale_feature_flags",
+        ):
             value = raw_row.get(field)
             if isinstance(value, list):
                 stale_flags.update(str(item) for item in value)
-        for field in ("provider_features_used", "altdata_providers_present"):
-            value = raw_row.get(field)
-            if isinstance(value, list):
-                for item in value:
-                    item_text = str(item)
-                    if item_text in ALT_PROVIDER_TOKENS:
-                        provider_used_counts[item_text] = provider_used_counts.get(item_text, 0) + 1
-                    else:
-                        provider_feature_used_counts[item_text] = provider_feature_used_counts.get(item_text, 0) + 1
-            elif isinstance(value, str) and value:
-                if value in ALT_PROVIDER_TOKENS:
-                    provider_used_counts[value] = provider_used_counts.get(value, 0) + 1
-                else:
-                    provider_feature_used_counts[value] = provider_feature_used_counts.get(value, 0) + 1
+        used_value = raw_row.get("provider_features_used")
+        used_items = used_value if isinstance(used_value, list) else [used_value]
+        for item in used_items:
+            if type(item) is not str or not item:
+                continue
+            provider_feature_used_counts[item] = provider_feature_used_counts.get(item, 0) + 1
+            provider = (
+                item
+                if item in ALT_PROVIDER_TOKENS
+                else alt_features.get(item) or _provider_for_feature(item)
+            )
+            if provider is not None:
+                provider_used_counts[provider] = provider_used_counts.get(provider, 0) + 1
+
+        present_value = raw_row.get("altdata_providers_present")
+        present_items = present_value if isinstance(present_value, list) else [present_value]
+        for item in present_items:
+            if type(item) is str and item in ALT_PROVIDER_TOKENS:
+                provider_presence_counts[item] = provider_presence_counts.get(item, 0) + 1
         value = raw_row.get("provider_features_missing")
         if isinstance(value, list):
             for item in value:
@@ -238,12 +241,10 @@ def _decision_altdata_consumption(
             )
             provider_stats["feature_observation_count"] += 1
             confluence_value_without_payload = (
-                name.startswith("altdata_")
-                and raw_row.get("altdata_confluence_present") is False
+                name.startswith("altdata_") and raw_row.get("altdata_confluence_present") is False
             )
-            if (
-                not confluence_value_without_payload
-                and _real_feature_value_present(raw_row.get(name))
+            if not confluence_value_without_payload and _real_feature_value_present(
+                raw_row.get(name)
             ):
                 row_has_altdata = True
                 stats["non_null_count"] += 1
@@ -276,7 +277,9 @@ def _decision_altdata_consumption(
             **stats,
             "non_null_rate": round(float(stats["non_null_count"]) / row_count, 6),
             "explicit_stale_rate": round(float(stats["explicit_stale_count"]) / row_count, 6),
-            "decision_time_safe_rate": round(float(stats["decision_time_safe_count"]) / row_count, 6),
+            "decision_time_safe_rate": round(
+                float(stats["decision_time_safe_count"]) / row_count, 6
+            ),
             "future_leak_rate": round(float(stats["future_leak_count"]) / row_count, 6),
         }
     provider_rates = {}
@@ -322,24 +325,34 @@ def _decision_altdata_consumption(
         "provider_features_used_counts": {
             key: provider_used_counts[key] for key in sorted(provider_used_counts)
         },
+        "provider_presence_counts": {
+            key: provider_presence_counts[key] for key in sorted(provider_presence_counts)
+        },
         "provider_feature_names_used_counts": {
-            key: provider_feature_used_counts[key]
-            for key in sorted(provider_feature_used_counts)
+            key: provider_feature_used_counts[key] for key in sorted(provider_feature_used_counts)
         },
         "provider_features_missing_counts": {
             key: provider_missing_counts[key] for key in sorted(provider_missing_counts)
         },
         "lowest_non_null_feature_rates": top_missing_features,
-        "stale_observation_basis": "decision_rows_explicit_stale_flags_and_altdata_feature_cutoff_vs_decision_time",
+        "stale_observation_basis": (
+            "decision_rows_explicit_stale_flags_and_" "altdata_feature_cutoff_vs_decision_time"
+        ),
         "attribution_status": {
             "status": "FEATURE_ATTRIBUTION_NOT_YET_AVAILABLE",
-            "reason": "WI-4 feature attribution export is the next additive step; this WI-5 report proves freshness and consumption, not model attribution weights.",
+            "reason": (
+                "WI-4 feature attribution export is the next additive step; "
+                "this WI-5 report proves freshness and consumption, not model "
+                "attribution weights."
+            ),
             "attribution_weight_by_feature": {},
         },
     }
 
 
-def _consumer_flags(*, feature_count: int, confluence_count: int, matrix_rows_with_altdata: int) -> dict[str, Any]:
+def _consumer_flags(
+    *, feature_count: int, confluence_count: int, matrix_rows_with_altdata: int
+) -> dict[str, Any]:
     tensor_consumption = feature_count > 0 or confluence_count > 0
     decision_consumption = matrix_rows_with_altdata > 0
     return {
@@ -362,14 +375,33 @@ def _consumer_flags(*, feature_count: int, confluence_count: int, matrix_rows_wi
     }
 
 
+def _exact_nonnegative_int(value: object) -> int:
+    if type(value) is not int or value < 0:
+        return 0
+    return value
+
+
+def _provider_used_count(decision_altdata: Mapping[str, Any], provider: str) -> int:
+    counts = decision_altdata.get("provider_features_used_counts")
+    if not isinstance(counts, Mapping):
+        return 0
+    return _exact_nonnegative_int(counts.get(provider))
+
+
+def _provider_isolated(payload: Mapping[str, Any]) -> bool:
+    return (
+        payload.get("status") == "ISOLATED_BY_POLICY"
+        or payload.get("trainer_isolation_active") is True
+    )
+
+
 def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
     coinglass_features = _scan_count(redis_client, "v2:features:coinglass:*")
     moralis_features = _scan_count(redis_client, "v2:features:moralis:*")
     confluence_keys = _scan_count(redis_client, "v2:altdata:confluence:*")
 
     bridges = {
-        provider: _json_get(redis_client, key)
-        for provider, key in PROVIDER_BRIDGE_KEYS.items()
+        provider: _json_get(redis_client, key) for provider, key in PROVIDER_BRIDGE_KEYS.items()
     }
     moralis_bridge = bridges["moralis"]
     coinglass_bridge = bridges["coinglass"]
@@ -382,40 +414,70 @@ def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
     confluence_sample = _json_get(redis_client, "v2:altdata:confluence:BTCUSDT:1m")
     if not confluence_sample:
         confluence_sample = _first_scan_payload(redis_client, "v2:altdata:confluence:*")
-    confluence_features = confluence_sample.get("features") if isinstance(confluence_sample.get("features"), dict) else {}
+    confluence_features = (
+        confluence_sample.get("features")
+        if isinstance(confluence_sample.get("features"), dict)
+        else {}
+    )
+    coinglass_feature_count = _exact_nonnegative_int(coinglass_bridge.get("feature_count"))
+    moralis_isolated = _provider_isolated(moralis_bridge)
+    moralis_feature_count = (
+        0 if moralis_isolated else _exact_nonnegative_int(moralis_bridge.get("feature_count"))
+    )
     ppo_provider_feature_count = (
-        len(confluence_features)
-        + int(coinglass_bridge.get("feature_count") or 0)
-        + int(moralis_bridge.get("feature_count") or 0)
+        len(confluence_features) + coinglass_feature_count + moralis_feature_count
     )
     consumer_flags = _consumer_flags(
         feature_count=ppo_provider_feature_count,
         confluence_count=confluence_keys,
         matrix_rows_with_altdata=matrix_rows_with_altdata,
     )
+    # Per-provider claims must be derived from that provider's own feature and
+    # decision-lineage evidence.  Reusing the aggregate flags here lets one
+    # ready provider (or merely an unrelated confluence key) falsely advertise
+    # every other provider as consumed.
+    provider_consumer_flags = {
+        "coinglass": _consumer_flags(
+            feature_count=coinglass_feature_count,
+            confluence_count=0,
+            matrix_rows_with_altdata=_provider_used_count(decision_altdata, "coinglass"),
+        ),
+        "moralis": _consumer_flags(
+            feature_count=moralis_feature_count,
+            confluence_count=0,
+            matrix_rows_with_altdata=(
+                0 if moralis_isolated else _provider_used_count(decision_altdata, "moralis")
+            ),
+        ),
+    }
 
     payload = {
         "schema_version": "altdata_provider_consumption_status_v1",
-        "generated_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "generated_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "providers": {
             "coinglass": {
                 "feature_key_count": coinglass_features,
-                "feature_count": int(coinglass_bridge.get("feature_count") or 0),
+                "feature_count": coinglass_feature_count,
                 "actual_payload_present": bool(coinglass_health.get("actual_payload_count_5m")),
                 "feature_bridge_status": coinglass_bridge.get("status"),
                 "bridge_freshness": _bridge_freshness_summary(coinglass_bridge),
-                "trainer_feed": "tensor_builder/dataset_builder/full_observation_builder reference coinglass fields",
+                "trainer_feed": (
+                    "tensor_builder/dataset_builder/full_observation_builder "
+                    "reference coinglass fields"
+                ),
                 "consumer_count": 5,
-                **consumer_flags,
+                **provider_consumer_flags["coinglass"],
             },
             "moralis": {
                 "feature_key_count": moralis_features,
-                "feature_count": int(moralis_bridge.get("feature_count") or 0),
-                "feature_bridge_payload_present": bool(moralis_bridge.get("actual_payload_present")),
+                "feature_count": moralis_feature_count,
+                "feature_bridge_payload_present": bool(
+                    moralis_bridge.get("actual_payload_present")
+                ),
                 "feature_bridge_status": moralis_bridge.get("status"),
                 "bridge_freshness": _bridge_freshness_summary(moralis_bridge),
                 "consumer_count": 2,
-                **consumer_flags,
+                **provider_consumer_flags["moralis"],
             },
         },
         "confluence_key_count": confluence_keys,
@@ -427,20 +489,23 @@ def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
         "decision_altdata_consumption": decision_altdata,
         "tensor_feature_spec_by_provider": {
             provider: {
-                "feature_count": len([
-                    name for name, mapped_provider in alt_features.items()
-                    if mapped_provider == provider
-                ]),
+                "feature_count": len(
+                    [
+                        name
+                        for name, mapped_provider in alt_features.items()
+                        if mapped_provider == provider
+                    ]
+                ),
                 "feature_names_sample": [
-                    name for name, mapped_provider in sorted(alt_features.items())
+                    name
+                    for name, mapped_provider in sorted(alt_features.items())
                     if mapped_provider == provider
                 ][:25],
             }
             for provider in sorted(set(alt_features.values()))
         },
         "provider_payload_freshness": {
-            provider: _bridge_freshness_summary(payload)
-            for provider, payload in bridges.items()
+            provider: _bridge_freshness_summary(payload) for provider, payload in bridges.items()
         },
         "wi5_alignment": {
             "paper_review_item": "WI-5 verify external data is consumed, not just present",
@@ -464,5 +529,7 @@ def build_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
 
 def publish_provider_consumption_status(redis_client: Any) -> dict[str, Any]:
     payload = build_provider_consumption_status(redis_client)
-    redis_client.set(STATUS_KEY, json.dumps(payload, sort_keys=True, default=str), ex=STATUS_TTL_SECONDS)
+    redis_client.set(
+        STATUS_KEY, json.dumps(payload, sort_keys=True, default=str), ex=STATUS_TTL_SECONDS
+    )
     return payload
