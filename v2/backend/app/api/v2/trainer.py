@@ -153,6 +153,29 @@ def _attach_a_grade_blocker_truth(payload: dict[str, Any], r: Any) -> dict[str, 
     return out
 
 
+def _source_age_seconds(value: Any) -> float | None:
+    """Age in seconds of an ISO-8601 source timestamp, or None if unparseable."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return max(0.0, (datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds())
+
+
+def _freshness_from_age(age_s: float | None) -> str:
+    if age_s is None:
+        return "fresh"  # no measurable source age (healthy subprocess path)
+    if age_s <= 300:
+        return "fresh"
+    if age_s <= 1800:
+        return "degraded"
+    return "stale"
+
+
 def _with_control_center_contract(
     payload: dict[str, Any],
     *,
@@ -161,13 +184,30 @@ def _with_control_center_contract(
 ) -> dict[str, Any]:
     out = dict(payload)
     state = str(out.get("state") or "").upper()
-    data_quality = "partial" if state in {"", "MISSING_EVIDENCE"} else "fresh"
+    # Honest freshness: when the shape carries the underlying evidence timestamp
+    # (e.g. the Redis prediction fallback), grade freshness by its real age rather
+    # than hardcoding staleness=0/fresh — otherwise a trainer that is DOWN and
+    # serving 45h-old fallback evidence is reported as ACTIVE + fresh.
+    source_age = _source_age_seconds(out.pop("_source_generated_utc", None))
+    freshness = _freshness_from_age(source_age)
+    if state in {"", "MISSING_EVIDENCE"}:
+        data_quality = "partial"
+    elif freshness == "stale":
+        data_quality = "stale"
+    elif freshness == "degraded":
+        data_quality = "degraded"
+    else:
+        data_quality = "fresh"
+    # A fallback that is genuinely stale should not keep an ACTIVE state label.
+    if freshness == "stale" and state == "ACTIVE_REDIS_EVIDENCE":
+        state = "STALE_REDIS_EVIDENCE"
+        out["state"] = state
     out["schema_version"] = str(out.get("schema_version") or "trainer_status_v2")
     out["generated_at_utc"] = _utc_now()
     out["generated_at_et"] = _display_time_et()
     out["source"] = source
-    out["staleness_seconds"] = 0
-    out["freshness_status"] = "fresh"
+    out["staleness_seconds"] = round(source_age, 3) if source_age is not None else 0
+    out["freshness_status"] = freshness
     out["canonical_owner"] = "/api/v2/trainer/status"
     out["live_gate"] = "blocked_human_only"
     out["places_real_order"] = False
@@ -778,6 +818,12 @@ def _redis_fallback_shape(r: Any) -> dict[str, Any] | None:
     model_id = pred.get("model_id")
 
     shape = _empty_shape("ACTIVE_REDIS_EVIDENCE")
+    # Carry the underlying evidence timestamp so the contract can grade real
+    # freshness (this prediction key drives the fallback; if it is hours old the
+    # trainer is effectively down and must not be reported as fresh).
+    shape["_source_generated_utc"] = (
+        pred.get("generated_utc") or pred.get("generated_at") or pred.get("created_at")
+    )
     shape["checkpoint_id"] = checkpoint_id
     # cuda_active is a bool; store as-is
     if cuda_active is not None:

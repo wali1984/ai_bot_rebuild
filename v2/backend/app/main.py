@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.services.backend_shutdown import cancel_and_wait_for_registered_tasks, reset_shutdown_signal
@@ -239,6 +239,19 @@ def _register_spa(app: FastAPI) -> None:
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(full_path: str):
             nonlocal index_bytes, index_mtime
+            # Never serve the SPA shell for unmatched API paths — real routes are
+            # registered before this catch-all, so anything under /api/ reaching
+            # here is a genuinely missing/renamed route. Return a JSON 404 so
+            # clients and monitors can detect it instead of a 200 HTML page.
+            if full_path == "api" or full_path.startswith("api/"):
+                return JSONResponse(
+                    {
+                        "error": "not_found",
+                        "detail": f"No API route matches /{full_path}",
+                        "path": f"/{full_path}",
+                    },
+                    status_code=404,
+                )
             requested_file = _safe_dist_file_path(full_path)
             if requested_file:
                 return FileResponse(requested_file)
