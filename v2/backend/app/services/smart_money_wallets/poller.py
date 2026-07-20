@@ -16,17 +16,23 @@ from __future__ import annotations
 
 import json
 import time
-import urllib.error
-import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
+from app.services.smart_money_wallets.budgeted_http import (
+    MoralisBudgetedHttpResult,
+    budgeted_moralis_get_json,
+)
 from app.services.smart_money_wallets.cu_budget import MoralisCuBudget
+from app.services.smart_money_wallets.endpoint_registry import moralis_endpoint_registry
+from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
 
 BASE = "https://deep-index.moralis.io/api/v2.2"
-USER_AGENT = "aibot-v2-moralis-client/1.0 (+python-urllib)"
 WEIGHTS_KEY = "v2:provider:moralis:endpoint_weights"
 WEIGHTS_TTL = 24 * 3600
+_ENDPOINT_COSTS = {spec.endpoint_id: int(spec.cu_cost) for spec in moralis_endpoint_registry()}
+_TOKEN_TRANSFER_CU = _ENDPOINT_COSTS["token_address_transfers"]
+ENDPOINT_WEIGHTS_CU = _TOKEN_TRANSFER_CU
 
 # Operator-verifiable ERC20 mainnet watchlist (symbol -> contract).
 # Extend via v2:provider:moralis:watchlist Redis key (JSON object).
@@ -39,41 +45,61 @@ DEFAULT_WATCHLIST: dict[str, str] = {
     "CRVUSDT": "0xD533a949740bb3306d119CC777fa900bA034cd52",
 }
 
-FALLBACK_WEIGHTS = {"getTokenAddressTransfers": 50, "getTokenTransfers": 50}
+FALLBACK_WEIGHTS = {
+    "getTokenAddressTransfers": _TOKEN_TRANSFER_CU,
+    "getTokenTransfers": _TOKEN_TRANSFER_CU,
+}
 LARGE_TRANSFER_USD_HINT = 100_000  # classification hint only; value-based when price known
 
 
-def _call(key: str, path: str) -> tuple[int | None, Any]:
-    req = urllib.request.Request(
-        f"{BASE}{path}",
-        headers={"X-API-Key": key, "accept": "application/json", "User-Agent": USER_AGENT},
+def load_endpoint_weights(
+    r: Any,
+    key: str,
+    *,
+    limiter: MoralisRateLimiter | None = None,
+    http_client: Any | None = None,
+) -> dict[str, int]:
+    weights, _outcome = _load_endpoint_weights(
+        r,
+        key,
+        limiter=limiter or MoralisRateLimiter(redis_client=r),
+        http_client=http_client,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            return resp.status, json.loads(resp.read().decode())
-    except urllib.error.HTTPError as exc:
-        return exc.code, None
-    except Exception as exc:  # noqa: BLE001
-        return None, type(exc).__name__
+    return weights
 
 
-def load_endpoint_weights(r: Any, key: str) -> dict[str, int]:
+def _load_endpoint_weights(
+    r: Any,
+    key: str,
+    *,
+    limiter: MoralisRateLimiter,
+    http_client: Any | None,
+) -> tuple[dict[str, int], MoralisBudgetedHttpResult | None]:
     cached = r.get(WEIGHTS_KEY)
     if cached:
         try:
-            return {str(k): int(v) for k, v in json.loads(cached).items()}
+            return {str(k): int(v) for k, v in json.loads(cached).items()}, None
         except Exception:  # noqa: BLE001
             pass
-    status, payload = _call(key, "/info/endpointWeights")
-    if status == 200 and isinstance(payload, list):
+    outcome = budgeted_moralis_get_json(
+        api_key=key,
+        endpoint_id="endpoint_weights",
+        path="/info/endpointWeights",
+        estimated_cu=ENDPOINT_WEIGHTS_CU,
+        limiter=limiter,
+        base_url=BASE,
+        timeout_seconds=12.0,
+        http_client=http_client,
+    )
+    if outcome.ok and isinstance(outcome.payload, list):
         weights = {
             str(row.get("endpoint")): int(row.get("rateLimitCost") or 0)
-            for row in payload
+            for row in outcome.payload
             if row.get("endpoint")
         }
         r.set(WEIGHTS_KEY, json.dumps(weights), ex=WEIGHTS_TTL)
-        return weights
-    return dict(FALLBACK_WEIGHTS)
+        return weights, outcome
+    return dict(FALLBACK_WEIGHTS), outcome
 
 
 def poll_token_transfers(
@@ -82,11 +108,19 @@ def poll_token_transfers(
     *,
     watchlist: dict[str, str] | None = None,
     ttl_seconds: int = 4 * 3600,
+    limiter: MoralisRateLimiter | None = None,
+    http_client: Any | None = None,
 ) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
     budget = MoralisCuBudget(r)
-    weights = load_endpoint_weights(r, api_key)
-    cost_per_token = int(weights.get("getTokenAddressTransfers") or 50)
+    request_limiter = limiter or MoralisRateLimiter(redis_client=r)
+    weights, weight_outcome = _load_endpoint_weights(
+        r,
+        api_key,
+        limiter=request_limiter,
+        http_client=http_client,
+    )
+    cost_per_token = int(weights.get("getTokenAddressTransfers") or _TOKEN_TRANSFER_CU)
     wl_raw = r.get("v2:provider:moralis:watchlist")
     try:
         watch = watchlist or (json.loads(wl_raw) if wl_raw else None) or DEFAULT_WATCHLIST
@@ -94,17 +128,25 @@ def poll_token_transfers(
         watch = DEFAULT_WATCHLIST
 
     results: list[dict[str, Any]] = []
-    spent = 0
+    spent = int(weight_outcome.accounted_cu if weight_outcome is not None else 0)
     skipped_budget = 0
     for symbol, contract in watch.items():
-        if not budget.can_spend(cost_per_token):
+        outcome = budgeted_moralis_get_json(
+            api_key=api_key,
+            endpoint_id="token_address_transfers",
+            path=f"/erc20/{contract}/transfers",
+            params={"chain": "eth", "limit": 25, "order": "DESC"},
+            estimated_cu=cost_per_token,
+            limiter=request_limiter,
+            base_url=BASE,
+            timeout_seconds=12.0,
+            http_client=http_client,
+        )
+        if not outcome.request_dispatched:
             skipped_budget += 1
             continue
-        budget.charge(cost_per_token, endpoint="getTokenAddressTransfers")
-        spent += cost_per_token
-        status, payload = _call(
-            api_key, f"/erc20/{contract}/transfers?chain=eth&limit=25&order=DESC"
-        )
+        spent += outcome.accounted_cu
+        status, payload = outcome.http_status, outcome.payload
         row: dict[str, Any] = {
             "symbol": symbol, "contract": contract, "http_status": status,
             "generated_utc": now, "cu_cost": cost_per_token,

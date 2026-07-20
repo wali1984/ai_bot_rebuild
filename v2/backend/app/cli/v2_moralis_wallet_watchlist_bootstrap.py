@@ -20,18 +20,23 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import urllib.parse
-import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services.smart_money_wallets.budgeted_http import (
+    MoralisBudgetedHttpResult,
+    budgeted_moralis_get_json,
+)
+from app.services.smart_money_wallets.endpoint_registry import moralis_endpoint_registry
+from app.services.smart_money_wallets.rate_limit import MoralisRateLimiter
+
 BASE = "https://deep-index.moralis.io/api/v2.2"
-USER_AGENT = "aibot-v2-moralis-client/1.0 (+python-urllib)"
 CHAIN_PARAM = {"ethereum": "eth", "arbitrum": "arbitrum", "optimism": "optimism", "bsc": "bsc"}
 SEED_PATH = Path("v2/config/moralis/wallet_watchlist_seed.yaml")
-HOLDERS_CU = 100
-TRANSFERS_CU = 50
+_ENDPOINT_COSTS = {spec.endpoint_id: int(spec.cu_cost) for spec in moralis_endpoint_registry()}
+HOLDERS_CU = _ENDPOINT_COSTS["token_holders"]
+TRANSFERS_CU = _ENDPOINT_COSTS["token_address_transfers"]
 T0_CAP = 20
 T1_CAP = 250
 
@@ -76,13 +81,18 @@ def bootstrap_watchlist(
     api_key: str,
     holders_per_token: int = 20,
     transfers_per_token: int = 50,
+    limiter: MoralisRateLimiter | None = None,
+    http_client: Any | None = None,
 ) -> dict[str, Any]:
-    from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
-    from v2.backend.app.services.smart_money_wallets.cu_budget import MoralisCuBudget
-    from v2.backend.app.services.smart_money_wallets.wallet_watchlist import publish_wallet_watchlist
+    from v2.backend.app.services.smart_money_wallets.address_classifier import (
+        classify_address,
+    )
+    from v2.backend.app.services.smart_money_wallets.wallet_watchlist import (
+        publish_wallet_watchlist,
+    )
 
     now = _now()
-    budget = MoralisCuBudget(r)
+    request_limiter = limiter or MoralisRateLimiter(redis_client=r, mode="catchup")
     tokens = _pollable_tokens(r)
     evidence: dict[str, dict[str, Any]] = {}
     excluded: list[dict[str, Any]] = []
@@ -95,14 +105,23 @@ def bootstrap_watchlist(
             continue
         contract = token["contract_address"]
         symbol = token["symbol"]
-        cost = HOLDERS_CU + TRANSFERS_CU
-        if not budget.can_spend(cost):
+        holders_outcome = _get(
+            api_key,
+            f"/erc20/{contract}/owners",
+            endpoint_id="token_holders",
+            estimated_cu=HOLDERS_CU,
+            limiter=request_limiter,
+            http_client=http_client,
+            chain=chain,
+            limit=holders_per_token,
+            order="DESC",
+        )
+        if not holders_outcome.request_dispatched:
             break
-        budget.charge(cost, endpoint="watchlist_bootstrap")
-        cu_spent += cost
+        cu_spent += holders_outcome.accounted_cu
         tokens_polled += 1
 
-        holders = _get(api_key, f"/erc20/{contract}/owners", chain=chain, limit=holders_per_token, order="DESC")
+        holders = holders_outcome.payload if holders_outcome.ok else None
         for rank, row in enumerate((holders or {}).get("result") or [], start=1):
             address = str(row.get("owner_address") or "").lower()
             if not address:
@@ -128,7 +147,19 @@ def bootstrap_watchlist(
             if usd:
                 entry["holder_usd"] = max(entry["holder_usd"], usd)
 
-        transfers = _get(api_key, f"/erc20/{contract}/transfers", chain=chain, limit=transfers_per_token, order="DESC")
+        transfers_outcome = _get(
+            api_key,
+            f"/erc20/{contract}/transfers",
+            endpoint_id="token_address_transfers",
+            estimated_cu=TRANSFERS_CU,
+            limiter=request_limiter,
+            http_client=http_client,
+            chain=chain,
+            limit=transfers_per_token,
+            order="DESC",
+        )
+        cu_spent += transfers_outcome.accounted_cu
+        transfers = transfers_outcome.payload if transfers_outcome.ok else None
         for row in (transfers or {}).get("result") or []:
             for field in ("from_address", "to_address"):
                 address = str(row.get(field) or "").lower()
@@ -230,18 +261,27 @@ def _pollable_tokens(r: Any) -> list[dict[str, str]]:
     return tokens
 
 
-def _get(api_key: str, path: str, **params: Any) -> dict[str, Any] | None:
-    query = urllib.parse.urlencode(params)
-    req = urllib.request.Request(
-        f"{BASE}{path}?{query}",
-        headers={"X-API-Key": api_key, "accept": "application/json", "User-Agent": USER_AGENT},
+def _get(
+    api_key: str,
+    path: str,
+    *,
+    endpoint_id: str,
+    estimated_cu: int,
+    limiter: MoralisRateLimiter,
+    http_client: Any | None,
+    **params: Any,
+) -> MoralisBudgetedHttpResult:
+    return budgeted_moralis_get_json(
+        api_key=api_key,
+        endpoint_id=endpoint_id,
+        path=path,
+        params=params,
+        estimated_cu=estimated_cu,
+        limiter=limiter,
+        base_url=BASE,
+        timeout_seconds=20.0,
+        http_client=http_client,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            payload = json.loads(resp.read().decode())
-            return payload if isinstance(payload, dict) else {"result": payload}
-    except Exception:
-        return None
 
 
 def _f(value: Any) -> float | None:
