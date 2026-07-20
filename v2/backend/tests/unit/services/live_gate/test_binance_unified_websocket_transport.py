@@ -530,6 +530,7 @@ class _BudgetRedis:
         self.counts: dict[str, int] = {}
         self.cooldown_payload: str | None = None
         self.incrby_calls: list[tuple[str, int]] = []
+        self.reserve_calls: list[tuple[str, int, int]] = []
 
     def ttl(self, _key: str) -> int:
         if self.cooldown_ttl_ms in {-1, -2}:
@@ -546,12 +547,22 @@ class _BudgetRedis:
 
     def eval(
         self,
-        _script: str,
+        script: str,
         _key_count: int,
-        _key: str,
-        requested_ttl_ms: int,
-        payload: str,
-    ) -> int:
+        key: str,
+        *args: object,
+    ) -> object:
+        if script == policy._REST_BUDGET_RESERVE_LUA:
+            request_weight, budget, requested_ttl_ms = (int(value) for value in args)
+            self.reserve_calls.append((key, request_weight, budget))
+            current = self.counts.get(key, 0)
+            proposed = current + request_weight
+            if proposed > budget:
+                return [0, current, requested_ttl_ms]
+            self.counts[key] = proposed
+            return [1, proposed, requested_ttl_ms]
+        requested_ttl_ms = int(args[0])
+        payload = str(args[1])
         if self.cooldown_ttl_ms == -1:
             return -1
         if self.cooldown_ttl_ms < requested_ttl_ms:
@@ -578,7 +589,7 @@ def test_shared_rest_budget_consumes_exact_request_weight(
     assert decision["budget_scope"] == "host_redis"
     assert decision["budget_used_this_minute"] == 5
     assert decision["request_weight"] == 5
-    assert redis.incrby_calls[0][1] == 5
+    assert redis.reserve_calls[0][1] == 5
 
 
 def test_required_shared_rest_budget_fails_closed_without_redis(

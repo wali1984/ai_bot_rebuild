@@ -70,6 +70,41 @@ REST_FALLBACK_MAX_REDIS_TTL_SECONDS = ((1 << 63) - 1) // 1_000
 _REST_BUDGET_LOCAL_WINDOW: dict[str, Any] = {"minute": None, "count": 0}
 _REST_BUDGET_REDIS_CLIENT: Any = None
 _REST_BUDGET_REDIS_TRIED = False
+_REST_BUDGET_RESERVE_LUA = """
+local raw = redis.call('GET', KEYS[1])
+local current = 0
+local current_ttl_ms = -2
+if raw then
+    current = tonumber(raw)
+    current_ttl_ms = redis.call('PTTL', KEYS[1])
+    if not current or current < 0 then
+        return {-2, 0, current_ttl_ms}
+    end
+    if current_ttl_ms == -1 then
+        return {-3, current, current_ttl_ms}
+    end
+end
+
+local request_weight = tonumber(ARGV[1])
+local budget = tonumber(ARGV[2])
+local ttl_ms = tonumber(ARGV[3])
+if not request_weight or request_weight <= 0 or
+   not budget or budget <= 0 or
+   not ttl_ms or ttl_ms <= 0 then
+    return {-4, current, current_ttl_ms}
+end
+
+local proposed = current + request_weight
+if proposed > budget then
+    return {0, current, current_ttl_ms}
+end
+if raw then
+    redis.call('SET', KEYS[1], tostring(proposed), 'KEEPTTL')
+else
+    redis.call('PSETEX', KEYS[1], ttl_ms, tostring(proposed))
+end
+return {1, proposed, redis.call('PTTL', KEYS[1])}
+"""
 _REST_COOLDOWN_EXTEND_LUA = """
 local current_ttl_ms = redis.call('PTTL', KEYS[1])
 local requested_ttl_ms = tonumber(ARGV[1])
@@ -151,26 +186,68 @@ def _rest_fallback_budget_check(
                     {"cooldown_seconds_remaining": int(cooldown_ttl), "budget_per_minute": budget},
                 )
             key = f"{REST_FALLBACK_BUDGET_REDIS_KEY_PREFIX}{minute}"
-            used = int(client.incrby(key, request_weight))
-            if used == request_weight:
-                client.expire(key, 120)
-            if used > budget:
+            reserve_result = client.eval(
+                _REST_BUDGET_RESERVE_LUA,
+                1,
+                key,
+                request_weight,
+                budget,
+                120_000,
+            )
+            if not isinstance(reserve_result, list | tuple) or len(reserve_result) != 3:
+                raise RuntimeError("REST_FALLBACK_BUDGET_RESERVE_REPLY_INVALID")
+            reserve_code, used, budget_ttl_ms = (int(value) for value in reserve_result)
+            attempted = used + request_weight
+            if reserve_code == -3:
                 return (
                     False,
-                    f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute",
+                    "REST_FALLBACK_BUDGET_PERSISTENT_KEY_FAIL_CLOSED",
                     {
                         "budget_used_this_minute": used,
                         "budget_per_minute": budget,
                         "budget_scope": "host_redis",
+                        "budget_ttl_ms": budget_ttl_ms,
                         "request_weight": request_weight,
                     },
                 )
-            return True, None, {
-                "budget_used_this_minute": used,
-                "budget_per_minute": budget,
-                "budget_scope": "host_redis",
-                "request_weight": request_weight,
-            }
+            if reserve_code < 0:
+                return (
+                    False,
+                    "REST_FALLBACK_BUDGET_STATE_INVALID_FAIL_CLOSED",
+                    {
+                        "budget_used_this_minute": used,
+                        "budget_per_minute": budget,
+                        "budget_scope": "host_redis",
+                        "budget_ttl_ms": budget_ttl_ms,
+                        "request_weight": request_weight,
+                    },
+                )
+            if reserve_code == 0:
+                return (
+                    False,
+                    f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{attempted}>{budget}_per_minute",
+                    {
+                        "budget_used_this_minute": used,
+                        "budget_attempted_this_minute": attempted,
+                        "budget_per_minute": budget,
+                        "budget_scope": "host_redis",
+                        "budget_ttl_ms": budget_ttl_ms,
+                        "request_weight": request_weight,
+                    },
+                )
+            if reserve_code != 1 or used > budget:
+                raise RuntimeError("REST_FALLBACK_BUDGET_RESERVE_STATE_INVALID")
+            return (
+                True,
+                None,
+                {
+                    "budget_used_this_minute": used,
+                    "budget_per_minute": budget,
+                    "budget_scope": "host_redis",
+                    "budget_ttl_ms": budget_ttl_ms,
+                    "request_weight": request_weight,
+                },
+            )
         except Exception:
             if require_shared_budget:
                 return (
@@ -196,25 +273,32 @@ def _rest_fallback_budget_check(
     if _REST_BUDGET_LOCAL_WINDOW["minute"] != minute:
         _REST_BUDGET_LOCAL_WINDOW["minute"] = minute
         _REST_BUDGET_LOCAL_WINDOW["count"] = 0
-    _REST_BUDGET_LOCAL_WINDOW["count"] += request_weight
     used = int(_REST_BUDGET_LOCAL_WINDOW["count"])
-    if used > budget:
+    attempted = used + request_weight
+    if attempted > budget:
         return (
             False,
-            f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{used}>{budget}_per_minute_local",
+            f"REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:{attempted}>{budget}_per_minute_local",
             {
                 "budget_used_this_minute": used,
+                "budget_attempted_this_minute": attempted,
                 "budget_per_minute": budget,
                 "budget_scope": "process_local",
                 "request_weight": request_weight,
             },
         )
-    return True, None, {
-        "budget_used_this_minute": used,
-        "budget_per_minute": budget,
-        "budget_scope": "process_local",
-        "request_weight": request_weight,
-    }
+    used = attempted
+    _REST_BUDGET_LOCAL_WINDOW["count"] = used
+    return (
+        True,
+        None,
+        {
+            "budget_used_this_minute": used,
+            "budget_per_minute": budget,
+            "budget_scope": "process_local",
+            "request_weight": request_weight,
+        },
+    )
 
 
 def report_binance_rest_response(
