@@ -373,6 +373,9 @@ INGESTOR_FEEDS: dict[str, dict[str, Any]] = {
         # /api/v2/providers/status provider card (never green from heartbeat alone).
         "pattern": "v2:moralis:*",
         "heartbeat_key": "v2:provider:moralis:health",
+        # Loop cadence is 300s (v2_moralis_provider_loop --sleep-seconds default);
+        # 2 cycles + stamp latency before the feed stops reading "live".
+        "live_within_seconds": 660,
         "ts_field": None,
         "value_fields": {},
     },
@@ -576,15 +579,22 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
             if hb_seconds is not None and (newest is None or hb_seconds > newest):
                 newest = hb_seconds
     age = max(0.0, now - newest) if newest is not None else None
+    # Liveness threshold is per-feed: slow-cadence feeds (Moralis polls every
+    # 300s under its CU budget) would otherwise spend most of every healthy
+    # cycle mislabeled "stale". Default 120s covers streaming feeds; a feed
+    # override should be ~2x its real write cadence so one missed cycle still
+    # reads live and two missed cycles honestly degrade to stale.
+    live_within = float(feed.get("live_within_seconds") or 120)
+    stale_within = max(3600.0, live_within * 4)
     if not keys:
         status = "not_started" if name == "ccxt_historical" else "offline"
     elif sampled and upstream_errors >= max(1, sampled // 2):
         status = "upstream_error"
     elif age is None:
         status = "unknown_freshness"
-    elif age <= 120:
+    elif age <= live_within:
         status = "live"
-    elif age <= 3600:
+    elif age <= stale_within:
         status = "stale"
     else:
         status = "offline"
