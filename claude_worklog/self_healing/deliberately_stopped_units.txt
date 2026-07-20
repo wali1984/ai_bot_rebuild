@@ -9,3 +9,14 @@
 # Codex containment 2026-07-18: keep the deprecated replacement guard stopped.
 # It is observer-only after 57dfaa9df9, but it still re-runs non-writer phases.
 ai-bot-v2-production-replacement-runtime-guard.service
+
+# Codex fail-closed repair holds 2026-07-19: these units have matching
+# 99-codex-repair-hold.conf drop-ins.  Keep the supervisor from repeatedly
+# attempting starts that systemd is explicitly configured to refuse.  Remove
+# each entry together with its drop-in only after that component's evidence
+# and bounded-resource release gate passes.
+ai-bot-v2-native-cuda-trainer-persistent.service
+ai-bot-v2-continuous-offline-gpu-trainer.service
+ai-bot-v2-adaptive-capital-productivity.service
+ai-bot-v2-edge-replay-factory.service
+ai-bot-v2-continuous-edge-guardian.service
