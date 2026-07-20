@@ -17,7 +17,9 @@ export function formatMoney(value: unknown, fallback = '—'): string {
   if (n === null) return fallback;
   // Normalize values that would display as "-0.00" (floating point noise or negative zero)
   const safe = Math.abs(n) < 0.005 ? 0 : n;
-  return `$${safe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Lead with the minus (-$10.42), never $-10.42 — a loss must be unmistakable.
+  const sign = safe < 0 ? '-' : '';
+  return `${sign}$${Math.abs(safe).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatNumber(value: unknown, fallback = '—', maximumFractionDigits = 4): string {
