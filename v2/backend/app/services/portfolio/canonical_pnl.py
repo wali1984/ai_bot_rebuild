@@ -51,8 +51,10 @@ def _source_lag_seconds(payloads: list[Mapping[str, Any]]) -> float | None:
     if not timestamps:
         return None
     # Lag off the OLDEST contributing source, not the newest — otherwise a fresh
-    # secondary key (e.g. paper:session) masks a stalled equity source
-    # (portfolio:state) and stale equity is reported as 'fresh'.
+    # secondary key masks a stalled equity source (portfolio:state) and stale
+    # equity is reported as 'fresh'. Callers must only pass sources that are
+    # expected to REFRESH (static identity keys like v2:paper:session carry a
+    # creation timestamp and would permanently poison the minimum).
     oldest = min(timestamps)
     return round(max(0.0, (datetime.now(UTC) - oldest).total_seconds()), 3)
 
@@ -213,8 +215,13 @@ def build_canonical_pnl(client: Any) -> dict[str, Any]:
         if payload
     ]
 
+    # v2:paper:session is deliberately EXCLUDED from lag: its generated_utc is
+    # the session CREATION time (static identity, never re-stamped), so it
+    # permanently dominates min() and flags genuinely fresh equity as stale.
+    # The oldest-of rule stays for the sources that are expected to refresh
+    # (portfolio:state 30s publisher, paper:ledger).
     source_lag_seconds = _source_lag_seconds([
-        p for p in (portfolio, session, ledger if ledger_loaded else {}) if p
+        p for p in (portfolio, ledger if ledger_loaded else {}) if p
     ])
     freshness_status = (
         "unavailable" if not present_sources
