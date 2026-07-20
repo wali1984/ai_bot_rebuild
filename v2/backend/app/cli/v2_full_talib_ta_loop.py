@@ -1,15 +1,18 @@
-"""Publish full TA-Lib compatibility payloads from live V2 OHLCV.
+"""Publish fail-closed full TA-Lib candidates from canonical closed OHLCV.
 
 Writes only V2 Redis keys:
 
+* ``v2:features:ta_closed:{symbol}:{timeframe}`` (canonical candidate)
 * ``v2:features:ta:{symbol}:{timeframe}``
 * ``v2:features:ta_full:{symbol}:{timeframe}``
-* ``v2:technical_analysis:{symbol}:{timeframe}``
 * ``v2:features:ta:heartbeat``
 
-The worker restores the broad legacy TA surface for trainer/readiness parity
-without touching legacy Redis keys or exchange mutation paths.
+The compatibility views are explicitly nonconsumable.  This worker does not
+write ``v2:technical_analysis:*`` because the native feature pipeline owns that
+surface.  A successful Redis SET is not represented as a postcommit
+availability observation, trainer admission, or consumer authorization.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -21,10 +24,13 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.full_talib_ta.service import (
-    DEFAULT_MIN_CANDLES,
-    FULL_TALIB_TA_SCHEMA_VERSION,
-    build_full_talib_ta_payload,
-    filter_closed_ohlcv_rows,
+    FULL_TALIB_TA_CLOSED_CANDIDATE_SCHEMA_VERSION,
+    FULL_TALIB_TA_REQUIRED_CONTIGUOUS_ROWS,
+    build_full_talib_ta_closed_candidate,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    OHLCVClosedWindowValidationError,
+    validate_ohlcv_closed_window,
 )
 from v2.backend.app.services.v2_symbol_runtime_universe import (
     is_valid_runtime_symbol,
@@ -54,7 +60,9 @@ def _connect_redis():
     except Exception:
         return None
     try:
-        client = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=True)
+        # Binary responses preserve the exact source bytes used by the closed
+        # window validator and its payload digest.
+        client = redis.Redis(host="127.0.0.1", port=6379, db=0, decode_responses=False)
         client.ping()
         return client
     except Exception:
@@ -65,179 +73,29 @@ def _safe_set_json(redis_client: Any, key: str, payload: dict[str, Any], ttl: in
     if redis_client is None or not key.startswith(V2_REDIS_PREFIX):
         return False
     try:
-        redis_client.set(key, json.dumps(payload, sort_keys=True), ex=int(ttl))
-        return True
+        return (
+            redis_client.set(
+                key,
+                json.dumps(payload, sort_keys=True),
+                ex=int(ttl),
+            )
+            is True
+        )
     except Exception:
         return False
 
 
-def _read_json(redis_client: Any, key: str) -> Any:
+def _read_exact_bytes(redis_client: Any, key: str) -> bytes | None:
     if redis_client is None or not key.startswith(V2_REDIS_PREFIX):
         return None
     try:
         raw = redis_client.get(key)
     except Exception:
         return None
-    if not raw:
-        return None
-    try:
-        return json.loads(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _extract_ohlcv_rows(payload: Any) -> list[Any] | None:
-    if isinstance(payload, list):
-        return payload
-    if not isinstance(payload, dict):
-        return None
-    for field in ("candles", "ohlcv", "ohlcv_list", "rows", "data"):
-        rows = payload.get(field)
-        if isinstance(rows, list):
-            return rows
-    latest = payload.get("latest")
-    if isinstance(latest, dict):
-        return [latest]
-    return None
-
-
-def _ohlcv_row_ts(row: Any) -> Any:
-    if isinstance(row, dict):
-        return (
-            row.get("candle_close_time")
-            or row.get("close_time")
-            or row.get("candle_open_time")
-            or row.get("open_time")
-        )
-    if isinstance(row, list | tuple) and row:
-        return row[0]
-    return None
-
-
-def _merge_ohlcv_history(
-    history_rows: list[Any] | None,
-    current_rows: list[Any] | None,
-) -> list[Any]:
-    """Merge closed-candle HISTORY under the live key's latest rows.
-
-    The live v2:market:ohlcv key often carries only the newest candle while
-    the full backfilled/WSS history lives in v2:market:ohlcv_closed —
-    computing TA on 1 row blocked the entire ta_full family
-    (BLOCKED_INSUFFICIENT_OHLCV_HISTORY, 155 spec features missing).
-    Dedupe by candle timestamp; live rows win on collision.
-    """
-    merged: dict[Any, Any] = {}
-    for row in history_rows or []:
-        ts = _ohlcv_row_ts(row)
-        if ts is not None:
-            merged[ts] = row
-    for row in current_rows or []:
-        ts = _ohlcv_row_ts(row)
-        if ts is not None:
-            merged[ts] = row
-    if not merged:
-        return list(current_rows or history_rows or [])
-    return [merged[ts] for ts in sorted(merged)]
-
-
-def _copy_compact_ta_payload(
-    *,
-    symbol: str,
-    timeframe: str,
-    source_key: str,
-    source_payload: dict[str, Any],
-) -> dict[str, Any] | None:
-    indicators: dict[str, float] = {}
-    raw_indicators = source_payload.get("indicators")
-    raw_features = source_payload.get("features")
-    if isinstance(raw_indicators, dict):
-        for name, value in raw_indicators.items():
-            try:
-                indicators[str(name)] = float(value)
-            except (TypeError, ValueError):
-                continue
-    if isinstance(raw_features, dict):
-        aliases = {
-            "rsi_14": ("rsi_14", "ta_RSI_14"),
-            "macd": ("macd", "ta_MACD_12_26_9_macd"),
-            "macd_signal": ("macd_signal", "ta_MACD_12_26_9_signal"),
-            "macd_hist": ("macd_hist", "ta_MACD_12_26_9_hist", "ta_MACDhist_12_26_9"),
-            "atr_14": ("atr_14", "ta_ATR_14"),
-            "ema_12": ("ema_12", "ta_EMA_12"),
-            "ema_26": ("ema_26", "ta_EMA_26"),
-            "sma_20": ("sma_20", "ta_SMA_20"),
-            "bb_width_pct": ("bb_width_pct", "ta_BB_width_pct"),
-        }
-        for src_name, names in aliases.items():
-            if src_name not in raw_features:
-                continue
-            try:
-                value = float(raw_features[src_name])
-            except (TypeError, ValueError):
-                continue
-            for out_name in names:
-                indicators[out_name] = value
-    if not indicators:
-        return None
-    return {
-        "schema_version": "v2_full_talib_ta_compact_fallback_v1",
-        "source_label": "V2_COMPACT_TA_FALLBACK_WHILE_FULL_OHLCV_MISSING",
-        "symbol": symbol,
-        "timeframe": timeframe,
-        "generated_utc": _utc_iso(),
-        "source_ohlcv_key": f"v2:market:ohlcv:binance:{symbol}:{timeframe}",
-        "source_compact_key": source_key,
-        "library_used": source_payload.get("library_used") or "v2_compact_feature_pipeline",
-        "talib_function_count": 0,
-        "computed_function_count": 0,
-        "computed_functions": [],
-        "skipped_function_count": 1,
-        "skipped_functions": {
-            "full_talib": "source_ohlcv_missing_or_unusable_for_full_talib"
-        },
-        "candle_count": source_payload.get("candle_count"),
-        "last_candle_ts_ms": source_payload.get("last_candle_ts_ms"),
-        "field_count": len(indicators),
-        "indicator_count": len(indicators),
-        "indicators": dict(sorted(indicators.items())),
-        "families_present": sorted(
-            {
-                name.split("_", 2)[1]
-                if name.startswith("ta_") and "_" in name[3:]
-                else name.split("_", 1)[0].upper()
-                for name in indicators
-            }
-        ),
-        "classification": "V2_FULL_TALIB_TA_BLOCKED_COMPACT_FALLBACK_FRESH",
-        "trainer_consumable": True,
-        "legacy_ta_field_parity_target": "about_160_fields_from_LEGACY_SYSTEM_FULL_AUDIT",
-        "legacy_redis_key_equivalent": f"ta:{symbol}:{timeframe}",
-        "v2_only": True,
-        "writes_legacy_redis": False,
-        "exchange_action_taken": False,
-        "places_real_order": False,
-        "live_gate": "blocked_human_only",
-        "live_symbols": [],
-        "no_zero_fill": True,
-    }
-
-
-def _fallback_ta_payload(redis_client: Any, symbol: str, timeframe: str) -> dict[str, Any] | None:
-    for key in (
-        f"v2:technical_analysis:{symbol}:{timeframe}",
-        f"v2:features:latest:{symbol}:{timeframe}",
-        f"v2:features:ta:{symbol}:{timeframe}",
-    ):
-        payload = _read_json(redis_client, key)
-        if isinstance(payload, dict):
-            compact = _copy_compact_ta_payload(
-                symbol=symbol,
-                timeframe=timeframe,
-                source_key=key,
-                source_payload=payload,
-            )
-            if compact is not None:
-                return compact
+    if type(raw) is bytes:
+        return raw or None
+    # A decoded string cannot prove the exact bytes originally stored.  The
+    # validator's digest boundary therefore rejects it instead of re-encoding.
     return None
 
 
@@ -258,17 +116,27 @@ def _discover_ohlcv_keys(redis_client: Any) -> dict[str, set[str]]:
     if redis_client is None:
         return discovered
     try:
-        keys = list(redis_client.scan_iter(match="v2:market:ohlcv:binance:*", count=500))
+        keys = list(
+            redis_client.scan_iter(
+                match="v2:market:ohlcv_closed:binance:*",
+                count=500,
+            )
+        )
     except Exception:
         return discovered
     for key in keys:
+        if isinstance(key, bytes):
+            try:
+                key = key.decode("utf-8", errors="strict")
+            except UnicodeDecodeError:
+                continue
         if not isinstance(key, str):
             continue
         parts = key.split(":")
         if len(parts) != 6:
             continue
         _, market, ohlcv, exchange, symbol, timeframe = parts
-        if market != "market" or ohlcv != "ohlcv" or exchange != "binance":
+        if market != "market" or ohlcv != "ohlcv_closed" or exchange != "binance":
             continue
         if symbol == "heartbeat" or not is_valid_runtime_symbol(symbol):
             continue
@@ -279,6 +147,34 @@ def _discover_ohlcv_keys(redis_client: Any) -> dict[str, set[str]]:
 def _write_status(payload: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+
+def _compatibility_view(
+    candidate: dict[str, Any],
+    *,
+    canonical_candidate_key: str,
+    publication_key: str,
+) -> dict[str, Any]:
+    """Return a UI/status compatibility view with every authority held false."""
+
+    payload = dict(candidate)
+    payload.update(
+        {
+            "source_label": "V2_FULL_TALIB_TA_CLOSED_COMPATIBILITY_VIEW",
+            "publication_key": publication_key,
+            "canonical_candidate_key": canonical_candidate_key,
+            "compatibility_view": True,
+            "compatibility_unsafe_for_trainer": True,
+            "available_at": None,
+            "publication_observed_at": None,
+            "publication_committed": False,
+            "consumer_eligible": False,
+            "trainer_consumable": False,
+            "trainer_admission_granted": False,
+            "live_execution_authorized": False,
+        }
+    )
+    return payload
 
 
 def run_once(
@@ -300,7 +196,9 @@ def run_once(
     discovered = _discover_ohlcv_keys(redis_client)
     all_symbols: list[str] = []
     seen: set[str] = set()
-    for symbol in list(requested_symbols) + sorted(discovered):
+    # Redis discovery is inventory, never symbol authority.  Only the resolved
+    # current runtime universe may enter the producer candidate path.
+    for symbol in requested_symbols:
         symbol = str(symbol or "").upper()
         if symbol and is_valid_runtime_symbol(symbol) and symbol not in seen:
             seen.add(symbol)
@@ -310,7 +208,9 @@ def run_once(
     if requested_timeframes:
         all_timeframes = list(requested_timeframes)
     else:
-        discovered_tfs = sorted({tf for values in discovered.values() for tf in values})
+        discovered_tfs = sorted(
+            {timeframe for symbol in all_symbols for timeframe in discovered.get(symbol, set())}
+        )
         all_timeframes = list(dict.fromkeys(list(DEFAULT_TIMEFRAMES) + discovered_tfs))
 
     key_results: list[dict[str, Any]] = []
@@ -322,83 +222,93 @@ def run_once(
 
     for symbol in all_symbols:
         for timeframe in all_timeframes:
-            source_key = f"v2:market:ohlcv:binance:{symbol}:{timeframe}"
-            source_payload = _read_json(redis_client, source_key)
-            rows = _extract_ohlcv_rows(source_payload)
-            if rows is None or len(rows) < DEFAULT_MIN_CANDLES:
-                closed_history = _extract_ohlcv_rows(
-                    _read_json(
-                        redis_client,
-                        f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}",
-                    )
-                )
-                if closed_history:
-                    rows = _merge_ohlcv_history(closed_history, rows)
-            if rows is None:
+            source_key = f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"
+            source_bytes = _read_exact_bytes(redis_client, source_key)
+            if source_bytes is None:
                 missing_ohlcv_keys.append(source_key)
-                payload = _fallback_ta_payload(redis_client, symbol, timeframe)
-                if payload is None:
-                    continue
-            else:
-                result = build_full_talib_ta_payload(
+                classification = "BLOCKED_CANONICAL_CLOSED_OHLCV_MISSING"
+                classifications[classification] = classifications.get(classification, 0) + 1
+                key_results.append(
+                    {
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "source_ohlcv_key": source_key,
+                        "classification": classification,
+                        "rejection_reason": "exact_source_bytes_missing",
+                        "candidate_written": False,
+                    }
+                )
+                continue
+
+            try:
+                validated_window = validate_ohlcv_closed_window(
+                    source_bytes,
                     symbol=symbol,
                     timeframe=timeframe,
-                    candles=rows,
-                    source_ohlcv_key=source_key,
+                    required_contiguous_lookback=(FULL_TALIB_TA_REQUIRED_CONTIGUOUS_ROWS),
                 )
-                payload = result.to_payload(source_ohlcv_key=source_key)
-                # Confirmed-closed-candle variant: the live payload above
-                # includes the in-progress candle, which timestamp-integrity
-                # gates (ENTRY_FEATURE_CANDLE_NOT_CONFIRMED_CLOSED) must
-                # reject. Consumers that need repaint-free entry features read
-                # ta_closed instead; candle_closed_confirmed is only ever
-                # stamped here, from raw close-boundary proof.
-                closed_rows, closed_meta = filter_closed_ohlcv_rows(
-                    rows, timeframe=timeframe
+                payload = build_full_talib_ta_closed_candidate(
+                    validated_window=validated_window,
                 )
-                if closed_rows:
-                    closed_result = build_full_talib_ta_payload(
-                        symbol=symbol,
-                        timeframe=timeframe,
-                        candles=closed_rows,
-                        source_ohlcv_key=source_key,
-                    )
-                    closed_payload = closed_result.to_payload(
-                        source_ohlcv_key=source_key
-                    )
-                    closed_payload.update(
-                        {
-                            "source_label": "V2_FULL_TALIB_TA_CLOSED_CANDLES_ONLY",
-                            "closed_candles_only": True,
-                            "candle_closed_confirmed": True,
-                            "last_closed_candle_open_ts_ms": closed_meta[
-                                "last_closed_candle_open_ts_ms"
-                            ],
-                            "last_closed_candle_close_ts_ms": closed_meta[
-                                "last_closed_candle_close_ts_ms"
-                            ],
-                            "in_progress_candles_dropped": closed_meta[
-                                "dropped_unclosed_count"
-                            ],
-                            "unprovable_candles_dropped": closed_meta[
-                                "dropped_unprovable_count"
-                            ],
-                        }
-                    )
-                    closed_key = f"v2:features:ta_closed:{symbol}:{timeframe}"
-                    if _safe_set_json(
-                        redis_client, closed_key, closed_payload, ttl_seconds
-                    ):
-                        keys_written.append(closed_key)
+            except OHLCVClosedWindowValidationError as exc:
+                classification = "BLOCKED_CANONICAL_CLOSED_OHLCV_INVALID"
+                classifications[classification] = classifications.get(classification, 0) + 1
+                key_results.append(
+                    {
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "source_ohlcv_key": source_key,
+                        "classification": classification,
+                        "rejection_reason": str(exc),
+                        "candidate_written": False,
+                    }
+                )
+                continue
+            except ValueError as exc:
+                classification = "BLOCKED_TA_CLOSED_CANDIDATE_CONTRACT"
+                classifications[classification] = classifications.get(classification, 0) + 1
+                key_results.append(
+                    {
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "source_ohlcv_key": source_key,
+                        "classification": classification,
+                        "rejection_reason": str(exc),
+                        "candidate_written": False,
+                    }
+                )
+                continue
+
+            closed_key = f"v2:features:ta_closed:{symbol}:{timeframe}"
             ta_key = f"v2:features:ta:{symbol}:{timeframe}"
             full_key = f"v2:features:ta_full:{symbol}:{timeframe}"
-            technical_key = f"v2:technical_analysis:{symbol}:{timeframe}"
-            if _safe_set_json(redis_client, ta_key, payload, ttl_seconds):
-                keys_written.append(ta_key)
-            if _safe_set_json(redis_client, full_key, payload, ttl_seconds):
-                keys_written.append(full_key)
-            if _safe_set_json(redis_client, technical_key, payload, ttl_seconds):
-                keys_written.append(technical_key)
+            payload["publication_key"] = closed_key
+            payload["compatibility_view"] = False
+            payload["compatibility_unsafe_for_trainer"] = False
+            candidate_written = _safe_set_json(
+                redis_client,
+                closed_key,
+                payload,
+                ttl_seconds,
+            )
+            if candidate_written:
+                keys_written.append(closed_key)
+
+            ta_payload = _compatibility_view(
+                payload,
+                canonical_candidate_key=closed_key,
+                publication_key=ta_key,
+            )
+            full_payload = _compatibility_view(
+                payload,
+                canonical_candidate_key=closed_key,
+                publication_key=full_key,
+            )
+            if candidate_written:
+                if _safe_set_json(redis_client, ta_key, ta_payload, ttl_seconds):
+                    keys_written.append(ta_key)
+                if _safe_set_json(redis_client, full_key, full_payload, ttl_seconds):
+                    keys_written.append(full_key)
             classifications[payload["classification"]] = (
                 classifications.get(payload["classification"], 0) + 1
             )
@@ -413,21 +323,30 @@ def run_once(
                     "symbol": symbol,
                     "timeframe": timeframe,
                     "source_ohlcv_key": source_key,
+                    "ta_closed_key": closed_key,
                     "ta_key": ta_key,
                     "ta_full_key": full_key,
-                    "technical_analysis_key": technical_key,
+                    "technical_analysis_key": None,
+                    "technical_analysis_owner": "v2_feature_pipeline_native_loop",
+                    "technical_analysis_write_attempted": False,
                     "classification": payload["classification"],
+                    "computation_classification": payload["computation_classification"],
                     "indicator_count": payload["indicator_count"],
                     "computed_function_count": payload["computed_function_count"],
                     "candle_count": payload["candle_count"],
                     "last_candle_ts_ms": payload["last_candle_ts_ms"],
+                    "source_exact_payload_sha256": payload["source_exact_payload_sha256"],
+                    "calculation_row_count": payload["calculation_row_count"],
+                    "candidate_written": candidate_written,
+                    "consumer_eligible": False,
+                    "trainer_consumable": False,
                 }
             )
 
     status = {
-        "schema_version": "v2_full_talib_ta_loop_status_v1",
+        "schema_version": "v2_full_talib_ta_loop_status_v2",
         "worker_id": WORKER_ID,
-        "payload_schema_version": FULL_TALIB_TA_SCHEMA_VERSION,
+        "payload_schema_version": FULL_TALIB_TA_CLOSED_CANDIDATE_SCHEMA_VERSION,
         "started_at": started_at,
         "finished_at": _utc_iso(),
         "redis_connected": redis_client is not None,
@@ -446,6 +365,17 @@ def run_once(
         "classification_counts": classifications,
         "max_indicator_count": max_indicator_count,
         "min_indicator_count": min_indicator_count,
+        "required_contiguous_source_rows": (FULL_TALIB_TA_REQUIRED_CONTIGUOUS_ROWS),
+        "source_key_pattern": ("v2:market:ohlcv_closed:binance:{symbol}:{timeframe}"),
+        "reads_live_ohlcv": False,
+        "merges_live_ohlcv": False,
+        "uses_compact_or_feature_snapshot_fallback": False,
+        "technical_analysis_owner": "v2_feature_pipeline_native_loop",
+        "technical_analysis_write_attempted": False,
+        "derived_available_at_claimed": False,
+        "postcommit_publication_observed": False,
+        "consumer_eligible": False,
+        "trainer_consumable": False,
         "ttl_seconds": int(ttl_seconds),
         "live_gate": "blocked_human_only",
         "live_symbols": [],
@@ -457,14 +387,22 @@ def run_once(
         "exchange_action_taken": False,
         "places_real_order": False,
     }
-    if key_results and max_indicator_count >= 150:
-        status["classification"] = "V2_FULL_TALIB_TA_LIVE_OK"
-    elif key_results:
-        status["classification"] = "V2_FULL_TALIB_TA_LIVE_PARTIAL"
-    elif redis_client is None:
+    candidate_write_count = sum(row.get("candidate_written") is True for row in key_results)
+    ignored_discovered_symbols = sorted(set(discovered) - set(all_symbols))
+    status["discovered_canonical_symbols"] = sorted(discovered)[:200]
+    status["discovered_canonical_symbol_count"] = len(discovered)
+    status["unauthorized_discovered_symbols_ignored"] = ignored_discovered_symbols[:200]
+    status["unauthorized_discovered_symbol_ignored_count"] = len(ignored_discovered_symbols)
+    status["redis_discovery_grants_symbol_authority"] = False
+    status["candidate_write_acknowledged_count"] = candidate_write_count
+    if redis_client is None:
         status["classification"] = "BLOCKED_REDIS_UNAVAILABLE"
+    elif candidate_write_count:
+        status["classification"] = "V2_FULL_TALIB_TA_CLOSED_CANDIDATES_WRITTEN_NONCONSUMABLE"
+    elif key_results:
+        status["classification"] = "BLOCKED_NO_VALID_CLOSED_TA_CANDIDATES"
     else:
-        status["classification"] = "BLOCKED_NO_OHLCV_INPUTS"
+        status["classification"] = "BLOCKED_NO_CANONICAL_CLOSED_OHLCV_INPUTS"
 
     _safe_set_json(redis_client, "v2:features:ta:heartbeat", status, min(ttl_seconds, 300))
     _write_status(status, PUBLIC_STATUS_PATH)
