@@ -4,6 +4,8 @@ import ast
 import hashlib
 import json
 import struct
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
@@ -620,6 +622,37 @@ def test_supplied_event_time_cannot_follow_generated_at() -> None:
         build_feature_slot_resolution_observation_v4(**kwargs)
 
 
+def test_downstream_generation_cannot_precede_source_ingestion() -> None:
+    resolved = _observation(_tensor(), 0)
+    kwargs = {
+        field: getattr(resolved, field)
+        for field in resolved.__dataclass_fields__
+        if field != "_construction_token"
+    }
+    kwargs["generated_at"] = "2026-07-20T00:00:00.050000Z"
+    with pytest.raises(
+        FeatureResolutionObservationV4ValidationError,
+        match="INGESTED_AT_AFTER_GENERATED_AT",
+    ):
+        build_feature_slot_resolution_observation_v4(**kwargs)
+
+
+def test_fully_rehashed_trace_cannot_hide_generation_before_ingestion() -> None:
+    tensor = _tensor()
+    trace = build_feature_resolution_trace_v4(
+        tensor=tensor,
+        raw_context_sha256=_SHA_D,
+        observations=_observations(tensor),
+    ).trace
+    trace["slot_observations"][0]["generated_at"] = "2026-07-20T00:00:00.050000Z"
+    _rehash_external_trace(trace, changed_slot_index=0)
+    with pytest.raises(
+        FeatureResolutionTraceV4ValidationError,
+        match="INGESTED_AT_AFTER_GENERATED_AT",
+    ):
+        validate_feature_resolution_trace_v4(trace)
+
+
 def test_external_rehash_cannot_hide_unbounded_negative_clock() -> None:
     tensor = _tensor(negative_index=0)
     trace = build_feature_resolution_trace_v4(
@@ -839,9 +872,16 @@ def test_observation_leaf_is_stdlib_only_and_runtime_remains_unwired() -> None:
     }
 
     app_root = leaf_path.parents[2]
+    allowed_audit_only_consumers = {
+        app_root / "services" / "native_trainer" / "authenticated_feature_resolution_capture_v4.py",
+    }
     imports = []
     for path in app_root.rglob("*.py"):
-        if path in {leaf_path, Path(trace_module.__file__)}:
+        if path in {
+            leaf_path,
+            Path(trace_module.__file__),
+            *allowed_audit_only_consumers,
+        }:
             continue
         source = path.read_text(encoding="utf-8", errors="ignore")
         if any(
@@ -853,3 +893,42 @@ def test_observation_leaf_is_stdlib_only_and_runtime_remains_unwired() -> None:
         ):
             imports.append(path)
     assert imports == []
+
+
+def test_audit_only_capture_import_closure_excludes_runtime_and_paper_paths() -> None:
+    repo_root = Path(__file__).resolve().parents[6]
+    script = r"""
+import json
+import sys
+
+sys.path.insert(0, sys.argv[1])
+import v2.backend.app.services.native_trainer.authenticated_feature_resolution_capture_v4
+
+print(json.dumps(sorted(
+    name for name in sys.modules if name == "v2" or name.startswith("v2.")
+)))
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter and static import probe
+        [sys.executable, "-I", "-B", "-c", script, str(repo_root)],
+        cwd="/",
+        env={"PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": "0"},
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout) == [
+        "v2",
+        "v2.backend",
+        "v2.backend.app",
+        "v2.backend.app.services",
+        "v2.backend.app.services.native_trainer",
+        ("v2.backend.app.services.native_trainer." "authenticated_feature_resolution_capture_v4"),
+        "v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger",
+        "v2.backend.app.services.native_trainer.feature_resolution_observation_v4",
+        "v2.backend.app.services.native_trainer.feature_resolution_trace_v4",
+        "v2.backend.app.services.native_trainer.feature_source_registry_v4",
+        "v2.backend.app.services.native_trainer.ordered_feature_tensor_spec_v3",
+    ]

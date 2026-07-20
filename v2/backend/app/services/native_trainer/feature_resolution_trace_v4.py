@@ -15,7 +15,7 @@ import re
 import struct
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     FEATURE_REQUIREMENT_POLICY_ID,
@@ -34,10 +34,14 @@ from v2.backend.app.services.native_trainer.feature_resolution_observation_v4 im
     build_feature_slot_resolution_observation_v4,
     canonical_float32_v4,
 )
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+from v2.backend.app.services.native_trainer.ordered_feature_tensor_spec_v3 import (
     FEATURE_SPEC,
-    FeatureTensorRecord,
 )
+
+if TYPE_CHECKING:
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+        FeatureTensorRecord,
+    )
 
 FEATURE_RESOLUTION_TRACE_V4_SCHEMA_VERSION = "trainer_feature_resolution_trace_v4"
 FEATURE_RESOLUTION_TRACE_V4_EVIDENCE_CLASSIFICATION = (
@@ -354,6 +358,12 @@ def _model_bytes(
 def _validate_tensor(
     tensor: FeatureTensorRecord, names: tuple[str, ...]
 ) -> tuple[list[float], bytes]:
+    # Keep trace validation and the audit-only capture import-safe.  The concrete
+    # runtime record is needed only when a caller explicitly builds a trace.
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+        FeatureTensorRecord,
+    )
+
     if type(tensor) is not FeatureTensorRecord:
         _fail("FEATURE_RESOLUTION_TRACE_V4_EXACT_TENSOR_RECORD_REQUIRED")
     count = len(names)

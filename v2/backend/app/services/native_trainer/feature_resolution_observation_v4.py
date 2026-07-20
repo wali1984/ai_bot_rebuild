@@ -220,6 +220,7 @@ def _validate_clocks(observation: FeatureSlotResolutionObservationV4) -> None:
         ("event_time", "available_at", "EVENT_TIME_AFTER_AVAILABLE_AT"),
         ("event_time", "feature_cutoff", "EVENT_TIME_AFTER_FEATURE_CUTOFF"),
         ("ingested_at", "available_at", "INGESTED_AT_AFTER_AVAILABLE_AT"),
+        ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT"),
         ("generated_at", "available_at", "GENERATED_AT_AFTER_AVAILABLE_AT"),
         ("feature_cutoff", "decision_time", "FEATURE_CUTOFF_AFTER_DECISION_TIME"),
         (
