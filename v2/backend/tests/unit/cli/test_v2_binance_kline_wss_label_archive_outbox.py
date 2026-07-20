@@ -1404,7 +1404,8 @@ async def test_message_handler_persists_redis_before_label_admission(
             ttl_seconds=900,
             max_candles=10,
             max_seconds_per_session=60.0,
-            stop_at=time.time() + 60.0,
+            timeframes=("5m",),
+            stop_at_monotonic=time.monotonic() + 60.0,
             label_pipeline=DurableSink(),  # type: ignore[arg-type]
         )
     )
@@ -1514,7 +1515,8 @@ async def test_closed_window_failure_blocks_sidecar_and_label_without_connection
             ttl_seconds=900,
             max_candles=10,
             max_seconds_per_session=60.0,
-            stop_at=time.time() + 60.0,
+            timeframes=("5m",),
+            stop_at_monotonic=time.monotonic() + 60.0,
             label_pipeline=LabelSink(),  # type: ignore[arg-type]
         )
     )

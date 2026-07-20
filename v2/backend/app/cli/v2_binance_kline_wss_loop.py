@@ -55,6 +55,7 @@ from v2.backend.app.services.native_trainer.durable_canonical_5m_label_archive i
 )
 from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     SUPPORTED_TRAINER_TIMEFRAMES,
+    TIMEFRAME_DURATION_MS,
 )
 from v2.backend.app.services.runtime_clock import est_now_iso
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
@@ -67,6 +68,16 @@ except Exception:  # pragma: no cover
 
 WORKER_ID = "v2_binance_kline_wss_loop"
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+ROLLOVER_TIMING_POLICY = "SHORTEST_TIMEFRAME_MIDPOINT_WITH_BOUNDED_FALLBACK_V2"
+ROLLOVER_GAP_CLASSIFICATION = "MITIGATION_NOT_CONTINUITY_PROOF"
+ROLLOVER_EXACT_MIDPOINT_MODE = "EXACT_SHORTEST_TIMEFRAME_MIDPOINT"
+ROLLOVER_MAXIMUM_FALLBACK_MODE = "BOUNDED_CONFIGURED_MAXIMUM_FALLBACK"
+ROLLOVER_BOUNDARY_FALLBACK_MODE = "BOUNDED_HALF_WINDOW_BOUNDARY_FALLBACK"
+WEBSOCKET_OPEN_TIMEOUT_MAX_SECONDS = 15.0
+WEBSOCKET_CLOSE_TIMEOUT_MAX_SECONDS = 5.0
+WEBSOCKET_CLOSE_TIMEOUT_MULTIPLIER_BOUND = 5.0
+WEBSOCKET_CLOSE_RESERVE_DIVISOR = 10.0
+WEBSOCKET_RETRY_SECONDS = 2.0
 # Operator directive: preferred majors must ride the FIRST websocket
 # connection so they stay covered even if later chunks degrade. This only
 # reorders the resolved universe; it never adds or removes symbols.
@@ -108,6 +119,19 @@ class _Canonical5mLabelAdmissionResult:
 class _QueuedCanonical5mAdmission:
     payload_json: str
     acknowledgement: asyncio.Future[_Canonical5mLabelAdmissionResult]
+
+
+@dataclass(frozen=True)
+class _RolloverDeadlinePlan:
+    """A deterministic close-boundary-avoiding transport deadline."""
+
+    planned_at_epoch_seconds: float
+    deadline_epoch_seconds: float
+    planned_duration_seconds: float
+    maximum_seconds: float
+    shortest_timeframe_seconds: int
+    close_boundary_distance_seconds: float
+    plan_mode: str
 
 
 def _est_iso() -> str:
@@ -1229,18 +1253,343 @@ def _publish_closed_window(
 
 
 def _closed_window_ttl_seconds(timeframe: str, configured_floor_seconds: int) -> int:
-    interval_seconds = {
-        "1m": 60,
-        "5m": 300,
-        "15m": 900,
-        "1h": 3600,
-        "4h": 14400,
-    }.get(timeframe)
-    if interval_seconds is None:
+    interval_ms = TIMEFRAME_DURATION_MS.get(timeframe)
+    if interval_ms is None:
         raise ClosedWindowRedisStoreError("closed_window_timeframe_unsupported")
     if type(configured_floor_seconds) is not int or configured_floor_seconds < 1:
         raise ClosedWindowRedisStoreError("closed_window_ttl_floor_invalid")
-    return max(configured_floor_seconds, interval_seconds * 3)
+    return max(configured_floor_seconds, (interval_ms // 1000) * 3)
+
+
+def _plan_rollover_deadline(
+    *,
+    now_epoch_seconds: float,
+    maximum_seconds: float,
+    timeframes: tuple[str, ...],
+) -> _RolloverDeadlinePlan:
+    """Plan a bounded reconnect away from a close boundary when possible."""
+
+    if type(now_epoch_seconds) not in (int, float):
+        raise ValueError("rollover_now_epoch_seconds_invalid")
+    if type(maximum_seconds) not in (int, float):
+        raise ValueError("rollover_maximum_seconds_invalid")
+    try:
+        now = float(now_epoch_seconds)
+    except (OverflowError, ValueError):
+        raise ValueError("rollover_now_epoch_seconds_invalid") from None
+    try:
+        maximum = float(maximum_seconds)
+    except (OverflowError, ValueError):
+        raise ValueError("rollover_maximum_seconds_invalid") from None
+    if not math.isfinite(now) or now < 0.0:
+        raise ValueError("rollover_now_epoch_seconds_invalid")
+    if not math.isfinite(maximum) or maximum <= 0.0:
+        raise ValueError("rollover_maximum_seconds_invalid")
+    if type(timeframes) is not tuple or not timeframes:
+        raise ValueError("rollover_timeframes_invalid")
+    if any(type(timeframe) is not str for timeframe in timeframes):
+        raise ValueError("rollover_timeframes_invalid")
+    try:
+        timeframe_seconds = tuple(
+            TIMEFRAME_DURATION_MS[timeframe] // 1000 for timeframe in timeframes
+        )
+    except (KeyError, TypeError):
+        raise ValueError("rollover_timeframes_invalid") from None
+    shortest = min(timeframe_seconds)
+
+    target = now + maximum
+    if not math.isfinite(target):
+        raise ValueError("rollover_deadline_range_invalid")
+    midpoint = shortest / 2.0
+    deadline = math.floor((target - midpoint) / shortest) * shortest + midpoint
+    if deadline <= now:
+        deadline = target
+        plan_mode = ROLLOVER_MAXIMUM_FALLBACK_MODE
+        if _nearest_close_boundary_distance_seconds(
+            epoch_seconds=deadline,
+            timeframes=timeframes,
+        ) == 0.0:
+            deadline = now + maximum / 2.0
+            plan_mode = ROLLOVER_BOUNDARY_FALLBACK_MODE
+        if (
+            deadline > now
+            and _nearest_close_boundary_distance_seconds(
+                epoch_seconds=deadline,
+                timeframes=timeframes,
+            ) == 0.0
+        ):
+            deadline = math.nextafter(deadline, now)
+    else:
+        plan_mode = ROLLOVER_EXACT_MIDPOINT_MODE
+    if (
+        not math.isfinite(deadline)
+        or deadline <= now
+        or deadline > target
+    ):
+        raise ValueError("rollover_deadline_range_invalid")
+    close_boundary_distance = _nearest_close_boundary_distance_seconds(
+        epoch_seconds=deadline,
+        timeframes=timeframes,
+    )
+    if close_boundary_distance <= 0.0:
+        raise ValueError("rollover_boundary_avoiding_deadline_unrepresentable")
+    planned_duration = min(maximum, deadline - now)
+    if planned_duration <= 0.0:
+        raise ValueError("rollover_deadline_range_invalid")
+
+    return _RolloverDeadlinePlan(
+        planned_at_epoch_seconds=now,
+        deadline_epoch_seconds=deadline,
+        planned_duration_seconds=planned_duration,
+        maximum_seconds=maximum,
+        shortest_timeframe_seconds=shortest,
+        close_boundary_distance_seconds=close_boundary_distance,
+        plan_mode=plan_mode,
+    )
+
+
+def _nearest_close_boundary_distance_seconds(
+    *,
+    epoch_seconds: float,
+    timeframes: tuple[str, ...],
+) -> float:
+    """Return actual distance to the nearest subscribed close boundary."""
+
+    if type(epoch_seconds) not in (int, float):
+        raise ValueError("rollover_epoch_seconds_invalid")
+    try:
+        epoch = float(epoch_seconds)
+    except (OverflowError, ValueError):
+        raise ValueError("rollover_epoch_seconds_invalid") from None
+    if not math.isfinite(epoch) or epoch < 0.0:
+        raise ValueError("rollover_epoch_seconds_invalid")
+    if type(timeframes) is not tuple or not timeframes:
+        raise ValueError("rollover_timeframes_invalid")
+    if any(type(timeframe) is not str for timeframe in timeframes):
+        raise ValueError("rollover_timeframes_invalid")
+    try:
+        durations = tuple(
+            TIMEFRAME_DURATION_MS[timeframe] / 1000.0 for timeframe in timeframes
+        )
+    except (KeyError, TypeError):
+        raise ValueError("rollover_timeframes_invalid") from None
+    distances = []
+    for duration in durations:
+        offset = epoch % duration
+        distances.append(min(offset, duration - offset))
+    return min(distances)
+
+
+def _monotonic_deadline_from_plan(
+    *,
+    plan: _RolloverDeadlinePlan,
+    now_monotonic_seconds: float,
+) -> float:
+    """Bind one epoch phase plan to an adjustment-resistant runtime clock."""
+
+    if type(now_monotonic_seconds) not in (int, float):
+        raise ValueError("rollover_monotonic_seconds_invalid")
+    try:
+        monotonic_now = float(now_monotonic_seconds)
+    except (OverflowError, ValueError):
+        raise ValueError("rollover_monotonic_seconds_invalid") from None
+    if not math.isfinite(monotonic_now) or monotonic_now < 0.0:
+        raise ValueError("rollover_monotonic_seconds_invalid")
+    planned_duration = plan.planned_duration_seconds
+    if planned_duration <= 0.0 or planned_duration > plan.maximum_seconds:
+        raise ValueError("rollover_planned_duration_invalid")
+    deadline = monotonic_now + planned_duration
+    if not math.isfinite(deadline) or deadline <= monotonic_now:
+        raise ValueError("rollover_monotonic_deadline_invalid")
+    return deadline
+
+
+def _record_rollover_deadline(
+    stats: dict[str, Any],
+    *,
+    plan: _RolloverDeadlinePlan,
+    scope: str,
+    chunk_id: int | None = None,
+) -> None:
+    """Publish bounded timing evidence without claiming stream continuity."""
+
+    deadline = plan.deadline_epoch_seconds
+    planned_duration = plan.planned_duration_seconds
+    if planned_duration <= 0.0 or planned_duration > plan.maximum_seconds:
+        raise ValueError("rollover_recorded_deadline_exceeds_maximum")
+    stats["rollover_timing_policy"] = ROLLOVER_TIMING_POLICY
+    stats["rollover_gap_classification"] = ROLLOVER_GAP_CLASSIFICATION
+    stats["rollover_continuity_guaranteed"] = False
+    stats["rollover_shortest_timeframe_seconds"] = (
+        plan.shortest_timeframe_seconds
+    )
+    stats["rollover_planned_close_boundary_distance_seconds"] = (
+        plan.close_boundary_distance_seconds
+    )
+    stats["rollover_deadline_enforcement_clock"] = "MONOTONIC"
+    stats[f"rollover_{scope}_deadlines_planned"] = int(
+        stats.get(f"rollover_{scope}_deadlines_planned") or 0
+    ) + 1
+    if chunk_id is None:
+        stats[f"rollover_last_{scope}_deadline_epoch_seconds"] = deadline
+        stats[f"rollover_last_{scope}_planned_duration_seconds"] = planned_duration
+        stats[f"rollover_last_{scope}_configured_maximum_seconds"] = (
+            plan.maximum_seconds
+        )
+        stats[f"rollover_last_{scope}_plan_mode"] = plan.plan_mode
+        stats[f"rollover_last_{scope}_planned_close_boundary_distance_seconds"] = (
+            plan.close_boundary_distance_seconds
+        )
+    else:
+        deadlines = stats.setdefault(
+            f"rollover_last_{scope}_deadline_epoch_seconds_by_chunk", {}
+        )
+        if isinstance(deadlines, dict):
+            deadlines[str(chunk_id)] = deadline
+        durations = stats.setdefault(
+            f"rollover_last_{scope}_planned_duration_seconds_by_chunk", {}
+        )
+        maxima = stats.setdefault(
+            f"rollover_last_{scope}_configured_maximum_seconds_by_chunk", {}
+        )
+        modes = stats.setdefault(f"rollover_last_{scope}_plan_mode_by_chunk", {})
+        distances = stats.setdefault(
+            f"rollover_last_{scope}_planned_close_boundary_distance_seconds_by_chunk",
+            {},
+        )
+        if isinstance(durations, dict):
+            durations[str(chunk_id)] = planned_duration
+        if isinstance(maxima, dict):
+            maxima[str(chunk_id)] = plan.maximum_seconds
+        if isinstance(modes, dict):
+            modes[str(chunk_id)] = plan.plan_mode
+        if isinstance(distances, dict):
+            distances[str(chunk_id)] = plan.close_boundary_distance_seconds
+
+
+def _record_rollover_disconnect(
+    stats: dict[str, Any],
+    *,
+    chunk_id: int,
+    monotonic_deadline_seconds: float,
+    timeframes: tuple[str, ...],
+) -> None:
+    disconnected_at = time.time()
+    disconnected_at_monotonic = time.monotonic()
+    signed_timing_offset = disconnected_at_monotonic - monotonic_deadline_seconds
+    lateness = max(0.0, signed_timing_offset)
+    actual_boundary_distance = _nearest_close_boundary_distance_seconds(
+        epoch_seconds=disconnected_at,
+        timeframes=timeframes,
+    )
+    chunk_key = str(chunk_id)
+    stats["rollover_deadline_disconnects"] = int(
+        stats.get("rollover_deadline_disconnects") or 0
+    ) + 1
+    last_disconnects = stats.setdefault(
+        "rollover_last_disconnect_epoch_seconds_by_chunk", {}
+    )
+    pending_disconnects = stats.setdefault(
+        "rollover_pending_disconnect_epoch_seconds_by_chunk", {}
+    )
+    pending_disconnects_monotonic = stats.setdefault(
+        "rollover_pending_disconnect_monotonic_seconds_by_chunk", {}
+    )
+    if isinstance(last_disconnects, dict):
+        last_disconnects[chunk_key] = disconnected_at
+    if isinstance(pending_disconnects, dict):
+        pending_disconnects[chunk_key] = disconnected_at
+    if isinstance(pending_disconnects_monotonic, dict):
+        pending_disconnects_monotonic[chunk_key] = disconnected_at_monotonic
+    actual_epochs = stats.setdefault(
+        "rollover_last_actual_disconnect_epoch_seconds_by_chunk", {}
+    )
+    lateness_by_chunk = stats.setdefault(
+        "rollover_last_actual_disconnect_lateness_seconds_by_chunk", {}
+    )
+    offsets_by_chunk = stats.setdefault(
+        "rollover_last_actual_disconnect_timing_offset_seconds_by_chunk", {}
+    )
+    distances_by_chunk = stats.setdefault(
+        "rollover_last_actual_disconnect_close_boundary_distance_seconds_by_chunk",
+        {},
+    )
+    if isinstance(actual_epochs, dict):
+        actual_epochs[chunk_key] = disconnected_at
+    if isinstance(lateness_by_chunk, dict):
+        lateness_by_chunk[chunk_key] = lateness
+    if isinstance(offsets_by_chunk, dict):
+        offsets_by_chunk[chunk_key] = signed_timing_offset
+    if isinstance(distances_by_chunk, dict):
+        distances_by_chunk[chunk_key] = actual_boundary_distance
+    prior_lateness = stats.get("rollover_max_actual_disconnect_lateness_seconds")
+    if type(prior_lateness) is int:
+        prior_lateness_float = float(prior_lateness)
+    elif type(prior_lateness) is float:
+        prior_lateness_float = prior_lateness
+    else:
+        prior_lateness_float = 0.0
+    stats["rollover_max_actual_disconnect_lateness_seconds"] = max(
+        prior_lateness_float,
+        lateness,
+    )
+    prior_distance = stats.get(
+        "rollover_min_actual_disconnect_close_boundary_distance_seconds"
+    )
+    if type(prior_distance) is int:
+        prior_distance_float = float(prior_distance)
+    elif type(prior_distance) is float:
+        prior_distance_float = prior_distance
+    else:
+        prior_distance_float = actual_boundary_distance
+    stats["rollover_min_actual_disconnect_close_boundary_distance_seconds"] = min(
+        prior_distance_float,
+        actual_boundary_distance,
+    )
+
+
+def _record_rollover_reconnect(stats: dict[str, Any], *, chunk_id: int) -> None:
+    connected_at_monotonic = time.monotonic()
+    chunk_key = str(chunk_id)
+    pending_disconnects = stats.get(
+        "rollover_pending_disconnect_epoch_seconds_by_chunk"
+    )
+    if not isinstance(pending_disconnects, dict):
+        return
+    pending_disconnects.pop(chunk_key, None)
+    pending_disconnects_monotonic = stats.get(
+        "rollover_pending_disconnect_monotonic_seconds_by_chunk"
+    )
+    if not isinstance(pending_disconnects_monotonic, dict):
+        return
+    disconnected_at_monotonic = pending_disconnects_monotonic.pop(
+        chunk_key,
+        None,
+    )
+    if type(disconnected_at_monotonic) not in (int, float):
+        return
+    gap_seconds = max(
+        0.0,
+        connected_at_monotonic - float(disconnected_at_monotonic),
+    )
+    stats["rollover_reconnect_gap_clock"] = "MONOTONIC"
+    stats["rollover_reconnect_gap_observations"] = int(
+        stats.get("rollover_reconnect_gap_observations") or 0
+    ) + 1
+    gaps = stats.setdefault("rollover_last_reconnect_gap_seconds_by_chunk", {})
+    if isinstance(gaps, dict):
+        gaps[chunk_key] = gap_seconds
+    prior_maximum = stats.get("rollover_max_reconnect_gap_seconds")
+    if type(prior_maximum) is int:
+        prior_maximum_float = float(prior_maximum)
+    elif type(prior_maximum) is float:
+        prior_maximum_float = prior_maximum
+    else:
+        prior_maximum_float = 0.0
+    stats["rollover_max_reconnect_gap_seconds"] = max(
+        prior_maximum_float,
+        gap_seconds,
+    )
 
 
 def _runtime_cycle_seconds(args: argparse.Namespace) -> float:
@@ -1413,19 +1762,105 @@ async def _consume_chunk(
     ttl_seconds: int,
     max_candles: int,
     max_seconds_per_session: float,
-    stop_at: float,
+    timeframes: tuple[str, ...],
+    stop_at_monotonic: float,
     label_pipeline: _Canonical5mLabelArchivePipeline | None,
 ) -> None:
     url = ws_base + "/".join(streams)
     volatile_ttl = min(int(ttl_seconds), VOLATILE_TTL_CAP_SECONDS)
-    while time.time() < stop_at:
-        session_deadline = min(stop_at, time.time() + max(10.0, float(max_seconds_per_session)))
+    if type(max_seconds_per_session) not in (int, float):
+        raise ValueError("rollover_maximum_seconds_invalid")
+    try:
+        configured_session_limit = float(max_seconds_per_session)
+    except (OverflowError, ValueError):
+        raise ValueError("rollover_maximum_seconds_invalid") from None
+    if not math.isfinite(configured_session_limit) or configured_session_limit <= 0.0:
+        raise ValueError("rollover_maximum_seconds_invalid")
+    while time.monotonic() < stop_at_monotonic:
+        session_started_monotonic = time.monotonic()
+        outer_remaining = stop_at_monotonic - session_started_monotonic
+        if outer_remaining <= 0.0:
+            return
+        session_limit = min(configured_session_limit, outer_remaining)
+        session_plan = _plan_rollover_deadline(
+            now_epoch_seconds=time.time(),
+            maximum_seconds=session_limit,
+            timeframes=timeframes,
+        )
+        session_deadline_monotonic = _monotonic_deadline_from_plan(
+            plan=session_plan,
+            now_monotonic_seconds=session_started_monotonic,
+        )
+        _record_rollover_deadline(
+            stats,
+            plan=session_plan,
+            scope="session",
+            chunk_id=chunk_id,
+        )
+        planned_duration = (
+            session_deadline_monotonic - session_started_monotonic
+        )
+        close_timeout = min(
+            WEBSOCKET_CLOSE_TIMEOUT_MAX_SECONDS,
+            planned_duration
+            / (
+                WEBSOCKET_CLOSE_RESERVE_DIVISOR
+                * WEBSOCKET_CLOSE_TIMEOUT_MULTIPLIER_BOUND
+            ),
+            session_plan.close_boundary_distance_seconds
+            / (
+                WEBSOCKET_CLOSE_RESERVE_DIVISOR
+                * WEBSOCKET_CLOSE_TIMEOUT_MULTIPLIER_BOUND
+            ),
+        )
+        close_reserve = close_timeout * WEBSOCKET_CLOSE_TIMEOUT_MULTIPLIER_BOUND
+        receive_deadline_monotonic = session_deadline_monotonic - close_reserve
+        open_budget = receive_deadline_monotonic - time.monotonic()
+        if open_budget <= 0.0:
+            stats["rollover_session_connect_budget_exhausted"] = int(
+                stats.get("rollover_session_connect_budget_exhausted") or 0
+            ) + 1
+            remaining = session_deadline_monotonic - time.monotonic()
+            if remaining > 0.0:
+                await asyncio.sleep(remaining)
+            continue
+        planned_disconnect = False
+        connected = False
+        retry_after_error = False
         try:
             assert websockets is not None
-            async with websockets.connect(url, ping_interval=20, ping_timeout=20, open_timeout=15, close_timeout=5, max_queue=2048) as ws:
+            async with websockets.connect(
+                url,
+                ping_interval=20,
+                ping_timeout=20,
+                open_timeout=min(
+                    WEBSOCKET_OPEN_TIMEOUT_MAX_SECONDS,
+                    open_budget,
+                ),
+                close_timeout=close_timeout,
+                max_queue=2048,
+            ) as ws:
+                connected = True
+                _record_rollover_reconnect(stats, chunk_id=chunk_id)
                 stats["connected_chunks"] = int(stats.get("connected_chunks") or 0) + 1
-                while time.time() < session_deadline:
-                    raw = await asyncio.wait_for(ws.recv(), timeout=max(1.0, session_deadline - time.time()))
+                while True:
+                    receive_remaining = (
+                        receive_deadline_monotonic - time.monotonic()
+                    )
+                    if receive_remaining <= 0.0:
+                        planned_disconnect = True
+                        break
+                    try:
+                        raw = await asyncio.wait_for(
+                            ws.recv(),
+                            timeout=receive_remaining,
+                        )
+                    except TimeoutError:
+                        planned_disconnect = True
+                        stats["session_timeouts"] = int(
+                            stats.get("session_timeouts") or 0
+                        ) + 1
+                        break
                     stats["messages_received"] = int(stats.get("messages_received") or 0) + 1
                     try:
                         packet = json.loads(raw)
@@ -1511,12 +1946,32 @@ async def _consume_chunk(
                     stats["last_symbol"] = symbol
                     stats["last_timeframe"] = timeframe
                     stats["last_event_est"] = _est_iso()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             stats["session_timeouts"] = int(stats.get("session_timeouts") or 0) + 1
+            retry_after_error = True
         except Exception as exc:
             stats["connection_errors"] = int(stats.get("connection_errors") or 0) + 1
             stats[f"chunk_{chunk_id}_last_error"] = f"{type(exc).__name__}:{str(exc)[:160]}"
-            await asyncio.sleep(2.0)
+            retry_after_error = True
+        if planned_disconnect and connected:
+            _record_rollover_disconnect(
+                stats,
+                chunk_id=chunk_id,
+                monotonic_deadline_seconds=session_deadline_monotonic,
+                timeframes=timeframes,
+            )
+            remaining = session_deadline_monotonic - time.monotonic()
+            if remaining > 0.0:
+                await asyncio.sleep(remaining)
+        elif retry_after_error:
+            retry_budget = min(
+                stop_at_monotonic,
+                session_deadline_monotonic,
+            ) - time.monotonic()
+            if retry_budget > 0.0:
+                await asyncio.sleep(
+                    min(WEBSOCKET_RETRY_SECONDS, retry_budget)
+                )
 
 
 def _build_label_pipeline(
@@ -1646,6 +2101,23 @@ async def run_loop(args: argparse.Namespace) -> int:
         "universe_added_symbols": [],
         "universe_removed_symbols": [],
         "universe_refresh_seconds": _runtime_cycle_seconds(args),
+        "universe_refresh_seconds_semantics": (
+            "CONFIGURED_MAXIMUM_NOT_ACTUAL_PLANNED_DURATION"
+        ),
+        "universe_refresh_configured_maximum_seconds": _runtime_cycle_seconds(
+            args
+        ),
+        "rollover_timing_policy": ROLLOVER_TIMING_POLICY,
+        "rollover_gap_classification": ROLLOVER_GAP_CLASSIFICATION,
+        "rollover_continuity_guaranteed": False,
+        "rollover_runtime_bound_classification": (
+            "MONOTONIC_USERSPACE_TIMEOUTS_NOT_OS_HARD_REALTIME_GUARANTEE"
+        ),
+        "rollover_cycle_deadlines_planned": 0,
+        "rollover_session_deadlines_planned": 0,
+        "rollover_deadline_disconnects": 0,
+        "rollover_reconnect_gap_observations": 0,
+        "rollover_session_connect_budget_exhausted": 0,
     }
     label_pipeline_enabled = bool(
         getattr(args, "enable_canonical_5m_label_archive", False)
@@ -1697,8 +2169,8 @@ async def run_loop(args: argparse.Namespace) -> int:
         )
         return payload
 
-    async def status_writer(stop_at: float) -> None:
-        while time.time() < stop_at:
+    async def status_writer(stop_at_monotonic: float) -> None:
+        while time.monotonic() < stop_at_monotonic:
             payload = await write_status_once()
             print(json.dumps({
                 "status": payload["status"],
@@ -1717,7 +2189,7 @@ async def run_loop(args: argparse.Namespace) -> int:
                 ),
                 "live_gate": payload["live_gate"],
             }, sort_keys=True), flush=True)
-            remaining = stop_at - time.time()
+            remaining = stop_at_monotonic - time.monotonic()
             if remaining <= 0.0:
                 return
             await asyncio.sleep(
@@ -1751,7 +2223,22 @@ async def run_loop(args: argparse.Namespace) -> int:
             symbols = refreshed_symbols
             timeframes = refreshed_timeframes
             chunks = refreshed_chunks
-            stop_at = time.time() + _runtime_cycle_seconds(args)
+            cycle_started_epoch = time.time()
+            cycle_started_monotonic = time.monotonic()
+            cycle_plan = _plan_rollover_deadline(
+                now_epoch_seconds=cycle_started_epoch,
+                maximum_seconds=_runtime_cycle_seconds(args),
+                timeframes=timeframes,
+            )
+            stop_at_monotonic = _monotonic_deadline_from_plan(
+                plan=cycle_plan,
+                now_monotonic_seconds=cycle_started_monotonic,
+            )
+            _record_rollover_deadline(
+                stats,
+                plan=cycle_plan,
+                scope="cycle",
+            )
             stats["connected_chunks"] = 0
             consumer_tasks = [
                 asyncio.create_task(
@@ -1763,16 +2250,17 @@ async def run_loop(args: argparse.Namespace) -> int:
                         ws_base=str(args.ws_base),
                         ttl_seconds=int(args.ttl_seconds),
                         max_candles=int(args.max_candles),
-                        max_seconds_per_session=float(
-                            args.max_seconds_per_session
-                        ),
-                        stop_at=stop_at,
+                        max_seconds_per_session=args.max_seconds_per_session,
+                        timeframes=timeframes,
+                        stop_at_monotonic=stop_at_monotonic,
                         label_pipeline=label_pipeline,
                     )
                 )
                 for index, chunk in enumerate(chunks)
             ]
-            status_task = asyncio.create_task(status_writer(stop_at))
+            status_task = asyncio.create_task(
+                status_writer(stop_at_monotonic)
+            )
             pipeline_task = (
                 asyncio.create_task(label_pipeline.run_until(None))
                 if label_pipeline is not None
@@ -1810,6 +2298,7 @@ async def run_loop(args: argparse.Namespace) -> int:
         if label_pipeline is not None:
             label_pipeline.request_stop()
         if pipeline_task is not None and not pipeline_task.done():
+            assert label_pipeline is not None
             pipeline_task.cancel()
             try:
                 await pipeline_task
