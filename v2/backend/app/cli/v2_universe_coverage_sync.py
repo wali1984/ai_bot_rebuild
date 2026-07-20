@@ -61,8 +61,11 @@ if str(_repo) not in sys.path:
 import redis  # noqa: E402
 
 from v2.backend.app.cli.v2_binance_kline_rest_backfill import (  # noqa: E402
+    REST_BUDGET_EXHAUSTED_ERROR_CODE,
     TERMINAL_REST_RECOVERY_ERROR_CODES,
+    KlineBackfillRestBudgetDeferred,
     _backfill_symbol_tf,
+    _consume_factory_issued_rest_budget_deferral,
     _stable_error_code,
 )
 from v2.backend.app.services.binance_unified_websocket_transport import (  # noqa: E402
@@ -1240,6 +1243,11 @@ def heal_ohlcv_gaps(
         "errors": 0,
         "rest_fallback_allowed": binance_rest_fallback_allowed(),
         "rest_budget_exhausted": False,
+        # Number of otherwise-eligible pairs left for a later timer window,
+        # including the pair rejected by the pre-request budget guard.
+        "deferred_due_to_budget": 0,
+        "completion_status": "dry_run" if dry_run else "complete",
+        "terminal_error_code": None,
         "skipped_pairs": max(0, len(pairs) - max_pairs),
         "dry_run": dry_run,
         "replace_invalid_existing_authorized": replace_invalid_existing,
@@ -1288,7 +1296,42 @@ def heal_ohlcv_gaps(
                 }
             )
         except Exception as exc:  # noqa: BLE001 — census must survive any pair failure
-            error_code = _stable_error_code(exc)
+            if type(
+                exc
+            ) is KlineBackfillRestBudgetDeferred and _consume_factory_issued_rest_budget_deferral(
+                exc
+            ):
+                eligible_pair_count = min(len(pairs), max_pairs)
+                result["rest_budget_exhausted"] = True
+                result["deferred_due_to_budget"] = max(
+                    1,
+                    eligible_pair_count - result["attempted"] + 1,
+                )
+                result["completion_status"] = "partial_deferred_budget"
+                result["details"].append(
+                    {
+                        "symbol": symbol,
+                        "tf": tf,
+                        "status": "deferred_rest_budget",
+                        "error_code": REST_BUDGET_EXHAUSTED_ERROR_CODE,
+                        "write_committed": False,
+                        "cache_ready_after": False,
+                    }
+                )
+                # The current pair reached the shared guard but performed no
+                # REST work. Do not call the backfill for later pairs in this
+                # window; the timer will resume from fresh source evidence.
+                result["skipped_pairs"] = len(pairs) - result["attempted"]
+                break
+            # A typed-but-unregistered/replayed/mutated capability is an
+            # internal integrity failure. Never render its attacker-mutable
+            # BaseException.args while producing operator-safe status.
+            typed_integrity_failure = isinstance(exc, KlineBackfillRestBudgetDeferred)
+            error_code = (
+                "kline_backfill_internal_error"
+                if typed_integrity_failure
+                else _stable_error_code(exc)
+            )
             result["errors"] += 1
             result["details"].append(
                 {
@@ -1300,13 +1343,19 @@ def heal_ohlcv_gaps(
                     "cache_ready_after": False,
                 }
             )
-            if error_code in TERMINAL_REST_RECOVERY_ERROR_CODES:
-                # Shared host-wide budget spent: skip the rest of this
-                # cycle; the 15-minute timer retries with a fresh window.
-                result["rest_budget_exhausted"] = True
+            if typed_integrity_failure or error_code in TERMINAL_REST_RECOVERY_ERROR_CODES:
+                # Authority/cooldown persistence failures are terminal for
+                # this run and must remain visible as process failures.
+                result["terminal_error_code"] = error_code
                 result["skipped_pairs"] = len(pairs) - result["attempted"]
                 break
         time.sleep(BACKFILL_SLEEP_SECONDS)
+    if result["errors"] or result["unresolved_after_attempt"]:
+        result["completion_status"] = "failed"
+    elif result["rest_budget_exhausted"]:
+        result["completion_status"] = "partial_deferred_budget"
+    elif result["skipped_pairs"]:
+        result["completion_status"] = "partial_pair_cap"
     return result
 
 
@@ -1443,7 +1492,9 @@ def main(argv: list[str] | None = None) -> int:
         f"cache_ready_after={heal['cache_ready_after']} "
         f"unresolved={heal['unresolved_after_attempt']} "
         f"errors={heal['errors']} "
-        f"budget_exhausted={heal['rest_budget_exhausted']}"
+        f"budget_exhausted={heal['rest_budget_exhausted']} "
+        f"deferred_due_to_budget={heal['deferred_due_to_budget']} "
+        f"status={heal['completion_status']}"
     )
 
     # After-census re-reads Redis only (cheap) so the published census

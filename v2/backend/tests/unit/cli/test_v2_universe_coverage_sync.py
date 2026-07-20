@@ -6,6 +6,7 @@ from typing import Any, NoReturn, cast
 
 import pytest
 
+from v2.backend.app.cli import v2_binance_kline_rest_backfill as kline_backfill
 from v2.backend.app.cli import v2_universe_coverage_sync as coverage
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_rest,
@@ -28,6 +29,42 @@ DURATION_MS = TIMEFRAME_DURATION_MS[TIMEFRAME]
 OBSERVED_AT_MS = 1_800_000_000_000
 SOURCE_KEY = closed_candle_key("binance", SYMBOL, TIMEFRAME)
 HOSTILE_DETAIL = "DO_NOT_LEAK_TRANSPORT_SECRET"
+HOSTILE_AUTHORITY_VALUE = "HOSTILE_VISIBLE_VALUE"
+
+
+class _ForgedBudgetDeferralSubclass(kline_backfill.KlineBackfillRestBudgetDeferred):
+    def __init__(self) -> None:
+        kline_backfill.KlineBackfillRecoveryError.__init__(
+            self,
+            kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE,
+        )
+        self._issuer = kline_backfill._REST_BUDGET_DEFERRAL_ISSUER
+        self._sealed = True
+
+
+class _EqualBudgetCode(str):
+    def __eq__(self, _other: object) -> bool:
+        return True
+
+
+class _ExplosiveAuthorityEquality:
+    def __eq__(self, _other: object) -> bool:
+        raise AssertionError("coverage invoked attacker equality")
+
+
+class _HostileEqualAuthorityValue:
+    def __eq__(self, _other: object) -> bool:
+        return True
+
+    def __str__(self) -> str:
+        return HOSTILE_AUTHORITY_VALUE
+
+    def __repr__(self) -> str:
+        return HOSTILE_AUTHORITY_VALUE
+
+
+class _ForgedArgsTuple(tuple[object, ...]):
+    pass
 
 
 class _FakePipeline:
@@ -1032,7 +1069,39 @@ def test_healing_publishes_only_stable_redacted_error_codes(
             "cache_ready_after": False,
         }
     ]
+    assert result["completion_status"] == "failed"
+    assert coverage._coverage_run_exit_code(result) == 1
     assert HOSTILE_DETAIL not in json.dumps(result, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    "failure_code",
+    (
+        "kline_backfill_rest_canonical_schema_invalid",
+        "closed_window_redis_commit_not_acknowledged",
+    ),
+)
+def test_healing_keeps_schema_and_write_failures_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_code: str,
+) -> None:
+    def _fail(*_args: object, **_kwargs: object) -> NoReturn:
+        raise RuntimeError(failure_code)
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _fail)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m"),
+        max_pairs=1,
+    )
+
+    assert result["errors"] == 1
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert result["details"][0]["error_code"] == failure_code
+    assert coverage._coverage_run_exit_code(result) == 1
 
 
 def test_healing_stops_run_when_shared_cooldown_cannot_be_persisted(
@@ -1063,8 +1132,275 @@ def test_healing_stops_run_when_shared_cooldown_cannot_be_persisted(
     assert calls == ["1m"]
     assert result["attempted"] == 1
     assert result["errors"] == 1
-    assert result["rest_budget_exhausted"] is True
+    assert result["rest_budget_exhausted"] is False
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert result["terminal_error_code"] == (
+        "kline_backfill_shared_rate_limit_cooldown_persistence_failed"
+    )
     assert result["skipped_pairs"] == 1
+    assert coverage._coverage_run_exit_code(result) == 1
+
+
+def test_healing_defers_budget_denial_and_skips_subsequent_pairs_without_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    def _budget_after_one_write(
+        _client: object,
+        _symbol: str,
+        timeframe: str,
+        *,
+        replace_invalid_existing: bool,
+    ) -> dict[str, Any]:
+        assert replace_invalid_existing is False
+        calls.append(timeframe)
+        if timeframe == "5m":
+            raise kline_backfill._fallback_policy_error(
+                RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute")
+            )
+        return {
+            "write_committed": True,
+            "cache_ready_after": True,
+            "recovery_status": "write_committed_cache_ready",
+            "rows_submitted": 71,
+            "total_in_key": 71,
+            "transport": "rest_fallback",
+            "invalid_existing_replaced": False,
+        }
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _budget_after_one_write)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m", "5m", "15m", "1h"),
+        max_pairs=3,
+    )
+
+    assert calls == ["1m", "5m"]
+    assert result["attempted"] == 2
+    assert result["writes_committed"] == 1
+    assert result["cache_ready_after"] == 1
+    assert result["errors"] == 0
+    assert result["unresolved_after_attempt"] == 0
+    assert result["rest_budget_exhausted"] is True
+    # The denied 5m pair and the still-eligible 15m pair are deferred due to
+    # budget. The 1h pair was already outside this run's immutable pair cap.
+    assert result["deferred_due_to_budget"] == 2
+    assert result["skipped_pairs"] == 2
+    assert result["completion_status"] == "partial_deferred_budget"
+    assert result["terminal_error_code"] is None
+    assert result["details"][-1] == {
+        "symbol": SYMBOL,
+        "tf": "5m",
+        "status": "deferred_rest_budget",
+        "error_code": "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION",
+        "write_committed": False,
+        "cache_ready_after": False,
+    }
+    assert HOSTILE_DETAIL not in json.dumps(result, sort_keys=True)
+    assert coverage._coverage_run_exit_code(result) == 0
+
+
+@pytest.mark.parametrize(
+    "forged_error",
+    (
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute"),
+        kline_backfill.KlineBackfillRecoveryError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION"),
+        RuntimeError("prefix_REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute"),
+        RuntimeError("rest_fallback_budget_exhausted_ban_protection:22>21_per_minute"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute_suffix"),
+        kline_backfill.KlineBackfillRestBudgetDeferred(
+            _issuer=kline_backfill._REST_BUDGET_DEFERRAL_ISSUER
+        ),
+        _ForgedBudgetDeferralSubclass(),
+    ),
+)
+def test_healing_rejects_text_only_budget_deferral_forgery(
+    monkeypatch: pytest.MonkeyPatch,
+    forged_error: Exception,
+) -> None:
+    def _raise_forgery(*_args: object, **_kwargs: object) -> NoReturn:
+        raise forged_error
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _raise_forgery)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m"),
+        max_pairs=1,
+    )
+
+    assert result["attempted"] == 1
+    assert result["errors"] == 1
+    assert result["rest_budget_exhausted"] is False
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert result["details"][0]["status"] == "error"
+    assert coverage._coverage_run_exit_code(result) == 1
+
+
+@pytest.mark.parametrize(
+    ("field_name", "forged_value"),
+    (
+        ("args", (kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE, "forged")),
+        ("args", tuple([kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE])),
+        (
+            "args",
+            (_EqualBudgetCode(kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE),),
+        ),
+        ("args", (_ExplosiveAuthorityEquality(),)),
+        ("args", (_HostileEqualAuthorityValue(),)),
+        (
+            "args",
+            _ForgedArgsTuple((kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE,)),
+        ),
+        ("_issuer", _ExplosiveAuthorityEquality()),
+        ("_sealed", False),
+        ("_sealed", 1),
+        ("_sealed", _ExplosiveAuthorityEquality()),
+    ),
+)
+def test_healing_rejects_mutated_factory_deferral_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+    field_name: str,
+    forged_value: object,
+) -> None:
+    mutated = kline_backfill._fallback_policy_error(
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute")
+    )
+    assert type(mutated) is kline_backfill.KlineBackfillRestBudgetDeferred
+    BaseException.__setattr__(mutated, field_name, forged_value)
+
+    def _raise_mutated(*_args: object, **_kwargs: object) -> NoReturn:
+        raise mutated
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _raise_mutated)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m"),
+        max_pairs=1,
+    )
+
+    assert result["errors"] == 1
+    assert result["rest_budget_exhausted"] is False
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert HOSTILE_AUTHORITY_VALUE not in json.dumps(result, sort_keys=True, default=str)
+    assert coverage._coverage_run_exit_code(result) == 1
+
+
+def test_healing_rejects_base_exception_clone_with_copied_authority_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issued = kline_backfill._fallback_policy_error(
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute")
+    )
+    assert type(issued) is kline_backfill.KlineBackfillRestBudgetDeferred
+    clone = BaseException.__new__(kline_backfill.KlineBackfillRestBudgetDeferred)
+    BaseException.__setattr__(clone, "args", issued.args)
+    BaseException.__setattr__(clone, "_issuer", issued._issuer)
+    BaseException.__setattr__(clone, "_sealed", issued._sealed)
+    assert kline_backfill._is_factory_issued_rest_budget_deferral(clone) is False
+
+    def _raise_clone(*_args: object, **_kwargs: object) -> NoReturn:
+        raise clone
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _raise_clone)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m"),
+        max_pairs=1,
+    )
+
+    assert result["errors"] == 1
+    assert result["rest_budget_exhausted"] is False
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert coverage._coverage_run_exit_code(result) == 1
+    assert kline_backfill._consume_factory_issued_rest_budget_deferral(issued) is True
+
+
+def test_healing_rejects_equal_args_reassignment_after_intermediate_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issued = kline_backfill._fallback_policy_error(
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute")
+    )
+    assert type(issued) is kline_backfill.KlineBackfillRestBudgetDeferred
+    original_args = issued.args
+    with kline_backfill._REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        _reference, registered_args = kline_backfill._REST_BUDGET_DEFERRAL_REGISTRY[id(issued)]
+        assert registered_args is original_args
+
+    BaseException.__setattr__(issued, "args", ("temporary",))
+    equal_replacement = tuple([kline_backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE])
+    assert equal_replacement == original_args
+    assert equal_replacement is not original_args
+    BaseException.__setattr__(issued, "args", equal_replacement)
+
+    def _raise_reassigned(*_args: object, **_kwargs: object) -> NoReturn:
+        raise issued
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _raise_reassigned)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    result = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m"),
+        max_pairs=1,
+    )
+
+    assert result["errors"] == 1
+    assert result["rest_budget_exhausted"] is False
+    assert result["deferred_due_to_budget"] == 0
+    assert result["completion_status"] == "failed"
+    assert result["details"][0]["error_code"] == "kline_backfill_internal_error"
+    assert coverage._coverage_run_exit_code(result) == 1
+
+
+def test_healing_consumes_authentic_deferral_once_and_replay_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    issued = kline_backfill._fallback_policy_error(
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute")
+    )
+    assert type(issued) is kline_backfill.KlineBackfillRestBudgetDeferred
+
+    def _raise_same_issuance(*_args: object, **_kwargs: object) -> NoReturn:
+        raise issued
+
+    monkeypatch.setattr(coverage, "_backfill_symbol_tf", _raise_same_issuance)
+    monkeypatch.setattr(coverage.time, "sleep", lambda _seconds: None)
+
+    first = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m", "5m"),
+        max_pairs=2,
+    )
+    replay = coverage.heal_ohlcv_gaps(
+        _RawRedis(),
+        _heal_census("1m", "5m"),
+        max_pairs=2,
+    )
+
+    assert first["errors"] == 0
+    assert first["rest_budget_exhausted"] is True
+    assert first["deferred_due_to_budget"] == 2
+    assert first["completion_status"] == "partial_deferred_budget"
+    assert coverage._coverage_run_exit_code(first) == 0
+    assert replay["errors"] == 1
+    assert replay["rest_budget_exhausted"] is False
+    assert replay["deferred_due_to_budget"] == 0
+    assert replay["completion_status"] == "failed"
+    assert coverage._coverage_run_exit_code(replay) == 1
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import copy
+import gc
 import json
+import pickle
+import weakref
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any, NoReturn
@@ -17,6 +21,7 @@ from v2.backend.app.services.market_state_integrity.closed_window_redis_store im
 )
 
 OBSERVED_MS = 1_800_000_000_000
+BUDGET_EXHAUSTED_REASON = "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute"
 
 
 class _BinaryClient:
@@ -296,6 +301,264 @@ def test_http_reader_reserves_shared_budget_for_every_physical_retry(
     assert len(policy_calls) == 2
     assert all(call["request_weight"] == 2 for call in policy_calls)
     assert all(call["require_shared_budget"] is True for call in policy_calls)
+
+
+def test_exact_shared_budget_guard_deferral_is_typed_and_preserved_by_backfill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    policy_calls: list[dict[str, object]] = []
+
+    def _require_policy(**kwargs: object) -> NoReturn:
+        policy_calls.append(kwargs)
+        raise RuntimeError(BUDGET_EXHAUSTED_REASON)
+
+    monkeypatch.setattr(backfill, "require_binance_rest_fallback", _require_policy)
+    monkeypatch.setattr(
+        backfill,
+        "_open_exact_public_request",
+        lambda *_args, **_kwargs: pytest.fail("budget denial must occur before physical REST I/O"),
+    )
+    monkeypatch.setattr(
+        backfill,
+        "_assess_closed_window",
+        lambda *_args, **_kwargs: _assessment(ready=False, status="cache_missing"),
+    )
+
+    with pytest.raises(backfill.KlineBackfillRestBudgetDeferred) as captured:
+        backfill._backfill_symbol_tf(_BinaryClient(), "BTCUSDT", "1m")
+
+    assert type(captured.value) is backfill.KlineBackfillRestBudgetDeferred
+    assert str(captured.value) == backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE
+    assert weakref.ref(captured.value)() is captured.value
+    assert backfill._is_factory_issued_rest_budget_deferral(captured.value) is True
+    assert len(policy_calls) == 1
+    assert policy_calls[0]["require_shared_budget"] is True
+    assert backfill._consume_factory_issued_rest_budget_deferral(captured.value) is True
+    assert backfill._is_factory_issued_rest_budget_deferral(captured.value) is False
+    assert backfill._consume_factory_issued_rest_budget_deferral(captured.value) is False
+
+
+class _ForgedRuntimeError(RuntimeError):
+    pass
+
+
+class _EqualCode(str):
+    def __eq__(self, _other: object) -> bool:
+        return True
+
+
+class _ExplosiveEquality:
+    def __eq__(self, _other: object) -> bool:
+        raise AssertionError("authority validation invoked attacker equality")
+
+
+class _ArgsTuple(tuple[object, ...]):
+    pass
+
+
+@pytest.mark.parametrize(
+    "raw_error",
+    (
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:21>21_per_minute"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:022>21_per_minute"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>021_per_minute"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute_local"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute_suffix"),
+        RuntimeError("rest_fallback_budget_exhausted_ban_protection:22>21_per_minute"),
+        RuntimeError("prefix_REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute"),
+        RuntimeError("REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:22>21_per_minute\n"),
+        RuntimeError(
+            "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION:" "9223372036854775808>21_per_minute"
+        ),
+        _ForgedRuntimeError(BUDGET_EXHAUSTED_REASON),
+    ),
+)
+def test_budget_deferral_factory_rejects_malformed_or_untrusted_reasons(
+    raw_error: RuntimeError,
+) -> None:
+    result = backfill._fallback_policy_error(raw_error)
+
+    assert type(result) is backfill.KlineBackfillRecoveryError
+    assert not isinstance(result, backfill.KlineBackfillRestBudgetDeferred)
+
+
+def test_budget_deferral_subtype_rejects_nonfactory_construction() -> None:
+    with pytest.raises(
+        TypeError,
+        match="^kline_backfill_rest_budget_deferral_factory_required$",
+    ):
+        backfill.KlineBackfillRestBudgetDeferred(_issuer=object())
+
+
+def test_possessing_module_issuer_cannot_register_deferral_authority() -> None:
+    direct = backfill.KlineBackfillRestBudgetDeferred(_issuer=backfill._REST_BUDGET_DEFERRAL_ISSUER)
+
+    assert backfill._is_factory_issued_rest_budget_deferral(direct) is False
+    assert backfill._consume_factory_issued_rest_budget_deferral(direct) is False
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._raise_stable(direct)
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == "kline_backfill_internal_error"
+
+
+def test_base_exception_clone_with_copied_fields_has_no_deferral_authority() -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+    clone = BaseException.__new__(backfill.KlineBackfillRestBudgetDeferred)
+    BaseException.__setattr__(clone, "args", issued.args)
+    BaseException.__setattr__(clone, "_issuer", issued._issuer)
+    BaseException.__setattr__(clone, "_sealed", issued._sealed)
+
+    assert weakref.ref(clone)() is clone
+    assert backfill._is_factory_issued_rest_budget_deferral(clone) is False
+    assert backfill._consume_factory_issued_rest_budget_deferral(clone) is False
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._raise_stable(clone)
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == "kline_backfill_internal_error"
+    assert backfill._consume_factory_issued_rest_budget_deferral(issued) is True
+
+
+def test_copy_deepcopy_and_pickle_cannot_duplicate_registered_authority() -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+
+    with pytest.raises(TypeError, match="_copy_forbidden$"):
+        copy.copy(issued)
+    with pytest.raises(TypeError, match="_copy_forbidden$"):
+        copy.deepcopy(issued)
+    with pytest.raises(TypeError, match="_pickle_forbidden$"):
+        pickle.dumps(issued)
+
+    assert backfill._is_factory_issued_rest_budget_deferral(issued) is True
+    assert backfill._consume_factory_issued_rest_budget_deferral(issued) is True
+
+
+def test_deferral_registry_uses_weak_identity_without_extending_lifetime() -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+    identity = id(issued)
+    reference = weakref.ref(issued)
+
+    del issued
+    gc.collect()
+
+    assert reference() is None
+    with backfill._REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        assert identity not in backfill._REST_BUDGET_DEFERRAL_REGISTRY
+
+
+def test_registry_retains_exact_issuance_args_and_rejects_equal_reassignment() -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+    original_args = issued.args
+    original_args_identity = id(original_args)
+    with backfill._REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        _reference, registered_args = backfill._REST_BUDGET_DEFERRAL_REGISTRY[id(issued)]
+        assert registered_args is original_args
+
+    # Simulate the ABA sequence without relying on allocator timing. The
+    # registry's strong tuple reference keeps the issuance tuple alive, so an
+    # equal replacement can neither be it nor reuse its numeric identity.
+    BaseException.__setattr__(issued, "args", ("temporary",))
+    equal_replacement = tuple([backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE])
+    assert equal_replacement == original_args
+    assert equal_replacement is not original_args
+    assert id(equal_replacement) != original_args_identity
+    BaseException.__setattr__(issued, "args", equal_replacement)
+
+    assert backfill._is_factory_issued_rest_budget_deferral(issued) is False
+    assert backfill._consume_factory_issued_rest_budget_deferral(issued) is False
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._raise_stable(issued)
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == "kline_backfill_internal_error"
+
+
+@pytest.mark.parametrize(
+    ("field_name", "forged_value"),
+    (
+        ("args", (backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE, "forged")),
+        ("args", tuple([backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE])),
+        ("args", (_EqualCode(backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE),)),
+        ("args", (_ExplosiveEquality(),)),
+        ("args", _ArgsTuple((backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE,))),
+        ("_issuer", _ExplosiveEquality()),
+        ("_sealed", False),
+        ("_sealed", 1),
+        ("_sealed", _ExplosiveEquality()),
+    ),
+)
+def test_raise_stable_downgrades_mutated_budget_deferral_evidence(
+    field_name: str,
+    forged_value: object,
+) -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+    BaseException.__setattr__(issued, field_name, forged_value)
+
+    assert backfill._is_factory_issued_rest_budget_deferral(issued) is False
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._raise_stable(issued)
+
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == "kline_backfill_internal_error"
+
+
+def test_budget_deferral_authority_fields_are_sealed() -> None:
+    issued = backfill._fallback_policy_error(RuntimeError(BUDGET_EXHAUSTED_REASON))
+    assert type(issued) is backfill.KlineBackfillRestBudgetDeferred
+
+    with pytest.raises(AttributeError, match="_sealed$"):
+        issued.args = ("forged",)
+    with pytest.raises(AttributeError, match="_sealed$"):
+        issued._issuer = object()
+
+    assert backfill._is_factory_issued_rest_budget_deferral(issued) is True
+    assert backfill._consume_factory_issued_rest_budget_deferral(issued) is True
+
+
+class _ForgedBudgetDeferralSubclass(backfill.KlineBackfillRestBudgetDeferred):
+    def __init__(self) -> None:
+        backfill.KlineBackfillRecoveryError.__init__(
+            self,
+            backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE,
+        )
+        self._issuer = backfill._REST_BUDGET_DEFERRAL_ISSUER
+        self._sealed = True
+
+
+def test_budget_deferral_subclass_cannot_acquire_authority() -> None:
+    forged = _ForgedBudgetDeferralSubclass()
+
+    assert backfill._is_factory_issued_rest_budget_deferral(forged) is False
+    assert backfill._consume_factory_issued_rest_budget_deferral(forged) is False
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._raise_stable(forged)
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == "kline_backfill_internal_error"
+
+
+def test_backfill_preserves_plain_budget_like_recovery_as_base_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        backfill,
+        "_assess_closed_window",
+        lambda *_args, **_kwargs: _assessment(ready=False, status="cache_missing"),
+    )
+
+    def _raise_plain(*_args: object, **_kwargs: object) -> NoReturn:
+        raise backfill.KlineBackfillRecoveryError(backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE)
+
+    monkeypatch.setattr(backfill, "_fetch_rest_klines", _raise_plain)
+
+    with pytest.raises(backfill.KlineBackfillRecoveryError) as captured:
+        backfill._backfill_symbol_tf(_BinaryClient(), "BTCUSDT", "1m")
+
+    assert type(captured.value) is backfill.KlineBackfillRecoveryError
+    assert str(captured.value) == backfill.REST_BUDGET_EXHAUSTED_ERROR_CODE
 
 
 @pytest.mark.parametrize(

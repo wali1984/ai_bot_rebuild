@@ -18,14 +18,16 @@ import math
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import weakref
 from dataclasses import dataclass, field, replace
 from itertools import islice
 from pathlib import Path
-from typing import Any, Final, NoReturn, cast
+from typing import Any, Final, NoReturn, SupportsIndex, cast
 
 _repo = Path(__file__).resolve().parents[4]
 if str(_repo) not in sys.path:
@@ -96,10 +98,17 @@ MAX_INTER_REQUEST_SLEEP_SECONDS: Final = 60.0
 
 _MAX_SIGNED_64: Final = (1 << 63) - 1
 _STABLE_ERROR_CODE_RE: Final = re.compile(r"^[A-Za-z][A-Za-z0-9_]{2,127}$")
+REST_BUDGET_EXHAUSTED_ERROR_CODE: Final = "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION"
+_REST_BUDGET_EXHAUSTED_REASON_RE: Final = re.compile(
+    rf"{REST_BUDGET_EXHAUSTED_ERROR_CODE}:"
+    r"(?P<attempted>[1-9][0-9]{0,18})>"
+    r"(?P<budget>[1-9][0-9]{0,18})_per_minute"
+)
+_REST_BUDGET_DEFERRAL_ISSUER: Final = object()
 TERMINAL_REST_RECOVERY_ERROR_CODES: Final = frozenset(
     {
         "BINANCE_REST_FALLBACK_DISABLED_WEBSOCKET_PRIMARY",
-        "REST_FALLBACK_BUDGET_EXHAUSTED_BAN_PROTECTION",
+        REST_BUDGET_EXHAUSTED_ERROR_CODE,
         "REST_FALLBACK_COOLDOWN_BAN_PROTECTION",
         "REST_FALLBACK_COOLDOWN_PERSISTENT_KEY_FAIL_CLOSED",
         "REST_FALLBACK_SHARED_BUDGET_UNAVAILABLE",
@@ -111,6 +120,119 @@ TERMINAL_REST_RECOVERY_ERROR_CODES: Final = frozenset(
 
 class KlineBackfillRecoveryError(RuntimeError):
     """A stable, redacted recovery error safe for status publication."""
+
+
+class KlineBackfillRestBudgetDeferred(KlineBackfillRecoveryError):
+    """One-shot evidence that the trusted REST guard spent its shared budget."""
+
+    # KlineBackfillRecoveryError already supplies exact-instance weak-reference
+    # support; these are the only additional authority-bearing fields.
+    __slots__ = ("_issuer", "_sealed")
+
+    def __init__(self, *, _issuer: object) -> None:
+        if _issuer is not _REST_BUDGET_DEFERRAL_ISSUER:
+            raise TypeError("kline_backfill_rest_budget_deferral_factory_required")
+        super().__init__(REST_BUDGET_EXHAUSTED_ERROR_CODE)
+        self._issuer = _issuer
+        self._sealed = True
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name in {"args", "_issuer", "_sealed"} and getattr(self, "_sealed", False):
+            raise AttributeError("kline_backfill_rest_budget_deferral_sealed")
+        super().__setattr__(name, value)
+
+    def __copy__(self) -> NoReturn:
+        raise TypeError("kline_backfill_rest_budget_deferral_copy_forbidden")
+
+    def __deepcopy__(self, _memo: dict[int, Any]) -> NoReturn:
+        raise TypeError("kline_backfill_rest_budget_deferral_copy_forbidden")
+
+    def __reduce_ex__(self, _protocol: SupportsIndex) -> NoReturn:
+        raise TypeError("kline_backfill_rest_budget_deferral_pickle_forbidden")
+
+
+_REST_BUDGET_DEFERRAL_REGISTRY_LOCK: Final = threading.Lock()
+_REST_BUDGET_DEFERRAL_REGISTRY: dict[
+    int,
+    tuple[weakref.ReferenceType[KlineBackfillRestBudgetDeferred], tuple[str]],
+] = {}
+
+
+def _factory_fields_sealed(
+    exc: BaseException,
+    *,
+    issued_args: tuple[str],
+) -> bool:
+    args = exc.args
+    return (
+        type(exc) is KlineBackfillRestBudgetDeferred
+        and type(args) is tuple
+        and args is issued_args
+        and len(args) == 1
+        and type(args[0]) is str
+        and args[0] == REST_BUDGET_EXHAUSTED_ERROR_CODE
+        and getattr(exc, "_issuer", None) is _REST_BUDGET_DEFERRAL_ISSUER
+        and type(getattr(exc, "_sealed", None)) is bool
+        and getattr(exc, "_sealed", False) is True
+    )
+
+
+def _registered_deferral_is_authentic_locked(exc: BaseException) -> bool:
+    identity = id(exc)
+    registration = _REST_BUDGET_DEFERRAL_REGISTRY.get(identity)
+    if registration is None:
+        return False
+    reference, issued_args = registration
+    registered = reference()
+    if registered is not exc:
+        return False
+    if not _factory_fields_sealed(
+        exc,
+        issued_args=issued_args,
+    ):
+        # Any field-integrity failure permanently revokes this issuance.
+        _REST_BUDGET_DEFERRAL_REGISTRY.pop(identity, None)
+        return False
+    return True
+
+
+def _is_factory_issued_rest_budget_deferral(exc: BaseException) -> bool:
+    with _REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        return _registered_deferral_is_authentic_locked(exc)
+
+
+def _consume_factory_issued_rest_budget_deferral(exc: BaseException) -> bool:
+    """Atomically validate and consume one exact deferral capability."""
+
+    with _REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        if not _registered_deferral_is_authentic_locked(exc):
+            return False
+        _REST_BUDGET_DEFERRAL_REGISTRY.pop(id(exc), None)
+        return True
+
+
+def _issue_rest_budget_deferral() -> KlineBackfillRestBudgetDeferred:
+    issued = KlineBackfillRestBudgetDeferred(_issuer=_REST_BUDGET_DEFERRAL_ISSUER)
+    identity = id(issued)
+
+    def _retire(
+        expired: weakref.ReferenceType[KlineBackfillRestBudgetDeferred],
+    ) -> None:
+        with _REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+            current = _REST_BUDGET_DEFERRAL_REGISTRY.get(identity)
+            if current is not None and current[0] is expired:
+                _REST_BUDGET_DEFERRAL_REGISTRY.pop(identity, None)
+
+    reference = weakref.ref(issued, _retire)
+    with _REST_BUDGET_DEFERRAL_REGISTRY_LOCK:
+        # Retain the exact bounded one-element tuple until consumption or the
+        # weak exception callback. A numeric id would permit tuple-freelist ABA
+        # reuse after attacker mutation releases the original tuple.
+        _REST_BUDGET_DEFERRAL_REGISTRY[identity] = (
+            reference,
+            cast(tuple[str], issued.args),
+        )
+    return issued
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +304,12 @@ def _stable_error_code(exc: BaseException) -> str:
 
 
 def _raise_stable(exc: BaseException) -> NoReturn:
+    if _is_factory_issued_rest_budget_deferral(exc):
+        raise exc
+    if isinstance(exc, KlineBackfillRestBudgetDeferred):
+        # A malformed or non-factory instance must never acquire deferral
+        # authority merely by sharing the exception type.
+        raise KlineBackfillRecoveryError("kline_backfill_internal_error") from exc
     code = _stable_error_code(exc)
     if isinstance(exc, KlineBackfillRecoveryError) and str(exc) == code:
         raise exc
@@ -428,6 +556,17 @@ def _reject_json_constant(_value: str) -> NoReturn:
 
 
 def _fallback_policy_error(exc: RuntimeError) -> KlineBackfillRecoveryError:
+    # require_binance_rest_fallback raises an exact RuntimeError(reason). Bind
+    # adaptive deferral only to its complete shared-budget grammar. The call
+    # site below passes require_shared_budget=True, so a process-local suffix
+    # is not a valid receipt on this path.
+    if type(exc) is RuntimeError and len(exc.args) == 1 and type(exc.args[0]) is str:
+        match = _REST_BUDGET_EXHAUSTED_REASON_RE.fullmatch(exc.args[0])
+        if match is not None:
+            attempted = int(match.group("attempted"))
+            budget = int(match.group("budget"))
+            if attempted <= _MAX_SIGNED_64 and budget <= _MAX_SIGNED_64 and attempted > budget:
+                return _issue_rest_budget_deferral()
     return KlineBackfillRecoveryError(_stable_error_code(exc))
 
 
