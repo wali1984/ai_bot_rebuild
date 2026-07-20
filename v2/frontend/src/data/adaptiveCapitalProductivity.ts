@@ -648,7 +648,10 @@ export function missingAccuracyCellCount(
 export function formatAdaptiveMoney(value: number | null | undefined): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—';
   const safe = Math.abs(value) < 0.005 ? 0 : value;
-  return `$${safe.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  // Lead with the minus (-$14.41), never $-14.41 — the sign must be unmistakable
+  // for losses (Object.is guards -0 so it does not render as '-$0.00').
+  const sign = safe < 0 && !Object.is(safe, -0) ? '-' : '';
+  return `${sign}$${Math.abs(safe).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function formatAdaptivePercent(value: number | null | undefined): string {
