@@ -1835,6 +1835,214 @@ public struct MarketOverviewResponse: Decodable, Equatable {
     public let live_gate: String?
 }
 
+// MARK: - Mobile markets list (/api/v2/mobile/markets)
+// Compact enriched per-symbol rows (~8.6KB for the full universe slice).
+// Shares the /api/v2/market/overview enrichment pipeline; change_* fields
+// are fractions (0.01 = +1%), funding_rate is the raw funding fraction.
+
+public struct MobileMarketRow: Decodable, Equatable, Identifiable {
+    public let symbol: String
+    public let last_price: Double?
+    public let change_24h: Double?
+    public let change_1h: Double?
+    public let change_7d: Double?
+    public let funding_rate: Double?
+    public let next_funding_time: String?
+    public let open_interest: Double?
+    public let open_interest_delta_1h_usd: Double?
+    public let long_short_ratio: Double?
+    public let turnover_24h_usd: Double?
+    public let spread_bps: Double?
+    public let liquidation_cascade_risk: Double?
+    public let liq_direction_bias_1h: Double?
+    public let rsi_1m: Double?
+    public let htf_trend: String?
+    public let altdata_symbol_score: Double?
+    public let market_cap_rank: Int?
+
+    public var id: String { symbol }
+    public var shortSymbol: String {
+        symbol.hasSuffix("USDT") ? String(symbol.dropLast(4)) : symbol
+    }
+}
+
+public struct MobileMarketsResponse: Decodable, Equatable {
+    public let schema_version: String?
+    public let generated_utc: String?
+    public let payload_generated_utc: String?
+    public let source: String?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let live_gate: String?
+    public let places_real_order: Bool?
+    public let routes_to_live: Bool?
+    public let markets: [MobileMarketRow]
+    public let count: Int?
+}
+
+// MARK: - Market symbol detail (/api/v2/market/{symbol})
+// Rich Redis enrichment blocks. JSONDecoder ignores unknown keys, so heavy
+// blocks (ta_1m 216-indicator dict, ladder) are intentionally NOT decoded.
+
+public struct MarketDetailLongShort: Decodable, Equatable {
+    public let long_short_ratio: Double?
+    public let long_account_ratio: Double?
+    public let short_account_ratio: Double?
+    public let period: String?
+    public let fetched_utc: String?
+}
+
+public struct MarketDetailFunding: Decodable, Equatable {
+    public let funding_rate: Double?
+    public let mark_price: Double?
+    public let index_price: Double?
+    public let basis_bps: Double?
+    public let next_funding_time: String?
+    public let estimated_settle_price: Double?
+    public let generated_at: String?
+}
+
+public struct MarketDetailOrderbook: Decodable, Equatable {
+    public let best_bid: Double?
+    public let best_bid_size: Double?
+    public let best_ask: Double?
+    public let best_ask_size: Double?
+    public let mid: Double?
+    public let spread_bps: Double?
+    public let depth_imbalance: Double?
+    public let depth_20_bid_usd: Double?
+    public let depth_20_ask_usd: Double?
+    public let estimated_price_impact_bps: Double?
+    public let source_latency_ms: Double?
+    public let generated_at: String?
+}
+
+public struct MarketDetailLiqFlow: Decodable, Equatable {
+    public let notional_1h: Double?
+    public let count_1h: Int?
+    public let long_count_1h: Int?
+    public let short_count_1h: Int?
+    public let direction_bias_1h: Double?
+    public let notional_24h: Double?
+    public let count_24h: Int?
+    public let as_of: String?
+}
+
+public struct MarketDetailLiqLevels: Decodable, Equatable {
+    public let distance_to_long_liq_bps: Double?
+    public let distance_to_short_liq_bps: Double?
+    public let liquidation_cascade_risk: Double?
+    public let cascade_risk_semantics: String?
+    public let levels_count_long: Int?
+    public let levels_count_short: Int?
+    public let nearest_level_above: Double?
+    public let nearest_level_below: Double?
+    public let sweep_target_short: Double?
+    public let sweep_target_short_distance_bps: Double?
+    public let sweep_target_long: Double?
+    public let sweep_target_long_distance_bps: Double?
+}
+
+public struct MarketDetailLiqEnhanced: Decodable, Equatable {
+    public let cascade_probability: Double?
+    public let predicted_long_liq_zone: Double?
+    public let predicted_short_liq_zone: Double?
+    public let market_stress_indicator: Double?
+    public let synthetic_data: Bool?
+    public let generated_utc: String?
+}
+
+public struct MarketDetailRegime: Decodable, Equatable {
+    public let regime: String?
+    public let confidence: Double?
+    public let htf_trend: String?
+    public let rsi_zone: String?
+    public let macd_direction: String?
+    public let market_risk_state: String?
+    public let generated_utc: String?
+}
+
+public struct MarketDetailCoinglass: Decodable, Equatable {
+    public let open_interest_usd: Double?
+    public let open_interest_delta_1h_usd: Double?
+    public let funding_rate: Double?
+    public let funding_rate_zscore: Double?
+    public let next_funding_minutes: Double?
+}
+
+public struct MarketSymbolDetailData: Decodable, Equatable {
+    public let symbol: String?
+    public let last_price: Double?
+    public let mark_price: Double?
+    public let index_price: Double?
+    public let change_1h: Double?
+    public let change_4h: Double?
+    public let change_24h: Double?
+    public let change_7d: Double?
+    public let high_24h: Double?
+    public let low_24h: Double?
+    public let volume_24h: Double?
+    public let turnover_24h: Double?
+    public let funding_rate: Double?
+    public let next_funding_time: String?
+    public let basis_bps: Double?
+    public let open_interest: Double?
+    public let open_interest_delta_1h_usd: Double?
+    public let coinglass_open_interest_usd: Double?
+    public let spread_bps: Double?
+    public let orderbook_imbalance: Double?
+    public let estimated_price_impact_bps: Double?
+    public let market_cap_rank: Int?
+    public let market_cap_usd: Double?
+    public let liquidation_cascade_risk: Double?
+    public let distance_to_long_liq_bps: Double?
+    public let distance_to_short_liq_bps: Double?
+    public let distance_to_nearest_liq_bps: Double?
+    public let liq_notional_1h: Double?
+    public let liq_count_1h: Int?
+    public let liq_direction_bias_1h: Double?
+    public let rsi_1m: Double?
+    public let atr_1m: Double?
+    public let adx_1m: Double?
+    public let htf_trend: String?
+    public let rsi_zone: String?
+    public let macd_direction: String?
+    public let altdata_symbol_score: Double?
+    public let altdata_symbol_rank: Int?
+    public let coinank_derivatives_score: Double?
+    public let taker_buy_ratio: Double?
+    public let taker_flow_trade_count: Int?
+    public let long_short: MarketDetailLongShort?
+    public let funding_detail: MarketDetailFunding?
+    public let orderbook: MarketDetailOrderbook?
+    public let liquidation_flow: MarketDetailLiqFlow?
+    public let liquidation_levels: MarketDetailLiqLevels?
+    public let liquidation_enhanced: MarketDetailLiqEnhanced?
+    public let regime_1m: MarketDetailRegime?
+    public let coinglass: MarketDetailCoinglass?
+}
+
+public struct MarketSymbolDetailResponse: Decodable, Equatable {
+    public let schema_version: String?
+    public let data: MarketSymbolDetailData
+    public let source: String?
+    public let timestamp: String?
+    public let generated_at_utc: String?
+    public let lag_ms: Double?
+    public let staleness_seconds: Double?
+    public let freshness_status: String?
+    public let data_quality_status: String?
+    public let stale: Bool?
+    public let missing_fields: [String]?
+    public let warnings: [String]?
+    public let live_gate: String?
+    public let places_real_order: Bool?
+    public let routes_to_live: Bool?
+    public let symbol: String?
+    public let exchange: String?
+    public let mode: String?
+}
+
 // MARK: - Goal / 1000x trajectory (/api/v2/goal/trajectory-1000x)
 
 public struct GoalGrowthStage: Decodable, Equatable {

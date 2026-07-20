@@ -73,6 +73,10 @@ public enum APIEndpoints {
     public static let derivatives = "/api/v2/derivatives"
     /// Compact mobile derivatives rollup (aggregate + regime + top symbols).
     public static let mobileDerivativesSummary = "/api/v2/mobile/derivatives-summary"
+    /// Compact iOS markets list (~8.6KB) — enriched per-symbol rows
+    /// (price/24h/funding/OI-delta/cascade-risk/RSI/score, shares the
+    /// /api/v2/market/overview enrichment pipeline).
+    public static let mobileMarkets = "/api/v2/mobile/markets"
     /// Compact full-universe signal matrix (one slim cell per symbol × timeframe).
     public static let mobileSignalMatrix = "/api/v2/mobile/signal-matrix"
     /// Goal / 1000x trajectory (compact, carries live_gate safety fields).
@@ -101,6 +105,12 @@ public enum APIEndpoints {
     /// helper; the backend defaults to a sensible row limit.
     public static func ingestorMetrics(name: String) -> String {
         "/api/v2/ingestors/\(name)/metrics"
+    }
+
+    /// Rich per-symbol market detail (Redis enrichment blocks: funding_detail,
+    /// long_short, orderbook, liquidation levels/enhanced/flow, regime_1m).
+    public static func marketDetail(symbol: String) -> String {
+        "/api/v2/market/\(symbol)"
     }
 
     public static func wsMarketDataURL(baseWS: String, symbol: String, timeframe: String) -> URL? {
