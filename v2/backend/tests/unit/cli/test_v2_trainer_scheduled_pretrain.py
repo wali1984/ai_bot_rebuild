@@ -1,9 +1,55 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import pytest
-from app.cli import v2_trainer_scheduled_pretrain as scheduled
+
+from v2.backend.app.cli import v2_trainer_scheduled_pretrain as scheduled
+
+REPO_ROOT = Path(__file__).resolve().parents[5]
+
+
+def test_tracked_service_uses_canonical_import_without_legacy_mutation_flags() -> None:
+    unit_path = (
+        REPO_ROOT
+        / "claude_worklog/systemd/user/ai-bot-v2-trainer-scheduled-pretrain.service"
+    )
+    unit_text = unit_path.read_text(encoding="utf-8")
+    exec_start = next(
+        line for line in unit_text.splitlines() if line.startswith("ExecStart=")
+    )
+
+    assert f'Environment="PYTHONPATH={REPO_ROOT}"' in unit_text
+    assert " -m v2.backend.app.cli.v2_trainer_scheduled_pretrain " in exec_start
+    assert " -m app." not in exec_start
+    assert "--auto-promote" not in exec_start
+    assert "--auto-restart" not in exec_start
+
+
+def test_canonical_scheduled_pretrain_import_does_not_load_app_alias() -> None:
+    probe = subprocess.run(  # noqa: S603 - fixed interpreter and literal probe
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import v2.backend.app.cli.v2_trainer_scheduled_pretrain; "
+                "print([name for name in sys.modules "
+                "if name == 'app' or name.startswith('app.')])"
+            ),
+        ],
+        cwd=REPO_ROOT,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert probe.stdout.strip() == "[]"
 
 
 def test_scheduled_pretrain_passes_risk_gate_to_h2l(monkeypatch) -> None:
@@ -141,8 +187,8 @@ def test_scheduled_module_contains_no_systemctl_command() -> None:
 def test_publish_uses_expiring_noncanonical_diagnostic_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import safety
     from v2.backend.app.services.native_trainer import persistent_cuda_trainer_runtime
+    from v2.backend.app.services.native_trainer.hybrid_cuda_trainer import safety
 
     captured: dict[str, object] = {}
 
@@ -172,9 +218,13 @@ def test_publish_uses_expiring_noncanonical_diagnostic_status(
     assert payload["runtime_readiness_authority"] is False
     assert payload["serving_checkpoint_authority"] is False
     assert payload["status_scope"] == "NONCANONICAL_SCHEDULED_PRETRAIN_DIAGNOSTIC"
-    assert datetime.fromisoformat(str(payload["expires_at"]).replace("Z", "+00:00")) > datetime.fromisoformat(
+    expires_at = datetime.fromisoformat(
+        str(payload["expires_at"]).replace("Z", "+00:00")
+    )
+    published_at = datetime.fromisoformat(
         str(payload["published_utc"]).replace("Z", "+00:00")
     )
+    assert expires_at > published_at
 
 
 def test_gpu_busy_aborts_gracefully_before_training(monkeypatch) -> None:
