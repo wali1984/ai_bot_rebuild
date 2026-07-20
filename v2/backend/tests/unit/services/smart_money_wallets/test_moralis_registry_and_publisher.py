@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
+from v2.backend.app.services.feature_pipeline.unified_feature_bridge import (
+    build_unified_feature_payload,
+)
+from v2.backend.app.services.smart_money_wallets import moralis_feature_bridge
+from v2.backend.app.services.smart_money_wallets import publisher as moralis_publisher
 from v2.backend.app.services.smart_money_wallets.address_classifier import classify_address
 from v2.backend.app.services.smart_money_wallets.client import MoralisClient
 from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
@@ -17,7 +24,9 @@ from v2.backend.app.services.smart_money_wallets.moralis_feature_bridge import (
 from v2.backend.app.services.smart_money_wallets.publisher import publish_moralis_result
 from v2.backend.app.services.smart_money_wallets.smart_wallet_scorer import score_wallet_candidate
 from v2.backend.app.services.smart_money_wallets.streams_registry import build_streams_registry
-from v2.backend.app.services.smart_money_wallets.token_contract_mapper import load_token_contract_map
+from v2.backend.app.services.smart_money_wallets.token_contract_mapper import (
+    load_token_contract_map,
+)
 from v2.backend.app.services.smart_money_wallets.wallet_watchlist import (
     TIER_LIMITS,
     load_wallet_watchlist_seed,
@@ -38,6 +47,11 @@ class FakeRedis:
 
     def get(self, key: str):
         return self.data.get(key)
+
+    def ttl(self, key: str) -> int:
+        if key not in self.data:
+            return -2
+        return self.ttls.get(key, -1)
 
 
 def test_registry_exposes_wallet_token_stream_cadence_and_cu() -> None:
@@ -68,9 +82,13 @@ def test_publisher_writes_wallet_token_signal_feature_and_endpoint_status() -> N
         spec=spec,
         chain="eth",
         symbol="BTCUSDT",
-        token="0xtoken",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
         http_status=200,
-        payload={"result": [{"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}]},
+        payload={
+            "result": [
+                {"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}
+            ]
+        },
         budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
         token_map_count=1,
         wallet_watchlist_count=1,
@@ -83,11 +101,19 @@ def test_publisher_writes_wallet_token_signal_feature_and_endpoint_status() -> N
     assert endpoint_status["endpoints"]["token_transfers"]["actual_payload_present"] is True
     feature_payload = json.loads(r.data["v2:features:moralis:BTCUSDT:1m"])
     assert feature_payload["schema_version"] == "moralis_feature_bridge_v1"
-    assert feature_payload["actual_payload_present"] is True
+    assert feature_payload["source_actual_payload_present"] is True
+    assert feature_payload["source_feature_count"] == 3
+    assert feature_payload["actual_payload_present"] is False
+    assert feature_payload["features"] == {}
+    assert feature_payload["trainer_admission_status"] == "ISOLATED_BY_POLICY"
+    assert feature_payload["decision_time_safe"] is False
     assert feature_payload["feature_bridge_ready"] is False
     assert feature_payload["missing_feature_flags"]
     health = json.loads(r.data["v2:provider:moralis:health"])
-    assert health["dashboard_color"] == "YELLOW"
+    assert health["dashboard_color"] == "GRAY"
+    assert health["source_health_status"] == "PARTIAL_REQUIRED_FEATURES_MISSING"
+    assert health["source_actual_payload_present"] is True
+    assert health["trainer_consumption_status"] == "ISOLATED_BY_POLICY"
     assert health["feature_bridge_ready"] is False
     assert health["missing_mask_true"] is True
     assert health["token_map_count"] == 1
@@ -105,9 +131,13 @@ def test_publisher_merges_moralis_endpoint_features() -> None:
         spec=transfers,
         chain="eth",
         symbol="BTCUSDT",
-        token="0xtoken",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
         http_status=200,
-        payload={"result": [{"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}]},
+        payload={
+            "result": [
+                {"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}
+            ]
+        },
         budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
         token_map_count=1,
         wallet_watchlist_count=1,
@@ -120,7 +150,11 @@ def test_publisher_merges_moralis_endpoint_features() -> None:
         symbol="BTCUSDT",
         wallet="0xwallet",
         http_status=200,
-        payload={"result": [{"side": "buy", "total_value_usd": 800, "block_timestamp": "2026-07-08T12:01:00Z"}]},
+        payload={
+            "result": [
+                {"side": "buy", "total_value_usd": 800, "block_timestamp": "2026-07-08T12:01:00Z"}
+            ]
+        },
         budget_status={"compute_budget": {"used_today": 100, "used_month": 100}},
         token_map_count=1,
         wallet_watchlist_count=1,
@@ -132,12 +166,225 @@ def test_publisher_merges_moralis_endpoint_features() -> None:
 
     feature_payload = json.loads(r.data["v2:features:moralis:BTCUSDT:1m"])
     assert feature_payload["schema_version"] == "moralis_feature_bridge_v1"
-    assert feature_payload["actual_payload_present"] is True
-    assert feature_payload["features"]["moralis_net_exchange_flow_usd"] == 1200
-    assert feature_payload["features"]["moralis_dex_buy_pressure_usd"] == 800
+    assert feature_payload["source_actual_payload_present"] is True
+    assert feature_payload["source_feature_count"] == 9
+    assert feature_payload["actual_payload_present"] is False
+    assert feature_payload["features"] == {}
+    assert (
+        aggregate_payload["endpoint_payloads"]["token_transfers"]["features"][
+            "moralis_net_exchange_flow_usd"
+        ]
+        == 1200
+    )
+    assert (
+        aggregate_payload["endpoint_payloads"]["wallet_swaps"]["features"][
+            "moralis_dex_buy_pressure_usd"
+        ]
+        == 800
+    )
     assert "endpoint_payloads" not in feature_payload
     assert feature_payload["feature_bridge_ready"] is False
     assert "moralis_holder_count" in feature_payload["missing_feature_flags"]
+
+
+def test_publisher_does_not_launder_invalid_prior_endpoint_clocks() -> None:
+    redis_client = FakeRedis()
+    redis_client.set(
+        "v2:moralis:feature_aggregate:BTCUSDT:1m",
+        json.dumps(
+            {
+                "endpoint_payloads": {
+                    "wallet_swaps": {
+                        "endpoint_id": "wallet_swaps",
+                        "features": {"moralis_dex_buy_pressure_usd": 999.0},
+                        "event_time": "2026-07-08T12:00:00",
+                        "feature_cutoff": "2026-07-08T12:00:00Z",
+                        "generated_at": "2026-07-08T12:00:01Z",
+                        "available_at": "2026-07-08T12:00:02Z",
+                        "expires_at": "2099-07-08T12:00:02Z",
+                        "actual_payload_present": True,
+                    }
+                }
+            }
+        ),
+        ex=3600,
+    )
+    transfers = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_transfers"
+    )
+
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "secret"},
+        spec=transfers,
+        chain="eth",
+        symbol="BTCUSDT",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        http_status=200,
+        payload={
+            "result": [
+                {
+                    "direction": "out",
+                    "value_usd": 1200,
+                    "block_timestamp": "2026-07-08T12:01:00Z",
+                }
+            ]
+        },
+        budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+    )
+
+    aggregate = json.loads(redis_client.data["v2:moralis:feature_aggregate:BTCUSDT:1m"])
+    assert set(aggregate["endpoint_payloads"]) == {"token_transfers"}
+    assert "moralis_dex_buy_pressure_usd" not in aggregate["features"]
+    assert (
+        "wallet_swaps:EVENT_TIME_NOT_STRICT_UTC" in aggregate["endpoint_temporal_rejection_reasons"]
+    )
+
+
+def test_publisher_blocks_later_future_row_hidden_behind_an_earlier_first_row() -> None:
+    redis_client = FakeRedis()
+    transfers = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_transfers"
+    )
+
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "secret"},
+        spec=transfers,
+        chain="eth",
+        symbol="BTCUSDT",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        http_status=200,
+        payload={
+            "result": [
+                {
+                    "direction": "out",
+                    "value_usd": 800,
+                    "block_timestamp": "2026-07-08T12:00:00Z",
+                },
+                {
+                    "direction": "out",
+                    "value_usd": 1200,
+                    "block_timestamp": "2099-07-08T12:00:00Z",
+                },
+            ]
+        },
+        budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+    )
+
+    canonical = json.loads(redis_client.data["v2:features:moralis:BTCUSDT:1m"])
+    aggregate = json.loads(redis_client.data["v2:moralis:feature_aggregate:BTCUSDT:1m"])
+    bridge_status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
+    assert canonical["actual_payload_present"] is False
+    assert canonical["heartbeat_only"] is True
+    assert canonical["features"] == {}
+    assert canonical["source_temporal_contract_valid"] is False
+    assert canonical["event_time"] is None
+    assert canonical["feature_cutoff"] is None
+    assert any(
+        reason.endswith("EVENT_TIME_AFTER_OBSERVED_AT")
+        for reason in canonical["source_temporal_rejection_reasons"]
+    )
+    assert bridge_status["source_temporal_contract_valid"] is False
+    assert bridge_status["source_status"] == "TEMPORAL_CONTRACT_REJECTED"
+    assert aggregate["actual_payload_endpoint_count"] == 0
+    assert any(
+        reason.endswith("EVENT_TIME_AFTER_OBSERVED_AT")
+        for reason in aggregate["endpoint_temporal_rejection_reasons"]
+    )
+    health = json.loads(redis_client.data["v2:provider:moralis:health"])
+    assert health["source_health_status"] != "READY"
+    assert health["source_temporal_contract_valid"] is False
+    assert any(
+        reason.endswith("EVENT_TIME_AFTER_OBSERVED_AT")
+        for reason in health["source_temporal_rejection_reasons"]
+    )
+    assert health["trusted_source_actual_endpoint_count"] == 0
+    assert health["raw_transport_actual_endpoint_count"] == 1
+
+
+def test_publisher_uses_latest_clock_across_out_of_order_contributing_rows() -> None:
+    redis_client = FakeRedis()
+    transfers = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_transfers"
+    )
+
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "secret"},
+        spec=transfers,
+        chain="eth",
+        symbol="BTCUSDT",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        http_status=200,
+        payload={
+            "result": [
+                {
+                    "direction": "out",
+                    "value_usd": 300,
+                    "block_timestamp": "2026-07-08T12:02:00Z",
+                },
+                {
+                    "direction": "out",
+                    "value_usd": 1200,
+                    "block_timestamp": "2026-07-08T12:00:00Z",
+                },
+            ]
+        },
+        budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+    )
+
+    aggregate = json.loads(redis_client.data["v2:moralis:feature_aggregate:BTCUSDT:1m"])
+    endpoint = aggregate["endpoint_payloads"]["token_transfers"]
+
+    assert endpoint["event_time"] == "2026-07-08T12:02:00Z"
+    assert endpoint["feature_cutoff"] == "2026-07-08T12:02:00Z"
+    assert endpoint["features"]["moralis_exchange_outflow_usd"] == 1500
+
+
+def test_publisher_rejects_aggregate_when_any_contributing_row_lacks_a_clock() -> None:
+    redis_client = FakeRedis()
+    transfers = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_transfers"
+    )
+
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "secret"},
+        spec=transfers,
+        chain="eth",
+        symbol="BTCUSDT",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        http_status=200,
+        payload={
+            "result": [
+                {
+                    "direction": "out",
+                    "value_usd": 300,
+                    "block_timestamp": "2026-07-08T12:02:00Z",
+                },
+                {"direction": "out", "value_usd": 1200},
+            ]
+        },
+        budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+    )
+
+    aggregate = json.loads(redis_client.data["v2:moralis:feature_aggregate:BTCUSDT:1m"])
+
+    assert aggregate["actual_payload_endpoint_count"] == 0
+    assert aggregate["endpoint_payloads"] == {}
+    assert "token_transfers:EVENT_TIME_MISSING" in aggregate["endpoint_temporal_rejection_reasons"]
+    assert (
+        "token_transfers:FEATURE_CUTOFF_MISSING" in aggregate["endpoint_temporal_rejection_reasons"]
+    )
 
 
 def test_auth_backoff_status_stays_gray_not_degraded_yellow() -> None:
@@ -150,7 +397,7 @@ def test_auth_backoff_status_stays_gray_not_degraded_yellow() -> None:
         spec=spec,
         chain="eth",
         symbol="BTCUSDT",
-        token="0xtoken",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
         http_status=None,
         payload=None,
         budget_status={"compute_budget": {"used_today": 0, "used_month": 0}},
@@ -167,7 +414,7 @@ def test_auth_backoff_status_stays_gray_not_degraded_yellow() -> None:
     assert health["dashboard_color"] == "GRAY"
 
 
-def test_health_stays_green_when_actual_endpoint_exists_and_optional_endpoint_degrades() -> None:
+def test_source_health_stays_visible_while_trainer_consumption_remains_isolated() -> None:
     r = FakeRedis()
     transfers = next(s for s in moralis_endpoint_registry() if s.endpoint_id == "token_transfers")
     swaps = next(s for s in moralis_endpoint_registry() if s.endpoint_id == "wallet_swaps")
@@ -178,9 +425,13 @@ def test_health_stays_green_when_actual_endpoint_exists_and_optional_endpoint_de
         spec=transfers,
         chain="eth",
         symbol="BTCUSDT",
-        token="0xtoken",
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
         http_status=200,
-        payload={"result": [{"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}]},
+        payload={
+            "result": [
+                {"direction": "out", "value_usd": 1200, "block_timestamp": "2026-07-08T12:00:00Z"}
+            ]
+        },
         budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
         token_map_count=1,
         wallet_watchlist_count=1,
@@ -203,9 +454,13 @@ def test_health_stays_green_when_actual_endpoint_exists_and_optional_endpoint_de
     endpoint_status = json.loads(r.data["v2:provider:moralis:endpoint_status"])
     assert endpoint_status["actual_payload_endpoint_count"] == 1
     health = json.loads(r.data["v2:provider:moralis:health"])
-    assert health["status"] == "PARTIAL_REQUIRED_FEATURES_MISSING"
+    assert health["status"] == "ISOLATED_BY_POLICY"
     assert health["actual_payload_count_5m"] == 1
-    assert health["dashboard_color"] == "YELLOW"
+    assert health["source_health_status"] == "PARTIAL_REQUIRED_FEATURES_MISSING"
+    assert health["source_status"] == "PARTIAL_REQUIRED_FEATURES_MISSING"
+    assert health["source_dashboard_color"] == "YELLOW"
+    assert health["dashboard_color"] == "GRAY"
+    assert health["trainer_decision_time_safe"] is False
 
 
 def test_configured_key_without_watchlist_is_gray_no_watchlist() -> None:
@@ -234,7 +489,9 @@ def test_address_classifier_never_counts_burn_or_contract_as_smart_money() -> No
 
 def test_wallet_watchlist_seed_bootstraps_candidate_rows_with_tier_limits() -> None:
     rows = load_wallet_watchlist_seed()
-    status = wallet_watchlist_status(rows, source_path="v2/config/moralis/wallet_watchlist_seed.yaml")
+    status = wallet_watchlist_status(
+        rows, source_path="v2/config/moralis/wallet_watchlist_seed.yaml"
+    )
 
     assert rows
     assert status["status"] == "WATCHLIST_READY"
@@ -274,7 +531,9 @@ def test_smart_wallet_scorer_never_verifies_without_history_or_for_contracts() -
 
 
 def test_streams_registry_requires_webhook_signature_validation() -> None:
-    registry = build_streams_registry(None, env={"MORALIS_STREAM_WEBHOOK_URL": "https://example.test/hook"})
+    registry = build_streams_registry(
+        None, env={"MORALIS_STREAM_WEBHOOK_URL": "https://example.test/hook"}
+    )
     assert registry["streams_configured"] is False
     assert registry["streams_ready"] is False
     ready = build_streams_registry(
@@ -315,24 +574,26 @@ def test_moralis_feature_bridge_status_carries_counts_and_masks() -> None:
         token_map_count=9,
         wallet_watchlist_count=0,
         actual_payload_present=False,
-        available_at="2026-07-09T01:00:00Z",
-        event_time="2026-07-09T01:00:00Z",
     )
 
     status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
-    assert payload["status"] == "CONFIGURED_NO_WATCHLIST"
+    assert payload["status"] == "ISOLATED_BY_POLICY"
+    assert payload["trainer_admission_status"] == "ISOLATED_BY_POLICY"
+    assert payload["source_status"] == "CONFIGURED_NO_WATCHLIST"
     assert status["token_map_count"] == 9
     assert status["wallet_watchlist_count"] == 0
     assert status["feature_count"] == 0
     assert status["required_feature_count"] == len(FEATURE_NAMES)
     assert status["missing_mask_true"] is True
     assert status["stale_mask_true"] is False
-    assert status["available_at"] == "2026-07-09T01:00:00Z"
+    assert status["available_at"] == payload["available_at"]
+    assert payload["generated_at"] <= payload["available_at"]
+    assert payload["feature_cutoff"] is None
     assert "v2:provider:moralis:symbol_score:BTCUSDT" in redis_client.data
     assert "v2:altdata:symbol_score:BTCUSDT" not in redis_client.data
 
 
-def test_moralis_feature_bridge_full_payload_is_green_only_with_required_features() -> None:
+def test_complete_source_payload_remains_observable_but_trainer_masked() -> None:
     features = {name: 1.0 for name in FEATURE_NAMES}
     payload = build_moralis_feature_payload(
         symbol="BTCUSDT",
@@ -340,12 +601,325 @@ def test_moralis_feature_bridge_full_payload_is_green_only_with_required_feature
         wallet_watchlist_count=1,
         actual_payload_present=True,
         event_time="2026-07-08T12:00:00Z",
-        available_at="2026-07-08T12:00:01Z",
+        feature_cutoff="2026-07-08T12:00:00Z",
         features=features,
     )
 
-    assert payload["features"] == features
-    assert payload["feature_bridge_ready"] is True
-    assert payload["dashboard_color"] == "GREEN"
-    assert payload["missing_feature_flags"] == []
-    assert payload["decision_time_safe"] is True
+    assert payload["source_actual_payload_present"] is True
+    assert payload["source_feature_count"] == len(features)
+    assert payload["source_missing_feature_flags"] == []
+    assert payload["source_feature_bridge_ready"] is True
+    assert payload["source_status"] == "READY"
+    assert payload["source_dashboard_color"] == "GREEN"
+    assert payload["features"] == {}
+    assert payload["feature_count"] == 0
+    assert payload["feature_bridge_ready"] is False
+    assert payload["dashboard_color"] == "GRAY"
+    assert payload["missing_feature_flags"] == list(FEATURE_NAMES)
+    assert payload["decision_time_safe"] is False
+    assert payload["trainer_decision_time_safe"] is False
+    assert payload["temporal_contract_valid"] is False
+    assert payload["source_temporal_contract_valid"] is True
+    assert payload["event_time"] <= payload["feature_cutoff"]
+    assert payload["feature_cutoff"] <= payload["generated_at"]
+    assert payload["generated_at"] <= payload["available_at"]
+
+
+def test_environment_cannot_bypass_receipt_gated_trainer_isolation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MORALIS_TRAINER_ISOLATION", "0")
+    redis_client = FakeRedis()
+
+    payload = publish_moralis_feature_payload(
+        redis_client,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        features={name: 1.0 for name in FEATURE_NAMES},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        actual_payload_present=True,
+        event_time="2026-07-08T11:59:58Z",
+        feature_cutoff="2026-07-08T12:00:00Z",
+    )
+    status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
+
+    assert payload["trainer_isolation_active"] is True
+    assert payload["trainer_admission_status"] == "ISOLATED_BY_POLICY"
+    assert payload["consumer_receipts_bound"] is False
+    assert payload["features"] == {}
+    assert payload["feature_count"] == 0
+    assert payload["actual_payload_present"] is False
+    assert payload["decision_time_safe"] is False
+    assert status["trainer_consumption"] is False
+    assert status["provider_tensor_consumption"] is False
+    assert status["ppo_consumption"] is False
+    assert status["masa_consumption"] is False
+    assert status["risk_consumption"] is False
+    assert status["orchestrator_consumption"] is False
+    assert status["allocator_consumption"] is False
+    assert status["paper_consumption"] is False
+    assert status["feedback_attribution"] is False
+
+
+def test_implementation_flag_alone_cannot_bypass_missing_consumer_receipts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        moralis_feature_bridge,
+        "MORALIS_TRAINER_CONSUMPTION_BOUND",
+        True,
+    )
+    monkeypatch.setattr(
+        moralis_feature_bridge,
+        "MORALIS_CONSUMER_RECEIPTS_BOUND",
+        False,
+    )
+
+    payload = build_moralis_feature_payload(
+        symbol="BTCUSDT",
+        features={name: 1.0 for name in FEATURE_NAMES},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        actual_payload_present=True,
+        event_time="2026-07-08T11:59:58Z",
+        feature_cutoff="2026-07-08T12:00:00Z",
+    )
+
+    assert payload["trainer_isolation_active"] is True
+    assert payload["trainer_consumption_prerequisites_bound"] is False
+    assert payload["trainer_admission_status"] == "ISOLATED_BY_POLICY"
+    assert payload["features"] == {}
+    assert payload["actual_payload_present"] is False
+    assert payload["decision_time_safe"] is False
+
+
+def test_receipt_flag_alone_cannot_bypass_missing_implementation_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        moralis_feature_bridge,
+        "MORALIS_TRAINER_CONSUMPTION_BOUND",
+        False,
+    )
+    monkeypatch.setattr(
+        moralis_feature_bridge,
+        "MORALIS_CONSUMER_RECEIPTS_BOUND",
+        True,
+    )
+    redis_client = FakeRedis()
+
+    payload = publish_moralis_feature_payload(
+        redis_client,
+        symbol="BTCUSDT",
+        features={name: 1.0 for name in FEATURE_NAMES},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        actual_payload_present=True,
+        event_time="2026-07-08T11:59:58Z",
+        feature_cutoff="2026-07-08T12:00:00Z",
+    )
+    status = json.loads(redis_client.data["v2:provider:moralis:feature_bridge_status"])
+
+    assert payload["source_temporal_contract_valid"] is True
+    assert payload["temporal_contract_valid"] is False
+    assert payload["trainer_temporal_contract_valid"] is False
+    assert payload["trainer_consumption_prerequisites_bound"] is False
+    assert payload["trainer_isolation_active"] is True
+    assert payload["features"] == {}
+    assert payload["actual_payload_present"] is False
+    assert payload["decision_time_safe"] is False
+    for consumer in (
+        "trainer_consumption",
+        "provider_tensor_consumption",
+        "ppo_consumption",
+        "masa_consumption",
+        "risk_consumption",
+        "orchestrator_consumption",
+        "allocator_consumption",
+        "paper_consumption",
+        "live_dryrun_consumption",
+        "feedback_attribution",
+    ):
+        assert status[consumer] is False
+
+
+def test_upstream_temporal_rejection_evidence_survives_canonical_rebuild() -> None:
+    reason = "token_transfers:EVENT_TIME_AFTER_OBSERVED_AT"
+    payload = build_moralis_feature_payload(
+        symbol="BTCUSDT",
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        upstream_temporal_rejection_reasons=[reason],
+    )
+
+    assert payload["source_temporal_contract_valid"] is False
+    assert payload["source_temporal_rejection_reasons"] == [reason]
+    assert payload["source_status"] == "TEMPORAL_CONTRACT_REJECTED"
+    assert payload["event_time"] is None
+    assert payload["feature_cutoff"] is None
+    assert payload["available_at"] is None
+
+
+def test_invalid_upstream_temporal_rejection_evidence_fails_closed_bounded() -> None:
+    payload = build_moralis_feature_payload(
+        symbol="BTCUSDT",
+        upstream_temporal_rejection_reasons=["x" * 257],
+    )
+
+    assert payload["source_temporal_contract_valid"] is False
+    assert payload["source_temporal_rejection_reasons"] == [
+        "UPSTREAM_TEMPORAL_REJECTION_EVIDENCE_INVALID"
+    ]
+
+
+def test_endpoint_status_discards_expired_raw_transport_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis_client = FakeRedis()
+    redis_client.set(
+        "v2:provider:moralis:endpoint_status",
+        json.dumps(
+            {
+                "endpoints": {
+                    "token_transfers": {
+                        "actual_payload_present": True,
+                        "expires_at": "2026-07-08T12:00:00Z",
+                    }
+                }
+            }
+        ),
+        ex=3600,
+    )
+    monkeypatch.setattr(
+        moralis_publisher,
+        "_now",
+        lambda: "2026-07-08T12:01:00Z",
+    )
+    holders = next(
+        spec for spec in moralis_endpoint_registry() if spec.endpoint_id == "token_holders"
+    )
+
+    publish_moralis_result(
+        redis_client,
+        env={"MORALIS_API_KEY": "secret"},
+        spec=holders,
+        chain="eth",
+        symbol=None,
+        token="0xtoken",  # noqa: S106 - fixture token identifier, not a credential
+        http_status=None,
+        payload=None,
+        budget_status={"compute_budget": {"used_today": 50, "used_month": 50}},
+        error_class="ConnectTimeout",
+    )
+
+    endpoint_status = json.loads(redis_client.data["v2:provider:moralis:endpoint_status"])
+    assert set(endpoint_status["endpoints"]) == {"token_holders"}
+    assert endpoint_status["actual_payload_endpoint_count"] == 0
+
+
+def test_canonical_moralis_payload_stays_excluded_from_unified_bridge(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis_client = FakeRedis()
+    clock = iter(("2026-07-08T12:00:01Z", "2026-07-08T12:00:02Z"))
+    monkeypatch.setattr(moralis_feature_bridge, "_now", lambda: next(clock))
+
+    published = publish_moralis_feature_payload(
+        redis_client,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        features={name: 1.0 for name in FEATURE_NAMES},
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        actual_payload_present=True,
+        event_time="2026-07-08T11:59:58Z",
+        feature_cutoff="2026-07-08T12:00:00Z",
+    )
+    unified = build_unified_feature_payload(
+        redis_client,
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time="2026-07-08T12:00:03Z",
+    )
+
+    assert published["temporal_contract_valid"] is False
+    assert published["source_temporal_contract_valid"] is True
+    assert published["event_time"] == "2026-07-08T11:59:58Z"
+    assert published["feature_cutoff"] == "2026-07-08T12:00:00Z"
+    assert published["generated_at"] == "2026-07-08T12:00:01Z"
+    assert published["available_at"] == "2026-07-08T12:00:02Z"
+    assert published["actual_payload_present"] is False
+    assert published["features"] == {}
+    assert published["decision_time_safe"] is False
+    assert unified["point_in_time_safe"] is True
+    assert unified["provider_feature_context"]["actual_provider_count"] == 0
+    assert unified["provider_feature_context"]["temporal_contract_valid"] is False
+    assert (
+        unified["provider_feature_context"]["provider_payloads"]["moralis"][
+            "excluded_from_features"
+        ]
+        is True
+    )
+    assert unified["features"] == {}
+
+
+@pytest.mark.parametrize(
+    ("override", "expected_reason"),
+    (
+        ({"event_time": "2026-07-08T11:59:59"}, "EVENT_TIME_NOT_STRICT_UTC"),
+        ({"feature_cutoff": "not-a-time"}, "FEATURE_CUTOFF_NOT_STRICT_UTC"),
+        ({"feature_cutoff": None}, "FEATURE_CUTOFF_MISSING"),
+        ({"available_at": ""}, "AVAILABLE_AT_MISSING"),
+        (
+            {
+                "event_time": "2026-07-08T12:00:01Z",
+                "feature_cutoff": "2026-07-08T12:00:00Z",
+            },
+            "EVENT_TIME_AFTER_FEATURE_CUTOFF",
+        ),
+        (
+            {"feature_cutoff": "2026-07-08T12:00:04Z"},
+            "FEATURE_CUTOFF_AFTER_GENERATED_AT",
+        ),
+        ({"available_at": "2026-07-08T12:00:01Z"}, "GENERATED_AT_AFTER_AVAILABLE_AT"),
+        (
+            {"available_at": "2026-07-08T12:00:04Z"},
+            "AVAILABLE_AT_AFTER_PUBLICATION_OBSERVED_AT",
+        ),
+    ),
+)
+def test_moralis_feature_payload_blocks_invalid_temporal_ordering(
+    monkeypatch: pytest.MonkeyPatch,
+    override: dict[str, str | None],
+    expected_reason: str,
+) -> None:
+    clock = iter(("2026-07-08T12:00:02Z", "2026-07-08T12:00:03Z"))
+    monkeypatch.setattr(moralis_feature_bridge, "_now", lambda: next(clock))
+    clocks: dict[str, str | None] = {
+        "event_time": "2026-07-08T11:59:59Z",
+        "feature_cutoff": "2026-07-08T12:00:00Z",
+    }
+    clocks.update(override)
+
+    payload = build_moralis_feature_payload(
+        symbol="BTCUSDT",
+        token_map_count=1,
+        wallet_watchlist_count=1,
+        actual_payload_present=True,
+        features={name: 1.0 for name in FEATURE_NAMES},
+        event_time=clocks["event_time"],
+        feature_cutoff=clocks["feature_cutoff"],
+        available_at=clocks.get("available_at"),
+    )
+
+    assert payload["status"] == "ISOLATED_BY_POLICY"
+    assert payload["trainer_admission_status"] == "ISOLATED_BY_POLICY"
+    assert payload["source_status"] == "TEMPORAL_CONTRACT_REJECTED"
+    assert payload["temporal_contract_valid"] is False
+    assert expected_reason in payload["temporal_rejection_reasons"]
+    assert payload["actual_payload_present"] is False
+    assert payload["features"] == {}
+    assert payload["event_time"] is None
+    assert payload["feature_cutoff"] is None
+    assert payload["available_at"] is None

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
 from app.services.smart_money_wallets.health import build_moralis_health
@@ -65,6 +66,7 @@ def publish_moralis_result(
         "dashboard_color": _dashboard_color(status=status, actual=actual),
     }
     keys_written: list[str] = []
+    trusted_source_endpoint_count = 0
     if redis_client is not None:
         for key in _raw_keys(spec, chain=chain, wallet=wallet, token=token, symbol=symbol):
             _set_json(redis_client, key, envelope, ex=spec.ttl_seconds)
@@ -76,7 +78,12 @@ def publish_moralis_result(
             # public feature key clobbered the bridge payload (masks, feature
             # counts, honesty flags) on every endpoint publish.
             aggregate_key = f"v2:moralis:feature_aggregate:{symbol}:{timeframe}"
-            feature_payload, feature_ttl = _merge_feature_payload(
+            (
+                feature_payload,
+                feature_ttl,
+                source_features,
+                source_actual_payload_present,
+            ) = _merge_feature_payload(
                 redis_client,
                 aggregate_key,
                 envelope=envelope,
@@ -88,21 +95,27 @@ def publish_moralis_result(
                 wallet_watchlist_count=wallet_watchlist_count,
                 budget_status=budget_status,
             )
+            trusted_source_endpoint_count = int(
+                feature_payload.get("actual_payload_endpoint_count") or 0
+            )
             _set_json(redis_client, aggregate_key, feature_payload, ex=feature_ttl)
             keys_written.append(aggregate_key)
             bridge_payload = publish_moralis_feature_payload(
                 redis_client,
                 symbol=symbol,
                 timeframe=timeframe,
-                features=feature_payload.get("features") if isinstance(feature_payload.get("features"), Mapping) else {},
+                features=source_features,
                 token_map_count=token_map_count,
                 wallet_watchlist_count=wallet_watchlist_count,
-                actual_payload_present=feature_payload.get("actual_payload_present") is True,
+                actual_payload_present=source_actual_payload_present,
                 event_time=feature_payload.get("event_time"),
                 feature_cutoff=feature_payload.get("feature_cutoff"),
                 ttl_seconds=feature_ttl,
                 stale_after=feature_payload.get("stale_after"),
                 compute_unit_status=budget_status,
+                upstream_temporal_rejection_reasons=feature_payload.get(
+                    "endpoint_temporal_rejection_reasons"
+                ),
             )
             for key in bridge_payload.get("keys_written") or []:
                 if key not in keys_written:
@@ -114,9 +127,15 @@ def publish_moralis_result(
             "endpoint_id": spec.endpoint_id,
             "status": status,
             "actual_payload_present": bool(actual),
+            "raw_transport_actual_payload_present": bool(actual),
             "heartbeat_only": not bool(actual),
             "dashboard_color": envelope["dashboard_color"],
             "generated_utc": now,
+            "expires_at": (
+                (_parse_utc(now) or datetime.now(UTC)) + timedelta(seconds=spec.ttl_seconds)
+            )
+            .isoformat(timespec="seconds")
+            .replace("+00:00", "Z"),
             "core_system_blocked": False,
             "raw_key_exposed": False,
         }
@@ -129,7 +148,9 @@ def publish_moralis_result(
             generated_utc=now,
         )
         _set_json(redis_client, "v2:provider:moralis:endpoint_status", endpoint_status, ex=3600)
-        endpoint_actual_count = int(endpoint_status.get("actual_payload_endpoint_count") or 0)
+        raw_transport_actual_endpoint_count = int(
+            endpoint_status.get("actual_payload_endpoint_count") or 0
+        )
         feature_bridge_ready = False
         feature_bridge_color = "GRAY"
         bridge_status_payload: dict[str, Any] = {}
@@ -145,19 +166,32 @@ def publish_moralis_result(
             feature_bridge_ready = False
             feature_bridge_color = "GRAY"
             bridge_status_payload = {}
-        health_status = "READY" if feature_bridge_ready else (status if endpoint_actual_count <= 0 else "PARTIAL_REQUIRED_FEATURES_MISSING")
+        trainer_consumption_status = str(
+            bridge_status_payload.get("status")
+            or ("READY" if feature_bridge_ready else "FEATURE_BRIDGE_NOT_READY")
+        )
+        source_health_status = str(
+            bridge_status_payload.get("source_status") or ("PAYLOADS_PENDING" if symbol else status)
+        )
         health = build_moralis_health(env, last_http_status=http_status, last_error=error_class)
         health.update(
             {
-                "status": health_status,
+                "status": trainer_consumption_status,
                 "enabled": str(env.get("MORALIS_ENABLED", "1")).lower() not in {"0", "false", "no"},
-                "subscription_status": health_status,
-                "auth_status": health_status,
+                "subscription_status": source_health_status,
+                "auth_status": status,
+                "source_health_status": source_health_status,
+                "trainer_consumption_status": trainer_consumption_status,
+                "source_status": bridge_status_payload.get("source_status"),
+                "source_dashboard_color": bridge_status_payload.get("source_dashboard_color"),
+                "trainer_isolation_active": bridge_status_payload.get("trainer_isolation_active"),
                 "daily_cu_used": _dig(budget_status, "compute_budget", "used_today"),
                 "monthly_cu_used": _dig(budget_status, "compute_budget", "used_month"),
-                "actual_payload_count_5m": endpoint_actual_count,
-                "actual_payload_count_1h": endpoint_actual_count,
-                "last_success_at": now if endpoint_actual_count > 0 else None,
+                "actual_payload_count_5m": trusted_source_endpoint_count,
+                "actual_payload_count_1h": trusted_source_endpoint_count,
+                "trusted_source_actual_endpoint_count": trusted_source_endpoint_count,
+                "raw_transport_actual_endpoint_count": raw_transport_actual_endpoint_count,
+                "last_success_at": now if trusted_source_endpoint_count > 0 else None,
                 "last_error_at": now if not actual and http_status is not None else None,
                 "dashboard_color": "GREEN" if feature_bridge_ready else feature_bridge_color,
                 "feature_bridge_ready": feature_bridge_ready,
@@ -172,6 +206,23 @@ def publish_moralis_result(
                 "token_map_count": bridge_status_payload.get("token_map_count"),
                 "wallet_watchlist_count": bridge_status_payload.get("wallet_watchlist_count"),
                 "actual_payload_present": bridge_status_payload.get("actual_payload_present"),
+                "source_actual_payload_present": bridge_status_payload.get(
+                    "source_actual_payload_present"
+                ),
+                "source_feature_count": bridge_status_payload.get("source_feature_count"),
+                "source_missing_feature_flags": bridge_status_payload.get(
+                    "source_missing_feature_flags"
+                ),
+                "source_temporal_contract_valid": bridge_status_payload.get(
+                    "source_temporal_contract_valid"
+                ),
+                "source_temporal_rejection_reasons": bridge_status_payload.get(
+                    "source_temporal_rejection_reasons"
+                ),
+                "trainer_decision_time_safe": bridge_status_payload.get(
+                    "trainer_decision_time_safe"
+                ),
+                "consumer_receipts_bound": bridge_status_payload.get("consumer_receipts_bound"),
                 "heartbeat_only": bridge_status_payload.get("heartbeat_only"),
                 "heartbeat_only_green_allowed": False,
                 "decision_time_safe": bridge_status_payload.get("decision_time_safe"),
@@ -208,9 +259,15 @@ def _raw_keys(
     token: str | None,
     symbol: str | None,
 ) -> list[str]:
-    if spec.group in {"wallet_balances", "wallet_token_balances_price", "wallet_networth"} and wallet:
+    if (
+        spec.group in {"wallet_balances", "wallet_token_balances_price", "wallet_networth"}
+        and wallet
+    ):
         return [f"v2:moralis:wallet:{chain}:{wallet}"]
-    if spec.group in {"wallet_history", "wallet_transactions", "wallet_address_transfers"} and wallet:
+    if (
+        spec.group in {"wallet_history", "wallet_transactions", "wallet_address_transfers"}
+        and wallet
+    ):
         return [f"v2:moralis:wallet_history:{chain}:{wallet}"]
     if spec.group in {"token_transfers", "token_address_transfers"} and token:
         return [f"v2:moralis:token_transfers:{chain}:{token}"]
@@ -247,10 +304,10 @@ def _merge_feature_payload(
     token_map_count: int = 0,
     wallet_watchlist_count: int = 0,
     budget_status: Mapping[str, Any] | None = None,
-) -> tuple[dict[str, Any], int]:
+) -> tuple[dict[str, Any], int, dict[str, float], bool]:
     endpoint_payloads: dict[str, dict[str, Any]] = {}
     endpoint_temporal_rejections: list[str] = []
-    now_dt = _parse_utc(now) or datetime.now(timezone.utc)
+    now_dt = _parse_utc(now) or datetime.now(UTC)
     try:
         raw = redis_client.get(key)
         if raw:
@@ -346,6 +403,7 @@ def _merge_feature_payload(
         ttl_seconds=ttl,
         stale_after=ttl,
         compute_unit_status=budget_status or envelope.get("compute_budget_status") or {},
+        upstream_temporal_rejection_reasons=sorted(set(endpoint_temporal_rejections)),
     )
     bridge_status = payload.get("status")
     bridge_dashboard_color = payload.get("dashboard_color")
@@ -369,14 +427,9 @@ def _merge_feature_payload(
             "features": payload.get("features", {}),
             "endpoint_payloads": endpoint_payloads,
             "actual_payload_endpoint_count": len(endpoint_payloads),
-            "endpoint_temporal_rejection_reasons": sorted(
-                set(endpoint_temporal_rejections)
-            ),
+            "endpoint_temporal_rejection_reasons": sorted(set(endpoint_temporal_rejections)),
             "rejected_endpoint_count": len(
-                {
-                    reason.split(":", 1)[0]
-                    for reason in endpoint_temporal_rejections
-                }
+                {reason.split(":", 1)[0] for reason in endpoint_temporal_rejections}
             ),
             "subscription_status": (
                 aggregate_status
@@ -392,7 +445,7 @@ def _merge_feature_payload(
             "stale_feature_flags": bridge_stale,
         }
     )
-    return payload, ttl
+    return payload, ttl, merged_features, aggregate_actual
 
 
 def _status_from_response(*, http_status: int | None, error_class: str | None) -> str:
@@ -447,8 +500,17 @@ def _merge_endpoint_status(
                 existing = parsed
     except Exception:
         existing = {}
-    endpoints = existing.get("endpoints") if isinstance(existing.get("endpoints"), dict) else {}
-    endpoints = dict(endpoints)
+    existing_endpoints = existing.get("endpoints")
+    observed_at = _parse_utc(generated_utc) or datetime.now(UTC)
+    endpoints: dict[str, Any] = {}
+    if isinstance(existing_endpoints, dict):
+        for prior_endpoint_id, prior_row in existing_endpoints.items():
+            if not isinstance(prior_row, Mapping):
+                continue
+            expires_at = _parse_utc(prior_row.get("expires_at"))
+            if expires_at is None or expires_at <= observed_at:
+                continue
+            endpoints[str(prior_endpoint_id)] = dict(prior_row)
     endpoints[endpoint_id] = dict(row)
     actual_count = sum(
         1
@@ -468,7 +530,7 @@ def _merge_endpoint_status(
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -480,7 +542,7 @@ def _parse_utc(value: Any) -> datetime | None:
         return None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _latest_strict_utc(values: list[str]) -> str | None:

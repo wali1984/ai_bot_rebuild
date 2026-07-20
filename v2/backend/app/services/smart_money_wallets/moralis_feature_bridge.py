@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-import os
-from datetime import datetime, timedelta, timezone
-from typing import Any, Mapping
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 MORALIS_FEATURE_KEY = "v2:features:moralis:{symbol}:{timeframe}"
 MORALIS_PROVIDER_FEATURE_KEY = "v2:features:provider:moralis:{symbol}:{timeframe}"
@@ -32,6 +32,15 @@ FEATURE_NAMES = (
 )
 REQUIRED_MORALIS_FEATURES = FEATURE_NAMES
 
+# Immutable admission state, not a market threshold or an operator toggle.
+# This may become True only in a reviewed code change that binds durable CU
+# authority, verified target identity, source finality, exact payload receipts,
+# and the postcommit feature-publication receipt into every consumer.
+MORALIS_TRAINER_CONSUMPTION_BOUND = False
+MORALIS_CONSUMER_RECEIPTS_BOUND = False
+MAX_UPSTREAM_TEMPORAL_REJECTION_REASONS = 64
+MAX_UPSTREAM_TEMPORAL_REJECTION_REASON_BYTES = 256
+
 FEATURE_ALIASES = {
     "moralis_holder_concentration_change": "moralis_top_holder_concentration",
     "moralis_token_holder_delta": "moralis_holder_delta",
@@ -52,16 +61,16 @@ def build_moralis_feature_payload(
     ttl_seconds: int = 3600,
     stale_after: int | None = None,
     compute_unit_status: Mapping[str, Any] | None = None,
+    upstream_temporal_rejection_reasons: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     ttl = max(1, int(ttl_seconds))
     stale = max(1, int(stale_after or ttl))
-    # Trainer isolation (default ON): while active, Moralis is masked out of the
-    # trainer critical path by POLICY, not by accident of missing data. No source
-    # payload can produce a trainer-facing feature until an operator DELIBERATELY
-    # lifts isolation (MORALIS_TRAINER_ISOLATION=0). This is the durable guarantee
-    # that keeping it masked no longer depends on an empty watchlist / exhausted CU.
+    # Trainer isolation is a code-bound prerequisite gate, not an environment
+    # switch. Source evidence remains observable, but no source payload can
+    # produce a trainer-facing value while the receipt chain is incomplete.
     isolation_active = _isolation_active()
     source_numeric = _numeric_subset(features or {})
+    source_missing = [name for name in FEATURE_NAMES if name not in source_numeric]
     numeric = {} if isolation_active else source_numeric
     missing = [name for name in FEATURE_NAMES if name not in numeric]
     stale_flags: list[str] = []
@@ -76,17 +85,39 @@ def build_moralis_feature_payload(
         generated_at=generated_at,
         available_at=availability_input,
         publication_observed_at=publication_observed_at,
-        require_source_clocks=bool(actual_payload_present and numeric),
+        require_source_clocks=bool(actual_payload_present),
     )
-    temporal_valid = not temporal["rejection_reasons"]
+    upstream_rejections = _bounded_upstream_temporal_rejections(upstream_temporal_rejection_reasons)
+    temporal_rejection_reasons = sorted(
+        set(temporal["rejection_reasons"]) | set(upstream_rejections)
+    )
+    temporal_valid = not temporal_rejection_reasons
     has_lists = token_map_count > 0 and wallet_watchlist_count > 0
+    source_has_actual = bool(actual_payload_present and source_numeric and temporal_valid)
+    source_bridge_ready = bool(
+        has_lists and source_has_actual and not source_missing and not stale_flags
+    )
     has_actual = bool(actual_payload_present and numeric and temporal_valid)
     feature_bridge_ready = bool(has_lists and has_actual and not missing and not stale_flags)
-    status = _status(
+    source_status = _status(
+        isolation_active=False,
+        has_lists=has_lists,
+        has_actual=source_has_actual,
+        temporal_rejected=bool(
+            (actual_payload_present or upstream_rejections) and not temporal_valid
+        ),
+        missing=source_missing,
+        stale_flags=stale_flags,
+        token_map_count=token_map_count,
+        wallet_watchlist_count=wallet_watchlist_count,
+    )
+    trainer_admission_status = _status(
         isolation_active=isolation_active,
         has_lists=has_lists,
         has_actual=has_actual,
-        temporal_rejected=bool(actual_payload_present and numeric and not temporal_valid),
+        temporal_rejected=bool(
+            (actual_payload_present or upstream_rejections) and not temporal_valid
+        ),
         missing=missing,
         stale_flags=stale_flags,
         token_map_count=token_map_count,
@@ -98,13 +129,20 @@ def build_moralis_feature_payload(
         "symbol": str(symbol).upper(),
         "timeframe": timeframe,
         "generated_at": temporal["generated_at"],
-        "event_time": temporal["event_time"],
-        "available_at": temporal["available_at"],
-        "feature_cutoff": temporal["feature_cutoff"],
-        "decision_time_safe": temporal_valid,
+        "event_time": temporal["event_time"] if temporal_valid else None,
+        "available_at": temporal["available_at"] if temporal_valid else None,
+        "feature_cutoff": temporal["feature_cutoff"] if temporal_valid else None,
+        # This is the source-only clock verdict. Trainer decision safety also
+        # requires the immutable admission prerequisites below and therefore
+        # stays false while isolation is active.
+        "decision_time_safe": bool(temporal_valid and _trainer_admission_bound()),
+        "trainer_decision_time_safe": bool(temporal_valid and _trainer_admission_bound()),
+        "source_temporal_contract_valid": temporal_valid,
         "temporal_contract_version": "moralis_feature_temporal_contract_v2",
-        "temporal_contract_valid": temporal_valid,
-        "temporal_rejection_reasons": temporal["rejection_reasons"],
+        "temporal_contract_valid": bool(temporal_valid and _trainer_admission_bound()),
+        "trainer_temporal_contract_valid": bool(temporal_valid and _trainer_admission_bound()),
+        "temporal_rejection_reasons": temporal_rejection_reasons,
+        "source_temporal_rejection_reasons": temporal_rejection_reasons,
         "source_clock_inputs": {
             "event_time_input": event_time,
             "feature_cutoff_input": feature_cutoff,
@@ -112,7 +150,9 @@ def build_moralis_feature_payload(
         },
         "ttl_seconds": ttl,
         "stale_after": stale,
-        "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=ttl)).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "expires_at": (datetime.now(UTC) + timedelta(seconds=ttl))
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z"),
         "features": numeric if has_actual else {},
         "feature_names": list(FEATURE_NAMES),
         "required_feature_count": len(FEATURE_NAMES),
@@ -126,13 +166,29 @@ def build_moralis_feature_payload(
         "token_map_count": int(token_map_count),
         "wallet_watchlist_count": int(wallet_watchlist_count),
         "trainer_isolation_active": isolation_active,
+        "trainer_consumption_prerequisites_bound": _trainer_admission_bound(),
+        "consumer_receipts_bound": MORALIS_CONSUMER_RECEIPTS_BOUND,
+        "trainer_isolation_release_authority": "reviewed_code_and_receipt_contract_only",
         "source_actual_payload_present": bool(actual_payload_present and source_numeric),
+        "source_payload_temporally_valid": bool(
+            actual_payload_present and source_numeric and temporal_valid
+        ),
+        "source_feature_count": len(source_numeric),
+        "source_missing_feature_flags": source_missing,
+        "source_feature_bridge_ready": source_bridge_ready,
+        "source_status": source_status,
+        "source_dashboard_color": (
+            "GREEN" if source_bridge_ready else ("YELLOW" if source_has_actual else "GRAY")
+        ),
+        "trainer_admission_status": trainer_admission_status,
         "actual_payload_present": has_actual,
         "heartbeat_only": not has_actual,
         "provider_ready": feature_bridge_ready,
         "feature_bridge_ready": feature_bridge_ready,
-        "dashboard_color": "GREEN" if feature_bridge_ready else ("YELLOW" if has_actual else "GRAY"),
-        "status": status,
+        "dashboard_color": "GREEN"
+        if feature_bridge_ready
+        else ("YELLOW" if has_actual else "GRAY"),
+        "status": trainer_admission_status,
         "compute_unit_status": dict(compute_unit_status or {}),
         "daily_cu_used": _dig(compute_unit_status or {}, "compute_budget", "used_today"),
         "monthly_cu_used": _dig(compute_unit_status or {}, "compute_budget", "used_month"),
@@ -160,6 +216,7 @@ def publish_moralis_feature_payload(
     ttl_seconds: int = 3600,
     stale_after: int | None = None,
     compute_unit_status: Mapping[str, Any] | None = None,
+    upstream_temporal_rejection_reasons: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     payload = build_moralis_feature_payload(
         symbol=symbol,
@@ -174,10 +231,13 @@ def publish_moralis_feature_payload(
         ttl_seconds=ttl_seconds,
         stale_after=stale_after,
         compute_unit_status=compute_unit_status,
+        upstream_temporal_rejection_reasons=upstream_temporal_rejection_reasons,
     )
     symbol_upper = str(symbol).upper()
     feature_key = MORALIS_FEATURE_KEY.format(symbol=symbol_upper, timeframe=timeframe)
-    provider_feature_key = MORALIS_PROVIDER_FEATURE_KEY.format(symbol=symbol_upper, timeframe=timeframe)
+    provider_feature_key = MORALIS_PROVIDER_FEATURE_KEY.format(
+        symbol=symbol_upper, timeframe=timeframe
+    )
     signal_key = SMART_MONEY_SIGNAL_KEY.format(symbol=symbol_upper)
     score_key = MORALIS_SYMBOL_SCORE_KEY.format(symbol=symbol_upper)
     bridge_status = _feature_bridge_status(payload)
@@ -253,7 +313,7 @@ def _feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
     # While isolated / not ready, nothing consumes Moralis, so every consumption
     # flag must report False — a hardcoded True would falsely advertise that a
     # masked, zero-contribution provider is already in the trainer path.
-    ready = bool(payload.get("feature_bridge_ready"))
+    ready = bool(payload.get("feature_bridge_ready") and MORALIS_CONSUMER_RECEIPTS_BOUND)
     return {
         "schema_version": "moralis_feature_bridge_status_v1",
         "provider": "moralis",
@@ -264,12 +324,20 @@ def _feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
         "available_at": payload.get("available_at"),
         "feature_cutoff": payload.get("feature_cutoff"),
         "decision_time_safe": payload.get("decision_time_safe"),
+        "trainer_decision_time_safe": payload.get("trainer_decision_time_safe"),
+        "source_temporal_contract_valid": payload.get("source_temporal_contract_valid"),
         "temporal_contract_version": payload.get("temporal_contract_version"),
         "temporal_contract_valid": payload.get("temporal_contract_valid"),
+        "trainer_temporal_contract_valid": payload.get("trainer_temporal_contract_valid"),
         "temporal_rejection_reasons": payload.get("temporal_rejection_reasons"),
+        "source_temporal_rejection_reasons": payload.get("source_temporal_rejection_reasons"),
+        "consumer_receipts_bound": MORALIS_CONSUMER_RECEIPTS_BOUND,
         "ttl_seconds": payload.get("ttl_seconds"),
         "stale_after": payload.get("stale_after"),
         "status": payload.get("status"),
+        "trainer_admission_status": payload.get("trainer_admission_status"),
+        "source_status": payload.get("source_status"),
+        "source_dashboard_color": payload.get("source_dashboard_color"),
         "dashboard_color": payload.get("dashboard_color"),
         "feature_bridge_ready": payload.get("feature_bridge_ready"),
         "feature_count": payload.get("feature_count"),
@@ -283,6 +351,11 @@ def _feature_bridge_status(payload: Mapping[str, Any]) -> dict[str, Any]:
         "token_map_count": payload.get("token_map_count"),
         "wallet_watchlist_count": payload.get("wallet_watchlist_count"),
         "actual_payload_present": payload.get("actual_payload_present"),
+        "source_actual_payload_present": payload.get("source_actual_payload_present"),
+        "source_payload_temporally_valid": payload.get("source_payload_temporally_valid"),
+        "source_feature_count": payload.get("source_feature_count"),
+        "source_missing_feature_flags": payload.get("source_missing_feature_flags"),
+        "source_feature_bridge_ready": payload.get("source_feature_bridge_ready"),
         "heartbeat_only": payload.get("heartbeat_only"),
         "heartbeat_only_green_allowed": False,
         "trainer_consumption": ready,
@@ -327,6 +400,31 @@ def _symbol_score_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "raw_key_exposed": False,
         "core_system_blocked": False,
     }
+
+
+def _bounded_upstream_temporal_rejections(
+    values: Sequence[str] | None,
+) -> tuple[str, ...]:
+    """Validate bounded upstream rejection evidence before republishing it."""
+
+    invalid = ("UPSTREAM_TEMPORAL_REJECTION_EVIDENCE_INVALID",)
+    if values is None:
+        return ()
+    if isinstance(values, str | bytes) or len(values) > MAX_UPSTREAM_TEMPORAL_REJECTION_REASONS:
+        return invalid
+
+    validated: list[str] = []
+    for value in values:
+        if not isinstance(value, str) or not value or value != value.strip():
+            return invalid
+        try:
+            encoded = value.encode("ascii")
+        except UnicodeEncodeError:
+            return invalid
+        if len(encoded) > MAX_UPSTREAM_TEMPORAL_REJECTION_REASON_BYTES or not value.isprintable():
+            return invalid
+        validated.append(value)
+    return tuple(sorted(set(validated)))
 
 
 def _validate_temporal_contract(
@@ -425,13 +523,13 @@ def _parse_utc(value: Any) -> datetime | None:
         return None
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _iso_utc(value: datetime | None) -> str | None:
     if value is None:
         return None
-    return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def _dig(mapping: Mapping[str, Any], *path: str) -> Any:
@@ -444,12 +542,16 @@ def _dig(mapping: Mapping[str, Any], *path: str) -> Any:
 
 
 def _isolation_active() -> bool:
-    """Trainer isolation defaults ON. Moralis stays masked out of the trainer
-    critical path until an operator explicitly sets MORALIS_TRAINER_ISOLATION to a
-    false-y value (0/false/no/off). Unset or empty => isolated (safe default)."""
-    raw = os.environ.get("MORALIS_TRAINER_ISOLATION", "1").strip().lower()
-    return raw not in {"0", "false", "no", "off"}
+    """Return the immutable receipt-prerequisite admission state."""
+
+    return not _trainer_admission_bound()
+
+
+def _trainer_admission_bound() -> bool:
+    """Require implementation readiness and consumer receipts together."""
+
+    return bool(MORALIS_TRAINER_CONSUMPTION_BOUND and MORALIS_CONSUMER_RECEIPTS_BOUND)
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
