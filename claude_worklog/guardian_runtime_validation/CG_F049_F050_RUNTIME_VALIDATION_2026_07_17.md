@@ -159,22 +159,34 @@ both now JSON-string blobs) filtered to exits > 2026-07-19T00:45:20Z.
   (v2_trade_management_paper_loop.py:30761, run_once) crashes in the .err log, last written
   2026-07-16 15:14 EDT — an earlier crash-loop cause, apparently resolved before this PID.
 
-**NEW BLOCKING SUB-DEFECT (Codex-lane): signal intake severed in the restarted code state.**
-The loop cycles healthily (fresh status stamps, PASS writer-ownership validation, margin PASS)
-but consumes no signals, so no new closes can EVER accumulate to validate CG-F049/F050 —
-and G04-lane sample growth, G13/G14 recovery, and 1000x progress are all frozen with it.
-Most likely introduced between the pre-restart code state and the 2026-07-18 20:45 restart
-cohort (ed115ac695 / b20c5afa7f / 57dfaa9df9 or the then-dirty tree); the canonical-writer
-enforcement in 57dfaa9df9 is the natural first suspect for over-fencing the signal source read.
+**ROOT CAUSE PINNED (correcting the initial suspicion): the starvation is TRAINER-LANE,
+not a paper-loop intake defect.** Full chain, each hop raw-verified 2026-07-20T06:45Z:
+1. `v2:prediction:*` = 145 keys, ALL sampled have `routes_to_orchestrator: False` and
+   age ≈ 177,800s (~49.4h → stamped ~2026-07-18T05:20Z, when the trainer/services
+   fail-closed hold began). No routable predictions have been published since.
+2. `v2_orchestrator_arbitration_loop._scan_predictions` correctly drops
+   `routes_to_orchestrator is False` and over-age rows → 0 proposals →
+   classification `NO_OPEN_GATE_PROPOSALS_PAPER_ONLY`.
+3. The arbitration loop honestly re-publishes `v2:signals:paper` as an EMPTY list
+   (observed: type=string, `[]`, TTL 567/600 refreshing every cycle).
+4. The paper loop consumes `v2:signals:paper` (its documented source) → `intents_built: 0`
+   with zero block reasons — honest starvation, not gate-blocking, not an intake defect.
+The earlier suspicion that 57dfaa9df9 (canonical-writer enforcement) severed the intake is
+**WITHDRAWN** — the restart cohort code behaves correctly on an empty feed. The
+`v2:strategy_supply:*` freshness noted above is a parallel hypothesis surface, not the
+paper loop's signal source; supply freshness does not contradict this chain.
+Consequence unchanged: no new closes can accumulate to validate CG-F049/F050, and
+G13/G14 recovery + 1000x progress are frozen — but the unblock owner is the TRAINER LANE
+(CG-F053 holders), not a paper-loop code fix.
 
 ### Verdict
 - CG-F050: **STILL PENDING** — 0 new closes to test (prior early-positive n=1 unchanged).
 - CG-F049: **STILL PENDING** — 0 new admissions; L/S rebalance unobservable.
-- WQ-R34: remains **BLOCKED_EXTERNAL_DEPENDENCY**, but the blocker has CHANGED:
-  it is no longer "PID predates fix" — it is (a) zero-candidate starvation in the running
-  loop (Codex must diagnose/fix the signal intake in v2_trade_management_paper_loop.py,
-  their actively-dirty file), then (b) another drain-safe restart that also picks up
-  f8a1349061, then (c) re-run this validation after ≥10 post-restart closes incl. ≥1
-  multi-fill accumulation close.
+- WQ-R34: remains **BLOCKED_EXTERNAL_DEPENDENCY**, blocker restated precisely:
+  (a) trainer lane resumes publishing predictions with `routes_to_orchestrator: true`
+  (the deliberate fail-closed hold on trainer + prediction-publisher services is the
+  gating event — operator/Codex decision, NOT mine to lift), then (b) a drain-safe
+  paper-loop restart to also pick up f8a1349061, then (c) re-run this validation after
+  ≥10 post-restart closes incl. ≥1 multi-fill accumulation close.
 
 Validator: Claude (read-only; no trading-flow code touched; live gate BLOCKED throughout).
