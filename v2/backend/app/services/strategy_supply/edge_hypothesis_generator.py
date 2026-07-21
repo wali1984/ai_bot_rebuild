@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from v2.backend.app.services.altdata.provider_feature_bridge import load_moralis_input
 from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
 
 HYPOTHESIS_KEY = "v2:strategy_supply:hypotheses:{symbol}:{timeframe}"
@@ -143,6 +144,18 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         and ta_closed.get("candle_closed_confirmed") is True
         and bool(ta_closed.get("indicators"))
     )
+    # Moralis is a receipt-gated optional input.  Reading the raw Redis
+    # envelope here previously bypassed the canonical consumer boundary and
+    # allowed a legacy or forged ``features`` map to create paper hypotheses.
+    # The loader currently returns absent until an authenticated post-commit
+    # receipt verifier is implemented; when that boundary is released, this
+    # consumer will automatically receive only validated, fresh features.
+    moralis_input = load_moralis_input(client, symbol, "1m")
+    moralis_features = (
+        dict(moralis_input.features)
+        if moralis_input.present and not moralis_input.stale
+        else None
+    )
     return {
         "price": resolve_current_price(client, symbol),
         "ta": ta_closed if use_closed_ta else ta_live,
@@ -161,7 +174,7 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         "sweep_risk": _read_json(client, f"v2:market:sweep_risk:{symbol}:{timeframe}"),
         "coinglass": _read_json(client, f"v2:features:coinglass:{symbol}:1m"),
         "confluence": _read_json(client, f"v2:altdata:confluence:{symbol}:1m"),
-        "moralis": _read_json(client, f"v2:features:moralis:{symbol}:1m"),
+        "moralis": moralis_features,
         "microstructure": _read_json(client, f"v2:market:microstructure:{symbol}"),
         "microstructure_trust": trust_payload,
         "microstructure_trust_source": trust_source,

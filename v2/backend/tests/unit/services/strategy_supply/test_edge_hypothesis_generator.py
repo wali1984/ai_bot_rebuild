@@ -110,6 +110,60 @@ def test_funding_squeeze_hypothesis_generated_with_usd_economics():
             assert row["expected_long_net_edge_bps"] is None
 
 
+def test_unverified_moralis_envelope_cannot_create_paper_hypothesis() -> None:
+    keys = _base_keys()
+    keys.pop("v2:features:coinglass:BTCUSDT:1m")
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {
+            "lastPrice": "60000",
+            "bidPrice": "59997",
+            "askPrice": "60003",
+            "closeTime": 4102444800000,
+        },
+    }
+    # Self-declared authority is not an authenticated consumer receipt.  This
+    # payload deliberately satisfies every legacy boolean so the test proves
+    # strategy supply uses the receipt-gated loader rather than raw Redis.
+    keys["v2:features:moralis:BTCUSDT:1m"] = {
+        "schema_version": "moralis_feature_bridge_v1",
+        "provider": "moralis",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": "2026-07-09T05:58:00Z",
+        "available_at": "2026-07-09T05:59:00Z",
+        "generated_at": "2026-07-09T05:59:00Z",
+        "actual_payload_present": True,
+        "provider_ready": True,
+        "feature_bridge_ready": True,
+        "decision_time_safe": True,
+        "temporal_contract_valid": True,
+        "source_temporal_contract_valid": True,
+        "trainer_isolation_active": False,
+        "trainer_consumption_prerequisites_bound": True,
+        "consumer_receipts_bound": True,
+        "features": {
+            "moralis_smart_wallet_accumulation_score": 1.0,
+            "moralis_smart_wallet_distribution_score": 1.0,
+            "moralis_net_exchange_flow_usd": 100_000_000.0,
+        },
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+    }
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert {row.get("strategy_family") for row in rows}.isdisjoint(
+        {
+            "smart_money_accumulation",
+            "smart_money_distribution",
+            "exchange_inflow_risk",
+        }
+    )
+    assert all("moralis" not in row["provider_features_used"] for row in rows)
+    assert all("moralis" not in row["provider_feature_hashes"] for row in rows)
+    assert all(row.get("moralis_context") is not True for row in rows)
+
+
 def test_strategy_supply_caps_reference_notional_to_live_risk_profile() -> None:
     keys = _base_keys()
     keys["v2:market:prices:BTCUSDT"] = {
