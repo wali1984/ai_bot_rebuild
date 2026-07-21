@@ -216,6 +216,19 @@ def test_builds_separately_typed_signed_research_cost_without_authority(
     assert contract["account_specific_commission_authenticated"] is False
     assert contract["profiled_account_lane_compatible"] is False
     assert contract["research_cost_components_complete"] is True
+    assert contract["source_cas_object_count"] == len(result._exact_objects) - 1  # noqa: SLF001
+    assert (
+        contract["source_cas_object_inventory_sha256"]
+        == hashlib.sha256(
+            json.dumps(
+                contract["source_cas_object_inventory"],
+                allow_nan=False,
+                ensure_ascii=True,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("ascii")
+        ).hexdigest()
+    )
     assert set(contract["authorization"].values()) == {False}
     assert all(
         set(receipt["authorization"].values()) == {False}
@@ -452,6 +465,24 @@ def test_result_scalar_substitution_cannot_validate(
     with pytest.raises(
         PaperResearchCausalCostEvidenceV1IntegrityError,
         match="CONTRACT_BINDING",
+    ):
+        _ = forged.contract
+
+
+def test_result_cannot_omit_contract_bound_source_cas_objects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = build_paper_research_causal_cost_evidence_v1(**_inputs(tmp_path, monkeypatch))
+    artifact_bytes = result.artifact_json.encode("ascii")
+    forged = replace(
+        result,
+        _exact_objects=((result.artifact_address, artifact_bytes),),
+    )
+
+    with pytest.raises(
+        PaperResearchCausalCostEvidenceV1IntegrityError,
+        match="CAS_INVENTORY_MISMATCH",
     ):
         _ = forged.contract
 

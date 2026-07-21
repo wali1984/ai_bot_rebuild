@@ -123,7 +123,13 @@ The ordered label-only outputs are:
    settlement falls inside the pinned horizon, otherwise a proven zero.
 
 The four values and receipts are float32-bound, ordered, hashed, and stored in
-CAS. They are explicitly label-only and are never model input slots.
+CAS. The artifact also commits the exact ordered inventory of every raw market,
+fee, notional, and read-receipt CAS address (schema, SHA-256, byte count, and
+relative path), plus an inventory count and digest. Every result access requires
+the retained object inventory to match that artifact-bound inventory and then
+reopens every object. A caller cannot omit a damaged source object while
+retaining only the final artifact. The values are explicitly label-only and are
+never model input slots.
 
 ## Authority matrix
 
@@ -203,5 +209,5 @@ The adversarial unit suite covers:
 - account-authority and JSON boolean/integer type-confusion claims;
 - expired market-source PTTL and future mark clocks;
 - forged causal-notional factory tokens;
-- CAS mutation and result scalar substitution; and
+- CAS mutation, source-inventory omission, and result scalar substitution; and
 - exact-type rejection by the profiled enrichment path.
