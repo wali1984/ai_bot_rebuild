@@ -140,6 +140,18 @@ SERVICE_UNITS = [
     "ai-bot-v2-trainer-bridge.service",
 ]
 
+# These compatibility runtimes are deliberately retired/masked.  Merely
+# listing them for liveness visibility must never turn this observer into an
+# authority that starts them.  In particular, paper_online_runtime is a
+# forbidden second paper-entry owner; starting it makes the canonical trade
+# management loop fail closed on owner validation.
+AUTO_START_FORBIDDEN_UNITS = frozenset(
+    {
+        "ai-bot-v2-paper-online-runtime.service",
+        "ai-bot-v2-trainer-bridge.service",
+    }
+)
+
 TIMER_UNITS = [
     "ai-bot-v2-codex-shutdown-readiness-takeover.timer",
     "ai-bot-v2-readonly-decision-observatory.timer",
@@ -360,6 +372,7 @@ def service_liveness(no_service_remediation: bool) -> Dict[str, Any]:
     units = SERVICE_UNITS + TIMER_UNITS
     states = [unit_state(unit) for unit in units]
     actions: List[Dict[str, Any]] = []
+    skipped_actions: List[Dict[str, Any]] = []
     safety_block = FINAL_APPROVAL.exists() or REDIS_TRIM_APPROVAL.exists()
     if systemd_user_available() and not no_service_remediation and not safety_block:
         for item in states:
@@ -367,6 +380,25 @@ def service_liveness(no_service_remediation: bool) -> Dict[str, Any]:
             if item.get("active_state") == "active":
                 continue
             if not unit.startswith("ai-bot-v2-"):
+                continue
+            if unit in AUTO_START_FORBIDDEN_UNITS:
+                skipped_actions.append(
+                    {
+                        "unit": unit,
+                        "action": "skip_start_if_inactive",
+                        "reason": "retired_or_masked_unit_auto_start_forbidden",
+                    }
+                )
+                continue
+            if item.get("enabled_state") != "enabled":
+                skipped_actions.append(
+                    {
+                        "unit": unit,
+                        "action": "skip_start_if_inactive",
+                        "reason": "unit_not_enabled_for_auto_start",
+                        "enabled_state": item.get("enabled_state"),
+                    }
+                )
                 continue
             proc = run(["systemctl", "--user", "start", unit], timeout=30)
             actions.append(
@@ -388,6 +420,7 @@ def service_liveness(no_service_remediation: bool) -> Dict[str, Any]:
         "total_count": len(states),
         "inactive_units": inactive,
         "remediation_actions": actions,
+        "remediation_skips": skipped_actions,
     }
 
 

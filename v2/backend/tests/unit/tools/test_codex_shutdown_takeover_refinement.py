@@ -263,6 +263,80 @@ def test_trade_permission_unknown_requires_operator_decision_for_paper_only():
     assert "blocks live/canary" in trade[0]["evidence"]
 
 
+def test_service_liveness_never_starts_retired_or_masked_units(tmp_path, monkeypatch):
+    controller = _load_controller()
+    starts: list[str] = []
+
+    monkeypatch.setattr(controller, "systemd_user_available", lambda: True)
+    monkeypatch.setattr(controller, "FINAL_APPROVAL", tmp_path / "missing-live-approval")
+    monkeypatch.setattr(controller, "REDIS_TRIM_APPROVAL", tmp_path / "missing-trim-approval")
+
+    def fake_unit_state(unit: str):
+        if unit == "ai-bot-v2-paper-online-runtime.service":
+            return {"unit": unit, "active_state": "inactive", "enabled_state": "enabled"}
+        if unit == "ai-bot-v2-trainer-bridge.service":
+            return {"unit": unit, "active_state": "inactive", "enabled_state": "masked"}
+        return {"unit": unit, "active_state": "active", "enabled_state": "enabled"}
+
+    def fake_run(argv, timeout=15):
+        if argv[:3] == ["systemctl", "--user", "start"]:
+            starts.append(argv[3])
+        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(controller, "unit_state", fake_unit_state)
+    monkeypatch.setattr(controller, "run", fake_run)
+
+    status = controller.service_liveness(no_service_remediation=False)
+
+    assert starts == []
+    assert {
+        (row["unit"], row["reason"])
+        for row in status["remediation_skips"]
+    } == {
+        (
+            "ai-bot-v2-paper-online-runtime.service",
+            "retired_or_masked_unit_auto_start_forbidden",
+        ),
+        (
+            "ai-bot-v2-trainer-bridge.service",
+            "retired_or_masked_unit_auto_start_forbidden",
+        ),
+    }
+
+
+def test_service_liveness_does_not_override_disabled_unit_state(tmp_path, monkeypatch):
+    controller = _load_controller()
+    starts: list[str] = []
+    disabled = "ai-bot-v2-paper-shadow-observation.service"
+
+    monkeypatch.setattr(controller, "systemd_user_available", lambda: True)
+    monkeypatch.setattr(controller, "FINAL_APPROVAL", tmp_path / "missing-live-approval")
+    monkeypatch.setattr(controller, "REDIS_TRIM_APPROVAL", tmp_path / "missing-trim-approval")
+
+    def fake_unit_state(unit: str):
+        if unit == disabled:
+            return {"unit": unit, "active_state": "inactive", "enabled_state": "disabled"}
+        return {"unit": unit, "active_state": "active", "enabled_state": "enabled"}
+
+    def fake_run(argv, timeout=15):
+        if argv[:3] == ["systemctl", "--user", "start"]:
+            starts.append(argv[3])
+        return type("Result", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(controller, "unit_state", fake_unit_state)
+    monkeypatch.setattr(controller, "run", fake_run)
+
+    status = controller.service_liveness(no_service_remediation=False)
+
+    assert starts == []
+    assert {
+        "unit": disabled,
+        "action": "skip_start_if_inactive",
+        "reason": "unit_not_enabled_for_auto_start",
+        "enabled_state": "disabled",
+    } in status["remediation_skips"]
+
+
 def test_trainer_derived_acceptance_packet_turns_lineage_into_operator_decision():
     controller = _load_controller()
     evidence = _base_evidence()
