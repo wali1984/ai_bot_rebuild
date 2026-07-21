@@ -22,7 +22,13 @@ def _clock(epoch_ms: int) -> str:
     )
 
 
-def _pair(*, server_ms: int, sequence_id: int = 10, available_age_ms: int = 50) -> tuple[bytes, bytes]:
+def _pair(
+    *,
+    server_ms: int,
+    sequence_id: int = 10,
+    available_age_ms: int = 50,
+    feed_speed_ms: int = 250,
+) -> tuple[bytes, bytes]:
     available_ms = server_ms - available_age_ms
     event_ms = available_ms - 25
     transaction_ms = event_ms - 5
@@ -42,7 +48,7 @@ def _pair(*, server_ms: int, sequence_id: int = 10, available_age_ms: int = 50) 
         sequence_gap=False,
         update_type="partial_depth",
         depth_level=20,
-        feed_speed_ms=250,
+        feed_speed_ms=feed_speed_ms,
     )
     for payload in payloads.values():
         payload["generated_at"] = _clock(available_ms)
@@ -147,6 +153,33 @@ def test_cold_start_holds_then_observed_sequence_transition_becomes_healthy() ->
     assert [row[0] for row in client.set_calls] == [supervisor.SUMMARY_KEY, supervisor.SUMMARY_KEY]
 
 
+def test_canonical_500ms_mode_holds_cold_then_becomes_healthy() -> None:
+    first_ms = 1_784_674_800_000
+    client = _Redis(
+        server_ms=first_ms,
+        pair=_pair(server_ms=first_ms, feed_speed_ms=500),
+    )
+    tracker = supervisor.AdaptiveCadenceTracker()
+
+    cold = _cycle(client, tracker)
+    assert cold["canonical_pair_integrity_valid"] == 1
+    assert cold["canonical_pair_healthy"] == 0
+    assert cold["canonical_pair_unknown"] == 1
+    assert cold["canonical_pair_reasons"] == {"COLD_START_NO_OBSERVED_CADENCE": 1}
+
+    next_ms = first_ms + 600
+    client.replace(
+        server_ms=next_ms,
+        pair=_pair(server_ms=next_ms, sequence_id=11, feed_speed_ms=500),
+    )
+    healthy = _cycle(client, tracker)
+
+    assert healthy["canonical_pair_integrity_valid"] == 1
+    assert healthy["canonical_pair_healthy"] == 1
+    assert healthy["canonical_pair_unknown"] == 0
+    assert healthy["canonical_pair_reasons"] == {}
+
+
 def test_receipt_binds_exact_bytes_hashes_counts_time_and_pttl() -> None:
     now = 1_784_674_800_123
     pair = _pair(server_ms=now)
@@ -204,8 +237,56 @@ def test_summary_json_rejects_nonfinite_without_redis_write() -> None:
     now = 1_784_674_800_000
     client = _Redis(server_ms=now, pair=_pair(server_ms=now))
 
-    assert supervisor._write_summary(client, {"forged": math.nan}, ttl_seconds=10) is False
+    with pytest.raises(
+        supervisor.SummaryPublicationError,
+        match="^SUMMARY_SERIALIZATION_FAILED$",
+    ):
+        supervisor._write_summary(client, {"forged": math.nan}, ttl_seconds=10)
     assert client.set_calls == []
+
+
+def test_summary_set_failure_is_observable_and_fails_the_cycle() -> None:
+    now = 1_784_674_800_000
+
+    class _SetDenied(_Redis):
+        def set(self, key: str, value: str, *, ex: int) -> bool:
+            raise PermissionError("dedicated ACL denied SET")
+
+    client = _SetDenied(server_ms=now, pair=_pair(server_ms=now))
+
+    with pytest.raises(supervisor.SummaryPublicationError, match="^SUMMARY_WRITE_FAILED$"):
+        _cycle(client)
+
+
+def test_summary_set_nonacknowledgement_is_observable_and_fails_the_cycle() -> None:
+    now = 1_784_674_800_000
+
+    class _SetNotAcknowledged(_Redis):
+        def set(self, key: str, value: str, *, ex: int) -> bool:
+            self.set_calls.append((key, value, ex))
+            return False
+
+    client = _SetNotAcknowledged(server_ms=now, pair=_pair(server_ms=now))
+
+    with pytest.raises(
+        supervisor.SummaryPublicationError,
+        match="^SUMMARY_WRITE_NOT_ACKNOWLEDGED$",
+    ):
+        _cycle(client)
+    assert len(client.set_calls) == 1
+
+
+def test_missing_redis_client_fails_before_pair_reads() -> None:
+    with pytest.raises(
+        supervisor.SummaryPublicationError,
+        match="^SUMMARY_REDIS_UNAVAILABLE$",
+    ):
+        supervisor.run_cycle(
+            None,
+            symbols=["BTCUSDT"],
+            ttl_seconds=60,
+            cadence_tracker=supervisor.AdaptiveCadenceTracker(),
+        )
 
 
 @pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
@@ -227,6 +308,36 @@ def test_exact_json_parser_rejects_numeric_overflow_to_infinity() -> None:
     summary = _cycle(_Redis(server_ms=now, pair=(forged, features)))
 
     assert summary["canonical_pair_reasons"] == {"JSON_NONFINITE_NUMBER": 1}
+
+
+def test_valid_json_huge_integer_is_held_instead_of_escaping_overflow() -> None:
+    now = 1_784_674_800_000
+    depth, features = _pair(server_ms=now)
+    depth = _mutate_json(
+        depth,
+        lambda row: row["bids"][0].__setitem__("price", 10**309),
+    )
+
+    summary = _cycle(_Redis(server_ms=now, pair=(depth, features)))
+
+    assert summary["canonical_pair_integrity_valid"] == 0
+    assert summary["canonical_pair_reasons"] == {"DEPTH_PRICE_INVALID": 1}
+
+
+def test_deep_valid_json_is_bounded_and_held_instead_of_recursing() -> None:
+    now = 1_784_674_800_000
+    depth, features = _pair(server_ms=now)
+    payload = json.loads(depth)
+    nested: Any = 0
+    for _ in range(supervisor.MAX_JSON_NESTING_DEPTH + 2):
+        nested = [nested]
+    payload["unexpected_nested_value"] = nested
+    forged = json.dumps(payload, separators=(",", ":")).encode()
+
+    summary = _cycle(_Redis(server_ms=now, pair=(forged, features)))
+
+    assert summary["canonical_pair_integrity_valid"] == 0
+    assert summary["canonical_pair_reasons"] == {"JSON_NESTING_LIMIT_EXCEEDED": 1}
 
 
 def test_exact_json_parser_rejects_duplicate_keys_at_any_depth() -> None:

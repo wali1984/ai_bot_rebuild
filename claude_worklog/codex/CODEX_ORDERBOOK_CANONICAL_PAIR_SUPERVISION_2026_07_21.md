@@ -8,6 +8,8 @@
 drop-in are staged, but the dedicated Redis ACL credential does not exist and
 the operator has not authorized installation or restart.  This slice grants
 no trainer, paper, model, leverage, margin, order, or live-execution authority.
+The staged artifact predates this reliability remediation and is superseded;
+it is not evidence for the corrected source and must not be deployed.
 
 The currently running service is the older mutable process started on
 2026-07-17.  It was not stopped, restarted, reloaded, or modified by this
@@ -34,7 +36,10 @@ The supervisor has one write boundary only:
 `v2:orderbook:features:summary`.  Static AST regression coverage rejects
 write-method aliases and requires the sole `SET` call's key argument to be the
 literal `SUMMARY_KEY` name.  The component registry now describes this as a
-summary-only validator, not as a feature derivation publisher.
+summary-only validator, not as a feature derivation publisher.  Serialization
+failure, Redis `SET` failure, and missing write acknowledgement are explicit
+cycle failures; the process cannot report success while leaving no current
+summary.
 
 ## Exact-byte and semantic contract
 
@@ -49,16 +54,18 @@ Each atomic observation records, without republishing source data:
 
 Strict JSON parsing rejects invalid UTF-8, duplicate keys at any nesting
 level, non-standard `NaN`/`Infinity` constants, numeric overflow to infinity,
+finite-syntax integers outside the supported numeric range, over-nested JSON,
 non-object roots, empty/oversize records, and non-binary Redis values.  The
-2-MiB byte ceiling is an immutable memory/decoder resource limit, not a market
-threshold.
+2-MiB byte ceiling and 64-level decoder nesting ceiling are immutable
+memory/decoder resource limits, not market thresholds.
 
 The semantic validator requires exact schemas, `direct_binance`, `binance`,
 the requested canonical symbol, positive exact-integer current and previous
 sequence IDs, no sequence gap, and matching identity/sequence/clock fields.
 Only the Binance direct-WebSocket `partial_depth` protocol is accepted.  The
 allowed depth levels (`5`, `10`, `20`) and announced transports (`100 ms`,
-`250 ms`) are Binance protocol enumerations; REST snapshots are rejected.
+`250 ms`, `500 ms`) are Binance protocol enumerations implemented by the
+canonical recorder; REST snapshots are rejected.
 
 Depth must be a non-empty JSON list whose entries contain exactly `price` and
 `quantity`; both must be positive and finite.  Bids must be strictly
@@ -90,7 +97,9 @@ process:
    previous Redis server observation.  This prevents replayed old records from
    seeding a permissive cadence.
 3. Recent exact availability intervals form a bounded process-local evidence
-   window.  The bound of 32 entries limits memory only.
+   window.  The bound of 32 entries caps memory and defines how long an older
+   cadence observation remains in the estimator.  It is a fixed evidence-window
+   resource parameter, not a seconds-, price-, volatility-, or return threshold.
 4. The freshness budget is the lesser of the maximum recently observed source
    interval and the currently evidenced producer-expiry horizon.  No fixed
    seconds value or market multiplier participates.
@@ -126,25 +135,29 @@ A separate two-observation BTCUSDT probe produced:
 These values are point observations, not market constants and not trainer
 admission evidence.
 
-## Immutable staging identity
+## Superseded staging identity
+
+The following identity records the prior staging attempt.  It does not contain
+this remediation commit.  A new immutable artifact and dependency environment
+must be built and independently verified before any future operator cutover.
 
 - pushed code commit:
   `5c625692472496c7ddca89782f38445ea6412420`;
 - detached clean code artifact:
   `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/5c625692472496c7ddca89782f38445ea6412420`;
-- frozen Python dependency tree:
+- dependency environment used by the prior attempt:
   `/home/wali/ai_bot_local_data/deployments/python_envs/6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0`;
 - dependency normalized-content identity:
   `6360ea33fcfb9f9a81724989bbd32ace2b02bf7eaa7a8771d64d282f423173f0`;
 - repository drop-in:
   `claude_worklog/systemd/user/ai-bot-v2-orderbook-features-publisher.service.d/90-immutable-release.conf`.
 
-The drop-in resets mutable working-directory/environment/command entries,
-pins both exact paths read-only in the service mount namespace, checks a clean
-detached worktree whose HEAD equals the pushed SHA in both ancestry
-directions, and runs the frozen interpreter directly.  Namespace read-only
-mounting does not make the host path tamper-proof against the same host user;
-that residual limitation is explicit.
+The drop-in resets mutable working-directory/environment/command entries and
+mounts both paths read-only inside the service namespace.  Independent review
+found that the host paths remain owner-writable and the dependency environment
+contains an editable-package path back to the mutable main checkout.  The
+prior staging attempt is therefore not an immutable release boundary and must
+be replaced, not reused.
 
 ## Dedicated Redis ACL operator gate
 
@@ -170,15 +183,18 @@ none occurred here.
 
 ## Validation
 
-The source worktree and the frozen, read-only transient namespace both passed
-the combined supervisor/direct-recorder/causal-cost/component-registry suites:
+The remediated source worktree passed:
 
-- 123 tests passed;
+- 41 focused publisher tests;
+- 149 combined supervisor/direct-recorder/order-book/cost/component-registry
+  tests;
 - Python compilation passed;
 - Ruff fatal selectors `E9,F63,F7,F82` passed;
-- `git diff --check` passed;
-- repository unit/drop-in verification had no error scoped to this service;
-- transient `findmnt` showed both code and dependency roots `ro,relatime`.
+- `git diff --check` passed.
+
+No new deployment artifact, dependency environment, unit installation, or
+service action was performed.  The prior artifact's results do not prove this
+remediated source.
 
 The adversarial suite covers duplicate/nonfinite JSON, numeric overflow,
 malformed truthy books, missing/bool sequence IDs, REST substitution, forged
@@ -189,14 +205,15 @@ Redis-write AST aliases.
 
 ## Remaining deploy gates
 
-1. Independent re-review of this follow-up commit and the staged artifact.
-2. Operator provisions and verifies the dedicated least-privilege Redis ACL
+1. Independent re-review of this follow-up commit.
+2. Build and independently verify a new immutable code and dependency artifact.
+3. Operator provisions and verifies the dedicated least-privilege Redis ACL
    and encrypted credential without exposing it in the repository or logs.
-3. Operator authorizes replacement of the old mutable service.
-4. Install the tracked base unit and exact drop-in, reload, then verify the
-   merged unit before start.
-5. After start, observe cold-start UNKNOWN followed by causally earned health,
+4. Operator authorizes replacement of the old mutable service.
+5. Install an exact drop-in pinned to the new reviewed artifact, reload, then
+   verify the merged unit before start.
+6. After start, observe cold-start UNKNOWN followed by causally earned health,
    verify zero per-symbol writes, and confirm the direct recorder remains the
    sole owner.
 
-Until all five complete, deployment remains **NO-GO**.
+Until all six complete, deployment remains **NO-GO**.

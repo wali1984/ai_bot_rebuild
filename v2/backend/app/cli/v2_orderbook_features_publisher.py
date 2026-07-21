@@ -38,9 +38,10 @@ DIRECT_DEPTH_SCHEMA = "direct_orderbook_depth_v1"
 DIRECT_FEATURES_SCHEMA = "direct_orderbook_features_v1"
 REDIS_CREDENTIAL_NAME = "V2_ORDERBOOK_SUPERVISOR_REDIS_URL"
 
-# Resource/protocol limits only.  Neither value is a market-freshness gate.
+# Resource/protocol limits only.  These values are not market-freshness gates.
 MAX_RECORD_BYTES = 2 * 1024 * 1024
 CADENCE_HISTORY_LENGTH = 32
+MAX_JSON_NESTING_DEPTH = 64
 
 # Redis executes a Lua script without interleaving another command.  TIME,
 # both exact values, and both expiry observations therefore share one read
@@ -134,11 +135,15 @@ _FEATURE_FIELDS = _PAIR_FIELDS | frozenset(
     }
 )
 _SUPPORTED_PARTIAL_DEPTH_LEVELS = frozenset({5, 10, 20})
-_SUPPORTED_BINANCE_WSS_CADENCES_MS = frozenset({100, 250})
+_SUPPORTED_BINANCE_WSS_CADENCES_MS = frozenset({100, 250, 500})
 
 
 class PairValidationError(ValueError):
     """Fail-closed semantic rejection with a stable summary reason."""
+
+
+class SummaryPublicationError(RuntimeError):
+    """The required supervision summary could not be published."""
 
 
 def _reject(reason: str) -> NoReturn:
@@ -246,14 +251,20 @@ def _raw_bytes(value: Any) -> bytes | None:
 
 
 def _reject_nonfinite_tree(value: Any) -> None:
-    if type(value) is float and not math.isfinite(value):
-        _reject("JSON_NONFINITE_NUMBER")
-    if type(value) is dict:
-        for nested in value.values():
-            _reject_nonfinite_tree(nested)
-    elif type(value) is list:
-        for nested in value:
-            _reject_nonfinite_tree(nested)
+    pending: list[tuple[Any, int]] = [(value, 0)]
+    while pending:
+        current, depth = pending.pop()
+        if type(current) is float and not math.isfinite(current):
+            _reject("JSON_NONFINITE_NUMBER")
+        if type(current) is dict:
+            nested_values = list(current.values())
+        elif type(current) is list:
+            nested_values = current
+        else:
+            continue
+        if nested_values and depth >= MAX_JSON_NESTING_DEPTH:
+            _reject("JSON_NESTING_LIMIT_EXCEEDED")
+        pending.extend((nested, depth + 1) for nested in nested_values)
 
 
 def _strict_json(raw: bytes | None) -> dict[str, Any]:
@@ -270,6 +281,8 @@ def _strict_json(raw: bytes | None) -> dict[str, Any]:
         )
     except PairValidationError:
         raise
+    except RecursionError:
+        _reject("JSON_NESTING_LIMIT_EXCEEDED")
     except (UnicodeError, json.JSONDecodeError, ValueError, TypeError):
         _reject("JSON_INVALID")
     if type(payload) is not dict:
@@ -281,7 +294,10 @@ def _strict_json(raw: bytes | None) -> dict[str, Any]:
 def _exact_finite(value: Any, *, reason: str, positive: bool = False) -> float:
     if type(value) not in {int, float}:
         _reject(reason)
-    parsed = float(value)
+    try:
+        parsed = float(value)
+    except (OverflowError, TypeError, ValueError):
+        _reject(reason)
     if not math.isfinite(parsed) or (positive and parsed <= 0.0):
         _reject(reason)
     return parsed
@@ -292,7 +308,10 @@ def _number_matches(value: Any, expected: float | None) -> bool:
         return value is None
     if type(value) not in {int, float}:
         return False
-    parsed = float(value)
+    try:
+        parsed = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return False
     return math.isfinite(parsed) and parsed.hex() == float(expected).hex()
 
 
@@ -709,10 +728,10 @@ class AdaptiveCadenceTracker:
         return {"status": "HEALTHY", "reason": None, **evidence}
 
 
-def _write_summary(client: Any, payload: Mapping[str, Any], *, ttl_seconds: int) -> bool:
+def _write_summary(client: Any, payload: Mapping[str, Any], *, ttl_seconds: int) -> None:
     ttl = _positive_int(ttl_seconds, name="ttl_seconds")
     if client is None:
-        return False
+        raise SummaryPublicationError("SUMMARY_REDIS_UNAVAILABLE")
     try:
         encoded = json.dumps(
             dict(payload),
@@ -720,10 +739,14 @@ def _write_summary(client: Any, payload: Mapping[str, Any], *, ttl_seconds: int)
             separators=(",", ":"),
             allow_nan=False,
         )
-        client.set(SUMMARY_KEY, encoded, ex=ttl)
-        return True
+    except (TypeError, ValueError):
+        raise SummaryPublicationError("SUMMARY_SERIALIZATION_FAILED") from None
+    try:
+        written = client.set(SUMMARY_KEY, encoded, ex=ttl)
     except Exception:
-        return False
+        raise SummaryPublicationError("SUMMARY_WRITE_FAILED") from None
+    if written is not True:
+        raise SummaryPublicationError("SUMMARY_WRITE_NOT_ACKNOWLEDGED")
 
 
 def run_cycle(
@@ -736,6 +759,8 @@ def run_cycle(
     ttl = _positive_int(ttl_seconds, name="ttl_seconds")
     if type(symbols) is not list or type(cadence_tracker) is not AdaptiveCadenceTracker:
         raise ValueError("cycle_configuration_invalid")
+    if client is None:
+        raise SummaryPublicationError("SUMMARY_REDIS_UNAVAILABLE")
     normalized_symbols: list[str] = []
     for symbol in symbols:
         if type(symbol) is not str or _SYMBOL_RE.fullmatch(symbol) is None:
@@ -792,6 +817,30 @@ def run_cycle(
             }
             if isinstance(read, AtomicPairRead):
                 receipt = {**read.receipt(), **receipt}
+        except OverflowError:
+            reason = "VALIDATION_NUMERIC_RANGE_EXCEEDED"
+            reasons[reason] = reasons.get(reason, 0) + 1
+            receipt = {
+                "schema_version": "v2_orderbook_atomic_pair_read_receipt_v1",
+                "symbol": symbol,
+                "integrity_valid": False,
+                "rejection_reason": reason,
+                "atomic_read_lua_sha256": ATOMIC_PAIR_READ_LUA_SHA256,
+            }
+            if isinstance(read, AtomicPairRead):
+                receipt = {**read.receipt(), **receipt}
+        except RecursionError:
+            reason = "JSON_NESTING_LIMIT_EXCEEDED"
+            reasons[reason] = reasons.get(reason, 0) + 1
+            receipt = {
+                "schema_version": "v2_orderbook_atomic_pair_read_receipt_v1",
+                "symbol": symbol,
+                "integrity_valid": False,
+                "rejection_reason": reason,
+                "atomic_read_lua_sha256": ATOMIC_PAIR_READ_LUA_SHA256,
+            }
+            if isinstance(read, AtomicPairRead):
+                receipt = {**read.receipt(), **receipt}
         receipts.append(receipt)
 
     observed_at = _canonical_utc_from_ms(last_server_ms) if last_server_ms is not None else None
@@ -819,6 +868,8 @@ def run_cycle(
         "per_symbol_feature_write_authorized": False,
         "canonical_per_symbol_owner": "v2_direct_orderbook_recorder",
         "summary_only_supervision": True,
+        "summary_publication_required": True,
+        "summary_publication_failure_policy": "PROCESS_FAILS_FOR_SYSTEMD_RESTART",
         "summary_ttl_seconds": ttl,
         "trainer_admission_authorized": False,
         "consumer_eligible": False,
