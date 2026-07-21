@@ -10,6 +10,9 @@ Environment=PYTHONUNBUFFERED=1
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools"
 Environment="LIVE_GATE=blocked_human_only"
 ExecStart=/usr/bin/env bash -lc 'exec "/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" "/home/wali/Desktop/AI BOT REBUILD/claude_worklog/tools/v2_autonomous_no_manual_next_task_policy.py" --json'
+# Exit 1 is the tool's typed policy-BLOCKED result, not a process failure.  The
+# JSON/Markdown payload remains BLOCKED; unexpected exit codes still fail.
+SuccessExitStatus=1
 StandardOutput=journal
 StandardError=journal
 NoNewPrivileges=true
