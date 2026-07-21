@@ -6,7 +6,7 @@ testable. Heartbeat metadata per component is data, enriched over time.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 Criticality = Literal["critical", "high", "normal"]
@@ -45,10 +45,13 @@ UNIT_DENYLIST_SUBSTRINGS: tuple[str, ...] = (
 class ComponentSpec:
     """One healable component.
 
-    ``heartbeat_redis_key`` / ``heartbeat_field`` describe where the component
-    publishes a monotonically-fresh timestamp. When ``max_staleness_seconds`` is
-    None the component is process-liveness-only (dead-process healing only). When
-    a heartbeat is declared, a live-but-stale process is also healed.
+    ``heartbeat_redis_key`` / ``heartbeat_file`` / ``heartbeat_files`` describe
+    where the component publishes a monotonically-fresh timestamp. Multiple
+    files are permitted for a service whose explicitly selected resident modes
+    publish distinct schemas; the supervisor uses the freshest valid clock.
+    When ``max_staleness_seconds`` is None the component is
+    process-liveness-only (dead-process healing only). When a heartbeat is
+    declared, a live-but-stale process is also healed.
     """
 
     name: str
@@ -58,6 +61,7 @@ class ComponentSpec:
     heartbeat_redis_key: str | None = None
     heartbeat_field: str = "generated_utc"
     heartbeat_file: str | None = None
+    heartbeat_files: tuple[str, ...] = ()
     max_staleness_seconds: int | None = None
     process_pattern: str | None = None
     heal_mode: HealMode = "auto"
@@ -216,11 +220,18 @@ _FE = "v2/frontend/public/operator_runtime"  # file-heartbeat prefix
 
 NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     # --- trainer subsystem ---
-    # Native trainer's own per-cycle artifact (cycle is 12-26min, pre-existing);
-    # 1800s avoids false positives. File heartbeat = the trainer writes it itself.
+    # Native trainer has two explicitly selected resident modes.  The legacy
+    # training runtime publishes the first path; the authenticated-sample
+    # waiting observer publishes the second.  Observe the freshest valid clock
+    # so a stale artifact from the inactive mode cannot restart the active mode.
+    # The 1800s limit remains deliberately generous for the legacy 12-26min
+    # training cycle; the waiting observer currently publishes every 30s.
     _svc("native_cuda_trainer_persistent", "native-cuda-trainer-persistent", "trainer",
          criticality="critical",
          heartbeat_file="v2/frontend/public/v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/latest/native_cuda_trainer_persistent_runtime_status.json",
+         heartbeat_files=(
+             "v2/runtime/native_cuda_trainer_waiting_for_authenticated_samples_status.json",
+         ),
          heartbeat_field="generated_utc", max_staleness_seconds=1800),
     _svc("continuous_offline_gpu_trainer", "continuous-offline-gpu-trainer", "trainer",
          criticality="normal", process_pattern="continuous_offline_gpu_trainer_loop.sh"),
@@ -375,4 +386,3 @@ NON_INGESTOR_COMPONENTS: tuple[ComponentSpec, ...] = (
     # process-liveness-only until confirmed.
     _svc("production_replacement_runtime_guard", "production-replacement-runtime-guard", "self_heal", criticality="normal"),
 )
-

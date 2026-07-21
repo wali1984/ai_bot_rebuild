@@ -132,30 +132,50 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _heartbeat_age_seconds(client: Any, spec: ComponentSpec, now: datetime) -> float | None:
-    payload: Any = None
+    def payload_age(payload: Any) -> float | None:
+        if not isinstance(payload, dict):
+            return None
+        stamp = _parse_timestamp(payload.get(spec.heartbeat_field))
+        if stamp is None:
+            for alt in (
+                "generated_utc",
+                "generated_at",
+                "generated_est",
+                "updated_at",
+                "ts",
+                "timestamp",
+            ):
+                stamp = _parse_timestamp(payload.get(alt))
+                if stamp is not None:
+                    break
+        if stamp is None:
+            return None
+        return max(0.0, (now - stamp).total_seconds())
+
     if spec.heartbeat_redis_key and client is not None:
         try:
             raw = client.get(spec.heartbeat_redis_key)
-            payload = json.loads(raw) if raw else None
-        except Exception:
-            payload = None
-    if payload is None and spec.heartbeat_file:
-        fp = REPO_ROOT / spec.heartbeat_file
+            redis_age = payload_age(json.loads(raw) if raw else None)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            redis_age = None
+        if redis_age is not None:
+            return redis_age
+
+    file_ages: list[float] = []
+    heartbeat_files = tuple(
+        path
+        for path in (spec.heartbeat_file, *spec.heartbeat_files)
+        if path is not None
+    )
+    for heartbeat_file in heartbeat_files:
+        fp = REPO_ROOT / heartbeat_file
         try:
-            payload = json.loads(fp.read_text())
-        except Exception:
-            payload = None
-    if not isinstance(payload, dict):
-        return None
-    stamp = _parse_timestamp(payload.get(spec.heartbeat_field))
-    if stamp is None:
-        for alt in ("generated_utc", "generated_at", "generated_est", "updated_at", "ts", "timestamp"):
-            stamp = _parse_timestamp(payload.get(alt))
-            if stamp is not None:
-                break
-    if stamp is None:
-        return None
-    return max(0.0, (now - stamp).total_seconds())
+            age = payload_age(json.loads(fp.read_text()))
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            age = None
+        if age is not None:
+            file_ages.append(age)
+    return min(file_ages) if file_ages else None
 
 
 def _deliberately_stopped(client: Any) -> set[str]:

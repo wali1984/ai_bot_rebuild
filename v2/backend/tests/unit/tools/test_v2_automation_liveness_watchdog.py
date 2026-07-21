@@ -8,6 +8,53 @@ import pytest
 from claude_worklog.tools import v2_automation_liveness_watchdog as watchdog
 
 
+@pytest.mark.parametrize(
+    ("systemctl_present", "manager_returncode", "manager_state", "expected"),
+    [
+        (True, 0, "running\n", True),
+        (True, 1, "degraded\n", True),
+        (True, 1, "offline\n", False),
+        (True, 1, "unknown\n", False),
+        (False, 127, "", False),
+    ],
+)
+def test_systemd_user_available_distinguishes_degraded_from_unreachable(
+    systemctl_present: bool,
+    manager_returncode: int,
+    manager_state: str,
+    expected: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], timeout: int = 15) -> SimpleNamespace:
+        del timeout
+        calls.append(args)
+        if args[0] == "bash":
+            return SimpleNamespace(
+                returncode=0 if systemctl_present else 1,
+                stdout="",
+                stderr="",
+            )
+        assert args == ["systemctl", "--user", "is-system-running"]
+        return SimpleNamespace(
+            returncode=manager_returncode,
+            stdout=manager_state,
+            stderr="",
+        )
+
+    monkeypatch.setattr(watchdog, "run", fake_run)
+    assert watchdog.systemd_user_available() is expected
+    assert calls == (
+        [
+            ["bash", "-lc", "command -v systemctl >/dev/null"],
+            ["systemctl", "--user", "is-system-running"],
+        ]
+        if systemctl_present
+        else [["bash", "-lc", "command -v systemctl >/dev/null"]]
+    )
+
+
 def test_deliberately_stopped_marker_is_parsed_and_invalid_content_fails_closed(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

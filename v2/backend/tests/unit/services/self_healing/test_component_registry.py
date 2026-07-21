@@ -202,7 +202,7 @@ def test_registry_is_well_formed_and_has_no_denylisted_units() -> None:
             "publisher", "self_heal",
         }
         if c.max_staleness_seconds is not None:
-            assert c.heartbeat_redis_key or c.heartbeat_file, (
+            assert c.heartbeat_redis_key or c.heartbeat_file or c.heartbeat_files, (
                 f"{c.unit} has staleness threshold but no heartbeat source"
             )
 
@@ -220,3 +220,22 @@ def test_critical_components_are_registered() -> None:
         "ai-bot-v2-continuous-edge-guardian.service",
     ):
         assert required in units, f"missing critical component: {required}"
+
+
+def test_native_trainer_registry_observes_waiting_and_training_modes() -> None:
+    from v2.backend.app.services.self_healing.component_registry import NON_INGESTOR_COMPONENTS
+
+    trainer = next(
+        component
+        for component in NON_INGESTOR_COMPONENTS
+        if component.unit == "ai-bot-v2-native-cuda-trainer-persistent.service"
+    )
+    assert trainer.heartbeat_file == (
+        "v2/frontend/public/"
+        "v2_persistent_cuda_trainer_resource_utilization_and_paper_drawdown_guard/"
+        "latest/native_cuda_trainer_persistent_runtime_status.json"
+    )
+    assert trainer.heartbeat_files == (
+        "v2/runtime/"
+        "native_cuda_trainer_waiting_for_authenticated_samples_status.json",
+    )

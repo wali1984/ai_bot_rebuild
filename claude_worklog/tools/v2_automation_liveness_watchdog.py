@@ -103,7 +103,14 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
 def systemd_user_available() -> bool:
     if run(["bash", "-lc", "command -v systemctl >/dev/null"]).returncode != 0:
         return False
-    return run(["systemctl", "--user", "is-system-running"]).returncode == 0
+    probe = run(["systemctl", "--user", "is-system-running"])
+    # ``systemctl is-system-running`` deliberately exits non-zero when any
+    # user unit has failed, even though the user manager remains reachable and
+    # can still report or supervise every other unit.  Treat that documented
+    # ``degraded`` state as available; transport/offline/unknown states remain
+    # unavailable and therefore cannot authorize restart attempts.
+    state = probe.stdout.strip().lower()
+    return probe.returncode == 0 or state == "degraded"
 
 
 def unit_installed(unit: str) -> bool:
