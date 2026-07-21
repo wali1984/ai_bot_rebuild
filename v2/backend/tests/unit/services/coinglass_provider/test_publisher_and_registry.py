@@ -41,7 +41,16 @@ def test_publisher_writes_raw_feature_health_usage_and_endpoint_map() -> None:
         spec=spec,
         symbol="BTCUSDT",
         http_status=200,
-        payload={"data": [{"fundingRate": 0.0002, "time": 1783512000000}]},
+        payload={
+            "data": [
+                {
+                    "symbol": "BTC",
+                    "stablecoin_margin_list": [
+                        {"exchange": "Binance", "funding_rate": 0.02}
+                    ],
+                }
+            ]
+        },
         rate_limit_status={"requests_per_minute": 210},
     )
     assert result["actual_payload_present"] is True
@@ -58,7 +67,9 @@ def test_publisher_writes_raw_feature_health_usage_and_endpoint_map() -> None:
 def test_publisher_merges_endpoint_features_into_symbol_feature_payload() -> None:
     r = FakeRedis()
     funding = next(s for s in coinglass_endpoint_registry() if s.endpoint_id == "funding_rate")
-    open_interest = next(s for s in coinglass_endpoint_registry() if s.endpoint_id == "open_interest")
+    open_interest = next(
+        s for s in coinglass_endpoint_registry() if s.endpoint_id == "open_interest"
+    )
 
     publish_coinglass_result(
         r,
@@ -66,7 +77,16 @@ def test_publisher_merges_endpoint_features_into_symbol_feature_payload() -> Non
         spec=funding,
         symbol="BTCUSDT",
         http_status=200,
-        payload={"data": [{"fundingRate": 0.0002, "time": 1783512000000}]},
+        payload={
+            "data": [
+                {
+                    "symbol": "BTC",
+                    "stablecoin_margin_list": [
+                        {"exchange": "Binance", "funding_rate": 0.02}
+                    ],
+                }
+            ]
+        },
         rate_limit_status={"requests_per_minute": 210},
     )
     publish_coinglass_result(
@@ -75,7 +95,12 @@ def test_publisher_merges_endpoint_features_into_symbol_feature_payload() -> Non
         spec=open_interest,
         symbol="BTCUSDT",
         http_status=200,
-        payload={"data": [{"openInterestUsd": 1234567, "time": 1783512060000}]},
+        payload={
+            "data": [
+                {"exchange": "All", "open_interest_usd": 1234567},
+                {"exchange": "CME", "open_interest_usd": 456789},
+            ]
+        },
         rate_limit_status={"requests_per_minute": 210},
     )
 
@@ -114,7 +139,9 @@ def test_auth_backoff_status_stays_gray_not_degraded_yellow() -> None:
 
 def test_health_stays_green_when_actual_endpoint_exists_and_optional_endpoint_degrades() -> None:
     r = FakeRedis()
-    open_interest = next(s for s in coinglass_endpoint_registry() if s.endpoint_id == "open_interest")
+    open_interest = next(
+        s for s in coinglass_endpoint_registry() if s.endpoint_id == "open_interest"
+    )
     trades = next(s for s in coinglass_endpoint_registry() if s.endpoint_id == "trades")
 
     publish_coinglass_result(
@@ -123,7 +150,12 @@ def test_health_stays_green_when_actual_endpoint_exists_and_optional_endpoint_de
         spec=open_interest,
         symbol="BTCUSDT",
         http_status=200,
-        payload={"data": [{"openInterestUsd": 1234567, "time": 1783512060000}]},
+        payload={
+            "data": [
+                {"exchange": "All", "open_interest_usd": 1234567},
+                {"exchange": "CME", "open_interest_usd": 456789},
+            ]
+        },
         rate_limit_status={"requests_per_minute": 210},
     )
     publish_coinglass_result(

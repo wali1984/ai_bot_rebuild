@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.services.coinglass_provider.client import CoinGlassClient
@@ -21,14 +21,22 @@ from app.services.coinglass_provider.rate_limit import (
     CoinGlassRateLimiter,
 )
 
-
 SCHEDULER_STATUS_KEY = "v2:provider:coinglass:scheduler_status"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="v2_coinglass_provider_loop")
-    parser.add_argument("--redis-url", default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
-    parser.add_argument("--symbols", default=os.environ.get("COINGLASS_SYMBOLS", "BTCUSDT,ETHUSDT,SOLUSDT"))
+    parser.add_argument(
+        "--redis-url",
+        default=os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
+    )
+    parser.add_argument(
+        "--symbols",
+        default=os.environ.get(
+            "COINGLASS_SYMBOLS",
+            "BTCUSDT,ETHUSDT,SOLUSDT",
+        ),
+    )
     parser.add_argument("--timeframe", default=os.environ.get("COINGLASS_TIMEFRAME", "1m"))
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--sleep-seconds", type=float, default=15.0)
@@ -37,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         from v2.backend.app.services.safe_env_loader import bootstrap_process_env
 
         bootstrap_process_env(apply=True)
-    except Exception:
+    except Exception:  # noqa: S110 - preserve startup fallback to process env
         pass  # fall back to whatever the process env already carries
     redis_client = _redis_client(args.redis_url)
     symbols = _symbols(args.symbols)
@@ -72,13 +80,19 @@ def run_once(
     plan = coinglass_scheduler_plan(symbols)
     results: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
-    disabled = disabled_endpoints if disabled_endpoints is not None else _disabled_endpoints_from_env()
+    request_count = 0
+    disabled = (
+        disabled_endpoints
+        if disabled_endpoints is not None
+        else _disabled_endpoints_from_env()
+    )
     now_value = time.monotonic() if now_monotonic is None else float(now_monotonic)
     for spec in coinglass_endpoint_registry():
         if spec.group == "exchange_metadata":
             continue
         if spec.endpoint_id in disabled:
             continue
+        due_symbols: list[tuple[str, str]] = []
         for symbol in symbols[: _max_symbols_for_endpoint(spec, symbols)]:
             cadence_seconds = _cadence_seconds_for_symbol(spec, symbols=symbols, symbol=symbol)
             state_key = f"{spec.endpoint_id}:{symbol}"
@@ -94,11 +108,40 @@ def run_once(
                         "endpoint_id": spec.endpoint_id,
                         "symbol": symbol,
                         "cadence_seconds": cadence_seconds,
-                        "seconds_until_due": max(0.0, cadence_seconds - (now_value - float(last_polled))),
+                        "seconds_until_due": max(
+                            0.0,
+                            cadence_seconds - (now_value - float(last_polled)),
+                        ),
                     }
                 )
                 continue
+            due_symbols.append((symbol, state_key))
+
+        if not due_symbols:
+            continue
+        if spec.response_scope == "all_symbols":
+            response = client.get(spec, symbol=None)
+            request_count += 1
+            for symbol, state_key in due_symbols:
+                if scheduler_state is not None:
+                    scheduler_state[state_key] = now_value
+                result = publish_coinglass_result(
+                    redis_client,
+                    env=os.environ,
+                    spec=spec,
+                    symbol=symbol,
+                    http_status=response.http_status,
+                    payload=response.payload,
+                    rate_limit_status=client.limiter.as_dict(),
+                    error_class=response.error_class,
+                    timeframe=timeframe,
+                )
+                results.append(result)
+            continue
+
+        for symbol, state_key in due_symbols:
             response = client.get(spec, symbol=symbol)
+            request_count += 1
             if scheduler_state is not None:
                 scheduler_state[state_key] = now_value
             result = publish_coinglass_result(
@@ -122,7 +165,7 @@ def run_once(
         "registry": registry_payload(),
         "schedule_plan": plan,
         "result_count": len(results),
-        "request_count": len(results),
+        "request_count": request_count,
         "disabled_endpoints": sorted(disabled),
         "skipped_not_due_count": len(skipped),
         "skipped_not_due": skipped[:50],
@@ -132,7 +175,11 @@ def run_once(
         "core_system_blocked": False,
     }
     if redis_client is not None:
-        redis_client.set(SCHEDULER_STATUS_KEY, json.dumps(status, sort_keys=True, default=str), ex=300)
+        redis_client.set(
+            SCHEDULER_STATUS_KEY,
+            json.dumps(status, sort_keys=True, default=str),
+            ex=300,
+        )
     return status
 
 
@@ -141,7 +188,11 @@ def coinglass_scheduler_plan(symbols: list[str]) -> dict[str, Any]:
     total_budget = 0
     for spec in coinglass_endpoint_registry():
         symbols_per_cycle = _max_symbols_for_endpoint(spec, symbols)
-        endpoint_budget = min(spec.rate_budget_per_minute, max(0, len(symbols[:symbols_per_cycle])))
+        scheduled_symbol_count = max(0, len(symbols[:symbols_per_cycle]))
+        if spec.response_scope == "all_symbols":
+            endpoint_budget = min(spec.rate_budget_per_minute, int(scheduled_symbol_count > 0))
+        else:
+            endpoint_budget = min(spec.rate_budget_per_minute, scheduled_symbol_count)
         total_budget += endpoint_budget
         endpoint_rows.append(
             {
@@ -151,6 +202,7 @@ def coinglass_scheduler_plan(symbols: list[str]) -> dict[str, Any]:
                 "cadence_seconds_active_symbols": spec.cadence_seconds_active_symbols,
                 "cadence_seconds_full_universe": spec.cadence_seconds_full_universe,
                 "request_budget_per_minute": spec.rate_budget_per_minute,
+                "response_scope": spec.response_scope,
                 "scheduled_symbols_per_cycle": symbols_per_cycle,
                 "estimated_requests_per_cycle": endpoint_budget,
                 "feature_outputs": list(spec.feature_outputs),
@@ -209,7 +261,7 @@ def _symbols(raw: str) -> list[str]:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 if __name__ == "__main__":

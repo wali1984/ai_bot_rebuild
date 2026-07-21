@@ -22,10 +22,21 @@ class CoinGlassEndpointSpec:
     supports_batch: bool = False
     optional_if_plan_forbidden: bool = True
     # Params the v4 API requires beyond symbol (probed live 2026-07-08 against
-    # the provisioned key; e.g. exchange=Binance, interval=1h).
+    # the provisioned key; e.g. exchange=Binance plus an explicit interval).
     default_params: tuple[tuple[str, str], ...] = ()
     # "coin" strips USDT (BTC); "pair" keeps the full perp pair (BTCUSDT).
     symbol_format: str = "coin"
+    # Historical endpoints must declare the exact aggregation interval used by
+    # the provider.  The normalizer uses this to admit closed bars only and to
+    # carry truthful temporal lineage into Redis.
+    source_interval: str | None = None
+    # Response scope is independent of supports_batch.  Only endpoints that
+    # return all configured symbols from one request may opt into local fanout.
+    response_scope: str = "per_symbol"
+    # Historical rows fail closed once this many seconds have elapsed since
+    # bar_close.  Standard-plan hourly bounds span the next hourly window plus
+    # a small close-boundary overlap; they are absolute freshness deadlines.
+    max_source_age_seconds: int | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -50,7 +61,7 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             feature_outputs=(
                 "coinglass_price_usd",
                 "coinglass_volume_24h_usd",
-                "coinglass_price_change_24h_pct",
+                "coinglass_price_change_24h_fraction",
                 "coinglass_exchange_count",
                 "coinglass_market_snapshot_volume_usd",
             ),
@@ -69,10 +80,10 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             ttl_seconds=180,
             feature_outputs=(
                 "coinglass_funding_rate",
-                "coinglass_funding_rate_zscore",
                 "coinglass_next_funding_minutes",
             ),
             supports_batch=True,
+            response_scope="all_symbols",
         ),
         CoinGlassEndpointSpec(
             endpoint_id="open_interest",
@@ -87,9 +98,8 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             ttl_seconds=180,
             feature_outputs=(
                 "coinglass_open_interest_usd",
-                "coinglass_open_interest_delta_usd_5m",
-                "coinglass_open_interest_delta_usd_1h",
-                "coinglass_oi_price_divergence_score",
+                "coinglass_open_interest_change_fraction_5m",
+                "coinglass_open_interest_change_fraction_1h",
             ),
         ),
         CoinGlassEndpointSpec(
@@ -98,13 +108,15 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             path="/api/futures/top-long-short-account-ratio/history",
             default_params=(("exchange", "Binance"), ("interval", "1h")),
             symbol_format="pair",
+            source_interval="1h",
+            max_source_age_seconds=3720,
             purpose="crowd positioning and squeeze risk",
             priority="HIGH",
-            cadence_seconds_top_symbols=60,
-            cadence_seconds_active_symbols=120,
-            cadence_seconds_full_universe=600,
+            cadence_seconds_top_symbols=300,
+            cadence_seconds_active_symbols=300,
+            cadence_seconds_full_universe=300,
             rate_budget_per_minute=40,
-            ttl_seconds=300,
+            ttl_seconds=3720,
             feature_outputs=(
                 "coinglass_long_ratio",
                 "coinglass_short_ratio",
@@ -116,18 +128,20 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             group="liquidation_orders",
             path="/api/futures/liquidation/aggregated-history",
             default_params=(("exchange_list", "Binance"), ("interval", "1h")),
-            purpose="real-time liquidation pressure",
+            source_interval="1h",
+            max_source_age_seconds=3660,
+            purpose="Standard-plan hourly aggregate liquidation pressure",
             priority="CRITICAL_CONFLUENCE",
-            cadence_seconds_top_symbols=30,
-            cadence_seconds_active_symbols=60,
+            cadence_seconds_top_symbols=300,
+            cadence_seconds_active_symbols=300,
             cadence_seconds_full_universe=300,
             rate_budget_per_minute=50,
-            ttl_seconds=60,
+            ttl_seconds=3660,
             feature_outputs=(
-                "coinglass_liquidation_buy_usd_1m",
-                "coinglass_liquidation_sell_usd_1m",
+                "coinglass_liquidation_buy_usd_1h",
+                "coinglass_liquidation_sell_usd_1h",
+                "coinglass_liquidation_total_usd_1h",
                 "coinglass_liquidation_imbalance_usd",
-                "coinglass_liquidation_cascade_score",
             ),
         ),
         CoinGlassEndpointSpec(
@@ -152,16 +166,18 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
         CoinGlassEndpointSpec(
             endpoint_id="trades",
             group="trades",
-            path="/api/futures/taker-buy-sell-volume/history",
+            path="/api/futures/v2/taker-buy-sell-volume/history",
             default_params=(("exchange", "Binance"), ("interval", "1h")),
             symbol_format="pair",
-            purpose="tape confirmation",
+            source_interval="1h",
+            max_source_age_seconds=3660,
+            purpose="Standard-plan hourly tape confirmation",
             priority="HIGH",
-            cadence_seconds_top_symbols=30,
-            cadence_seconds_active_symbols=60,
-            cadence_seconds_full_universe=600,
+            cadence_seconds_top_symbols=300,
+            cadence_seconds_active_symbols=300,
+            cadence_seconds_full_universe=300,
             rate_budget_per_minute=40,
-            ttl_seconds=60,
+            ttl_seconds=3660,
             feature_outputs=("coinglass_trade_imbalance_usd",),
         ),
         CoinGlassEndpointSpec(
@@ -170,16 +186,17 @@ def coinglass_endpoint_registry() -> tuple[CoinGlassEndpointSpec, ...]:
             path="/api/futures/orderbook/ask-bids-history",
             default_params=(("exchange", "Binance"), ("interval", "1h")),
             symbol_format="pair",
-            purpose="microstructure, spoof-risk, and depth trust",
+            source_interval="1h",
+            max_source_age_seconds=3660,
+            purpose="Standard-plan hourly orderbook depth context",
             priority="HIGH",
-            cadence_seconds_top_symbols=30,
-            cadence_seconds_active_symbols=60,
-            cadence_seconds_full_universe=600,
+            cadence_seconds_top_symbols=300,
+            cadence_seconds_active_symbols=300,
+            cadence_seconds_full_universe=300,
             rate_budget_per_minute=40,
-            ttl_seconds=60,
+            ttl_seconds=3660,
             feature_outputs=(
                 "coinglass_orderbook_depth_imbalance_usd",
-                "coinglass_orderbook_trust_delta",
             ),
         ),
         CoinGlassEndpointSpec(
