@@ -1,4 +1,5 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
+import { useAuth } from '../../hooks/useAuth';
 import { useEnterpriseRealtimeResource } from '../../lib/realtime/RealtimeProvider';
 
 interface RuntimePerformance {
@@ -347,6 +348,7 @@ function PublicRuntimeSummary({
   evaluatedCandidates: number | null | undefined;
   blockers: string[];
 }): JSX.Element {
+  const { user } = useAuth();
   const gateText = publicSafeRuntimeText(liveGate, 'approval gated');
   const currentSources = publicSafeRuntimeText(marketFeed?.freshness_state, 'connecting');
   const topBlocker = blockers.length > 0
@@ -376,8 +378,8 @@ function PublicRuntimeSummary({
       <Item label="Trading gate" value={gateText || 'approval gated'} tone="bad" />
       <Item
         label="Access"
-        value={surface === 'public' ? 'sign in needed' : 'trader account needed'}
-        tone="warn"
+        value={user ? 'signed in' : surface === 'public' ? 'sign in needed' : 'trader account needed'}
+        tone={user ? 'ok' : 'warn'}
       />
       <Item
         label="Market feeds"

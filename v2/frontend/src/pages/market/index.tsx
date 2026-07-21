@@ -389,6 +389,25 @@ function changeClass(v: number | null): string {
   return v > 0 ? 'mdc-pos' : v < 0 ? 'mdc-neg' : '';
 }
 
+/** Honest liquidation-stream freshness: consult `stale`/`staleness_ms` before
+ *  claiming Live — a stream_active flag with a stale payload is not "Live". */
+function fmtLiquidationStream(status: {
+  stream_active: boolean;
+  stale?: boolean;
+  staleness_ms?: number | null;
+} | null): { value: string; tone?: string } {
+  if (!status) return { value: 'Connecting' };
+  if (status.stale) {
+    const ms = status.staleness_ms;
+    const age = ms != null && Number.isFinite(ms)
+      ? ms < 90_000 ? `${Math.round(ms / 1000)}s` : ms < 5_400_000 ? `${Math.round(ms / 60_000)}m` : `${(ms / 3_600_000).toFixed(1)}h`
+      : 'age unknown';
+    return { value: `Stale ${age}`, tone: 'mdc-warn' };
+  }
+  if (status.stream_active) return { value: 'Live', tone: 'mdc-pos' };
+  return { value: 'Inactive', tone: 'mdc-warn' };
+}
+
 // ── Enrichment formatters ──
 
 /** Raw basis-point distances (e.g. 29.85 → "29.9 bps"). ≥9990 bps is the
@@ -1033,6 +1052,7 @@ export default function MarketPage(): JSX.Element {
   const latestTrade = trades?.trades?.[0] ?? null;
   const liquidationLevels = derivatives?.liquidation_levels ?? null;
   const liquidationStatus = derivatives?.liquidation_stream_status ?? null;
+  const liquidationStream = fmtLiquidationStream(liquidationStatus);
 
   // ── Symbol enrichment (Redis blocks on /api/v2/market/{symbol}) ──
   // Read from the raw resource envelope: mergeTicker() strips extra fields.
@@ -1436,7 +1456,7 @@ export default function MarketPage(): JSX.Element {
             <Stat label="Mark Price" value={fmtPrice(ticker?.mark_price ?? null)} />
             <Stat label="Index Price" value={fmtPrice(ticker?.index_price ?? null)} />
             <Stat label="Long / Short" value={fmtCompact(derivatives?.long_short_ratio ?? null)} />
-            <Stat label="Liquidation stream" value={liquidationStatus?.stream_active ? 'Live' : liquidationStatus?.status ?? 'Connecting'} />
+            <Stat label="Liquidation stream" value={liquidationStream.value} tone={liquidationStream.tone} />
             <Stat
               label="Liquidation levels"
               value={liquidationLevels

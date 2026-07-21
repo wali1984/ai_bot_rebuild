@@ -123,8 +123,10 @@ export const LEGACY_REDIRECTS = {
   '/admin/coverage-system-atlas': '/admin/tools',
   '/admin/script-registry': '/admin/tools',
   '/ai-predictions/model-state': '/ai-predictions',
-  '/markets/symbols': '/markets',
-  '/admin/symbols': '/markets',
+  // '/markets/symbols' removed 2026-07-21: the shadowing redirect was dropped,
+  // the Symbols page is reachable again; legacy aliases now point at it.
+  '/symbols': '/markets/symbols',
+  '/admin/symbols': '/markets/symbols',
   '/admin/market-intelligence': '/research',
   '/admin/ai-brain': '/admin/model-state',
   '/admin/signals': '/signals',

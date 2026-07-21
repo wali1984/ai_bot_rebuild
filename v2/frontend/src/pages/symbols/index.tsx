@@ -88,7 +88,11 @@ export default function SymbolsPage(): JSX.Element {
         {'dynamic_symbol_count' in disc && <KV label="Dynamic universe" value={String(disc.dynamic_symbol_count ?? '—')} />}
         {'binance_usdm_status' in disc && (
           <KV label="Discovery sources" value={['binance_usdm_status', 'coingecko_status', 'coinglass_status', 'surf_status']
-            .filter((k) => JSON.stringify(disc[k] ?? '').includes('API_OK')).length + ' / 4 OK'} color="var(--accent, #22D3C5)" />
+            .filter((k) => {
+              // Healthy = API_OK (direct fetch) or CACHE_OK (websocket cache primary, e.g. binance_usdm).
+              const status = JSON.stringify(disc[k] ?? '');
+              return status.includes('API_OK') || status.includes('CACHE_OK');
+            }).length + ' / 4 OK'} color="var(--accent, #22D3C5)" />
         )}
       </div>
 

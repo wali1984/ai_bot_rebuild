@@ -203,20 +203,29 @@ export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element 
     ];
   }, [tape]);
 
+  // Zero-vs-missing honesty: when the payload declares its orderbook inputs
+  // missing (missing_feature_flags), a "$0 wall" is unread input, not "no walls".
+  const whaleMissingFlags = useMemo(
+    () => ((whale?.data?.missing_feature_flags as string[] | undefined) ?? []).filter((f) => typeof f === 'string'),
+    [whale],
+  );
+
   const wallBars = useMemo(() => {
     const bidWall = whale?.data?.bid_wall_summary as Record<string, unknown> | undefined;
     const askWall = whale?.data?.ask_wall_summary as Record<string, unknown> | undefined;
+    const bidMissing = whaleMissingFlags.includes('orderbook_bids_missing');
+    const askMissing = whaleMissingFlags.includes('orderbook_asks_missing');
     const rows: Array<{ name: string; value: number; color: string }> = [];
     const bidNotional = num(bidWall?.max_single_wall_notional_usd);
     const askNotional = num(askWall?.max_single_wall_notional_usd);
-    if (bidNotional != null) rows.push({ name: 'Max bid wall $', value: bidNotional, color: UP });
-    if (askNotional != null) rows.push({ name: 'Max ask wall $', value: askNotional, color: DOWN });
+    if (!bidMissing && bidNotional != null) rows.push({ name: 'Max bid wall $', value: bidNotional, color: UP });
+    if (!askMissing && askNotional != null) rows.push({ name: 'Max ask wall $', value: askNotional, color: DOWN });
     const bidMarket = num(bidWall?.market_notional_usd);
     const askMarket = num(askWall?.market_notional_usd);
-    if (bidMarket != null) rows.push({ name: 'Bid book $', value: bidMarket, color: SERIES[0] });
-    if (askMarket != null) rows.push({ name: 'Ask book $', value: askMarket, color: SERIES[3] });
+    if (!bidMissing && bidMarket != null) rows.push({ name: 'Bid book $', value: bidMarket, color: SERIES[0] });
+    if (!askMissing && askMarket != null) rows.push({ name: 'Ask book $', value: askMarket, color: SERIES[3] });
     return rows;
-  }, [whale]);
+  }, [whale, whaleMissingFlags]);
 
   const altScoreBars = useMemo(() => {
     const payload = altScore?.data ?? {};
@@ -285,6 +294,13 @@ export function SymbolIntelSection({ symbol }: { symbol: string }): JSX.Element 
         </IntelCard>
 
         <IntelCard title="Whale walls" section={whale}>
+          {whaleMissingFlags.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: wallBars.length > 0 ? 6 : 0 }}>
+              {whaleMissingFlags.map((flag) => (
+                <Chip key={flag} text={flag.replace(/_/g, ' ').toUpperCase()} tone="warn" />
+              ))}
+            </div>
+          )}
           {wallBars.length > 0 && (
             <MiniHorizontalBars rows={wallBars} />
           )}

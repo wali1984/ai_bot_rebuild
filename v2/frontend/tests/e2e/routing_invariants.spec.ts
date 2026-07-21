@@ -100,7 +100,8 @@ const KNOWN_DEAD_TARGETS = new Set<string>([
 const INTENTIONALLY_SHADOWED = new Set<string>([
   // '/trade/paper' removed 2026-07-21: the shadowing redirect was dropped, the
   // Execution Runtime page is reachable again.
-  '/markets/symbols',
+  // '/markets/symbols' removed 2026-07-21: the shadowing redirect was dropped,
+  // the Symbols page is reachable again.
   '/backtests/replay',
   '/research/technical-analysis',
   '/admin/system',

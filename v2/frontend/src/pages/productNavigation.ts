@@ -570,9 +570,12 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/ingestors': '/markets/ingestors',
   '/providers': '/markets/ingestors',
   '/settings': '/account-settings',
-  '/symbols': '/markets',
-  '/admin/symbols': '/markets',
-  '/markets/symbols': '/markets',
+  '/symbols': '/markets/symbols',
+  '/admin/symbols': '/markets/symbols',
+  // NOTE: '/markets/symbols' must NOT appear here — it is owned by the 'symbols'
+  // page module (path override). A redirect entry here shadows the page entirely
+  // because legacyRedirectRoutes are matched before page routes (same class of
+  // incident as '/trade/paper' below).
   '/admin/market-intelligence': '/research',
   '/admin/signals': '/signals',
   '/executions': '/portfolio/executions',

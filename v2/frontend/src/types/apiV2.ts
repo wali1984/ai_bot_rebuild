@@ -178,6 +178,7 @@ export interface MarketDerivativesData {
     timestamp?: string | null;
     lag_ms?: number | null;
     stale?: boolean;
+    staleness_ms?: number | null;
     live_trading_enabled: false;
     exchange_mutation_enabled: false;
   } | null;
