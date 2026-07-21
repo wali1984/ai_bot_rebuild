@@ -205,7 +205,7 @@ def test_microstructure_monitor_uses_direct_orderbook_source_latency(tmp_path) -
         }
     )
 
-    result = monitor.run_once(
+    monitor.run_once(
         symbols=["ETHUSDT"],
         timeframe="1m",
         exchanges=["binance"],
