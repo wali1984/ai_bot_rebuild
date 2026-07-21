@@ -15,6 +15,7 @@ from v2.backend.app.services.native_trainer.feature_resolution_plan_v4 import (
     PLAN_UNRESOLVED_GENERIC_FALLBACK_FORBIDDEN,
     PLAN_UNRESOLVED_NO_PRODUCER,
     PLAN_UNRESOLVED_PHYSICAL_TIMEFRAME_COLLISION,
+    TYPED_NEGATIVE_POLICY,
     FeatureResolutionPlanV4ValidationError,
     FeatureSlotResolutionPlanV4,
     feature_resolution_plan_v4_contract,
@@ -103,6 +104,11 @@ def test_future_liquidation_semantics_and_unproduced_slots_have_no_branch() -> N
         assert slot.feature_name == name
         assert slot.plan_status == PLAN_UNRESOLVED_NO_PRODUCER
         assert slot.branches == ()
+
+    coinapi = FEATURE_RESOLUTION_PLAN_V4.slots[133]
+    assert coinapi.requirement_class == "OPTIONAL_EVENT_DEPENDENT"
+    assert coinapi.typed_negative_policy == TYPED_NEGATIVE_POLICY
+    assert FEATURE_RESOLUTION_PLAN_V4.slots[132].requirement_class == "REQUIRED"
 
     collision_ordinals = {80, 81, 82, 106, 107, 108, 109, 110}
     for ordinal in collision_ordinals:

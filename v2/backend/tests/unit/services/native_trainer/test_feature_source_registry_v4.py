@@ -19,6 +19,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     stable_sha256,
 )
 from v2.backend.app.services.native_trainer.feature_source_registry_v4 import (
+    COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL,
+    COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+    COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID,
     CONFLUENCE_CONFIGURED_SOURCE_LABEL,
     CONFLUENCE_OPTIONAL_FEATURE_NAMES,
     CONFLUENCE_OPTIONAL_GROUP_ID,
@@ -88,13 +91,14 @@ def test_registry_freezes_exact_current_feature_abi_and_policy() -> None:
     assert (
         registry.feature_requirement_policy_id == FEATURE_SOURCE_REGISTRY_V4_REQUIREMENT_POLICY_ID
     )
+    assert registry.feature_requirement_policy_id == "v2_hybrid_feature_requirements_v2"
     assert registry.registry_sha256 == FEATURE_SOURCE_REGISTRY_V4_SHA256
     assert registry.slot_count == FEATURE_SOURCE_REGISTRY_V4_SLOT_COUNT == len(FEATURE_SPEC) == 446
-    assert registry.required_slot_count == FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT == 384
+    assert registry.required_slot_count == FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT == 383
     assert (
         registry.optional_event_dependent_slot_count
         == FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT
-        == 62
+        == 63
     )
     assert stable_sha256(feature_abi_contract(_NAMES)) == FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
 
@@ -121,14 +125,14 @@ def test_every_slot_binds_ordinal_name_source_and_requirement() -> None:
             slot.requirement_class == REQUIREMENT_REQUIRED
             for slot in FEATURE_SOURCE_REGISTRY_V4.slots
         )
-        == 384
+        == 383
     )
     assert (
         sum(
             slot.requirement_class == REQUIREMENT_OPTIONAL_EVENT_DEPENDENT
             for slot in FEATURE_SOURCE_REGISTRY_V4.slots
         )
-        == 62
+        == 63
     )
     assert {
         slot.feature_name
@@ -155,13 +159,20 @@ def test_registry_includes_all_40_exact_configured_source_labels() -> None:
     (
         (
             0,
+            COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID,
+            COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL,
+            COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+            (133,),
+        ),
+        (
+            1,
             MORALIS_OPTIONAL_GROUP_ID,
             MORALIS_CONFIGURED_SOURCE_LABEL,
             MORALIS_OPTIONAL_FEATURE_NAMES,
             tuple(range(259, 266)),
         ),
         (
-            1,
+            2,
             CONFLUENCE_OPTIONAL_GROUP_ID,
             CONFLUENCE_CONFIGURED_SOURCE_LABEL,
             CONFLUENCE_OPTIONAL_FEATURE_NAMES,
@@ -169,7 +180,7 @@ def test_registry_includes_all_40_exact_configured_source_labels() -> None:
         ),
     ),
 )
-def test_moralis_and_confluence_groups_are_exact_and_optional(
+def test_optional_groups_are_exact_name_scoped_and_optional(
     group_index: int,
     group_id: str,
     source_label: str,
@@ -190,6 +201,35 @@ def test_moralis_and_confluence_groups_are_exact_and_optional(
     )
 
 
+def test_coinapi_optional_group_does_not_reclassify_shared_microstructure_source() -> None:
+    microstructure_slots = tuple(
+        slot
+        for slot in FEATURE_SOURCE_REGISTRY_V4.slots
+        if slot.configured_source_label
+        == COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL
+    )
+
+    assert tuple(
+        slot.feature_name
+        for slot in microstructure_slots
+        if slot.requirement_class == REQUIREMENT_OPTIONAL_EVENT_DEPENDENT
+    ) == COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES
+    assert {
+        slot.feature_name
+        for slot in microstructure_slots
+        if slot.requirement_class == "REQUIRED"
+    } == {
+        "depth_vs_tape_divergence",
+        "microstructure_liquidity_depth",
+        "microprice",
+        "micro_volatility",
+        "toxicity_proxy",
+        "tape_imbalance",
+        "order_flow_imbalance",
+        "micro_price",
+    }
+
+
 def test_contract_is_canonical_detached_and_digest_complete() -> None:
     contract = feature_source_registry_v4_contract(FEATURE_SOURCE_REGISTRY_V4)
     canonical = canonical_feature_source_registry_v4_json(FEATURE_SOURCE_REGISTRY_V4)
@@ -206,6 +246,12 @@ def test_contract_is_canonical_detached_and_digest_complete() -> None:
     ).encode("ascii")
     assert hashlib.sha256(encoded).hexdigest() == FEATURE_SOURCE_REGISTRY_V4_SHA256
     assert len(contract["slots"]) == 446
+    assert contract["slots"][133] == {
+        "ordinal": 133,
+        "feature_name": "coinapi_wsds_tape_imbalance",
+        "configured_source_label": "v2:market:microstructure",
+        "requirement_class": "OPTIONAL_EVENT_DEPENDENT",
+    }
     assert contract["slots"][259] == {
         "ordinal": 259,
         "feature_name": "moralis_exchange_inflow_usd",
@@ -539,8 +585,8 @@ def test_forged_authority_or_group_ordinal_fails_as_contract_error() -> None:
     _assert_reason(audit_only_exc, "FEATURE_SOURCE_REGISTRY_V4_AUDIT_ONLY_MUST_REMAIN_TRUE")
 
     with pytest.raises(FeatureSourceRegistryV4ValidationError) as ordinal_exc:
-        moralis_group = FEATURE_SOURCE_REGISTRY_V4.optional_source_groups[0]
-        replace(moralis_group, slot_ordinals=(999, *moralis_group.slot_ordinals[1:]))
+        coinapi_group = FEATURE_SOURCE_REGISTRY_V4.optional_source_groups[0]
+        replace(coinapi_group, slot_ordinals=(999,))
     _assert_reason(ordinal_exc, "FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_GROUP_ORDINAL_INVALID")
 
 

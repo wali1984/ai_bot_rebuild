@@ -38,19 +38,29 @@ FEATURE_SOURCE_REGISTRY_V4_DOWNSTREAM_STATUS: Final = (
 )
 FEATURE_SOURCE_REGISTRY_V4_ABI_SCHEMA_VERSION: Final = "ordered_feature_tensor_abi_v3"
 FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256: Final = (
-    "e81b6dd95bfba930d67e694941f21a6d4ab5432142c25595848148c8bb42ddf9"
+    "b63ed3013102adabf6e0728b016e3a6eb0b91cd2c964df3ce2a4ab3d4ca117d4"
 )
-FEATURE_SOURCE_REGISTRY_V4_REQUIREMENT_POLICY_ID: Final = "v2_hybrid_feature_requirements_v1"
+FEATURE_SOURCE_REGISTRY_V4_REQUIREMENT_POLICY_ID: Final = "v2_hybrid_feature_requirements_v2"
 FEATURE_SOURCE_REGISTRY_V4_SLOT_COUNT: Final = 446
-FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT: Final = 384
-FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT: Final = 62
+FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT: Final = 383
+FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT: Final = 63
 FEATURE_SOURCE_REGISTRY_V4_SOURCE_LABEL_COUNT: Final = 40
 FEATURE_SOURCE_REGISTRY_V4_SHA256: Final = (
-    "556aa71f012a0649ee12992f07987f66a152620a7a98ea022fbfc575f96668a6"
+    "34dc5b213e4d355d409d210253e74c5ad126d800d3b5a946bbf5a692a5566189"
 )
 
 REQUIREMENT_REQUIRED: Final = "REQUIRED"
 REQUIREMENT_OPTIONAL_EVENT_DEPENDENT: Final = "OPTIONAL_EVENT_DEPENDENT"
+
+COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID: Final = (
+    "COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_EVENT_DEPENDENT"
+)
+COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL: Final = (
+    "v2:market:microstructure"
+)
+COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES: Final = (
+    "coinapi_wsds_tape_imbalance",
+)
 
 MORALIS_OPTIONAL_GROUP_ID: Final = "MORALIS_OPTIONAL_EVENT_DEPENDENT"
 MORALIS_CONFIGURED_SOURCE_LABEL: Final = "v2:features:moralis"
@@ -416,6 +426,11 @@ def _validate_registry(registry: FeatureSourceRegistryV4) -> None:
         _fail("FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT_MISMATCH")
     expected_groups = (
         (
+            COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID,
+            COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL,
+            COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+        ),
+        (
             MORALIS_OPTIONAL_GROUP_ID,
             MORALIS_CONFIGURED_SOURCE_LABEL,
             MORALIS_OPTIONAL_FEATURE_NAMES,
@@ -525,6 +540,32 @@ def _optional_group(
     )
 
 
+def _exact_name_optional_group(
+    *,
+    group_id: str,
+    source_label: str,
+    expected_feature_names: tuple[str, ...],
+    slots: tuple[FeatureSourceRegistrySlotV4, ...],
+) -> FeatureSourceOptionalGroupV4:
+    slots_by_name = {slot.feature_name: slot for slot in slots}
+    try:
+        selected = tuple(slots_by_name[name] for name in expected_feature_names)
+    except KeyError:
+        _fail("FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_GROUPS_MISMATCH")
+    if any(slot.configured_source_label != source_label for slot in selected):
+        _fail("FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_GROUPS_MISMATCH")
+    if any(slot.requirement_class != REQUIREMENT_OPTIONAL_EVENT_DEPENDENT for slot in selected):
+        _fail("FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_GROUP_REQUIREMENT_INVALID")
+    return FeatureSourceOptionalGroupV4(
+        group_id=group_id,
+        configured_source_label=source_label,
+        slot_ordinals=tuple(slot.ordinal for slot in selected),
+        feature_names=tuple(slot.feature_name for slot in selected),
+        requirement_class=REQUIREMENT_OPTIONAL_EVENT_DEPENDENT,
+        _construction_token=_CONSTRUCTION_TOKEN,
+    )
+
+
 def build_feature_source_registry_v4(
     feature_spec: object,
     ordered_requirement_classes: object,
@@ -573,6 +614,12 @@ def build_feature_source_registry_v4(
     if configured_source_labels != FEATURE_SOURCE_REGISTRY_V4_EXPECTED_CONFIGURED_SOURCE_LABELS:
         _fail("FEATURE_SOURCE_REGISTRY_V4_SOURCE_INVENTORY_MISMATCH")
     optional_source_groups = (
+        _exact_name_optional_group(
+            group_id=COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID,
+            source_label=COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL,
+            expected_feature_names=COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+            slots=slots,
+        ),
         _optional_group(
             group_id=MORALIS_OPTIONAL_GROUP_ID,
             source_label=MORALIS_CONFIGURED_SOURCE_LABEL,
@@ -666,6 +713,9 @@ FEATURE_SOURCE_REGISTRY_V4 = build_feature_source_registry_v4(
 
 
 __all__ = [
+    "COINAPI_WSDS_TAPE_IMBALANCE_CONFIGURED_SOURCE_LABEL",
+    "COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES",
+    "COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_GROUP_ID",
     "CONFLUENCE_CONFIGURED_SOURCE_LABEL",
     "CONFLUENCE_OPTIONAL_FEATURE_NAMES",
     "CONFLUENCE_OPTIONAL_GROUP_ID",

@@ -25,7 +25,7 @@ EXPECTED_FEATURE_ABI_SCHEMA_VERSION = "ordered_feature_tensor_abi_v3"
 EXPECTED_SOURCE_RECEIPT_SCHEMA_VERSION = "feature_source_consumer_read_receipt_v3"
 EXPECTED_PROVENANCE = "CANONICAL_RECEIPT_BACKED_V3"
 EXPECTED_BINDING_SCHEMA_VERSION = "feature_source_binding_vector_v1"
-EXPECTED_REQUIREMENT_POLICY_ID = "v2_hybrid_feature_requirements_v1"
+EXPECTED_REQUIREMENT_POLICY_ID = "v2_hybrid_feature_requirements_v2"
 EXPECTED_MODEL_VECTOR_DOMAIN = b"canonical_feature_model_vector_v3\0"
 EXPECTED_BLOCK_ORDER = [
     "feature_values",
@@ -471,7 +471,12 @@ def test_requirement_policy_is_code_owned_categorical_and_threshold_free() -> No
         ledger_module.feature_requirement_classes_for_names(tensor.feature_names)
     )
     assert policy[index] == "OPTIONAL_EVENT_DEPENDENT"
+    assert policy[tensor.feature_names.index("coinapi_wsds_tape_imbalance")] == (
+        "OPTIONAL_EVENT_DEPENDENT"
+    )
     assert policy[tensor.feature_names.index("last_price")] == "REQUIRED"
+    assert policy.count("REQUIRED") == 383
+    assert policy.count("OPTIONAL_EVENT_DEPENDENT") == 63
 
     optional = _record(tensor=masked, requirement_classes=policy)
     assert optional["frozen_envelope"]["strict_training_eligible"] is True
@@ -497,7 +502,7 @@ def test_requirement_policy_is_code_owned_categorical_and_threshold_free() -> No
         _record(
             tensor=masked,
             requirement_classes=policy,
-            requirement_policy_id="attacker_selected_policy_v1",
+            requirement_policy_id="v2_hybrid_feature_requirements_v1",
         )
 
     forged = copy.deepcopy(optional)

@@ -84,9 +84,9 @@ _OPTIONAL_MODEL_FEATURE_NAMES = tuple(
     for name, requirement in zip(_MODEL_FEATURE_NAMES, _MODEL_REQUIREMENTS, strict=True)
     if requirement == "OPTIONAL_EVENT_DEPENDENT"
 )
-_EXPECTED_MODEL_ABI_SHA256 = "e81b6dd95bfba930d67e694941f21a6d4ab5432142c25595848148c8bb42ddf9"
+_EXPECTED_MODEL_ABI_SHA256 = "b63ed3013102adabf6e0728b016e3a6eb0b91cd2c964df3ce2a4ab3d4ca117d4"
 _REQUIRED_THEN_OPTIONAL_ABI_SHA256 = (
-    "568ca431be3eedbfb31cc0ad1e039bd4927f2b66ab5784574394ddd2cb88b620"
+    "547c9f8e95e70a198f7c6590cbee55c4d5851c3149d7a49e5afb8faf43e49fe0"
 )
 
 
@@ -297,7 +297,7 @@ def _declared_native_snapshot_for_source(
         source_result,
         features={name: float(index + 1) for index, name in enumerate(_MODEL_FEATURE_NAMES)},
         missing_feature_flags=[],
-        feature_requirement_policy_id="v2_hybrid_feature_requirements_v1",
+        feature_requirement_policy_id="v2_hybrid_feature_requirements_v2",
         model_feature_abi_slot_count=len(_MODEL_FEATURE_NAMES),
         required_model_feature_count=len(_REQUIRED_MODEL_FEATURE_NAMES),
         required_model_feature_fields=list(_REQUIRED_MODEL_FEATURE_NAMES),
@@ -907,8 +907,8 @@ def test_native_declared_vector_preserves_tensor_builder_model_abi_order(
 ) -> None:
     assert len(_MODEL_FEATURE_NAMES) == 446
     assert len(set(_MODEL_FEATURE_NAMES)) == 446
-    assert len(_REQUIRED_MODEL_FEATURE_NAMES) == 384
-    assert len(_OPTIONAL_MODEL_FEATURE_NAMES) == 62
+    assert len(_REQUIRED_MODEL_FEATURE_NAMES) == 383
+    assert len(_OPTIONAL_MODEL_FEATURE_NAMES) == 63
     required_then_optional = _REQUIRED_MODEL_FEATURE_NAMES + _OPTIONAL_MODEL_FEATURE_NAMES
     first_divergence = next(
         index
@@ -917,10 +917,10 @@ def test_native_declared_vector_preserves_tensor_builder_model_abi_order(
         )
         if model_name != concatenated_name
     )
-    assert first_divergence == 134
-    assert _MODEL_FEATURE_NAMES[134] == "last_liq_bps_24h"
-    assert _MODEL_REQUIREMENTS[134] == "OPTIONAL_EVENT_DEPENDENT"
-    assert required_then_optional[134] == "liquidation_is_stale"
+    assert first_divergence == 133
+    assert _MODEL_FEATURE_NAMES[133] == "coinapi_wsds_tape_imbalance"
+    assert _MODEL_REQUIREMENTS[133] == "OPTIONAL_EVENT_DEPENDENT"
+    assert required_then_optional[133] == "liquidation_is_stale"
     model_abi = feature_abi_contract(_MODEL_FEATURE_NAMES)
     concatenated_abi = feature_abi_contract(required_then_optional)
     assert ledger_module._stable_sha256(model_abi) == _EXPECTED_MODEL_ABI_SHA256
@@ -943,8 +943,10 @@ def test_native_declared_vector_preserves_tensor_builder_model_abi_order(
     assert vector["abi_origin"] == NATIVE_MODEL_ABI_ORIGIN
     assert vector["feature_count"] == 446
     assert vector["ordered_feature_names"] == list(_MODEL_FEATURE_NAMES)
-    assert vector["ordered_feature_names"][134] == "last_liq_bps_24h"
-    assert vector["ordered_feature_requirement_classes"][134] == ("OPTIONAL_EVENT_DEPENDENT")
+    assert vector["ordered_feature_names"][133] == "coinapi_wsds_tape_imbalance"
+    assert vector["ordered_feature_requirement_classes"][133] == (
+        "OPTIONAL_EVENT_DEPENDENT"
+    )
     assert vector["feature_abi"] == model_abi
     assert vector["feature_abi_sha256"] == _EXPECTED_MODEL_ABI_SHA256
     assert vector["feature_abi_sha256"] != _REQUIRED_THEN_OPTIONAL_ABI_SHA256

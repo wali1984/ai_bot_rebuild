@@ -211,8 +211,8 @@ def test_exact_446_slot_abi_and_non_authorizing_artifact() -> None:
     names = tuple(name for name, _source in FEATURE_SPEC)
     requirements = feature_requirement_classes_for_names(names)
     assert len(names) == FEATURE_RESOLUTION_TRACE_V4_SLOT_COUNT == 446
-    assert requirements.count("REQUIRED") == 384
-    assert requirements.count("OPTIONAL_EVENT_DEPENDENT") == 62
+    assert requirements.count("REQUIRED") == 383
+    assert requirements.count("OPTIONAL_EVENT_DEPENDENT") == 63
     assert stable_sha256(feature_abi_contract(names)) == FEATURE_RESOLUTION_TRACE_V4_ABI_SHA256
 
     artifact = build_feature_resolution_trace_v4(
@@ -332,7 +332,11 @@ def test_temporal_rejection_reasons_must_be_exact_empty_tuple(
 
 @pytest.mark.parametrize(
     ("feature_name", "required_valid"),
-    [("last_price", False), ("last_liq_bps_24h", True)],
+    [
+        ("last_price", False),
+        ("coinapi_wsds_tape_imbalance", True),
+        ("last_liq_bps_24h", True),
+    ],
 )
 def test_typed_negatives_are_explicit_and_never_authorize(
     feature_name: str,

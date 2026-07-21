@@ -427,14 +427,20 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
         "REQUIRED_MODEL_FEATURE_PIT_LEDGER_REQUIRED"
     ]
     assert payload["feature_requirement_policy_id"] == (
-        "v2_hybrid_feature_requirements_v1"
+        "v2_hybrid_feature_requirements_v2"
     )
     assert payload["model_feature_abi_slot_count"] == 446
-    assert payload["required_model_feature_count"] == 384
-    assert len(payload["required_model_feature_fields"]) == 384
-    assert payload["optional_event_dependent_feature_count"] == 62
-    assert len(payload["optional_event_dependent_feature_fields"]) == 62
+    assert payload["required_model_feature_count"] == 383
+    assert len(payload["required_model_feature_fields"]) == 383
+    assert payload["optional_event_dependent_feature_count"] == 63
+    assert len(payload["optional_event_dependent_feature_fields"]) == 63
     assert "gap_pct" not in payload["required_model_feature_fields"]
+    assert "coinapi_wsds_tape_imbalance" not in payload[
+        "required_model_feature_fields"
+    ]
+    assert "coinapi_wsds_tape_imbalance" in payload[
+        "optional_event_dependent_feature_fields"
+    ]
     assert "last_liq_bps_24h" in payload[
         "optional_event_dependent_feature_fields"
     ]
@@ -748,8 +754,8 @@ def test_legacy_rl_core_and_authoritative_trainer_abi_are_not_conflated() -> Non
         if requirement == "OPTIONAL_EVENT_DEPENDENT"
     )
     assert len(ordered_names) == 446
-    assert len(mod.TRAINER_REQUIRED_FEATURE_FIELDS) == 384
-    assert len(mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS) == 62
+    assert len(mod.TRAINER_REQUIRED_FEATURE_FIELDS) == 383
+    assert len(mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS) == 63
     assert "gap_pct" not in ordered_names
     assert "last_liq_bps_24h" in (
         mod.TRAINER_OPTIONAL_EVENT_DEPENDENT_FEATURE_FIELDS

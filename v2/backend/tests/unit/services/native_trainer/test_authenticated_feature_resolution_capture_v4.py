@@ -199,8 +199,8 @@ def test_complete_446_slot_candidate_binds_registry_trace_and_every_identity(
     assert capture["feature_resolution_trace_sha256"] == positive_harness.trace.trace_sha256
     assert capture["feature_abi_sha256"] == FEATURE_SOURCE_REGISTRY_V4_ABI_SHA256
     assert capture["feature_slot_count"] == FEATURE_SOURCE_REGISTRY_V4_SLOT_COUNT == 446
-    assert capture["required_slot_count"] == FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT == 384
-    assert capture["optional_slot_count"] == FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT == 62
+    assert capture["required_slot_count"] == FEATURE_SOURCE_REGISTRY_V4_REQUIRED_SLOT_COUNT == 383
+    assert capture["optional_slot_count"] == FEATURE_SOURCE_REGISTRY_V4_OPTIONAL_SLOT_COUNT == 63
     assert len(capture["slot_captures"]) == 446
     assert capture["resolved_slot_count"] == 446
     assert capture["declared_optional_typed_negative_slot_count"] == 0
@@ -286,6 +286,36 @@ def test_optional_typed_negative_is_null_never_numeric_zero_and_not_authenticate
     assert capture["authenticated_optional_typed_negative_complete"] is False
     serialized_slot = json.dumps(slot, allow_nan=False, sort_keys=True)
     assert '"resolved_value_float32_be_hex": null' in serialized_slot
+
+
+def test_coinapi_optional_missing_requires_typed_negative_receipt_and_null_value() -> None:
+    harness = _harness(negative_index=133, stale=True)
+    capture = harness.artifact.capture
+    slot = capture["slot_captures"][133]
+
+    assert slot["feature_name"] == "coinapi_wsds_tape_imbalance"
+    assert slot["requirement_class"] == "OPTIONAL_EVENT_DEPENDENT"
+    assert slot["resolution_status"] == RESOLUTION_STATUS_TYPED_NEGATIVE
+    assert slot["transform"]["resolved_value_float32_be_hex"] is None
+    assert slot["source_evidence"]["source_evidence_receipt_kind"] == (
+        OPTIONAL_TYPED_NEGATIVE_RECEIPT_KIND_V4
+    )
+    assert capture["declared_optional_typed_negative_slot_count"] == 1
+
+    hostile_references = list(harness.references)
+    hostile_references[133] = replace(
+        hostile_references[133],
+        source_evidence_receipt_kind=POSITIVE_SOURCE_READ_RECEIPT_KIND_V4,
+    )
+    with pytest.raises(
+        AuthenticatedFeatureResolutionCaptureV4ValidationError,
+        match="RECEIPT_KIND_STATUS_MISMATCH",
+    ):
+        build_authenticated_feature_resolution_capture_candidate_v4(
+            registry=FEATURE_SOURCE_REGISTRY_V4,
+            resolution_trace=harness.trace,
+            evidence_references=tuple(hostile_references),
+        )
 
 
 def test_required_slot_may_never_use_typed_negative() -> None:

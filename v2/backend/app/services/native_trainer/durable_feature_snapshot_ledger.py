@@ -46,7 +46,7 @@ SOURCE_FINALITY_EVIDENCE_SCHEMA_VERSION = "feature_source_finality_evidence_v2"
 SOURCE_READ_LOCATOR_SCHEMA_VERSION = "feature_source_read_locator_v2"
 FEATURE_SOURCE_BINDING_SCHEMA_VERSION = "feature_source_binding_vector_v1"
 FEATURE_SOURCE_DERIVATION_SCHEMA_VERSION = "feature_source_derivation_v1"
-FEATURE_REQUIREMENT_POLICY_ID = "v2_hybrid_feature_requirements_v1"
+FEATURE_REQUIREMENT_POLICY_ID = "v2_hybrid_feature_requirements_v2"
 
 PROVENANCE_CANONICAL_V3 = "CANONICAL_RECEIPT_BACKED_V3"
 # Import compatibility only.  A caller using the old symbol still emits the
@@ -123,6 +123,7 @@ OPTIONAL_EVENT_DEPENDENT_FEATURE_NAMES = frozenset(
         "coingecko_momentum_score",
         "coingecko_score",
         "coinglass_derivatives_score",
+        "coinapi_wsds_tape_imbalance",
         "defillama_liquidity_score",
         "defillama_score",
         "defillama_tvl_momentum_score",
