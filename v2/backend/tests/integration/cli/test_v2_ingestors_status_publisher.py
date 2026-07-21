@@ -310,6 +310,39 @@ def test_dynamic_discovery_uses_its_provider_safe_availability_envelope(
     assert dynamic["heartbeat_ttl_is_storage_retention_only"] is True
 
 
+def test_public_intel_uses_its_provider_safe_availability_envelope(
+    monkeypatch,
+) -> None:
+    now = datetime.now(UTC)
+    generated = _utc_text(now - timedelta(hours=1, minutes=5))
+    key = "v2:altdata:public_intel:status"
+    redis = FakeRedis(
+        {
+            key: {
+                "generated_utc": generated,
+                "producer_interval_seconds": 3_600,
+                "redis_retention_seconds": 4_800,
+                "redis_retention_headroom_seconds": 1_200,
+                "redis_retention_is_storage_availability_not_event_freshness": True,
+            }
+        },
+        pttls={key: 900_000},
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: redis)
+    monkeypatch.setattr(publisher, "_read_public_status", lambda _name: None)
+
+    payload = publisher.run_once()
+    public_intel = next(
+        row for row in payload["ingestors"] if row["name"] == "Public Intel Free-Tier"
+    )
+
+    assert public_intel["heartbeat_max_age_seconds"] == (
+        publisher.PUBLIC_INTEL_REDIS_RETENTION_SECONDS
+    )
+    assert public_intel["heartbeat_current"] is True
+    assert public_intel["heartbeat_ttl_is_storage_retention_only"] is True
+
+
 def test_optional_provider_absence_does_not_degrade_current_core_heartbeats(
     monkeypatch,
 ) -> None:

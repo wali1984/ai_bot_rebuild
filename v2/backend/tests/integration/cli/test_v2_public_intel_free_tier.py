@@ -178,6 +178,18 @@ def test_public_intel_builds_symbol_payloads_and_keeps_execution_empty(
     assert "v2:altdata:public_intel:status" in written_keys
     assert all(key.startswith("v2:") for key in written_keys)
     assert all(not key.startswith(("prediction:", "signals:", "ta:")) for key in written_keys)
+    assert all(
+        ex == mod.DEFAULT_REDIS_RETENTION_SECONDS
+        for _key, _value, ex in fake_redis.write_log
+    )
+    assert payload["producer_interval_seconds"] == mod.DEFAULT_INTERVAL_SECONDS
+    assert payload["redis_retention_seconds"] == mod.DEFAULT_REDIS_RETENTION_SECONDS
+    assert payload["redis_retention_headroom_seconds"] == (
+        mod.DEFAULT_REDIS_RETENTION_SECONDS - mod.DEFAULT_INTERVAL_SECONDS
+    )
+    assert payload[
+        "redis_retention_is_storage_availability_not_event_freshness"
+    ] is True
     assert json.loads(public_a.read_text()) == json.loads(public_b.read_text())
 
 

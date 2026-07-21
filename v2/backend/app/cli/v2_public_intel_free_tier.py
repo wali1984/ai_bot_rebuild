@@ -49,6 +49,13 @@ CRYPTOCOMPARE_API_KEY_ENV = "CRYPTOCOMPARE_API_KEY"
 CRYPTOPANIC_AUTH_TOKEN_ENV = "CRYPTOPANIC_AUTH_TOKEN"
 
 DEFAULT_INTERVAL_SECONDS = 3_600
+# Preserve the provider-safe hourly request cadence while retaining the last
+# successful observation long enough for one non-zero fetch/serialization
+# cycle. Retention is availability evidence only; it is never event time.
+DEFAULT_REDIS_RETENTION_SECONDS = DEFAULT_INTERVAL_SECONDS * 4 // 3
+DEFAULT_REDIS_RETENTION_HEADROOM_SECONDS = (
+    DEFAULT_REDIS_RETENTION_SECONDS - DEFAULT_INTERVAL_SECONDS
+)
 DEFAULT_MAX_NEWS_ITEMS_PER_FEED = 40
 HTTP_TIMEOUT_SECONDS = 12.0
 V2_REDIS_PREFIX = "v2:"
@@ -180,7 +187,13 @@ def _connect_redis():
         return None
 
 
-def _safe_redis_set(redis_client: Any, key: str, payload: Any, *, ex: int = 3_600) -> bool:
+def _safe_redis_set(
+    redis_client: Any,
+    key: str,
+    payload: Any,
+    *,
+    ex: int = DEFAULT_REDIS_RETENTION_SECONDS,
+) -> bool:
     if redis_client is None:
         return False
     if not isinstance(key, str) or not key.startswith(V2_REDIS_PREFIX):
@@ -1020,6 +1033,10 @@ def run_once(
         "successful_symbol_count": len(scored_symbols),
         "symbols_with_public_intel_score": scored_symbols,
         "top_public_intel_symbols": top_rows[:30],
+        "producer_interval_seconds": DEFAULT_INTERVAL_SECONDS,
+        "redis_retention_seconds": DEFAULT_REDIS_RETENTION_SECONDS,
+        "redis_retention_headroom_seconds": DEFAULT_REDIS_RETENTION_HEADROOM_SECONDS,
+        "redis_retention_is_storage_availability_not_event_freshness": True,
         "defillama_status": defillama_status,
         "news_status": news_status,
         "json_news_credential_presence": {

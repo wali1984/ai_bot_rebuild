@@ -20,6 +20,9 @@ from typing import Any, Final, NoReturn, cast
 from v2.backend.app.cli.v2_dynamic_symbol_discovery_free_tier import (
     DEFAULT_REDIS_RETENTION_SECONDS as DYNAMIC_DISCOVERY_REDIS_RETENTION_SECONDS,
 )
+from v2.backend.app.cli.v2_public_intel_free_tier import (
+    DEFAULT_REDIS_RETENTION_SECONDS as PUBLIC_INTEL_REDIS_RETENTION_SECONDS,
+)
 
 V2_REDIS_PREFIX = "v2:"
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -878,7 +881,10 @@ def run_once() -> JsonObject:
             None,
             r,
             control_group="altdata_ingestor",
-            heartbeat_max_age_seconds=900,
+            # The provider-safe producer cadence is hourly. Align operational
+            # availability with its source-owned retention headroom without
+            # interpreting Redis retention as source-event freshness.
+            heartbeat_max_age_seconds=PUBLIC_INTEL_REDIS_RETENTION_SECONDS,
         ),
         _ingestor_entry(
             "Alt-Data Symbol Scoring",
