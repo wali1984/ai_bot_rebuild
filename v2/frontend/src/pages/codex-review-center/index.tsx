@@ -81,6 +81,13 @@ export default function CodexReviewCenterPage(): JSX.Element {
         </h2>
         {status.loading && milestones.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading milestone review artifacts…</p>
+        ) : milestones.length === 0 && (status.error || status.envelope.errors.length > 0) ? (
+          // A failed fetch is NOT evidence of an empty disk — say so honestly
+          // instead of claiming "no artifacts found on disk".
+          <p style={{ color: 'var(--warn)', fontSize: 13 }}>
+            Milestone review source unreachable — disk state unknown, nothing fabricated.
+            {' '}Error: <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>{String(status.error ?? status.envelope.errors[0]).slice(0, 160)}</span>
+          </p>
         ) : milestones.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No milestone review artifacts found on disk.</p>
         ) : (

@@ -8,7 +8,12 @@ import meta from './meta';
 import rbac from './rbac';
 import route from './route';
 
-const AUDIT_ENDPOINT = '/api/v2/admin/audit/chain';
+// Trader-accessible read-only ledger feed. The page is viewer-gated (rbac
+// minRole 'viewer'), so it must NOT read the operator-gated
+// /api/v2/admin/audit/chain — that returned 403 insufficient_role for the only
+// real human account and rendered a permanent error card. Same
+// events/total/immutable shape; high-privilege chain view stays at /admin/audit.
+const AUDIT_ENDPOINT = '/api/v2/audit-ledger/events';
 
 export { default as meta } from './meta';
 export { default as rbac } from './rbac';

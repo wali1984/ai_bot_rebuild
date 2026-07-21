@@ -1,7 +1,6 @@
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
-import { useState } from 'react';
 import { Panel } from '../cockpitComponents';
 import { usePayloadFile, fmtAge, ageClass } from '../../hooks/usePayloadFile';
 import { publicRuntimeCopy } from '../../lib/tradeCopy';
@@ -103,23 +102,10 @@ export default function IngestorsPage(): JSX.Element {
   const { data: liveGateRuntime } = usePayloadFile<LiveGateRuntimePayload>(LIVE_GATE_RUNTIME_PATH, 8_000);
   const { data: runtimeTruth, ageSeconds: runtimeTruthAge } = usePayloadFile<RuntimeTruth>(RUNTIME_TRUTH_PATH, 15_000);
   const { data: nativeLive, ageSeconds: nativeLiveAge } = usePayloadFile<NativeIngestorsLive>(NATIVE_INGESTORS_LIVE_PATH, 30_000);
-  const [controlState, setControlState] = useState<Record<string, string>>({});
-
-  async function sendControl(service: string, action: string): Promise<void> {
-    setControlState((prev) => ({ ...prev, [service]: `${action}:pending` }));
-    try {
-      const res = await fetch(`/api/v1/ingestors/${encodeURIComponent(service)}/control`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
-      });
-      const payload = await res.json().catch(() => ({}));
-      const state = payload?.state?.active_state ?? payload?.systemctl?.returncode ?? res.status;
-      setControlState((prev) => ({ ...prev, [service]: `${action}:${state}` }));
-    } catch {
-      setControlState((prev) => ({ ...prev, [service]: `${action}:error` }));
-    }
-  }
+  // NOTE: ingestor control actions previously POSTed to
+  // /api/v1/ingestors/{service}/control, but that v1 router is an OPTIONS-only
+  // scaffold — every click returned 404. Controls are rendered disabled until a
+  // real control endpoint exists; no fake action state is shown.
 
   return (
     <article
@@ -277,15 +263,14 @@ export default function IngestorsPage(): JSX.Element {
                               key={action}
                               type="button"
                               className="ingestor-action-button"
-                              disabled={!ing.control_enabled}
-                              onClick={() => void sendControl(ing.service, action)}
-                              title={`${action} ${ing.service}`}
+                              disabled
+                              title={`${action} ${ing.service} — control API not implemented (/api/v1/ingestors control is a scaffold that returns 404); button disabled instead of failing silently`}
                             >
                               {action}
                             </button>
                           ))}
                         </div>
-                        <small className="small">{controlState[ing.service] ?? (ing.dynamic_symbol_refresh_enabled ? 'dynamic' : '—')}</small>
+                        <small className="small">{ing.dynamic_symbol_refresh_enabled ? 'dynamic' : 'controls not wired'}</small>
                       </td>
                     </tr>
                   ))}

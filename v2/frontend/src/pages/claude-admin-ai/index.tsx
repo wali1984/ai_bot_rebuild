@@ -16,14 +16,22 @@ export default function ClaudeAdminAiPage(): JSX.Element {
       <SourceRibbon labels={['Claude primary builder', 'Codex parallel auditor', 'Ollama draft-only helper', 'final live gate human-only']} />
       {truthPayload ? <RouteTruthSummary payload={truthPayload} title="Claude Admin AI" /> : <OperatorTruthLoading error={truthError} />}
       <PaperOnlineRuntimeStatusPanel payload={paperRuntime} />
-      <Panel id="claude-admin-ai-query-surface" title="Operator Evidence Query Surface" right={<span className="chip">live evidence</span>}>
+      <Panel id="claude-admin-ai-query-surface" title="Operator Evidence Query Surface" right={<span className="chip">not wired</span>}>
+        {/* HONESTY: no backend query endpoint exists for Admin AI yet
+            (/api/v2/admin/ai/status is status-only). The input and prompt
+            buttons are disabled so the page cannot imply a working query
+            surface — do not add handlers here without a real endpoint. */}
+        <p className="small" style={{ margin: '0 0 10px', color: 'var(--warn, #f59e0b)' }}>
+          Not wired: no Admin AI query endpoint exists yet — this surface is disabled until one does. No answers are fabricated.
+        </p>
         <div className="cockpit-two-col">
           <label className="field-stack">
-            <span>Question</span>
+            <span>Question (disabled — backend not wired)</span>
             <textarea
-              aria-label="Claude Admin AI question"
-              placeholder="Ask: Is trainer current? Why was this signal blocked? What is blocking live?"
+              aria-label="Claude Admin AI question (disabled — backend not wired)"
+              placeholder="Disabled: Admin AI query backend is not wired yet."
               rows={5}
+              disabled
             />
           </label>
           <div className="cockpit-evidence-list">
@@ -41,7 +49,13 @@ export default function ClaudeAdminAiPage(): JSX.Element {
         </div>
         <div className="control-grid">
           {['Is trainer current?', 'Why was latest signal blocked?', 'What data is stale?', 'What is blocking live?'].map((prompt) => (
-            <button className="secondary-button" type="button" key={prompt}>
+            <button
+              className="secondary-button"
+              type="button"
+              key={prompt}
+              disabled
+              title="Disabled — Admin AI query backend is not wired; this button would do nothing."
+            >
               {prompt}
             </button>
           ))}

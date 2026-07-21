@@ -5,6 +5,7 @@ import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 const SURFACES_ENDPOINT = '/api/v2/admin/monitoring/data-surfaces';
 const PIPELINE_ENDPOINT = '/api/v2/pipeline/status';
 const MONITOR_ROUTES_ENDPOINT = '/api/v2/admin/monitoring/routes';
+const INGESTORS_ENDPOINT = '/api/v2/ingestors/status';
 
 const SC = { ok: '#22c55e', warn: '#f59e0b', error: '#ef4444', unknown: '#6b7280', info: '#60a5fa' };
 
@@ -20,9 +21,37 @@ interface SurfacesPayload { surfaces?: DataSurface[]; generated_at?: string; }
 interface PipelinePayload { live_gate?: string; symbols?: string[]; allowed_run_types?: string[]; }
 interface MonitorRoute { path?: string; surface?: string; owner?: string; expected?: boolean; }
 interface MonitorRoutesPayload { routes?: MonitorRoute[]; total?: number; timestamp?: string; source?: string; source_type?: string; }
+interface IngestorEntry {
+  name?: string; title?: string; redis_pattern?: string;
+  key_count?: number | null; sampled_payloads?: number | null; upstream_error_payloads?: number | null;
+  newest_event_age_seconds?: number | null; status?: string;
+  // Codex ingestor-honesty reclassification fields — render them, never guess.
+  provider_current?: boolean | null; provider_usable?: boolean | null;
+  provider_unusable_reason?: string | null; must_not_label_as_current_source?: boolean | null;
+}
+interface IngestorCounts { total?: number; live?: number; stale?: number; offline?: number; not_started?: number; }
+interface IngestorsPayload { ingestors?: IngestorEntry[]; counts?: IngestorCounts; }
 
-const TABS = ['Sources', 'Pipeline', 'Monitors'] as const;
+const TABS = ['Sources', 'Ingestors', 'Pipeline', 'Monitors'] as const;
 type Tab = typeof TABS[number];
+
+function ingestorStatusColor(status?: string): string {
+  switch ((status || '').toLowerCase()) {
+    case 'live': return SC.ok;
+    case 'stale': return SC.warn;
+    case 'offline': return SC.error;
+    case 'not_started': return SC.unknown;
+    default: return SC.unknown;
+  }
+}
+
+function fmtIngestorAge(s?: number | null): string {
+  if (s == null || !Number.isFinite(s)) return '—';
+  if (s < 90) return `${Math.round(s)}s`;
+  if (s < 5400) return `${Math.round(s / 60)}m`;
+  if (s < 172_800) return `${(s / 3600).toFixed(1)}h`;
+  return `${Math.floor(s / 86_400)}d`;
+}
 
 export default function AdminDataPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Sources');
@@ -31,10 +60,15 @@ export default function AdminDataPage(): JSX.Element {
   const { envelope: me, loading: monitorsLoading } = useRealtimeResource<MonitorRoutesPayload>({
     url: MONITOR_ROUTES_ENDPOINT, source: 'admin-data-monitors', pollIntervalMs: 60_000, enabled: tab === 'Monitors',
   });
+  const { envelope: ie, loading: ingestorsLoading } = useRealtimeResource<IngestorsPayload>({
+    url: INGESTORS_ENDPOINT, source: 'admin-data-ingestors', pollIntervalMs: 30_000,
+  });
 
   const surfaces = se.data?.surfaces || [];
   const pipeline = pe.data;
   const monitorRoutes = me.data?.routes || [];
+  const ingestors = ie.data?.ingestors || [];
+  const ingestorCounts = ie.data?.counts;
 
   return (
     <div data-testid="admin-data-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
@@ -51,6 +85,11 @@ export default function AdminDataPage(): JSX.Element {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
         {[
           { label: 'DATA SURFACES', value: String(surfaces.length) },
+          {
+            label: 'INGESTORS LIVE',
+            value: ingestorCounts ? `${ingestorCounts.live ?? 0}/${ingestorCounts.total ?? ingestors.length}` : '—',
+            accent: !ingestorCounts ? SC.unknown : (ingestorCounts.offline ?? 0) > 0 || (ingestorCounts.stale ?? 0) > 0 ? SC.warn : SC.ok,
+          },
           { label: 'PIPELINE GATE', value: pipeline?.live_gate?.replace(/_/g, ' ') || '—', accent: pipeline?.live_gate?.includes('blocked') ? SC.error : SC.ok },
           { label: 'SYMBOLS', value: String(pipeline?.symbols?.length ?? '—') },
           { label: 'RUN TYPES', value: String(pipeline?.allowed_run_types?.length ?? '—') },
@@ -96,6 +135,53 @@ export default function AdminDataPage(): JSX.Element {
         ) : (
           <div className="glass" style={{ padding: '14px', color: 'var(--text-muted)', fontSize: 12 }}>
             No data surfaces returned from <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{SURFACES_ENDPOINT}</span>
+          </div>
+        )
+      )}
+
+      {tab === 'Ingestors' && (
+        ingestorsLoading && !ie.data ? (
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '12px 0' }}>Loading ingestor status…</div>
+        ) : ingestors.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {ingestorCounts?.total ?? ingestors.length} ingestors · source <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{INGESTORS_ENDPOINT}</span>
+              </span>
+              {ingestorCounts && (
+                <>
+                  <Chip label={`LIVE ${ingestorCounts.live ?? 0}`} color={SC.ok} />
+                  <Chip label={`STALE ${ingestorCounts.stale ?? 0}`} color={SC.warn} />
+                  <Chip label={`OFFLINE ${ingestorCounts.offline ?? 0}`} color={SC.error} />
+                  <Chip label={`NOT STARTED ${ingestorCounts.not_started ?? 0}`} color={SC.unknown} />
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              {ingestors.map((ing, i) => (
+                <div key={ing.name || i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto auto', gap: 12, alignItems: 'center', padding: '10px 14px', borderRadius: 6, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)' }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{ing.title || ing.name || '—'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontFamily: 'var(--font-mono)' }}>{ing.redis_pattern || '—'} · keys {ing.key_count ?? '—'} · sampled {ing.sampled_payloads ?? '—'}{(ing.upstream_error_payloads ?? 0) > 0 ? ` · upstream errors ${ing.upstream_error_payloads}` : ''}</div>
+                    {ing.provider_unusable_reason && (
+                      <div style={{ fontSize: 10, color: SC.warn, marginTop: 2, fontFamily: 'var(--font-mono)' }}>{ing.provider_unusable_reason}</div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }} title="Newest event age">{fmtIngestorAge(ing.newest_event_age_seconds)}</span>
+                  {ing.must_not_label_as_current_source
+                    ? <Chip label="NOT CURRENT SOURCE" color={SC.error} />
+                    : ing.provider_current && ing.provider_usable
+                      ? <Chip label="CURRENT" color={SC.ok} />
+                      : <Chip label={ing.provider_usable ? 'USABLE' : 'NOT USABLE'} color={ing.provider_usable ? SC.warn : SC.unknown} />}
+                  <Chip label={(ing.status || 'unknown').replace(/_/g, ' ').toUpperCase()} color={ingestorStatusColor(ing.status)} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{ing.name || '—'}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="glass" style={{ padding: '14px', color: 'var(--text-muted)', fontSize: 12 }}>
+            No ingestors returned from <span style={{ fontFamily: 'var(--font-mono)', color: SC.info }}>{INGESTORS_ENDPOINT}</span>
           </div>
         )
       )}

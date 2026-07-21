@@ -42,9 +42,11 @@ export default function AdminLogsPage(): JSX.Element {
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         {[
-          { label: 'ERRORS 1H', value: String(data?.error_count_1h ?? errors.length), accent: (data?.error_count_1h ?? errors.length) > 0 ? SC.error : SC.ok },
+          // No data (fetch failed / not loaded) is NOT "0 errors" — render an
+          // unknown marker instead of a healthy green zero.
+          { label: 'ERRORS 1H', value: data ? String(data.error_count_1h ?? errors.length) : '—', accent: !data ? SC.unknown : (data.error_count_1h ?? errors.length) > 0 ? SC.error : SC.ok },
           { label: 'WARNINGS 1H', value: String(data?.warn_count_1h ?? '—'), accent: (data?.warn_count_1h ?? 0) > 10 ? SC.warn : undefined },
-          { label: 'TOTAL EVENTS', value: String(entries.length) },
+          { label: 'TOTAL EVENTS', value: data ? String(entries.length) : '—', accent: data ? undefined : SC.unknown },
         ].map(({ label, value, accent }) => (
           <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>

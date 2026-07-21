@@ -54,7 +54,7 @@ export default function AdminReportsPage(): JSX.Element {
         ))}
       </div>
 
-      {error && <MissingSourceIncident page="Reports" component="ReportIndex" source={REPORTS_ENDPOINT} owner="v2-report-center" remediation={`Check ${REPORTS_ENDPOINT}. Verify report center service is generating index.`} adminOnly />}
+      {error && <MissingSourceIncident page="Reports" component="ReportIndex" source={REPORTS_ENDPOINT} owner="v2-report-center" remediation={`curl :5173${REPORTS_ENDPOINT} — if it returns HTML instead of JSON, the deployed bundle/preview server is not serving public/v2_report_center (vite payload middleware / dist copy); the on-disk index is usually fresh. Only if the JSON itself is stale, check the report-center generator.`} adminOnly />}
 
       {!error && tab === 'Reports' && (
         loading && !data ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading reports…</div> :

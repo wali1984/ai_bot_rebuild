@@ -181,17 +181,28 @@ function cachedEnvelope<T>(
   return restored;
 }
 
-function shouldCacheEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
+// A frame that carries current, displayable data. Static payload/snapshot
+// frames ARE current data (they were just fetched); excluding them here would
+// force every static-sourced surface into the stale-preserve merge branch and
+// permanently mislabel freshly delivered frames as 'Stale'.
+function isCurrentResourceEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
   return envelope.data !== null
     && envelope.data !== undefined
     && envelope.source_type !== 'unavailable'
-    && envelope.source_type !== 'static_payload'
-    && envelope.source_type !== 'static_snapshot'
     && envelope.freshness_status !== 'stale'
     && envelope.freshness_status !== 'offline'
     && envelope.freshness_status !== 'unavailable'
     && envelope.data_quality_status !== 'missing'
     && envelope.data_quality_status !== 'invalid';
+}
+
+function shouldCacheEnvelope<T>(envelope: ValidatedDataEnvelope<T>): boolean {
+  // Static payload/snapshot frames are never persisted to the session
+  // last-known-good cache (a restored build-frozen snapshot could mask a later
+  // live regression), but they still count as current for display purposes.
+  return isCurrentResourceEnvelope(envelope)
+    && envelope.source_type !== 'static_payload'
+    && envelope.source_type !== 'static_snapshot';
 }
 
 function uniqueResourceWarnings(...groups: string[][]): string[] {
@@ -207,7 +218,7 @@ function timestampToMs(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function resourceFrameTimestampMs(raw: Record<string, unknown>, receivedAt: number): number {
+function resourceFrameContentTimestampMs(raw: Record<string, unknown>): number | null {
   const candidates = [
     raw.timestamp,
     raw.received_at,
@@ -219,15 +230,19 @@ function resourceFrameTimestampMs(raw: Record<string, unknown>, receivedAt: numb
     const parsed = timestampToMs(value);
     if (parsed !== null) return parsed;
   }
-  return receivedAt;
+  return null;
+}
+
+function resourceFrameTimestampMs(raw: Record<string, unknown>, receivedAt: number): number {
+  return resourceFrameContentTimestampMs(raw) ?? receivedAt;
 }
 
 export function mergeRealtimeResourceEnvelope<T>(
   previous: ValidatedDataEnvelope<T>,
   next: ValidatedDataEnvelope<T>,
 ): { envelope: ValidatedDataEnvelope<T>; shouldCache: boolean; preservedReason: 'stale_or_incomplete' | 'out_of_order' | null } {
-  const previousUsable = shouldCacheEnvelope(previous);
-  const nextUsable = shouldCacheEnvelope(next);
+  const previousUsable = isCurrentResourceEnvelope(previous);
+  const nextUsable = isCurrentResourceEnvelope(next);
   const previousDisplayable = displayableLastKnownEnvelope(previous);
   const previousTimestamp = typeof previous.timestamp === 'number' ? previous.timestamp : null;
   const nextTimestamp = typeof next.timestamp === 'number' ? next.timestamp : null;
@@ -278,7 +293,7 @@ export function mergeRealtimeResourceEnvelope<T>(
     };
   }
 
-  return { envelope: next, shouldCache: nextUsable, preservedReason: null };
+  return { envelope: next, shouldCache: shouldCacheEnvelope(next), preservedReason: null };
 }
 
 function fetchTimeoutMs(pollIntervalMs: number, requestTimeoutMs?: number): number {
@@ -386,10 +401,18 @@ export function useRealtimeResource<T>(
     const backendSource = typeof raw.source === 'string' ? raw.source : source;
     const backendMode = (typeof raw.mode === 'string' ? raw.mode : mode) as typeof mode;
     const backendLagMs = typeof raw.lag_ms === 'number' ? raw.lag_ms : lagMs;
-    const isStale = raw.stale === true;
+    // A boundary frame can carry stale=true alongside seconds-old content
+    // (observed on /derivatives first paint: chip read "Stale · 1.8s"). Honor
+    // the backend stale flag only when the frame's own content timestamp does
+    // not prove the data is inside the fresh window; frames without any
+    // content timestamp still trust the flag unchanged.
+    const contentTimestampMs = resourceFrameContentTimestampMs(raw);
+    const contentAgeMs = contentTimestampMs === null ? null : Math.max(0, receivedAt - contentTimestampMs);
+    const contentProvablyFresh = contentAgeMs !== null && contentAgeMs < staleThresholdMs * 0.5;
+    const isStale = raw.stale === true && !contentProvablyFresh;
     const freshness = isStale ? 'stale' as const : computeFreshness(receivedAt, staleThresholdMs);
     const quality = computeQuality(data, backendMissing);
-    const frameTimestampMs = resourceFrameTimestampMs(raw, receivedAt);
+    const frameTimestampMs = contentTimestampMs ?? receivedAt;
     const nextEnvelope: ValidatedDataEnvelope<T> = {
       data,
       source: backendSource,
@@ -471,8 +494,28 @@ export function useRealtimeResource<T>(
         }));
         return;
       }
-      const raw = await resp.json() as Record<string, unknown>;
+      const bodyText = await resp.text();
       if (!mountedRef.current || resourceKeyRef.current !== requestKey) return;
+      // SPA-fallback detection: when a static payload file is missing from the
+      // deployed bundle/proxy, the server answers 200 with the index.html app
+      // shell. Surface an honest, actionable error instead of the raw
+      // `Unexpected token '<'` JSON.parse garbage. Valid JSON can never start
+      // with '<', so this cannot misclassify a real payload.
+      const contentType = resp.headers.get('content-type') ?? '';
+      if (contentType.includes('text/html') || bodyText.trimStart().startsWith('<')) {
+        const msg = `payload_not_served: ${url} returned the HTML app shell instead of JSON — file not served by the deployed bundle/proxy`;
+        setError(msg);
+        setEnvelope(prev => ({
+          ...prev,
+          freshness_status: 'offline',
+          data_quality_status: 'invalid',
+          errors: [msg],
+          lag_ms: lagMs,
+          received_at: receivedAt,
+        }));
+        return;
+      }
+      const raw = JSON.parse(bodyText) as Record<string, unknown>;
       applyRawEnvelope(raw, receivedAt, lagMs);
     } catch (err) {
       if (!mountedRef.current || resourceKeyRef.current !== requestKey) return;

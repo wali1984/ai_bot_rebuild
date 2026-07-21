@@ -1,4 +1,5 @@
-import { cp, mkdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { cp, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
@@ -69,8 +70,72 @@ const copyCuratedPublicAssets: Plugin = {
   },
 };
 
+// The deployed site runs `vite preview` against dist/, but dist/ deliberately
+// prunes the operator evidence payload directories (public/ is ~12 GB and the
+// payload generators rewrite files continuously — a build-time copy would both
+// bloat dist and go stale). Without this middleware every payload-file fetch
+// (/v2_report_center/*, /system_atlas_runtime_coverage/*,
+// /external_manual_position_quarantine/*, /enterprise_trading_cockpit/*,
+// /autonomous_governor/*, operator-truth payloads, …) fell through to the SPA
+// fallback, returned index.html, and killed the page with a JSON parse error.
+// Serve those files straight from public/ at request time so they stay fresh.
+// /api, /ws and /operator_runtime are excluded — they are proxied to the
+// backend (:8000), which owns fresher copies of operator_runtime payloads.
+const servePublicEvidencePayloads: Plugin = {
+  name: "serve-public-evidence-payloads",
+  configurePreviewServer(server) {
+    const publicRoot = path.join(frontendRoot, "public");
+    server.middlewares.use((req, res, next) => {
+      void (async () => {
+        try {
+          if (req.method !== "GET" && req.method !== "HEAD") return next();
+          const rawPath = (req.url ?? "").split("?")[0];
+          if (!rawPath.startsWith("/")) return next();
+          if (
+            rawPath.startsWith("/api/") ||
+            rawPath.startsWith("/ws") ||
+            rawPath.startsWith("/operator_runtime/") ||
+            rawPath.startsWith("/assets/")
+          ) {
+            return next();
+          }
+          let decoded: string;
+          try {
+            decoded = decodeURIComponent(rawPath);
+          } catch {
+            return next();
+          }
+          const resolved = path.resolve(publicRoot, `.${decoded}`);
+          if (resolved !== publicRoot && !resolved.startsWith(publicRoot + path.sep)) return next();
+          const fileStat = await stat(resolved).catch(() => null);
+          if (!fileStat || !fileStat.isFile()) return next();
+          const ext = path.extname(resolved).toLowerCase();
+          const contentType =
+            ext === ".json" ? "application/json; charset=utf-8"
+            : ext === ".md" ? "text/markdown; charset=utf-8"
+            : ext === ".txt" || ext === ".log" ? "text/plain; charset=utf-8"
+            : ext === ".html" ? "text/html; charset=utf-8"
+            : ext === ".svg" ? "image/svg+xml"
+            : ext === ".png" ? "image/png"
+            : "application/octet-stream";
+          res.statusCode = 200;
+          res.setHeader("Content-Type", contentType);
+          res.setHeader("Content-Length", String(fileStat.size));
+          // Evidence payloads are rewritten in place by their generators —
+          // never let the browser cache a stale copy.
+          res.setHeader("Cache-Control", "no-store");
+          if (req.method === "HEAD") return res.end();
+          createReadStream(resolved).pipe(res);
+        } catch {
+          next();
+        }
+      })();
+    });
+  },
+};
+
 export default defineConfig(({ command }) => ({
-  plugins: [reactRefreshPreamble, react(), copyCuratedPublicAssets],
+  plugins: [reactRefreshPreamble, react(), copyCuratedPublicAssets, servePublicEvidencePayloads],
   publicDir: command === "build" ? false : "public",
   server: {
     port: 5173,

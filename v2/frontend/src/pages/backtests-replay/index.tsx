@@ -72,6 +72,12 @@ interface BacktestResults {
     pending_rows: number | null;
     trainer_loader_consumes: boolean | null;
   } | null;
+  edge_factory_replay_status?: {
+    status: string | null;
+    generated_utc: string | null;
+    replay_windows_processed: number | null;
+    snapshots_scanned: number | null;
+  } | null;
 }
 
 const HOT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT'];
@@ -417,18 +423,39 @@ export default function BacktestsReplayPage(): JSX.Element {
                     </span>
                   </div>
                 )}
-                {backtestEnv.data.replay_feedback && (
-                  <div style={{ fontSize: 10, color: '#4b5563', fontFamily: 'monospace' }}>
-                    replay→trainer: {backtestEnv.data.replay_feedback.existing_counterfactual_rows ?? 0} rows
-                    {backtestEnv.data.continuous_replay_active ? ' · continuous ✓' : ''}
-                  </div>
-                )}
                 <div style={{ fontSize: 9, color: '#f59e0b', fontStyle: 'italic' }}>
                   {backtestEnv.data.policy_backtest.evidence_class || 'BACKTEST_ONLY'} — not A+/live evidence
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>No backtest cycle reported yet.</div>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: 'monospace' }}>
+                No completed backtest cycle reported (available={String(backtestEnv.data?.available ?? false)}).
+              </div>
+            )}
+            {/* Replay-feedback + edge-factory truth is real data even when no
+                backtest cycle has completed (available=false) — never hide it
+                behind the policy_backtest gate. */}
+            {backtestEnv.data?.replay_feedback && (
+              <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3, fontFamily: 'monospace' }}>
+                <div style={{ fontSize: 10, color: '#9ca3af' }}>
+                  replay→trainer: {(backtestEnv.data.replay_feedback.existing_counterfactual_rows ?? 0).toLocaleString()} counterfactual rows
+                  {backtestEnv.data.replay_feedback.trainer_loader_consumes ? ' · trainer loader consumes ✓' : ''}
+                  {backtestEnv.data.continuous_replay_active ? ' · continuous ✓' : ''}
+                </div>
+                {(backtestEnv.data.replay_feedback.new_matured_rows != null || backtestEnv.data.replay_feedback.pending_rows != null) && (
+                  <div style={{ fontSize: 10, color: '#4b5563' }}>
+                    matured {backtestEnv.data.replay_feedback.new_matured_rows ?? '—'} · pending {backtestEnv.data.replay_feedback.pending_rows ?? '—'}
+                  </div>
+                )}
+              </div>
+            )}
+            {backtestEnv.data?.edge_factory_replay_status?.generated_utc && (
+              <div style={{ marginTop: 4, fontSize: 10, color: '#4b5563', fontFamily: 'monospace' }}>
+                edge-factory replay: {backtestEnv.data.edge_factory_replay_status.status ?? 'reported'}
+                {backtestEnv.data.edge_factory_replay_status.replay_windows_processed != null ? ` · windows ${backtestEnv.data.edge_factory_replay_status.replay_windows_processed}` : ''}
+                {backtestEnv.data.edge_factory_replay_status.snapshots_scanned != null ? ` · snapshots ${backtestEnv.data.edge_factory_replay_status.snapshots_scanned}` : ''}
+                {' · '}{backtestEnv.data.edge_factory_replay_status.generated_utc}
+              </div>
             )}
           </div>
 
