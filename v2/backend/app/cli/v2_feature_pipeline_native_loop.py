@@ -71,6 +71,10 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     OHLCVClosedWindowValidationError,
     validate_ohlcv_closed_window,
 )
+from v2.backend.app.services.native_trainer.runtime_feature_publication_receipt import (
+    FeaturePublicationReceiptError,
+    publish_and_verify_feature_snapshot,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 V2_REDIS_PREFIX = "v2:"
@@ -344,6 +348,33 @@ DEFAULT_PAYLOAD_PATH = (
     / "v2/frontend/public/operator_runtime/v2_feature_pipeline_native/live/latest/v2_feature_pipeline_native_live_status.json"
 )
 SNAPSHOT_PATH = REPO_ROOT / "v2/runtime/v2_feature_pipeline_native/latest/latest_feature_snapshot.json"
+_LOADED_FEATURE_PRODUCER_CODE_SHA256 = hashlib.sha256(
+    Path(__file__).read_bytes()
+).hexdigest()
+
+
+def _feature_publication_producer_identities(timeframe: str) -> tuple[str, str]:
+    """Bind the exact worker bytes and publication-relevant runtime config."""
+
+    producer_code_sha256 = _LOADED_FEATURE_PRODUCER_CODE_SHA256
+    producer_config_sha256 = _canonical_json_sha256(
+        {
+            "schema_version": "v2_feature_pipeline_publication_config_v1",
+            "timeframe": timeframe,
+            "feature_latest_ttl_seconds": FEATURE_LATEST_TTL_SECONDS,
+            "feature_snapshot_archive_ttl_seconds": (
+                FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS
+            ),
+            "feature_requirement_policy_id": FEATURE_REQUIREMENT_POLICY_ID,
+            "ordered_trainer_feature_names": list(_ORDERED_TRAINER_FEATURE_NAMES),
+            "ordered_trainer_feature_requirements": list(
+                _ORDERED_TRAINER_FEATURE_REQUIREMENTS
+            ),
+        }
+    )
+    if producer_config_sha256 is None:
+        raise ValueError("feature_publication_producer_config_invalid")
+    return producer_code_sha256, producer_config_sha256
 
 
 def _utc_iso() -> str:
@@ -2459,6 +2490,11 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
     keys_written: list[str] = []
     snapshots: list[dict] = []
     missing: list[str] = []
+    publication_receipt_count = 0
+    publication_receipt_failure_reasons: list[str] = []
+    producer_code_sha256, producer_config_sha256 = (
+        _feature_publication_producer_identities(timeframe)
+    )
     for sym in symbols:
         # Attach klines + orderbook + OI history + liquidation notional so the
         # feature builder can compute real TA (no silent zeros).
@@ -2878,11 +2914,54 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
         if r is not None:
             k = f"{V2_REDIS_PREFIX}features:latest:{sym}:{timeframe}"
             snap_payload = json.dumps(snap)
-            if _safe_write(r, k, snap_payload, ex=FEATURE_LATEST_TTL_SECONDS):
-                keys_written.append(k)
             archive_key = _feature_snapshot_archive_key(str(snap["feature_snapshot_id"]))
-            if _safe_write(r, archive_key, snap_payload, ex=FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS):
-                keys_written.append(archive_key)
+            if callable(getattr(r, "eval", None)):
+                try:
+                    verified_publication = publish_and_verify_feature_snapshot(
+                        r,
+                        snap_payload,
+                        archive_ttl_seconds=(
+                            FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS
+                        ),
+                        latest_ttl_seconds=FEATURE_LATEST_TTL_SECONDS,
+                        producer_code_sha256=producer_code_sha256,
+                        producer_config_sha256=producer_config_sha256,
+                    )
+                except FeaturePublicationReceiptError as exc:
+                    publication_receipt_failure_reasons.append(type(exc).__name__)
+                    # Preserve the mutable operator projection on a receipt
+                    # failure.  The immutable archive is never overwritten by
+                    # this fallback, and every consumer flag in ``snap`` is
+                    # already held false.
+                    if _safe_write(
+                        r,
+                        k,
+                        snap_payload,
+                        ex=FEATURE_LATEST_TTL_SECONDS,
+                    ):
+                        keys_written.append(k)
+                else:
+                    publication_receipt_count += 1
+                    keys_written.extend(
+                        (
+                            k,
+                            archive_key,
+                            verified_publication.receipt_key,
+                            verified_publication.latest_receipt_pointer_key,
+                        )
+                    )
+            else:
+                # Test doubles and explicitly reduced Redis clients retain the
+                # legacy held publication.  They cannot claim a receipt.
+                if _safe_write(r, k, snap_payload, ex=FEATURE_LATEST_TTL_SECONDS):
+                    keys_written.append(k)
+                if _safe_write(
+                    r,
+                    archive_key,
+                    snap_payload,
+                    ex=FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS,
+                ):
+                    keys_written.append(archive_key)
             # Also write v2:technical_analysis:{sym}:{tf} so the TA page has fresh
             # live values with proper TTL. Mirrors the TA subset from features.
             ta_families: list[str] = []
@@ -3041,6 +3120,14 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             for snapshot in snapshots
         ),
         "publication_receipt_held_count": publication_receipt_held_count,
+        "postcommit_publication_receipt_count": publication_receipt_count,
+        "postcommit_publication_receipt_failure_count": len(
+            publication_receipt_failure_reasons
+        ),
+        "postcommit_publication_receipt_failure_reasons": sorted(
+            set(publication_receipt_failure_reasons)
+        ),
+        "postcommit_publication_source_scope_complete_count": 0,
         "active_consumer_readiness": (
             "READY"
             if trainer_consumable_count == len(snapshots) and snapshots
@@ -3147,6 +3234,33 @@ def run_timeframes(symbols: tuple[str, ...], timeframes: tuple[str, ...]) -> dic
         ),
         "publication_receipt_held_count": sum(
             int(row.get("publication_receipt_held_count") or 0)
+            for row in per_timeframe
+        ),
+        "postcommit_publication_receipt_count": sum(
+            int(row.get("postcommit_publication_receipt_count") or 0)
+            for row in per_timeframe
+        ),
+        "postcommit_publication_receipt_failure_count": sum(
+            int(row.get("postcommit_publication_receipt_failure_count") or 0)
+            for row in per_timeframe
+        ),
+        "postcommit_publication_receipt_failure_reasons": sorted(
+            {
+                str(reason)
+                for row in per_timeframe
+                for reason in (
+                    row.get("postcommit_publication_receipt_failure_reasons")
+                    or []
+                )
+            }
+        ),
+        "postcommit_publication_source_scope_complete_count": sum(
+            int(
+                row.get(
+                    "postcommit_publication_source_scope_complete_count"
+                )
+                or 0
+            )
             for row in per_timeframe
         ),
         "active_consumer_readiness": (

@@ -5,6 +5,7 @@ import importlib
 import json
 import math
 import re
+from types import SimpleNamespace
 
 import pytest
 
@@ -481,6 +482,126 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
     assert heartbeat["paper_eligible_count"] == 0
     assert heartbeat["publication_receipt_held_count"] == 1
     assert heartbeat["active_consumer_readiness"] == "HELD"
+    assert heartbeat["trainer_release_ready"] is False
+
+
+def test_run_once_wires_postcommit_receipt_without_promoting_consumers(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    # The production redis-py client exposes EVAL; this test double opts in so
+    # run_once must use the new receipt boundary instead of the held legacy
+    # projection path.
+    fake.eval = lambda *_args, **_kwargs: None  # type: ignore[attr-defined]
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
+        _canonical_closed_window(close_ms)
+    )
+    captured: dict[str, object] = {}
+
+    def publish(
+        redis_client,
+        snapshot_payload,
+        *,
+        archive_ttl_seconds,
+        latest_ttl_seconds,
+        producer_code_sha256,
+        producer_config_sha256,
+    ):
+        snapshot = json.loads(snapshot_payload)
+        captured.update(
+            {
+                "redis_client": redis_client,
+                "snapshot": snapshot,
+                "archive_ttl_seconds": archive_ttl_seconds,
+                "latest_ttl_seconds": latest_ttl_seconds,
+                "producer_code_sha256": producer_code_sha256,
+                "producer_config_sha256": producer_config_sha256,
+            }
+        )
+        return SimpleNamespace(
+            receipt_key=(
+                "v2:features:publication_receipt:"
+                f"{snapshot['feature_snapshot_id']}"
+            ),
+            latest_receipt_pointer_key=(
+                "v2:features:publication_receipt:latest:BTCUSDT:1m"
+            ),
+        )
+
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(mod, "publish_and_verify_feature_snapshot", publish)
+
+    heartbeat = mod.run_once(
+        ("BTCUSDT",),
+        "1m",
+        write_trainer_snapshot=False,
+    )
+
+    snapshot = captured["snapshot"]
+    assert isinstance(snapshot, dict)
+    assert captured["redis_client"] is fake
+    assert captured["archive_ttl_seconds"] == mod.FEATURE_SNAPSHOT_ARCHIVE_TTL_SECONDS
+    assert captured["latest_ttl_seconds"] == mod.FEATURE_LATEST_TTL_SECONDS
+    assert re.fullmatch(r"[0-9a-f]{64}", str(captured["producer_code_sha256"]))
+    assert re.fullmatch(r"[0-9a-f]{64}", str(captured["producer_config_sha256"]))
+    assert snapshot["trainer_consumable"] is False
+    assert snapshot["valid_for_prediction"] is False
+    assert snapshot["valid_for_paper"] is False
+    assert heartbeat["postcommit_publication_receipt_count"] == 1
+    assert heartbeat["postcommit_publication_receipt_failure_count"] == 0
+    assert heartbeat["postcommit_publication_source_scope_complete_count"] == 0
+    assert heartbeat["trainer_consumable_count"] == 0
+    assert heartbeat["trainer_release_ready"] is False
+
+
+def test_receipt_failure_preserves_held_latest_projection_without_archive_overwrite(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    receipt_module = importlib.import_module(
+        "v2.backend.app.services.native_trainer.runtime_feature_publication_receipt"
+    )
+    fake = FakeRedis()
+    fake.eval = lambda *_args, **_kwargs: None  # type: ignore[attr-defined]
+    close_ms = _latest_finalized_close_ms(mod, "1m")
+    fake.store["v2:market:prices:BTCUSDT"] = json.dumps(_market_payload())
+    fake.store["v2:market:ohlcv_closed:binance:BTCUSDT:1m"] = json.dumps(
+        _canonical_closed_window(close_ms)
+    )
+
+    def fail_publication(*_args, **_kwargs):
+        raise receipt_module.FeaturePublicationReceiptIntegrityError(
+            "simulated_receipt_failure"
+        )
+
+    monkeypatch.setattr(mod, "_connect_redis", lambda: fake)
+    monkeypatch.setattr(
+        mod,
+        "publish_and_verify_feature_snapshot",
+        fail_publication,
+    )
+
+    heartbeat = mod.run_once(
+        ("BTCUSDT",),
+        "1m",
+        write_trainer_snapshot=False,
+    )
+
+    latest = json.loads(fake.store["v2:features:latest:BTCUSDT:1m"])
+    archive_key = mod._feature_snapshot_archive_key(latest["feature_snapshot_id"])
+    assert latest["trainer_consumable"] is False
+    assert latest["valid_for_prediction"] is False
+    assert latest["valid_for_paper"] is False
+    assert archive_key not in fake.store
+    assert heartbeat["postcommit_publication_receipt_count"] == 0
+    assert heartbeat["postcommit_publication_receipt_failure_count"] == 1
+    assert heartbeat["postcommit_publication_receipt_failure_reasons"] == [
+        "FeaturePublicationReceiptIntegrityError"
+    ]
+    assert heartbeat["trainer_consumable_count"] == 0
     assert heartbeat["trainer_release_ready"] is False
 
 
