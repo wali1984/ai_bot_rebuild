@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
 import { SourceBadge } from '../../components/data/SourceBadge';
@@ -56,7 +56,41 @@ interface RunStatus {
 
 const TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h'] as const;
 type TF = typeof TIMEFRAMES[number];
-const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'ADAUSDT', 'LTCUSDT', 'DOTUSDT'];
+
+// Adaptive symbol universe (symbol-universe policy: hardcoding symbol lists is
+// forbidden — the previous static 10-symbol list hid the rest of the live
+// universe from the manual-run form; final field audit). Backend-ordered
+// tracked symbols lead (majors first as published), then discovered symbols
+// not already tracked.
+interface SymbolUniverseData {
+  tracked_symbols?: string[];
+  discovered_symbols?: string[];
+}
+
+function useSymbolUniverse(): { symbols: string[]; loading: boolean } {
+  const { envelope, loading } = useRealtimeResource<SymbolUniverseData>({
+    url: '/api/v2/symbols/universe',
+    source: '/api/v2/symbols/universe',
+    pollIntervalMs: 60_000,
+    staleThresholdMs: 300_000,
+    mode: 'read_only',
+  });
+  const data = envelope.data;
+  const symbols = useMemo(() => {
+    const tracked = Array.isArray(data?.tracked_symbols) ? data.tracked_symbols : [];
+    const discovered = Array.isArray(data?.discovered_symbols) ? [...data.discovered_symbols].sort() : [];
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const s of [...tracked, ...discovered]) {
+      if (typeof s === 'string' && s !== '' && !seen.has(s)) {
+        seen.add(s);
+        out.push(s);
+      }
+    }
+    return out;
+  }, [data]);
+  return { symbols, loading };
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -222,6 +256,10 @@ function ResultDetail({ result, onClose }: { result: BacktestResult; onClose: ()
 
 function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): JSX.Element {
   const [symbol, setSymbol] = useState('BTCUSDT');
+  const { symbols: universeSymbols } = useSymbolUniverse();
+  // Keep the current selection renderable while the universe loads or if the
+  // endpoint is unavailable — never fall back to a hardcoded list.
+  const symbolOptions = universeSymbols.length > 0 ? universeSymbols : [symbol];
   const [tf, setTf] = useState<TF>('1h');
   const [lookback, setLookback] = useState(100);
   const [holdCandles, setHoldCandles] = useState(1);
@@ -269,9 +307,11 @@ function RunForm({ onRunStarted }: { onRunStarted: (runId: string) => void }): J
       <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700 }}>Manual Backtest Run</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 14 }}>
         <div>
-          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>Symbol</label>
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
+            Symbol{universeSymbols.length === 0 ? ' (universe loading…)' : ''}
+          </label>
           <select value={symbol} onChange={e => setSymbol(e.target.value)} style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}>
-            {SYMBOLS.map(s => <option key={s} value={s}>{s}</option>)}
+            {symbolOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div>
@@ -385,6 +425,22 @@ export default function BacktestsPage(): JSX.Element {
   const results = (envelope.data?.results ?? []).map(normalizeBacktestResult);
   const backtestSourceUnavailable = !envelope.data || envelope.source_type === 'unavailable';
 
+  // Filter options: adaptive universe plus any symbol actually present in
+  // stored results (so historical runs stay filterable even if a symbol
+  // leaves the tracked universe).
+  const { symbols: universeSymbols } = useSymbolUniverse();
+  const filterSymbols = (() => {
+    const seen = new Set(universeSymbols);
+    const out = [...universeSymbols];
+    for (const r of results) {
+      if (r.symbol && !seen.has(r.symbol)) {
+        seen.add(r.symbol);
+        out.push(r.symbol);
+      }
+    }
+    return out;
+  })();
+
   const handleRunStarted = useCallback((runId: string) => {
     setPendingRunIds(prev => [runId, ...prev]);
   }, []);
@@ -437,7 +493,7 @@ export default function BacktestsPage(): JSX.Element {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto', flexWrap: 'wrap' }}>
             <select value={filterSymbol} onChange={e => setFilterSymbol(e.target.value)} style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 11, outline: 'none' }}>
               <option value="">All Symbols</option>
-              {SYMBOLS.map(s => <option key={s} value={s}>{s}</option>)}
+              {filterSymbols.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
             <select value={filterTF} onChange={e => setFilterTF(e.target.value)} style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-base)', color: 'var(--text-primary)', fontSize: 11, outline: 'none' }}>
               <option value="">All TFs</option>
