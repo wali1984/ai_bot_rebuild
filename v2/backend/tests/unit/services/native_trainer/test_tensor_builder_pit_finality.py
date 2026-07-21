@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import (
+    LEGACY_PROVIDER_FENCED_FEATURE_NAMES,
     V2UnifiedFeatureTensorBuilder,
 )
 
@@ -19,6 +20,12 @@ def _missing(record):
 
 def _stale(record):
     return dict(zip(record.feature_names, record.stale_mask, strict=True))
+
+
+def _available(record):
+    return dict(
+        zip(record.feature_names, record.source_availability, strict=True)
+    )
 
 
 def test_future_confirmed_candle_is_masked_by_close_clock() -> None:
@@ -422,6 +429,101 @@ def test_provider_features_in_causal_context_are_admitted() -> None:
     assert record.values[index] == pytest.approx(57.0)
     assert record.missing_mask[index] == 0
     assert record.source_labels[index] == "provider_feature_bridge"
+
+
+def test_legacy_provider_features_remain_typed_optional_missing_despite_claimed_contract(
+) -> None:
+    claimed_values = {
+        name: float(index + 1)
+        for index, name in enumerate(sorted(LEGACY_PROVIDER_FENCED_FEATURE_NAMES))
+    }
+    causal_contract = {
+        "schema_version": "self_asserted_provider_contract_v1",
+        "event_time": "2026-07-18T11:59:57Z",
+        "ingested_at": "2026-07-18T11:59:58Z",
+        "available_at": "2026-07-18T11:59:59Z",
+        "feature_cutoff": "2026-07-18T11:59:57Z",
+        "canonical_receipt_resolver_present": True,
+        "postcommit_receipt_bound": True,
+        "consumer_receipts_bound": True,
+        "source_finality_contract_verified": True,
+        "trainer_consumable": True,
+    }
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "features_latest": {
+                **causal_contract,
+                "feature_snapshot_id": "self-asserted-provider-snapshot",
+                "features": claimed_values,
+            },
+            "microstructure": {
+                **causal_contract,
+                "coinapi_wsds_tape_imbalance": 0.99,
+            },
+            "moralis_features": {
+                **causal_contract,
+                "features": claimed_values,
+            },
+            "smart_money_signals": {
+                **causal_contract,
+                "features": claimed_values,
+            },
+            "provider_feature_context": {
+                **causal_contract,
+                "provider_features": claimed_values,
+            },
+        },
+    )
+
+    values = _fields(record)
+    missing = _missing(record)
+    stale = _stale(record)
+    available = _available(record)
+    assert record.temporal_rejection_reasons == ()
+    assert LEGACY_PROVIDER_FENCED_FEATURE_NAMES == {
+        "coinapi_wsds_tape_imbalance",
+        "moralis_exchange_inflow_usd",
+        "moralis_exchange_outflow_usd",
+        "moralis_net_exchange_flow_usd",
+        "moralis_onchain_risk_score",
+        "moralis_smart_wallet_accumulation_score",
+        "moralis_smart_wallet_distribution_score",
+        "moralis_whale_net_flow_usd",
+    }
+    for name in LEGACY_PROVIDER_FENCED_FEATURE_NAMES:
+        assert values[name] == 0.0
+        assert missing[name] == 1
+        assert stale[name] == 0
+        assert available[name] == 0
+
+
+def test_future_legacy_provider_clock_still_records_pit_rejection() -> None:
+    record = V2UnifiedFeatureTensorBuilder().build(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time=DECISION_TIME,
+        payloads={
+            "microstructure": {
+                "coinapi_wsds_tape_imbalance": 0.99,
+                "event_time": "2026-07-18T12:00:00.001Z",
+                "available_at": "2026-07-18T12:00:00.002Z",
+                "source_finality_contract_verified": False,
+            }
+        },
+    )
+
+    assert _fields(record)["coinapi_wsds_tape_imbalance"] == 0.0
+    assert _missing(record)["coinapi_wsds_tape_imbalance"] == 1
+    assert _stale(record)["coinapi_wsds_tape_imbalance"] == 1
+    assert "MICROSTRUCTURE_EVENT_TIME_AFTER_DECISION_TIME" in (
+        record.temporal_rejection_reasons
+    )
+    assert "MICROSTRUCTURE_AVAILABLE_AT_AFTER_DECISION_TIME" in (
+        record.temporal_rejection_reasons
+    )
 
 
 def test_future_nested_coinank_row_cannot_inherit_causal_wrapper_clock() -> None:

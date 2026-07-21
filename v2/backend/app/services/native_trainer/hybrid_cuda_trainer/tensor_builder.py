@@ -13,11 +13,21 @@ from v2.backend.app.services.market_structure.common import (
     direction_code,
     zone_code,
 )
+from v2.backend.app.services.native_trainer.feature_source_registry_v4 import (
+    COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+    MORALIS_OPTIONAL_FEATURE_NAMES,
+)
 from v2.backend.app.services.native_trainer.ordered_feature_tensor_spec_v3 import (
     FEATURE_SPEC as ORDERED_FEATURE_SPEC,
 )
 
 FEATURE_SPEC: tuple[tuple[str, str], ...] = ORDERED_FEATURE_SPEC
+LEGACY_PROVIDER_FENCED_FEATURE_NAMES = frozenset(
+    (
+        *COINAPI_WSDS_TAPE_IMBALANCE_OPTIONAL_FEATURE_NAMES,
+        *MORALIS_OPTIONAL_FEATURE_NAMES,
+    )
+)
 
 # taf_* model-feature name -> v2:features:ta_full TA-Lib indicator key (WI feature
 # expansion). The full talib loop already computes these; this wires them into the
@@ -1639,6 +1649,16 @@ class V2UnifiedFeatureTensorBuilder:
                 if parsed is not None and raw_by_name.get(name) is None:
                     raw_by_name[name] = parsed
                     provider_sources[name] = bridge_label
+
+        # The compatibility tensor has no authenticated canonical provider
+        # resolver or immutable postcommit readback verifier.  A causal-looking
+        # Redis payload, a copied feature-snapshot value, or a provider-context
+        # declaration therefore cannot authorize the CoinAPI/Moralis ABI slots.
+        # Keep these optional slots honestly missing (not stale and not observed
+        # zero) until the receipt-bound profiled path explicitly enables them.
+        for fenced_name in LEGACY_PROVIDER_FENCED_FEATURE_NAMES:
+            raw_by_name[fenced_name] = None
+            provider_sources.pop(fenced_name, None)
 
         coinank_sources: dict[str, str] = {}
         if coinank_funding_rate is not None and _dig(payloads.get("funding"), "funding_rate", "rate", "fundingRate", "lastFundingRate") is None:

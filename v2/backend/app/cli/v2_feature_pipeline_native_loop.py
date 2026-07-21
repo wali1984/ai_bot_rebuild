@@ -81,6 +81,16 @@ V2_REDIS_PREFIX = "v2:"
 DEFAULT_TF = "1m"
 DEFAULT_TIMEFRAMES = REQUIRED_DECISION_TIMEFRAMES
 OHLCV_CONSUMER_SELECTION_SCHEMA_VERSION = "v2_feature_ohlcv_consumer_selection_v1"
+LEGACY_PROVIDER_TRAINER_FENCE_SCHEMA_VERSION = "legacy_provider_trainer_fence_v1"
+LEGACY_PROVIDER_TRAINER_FENCE_STATUS = (
+    "FENCED_PENDING_AUTHENTICATED_RESOLVER_POSTCOMMIT_AND_PIT_CONTRACT"
+)
+LEGACY_PROVIDER_TRAINER_FENCED_NAMESPACES = (
+    "v2:market:coinapi:{symbol}",
+    "v2:market:coinapi:wsds:{symbol}",
+    "v2:features:moralis:{symbol}:{timeframe}",
+    "v2:smart_money:signals:{symbol}",
+)
 LEGACY_RL_OBSERVATION_CORE_FIELDS = (
     "ret_pct",
     "log_return",
@@ -1449,30 +1459,36 @@ def _merge_a_plus_context_features(r, symbol: str, timeframe: str, features: dic
 
 
 def _maybe_poll_moralis_smart_money(r) -> None:
-    """Hourly, CU-budget-guarded Moralis smart-money poll.
+    """Keep the retired in-process Moralis transport permanently fenced.
 
-    Runs inside the always-on pipeline loop; fires only when the last poll is
-    older than ~1h and MORALIS_API_KEY is present. The poller enforces the
-    2,000,000 CU/month budget (80% daily safety factor) and skips honestly
-    when the day's allowance is spent.
+    The canonical Moralis provider loop exclusively owns provider I/O, CU
+    reservation, rate limiting, raw evidence, and quarantine publication.  A
+    feature worker cannot authenticate those observations or their postcommit
+    availability, so it must not rediscover an API key, invoke a compatibility
+    poller, or synthesize trainer evidence from this legacy boundary.
     """
-    import os
-    import time as _time
 
-    try:
-        last = float(r.get("meta:moralis:last_update") or 0) / 1000.0
-        if _time.time() - last < 3500:
-            return
-        api_key = os.environ.get("MORALIS_API_KEY", "").strip()
-        if not api_key:
-            return
-        from v2.backend.app.services.smart_money_wallets.poller import (
-            poll_token_transfers,
-        )
+    del r
 
-        poll_token_transfers(r, api_key)
-    except Exception:  # noqa: BLE001 - never poison the feature cycle
-        return
+
+def _legacy_provider_trainer_fence_status() -> dict[str, object]:
+    """Describe the hard fence without treating provider absence as stale data."""
+
+    return {
+        "schema_version": LEGACY_PROVIDER_TRAINER_FENCE_SCHEMA_VERSION,
+        "status": LEGACY_PROVIDER_TRAINER_FENCE_STATUS,
+        "fenced_namespaces": list(LEGACY_PROVIDER_TRAINER_FENCED_NAMESPACES),
+        "legacy_namespaces_read": [],
+        "legacy_provider_features_merged": False,
+        "canonical_resolver_required": True,
+        "authenticated_source_receipt_required": True,
+        "postcommit_readback_receipt_required": True,
+        "available_at_required": True,
+        "available_at_must_not_exceed_decision_time": True,
+        "feature_cutoff_must_not_exceed_decision_time": True,
+        "source_finality_contract_required": True,
+        "provider_slots_enabled": False,
+    }
 
 
 def _bound_market_structure_candles(
@@ -1656,23 +1672,11 @@ def _merge_external_v2_features(
             else "v2:market:orderbook"
         )
 
-    wsds = _read_json_key(r, f"v2:market:coinapi:wsds:{symbol}")
-    if isinstance(wsds, dict):
-        wsds_features = {
-            "microprice": wsds.get("microprice"),
-            "spread": wsds.get("spread"),
-            "coinapi_mid_px": wsds.get("mid_px"),
-            "coinapi_best_bid_px": wsds.get("best_bid_px"),
-            "coinapi_best_ask_px": wsds.get("best_ask_px"),
-            "coinapi_book_bid_sum_5": wsds.get("book_bid_sum_5"),
-            "coinapi_book_ask_sum_5": wsds.get("book_ask_sum_5"),
-            "coinapi_imbalance_5": wsds.get("imbalance_5"),
-        }
-        imbalance = _coerce_numeric(wsds.get("imbalance_5"))
-        if imbalance is not None:
-            wsds_features["toxicity_proxy"] = abs(float(imbalance))
-        fields_merged += _merge_numeric_features(features, wsds_features)
-        sources_present.append("v2:market:coinapi:wsds")
+    # The obsolete CoinAPI WSDS namespace has no authenticated resolver,
+    # immutable source-read receipt, publication postcommit readback, or
+    # decision-time/finality proof.  Do not read it.  The canonical CoinAPI
+    # workers remain optional quarantine-only transports and auto-reprobe
+    # independently when an entitlement becomes available.
 
     microfeat = _read_json_key(r, f"v2:features:microfeat:{symbol}:{timeframe}")
     if isinstance(microfeat, dict) and isinstance(microfeat.get("features"), dict):
@@ -1898,6 +1902,9 @@ def _merge_external_v2_features(
         "sources_present": sorted(set(sources_present)),
         "fields_merged": fields_merged,
         "market_structure_ohlcv_binding": structure_ohlcv_binding,
+        "legacy_provider_trainer_fence": (
+            _legacy_provider_trainer_fence_status()
+        ),
     }
 
 
@@ -2836,6 +2843,9 @@ def run_once(symbols: tuple[str, ...], timeframe: str, *, write_trainer_snapshot
             "ohlcv_consumer_selection": ohlcv_selection_lineage,
             "external_v2_sources_present": external["sources_present"],
             "external_v2_feature_fields_merged": external["fields_merged"],
+            "legacy_provider_trainer_fence": external[
+                "legacy_provider_trainer_fence"
+            ],
             "market_structure_ohlcv_binding": external[
                 "market_structure_ohlcv_binding"
             ],

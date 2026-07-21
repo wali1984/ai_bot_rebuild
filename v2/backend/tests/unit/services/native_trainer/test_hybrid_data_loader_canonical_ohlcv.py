@@ -91,3 +91,48 @@ def test_closed_candle_reader_rejects_unfinished_canonical_row() -> None:
     assert rows == []
     assert selected_key == canonical_key
     assert redis.read_keys == [canonical_key]
+
+
+def test_legacy_provider_namespaces_are_never_read_by_full_payload_loader() -> None:
+    legacy_payload = json.dumps(
+        {
+            "features": {
+                "coinapi_wsds_tape_imbalance": 0.99,
+                "moralis_exchange_inflow_usd": 1_000_000.0,
+            },
+            "available_at": "2026-07-18T11:59:59Z",
+            "feature_cutoff": "2026-07-18T11:59:58Z",
+            "postcommit_receipt_bound": True,
+            "trainer_consumable": True,
+        }
+    )
+    fenced_keys = {
+        "v2:market:coinapi:BTCUSDT",
+        "v2:market:coinapi:wsds:BTCUSDT",
+        "v2:features:moralis:BTCUSDT:1m",
+        "v2:smart_money:signals:BTCUSDT",
+    }
+    redis = _RecordingRedis({key: legacy_payload for key in fenced_keys})
+    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=redis))
+
+    payloads = loader.load_payloads(symbol="BTCUSDT", timeframe="1m")
+
+    assert fenced_keys.isdisjoint(redis.read_keys)
+    assert "coinapi" not in payloads
+    assert "moralis_features" not in payloads
+    assert "smart_money_signals" not in payloads
+    assert fenced_keys.isdisjoint(set(payloads["_keys"].values()))
+
+
+def test_snapshot_batch_inventory_excludes_legacy_provider_namespaces() -> None:
+    loader = V2HybridTrainerDataLoader()
+
+    keys = loader._snapshot_request_keys(  # noqa: SLF001
+        symbol="BTCUSDT",
+        timeframe="1m",
+        latest_key="v2:features:latest:BTCUSDT:1m",
+    )
+
+    assert not any(key.startswith("v2:market:coinapi") for key in keys)
+    assert not any(key.startswith("v2:features:moralis") for key in keys)
+    assert not any(key.startswith("v2:smart_money:signals") for key in keys)

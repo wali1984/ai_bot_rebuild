@@ -469,6 +469,10 @@ def test_feature_snapshot_with_closed_ohlcv_carries_cutoff(monkeypatch) -> None:
     assert selection["feature_publication_receipt_emitted"] is False
     assert selection["consumer_eligible"] is False
     assert selection["trainer_admission_granted"] is False
+    provider_fence = payload["legacy_provider_trainer_fence"]
+    assert provider_fence["legacy_namespaces_read"] == []
+    assert provider_fence["legacy_provider_features_merged"] is False
+    assert provider_fence["provider_slots_enabled"] is False
     assert payload["latest_finalized_candle_available_at_decision"] is True
     assert payload["temporal_rejection_reasons"] == []
     assert heartbeat["classification"] == (
@@ -1212,6 +1216,80 @@ def test_external_enrichment_cannot_manufacture_reserved_feature_or_cost_evidenc
     )
     assert features["optional_external_signal"] == 0.73
     assert "v2:unified_features" in result["sources_present"]
+
+
+def test_retired_in_process_moralis_poller_cannot_rediscover_transport(
+    monkeypatch,
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    poller = importlib.import_module(
+        "v2.backend.app.services.smart_money_wallets.poller"
+    )
+    fake = FakeRedis()
+    calls: list[object] = []
+    monkeypatch.setenv("MORALIS_API_KEY", "unit-test-placeholder")
+    monkeypatch.setattr(
+        poller,
+        "poll_token_transfers",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+
+    mod._maybe_poll_moralis_smart_money(fake)  # noqa: SLF001
+
+    assert calls == []
+    assert fake.get_calls == []
+    assert fake.store == {}
+
+
+def test_obsolete_coinapi_namespace_is_not_read_or_merged_even_with_claimed_receipts(
+) -> None:
+    mod = importlib.import_module("v2.backend.app.cli.v2_feature_pipeline_native_loop")
+    fake = FakeRedis()
+    legacy_key = "v2:market:coinapi:wsds:BTCUSDT"
+    fake.store[legacy_key] = json.dumps(
+        {
+            "schema_version": "legacy_coinapi_wsds_claim_v1",
+            "microprice": 101.0,
+            "spread": 0.25,
+            "mid_px": 101.0,
+            "imbalance_5": 0.91,
+            "event_time": "2027-01-15T08:00:00.000Z",
+            "available_at": "2027-01-15T08:00:00.001Z",
+            "feature_cutoff": "2027-01-15T08:00:00.000Z",
+            "candle_final": False,
+            "canonical_receipt_resolver_present": True,
+            "postcommit_receipt_bound": True,
+            "trainer_consumable": True,
+        }
+    )
+    features = {
+        "microprice": None,
+        "spread": None,
+        "toxicity_proxy": None,
+        "coinapi_mid_px": None,
+        "coinapi_imbalance_5": None,
+    }
+
+    result = mod._merge_external_v2_features(  # noqa: SLF001
+        fake,
+        "BTCUSDT",
+        "1m",
+        features,
+        selected_closed_klines=[],
+        ohlcv_selection_lineage={},
+    )
+
+    assert legacy_key not in fake.get_calls
+    assert all(value is None for value in features.values())
+    assert "v2:market:coinapi:wsds" not in result["sources_present"]
+    fence = result["legacy_provider_trainer_fence"]
+    assert fence["legacy_namespaces_read"] == []
+    assert fence["legacy_provider_features_merged"] is False
+    assert fence["canonical_resolver_required"] is True
+    assert fence["postcommit_readback_receipt_required"] is True
+    assert fence["available_at_must_not_exceed_decision_time"] is True
+    assert fence["source_finality_contract_required"] is True
+    assert fence["provider_slots_enabled"] is False
 
 
 def test_live_ta_full_is_not_read_or_merged() -> None:

@@ -1461,7 +1461,6 @@ class V2HybridTrainerDataLoader:
             "long_short": f"v2:market:long_short:{symbol}",
             "coinank": f"v2:market:coinank:{symbol}",
             "kucoin": f"v2:market:kucoin:{symbol}",
-            "coinapi": f"v2:market:coinapi:{symbol}",
             "microstructure": f"v2:market:microstructure:{symbol}",
             "trade_tape": f"v2:microstructure:trade_tape_confirmation:{symbol}",
             "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
@@ -1486,8 +1485,6 @@ class V2HybridTrainerDataLoader:
             "unified_features": f"v2:unified_features:{symbol}:{timeframe}",
             "prediction": f"v2:prediction:{symbol}:{timeframe}",
             "symbol_score": f"v2:altdata:symbol_score:{symbol}",
-            "moralis_features": f"v2:features:moralis:{symbol}:{timeframe}",
-            "smart_money_signals": f"v2:smart_money:signals:{symbol}",
             "altdata_confluence": f"v2:altdata:confluence:{symbol}:{timeframe}",
             "risk_decisions": "v2:risk:decisions",
             "orchestrator_decisions": "v2:orchestrator:decisions",
@@ -1534,7 +1531,6 @@ class V2HybridTrainerDataLoader:
             f"v2:orderbook:features:binance:{symbol}",
             f"v2:orderbook:features:kucoin:{symbol}",
             f"v2:market:microstructure:{symbol}",
-            f"v2:market:coinapi:wsds:{symbol}",
             f"v2:features:microfeat:{symbol}:{timeframe}",
         )
         liquidation_levels, liquidation_levels_key = self._get_merged(
@@ -1628,9 +1624,7 @@ class V2HybridTrainerDataLoader:
             f"v2:microstructure:trust_score:{symbol}:{timeframe}",
             f"v2:microstructure:cascade_context:{symbol}:{timeframe}",
             f"v2:features:ta_full:{symbol}:1h",
-            f"v2:features:moralis:{symbol}:{timeframe}",
             f"v2:altdata:confluence:{symbol}:{timeframe}",
-            f"v2:smart_money:signals:{symbol}",
             f"v2:microstructure:feed_quality:binance:{symbol}",
             f"v2:microstructure:feed_quality:kucoin:{symbol}",
             f"v2:microstructure:adversarial_features:binance:{symbol}",
@@ -1639,7 +1633,6 @@ class V2HybridTrainerDataLoader:
             f"v2:microstructure:cross_venue_confirmation:{symbol}",
             f"v2:microstructure:sweep_risk:{symbol}:{timeframe}",
             f"v2:market:microstructure:{symbol}",
-            f"v2:market:coinapi:wsds:{symbol}",
             f"v2:features:microfeat:{symbol}:{timeframe}",
         ]
         for snapshot_timeframe in REQUIRED_DECISION_TIMEFRAMES:
@@ -1715,16 +1708,14 @@ class V2HybridTrainerDataLoader:
             "paper_positions": "v2:paper:positions",
             "risk_decisions": "v2:risk:decisions",
             "orchestrator_decisions": "v2:orchestrator:decisions",
-            # Parity with the full payload map (build_example slow path): without
-            # these the prediction fast path never resolves microstructure trust /
-            # confluence / moralis features, so they stay missing on the live
-            # tensor AND (post archive-fix) never reach the replay archive.
+            # Parity with the full payload map (build_example slow path) for
+            # independently clocked, non-provider compatibility sources. Legacy
+            # Moralis namespaces remain absent until an authenticated resolver
+            # and postcommit receipt verifier exist at this consumer boundary.
             "microstructure_trust": f"v2:microstructure:trust_score:{symbol}:{timeframe}",
             "cascade_context": f"v2:microstructure:cascade_context:{symbol}:{timeframe}",
             "ta_full_htf_1h": f"v2:features:ta_full:{symbol}:1h",
-            "moralis_features": f"v2:features:moralis:{symbol}:{timeframe}",
             "altdata_confluence": f"v2:altdata:confluence:{symbol}:{timeframe}",
-            "smart_money_signals": f"v2:smart_money:signals:{symbol}",
         }
         for name, key in supplemental_keys.items():
             value = self._get(key)
@@ -1756,7 +1747,6 @@ class V2HybridTrainerDataLoader:
             f"v2:orderbook:features:binance:{symbol}",
             f"v2:orderbook:features:kucoin:{symbol}",
             f"v2:market:microstructure:{symbol}",
-            f"v2:market:coinapi:wsds:{symbol}",
             f"v2:features:microfeat:{symbol}:{timeframe}",
         )
         if microstructure is not None:
@@ -3245,8 +3235,6 @@ class V2HybridTrainerDataLoader:
             "symbol_score": dict(features),
             "public_intel": dict(features),
             "whale_walls": dict(features),
-            "moralis_features": {"features": dict(features)},
-            "smart_money_signals": {"features": dict(features)},
             "altdata_confluence": {"features": dict(features)},
             "paper_positions": {},
             "risk_decisions": {},
