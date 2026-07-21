@@ -42,10 +42,15 @@ credentials are the exact remaining activation dependency for this unit.
 | Release path | `/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/7c231cc38d287d12a61fa4a4826640824faf022c` |
 | Checkout state | detached at the exact commit |
 | Tracked-tree verification | `git diff --quiet --exit-code <sha> --` returned `0` |
+| Root mode after staging | `0555` |
+| Writable regular-file/directory entries | `0` |
 
 The service runs the Python module from this checkout, not from the dirty main
 working tree. The drop-in also performs the exact Git diff check before each
-start.
+start. Owner/group/other write bits were removed recursively from regular
+files and directories in both staged inputs after validation. This prevents
+accidental mutation; it is not a privilege boundary against their owner, who
+can restore a write bit.
 
 ### Python dependency environment
 
@@ -56,6 +61,8 @@ start.
 | Approximate size | `8.2G` |
 | Regular-file count | `58,022` |
 | Files with link count greater than one | `0` |
+| Root mode after staging | `0555` |
+| Writable regular-file/directory entries | `0` |
 | Python | `3.12.3` |
 
 The release checkout's `.venv` symlink resolves to that copied dependency
