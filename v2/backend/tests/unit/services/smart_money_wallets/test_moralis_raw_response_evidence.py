@@ -358,8 +358,8 @@ def test_publisher_binds_exact_body_and_distinct_clocks_without_availability_aut
 
 def test_publisher_preserves_valid_raw_json_when_optional_metadata_is_semantically_unsafe() -> None:
     raw = (
-        b'{"result":[{"block_timestamp":"2026-07-20T11:59:59Z",'
-        b'"token_name":"unsafe\\u200bdisplay-name","value":12.5}]}'
+        b'{"block_timestamp":"2026-07-20T11:59:59Z",'
+        b'"token_name":"unsafe\\u200bdisplay-name","usdPrice":12.5}'
     )
     response = _client_response(raw)
     redis_client = _FakeRedis()
@@ -381,12 +381,32 @@ def test_publisher_preserves_valid_raw_json_when_optional_metadata_is_semantical
     assert source.get("raw_response_evidence_persisted") is not True
     assert base64.b64decode(source["raw_response_body_base64"], validate=True) == raw
     assert source["raw_response_sha256"] == hashlib.sha256(raw).hexdigest()
-    assert source["actual_payload_present"] is False
-    assert source["semantic_payload_present"] is False
-    assert "PAYLOAD_NOT_BOUNDED_CLOSED_JSON" in source["normalization_rejection_reasons"]
+    assert source["actual_payload_present"] is True
+    assert source["semantic_payload_present"] is True
+    assert source["features"] == {}
+    assert source["diagnostic_features"] == {"moralis_observed_token_price_usd": 12.5}
+    assert source["normalization_rejection_reasons"] == [
+        "SEMANTIC_FIELD_QUARANTINED:$.token_name"
+    ]
+    contributor = source["diagnostic_evidence"]["moralis_observed_token_price_usd"][
+        "contributing_rows"
+    ][0]
+    projection = json.loads(contributor["semantic_projection_canonical_json"])
+    assert contributor["row_index"] == 0
+    assert contributor["raw_response_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert contributor["raw_response_evidence_bound"] is True
+    assert contributor["semantic_projection_schema_version"] == (
+        "moralis_endpoint_semantic_projection_v1"
+    )
+    assert projection == {
+        "block_timestamp": "2026-07-20T11:59:59Z",
+        "usdPrice": 12.5,
+    }
+    assert "token_name" not in projection
+    assert "\\u200b" in contributor["row_canonical_json"]
     assert endpoint["raw_response_evidence_bound"] is True
     assert endpoint["raw_response_evidence_persisted"] is True
-    assert endpoint["source_semantic_claim_count"] == 0
+    assert endpoint["source_semantic_claim_count"] == 1
     for payload in (result, source, endpoint):
         assert payload["publication_authority"] is False
         assert payload["trainer_authority"] is False

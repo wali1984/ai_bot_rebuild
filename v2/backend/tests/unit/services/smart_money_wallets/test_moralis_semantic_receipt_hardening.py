@@ -8,7 +8,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-
 from v2.backend.app.services.native_trainer.feature_source_registry_v4 import (
     MORALIS_OPTIONAL_FEATURE_NAMES,
 )
@@ -532,6 +531,34 @@ def test_classified_exchange_rows_have_exact_units_direction_and_identity() -> N
     assert rejected["features"] == {}
 
 
+def test_unsafe_optional_transfer_label_cannot_block_or_enter_authenticated_flow() -> None:
+    row = _classified_transfer_rows()[0]
+    row["token_name"] = "unsafe\u200bdisplay-name"  # noqa: S105 - provider label fixture
+
+    normalized = _normalize("token_transfers", {"result": [row]})
+
+    assert normalized["features"] == {"moralis_exchange_inflow_usd": 100.0}
+    assert normalized["normalization_rejection_reasons"] == [
+        "SEMANTIC_FIELD_QUARANTINED:$.result[0].token_name"
+    ]
+    contributor = normalized["feature_evidence"]["moralis_exchange_inflow_usd"][
+        "contributing_rows"
+    ][0]
+    projection = json.loads(contributor["semantic_projection_canonical_json"])
+    assert projection == {
+        "block_timestamp": "2026-07-08T12:00:00Z",
+        "exchange_counterparty_address": "0x" + ("1" * 40),
+        "log_index": 0,
+        "transaction_hash": "0xinflow",
+        "value_usd": 100.0,
+    }
+    assert "token_name" not in projection
+    assert "\\u200b" in contributor["row_canonical_json"]
+    assert contributor["raw_response_evidence_bound"] is False
+    assert normalized["admitted_feature_count"] == 0
+    assert normalized["trainer_authority"] is False
+
+
 def test_one_sided_classified_flow_does_not_zero_fill_other_side_or_net() -> None:
     normalized = _normalize(
         "token_transfers",
@@ -673,6 +700,34 @@ def test_clockless_payload_and_supplied_available_at_remain_nonadmissible() -> N
         "SUPPLIED_AVAILABLE_AT_IGNORED_NO_POSTCOMMIT_RECEIPT"
         in payload["source_temporal_rejection_reasons"]
     )
+
+
+def test_invalid_raw_response_digest_can_never_self_declare_projection_binding() -> None:
+    normalized = normalize_moralis_payload(
+        spec=_spec("token_price"),
+        symbol="BTCUSDT",
+        chain="eth",
+        wallet=None,
+        token="0xtoken",  # noqa: S106 - fixture contract identifier
+        payload={
+            "usdPrice": 12.5,
+            "block_timestamp": "2026-07-08T12:00:00Z",
+        },
+        observed_at=_OBSERVED_AT,
+        raw_response_sha256="not-a-digest",
+        raw_response_evidence_bound=True,
+    )
+
+    assert "RAW_RESPONSE_BINDING_INVALID" in normalized["normalization_rejection_reasons"]
+    assert normalized["raw_response_sha256"] is None
+    assert normalized["raw_response_evidence_bound"] is False
+    contributor = normalized["diagnostic_evidence"]["moralis_observed_token_price_usd"][
+        "contributing_rows"
+    ][0]
+    assert contributor["raw_response_sha256"] is None
+    assert contributor["raw_response_evidence_bound"] is False
+    assert normalized["admitted_feature_count"] == 0
+    assert normalized["trainer_authority"] is False
 
 
 def test_complete_source_clock_order_still_waits_for_postcommit_receipt(
@@ -1822,9 +1877,10 @@ def test_persisted_classifier_receipt_is_reverified_from_canonical_row() -> None
     ]
 
 
-def _deeply_nested_payload() -> dict[str, Any]:
+def _deeply_nested_payload(*, extra_level: bool = False) -> dict[str, Any]:
     nested: Any = 1
-    for name in reversed(tuple("abcdefghijklm")):
+    names = tuple("abcdefghijklmn" if extra_level else "abcdefghijklm")
+    for name in reversed(names):
         nested = {name: nested}
     return {"result": [{"nested": nested}]}
 
@@ -1832,14 +1888,13 @@ def _deeply_nested_payload() -> dict[str, Any]:
 @pytest.mark.parametrize(
     "payload",
     (
-        {"result": [{"name": "x" * 4097}]},
-        {"result": [{} for _ in range(501)]},
-        {"result": [{str(index): index for index in range(129)}]},
-        {"result": [{"name": "unsafe\u202eunicode"}]},
-        _deeply_nested_payload(),
+        {"result": [{"name": "x" * 16_385}]},
+        {"result": [{} for _ in range(1001)]},
+        {"result": [{str(index): index for index in range(513)}]},
+        _deeply_nested_payload(extra_level=True),
     ),
 )
-def test_unbounded_or_unsafe_source_json_is_rejected_before_projection(payload: Any) -> None:
+def test_unbounded_transport_json_is_rejected_before_projection(payload: Any) -> None:
     normalized = normalize_moralis_payload(
         spec=_spec("token_metadata"),
         symbol=None,
@@ -1852,10 +1907,113 @@ def test_unbounded_or_unsafe_source_json_is_rejected_before_projection(payload: 
     assert normalized["actual_payload_present"] is False
     assert normalized["canonical_records"] == []
     assert normalized["raw_transport_record_count"] == 0
-    assert any(
-        reason in {"PAYLOAD_NOT_BOUNDED_CLOSED_JSON", "PAYLOAD_BYTE_LIMIT_EXCEEDED"}
-        for reason in normalized["normalization_rejection_reasons"]
+    assert "PAYLOAD_NOT_BOUNDED_TRANSPORT_JSON" in normalized[
+        "normalization_rejection_reasons"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_rejections"),
+    (
+        (
+            {"result": [{"name": "x" * 4097}]},
+            ["SEMANTIC_FIELD_QUARANTINED:$.result[0].name"],
+        ),
+        (
+            {"result": [{"name": "unsafe\u202eunicode"}]},
+            ["SEMANTIC_FIELD_QUARANTINED:$.result[0].name"],
+        ),
+        ({"result": [{str(index): index for index in range(129)}]}, []),
+        (_deeply_nested_payload(), []),
+    ),
+)
+def test_transport_valid_optional_fields_are_projected_or_quarantined_fieldwise(
+    payload: Any,
+    expected_rejections: list[str],
+) -> None:
+    normalized = normalize_moralis_payload(
+        spec=_spec("token_metadata"),
+        symbol=None,
+        chain="eth",
+        wallet=None,
+        token="0x" + ("1" * 40),
+        payload=payload,
+        observed_at=_OBSERVED_AT,
     )
+
+    assert normalized["actual_payload_present"] is True
+    assert normalized["raw_transport_record_count"] == 1
+    assert normalized["canonical_records"] == [{}]
+    assert normalized["normalization_rejection_reasons"] == expected_rejections
+    assert normalized["features"] == {}
+    assert normalized["admitted_feature_count"] == 0
+
+
+def test_semantic_row_cardinality_limit_still_fails_closed_after_transport_validation() -> None:
+    normalized = normalize_moralis_payload(
+        spec=_spec("token_metadata"),
+        symbol=None,
+        chain="eth",
+        wallet=None,
+        token="0x" + ("1" * 40),
+        payload={"result": [{} for _ in range(501)]},
+        observed_at=_OBSERVED_AT,
+    )
+
+    assert normalized["actual_payload_present"] is False
+    assert normalized["raw_transport_record_count"] == 0
+    assert normalized["canonical_records"] == []
+    assert "SOURCE_ROW_LIMIT_EXCEEDED" in normalized["normalization_rejection_reasons"]
+
+
+def test_large_wallet_history_page_quarantines_one_nested_label_without_losing_rows() -> None:
+    result: list[dict[str, Any]] = []
+    for row_index in range(100):
+        transfers = []
+        for transfer_index in range(5):
+            transfers.append(
+                {
+                    "token_name": (
+                        "unsafe\u200bdisplay-name"
+                        if row_index == 43 and transfer_index == 0
+                        else "Safe Token"
+                    ),
+                    "token_symbol": "SAFE",
+                    "from_address": "0x" + ("1" * 40),
+                    "to_address": "0x" + ("2" * 40),
+                    "value": "100",
+                    "value_decimal": "1.0",
+                    "transaction_hash": f"0x{row_index:02x}{transfer_index:02x}",
+                    "log_index": transfer_index,
+                    "block_timestamp": "2026-07-08T12:00:00Z",
+                }
+            )
+        result.append(
+            {
+                "block_timestamp": "2026-07-08T12:00:00Z",
+                "erc20_transfers": transfers,
+            }
+        )
+
+    normalized = normalize_moralis_payload(
+        spec=_spec("wallet_history"),
+        symbol="BTCUSDT",
+        chain="eth",
+        wallet="0x" + ("3" * 40),
+        token=None,
+        payload={"result": result},
+        observed_at=_OBSERVED_AT,
+    )
+
+    assert normalized["actual_payload_present"] is True, normalized[
+        "normalization_rejection_reasons"
+    ]
+    assert normalized["raw_transport_record_count"] == 100
+    assert normalized["semantic_payload_present"] is False
+    assert normalized["features"] == {}
+    assert normalized["normalization_rejection_reasons"] == [
+        "SEMANTIC_FIELD_QUARANTINED:$.result[43].erc20_transfers[0].token_name"
+    ]
 
 
 def test_safe_nfc_unicode_metadata_is_retained_but_never_admitted() -> None:

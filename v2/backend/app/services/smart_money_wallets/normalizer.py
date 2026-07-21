@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.services.smart_money_wallets.endpoint_registry import MoralisEndpointSpec
+from app.services.smart_money_wallets.transport_json import canonical_transport_json_bytes
 
 # These are the only Moralis fields present in the immutable trainer ABI.  The
 # bridge independently asserts this tuple against the v4 registry in tests.
@@ -65,6 +66,51 @@ _MAX_JSON_TOTAL_NODES = 5000
 _MAX_JSON_BYTES = 1_048_576
 _CLASSIFIER_KEY_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _ENDPOINT_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+_SAFE_PATH_COMPONENT_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,63}$")
+_MAX_SEMANTIC_QUARANTINE_REASONS = 250
+_SEMANTIC_PROJECTION_SCHEMA = "moralis_endpoint_semantic_projection_v1"
+_CLOCK_PROJECTION_FIELDS = ("block_timestamp", "timestamp")
+_TRANSFER_PROJECTION_FIELDS = (
+    "value_usd",
+    "usd_value",
+    "transaction_hash",
+    "transactionHash",
+    "hash",
+    "log_index",
+    "logIndex",
+    "exchange_counterparty_address",
+    *_CLOCK_PROJECTION_FIELDS,
+)
+_SWAP_PROJECTION_FIELDS = (
+    "side",
+    "transaction_type",
+    "total_value_usd",
+    "usd_value",
+    *_CLOCK_PROJECTION_FIELDS,
+)
+_PRICE_PROJECTION_FIELDS = ("usdPrice", "usd_price", *_CLOCK_PROJECTION_FIELDS)
+_SEMANTIC_FIELDS_BY_GROUP: dict[str, tuple[str, ...]] = {
+    "wallet_balances": ("usd_value", *_CLOCK_PROJECTION_FIELDS),
+    "wallet_token_balances_price": ("usd_value", *_CLOCK_PROJECTION_FIELDS),
+    "wallet_networth": (
+        "total_networth_usd",
+        "networth_usd",
+        *_CLOCK_PROJECTION_FIELDS,
+    ),
+    "wallet_history": _TRANSFER_PROJECTION_FIELDS,
+    "wallet_transactions": _TRANSFER_PROJECTION_FIELDS,
+    "wallet_address_transfers": _TRANSFER_PROJECTION_FIELDS,
+    "token_transfers": _TRANSFER_PROJECTION_FIELDS,
+    "token_address_transfers": _TRANSFER_PROJECTION_FIELDS,
+    "token_holders": ("total", *_CLOCK_PROJECTION_FIELDS),
+    "swaps": _SWAP_PROJECTION_FIELDS,
+    "wallet_swaps": _SWAP_PROJECTION_FIELDS,
+    "token_swaps": _SWAP_PROJECTION_FIELDS,
+    "price_ohlc": _PRICE_PROJECTION_FIELDS,
+    "token_price": _PRICE_PROJECTION_FIELDS,
+    "multiple_token_prices": _PRICE_PROJECTION_FIELDS,
+    "streams": (*_CLOCK_PROJECTION_FIELDS, "confirmed"),
+}
 
 
 def normalize_moralis_payload(
@@ -79,8 +125,17 @@ def normalize_moralis_payload(
     classifier_authentication_key: bytes | None = None,
     classifier_authentication_key_id: str | None = None,
     observed_at: str | None = None,
+    raw_response_sha256: str | None = None,
+    raw_response_evidence_bound: bool = False,
 ) -> dict[str, Any]:
     rows, row_rejections = _rows(payload)
+    row_rejections.extend(_semantic_quarantine_reasons(payload))
+    response_binding = _raw_response_binding(
+        raw_response_sha256=raw_response_sha256,
+        raw_response_evidence_bound=raw_response_evidence_bound,
+    )
+    if raw_response_evidence_bound and not response_binding["raw_response_evidence_bound"]:
+        row_rejections.append("RAW_RESPONSE_BINDING_INVALID")
     generated_at = _strict_source_time(observed_at) if observed_at is not None else None
     if observed_at is not None and generated_at is None:
         row_rejections.append("NORMALIZATION_OBSERVED_AT_NOT_STRICT_UTC")
@@ -103,6 +158,8 @@ def normalize_moralis_payload(
         total, contributor_receipts, contributor_rejections = _sum_nonnegative_usd(
             rows,
             ("usd_value",),
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -131,6 +188,8 @@ def normalize_moralis_payload(
         receipt, rejection = _contributor_receipt(
             networth_row,
             row_index=0,
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -177,6 +236,8 @@ def normalize_moralis_payload(
                     symbol=symbol,
                 ),
                 symbol=symbol,
+                feature_family=spec.group,
+                raw_response_binding=response_binding,
                 observed_at=generated_at,
                 source_window_seconds=source_window_seconds,
             )
@@ -246,6 +307,8 @@ def normalize_moralis_payload(
         holder_receipt, holder_rejection = _contributor_receipt(
             holder_row,
             row_index=0,
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -267,6 +330,8 @@ def normalize_moralis_payload(
     elif spec.group in {"swaps", "wallet_swaps", "token_swaps"}:
         swap, swap_receipts, swap_rejections = _observed_swap_usd(
             rows,
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -313,6 +378,8 @@ def normalize_moralis_payload(
         price_receipt, price_rejection = _contributor_receipt(
             price_row,
             row_index=0,
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -341,6 +408,8 @@ def normalize_moralis_payload(
         stream_receipt, stream_rejection = _contributor_receipt(
             stream_row,
             row_index=0,
+            feature_family=spec.group,
+            raw_response_binding=response_binding,
             observed_at=generated_at,
             source_window_seconds=source_window_seconds,
         )
@@ -398,6 +467,8 @@ def normalize_moralis_payload(
         "source_diagnostic_claim_count": len(diagnostics),
         "source_semantic_claim_count": len(features) + len(diagnostics),
         "admitted_feature_count": 0,
+        "raw_response_sha256": response_binding["raw_response_sha256"],
+        "raw_response_evidence_bound": response_binding["raw_response_evidence_bound"],
         "classifier_authentication_key_id": classifier_authentication_key_id,
         "classifier_request_target_kind": _request_target_kind(spec),
         "classifier_request_target": _request_target(
@@ -427,7 +498,7 @@ def normalize_moralis_payload(
 
 
 def _rows(payload: Any) -> tuple[list[Mapping[str, Any]], list[str]]:
-    payload_rejection = _bounded_json_rejection(payload)
+    payload_rejection = _bounded_transport_json_rejection(payload)
     if payload_rejection is not None:
         return [], [payload_rejection]
     candidates: Any
@@ -470,6 +541,8 @@ def _classified_exchange_flow_usd(
     request_target_kind: str,
     request_target: str,
     symbol: str | None,
+    feature_family: str,
+    raw_response_binding: Mapping[str, Any],
     observed_at: datetime,
     source_window_seconds: int,
 ) -> tuple[
@@ -518,6 +591,8 @@ def _classified_exchange_flow_usd(
         contributor, rejection = _contributor_receipt(
             row,
             row_index=row_index,
+            feature_family=feature_family,
+            raw_response_binding=raw_response_binding,
             observed_at=observed_at,
             source_window_seconds=source_window_seconds,
         )
@@ -575,7 +650,7 @@ def _authenticated_classifier_claim(
     log_index = _log_index(row)
     expected_symbol = str(symbol or "").strip().upper()
     try:
-        row_bytes = _strict_json_bytes(dict(row))
+        row_bytes = canonical_transport_json_bytes(dict(row))
     except (TypeError, ValueError):
         return None
     row_digest = hashlib.sha256(row_bytes).hexdigest()
@@ -694,7 +769,7 @@ def classifier_evidence_reverification_reasons(
                 continue
             try:
                 row = json.loads(canonical)
-                canonical_roundtrip = _strict_json_bytes(row).decode("utf-8")
+                canonical_roundtrip = canonical_transport_json_bytes(row).decode("ascii")
             except (TypeError, ValueError):
                 reasons.append(f"{feature_name}:{contributor_index}:CLASSIFIER_SOURCE_ROW_INVALID")
                 continue
@@ -758,6 +833,8 @@ def _canonical_cache_projection(
 def _observed_swap_usd(
     rows: list[Mapping[str, Any]],
     *,
+    feature_family: str,
+    raw_response_binding: Mapping[str, Any],
     observed_at: datetime,
     source_window_seconds: int,
 ) -> tuple[dict[str, float], dict[str, list[dict[str, Any]]], list[str]]:
@@ -772,6 +849,8 @@ def _observed_swap_usd(
         receipt, rejection = _contributor_receipt(
             row,
             row_index=row_index,
+            feature_family=feature_family,
+            raw_response_binding=raw_response_binding,
             observed_at=observed_at,
             source_window_seconds=source_window_seconds,
         )
@@ -813,6 +892,8 @@ def _sum_nonnegative_usd(
     rows: list[Mapping[str, Any]],
     fields: tuple[str, ...],
     *,
+    feature_family: str,
+    raw_response_binding: Mapping[str, Any],
     observed_at: datetime,
     source_window_seconds: int,
 ) -> tuple[float | None, list[dict[str, Any]], list[str]]:
@@ -826,6 +907,8 @@ def _sum_nonnegative_usd(
         receipt, rejection = _contributor_receipt(
             row,
             row_index=row_index,
+            feature_family=feature_family,
+            raw_response_binding=raw_response_binding,
             observed_at=observed_at,
             source_window_seconds=source_window_seconds,
         )
@@ -879,8 +962,10 @@ def _strict_evm_address(value: Any) -> str | None:
 
 
 def _json_safe_scalar(value: Any) -> str | int | float | bool | None:
-    if value is None or isinstance(value, str | bool | int):
+    if value is None or isinstance(value, bool | int):
         return value
+    if isinstance(value, str):
+        return value if not value or _safe_text(value) else None
     if isinstance(value, float) and math.isfinite(value):
         return value
     return None
@@ -983,25 +1068,98 @@ def _safe_text(value: Any, *, max_bytes: int = _MAX_JSON_STRING_BYTES) -> bool:
     )
 
 
-def _bounded_json_rejection(value: Any) -> str | None:
+def _bounded_transport_json_rejection(value: Any) -> str | None:
     try:
-        _validate_closed_json(value)
-        encoded = json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-            allow_nan=False,
-        ).encode("utf-8")
+        canonical_transport_json_bytes(value)
     except (TypeError, ValueError, UnicodeError):
-        return "PAYLOAD_NOT_BOUNDED_CLOSED_JSON"
-    return "PAYLOAD_BYTE_LIMIT_EXCEEDED" if len(encoded) > _MAX_JSON_BYTES else None
+        return "PAYLOAD_NOT_BOUNDED_TRANSPORT_JSON"
+    return None
+
+
+def _raw_response_binding(
+    *,
+    raw_response_sha256: str | None,
+    raw_response_evidence_bound: bool,
+) -> dict[str, Any]:
+    digest = (
+        raw_response_sha256
+        if isinstance(raw_response_sha256, str) and _SHA256_RE.fullmatch(raw_response_sha256)
+        else None
+    )
+    return {
+        "raw_response_sha256": digest,
+        "raw_response_evidence_bound": bool(raw_response_evidence_bound and digest is not None),
+    }
+
+
+def _semantic_projection(feature_family: str, row: Mapping[str, Any]) -> dict[str, Any]:
+    """Project only fields with defined endpoint semantics into a strict row."""
+
+    projection: dict[str, Any] = {}
+    for field in _SEMANTIC_FIELDS_BY_GROUP.get(feature_family, ("block_timestamp", "timestamp")):
+        if field not in row:
+            continue
+        value = row.get(field)
+        if not (
+            value is None
+            or isinstance(value, bool | int)
+            or isinstance(value, float) and math.isfinite(value)
+            or isinstance(value, str) and (not value or _safe_text(value))
+        ):
+            continue
+        projection[field] = value
+    return projection
+
+
+def _semantic_quarantine_reasons(value: Any) -> list[str]:
+    """Report unsafe metadata paths without copying them into semantic output."""
+
+    try:
+        canonical_transport_json_bytes(value)
+    except (TypeError, ValueError, UnicodeError):
+        return []
+
+    reasons: list[str] = []
+
+    def record(reason: str) -> None:
+        if len(reasons) < _MAX_SEMANTIC_QUARANTINE_REASONS:
+            reasons.append(reason)
+
+    def walk(item: Any, path: str) -> None:
+        if len(reasons) >= _MAX_SEMANTIC_QUARANTINE_REASONS:
+            return
+        if isinstance(item, str):
+            if item and not _safe_text(item):
+                record(f"SEMANTIC_FIELD_QUARANTINED:{path}")
+            return
+        if isinstance(item, list):
+            for index, child in enumerate(item):
+                walk(child, f"{path}[{index}]")
+            return
+        if isinstance(item, Mapping):
+            for key, child in item.items():
+                if isinstance(key, str) and _SAFE_PATH_COMPONENT_RE.fullmatch(key):
+                    child_path = f"{path}.{key}"
+                else:
+                    key_bytes = str(key).encode("utf-8", errors="backslashreplace")
+                    key_digest = hashlib.sha256(key_bytes).hexdigest()[:16]
+                    child_path = f"{path}[key_sha256_{key_digest}]"
+                    if not isinstance(key, str) or not _safe_text(key):
+                        record(f"SEMANTIC_OBJECT_KEY_QUARANTINED:{child_path}")
+                walk(child, child_path)
+
+    walk(value, "$")
+    if len(reasons) >= _MAX_SEMANTIC_QUARANTINE_REASONS:
+        reasons.append("SEMANTIC_QUARANTINE_REASON_LIMIT_REACHED")
+    return sorted(set(reasons))
 
 
 def _contributor_receipt(
     row: Mapping[str, Any],
     *,
     row_index: int,
+    feature_family: str,
+    raw_response_binding: Mapping[str, Any],
     observed_at: datetime,
     source_window_seconds: int,
 ) -> tuple[dict[str, Any] | None, str | None]:
@@ -1014,15 +1172,27 @@ def _contributor_receipt(
     if age_seconds > source_window_seconds:
         return None, "CONTRIBUTOR_STALE_OUTSIDE_SOURCE_WINDOW"
     try:
-        row_bytes = _strict_json_bytes(dict(row))
+        row_bytes = canonical_transport_json_bytes(dict(row))
+        projection = _semantic_projection(feature_family, row)
+        projection_bytes = _strict_json_bytes(projection)
     except (TypeError, ValueError):
         return None, "CONTRIBUTOR_ROW_NOT_CLOSED_STRICT_JSON"
+    row_canonical_json = row_bytes.decode("ascii")
+    if not _safe_text(row_canonical_json):
+        return None, "CONTRIBUTOR_ROW_CANONICAL_LIMIT_EXCEEDED"
     return (
         {
             "row_index": int(row_index),
             "event_time": _iso_utc(event_time),
             "row_sha256": hashlib.sha256(row_bytes).hexdigest(),
-            "row_canonical_json": row_bytes.decode("utf-8"),
+            "row_canonical_json": row_canonical_json,
+            "semantic_projection_schema_version": _SEMANTIC_PROJECTION_SCHEMA,
+            "semantic_projection_sha256": hashlib.sha256(projection_bytes).hexdigest(),
+            "semantic_projection_canonical_json": projection_bytes.decode("utf-8"),
+            "raw_response_sha256": raw_response_binding.get("raw_response_sha256"),
+            "raw_response_evidence_bound": (
+                raw_response_binding.get("raw_response_evidence_bound") is True
+            ),
         },
         None,
     )
