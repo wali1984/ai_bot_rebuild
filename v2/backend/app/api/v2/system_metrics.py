@@ -645,6 +645,68 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
     }
 
 
+_CANDLE_FINALITY_SAMPLE_KEY = "v2:market:ohlcv:binance:BTCUSDT:1m"
+
+
+def _candle_finality_sample(r: Any, now: float) -> dict[str, Any] | None:
+    """Causal candle-finality flags from the newest binance 1m OHLCV rows.
+
+    Bounded: one exact-key GET on the canonical BTCUSDT 1m history (~100 rows).
+    Surfaces the Codex causal-finality contract (candle_closed_confirmed /
+    is_closed / feature_eligible, plus finality_cutoff_* when present) so
+    consumers can see that feature inputs use closed candles only.
+    """
+    if r is None:
+        return None
+    try:
+        raw = r.get(_CANDLE_FINALITY_SAMPLE_KEY)
+    except Exception:
+        return None
+    if not raw:
+        return None
+    try:
+        rows = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(rows, list) or not rows:
+        return None
+    dict_rows = [row for row in rows if isinstance(row, dict)]
+    if not dict_rows:
+        return None
+    newest = dict_rows[-1]
+    close_time = newest.get("candle_close_time") or newest.get("close_time")
+    close_age = (
+        round(max(0.0, now - float(close_time) / 1000.0), 1)
+        if isinstance(close_time, (int, float)) and close_time > 0
+        else None
+    )
+    return {
+        "sample_key": _CANDLE_FINALITY_SAMPLE_KEY,
+        "sample_symbol": newest.get("symbol") or "BTCUSDT",
+        "timeframe": newest.get("timeframe") or "1m",
+        "row_count": len(dict_rows),
+        "closed_confirmed_row_count": sum(
+            1 for row in dict_rows if row.get("candle_closed_confirmed") is True
+        ),
+        "feature_eligible_row_count": sum(
+            1 for row in dict_rows if row.get("feature_eligible") is True
+        ),
+        "newest_candle_closed_confirmed": newest.get("candle_closed_confirmed"),
+        "newest_is_closed": newest.get("is_closed"),
+        "newest_feature_eligible": newest.get("feature_eligible"),
+        "newest_candle_open_time_ms": newest.get("candle_open_time") or newest.get("open_time"),
+        "newest_candle_close_time_ms": close_time,
+        "newest_candle_close_age_seconds": close_age,
+        "newest_source": newest.get("source"),
+        # Present on feeds that stamp an explicit causal cutoff (e.g. the
+        # CoinAnk OI backup rows); binance WSS rows carry closed-candle flags
+        # instead — both are surfaced honestly, absent fields stay null.
+        "finality_cutoff_ms": newest.get("finality_cutoff_ms"),
+        "finality_cutoff_source_field": newest.get("finality_cutoff_source_field"),
+        "policy": "FEATURE_INPUTS_MUST_USE_CLOSED_CANDLES",
+    }
+
+
 @router.get("/ingestors/status")
 async def get_ingestors_status() -> dict[str, Any]:
     """Freshness/status of every registered ingestor, derived from live Redis keys.
@@ -654,6 +716,12 @@ async def get_ingestors_status() -> dict[str, Any]:
     r = get_redis()
     now = time.time()
     rows = [_ingestor_row(r, name, feed, now) for name, feed in INGESTOR_FEEDS.items()]
+    finality = _candle_finality_sample(r, now)
+    if finality is not None:
+        for row in rows:
+            if row.get("name") == "live_binance":
+                row["candle_finality"] = finality
+                break
     live = sum(1 for row in rows if row["status"] == "live")
     ts = _utc_now()
     return {

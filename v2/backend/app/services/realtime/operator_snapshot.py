@@ -208,6 +208,7 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
     cu_budget = _read_json(client, "v2:provider:moralis:cu_budget_status") if provider == "moralis" else {}
     cu_ledger = usage.get("persistent_cu_ledger") if isinstance(usage.get("persistent_cu_ledger"), dict) else {}
     token_map = _read_json(client, "v2:moralis:token_map_status") if provider == "moralis" else {}
+    scheduler = _read_json(client, "v2:provider:moralis:scheduler_status") if provider == "moralis" else {}
 
     feature_count = _count(_first(
         bridge.get("feature_count"),
@@ -282,6 +283,30 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
     )
     health_age = _iso_age_seconds(health_generated_utc)
 
+    # ISOLATED_BY_POLICY is a deliberate consumption quarantine, not a failure.
+    # Surface the policy scope + the real rejection reasons from the health key
+    # so UIs can show reason text instead of a bare gray chip.
+    status_value = str(_first(bridge.get("status"), health.get("status"), "unknown"))
+    status_policy = None
+    if "ISOLATED_BY_POLICY" in status_value.upper():
+        policy_reasons = health.get("source_temporal_rejection_reasons")
+        status_policy = {
+            "policy": "ISOLATED_BY_POLICY",
+            "scope": "trainer_consumption",
+            "trainer_consumption_status": health.get("trainer_consumption_status"),
+            "trainer_isolation_active": health.get("trainer_isolation_active"),
+            "reasons": [str(r) for r in policy_reasons] if isinstance(policy_reasons, list) else [],
+            "transport_status": health.get("current_transport_status"),
+            "auth_status": health.get("auth_status"),
+            "core_system_blocked": health.get("core_system_blocked"),
+            "explanation": (
+                "Deliberate policy quarantine: provider payloads are ingested but "
+                "isolated from trainer/decision-time consumers until temporal "
+                "receipts are bound. Transport/auth health is tracked separately; "
+                "gray here is a hold, not an outage."
+            ),
+        }
+
     return {
         "provider": provider,
         "display_name": provider.replace("_", " ").title(),
@@ -294,6 +319,7 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
             "unknown",
         ),
         "status": _first(bridge.get("status"), health.get("status"), "unknown"),
+        "status_policy": status_policy,
         "dashboard_color": dashboard_color,
         "dashboard_color_reason": (
             "heartbeat_only_forces_yellow" if heartbeat_only and raw_color == "green"
@@ -378,6 +404,42 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
         ) if provider == "moralis" else None,
         "verified_smart_wallet_count": watchlist.get("verified_smart_wallet_count") if provider == "moralis" else None,
         "token_map_count": token_map.get("token_map_count") if provider == "moralis" else None,
+        # Scheduler run-control state (v2:provider:moralis:scheduler_status).
+        # Scoped SCHEDULER_RUN_CONTROL_STATE — it must never override the
+        # provider-health color above; it explains WHY the scheduler is pacing.
+        "scheduler_run_state": {
+            "status": scheduler.get("status"),
+            "status_scope": scheduler.get("status_scope"),
+            "bootstrap_status": scheduler.get("bootstrap_status"),
+            "scheduler_run_suppressed_reason": scheduler.get("scheduler_run_suppressed_reason"),
+            "active_candidate_chain": scheduler.get("active_candidate_chain"),
+            "active_candidate_wallet_count": _first(
+                scheduler.get("active_candidate_wallet_count"),
+                scheduler.get("chain_candidate_wallet_count"),
+                scheduler.get("wallet_count"),
+            ),
+            "candidate_wallet_count": scheduler.get("candidate_wallet_count"),
+            "candidate_wallet_chain_counts": scheduler.get("candidate_wallet_chain_counts")
+            if isinstance(scheduler.get("candidate_wallet_chain_counts"), dict) else {},
+            "queued_candidate_wallet_count": scheduler.get("queued_candidate_wallet_count"),
+            "queued_candidate_wallet_chain_counts": scheduler.get("queued_candidate_wallet_chain_counts")
+            if isinstance(scheduler.get("queued_candidate_wallet_chain_counts"), dict) else {},
+            "queued_candidate_wallet_polling_status": scheduler.get("queued_candidate_wallet_polling_status"),
+            "watchlist_refresh_action": scheduler.get("watchlist_refresh_action"),
+            "watchlist_refresh_succeeded": scheduler.get("watchlist_refresh_succeeded"),
+            "candidate_chain_activation_policy": scheduler.get("candidate_chain_activation_policy"),
+            "paced_cu_admission_credit_balance_cu": scheduler.get("paced_cu_admission_credit_balance_cu"),
+            "current_run_compute_unit_budget": scheduler.get("current_run_compute_unit_budget"),
+            "current_run_admitted_compute_units": scheduler.get("current_run_admitted_compute_units"),
+            "paced_cu_admission_denied_count": scheduler.get("paced_cu_admission_denied_count"),
+            "quarantined_contract_count": scheduler.get("quarantined_contract_count"),
+            "unsupported_endpoint_contract_count": scheduler.get("unsupported_endpoint_contract_count"),
+            "deduplicated_endpoint_contract_count": scheduler.get("deduplicated_endpoint_contract_count"),
+            "durable_cadence_claim_count": scheduler.get("durable_cadence_claim_count"),
+            "durable_cadence_suppressed_count": scheduler.get("durable_cadence_suppressed_count"),
+            "generated_utc": scheduler.get("generated_utc"),
+            "source_key": "v2:provider:moralis:scheduler_status",
+        } if provider == "moralis" and scheduler else None,
         "disabled_heatmap_endpoint": (
             "liquidation_heatmap_or_levels" in disabled_endpoints
             if provider == "coinglass"

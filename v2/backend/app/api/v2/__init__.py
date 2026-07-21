@@ -24,6 +24,7 @@ from app.api.v2 import (
     brand,
     codex_reviews,
     control_center_status,
+    coverage_census,
     goal_trajectory,
     hourly_monitor,
     live_gate_status,
@@ -74,5 +75,6 @@ router.include_router(trader_snapshot.router)
 router.include_router(system_metrics.router)
 router.include_router(self_healing_status.router)
 router.include_router(symbol_intel.router)
+router.include_router(coverage_census.router)
 
 __all__ = ["router"]

@@ -6944,6 +6944,59 @@ async def get_market_stream_status(symbol: str) -> dict[str, Any]:
     )
 
 
+def _margin_accounting_block(portfolio_state: Any) -> dict[str, Any] | None:
+    """Bounded margin-accounting passthrough from v2:portfolio:state.
+
+    Surfaces used/free margin and the paper-account margin invariant so UIs can
+    render margin health without re-deriving it. Returns None when the state
+    carries no margin fields (additive; never fabricates values).
+    """
+    if not isinstance(portfolio_state, dict) or not portfolio_state:
+        return None
+    margin_status = portfolio_state.get("paper_account_margin_status")
+    margin_status = margin_status if isinstance(margin_status, dict) else {}
+    used = _float(portfolio_state.get("used_margin_usd"))
+    free = _float(portfolio_state.get("free_margin_usd"))
+    free_after_buffer = _float(portfolio_state.get("free_margin_after_buffer_usd"))
+    if used is None and free is None and free_after_buffer is None and not margin_status:
+        return None
+    return {
+        "schema_version": "portfolio_margin_accounting_v1",
+        "used_margin_usd": used,
+        "free_margin_usd": free,
+        "free_margin_after_buffer_usd": free_after_buffer,
+        "available_margin_usd": _float(portfolio_state.get("available_margin")),
+        "margin_base_usd": _float(margin_status.get("margin_base_usd")),
+        "margin_base_source": margin_status.get("margin_base_source"),
+        "margin_buffer_usd": _float(margin_status.get("margin_buffer_usd")),
+        "min_available_margin_buffer_pct": _float(
+            margin_status.get("min_available_margin_buffer_pct")
+        ),
+        "margin_deficit_usd": _float(margin_status.get("margin_deficit_usd")),
+        "invariant_holds": margin_status.get("invariant_holds"),
+        "numeric_invariant_holds": margin_status.get("numeric_invariant_holds"),
+        "invariant_formula": margin_status.get("invariant_formula"),
+        "margin_status": margin_status.get("status"),
+        "accounting_complete": margin_status.get("accounting_complete"),
+        "open_position_count": margin_status.get("open_position_count"),
+        "invalid_open_position_margin_count": margin_status.get(
+            "invalid_open_position_margin_count"
+        ),
+        "failure_reasons": (
+            margin_status.get("failure_reasons")
+            if isinstance(margin_status.get("failure_reasons"), list)
+            else []
+        ),
+        "no_negative_free_margin": margin_status.get("no_negative_free_margin"),
+        "generated_utc": margin_status.get("generated_utc")
+        or portfolio_state.get("generated_utc"),
+        "source_key": "v2:portfolio:state",
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 @router.get("/portfolio")
 async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> dict[str, Any]:
     endpoint = "/api/v2/portfolio"
@@ -7180,6 +7233,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
             "raw_equity_including_invalid_admissions_usd": portfolio_state.get("raw_equity_including_invalid_admissions_usd"),
             "clean_session_valid_equity_usd": portfolio_state.get("clean_session_valid_equity_usd"),
             "account_specific": True,
+            "margin_accounting": _margin_accounting_block(portfolio_state),
         }
         missing = [
             key
@@ -7405,6 +7459,7 @@ async def get_portfolio(actor: UserRecord | None = Depends(optional_auth)) -> di
         "portfolio_source_type": "redis_live" if pub_portfolio_state_from_redis else "static_payload",
         "fallback_used": not pub_portfolio_state_from_redis,
         "fallback_source_visible": True,
+        "margin_accounting": _margin_accounting_block(pub_portfolio_state),
     }
     missing = [key for key in ("equity", "realized_pnl", "unrealized_pnl") if data.get(key) is None]
     if not positions:
@@ -11813,6 +11868,9 @@ async def get_risk_status() -> dict[str, Any]:
             "positive_edge_probation": positive_edge_probation_summary,
             "advanced_indicators": advanced_indicator_summary,
             "adaptive_hedge_cross_margin": adaptive_hedge_cross_margin,
+            "margin_accounting": _margin_accounting_block(
+                _read_v2_redis_json_or_list("v2:portfolio:state")
+            ),
             "provider_readiness": provider_readiness,
             "positive_edge_probation_policy": positive_edge_probation_policy,
             "positive_edge_probation_runtime_status": (

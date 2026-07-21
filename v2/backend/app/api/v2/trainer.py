@@ -176,6 +176,133 @@ def _freshness_from_age(age_s: float | None) -> str:
     return "stale"
 
 
+INFERENCE_SIDECAR_HEARTBEAT_KEY = "v2:trainer:heartbeat"
+INFERENCE_SIDECAR_STATUS_TEXT_KEY = "v2:trainer:status"
+_INFERENCE_SIDECAR_BLOCKED_SAMPLE_LIMIT = 5
+
+
+def _inference_sidecar_reject_reason_counts(heartbeat: dict[str, Any]) -> dict[str, int]:
+    """Aggregate trust-gate reject reasons across symbols (bounded, counts only)."""
+    counts: dict[str, int] = {}
+    rejections = heartbeat.get("trust_gate_rejections")
+    if isinstance(rejections, list) and rejections:
+        for row in rejections:
+            if not isinstance(row, dict):
+                continue
+            reasons = row.get("reject_reasons")
+            if not isinstance(reasons, list):
+                continue
+            for reason in reasons:
+                if reason in (None, ""):
+                    continue
+                key = str(reason)
+                counts[key] = counts.get(key, 0) + 1
+        return counts
+    # Fallback: parse "SYMBOL:TRUST_GATE_REJECTED:reason1,reason2" strings.
+    blocked = heartbeat.get("predictions_blocked")
+    if isinstance(blocked, list):
+        for entry in blocked:
+            parts = str(entry).split(":", 2)
+            if len(parts) < 3:
+                continue
+            for reason in parts[2].split(","):
+                reason = reason.strip()
+                if reason:
+                    counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
+def _read_redis_text(r: Any, key: str) -> str | None:
+    if r is None:
+        return None
+    try:
+        raw = r.get(key)
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    if isinstance(raw, bytes):
+        raw = raw.decode("utf-8", errors="replace")
+    text = str(raw).strip()
+    if not text or text.startswith("{") or text.startswith("["):
+        return None
+    return text
+
+
+def _attach_inference_sidecar_status(payload: dict[str, Any], r: Any) -> dict[str, Any]:
+    """Expose the RL-core inference sidecar's trust-gate blockers on /trainer/status.
+
+    Source keys are the stable read-only v2:trainer:heartbeat / v2:trainer:status
+    pair written by v2_rl_core_inference_loop — NOT the held profiled-publisher
+    prediction keys. Additive; never overwrites existing shape fields.
+    """
+    out = dict(payload)
+    heartbeat = _read_redis_json(r, INFERENCE_SIDECAR_HEARTBEAT_KEY)
+    status_text = _read_redis_text(r, INFERENCE_SIDECAR_STATUS_TEXT_KEY)
+    if not heartbeat and status_text is None:
+        out["inference_sidecar"] = {
+            "available": False,
+            "reason": "INFERENCE_SIDECAR_HEARTBEAT_MISSING",
+            "source_keys": [
+                INFERENCE_SIDECAR_HEARTBEAT_KEY,
+                INFERENCE_SIDECAR_STATUS_TEXT_KEY,
+            ],
+        }
+        return out
+    blocked = heartbeat.get("predictions_blocked")
+    blocked_list = blocked if isinstance(blocked, list) else []
+    symbols = heartbeat.get("symbols")
+    heartbeat_age = _source_age_seconds(
+        heartbeat.get("finished_at") or heartbeat.get("started_at")
+    )
+    out["inference_sidecar"] = {
+        "available": True,
+        "schema_version": "trainer_inference_sidecar_v1",
+        "worker_id": heartbeat.get("worker_id"),
+        "role": heartbeat.get("role"),
+        "classification": heartbeat.get("classification") or status_text,
+        "status_text": status_text,
+        "started_at": heartbeat.get("started_at"),
+        "finished_at": heartbeat.get("finished_at"),
+        "heartbeat_age_seconds": (
+            round(heartbeat_age, 1) if heartbeat_age is not None else None
+        ),
+        "timeframe": heartbeat.get("timeframe"),
+        "symbols_count": len(symbols) if isinstance(symbols, list) else None,
+        "predictions_count": heartbeat.get("predictions_count"),
+        "trust_gate_rejection_count": heartbeat.get("trust_gate_rejection_count"),
+        "trust_gate_reject_reason_counts": _inference_sidecar_reject_reason_counts(
+            heartbeat
+        ),
+        "trust_gate_blocked_sample": [
+            str(entry)
+            for entry in blocked_list[:_INFERENCE_SIDECAR_BLOCKED_SAMPLE_LIMIT]
+        ],
+        "checkpoint_blocker": heartbeat.get("checkpoint_blocker"),
+        "checkpoint_weight_status": heartbeat.get("checkpoint_weight_status"),
+        "checkpoint_evidence_status": heartbeat.get("checkpoint_evidence_status"),
+        "checkpoint_id": heartbeat.get("checkpoint_id"),
+        "v2_prediction_keys_written_count": heartbeat.get(
+            "v2_prediction_keys_written_count"
+        ),
+        "production_signal_only": heartbeat.get("production_signal_only"),
+        "routes_to_orchestrator": heartbeat.get("routes_to_orchestrator"),
+        "routes_to_risk_gateway": heartbeat.get("routes_to_risk_gateway"),
+        "sidecar_prediction_namespace": heartbeat.get(
+            "sidecar_prediction_namespace"
+        ),
+        "primary_prediction_owner": heartbeat.get("primary_prediction_owner"),
+        "source_keys": [
+            INFERENCE_SIDECAR_HEARTBEAT_KEY,
+            INFERENCE_SIDECAR_STATUS_TEXT_KEY,
+        ],
+        "live_gate": heartbeat.get("live_gate") or "blocked_human_only",
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+    return out
+
+
 def _with_control_center_contract(
     payload: dict[str, Any],
     *,
@@ -213,6 +340,7 @@ def _with_control_center_contract(
     out["places_real_order"] = False
     out["routes_to_live"] = False
     out["data_quality_status"] = data_quality
+    out = _attach_inference_sidecar_status(out, redis_client)
     out = _attach_a_grade_blocker_truth(out, redis_client)
     return out
 

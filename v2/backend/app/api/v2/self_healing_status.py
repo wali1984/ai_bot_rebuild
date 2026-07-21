@@ -114,6 +114,43 @@ async def get_self_healing_status() -> dict[str, Any]:
                 }
             )
 
+    # Operator/policy holds: deliberately-stopped ("retired service hold") and
+    # denylisted components are excluded from auto-heal BY DESIGN. Surface them
+    # distinctly so UIs can render a neutral HELD state instead of hiding them
+    # inside the healthy count or misreading them as failures.
+    def _hold_row(row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "name": row.get("name"),
+            "unit": row.get("unit"),
+            "category": row.get("category"),
+            "criticality": row.get("criticality"),
+            "action": row.get("action"),
+            "reason": row.get("reason"),
+            "active_state": row.get("active_state"),
+            "enabled_state": row.get("enabled_state"),
+        }
+
+    deliberately_stopped = [
+        _hold_row(d)
+        for d in decisions
+        if isinstance(d, dict) and d.get("action") == "SKIP_DELIBERATELY_STOPPED"
+    ]
+    denylisted = [
+        _hold_row(d)
+        for d in decisions
+        if isinstance(d, dict) and d.get("action") == "SKIP_DENYLISTED"
+    ]
+    held_components = {
+        "deliberately_stopped_count": len(deliberately_stopped),
+        "deliberately_stopped": deliberately_stopped,
+        "denylisted_count": len(denylisted),
+        "denylisted": denylisted,
+        "semantics": (
+            "Operator/policy holds — excluded from auto-heal and from the "
+            "unhealthy banner by design; render as HELD, not failed."
+        ),
+    }
+
     # Banner: show when a service is still down after auto-heal, or the supervisor
     # itself is stale (it may be down).
     banner_services = unhealthy
@@ -151,6 +188,7 @@ async def get_self_healing_status() -> dict[str, Any]:
         ),
         "unhealthy_count": len(unhealthy),
         "unhealthy_services": unhealthy,
+        "held_components": held_components,
         "decisions": decisions,
         "banner": {
             "show": show_banner,
