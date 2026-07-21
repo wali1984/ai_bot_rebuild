@@ -69,6 +69,13 @@ export default function AdminDataPage(): JSX.Element {
   const monitorRoutes = me.data?.routes || [];
   const ingestors = ie.data?.ingestors || [];
   const ingestorCounts = ie.data?.counts;
+  // The backend counts block only covers live/stale/offline/not_started;
+  // rows can also carry e.g. unknown_freshness — count them so the chips
+  // always sum to the ingestor total instead of silently dropping a row.
+  const KNOWN_INGESTOR_STATUSES = ['live', 'stale', 'offline', 'not_started'];
+  const ingestorUnknownCount = ingestors.filter(
+    ing => !KNOWN_INGESTOR_STATUSES.includes((ing.status || '').toLowerCase()),
+  ).length;
 
   return (
     <div data-testid="admin-data-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
@@ -154,6 +161,7 @@ export default function AdminDataPage(): JSX.Element {
                   <Chip label={`STALE ${ingestorCounts.stale ?? 0}`} color={SC.warn} />
                   <Chip label={`OFFLINE ${ingestorCounts.offline ?? 0}`} color={SC.error} />
                   <Chip label={`NOT STARTED ${ingestorCounts.not_started ?? 0}`} color={SC.unknown} />
+                  {ingestorUnknownCount > 0 && <Chip label={`UNKNOWN FRESHNESS ${ingestorUnknownCount}`} color={SC.info} />}
                 </>
               )}
             </div>
