@@ -582,10 +582,15 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/research/technical-analysis': '/research',
   '/admin/liquidation-bridge': '/derivatives',
   '/admin/strategy-backtesting': '/backtests',
-  '/admin/paper-trading': '/trade',
-  '/trade/paper': '/trade',
+  // NOTE: '/trade/paper' must NOT appear here — it is owned by the 'paper-trading'
+  // page module (PAGE_OVERRIDES). A redirect entry here shadows the page entirely
+  // because legacyRedirectRoutes are matched before page routes.
+  '/admin/paper-trading': '/trade/paper',
   '/admin/replay': '/backtests',
-  '/backtests/replay': '/backtests',
+  // NOTE: '/backtests/replay' must NOT appear here — it is owned by the
+  // 'backtests-replay' page module (interactive bar-by-bar replay player).
+  // A redirect entry here made the TraderShell "Replay" tab a dead loop back
+  // to /backtests and left the replay player unreachable.
   '/trader': '/trade',
   '/history': '/portfolio/history',
   '/landing-legacy': '/landing',

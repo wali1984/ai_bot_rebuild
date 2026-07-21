@@ -656,7 +656,9 @@ export function useTradeTerminal() {
   );
   const exchangeReadSource = typedExchangeReadOnlyData
     ? 'Exchange account source'
-    : 'Account access source connecting';
+    : typedExchangeReadOnly
+      ? 'Account access evidence unavailable'
+      : 'Account access source connecting';
 
   return {
     symbol,
@@ -703,7 +705,11 @@ export function useTradeTerminal() {
       orderHistory: paperActivityOrderRows.length ? paperActivityOrderRows : typedOrderRows,
       sources: {
         orders: paperActivityOrderRows.length ? 'Execution activity stream' : activitySourceLabel(typedOrders, typedOrdersScoped, 'Trader order source', 'Order source connecting'),
-        executions: paperActivityExecutionRows.length ? 'Execution activity stream' : activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', 'Execution source connecting'),
+        executions: paperActivityExecutionRows.length
+          ? 'Execution activity stream'
+          // Once the envelope has loaded, an empty/unscoped result is "no records", not a
+          // connection still in progress — only a null envelope is genuinely connecting.
+          : activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', typedExecutions ? 'No execution records — repository has no rows for this account' : 'Execution source connecting'),
         auditEvents: paperActivityAuditRows.length ? 'Execution activity stream' : activitySourceLabel(typedAuditEvents, typedAuditEventsScoped, 'Execution audit source', 'Execution audit event source connecting'),
         signals: signalSource,
       },
@@ -789,7 +795,7 @@ export function useTradeTerminal() {
       exchangeReadStatus: typedExchangeReadOnlyData && currentSourceType(typedExchangeReadOnly?.source_type)
         ? 'Account verified'
         : typedExchangeReadOnly?.source_type === 'unavailable'
-          ? 'Account access source connecting'
+          ? 'Read-only account evidence unavailable'
           : typedExchangeReadOnly
             ? 'Account withheld until trader scope is verified'
             : 'Account access source connecting',
@@ -823,10 +829,12 @@ export function useTradeTerminal() {
       accountReadinessScopeVerified: typedAccountReadiness?.account_scope?.scope_verified ?? false,
       exchangeReadStatus: typedExchangeReadOnlyData && currentSourceType(typedExchangeReadOnly?.source_type)
         ? 'Account verified'
-        : typedExchangeReadOnly?.warnings?.[0] ?? 'Account access source connecting',
+        : typedExchangeReadOnly?.warnings?.[0] ?? (typedExchangeReadOnly ? 'Account access evidence unavailable' : 'Account access source connecting'),
       exchangeReadDetail: typedExchangeReadOnlyData
         ? typedExchangeReadOnly?.warnings?.join(' ') ?? 'Exchange account source connecting'
-        : 'Account access source connecting',
+        : typedExchangeReadOnly
+          ? 'Account access evidence unavailable'
+          : 'Account access source connecting',
       readOnly: traderContext.readOnly,
       liveTradingEnabled: traderContext.liveTradingEnabled,
     },
@@ -855,6 +863,13 @@ export function useTradeTerminal() {
       paperFillAllowed: signal.paper_fill_allowed === true,
       source: signalSource,
       freshness: signalFreshness,
+      // Signal-content freshness from the API payload itself (distinct from key-write
+      // freshness): the signal may be re-published every cycle yet be days old.
+      sourceFreshness: typeof signal.source_freshness === 'string' ? signal.source_freshness : null,
+      marketAgeSeconds: typeof signal.market_age_seconds === 'number' && Number.isFinite(signal.market_age_seconds)
+        ? signal.market_age_seconds
+        : null,
+      generatedAt: typeof signal.generated_at === 'string' ? signal.generated_at : null,
     },
   };
 }

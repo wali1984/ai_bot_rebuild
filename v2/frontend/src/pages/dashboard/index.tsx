@@ -940,7 +940,7 @@ function RiskPanel({ profile, latestResult, heartbeat }: {
       <PanelHead
         title="Risk Gateway"
         sub={profile?.profile_id ?? undefined}
-        to="/admin/risk"
+        to="/risk"
         badge={heartbeat?.classification?.includes('OK') ? 'OK' : undefined}
         badgeTone="ok"
       />
@@ -1452,7 +1452,7 @@ const NAV_TILES: Array<{ label: string; desc: string; to: string }> = [
   { label: 'Signals', desc: 'AI signal stream · history', to: '/signals' },
   { label: 'Portfolio', desc: 'Equity · PnL · positions', to: '/portfolio' },
   { label: 'Trainer', desc: 'Model · predictions · health', to: '/ai-predictions' },
-  { label: 'Risk Control', desc: 'Profile · limits · kill switch', to: '/admin/risk' },
+  { label: 'Risk Control', desc: 'Profile · limits · kill switch', to: '/risk' },
   { label: 'Audit Ledger', desc: 'Immutable execution trail', to: '/audit-ledger' },
   { label: 'System Health', desc: 'Services · monitors · Redis', to: '/system-health' },
 ];

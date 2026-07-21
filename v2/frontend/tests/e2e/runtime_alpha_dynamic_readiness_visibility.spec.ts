@@ -8,7 +8,7 @@ const PUBLIC_ROUTES: Array<{ path: string; role: TestAuthRole; expectedUrl?: Reg
   { path: '/ai-predictions/model-state', role: 'trader', expectedUrl: /\/ai-predictions$/ },
   { path: '/signals', role: 'trader' },
   { path: '/trade', role: 'trader' },
-  { path: '/trade/paper', role: 'trader', expectedUrl: /\/trade$/ },
+  { path: '/trade/paper', role: 'trader' },
   { path: '/portfolio', role: 'trader' },
   { path: '/backtests', role: 'trader' },
 ];

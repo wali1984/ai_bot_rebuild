@@ -573,6 +573,13 @@ function SignalRuntimeTruthPanel({
     ?? active?.actionable_reason_code
     ?? active?.explanation
     ?? (liveBlocked ? 'blocked_human_only' : null);
+  // Signal-content age: market_age_seconds from the payload, falling back to
+  // generated_at. Distinct from key-write freshness (staleness_seconds).
+  const generatedAtMs = active?.generated_at ? Date.parse(active.generated_at) : NaN;
+  const signalAgeSeconds = signalNumber(active?.market_age_seconds)
+    ?? (Number.isFinite(generatedAtMs) ? Math.max(0, Math.round((Date.now() - generatedAtMs) / 1000)) : null);
+  const signalContentStale = String(active?.source_freshness ?? '').toUpperCase() === 'STALE'
+    || (signalAgeSeconds != null && signalAgeSeconds > 3600);
 
   return (
     <section data-testid="signals-runtime-truth-panel" style={{ margin: '12px 16px 0', padding: 16, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-panel)' }}>
@@ -612,7 +619,17 @@ function SignalRuntimeTruthPanel({
         />
         <SignalTruthMetric label="expected_after_cost" value={fmtBps(expectedMove)} sub={active?.price_target_after_cost != null ? `target ${fmtPrice(active.price_target_after_cost)}` : 'target pending'} color={expectedMove != null && expectedMove > 0 ? '#26c281' : '#ef5350'} />
         <SignalTruthMetric label="A+ candidates" value={String(aPlus?.data?.a_plus_candidates ?? 0)} sub={`${aPlus?.data?.evaluated_candidates ?? 0} evaluated · ${aPlus?.data?.live_ready_rows ?? 0} live-ready`} color={(aPlus?.data?.a_plus_candidates ?? 0) > 0 ? '#26c281' : '#f59e0b'} />
-        <SignalTruthMetric label="data freshness" value={current?.staleness_seconds != null ? `${Math.round(current.staleness_seconds)}s` : currentEnvelope.freshness_status} sub={`lag ${currentEnvelope.lag_ms ?? '—'}ms · ${current?.freshness_status ?? currentEnvelope.freshness_status}`} />
+        {/* Key-write freshness (the Redis key is re-published every cycle) is NOT the same
+            as signal age — the signal content itself may be days old. Show both honestly. */}
+        <SignalTruthMetric
+          label="signal age"
+          value={signalAgeSeconds != null ? fmtAge(signalAgeSeconds) : '—'}
+          sub={signalContentStale
+            ? `source_freshness STALE · generated ${signalText(active?.generated_at, 'unknown')}`
+            : `generated ${signalText(active?.generated_at, 'unknown')}`}
+          color={signalContentStale ? '#f59e0b' : undefined}
+        />
+        <SignalTruthMetric label="key freshness" value={current?.staleness_seconds != null ? `${Math.round(current.staleness_seconds)}s` : currentEnvelope.freshness_status} sub={`key write · lag ${currentEnvelope.lag_ms ?? '—'}ms · ${current?.freshness_status ?? currentEnvelope.freshness_status}`} />
       </div>
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'grid', gap: 6, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
         <span>why_no_trade={signalText(blocker, 'No live trade until all gates pass')}</span>

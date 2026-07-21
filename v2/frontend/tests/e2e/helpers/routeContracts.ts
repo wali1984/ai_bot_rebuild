@@ -143,8 +143,9 @@ export const LEGACY_REDIRECTS = {
   '/admin/logs-errors': '/admin/logs',
   '/admin/orchestrator-admin': '/admin/orchestration',
   '/admin/execution-admin': '/admin/execution',
-  '/trade/paper': '/trade',
-  '/admin/paper-trading': '/trade',
+  // '/trade/paper' is a real page (paper-trading module), not a redirect —
+  // a redirect entry for it would shadow the page. The legacy admin alias lands on it.
+  '/admin/paper-trading': '/trade/paper',
   '/backtests/replay': '/backtests',
   '/admin/replay': '/backtests',
   '/admin/audit-ledger': '/admin/audit',

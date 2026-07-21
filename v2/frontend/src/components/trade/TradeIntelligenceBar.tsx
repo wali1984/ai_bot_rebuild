@@ -1,6 +1,6 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { TradeTerminalState } from '../../hooks/useTradeTerminal';
-import { formatPercent } from '../../lib/tradeFormatters';
+import { formatAge, formatPercent } from '../../lib/tradeFormatters';
 
 interface PipelineStatus {
   live_gate?: string;
@@ -120,8 +120,12 @@ export function TradeIntelligenceBar({ state }: { state: TradeTerminalState }): 
   const hasSignal = sig.direction !== 'Signal connecting';
   const sigSide = hasSignal ? String(sig.direction).toUpperCase() : '—';
   const sigConf = sig.executableConfidence !== null ? formatPercent(sig.executableConfidence) : '—';
+  // Signal-content staleness from the API payload (source_freshness/market_age_seconds):
+  // the key may be re-published every cycle while the signal itself is days old.
+  const sigStale = hasSignal && String(sig.sourceFreshness ?? '').toUpperCase() === 'STALE';
+  const sigAge = sigStale && sig.marketAgeSeconds !== null ? formatAge(sig.marketAgeSeconds) : null;
   const sigDetail = hasSignal
-    ? `${state.symbol} · ${sig.confidenceLabel} · selected ${formatPercent(state.signal.selectedConfidence)}`
+    ? `${state.symbol} · ${sig.confidenceLabel} · selected ${formatPercent(state.signal.selectedConfidence)}${sigStale ? ` · STALE${sigAge ? ` · ${sigAge}` : ''}` : ''}`
     : 'No active signal';
 
   const gateLabel = pipeline?.live_gate ?? risk?.live_gate ?? '—';
@@ -147,9 +151,9 @@ export function TradeIntelligenceBar({ state }: { state: TradeTerminalState }): 
       aria-label="Intelligence status bar"
     >
       {pill(
-        hasSignal ? signalTone(sig.direction) : 'neutral',
-        'AI Signal',
-        hasSignal ? `${sigSide} · ${sigConf}` : 'No Signal',
+        sigStale ? 'warn' : hasSignal ? signalTone(sig.direction) : 'neutral',
+        sigStale ? 'AI Signal · Stale' : 'AI Signal',
+        hasSignal ? `${sigSide} · ${sigConf}${sigStale && sigAge ? ` · ${sigAge}` : ''}` : 'No Signal',
         sigDetail,
       )}
       {pill(

@@ -33,9 +33,11 @@ function prettyCredentialStatus(account: ExchangeAccount | null, signedIn: boole
   if (status?.status === 'credential_binding_required' || account.status === 'credential_binding_required') {
     return 'Account link setup required';
   }
-  if (status?.status === 'credential_reference_missing') return 'Account access source connecting';
+  // These states are hard-unavailable, not transient — "connecting" would imply an
+  // in-progress connection that will resolve on its own, which is dishonest here.
+  if (status?.status === 'credential_reference_missing') return 'Account access unavailable — no credential on file';
   if (status?.status === 'credential_source_pending' || account.status === 'credential_source_pending') {
-    return 'Account access source connecting';
+    return 'Account access unavailable — credential source not configured';
   }
   return 'Account access pending';
 }

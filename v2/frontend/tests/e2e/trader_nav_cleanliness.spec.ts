@@ -1275,12 +1275,12 @@ test.describe('trader nav cleanliness', () => {
     await expect(page.locator('body')).not.toContainText(/operator_dashboard|payload/i);
   });
 
-  test('legacy paper trading route redirects to the canonical trade terminal', async ({ page }) => {
+  test('/trade/paper serves the Execution Runtime page (no longer shadowed by a redirect)', async ({ page }) => {
     await gotoWithAuth(page, '/trade/paper');
     await page.waitForLoadState('domcontentloaded').catch(() => undefined);
 
-    await expect(page).toHaveURL(/\/trade$/);
-    await expect(page.getByTestId('page-trader')).toBeVisible();
+    await expect(page).toHaveURL(/\/trade\/paper$/);
+    await expect(page.getByRole('heading', { name: 'Execution Runtime' })).toBeVisible();
     await expect(page.locator('body')).not.toContainText(/CUDA Trainer Paper Signal Lineage|Operator Review|live paper \/ shadow trading loop/i);
   });
 

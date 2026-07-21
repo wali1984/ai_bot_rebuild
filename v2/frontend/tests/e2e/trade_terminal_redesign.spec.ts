@@ -840,7 +840,9 @@ test.describe('trade terminal redesign', () => {
     expect(text).toContain('BINANCE USD M FUTURES');
     expect(text).toContain('Account Scope');
     expect(text).toContain('Trader account linked');
-    expect(text).toContain('Account access source connecting');
+    // credential_source_pending is a hard-unavailable state, labeled honestly
+    // as unavailable rather than as a transient "connecting".
+    expect(text).toContain('Account access unavailable — credential source not configured');
     expect(text).not.toMatch(/api[_ -]?key|api[_ -]?secret|private[_ -]?key|test-read-only-key|test-read-only-secret/i);
     expect(text).not.toMatch(/credential_source_pending/);
   });
@@ -851,7 +853,7 @@ test.describe('trade terminal redesign', () => {
 
     const text = await bodyText(page);
     expect(text).not.toMatch(/777,?777/);
-    expect(text).toMatch(/Sign in to view trader-specific account|Trader-specific account source connecting|Account access source connecting/i);
+    expect(text).toMatch(/Sign in to view trader-specific account|Trader-specific account source connecting|Account access source connecting|Account access unavailable/i);
   });
 
   test('blocks invalid staged orders with friendly copy and has no live submit action', async ({ page }) => {
@@ -868,7 +870,7 @@ test.describe('trade terminal redesign', () => {
     }
     await expect(page.getByTestId('order-book-panel')).toBeVisible();
     await expect(page.getByTestId('recent-trades-tape')).toBeVisible();
-    await expect(page.getByText(/Risk result connecting|Trader-specific account source connecting|Account access source connecting|Sign in for trader-specific account/i).first()).toBeVisible();
+    await expect(page.getByText(/Risk result connecting|Trader-specific account source connecting|Account access source connecting|Account access unavailable|Sign in for trader-specific account/i).first()).toBeVisible();
     await expect(page.getByTestId('chart-panel')).toBeVisible();
   });
 

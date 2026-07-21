@@ -49,7 +49,15 @@ export function TradeTerminal(): JSX.Element {
   const selectedMarket = selectMarketBySymbol(traderSnapshot, state.symbol) ?? {};
   const marketMetric = (fieldId: string) => selectMarketMetric(traderSnapshot, selectedMarket, fieldId);
   const canonicalSignal = selectActiveSignal(traderSnapshot, state.symbol);
-  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? {}, fieldId);
+  // The trader-realtime snapshot only carries the published signal row(s) (BTCUSDT 5m
+  // today); any other selected symbol resolves null there. Fall back to the page's own
+  // symbol-scoped /api/v2/signals payload (state.signal), which the header above already
+  // renders, so the account strip and the header can never disagree.
+  const signalFallbackRow: Record<string, unknown> = {
+    direction: state.signal.direction !== 'Signal connecting' ? state.signal.direction : null,
+    confidence: state.signal.confidence,
+  };
+  const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? signalFallbackRow, fieldId);
   const riskMetric = selectSectionMetric(
     traderSnapshot,
     'risk',

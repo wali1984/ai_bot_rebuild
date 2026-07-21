@@ -128,7 +128,7 @@ export function OpenOrdersTable({
         </div>
         <div style={{ padding: '20px 16px', color: 'var(--text-muted)', fontSize: 13, fontFamily: 'var(--font-mono)' }}>
           {history
-            ? 'Order history is stored in the trader-scoped execution repository. Sign in to view your order history.'
+            ? 'No order history records for this account yet. Staged limit/stop orders placed via the Order Ticket appear here after they fill, cancel, or expire.'
             : 'No open orders. The execution engine fills intents synchronously — orders are accepted or blocked immediately, so no orders stay pending. Staged limit/stop orders placed via the Order Ticket will appear here.'}
           <br />
           <span style={{ fontSize: 11, marginTop: 4, display: 'block' }}>

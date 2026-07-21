@@ -429,6 +429,10 @@ function publicTelemetryText(value: string | null | undefined): string {
   const raw = (value ?? '—').trim();
   const upper = raw.toUpperCase();
   if (!raw || raw === '—') return '—';
+  // Formatted numeric output ('-$11.26', '+1.23%', '-$1.50M', '-3d') must pass through
+  // untouched — the [_-] cleanup below used to strip the leading minus from losses,
+  // rendering '-$11.26' as '$11.26'.
+  if (/^[+-]?\$?[\d,]+(?:\.\d+)?\s*[%KMBdx]?$/.test(raw)) return raw;
   if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
   if (upper.includes('DYNAMIC_A_GRADE') && upper.includes('DEPLOYMENT_VALIDATED')) return 'A-grade runtime validated';
   if (upper.includes('NO_DIRECTIONAL_ACTION_EVIDENCE')) return 'Needs directional evidence';
@@ -449,7 +453,10 @@ function publicTelemetryText(value: string | null | undefined): string {
     .replace(/\bno[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
     .replace(/\bmissing[_\s-]*evaluated[_\s-]*outcomes\b/gi, 'Needs evaluated outcomes')
     .replace(/\bevaluated\b/gi, 'Evaluated')
-    .replace(/[_-]+/g, ' ')
+    .replace(/_+/g, ' ')
+    // Kebab-case words become spaces, but a minus sign attached to a number or money
+    // value (-$11.26, -1.2%) is a sign, not a separator — keep it.
+    .replace(/-+(?![$\d])/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   if (/^[A-Z0-9]{1,4}$/.test(cleaned)) return cleaned;

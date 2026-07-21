@@ -1,7 +1,7 @@
 import { Search, Star } from 'lucide-react';
 import { DataFreshnessBadge, StatusPill } from '../trading/TradingPrimitives';
 import type { TradeTerminalState } from '../../hooks/useTradeTerminal';
-import { formatCompact, formatPercent, formatPrice, formatTime, signedClass } from '../../lib/tradeFormatters';
+import { formatAge, formatCompact, formatPercent, formatPrice, formatTime, signedClass } from '../../lib/tradeFormatters';
 import { sourceLabel, tradeCopy } from '../../lib/tradeCopy';
 import { ModeBadge } from './TradeShared';
 
@@ -14,6 +14,12 @@ interface HeaderMetric {
 
 export function SymbolHeader({ state }: { state: TradeTerminalState }): JSX.Element {
   const market = state.market;
+  // Signal-content staleness (source_freshness/market_age_seconds from the API payload):
+  // an old signal must not read as fresh on the primary trading surface.
+  const signalStale = String(state.signal.sourceFreshness ?? '').toUpperCase() === 'STALE';
+  const signalStaleSuffix = signalStale
+    ? ` · STALE${state.signal.marketAgeSeconds !== null ? ` ${formatAge(state.signal.marketAgeSeconds)}` : ''}`
+    : '';
   const metrics: HeaderMetric[] = [
     { label: 'Last', value: formatPrice(market.lastPrice), source: market.sources.price },
     { label: 'Mark', value: formatPrice(market.markPrice), source: market.sources.ticker ?? 'Mark price endpoint unavailable' },
@@ -28,8 +34,8 @@ export function SymbolHeader({ state }: { state: TradeTerminalState }): JSX.Elem
     { label: 'Open interest', value: formatCompact(market.openInterest), source: market.sources.openInterest },
     { label: 'OI change', value: formatPercent(market.openInterestChange), source: market.sources.openInterest, className: signedClass(market.openInterestChange) },
     { label: 'Spread', value: market.spreadAbs === null ? '—' : `${formatPrice(market.spreadAbs)} / ${formatPercent(market.spreadPct)}`, source: market.sources.orderBook },
-    { label: 'AI direction', value: tradeCopy(state.signal.direction), source: state.signal.source, className: signedClass(state.signal.confidence) },
-    { label: 'Confidence', value: formatPercent(state.signal.confidence), source: state.signal.source },
+    { label: 'AI direction', value: `${tradeCopy(state.signal.direction)}${signalStaleSuffix}`, source: state.signal.source, className: signedClass(state.signal.confidence) },
+    { label: 'Confidence', value: `${formatPercent(state.signal.confidence)}${signalStaleSuffix}`, source: state.signal.source },
     { label: 'Risk', value: tradeCopy(state.signal.riskDecision), source: state.signal.source },
   ];
 

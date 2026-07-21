@@ -32,7 +32,7 @@ export { sourceText };
 type PositionTab = 'open' | 'closed' | 'historical';
 const PORTFOLIO_ENDPOINT = '/api/v2/portfolio';
 
-interface RuntimePositionEvidence {
+export interface RuntimePositionEvidence {
   positions?: Array<Record<string, unknown>>;
   closed_trades?: Array<Record<string, unknown>>;
   equity_curve?: Array<{ t?: string; pnl?: number; winner?: boolean }>;
@@ -124,7 +124,7 @@ function firstPositivePrice(...values: unknown[]): number | null {
   return null;
 }
 
-function PositionEvidenceCard({
+export function PositionEvidenceCard({
   row,
   mode,
   traderState,
