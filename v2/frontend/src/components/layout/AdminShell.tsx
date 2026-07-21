@@ -209,10 +209,14 @@ function AdminLeftNav({
 }): JSX.Element {
   const primary = SYSTEM_NAV_ORDER.filter((id) => !SYSTEM_NAV_SECONDARY.has(id));
   const secondary = SYSTEM_NAV_ORDER.filter((id) => SYSTEM_NAV_SECONDARY.has(id));
-  const isSuperAdmin = canSee(role, 'live_approver');
+  // 'admin' (not 'live_approver'): the restricted pages (audit/tools) are now
+  // rbac-gated at 'admin' because no superadmin account exists in the auth
+  // store — the nav must match the page gate or reachable pages become
+  // URL-only dead links (final field audit).
+  const canReachRestrictedNav = canSee(role, 'admin');
 
   const renderItem = (navId: string) => {
-    if (SYSTEM_NAV_SUPERADMIN_ONLY.has(navId) && !isSuperAdmin) return null;
+    if (SYSTEM_NAV_SUPERADMIN_ONLY.has(navId) && !canReachRestrictedNav) return null;
     const path = ADMIN_NAV_PATHS[navId] ?? `/admin/${navId}`;
     const label = SYSTEM_NAV_LABELS[navId] ?? navId;
     const icon = NAV_ICONS[navId] ?? '·';
@@ -275,7 +279,7 @@ function AdminLeftNav({
               letterSpacing: '0.06em',
             }}
           >
-            {isSuperAdmin ? 'Superadmin' : 'System'}
+            {canSee(role, 'live_approver') ? 'Superadmin' : 'System'}
           </span>
           {secondary.map(renderItem)}
         </div>
