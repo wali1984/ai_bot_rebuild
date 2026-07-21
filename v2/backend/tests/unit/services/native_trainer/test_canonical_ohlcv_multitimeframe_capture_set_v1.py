@@ -180,11 +180,11 @@ def _rows(
     final_open_ms = latest_open_ms if latest_open_ms is not None else _latest_open_ms(timeframe)
     first_open_ms = final_open_ms - (SOURCE_ROW_COUNT - 1) * duration_ms
     rows = [
-        _canonical_rest(first_open_ms + ordinal * duration_ms, timeframe=timeframe)
+        _canonical_wss(first_open_ms + ordinal * duration_ms, timeframe=timeframe)
         for ordinal in range(SOURCE_ROW_COUNT)
     ]
-    if latest_is_wss:
-        rows[-1] = _canonical_wss(final_open_ms, timeframe=timeframe)
+    if not latest_is_wss:
+        rows[-1] = _canonical_rest(final_open_ms, timeframe=timeframe)
     return rows
 
 
@@ -288,9 +288,15 @@ def test_happy_path_is_exact_authenticated_causal_capture_set(tmp_path: Path) ->
     )
     assert all(item.rows[-1].is_backfilled is False for item in artifact.timeframe_captures)
     assert all(
-        item.rows[0].source_transport == "binance_rest" for item in artifact.timeframe_captures
+        row.source_transport == "binance_wss"
+        for item in artifact.timeframe_captures
+        for row in item.rows
     )
-    assert all(item.rows[0].is_backfilled is True for item in artifact.timeframe_captures)
+    assert all(
+        row.is_backfilled is False
+        for item in artifact.timeframe_captures
+        for row in item.rows
+    )
     assert artifact.timeframe_captures[1].feature_cutoff <= (
         artifact.timeframe_captures[0].feature_cutoff
     )
@@ -333,6 +339,10 @@ def test_policy_pins_formula_derived_minimum_history_and_has_no_market_gate() ->
         {"row_count": TRUE_1H_TA_MINIMUM_ROWS, "timeframe": "1h"},
     ]
     assert policy["market_performance_thresholds_applied"] is False
+    assert policy["required_window_transport"] == "FINALIZED_LIVE_BINANCE_WSS_ONLY"
+    assert policy["historical_rest_transport"] == (
+        "REJECTED_UNTIL_VERSIONED_PRODUCER_AND_REQUEST_START_PROVENANCE"
+    )
     encoded = json.dumps(
         policy,
         allow_nan=False,
@@ -370,20 +380,79 @@ def test_unfinished_available_after_decision_and_stale_data_fail_closed(
         )
 
 
-def test_latest_rest_is_rejected_and_latest_wss_is_accepted(tmp_path: Path) -> None:
+def test_latest_rest_is_rejected_and_all_wss_is_accepted(tmp_path: Path) -> None:
     rest_captures = _capture_pair(tmp_path / "rest", latest_5m_is_wss=False)[0]
 
     with pytest.raises(
         CanonicalOhlcvMultitimeframeCaptureSetV1Error,
-        match="latest_live_wss_required",
+        match="required_window_rest_provenance_unavailable",
     ):
         _build(tmp_path / "rest", captures=rest_captures)
 
     wss_artifact, _ = _build(tmp_path / "wss")
     assert all(
-        capture.rows[-1].source_transport == "binance_wss"
+        row.source_transport == "binance_wss"
         for capture in wss_artifact.timeframe_captures
+        for row in capture.rows
     )
+
+
+def test_historical_rest_inside_required_window_rejects_before_capture_set_cas(
+    tmp_path: Path,
+) -> None:
+    rows_5m = _rows("5m")
+    rows_5m[0] = _canonical_rest(
+        int(rows_5m[0]["candle_open_time"]),
+        timeframe="5m",
+    )
+    source_root = tmp_path / "sources"
+    source_root.mkdir()
+    capture_5m, _ = _capture(
+        source_root,
+        timeframe="5m",
+        rows=rows_5m,
+    )
+    capture_1h, _ = _capture(source_root, timeframe="1h")
+
+    with pytest.raises(
+        CanonicalOhlcvMultitimeframeCaptureSetV1Error,
+        match="required_window_rest_provenance_unavailable",
+    ):
+        _build(tmp_path, captures=(capture_5m, capture_1h))
+
+    capture_set_root = tmp_path / "capture-set"
+    assert not capture_set_root.exists() or not tuple(capture_set_root.rglob("*.json"))
+
+
+def test_timeframe_revalidation_rejects_forged_historical_rest_row(tmp_path: Path) -> None:
+    artifact, _ = _build(tmp_path / "valid")
+    rows_5m = _rows("5m")
+    rows_5m[0] = _canonical_rest(
+        int(rows_5m[0]["candle_open_time"]),
+        timeframe="5m",
+    )
+    rest_source_root = tmp_path / "rest-source"
+    rest_source_root.mkdir()
+    rest_capture, _ = _capture(
+        rest_source_root,
+        timeframe="5m",
+        rows=rows_5m,
+    )
+    rest_atomic = rest_capture.selected_candles[0]
+    rest_row = capture_set_module._build_row(  # noqa: SLF001 - adversarial revalidation
+        capture_set_row_ordinal=0,
+        atomic=rest_atomic,
+        capture=rest_capture,
+    )
+
+    with pytest.raises(
+        CanonicalOhlcvMultitimeframeCaptureSetV1Error,
+        match="required_window_rest_provenance_unavailable",
+    ):
+        replace(
+            artifact.timeframe_captures[0],
+            rows=(rest_row, *artifact.timeframe_captures[0].rows[1:]),
+        )
 
 
 def test_cross_timeframe_inventory_and_cutoff_order_fail_closed(

@@ -124,6 +124,9 @@ PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_CLASSIFICATION: Final = (
 PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_STATUS: Final = (
     "STRICT_TRAINING_CANDIDATE_NO_SERVING_OR_EXECUTION_AUTHORITY"
 )
+_LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256: Final = (
+    "7c1340de9d9a5b5ff167b988a4083129a367ea8ddf81279d6ecde5dd36e79002"
+)
 PROFILED_TRAINING_COST_BINDING_V1_SCHEMA_VERSION: Final = "causal_cost_capture_training_binding_v1"
 PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS: Final = (
     "RECORD_WIDE_LATEST_EVIDENCE_CUTOFF_AUXILIARIES_EXCLUDED_FROM_PPO_MODEL_VECTOR"
@@ -725,7 +728,10 @@ def _validate_source_provenance_binding(
     *,
     transform_available_at: datetime,
     decision_time: datetime,
+    require_current_window_wss: bool = True,
 ) -> str:
+    if type(require_current_window_wss) is not bool:
+        _fail("PROFILED_TRAINING_PARENT_SOURCE_POLICY_ARGUMENT_INVALID")
     binding = _exact_dict(
         binding_value,
         _SOURCE_PROVENANCE_FIELDS,
@@ -859,13 +865,43 @@ def _validate_source_provenance_binding(
             != item["capture_ordered_source_receipt_sha256s"]
         ):
             _fail("PROFILED_TRAINING_PARENT_SOURCE_LEDGER_ENTRY_BINDING_INVALID")
+        selected_fresh_rows = fresh_rows[start : start + row_count]
+        if require_current_window_wss and any(
+            type(row) is not dict
+            or row.get("source") != "binance_wss"
+            or row.get("is_backfilled") is not False
+            for row in selected_fresh_rows
+        ):
+            _fail("PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN")
         sequences.append(sequence)
     if len(set(sequences)) != 2:
         _fail("PROFILED_TRAINING_PARENT_SOURCE_SEQUENCE_DUPLICATE")
     return cast(str, claimed_sha)
 
 
-def _validate_parent_model_record(parent: FixedCutoffFeatureSnapshot) -> dict[str, Any]:
+def _validate_parent_model_record(
+    parent: FixedCutoffFeatureSnapshot,
+    *,
+    expected_transform_configuration_sha256: str = (
+        AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+    ),
+    require_current_window_wss: bool = True,
+) -> dict[str, Any]:
+    if (
+        type(expected_transform_configuration_sha256) is not str
+        or expected_transform_configuration_sha256
+        not in {
+            AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
+            _LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256,
+        }
+        or type(require_current_window_wss) is not bool
+        or require_current_window_wss
+        is not (
+            expected_transform_configuration_sha256
+            == AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        )
+    ):
+        _fail("PROFILED_TRAINING_PARENT_TRANSFORM_POLICY_ARGUMENT_INVALID")
     record = parent.record
     try:
         validated = validate_feature_snapshot_record(record)
@@ -903,7 +939,7 @@ def _validate_parent_model_record(parent: FixedCutoffFeatureSnapshot) -> dict[st
         or core.get("transform_implementation_sha256")
         != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_SHA256
         or core.get("transform_configuration_sha256")
-        != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        != expected_transform_configuration_sha256
         or core.get("authorization") != _PARENT_FALSE_AUTHORIZATION
         or typed_envelope.get("strict_training_eligible") is not False
         or typed_envelope.get("temporal_rejection_reasons")
@@ -918,6 +954,7 @@ def _validate_parent_model_record(parent: FixedCutoffFeatureSnapshot) -> dict[st
         core.get("source_provenance_binding"),
         transform_available_at=transform_available,
         decision_time=decision,
+        require_current_window_wss=require_current_window_wss,
     )
     values = _float32_vector(
         typed_envelope.get("feature_values"),
@@ -2157,7 +2194,7 @@ def _admit_item(
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
     trusted_immutable_cost_store_root: Path,
-) -> ProfiledTrainingLedgerSampleV1 | None:
+) -> ProfiledTrainingLedgerSampleV1 | ProfiledTrainingLedgerExclusionV1 | None:
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
         _fail("PROFILED_TRAINING_LEDGER_ITEM_INVALID")
@@ -2165,6 +2202,19 @@ def _admit_item(
     attestation = _profile_attestation(envelope)
     if attestation is None:
         return None
+    transform_configuration_sha256 = attestation.get("transform_configuration_sha256")
+    if (
+        type(transform_configuration_sha256) is not str
+        or transform_configuration_sha256
+        not in {
+            AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
+            _LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256,
+        }
+    ):
+        _fail("PROFILED_TRAINING_UNRECOGNIZED_TRANSFORM_CONFIGURATION")
+    legacy_transform = (
+        transform_configuration_sha256 == _LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256
+    )
     if (
         envelope.get("provenance_classification") != PROVENANCE_CANONICAL_V3
         or envelope.get("legacy_v1_snapshot_id") is not None
@@ -2196,8 +2246,6 @@ def _admit_item(
         != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_ID
         or attestation.get("transform_implementation_sha256")
         != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_SHA256
-        or attestation.get("transform_configuration_sha256")
-        != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
         or attestation.get("projection_schema_version")
         != PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION
         or attestation.get("projection_implementation_sha256")
@@ -2252,7 +2300,14 @@ def _admit_item(
     )
     if parent is None:
         _fail("PROFILED_TRAINING_PARENT_LEDGER_RECORD_MISSING")
-    parent_material = _validate_parent_model_record(parent)
+    parent_material = _validate_parent_model_record(
+        parent,
+        expected_transform_configuration_sha256=cast(
+            str,
+            transform_configuration_sha256,
+        ),
+        require_current_window_wss=not legacy_transform,
+    )
     if parent_claim != parent_material["binding"]:
         _fail("PROFILED_TRAINING_PARENT_BINDING_MISMATCH")
     parent_envelope = cast(dict[str, Any], parent_material["envelope"])
@@ -2316,6 +2371,12 @@ def _admit_item(
         "ppo_feature_cutoff"
     ) != envelope.get("feature_cutoff"):
         _fail("PROFILED_TRAINING_CHILD_RECORD_WIDE_CUTOFF_INVALID")
+    if legacy_transform:
+        return ProfiledTrainingLedgerExclusionV1(
+            sequence=item.sequence,
+            durable_snapshot_id=cast(str, record.get("durable_snapshot_id", "")),
+            reason="LEGACY_TRANSFORM_CONFIGURATION_QUARANTINED",
+        )
     cost_binding, decision_reference = _validate_cost_binding(
         attestation.get("cost_capture_binding"),
         envelope=envelope,
@@ -2559,7 +2620,9 @@ def load_profiled_training_ledger_fixed_observation_v1(
                             trusted_immutable_cost_store_root
                         ),
                     )
-                    if admitted is None:
+                    if type(admitted) is ProfiledTrainingLedgerExclusionV1:
+                        exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
+                    elif admitted is None:
                         exclusions.append(
                             ProfiledTrainingLedgerExclusionV1(
                                 sequence=item.sequence,
@@ -2573,7 +2636,7 @@ def load_profiled_training_ledger_fixed_observation_v1(
                             )
                         )
                     else:
-                        samples.append(admitted)
+                        samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
                 page_consumer(tuple(samples), tuple(exclusions))
                 if scanned_start_sequence is None:
                     scanned_start_sequence = page[0].sequence
@@ -2742,7 +2805,9 @@ def load_profiled_training_ledger_v1(
                 high_water=before_high_water,
                 trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
             )
-            if admitted is None:
+            if type(admitted) is ProfiledTrainingLedgerExclusionV1:
+                exclusions.append(cast(ProfiledTrainingLedgerExclusionV1, admitted))
+            elif admitted is None:
                 exclusions.append(
                     ProfiledTrainingLedgerExclusionV1(
                         sequence=item.sequence,
@@ -2754,7 +2819,7 @@ def load_profiled_training_ledger_v1(
                     )
                 )
             else:
-                samples.append(admitted)
+                samples.append(cast(ProfiledTrainingLedgerSampleV1, admitted))
         after_report = ledger.verify_integrity_streaming()
         after_high_water_scan_limit = max(
             after_report.verified_records,
@@ -2959,8 +3024,14 @@ def reopen_profiled_training_ledger_sample_v1(
         high_water=high_water,
         trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
     )
+    if type(admitted) is ProfiledTrainingLedgerExclusionV1:
+        _fail(
+            "PROFILED_TRAINING_DIRECT_REOPEN_EXCLUDED",
+            cast(ProfiledTrainingLedgerExclusionV1, admitted).reason,
+        )
     if admitted is None:
         _fail("PROFILED_TRAINING_DIRECT_REOPEN_NOT_PROFILED_SAMPLE")
+    admitted = cast(ProfiledTrainingLedgerSampleV1, admitted)
     if (
         admitted.sequence != expected_sequence
         or admitted.durable_snapshot_id != durable_snapshot_id

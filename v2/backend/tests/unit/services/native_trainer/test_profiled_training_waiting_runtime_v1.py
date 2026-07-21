@@ -57,6 +57,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     from v2.backend.app.services.native_trainer import (
         profiled_training_ledger_loader_v1 as hardened_loader,
     )
+    from v2.backend.app.services.native_trainer.authenticated_ohlcv_profile_transform_v1 import (
+        AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
+    )
     from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
         PHYSICAL_MODEL_FEATURE_COUNT,
         PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_CLASSIFICATION,
@@ -75,6 +78,9 @@ def test_candidate_contract_constants_match_offline_hardened_loader() -> None:
     )
     assert waiting_runtime._PROFILED_LINEAGE_STATUS == (
         hardened_loader.PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_STATUS
+    )
+    assert waiting_runtime._PROFILED_TRANSFORM_CONFIGURATION_SHA256 == (
+        AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
     )
     assert waiting_runtime._PHYSICAL_PROFILED_FEATURE_COUNT == (
         hardened_loader.PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT
@@ -120,6 +126,9 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
             "classification": waiting_runtime._PARENT_PROFILED_CLASSIFICATION,
             "status": waiting_runtime._PARENT_PROFILED_STATUS,
             "physical_model_feature_count": 35,
+            "transform_configuration_sha256": (
+                waiting_runtime._PROFILED_TRANSFORM_CONFIGURATION_SHA256
+            ),
             "authorization": dict(waiting_runtime._EXPECTED_PARENT_AUTHORIZATION),
         },
         "provenance_classification": "CANONICAL_V3",
@@ -175,6 +184,9 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
                 "classification": waiting_runtime._PROFILED_LINEAGE_CLASSIFICATION,
                 "status": waiting_runtime._PROFILED_LINEAGE_STATUS,
                 "physical_feature_count": 39,
+                "transform_configuration_sha256": (
+                    waiting_runtime._PROFILED_TRANSFORM_CONFIGURATION_SHA256
+                ),
                 "authorization": dict(waiting_runtime._EXPECTED_SAMPLE_AUTHORIZATION),
                 "parent_model_record_binding": {"durable_snapshot_id": "profiled-parent-id"},
             }
@@ -195,6 +207,17 @@ def test_candidate_contract_requires_exact_parent_child_bit_identity() -> None:
     )
     ledger = SimpleNamespace(get_snapshot=lambda _snapshot_id: parent)
     assert waiting_runtime._profiled_child_candidate_rejection(item, ledger=ledger) is None
+
+    legacy_item = copy.deepcopy(item)
+    legacy_item.record["frozen_envelope"]["source_lineage_material"][
+        waiting_runtime._PROFILED_LINEAGE_KEY
+    ]["transform_configuration_sha256"] = (
+        "7c1340de9d9a5b5ff167b988a4083129a367ea8ddf81279d6ecde5dd36e79002"
+    )
+    assert (
+        waiting_runtime._profiled_child_candidate_rejection(legacy_item, ledger=ledger)
+        == "PROFILED_CHILD_UNSUPPORTED_TRANSFORM_CONFIGURATION"
+    )
 
     tampered_item = copy.deepcopy(item)
     tampered_item.record["frozen_envelope"]["feature_values"][0] = -1.0

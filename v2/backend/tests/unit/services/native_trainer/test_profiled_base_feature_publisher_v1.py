@@ -559,6 +559,65 @@ def _seed_observed_state(path: Path) -> None:
     )
 
 
+def test_policy_v1_window_fingerprint_cannot_suppress_policy_v2_build(
+    tmp_path: Path,
+) -> None:
+    redis_client = _Redis(_payloads())
+    source_store = ImmutableSourcePayloadStore((tmp_path / "source-cas").absolute())
+    captures = tuple(
+        capture_canonical_closed_ohlcv_atomic_receipts(
+            redis_client,
+            source_store,
+            expected_symbol="BTCUSDT",
+            expected_timeframe=timeframe,
+            consumer_clock=lambda: FIXED_CLOCK,
+        )
+        for timeframe in ("5m", "1h")
+    )
+    legacy_fingerprint = publisher_module.stable_sha256(
+        {
+            "schema_version": "profiled_base_finalized_window_fingerprint_v1",
+            "symbol": "BTCUSDT",
+            "timeframes": [
+                {
+                    "timeframe": timeframe,
+                    "suffix_digest_sha256": capture.suffix_digest_sha256,
+                    "latest_candle_id": capture.selected_candle_ids[-1],
+                }
+                for timeframe, capture in zip(("5m", "1h"), captures, strict=True)
+            ],
+        }
+    )
+    builder_calls = 0
+
+    def replay_capture(*_args: Any, expected_timeframe: str, **_kwargs: Any) -> Any:
+        return captures[("5m", "1h").index(expected_timeframe)]
+
+    def counted_builder(**kwargs: Any) -> Any:
+        nonlocal builder_calls
+        builder_calls += 1
+        return build_canonical_ohlcv_multitimeframe_capture_set_v1(**kwargs)
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        capture_function=replay_capture,
+        capture_set_builder=counted_builder,
+    )
+    _, current_fingerprint, capture_set, _, _, _ = publisher._capture_and_build_set(
+        symbol="BTCUSDT",
+        source_store=source_store,
+        capture_set_store=ImmutableSourcePayloadStore(
+            (tmp_path / "capture-set-cas").absolute()
+        ),
+        prior_fingerprint=legacy_fingerprint,
+    )
+
+    assert current_fingerprint != legacy_fingerprint
+    assert capture_set is not None
+    assert builder_calls == 1
+
+
 def test_prospective_decision_is_strict_midpoint_before_next_5m_boundary() -> None:
     generated = datetime(2026, 7, 21, 12, 1, 0, tzinfo=UTC)
     decision = prospective_decision_midpoint_v1(generated)
@@ -1294,6 +1353,30 @@ def test_stale_final_candle_retries_then_skips_without_feature_record(
     assert not (tmp_path / "feature-ledger.sqlite3").exists()
 
 
+def test_required_window_rest_provenance_rejection_appends_no_ledgers(
+    tmp_path: Path,
+) -> None:
+    payloads = _payloads()
+    rows = json.loads(payloads[_key("BTCUSDT", "1h")])
+    required_rows = dict(capture_support.CAPTURE_SET_REQUIRED_LOOKBACKS)["1h"]
+    first_required = -required_rows
+    rows[first_required] = capture_support._canonical_rest(  # noqa: SLF001
+        int(rows[first_required]["candle_open_time"]),
+        timeframe="1h",
+    )
+    payloads[_key("BTCUSDT", "1h")] = capture_support._payload(rows)
+
+    status = _publisher(tmp_path, _Redis(payloads)).run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["failures"][0]["reasons"] == [
+        "canonical_ohlcv_multitimeframe_required_window_rest_provenance_unavailable"
+    ]
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+    assert not (tmp_path / "publisher" / "source-provenance-shards").exists()
+
+
 def test_boundary_race_recaptures_whole_pair_before_any_provenance_append(
     tmp_path: Path,
 ) -> None:
@@ -1440,6 +1523,101 @@ def test_state_loss_recovers_authenticated_pair_without_recapture_or_reappend(
     assert third["unchanged_symbols"] == ["BTCUSDT"]
 
 
+def test_legacy_recovery_receipt_is_preserved_while_v2_pair_is_published(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.data_root.mkdir(mode=0o700)
+    legacy_path = (
+        tmp_path
+        / "publisher/profiled-training-pair-recovery-receipts/BTCUSDT.json"
+    )
+    legacy_path.parent.mkdir(mode=0o700)
+    unsigned = {
+        "schema_version": "profiled_training_pair_recovery_receipt_v1",
+        "symbol": "BTCUSDT",
+        "window_fingerprint_sha256": "1" * 64,
+        "parent_durable_snapshot_id": "legacy-parent",
+        "parent_record_sha256": "2" * 64,
+        "child_durable_snapshot_id": "legacy-child",
+        "child_record_sha256": "3" * 64,
+        "cost_capture_artifact_sha256": "4" * 64,
+        "cost_store_root": str(
+            (tmp_path / "publisher/profiled-training-enrichment-cas").absolute()
+        ),
+        "prepared_at": FIXED_CLOCK.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "append_disposition": (
+            "PREPARED_BEFORE_ATOMIC_PAIR_APPEND_REQUIRES_LEDGER_READBACK"
+        ),
+        "materialized_evidence_bytes": 1,
+        "evidence_accounting_method": (
+            "CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_"
+            "AND_AUXILIARY_SQLITE_OVERHEAD"
+        ),
+    }
+    receipt = {
+        **unsigned,
+        "recovery_receipt_sha256": publisher_module.stable_sha256(unsigned),
+    }
+    publisher_module._atomic_write_json(
+        legacy_path,
+        receipt,
+        failure_reason="TEST_LEGACY_RECEIPT_WRITE_FAILED",
+    )
+    legacy_bytes = legacy_path.read_bytes()
+
+    status = publisher.run_cycle()
+
+    v2_path = (
+        tmp_path
+        / "publisher/profiled-training-pair-recovery-receipts-v2/BTCUSDT.json"
+    )
+    assert status["published_symbols"] == ["BTCUSDT"]
+    assert legacy_path.read_bytes() == legacy_bytes
+    assert status["publications"][0]["legacy_recovery_receipt_observation"] == {
+        "classification": "LEGACY_V1_RECOVERY_RECEIPT_PRESERVED_UNCONSUMED",
+        "present": True,
+        "regular_file": True,
+        "owned_by_runtime_uid": True,
+        "private_mode": True,
+        "content_consumed": False,
+        "authority_granted": False,
+    }
+    assert json.loads(v2_path.read_text(encoding="ascii"))["schema_version"] == (
+        "profiled_training_pair_recovery_receipt_v2"
+    )
+
+
+def test_malformed_legacy_recovery_receipt_cannot_block_v2_publication(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.data_root.mkdir(mode=0o700)
+    legacy_path = (
+        tmp_path
+        / "publisher/profiled-training-pair-recovery-receipts/BTCUSDT.json"
+    )
+    legacy_path.parent.mkdir(mode=0o700)
+    legacy_path.write_bytes(b"{malformed-legacy-receipt\n")
+    legacy_path.chmod(0o600)
+    legacy_bytes = legacy_path.read_bytes()
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"]
+    assert legacy_path.read_bytes() == legacy_bytes
+    observation = status["publications"][0]["legacy_recovery_receipt_observation"]
+    assert observation["classification"] == (
+        "LEGACY_V1_RECOVERY_RECEIPT_PRESERVED_UNCONSUMED"
+    )
+    assert observation["content_consumed"] is False
+    assert observation["authority_granted"] is False
+    assert (
+        tmp_path
+        / "publisher/profiled-training-pair-recovery-receipts-v2/BTCUSDT.json"
+    ).is_file()
+
+
 def test_state_write_crash_after_pair_commit_recovers_once_without_work_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1468,8 +1646,22 @@ def test_state_write_crash_after_pair_commit_recovers_once_without_work_replay(
     ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
     assert ledger.verify_integrity_streaming().verified_records == 2
     assert not publisher.state_path.exists()
-    receipt_path = tmp_path / "publisher/profiled-training-pair-recovery-receipts/BTCUSDT.json"
+    receipt_path = (
+        tmp_path
+        / "publisher/profiled-training-pair-recovery-receipts-v2/BTCUSDT.json"
+    )
     assert receipt_path.is_file()
+    receipt = json.loads(receipt_path.read_text(encoding="ascii"))
+    assert receipt["schema_version"] == "profiled_training_pair_recovery_receipt_v2"
+    assert receipt["capture_policy_id"] == (
+        publisher_module.CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID
+    )
+    assert receipt["capture_policy_sha256"] == (
+        publisher_module.CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+    )
+    assert receipt["transform_configuration_sha256"] == (
+        publisher_module.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+    )
 
     monkeypatch.setattr(publisher_module, "_atomic_write_json", original_atomic_write)
 

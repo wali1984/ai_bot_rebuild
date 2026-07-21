@@ -34,6 +34,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     ImmutableSourcePayloadStore,
 )
+from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
+    TrainerSourceProvenanceLedgerV4,
+)
 
 BASE = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
 CUTOFF = BASE
@@ -113,7 +116,13 @@ def _receipt(
     )
 
 
-def _parent_binding(parent: dict[str, Any]) -> dict[str, Any]:
+def _parent_binding(
+    parent: dict[str, Any],
+    *,
+    transform_configuration_sha256: str = (
+        loader_v1.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+    ),
+) -> dict[str, Any]:
     dummy = FixedCutoffFeatureSnapshot(
         sequence=1,
         record=parent,
@@ -122,7 +131,14 @@ def _parent_binding(parent: dict[str, Any]) -> dict[str, Any]:
         postcommit_receipt_sha256="c" * 64,
         postcommit_readback_at=_utc(CHILD_GENERATED),
     )
-    return loader_v1._validate_parent_model_record(dummy)["binding"]
+    return loader_v1._validate_parent_model_record(
+        dummy,
+        expected_transform_configuration_sha256=transform_configuration_sha256,
+        require_current_window_wss=(
+            transform_configuration_sha256
+            == loader_v1.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+        ),
+    )["binding"]
 
 
 def _cost_evidence(
@@ -499,6 +515,10 @@ def _child_record(
     corrupt_direct_receipt_self_hash_role: str | None = None,
     compact_orderbook_payload_clocks: bool = False,
     orderbook_payload_event_offset: timedelta | None = None,
+    original_tensor_suffix: str = "",
+    transform_configuration_sha256: str = (
+        loader_v1.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+    ),
 ) -> dict[str, Any]:
     parent_envelope = parent["frozen_envelope"]
     parent_decision = _parse(parent_envelope["tensor_decision_time"])
@@ -534,7 +554,10 @@ def _child_record(
         compact_orderbook_payload_clocks=compact_orderbook_payload_clocks,
         orderbook_payload_event_offset=orderbook_payload_event_offset,
     )
-    parent_claim = _parent_binding(parent)
+    parent_claim = _parent_binding(
+        parent,
+        transform_configuration_sha256=transform_configuration_sha256,
+    )
     if parent_claim_mutator is not None:
         parent_claim_mutator(parent_claim)
     if cost_binding_mutator is not None:
@@ -556,7 +579,7 @@ def _child_record(
             loader_v1.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_SHA256
         ),
         "transform_configuration_sha256": (
-            loader_v1.AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+            transform_configuration_sha256
         ),
         "projection_schema_version": (loader_v1.PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION),
         "projection_implementation_sha256": (
@@ -600,7 +623,7 @@ def _child_record(
         source_read_receipts=[*parent_receipts, *cost_receipts],
         feature_requirement_policy_id=FEATURE_REQUIREMENT_POLICY_ID,
         ordered_feature_requirement_classes=["REQUIRED"] * 39,
-        original_tensor_id="profiled-training-enrichment-tensor",
+        original_tensor_id=f"profiled-training-enrichment-tensor{original_tensor_suffix}",
         source_lineage_material={
             loader_v1.PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY: attestation
         },
@@ -610,6 +633,84 @@ def _child_record(
         ppo_decision_time=parent_envelope["ppo_decision_time"],
         generated_at=_utc(child_generated),
     )
+
+
+def _rebuild_parent_with_transform_configuration(
+    parent: dict[str, Any],
+    *,
+    transform_configuration_sha256: str,
+    identity_suffix: str,
+) -> dict[str, Any]:
+    envelope = parent["frozen_envelope"]
+    lineage = copy.deepcopy(envelope["source_lineage_material"])
+    lineage["transform_configuration_sha256"] = transform_configuration_sha256
+    abi = envelope["feature_abi"]
+    return build_feature_snapshot_record(
+        provenance_classification=envelope["provenance_classification"],
+        legacy_v1_snapshot_id=envelope["legacy_v1_snapshot_id"],
+        symbol=envelope["symbol"],
+        timeframe=envelope["timeframe"],
+        feature_snapshot_id=f'{envelope["feature_snapshot_id"]}-{identity_suffix}',
+        tensor_decision_time=envelope["tensor_decision_time"],
+        temporal_rejection_reasons=envelope["temporal_rejection_reasons"],
+        ordered_feature_names=envelope["ordered_feature_names"],
+        feature_values=envelope["feature_values"],
+        missing_mask=envelope["missing_mask"],
+        stale_mask=envelope["stale_mask"],
+        source_availability_mask=envelope["source_availability_mask"],
+        ordered_feature_source_labels=envelope["ordered_feature_source_labels"],
+        feature_source_receipt_sha256s=envelope["feature_source_receipt_sha256s"],
+        source_read_receipts=envelope["source_read_receipts"],
+        feature_requirement_policy_id=abi["feature_requirement_policy_id"],
+        ordered_feature_requirement_classes=abi[
+            "ordered_feature_requirement_classes"
+        ],
+        original_tensor_id=f'{envelope["original_tensor_id"]}-{identity_suffix}',
+        source_lineage_material=lineage,
+        feature_cutoff=envelope["feature_cutoff"],
+        masa_feature_cutoff=envelope["masa_feature_cutoff"],
+        ppo_feature_cutoff=envelope["ppo_feature_cutoff"],
+        ppo_decision_time=envelope["ppo_decision_time"],
+        generated_at=envelope["generated_at"],
+    )
+
+
+def _ledger_with_legacy_and_current_pairs(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> tuple[DurableFeatureSnapshotLedger, Path, dict[str, Any], dict[str, Any]]:
+    from v2.backend.tests.unit.services.native_trainer import (
+        test_profiled_model_feature_snapshot_record_v1 as base_support,
+    )
+
+    ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
+    cost_root = tmp_path / "cost-cas"
+    legacy_parent = _rebuild_parent_with_transform_configuration(
+        authenticated_base_evidence.record,
+        transform_configuration_sha256=(
+            loader_v1._LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256
+        ),
+        identity_suffix="legacy-policy",
+    )
+    legacy_child = _child_record(
+        legacy_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-legacy-policy",
+        transform_configuration_sha256=(
+            loader_v1._LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256
+        ),
+    )
+    assert _append_after_latest_decision(ledger, [legacy_parent, legacy_child]).inserted_rows == 2
+
+    current_evidence = base_support._build_evidence(tmp_path / "current-evidence")
+    current_parent = current_evidence.record
+    current_child = _child_record(
+        current_parent,
+        cost_store_root=cost_root,
+        original_tensor_suffix="-current-policy",
+    )
+    assert _append_after_latest_decision(ledger, [current_parent, current_child]).inserted_rows == 2
+    return ledger, cost_root, legacy_child, current_child
 
 
 def _observation() -> str:
@@ -748,6 +849,285 @@ def test_loads_only_atomic_authenticated_39_and_reconstructs_exact_446_1784(
     assert sample.trainer_admission_authorized is True
     assert sample.prediction_authorized is False
     assert sample.live_execution_authorized is False
+
+
+def test_legacy_transform_child_is_typed_exclusion_before_current_pair(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, cost_root, legacy_child, current_child = (
+        _ledger_with_legacy_and_current_pairs(
+            tmp_path,
+            authenticated_base_evidence,
+        )
+    )
+
+    batch = loader_v1.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root.absolute(),
+        training_observed_at=_observation(),
+    )
+
+    assert [sample.durable_snapshot_id for sample in batch.samples] == [
+        current_child["durable_snapshot_id"]
+    ]
+    assert [(item.durable_snapshot_id, item.reason) for item in batch.exclusions] == [
+        (
+            legacy_child["durable_snapshot_id"],
+            "LEGACY_TRANSFORM_CONFIGURATION_QUARANTINED",
+        )
+    ]
+
+
+def test_fixed_observation_quarantines_legacy_and_admits_later_current_pair(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, cost_root, legacy_child, current_child = (
+        _ledger_with_legacy_and_current_pairs(
+            tmp_path,
+            authenticated_base_evidence,
+        )
+    )
+    observed_high_waters: list[dict[str, Any]] = []
+    pages: list[
+        tuple[
+            tuple[loader_v1.ProfiledTrainingLedgerSampleV1, ...],
+            tuple[loader_v1.ProfiledTrainingLedgerExclusionV1, ...],
+        ]
+    ] = []
+
+    result = loader_v1.load_profiled_training_ledger_fixed_observation_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root.absolute(),
+        training_observed_at=_observation(),
+        page_size=1,
+        observation_consumer=lambda value: observed_high_waters.append(dict(value)),
+        page_consumer=lambda samples, exclusions: pages.append((samples, exclusions)),
+    )
+
+    samples = [sample for page, _ in pages for sample in page]
+    exclusions = [exclusion for _, page in pages for exclusion in page]
+    assert [sample.durable_snapshot_id for sample in samples] == [
+        current_child["durable_snapshot_id"]
+    ]
+    assert [(item.durable_snapshot_id, item.reason) for item in exclusions] == [
+        (
+            legacy_child["durable_snapshot_id"],
+            "LEGACY_TRANSFORM_CONFIGURATION_QUARANTINED",
+        )
+    ]
+    assert result.scanned_record_count == 2
+    assert result.admitted_sample_count == 1
+    assert result.exclusion_count == 1
+    assert len(observed_high_waters) == 1
+
+
+def test_direct_reopen_reports_typed_legacy_exclusion(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, cost_root, legacy_child, _current_child = (
+        _ledger_with_legacy_and_current_pairs(
+            tmp_path,
+            authenticated_base_evidence,
+        )
+    )
+    observation = _observation()
+    batch = loader_v1.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=cost_root.absolute(),
+        training_observed_at=observation,
+    )
+    legacy_item = ledger.get_snapshot(legacy_child["durable_snapshot_id"])
+    assert legacy_item is not None
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match=(
+            "PROFILED_TRAINING_DIRECT_REOPEN_EXCLUDED;"
+            "LEGACY_TRANSFORM_CONFIGURATION_QUARANTINED"
+        ),
+    ):
+        loader_v1.reopen_profiled_training_ledger_sample_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=cost_root.absolute(),
+            fixed_observation_high_water=batch.high_water,
+            training_observed_at=observation,
+            durable_snapshot_id=legacy_child["durable_snapshot_id"],
+            expected_sequence=legacy_item.sequence,
+            expected_record_sha256=legacy_child["record_sha256"],
+        )
+
+
+@pytest.mark.parametrize("bad_configuration", ["5" * 64, [], {}])
+def test_unknown_transform_configuration_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+    bad_configuration: Any,
+) -> None:
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        attestation_mutator=lambda attestation: attestation.__setitem__(
+            "transform_configuration_sha256",
+            bad_configuration,
+        ),
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_UNRECOGNIZED_TRANSFORM_CONFIGURATION",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_current_child_cannot_downgrade_itself_to_legacy_exclusion(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        attestation_mutator=lambda attestation: attestation.__setitem__(
+            "transform_configuration_sha256",
+            loader_v1._LEGACY_PROFILED_TRANSFORM_CONFIGURATION_SHA256,
+        ),
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_PARENT_MODEL_CONTRACT_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_current_policy_source_binding_rejects_rest_in_selected_slice(
+    tmp_path: Path,
+) -> None:
+    from v2.backend.tests.unit.services.native_trainer import (
+        test_canonical_ohlcv_multitimeframe_capture_set_v1 as capture_support,
+    )
+
+    five_rows = capture_support._rows("5m")
+    selected_start = len(five_rows) - 71
+    selected_open_ms = int(five_rows[selected_start]["candle_open_time"])
+    five_rows[selected_start] = capture_support._canonical_rest(
+        selected_open_ms,
+        timeframe="5m",
+    )
+    (tmp_path / "source-payloads").mkdir()
+    five_capture, _ = capture_support._capture(
+        tmp_path / "source-payloads",
+        timeframe="5m",
+        rows=five_rows,
+        store_name="5m",
+    )
+    one_capture, _ = capture_support._capture(
+        tmp_path / "source-payloads",
+        timeframe="1h",
+        rows=capture_support._rows("1h"),
+        store_name="1h",
+    )
+    source_ledger = TrainerSourceProvenanceLedgerV4(
+        (tmp_path / "source-provenance").absolute()
+    )
+    recorded_clocks = (
+        capture_support.GENERATED - timedelta(milliseconds=100),
+        capture_support.GENERATED - timedelta(milliseconds=90),
+    )
+    entries = tuple(
+        source_ledger.append_atomic_capture(
+            capture,
+            trainer_run_id="loader-selected-transport-test",
+            trainer_cycle_id=f"loader-selected-transport-{timeframe}",
+            ledger_clock=lambda value=recorded_clocks[index]: value,
+        ).entry
+        for index, (timeframe, capture) in enumerate(
+            zip(
+                ("5m", "1h"),
+                (five_capture, one_capture),
+                strict=True,
+            )
+        )
+    )
+    timeframe_bindings: list[dict[str, Any]] = []
+    for timeframe, required_rows, entry in zip(
+        ("5m", "1h"),
+        (71, 34),
+        entries,
+        strict=True,
+    ):
+        record = entry.record
+        source = record["source_capture"]
+        manifest = record["suffix_manifest"]
+        rows = record["ordered_rows"]
+        start = len(rows) - required_rows
+        selected = rows[start:]
+        item = {
+            "physical_timeframe": timeframe,
+            "source_ledger_sequence": entry.ledger_sequence,
+            "source_ledger_entry_sha256": entry.entry_sha256,
+            "source_ledger_entry_json_sha256": hashlib.sha256(
+                entry.entry_json.encode("ascii")
+            ).hexdigest(),
+            "source_replay_identity_sha256": entry.replay_identity_sha256,
+            "source_cycle_identity_sha256": entry.cycle_identity_sha256,
+            "trainer_run_id": entry.trainer_run_id,
+            "trainer_cycle_id": entry.trainer_cycle_id,
+            "source_ledger_recorded_at": record["ledger_recorded_at"],
+            "source_key": source["source_key"],
+            "source_key_version": source["source_key_version"],
+            "atomic_batch_id": source["atomic_batch_id"],
+            "atomic_batch_material_sha256": source["atomic_batch_material_sha256"],
+            "atomic_consumer_observed_at": source["consumer_observed_at"],
+            "suffix_manifest_sha256": manifest["exact_manifest_sha256"],
+            "suffix_manifest_cas_address": manifest["manifest_cas_address"],
+            "suffix_digest_sha256": manifest["suffix_digest_sha256"],
+            "capture_selected_start_ordinal": start,
+            "capture_selected_row_count": required_rows,
+            "capture_ordered_row_identity_sha256s": [
+                _digest(f"capture-row:{timeframe}:{ordinal}")
+                for ordinal, _row in enumerate(selected)
+            ],
+            "capture_ordered_source_receipt_sha256s": [
+                row["source_read_receipt_sha256"] for row in selected
+            ],
+            "capture_timeframe_sha256": _digest(f"capture:{timeframe}"),
+        }
+        item["timeframe_source_provenance_binding_sha256"] = stable_sha256(item)
+        timeframe_bindings.append(item)
+    root = str(source_ledger.root)
+    binding = {
+        "schema_version": loader_v1.PROFILED_MODEL_SOURCE_PROVENANCE_BINDING_V1_SCHEMA_VERSION,
+        "source_ledger_schema_version": (
+            loader_v1.TRAINER_SOURCE_PROVENANCE_LEDGER_V4_SCHEMA_VERSION
+        ),
+        "source_ledger_namespace": loader_v1.TRAINER_SOURCE_PROVENANCE_LEDGER_V4_NAMESPACE,
+        "source_ledger_root": root,
+        "source_ledger_root_sha256": hashlib.sha256(root.encode("utf-8")).hexdigest(),
+        "timeframe_bindings": timeframe_bindings,
+        "provenance_recorded_before_transform": True,
+    }
+    binding["source_provenance_binding_sha256"] = stable_sha256(binding)
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_PARENT_REQUIRED_WINDOW_TRANSPORT_UNPROVEN",
+    ):
+        loader_v1._validate_source_provenance_binding(
+            binding,
+            transform_available_at=capture_support.GENERATED + timedelta(milliseconds=100),
+            decision_time=capture_support.DECISION,
+        )
 
 
 def test_accepts_producer_clock_precision_after_authenticated_normalization(

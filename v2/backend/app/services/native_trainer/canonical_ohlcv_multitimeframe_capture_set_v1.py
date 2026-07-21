@@ -4,9 +4,10 @@ This boundary combines two already factory-authenticated canonical atomic
 captures into the exact causal source window required by
 ``OHLCV_BOOTSTRAP_5M_1H_V1``: 71 closed 5m rows and 34 closed 1h rows.  Every
 retained row remains bound to its exact payload CAS address and v4 source-read
-receipt.  Historical Binance REST rows are permitted, but the latest
-decision-bound row for each timeframe must be a finalized live Binance WSS
-row.
+receipt.  Every row in the required decision window must currently be a
+finalized live Binance WSS row.  Historical Binance REST rows remain rejected
+until their canonical schema binds a versioned producer identity and an exact
+request-start clock proving that the candle was already final before dispatch.
 
 The set distinguishes ``event_time``, ``ingested_at``, ``available_at``,
 ``generated_at``, ``feature_cutoff``, ``decision_time``, and
@@ -88,10 +89,10 @@ CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_MANIFEST_SCHEMA_VERSION: Final = (
     "canonical_ohlcv_multitimeframe_capture_set_manifest_v1"
 )
 CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID: Final = (
-    "OHLCV_BOOTSTRAP_5M_1H_CAPTURE_SET_POLICY_V1"
+    "OHLCV_BOOTSTRAP_5M_1H_CAPTURE_SET_POLICY_V2"
 )
 CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256: Final = (
-    "f8115e5c6c67909c5486c3d65d4489e60e2ecb5d3545f6d41f0d7ff1d4fd091b"
+    "c24ae591ac9268dbacbebebb5544b43f88af1e4b63d6a4f9e8613463760aac35"
 )
 CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_EVIDENCE_CLASSIFICATION: Final = (
     "AUTHENTICATED_ATOMIC_CAPTURE_ROW_RECEIPT_AND_CAS_INTEGRITY_ONLY"
@@ -774,6 +775,11 @@ def _validate_timeframe_capture(capture: CanonicalOhlcvTimeframeCaptureV1) -> No
         _fail("canonical_ohlcv_multitimeframe_row_type_invalid")
     for row in capture.rows:
         _validate_row(row)
+    if any(
+        row.source_transport != "binance_wss" or row.is_backfilled is not False
+        for row in capture.rows
+    ):
+        _fail("canonical_ohlcv_multitimeframe_required_window_rest_provenance_unavailable")
     if tuple(row.capture_set_row_ordinal for row in capture.rows) != tuple(range(expected_rows)):
         _fail("canonical_ohlcv_multitimeframe_row_order_invalid")
     if tuple(row.atomic_selected_ordinal for row in capture.rows) != tuple(
@@ -922,8 +928,10 @@ _POLICY_MATERIAL: Final = {
     "hermetic_replay_protocol_sha256": CANONICAL_OHLCV_HERMETIC_REPLAY_PROTOCOL_V4_SHA256,
     "clock_fields": list(CAPTURE_SET_CLOCK_FIELDS),
     "clock_format": "UTC_MICROSECOND_Z",
-    "latest_decision_bound_transport": "FINALIZED_LIVE_BINANCE_WSS_ONLY",
-    "historical_transport": "EXACT_RECEIPT_BOUND_BINANCE_REST_OR_LIVE_BINANCE_WSS",
+    "required_window_transport": "FINALIZED_LIVE_BINANCE_WSS_ONLY",
+    "historical_rest_transport": (
+        "REJECTED_UNTIL_VERSIONED_PRODUCER_AND_REQUEST_START_PROVENANCE"
+    ),
     "typed_negative_policy_id": TYPED_NEGATIVE_POLICY_ID,
     "required_timeframe_typed_negatives_allowed": False,
     "market_performance_thresholds_applied": False,
@@ -1327,6 +1335,11 @@ def _build_timeframe_capture(
     if len(atomic_rows) < required_rows:
         _fail("canonical_ohlcv_multitimeframe_exact_lookback_required")
     selected = atomic_rows[-required_rows:]
+    if any(
+        row.source != "binance_wss" or row.is_backfilled is not False
+        for row in selected
+    ):
+        _fail("canonical_ohlcv_multitimeframe_required_window_rest_provenance_unavailable")
     rows = tuple(
         _build_row(
             capture_set_row_ordinal=ordinal,

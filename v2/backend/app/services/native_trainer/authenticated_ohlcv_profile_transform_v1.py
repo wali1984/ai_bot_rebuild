@@ -59,10 +59,10 @@ AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_INPUT_MANIFEST_SCHEMA_VERSION: Final = 
     "canonical_ohlcv_multitimeframe_capture_set_manifest_v1"
 )
 AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CAPTURE_POLICY_ID: Final = (
-    "OHLCV_BOOTSTRAP_5M_1H_CAPTURE_SET_POLICY_V1"
+    "OHLCV_BOOTSTRAP_5M_1H_CAPTURE_SET_POLICY_V2"
 )
 AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CAPTURE_POLICY_SHA256: Final = (
-    "f8115e5c6c67909c5486c3d65d4489e60e2ecb5d3545f6d41f0d7ff1d4fd091b"
+    "c24ae591ac9268dbacbebebb5544b43f88af1e4b63d6a4f9e8613463760aac35"
 )
 AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_ID: Final = (
     "OHLCV_BOOTSTRAP_5M_1H_EXACT_TRANSFORM_V1"
@@ -829,6 +829,12 @@ def _validate_timeframe(
         )
         for index, row in enumerate(raw_rows)
     )
+    if any(
+        row.get("source_transport") != "binance_wss"
+        or row.get("is_backfilled") is not False
+        for row in raw_rows
+    ):
+        _fail("AUTHENTICATED_OHLCV_TRANSFORM_V1_REQUIRED_WINDOW_REST_PROVENANCE_UNAVAILABLE")
     if tuple(row.candle_open_time_ms for row in rows[1:]) != tuple(
         row.candle_open_time_ms + duration_ms for row in rows[:-1]
     ):
@@ -1011,6 +1017,10 @@ _CONFIGURATION_CONTRACT = {
     "schema_version": "authenticated_ohlcv_exact_configuration_v1",
     "profile_id": ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1_ID,
     "profile_sha256": ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1_SHA256,
+    "capture_policy_id": AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CAPTURE_POLICY_ID,
+    "capture_policy_sha256": AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CAPTURE_POLICY_SHA256,
+    "required_window_transport": "FINALIZED_LIVE_BINANCE_WSS_ONLY",
+    "required_window_is_backfilled": False,
     "required_rows": {"5m": EXISTING_CORE_MINIMUM_SOURCE_ROWS, "1h": TRUE_1H_TA_MINIMUM_ROWS},
     "ema_periods": [12, 26],
     "rsi_period": 14,
@@ -1023,7 +1033,7 @@ _CONFIGURATION_CONTRACT = {
     "nonfinite_policy": "REJECT",
 }
 AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256: Final = (
-    "7c1340de9d9a5b5ff167b988a4083129a367ea8ddf81279d6ecde5dd36e79002"
+    "3db3bcfa1ef4245a1d463d66ab39a67850f9fd56c592cd6ff0bca28d29f91fb5"
 )
 if _sha256(_IMPLEMENTATION_MANIFEST) != (
     AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_IMPLEMENTATION_SHA256

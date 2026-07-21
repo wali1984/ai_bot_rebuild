@@ -97,7 +97,7 @@ def authenticated_contract(tmp_path_factory: pytest.TempPathFactory) -> dict[str
     artifact, _store = capture_support._build(Path(root))
     contract = canonical_ohlcv_multitimeframe_capture_set_v1_contract(artifact)
     assert contract["capture_set_sha256"] == (
-        "1ec9bae3ebd3e80e121bcc06bcf3a95b5859dd3a140510b62e4cbe168655187f"
+        "19cbf7c7118ce977a3b8a871f6da89deafb01a83fde3517f40517bf381890383"
     )
     return contract
 
@@ -352,6 +352,25 @@ def test_receipt_tamper_fails_closed(
     with pytest.raises(
         AuthenticatedOhlcvProfileTransformV1Error,
         match="AUTHENTICATED_OHLCV_TRANSFORM_V1_ROW_RECEIPT_INVALID",
+    ):
+        validate_authenticated_ohlcv_capture_set_v1(
+            candidate,
+            expected_capture_set_sha256=root,
+        )
+
+
+def test_independent_transform_rejects_rehashed_required_window_rest_row(
+    authenticated_contract: dict[str, Any],
+) -> None:
+    candidate = copy.deepcopy(authenticated_contract)
+    row = candidate["timeframes"][1]["rows"][0]
+    row["source_transport"] = "binance_rest"
+    row["is_backfilled"] = True
+    root = _rehash_contract(candidate)
+
+    with pytest.raises(
+        AuthenticatedOhlcvProfileTransformV1Error,
+        match="AUTHENTICATED_OHLCV_TRANSFORM_V1_REQUIRED_WINDOW_REST_PROVENANCE_UNAVAILABLE",
     ):
         validate_authenticated_ohlcv_capture_set_v1(
             candidate,

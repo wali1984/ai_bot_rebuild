@@ -44,6 +44,9 @@ _PROFILED_LINEAGE_CLASSIFICATION: Final = (
     "AUTHENTICATED_PARENT_35_PLUS_CAUSAL_COST_4_TRAINING_EVIDENCE"
 )
 _PROFILED_LINEAGE_STATUS: Final = "STRICT_TRAINING_CANDIDATE_NO_SERVING_OR_EXECUTION_AUTHORITY"
+_PROFILED_TRANSFORM_CONFIGURATION_SHA256: Final = (
+    "3db3bcfa1ef4245a1d463d66ab39a67850f9fd56c592cd6ff0bca28d29f91fb5"
+)
 _EXPECTED_SAMPLE_AUTHORIZATION: Final = {
     "trainer_admission_authorized": True,
     "prediction_authorized": False,
@@ -216,6 +219,11 @@ def _profiled_child_candidate_rejection(
     attestation = lineage.get(_PROFILED_LINEAGE_KEY) if type(lineage) is dict else None
     if type(attestation) is not dict:
         return "STRICT_ROW_NOT_PROFILED_ENRICHMENT"
+    if (
+        attestation.get("transform_configuration_sha256")
+        != _PROFILED_TRANSFORM_CONFIGURATION_SHA256
+    ):
+        return "PROFILED_CHILD_UNSUPPORTED_TRANSFORM_CONFIGURATION"
     authorization = attestation.get("authorization")
     names = envelope.get("ordered_feature_names")
     values = envelope.get("feature_values")
@@ -283,6 +291,8 @@ def _profiled_child_candidate_rejection(
         or parent_lineage.get("classification") != _PARENT_PROFILED_CLASSIFICATION
         or parent_lineage.get("status") != _PARENT_PROFILED_STATUS
         or parent_lineage.get("physical_model_feature_count") != _PARENT_PROFILED_FEATURE_COUNT
+        or parent_lineage.get("transform_configuration_sha256")
+        != _PROFILED_TRANSFORM_CONFIGURATION_SHA256
         or parent_lineage.get("authorization") != _EXPECTED_PARENT_AUTHORIZATION
         or parent_envelope.get("provenance_classification") != "CANONICAL_V3"
         or parent_envelope.get("legacy_v1_snapshot_id") is not None

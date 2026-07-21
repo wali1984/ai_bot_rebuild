@@ -45,6 +45,7 @@ from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
     read_atomic_redis_sources,
 )
 from v2.backend.app.services.native_trainer.authenticated_ohlcv_profile_transform_v1 import (
+    AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256,
     AuthenticatedOhlcvProfileTransformV1Error,
     transform_authenticated_ohlcv_profile_v1,
 )
@@ -60,6 +61,8 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_atomic_receipt_adapt
     capture_canonical_closed_ohlcv_atomic_receipts,
 )
 from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_capture_set_v1 import (
+    CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID,
+    CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256,
     CanonicalOhlcvMultitimeframeCaptureSetV1Error,
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
     canonical_ohlcv_multitimeframe_capture_set_v1_contract,
@@ -192,15 +195,43 @@ AUTHORITY_FIELDS: Final = (
 DECISION_TIMEFRAME: Final = "5m"
 MAX_DECISION_WAIT_CHUNK_SECONDS: Final = 1.0
 PROFILED_TRAINING_ENRICHMENT_CAS_DIRECTORY: Final = "profiled-training-enrichment-cas"
+# The unversioned directory is retained as the immutable V1 audit namespace.
 PROFILED_TRAINING_PAIR_RECOVERY_DIRECTORY: Final = "profiled-training-pair-recovery-receipts"
+PROFILED_TRAINING_PAIR_RECOVERY_V2_DIRECTORY: Final = (
+    "profiled-training-pair-recovery-receipts-v2"
+)
 PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION: Final = (
     "profiled_training_pair_recovery_receipt_v1"
+)
+PROFILED_TRAINING_PAIR_RECOVERY_V2_SCHEMA_VERSION: Final = (
+    "profiled_training_pair_recovery_receipt_v2"
+)
+_PAIR_RECOVERY_V1_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "symbol",
+        "window_fingerprint_sha256",
+        "parent_durable_snapshot_id",
+        "parent_record_sha256",
+        "child_durable_snapshot_id",
+        "child_record_sha256",
+        "cost_capture_artifact_sha256",
+        "cost_store_root",
+        "prepared_at",
+        "append_disposition",
+        "materialized_evidence_bytes",
+        "evidence_accounting_method",
+        "recovery_receipt_sha256",
+    }
 )
 _PAIR_RECOVERY_FIELDS: Final = frozenset(
     {
         "schema_version",
         "symbol",
         "window_fingerprint_sha256",
+        "capture_policy_id",
+        "capture_policy_sha256",
+        "transform_configuration_sha256",
         "parent_durable_snapshot_id",
         "parent_record_sha256",
         "child_durable_snapshot_id",
@@ -643,7 +674,53 @@ def _pair_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
             ProfiledBaseFeaturePublisherV1StateError,
             "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_SYMBOL_INVALID",
         )
+    return data_root / PROFILED_TRAINING_PAIR_RECOVERY_V2_DIRECTORY / f"{symbol}.json"
+
+
+def _legacy_pair_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
+    if SYMBOL_RE.fullmatch(symbol) is None:
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_SYMBOL_INVALID",
+        )
     return data_root / PROFILED_TRAINING_PAIR_RECOVERY_DIRECTORY / f"{symbol}.json"
+
+
+def _observe_legacy_pair_recovery_receipt(data_root: Path, symbol: str) -> dict[str, Any]:
+    path = _legacy_pair_recovery_receipt_path(data_root, symbol)
+    try:
+        observed = os.lstat(path)
+    except FileNotFoundError:
+        return {
+            "classification": "LEGACY_V1_RECOVERY_RECEIPT_ABSENT",
+            "present": False,
+            "regular_file": False,
+            "owned_by_runtime_uid": False,
+            "private_mode": False,
+            "content_consumed": False,
+            "authority_granted": False,
+        }
+    except OSError:
+        return {
+            "classification": "LEGACY_V1_RECOVERY_RECEIPT_UNREADABLE_PRESERVED",
+            "present": True,
+            "regular_file": False,
+            "owned_by_runtime_uid": False,
+            "private_mode": False,
+            "content_consumed": False,
+            "authority_granted": False,
+        }
+    mode = stat.S_IMODE(observed.st_mode)
+    regular = stat.S_ISREG(observed.st_mode) and not stat.S_ISLNK(observed.st_mode)
+    return {
+        "classification": "LEGACY_V1_RECOVERY_RECEIPT_PRESERVED_UNCONSUMED",
+        "present": True,
+        "regular_file": regular,
+        "owned_by_runtime_uid": observed.st_uid == os.geteuid(),
+        "private_mode": regular and mode & 0o077 == 0,
+        "content_consumed": False,
+        "authority_granted": False,
+    }
 
 
 def _load_pair_recovery_receipt(
@@ -692,27 +769,80 @@ def _load_pair_recovery_receipt(
             ProfiledBaseFeaturePublisherV1StateError,
             "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_JSON_INVALID",
         )
-    if (
-        type(parsed) is not dict
-        or set(parsed) != _PAIR_RECOVERY_FIELDS
-        or _canonical_json_bytes(parsed) + b"\n" != raw
-    ):
+    if type(parsed) is not dict or _canonical_json_bytes(parsed) + b"\n" != raw:
         _fail(
             ProfiledBaseFeaturePublisherV1StateError,
             "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_FIELDS_INVALID",
         )
     receipt = cast(dict[str, Any], parsed)
     unsigned = {key: value for key, value in receipt.items() if key != "recovery_receipt_sha256"}
+    if receipt.get("schema_version") == PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION:
+        legacy_sha_fields = (
+            "window_fingerprint_sha256",
+            "parent_record_sha256",
+            "child_record_sha256",
+            "cost_capture_artifact_sha256",
+            "recovery_receipt_sha256",
+        )
+        if (
+            set(receipt) != _PAIR_RECOVERY_V1_FIELDS
+            or receipt.get("symbol") != expected_symbol
+            or receipt.get("cost_store_root") != str(expected_cost_store_root)
+            or receipt.get("append_disposition")
+            != "PREPARED_BEFORE_ATOMIC_PAIR_APPEND_REQUIRES_LEDGER_READBACK"
+            or receipt.get("evidence_accounting_method")
+            != (
+                "CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_"
+                "AND_AUXILIARY_SQLITE_OVERHEAD"
+            )
+            or type(receipt.get("materialized_evidence_bytes")) is not int
+            or cast(int, receipt.get("materialized_evidence_bytes")) <= 0
+            or any(
+                type(receipt.get(name)) is not str
+                or SHA256_RE.fullmatch(cast(str, receipt.get(name))) is None
+                for name in legacy_sha_fields
+            )
+            or any(
+                type(receipt.get(name)) is not str or not receipt.get(name)
+                for name in ("parent_durable_snapshot_id", "child_durable_snapshot_id")
+            )
+            or stable_sha256(unsigned) != receipt.get("recovery_receipt_sha256")
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_BINDING_INVALID",
+            )
+        _parse_clock(
+            receipt.get("prepared_at"),
+            reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PREPARED_CLOCK_INVALID",
+        )
+        # V1 did not bind the capture policy or transform configuration.  It
+        # can never recover authority after a policy migration; a fresh V2
+        # publication must independently rebuild and authenticate the pair.
+        return None
+    if set(receipt) != _PAIR_RECOVERY_FIELDS:
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_FIELDS_INVALID",
+        )
     sha_fields = (
         "window_fingerprint_sha256",
+        "capture_policy_sha256",
+        "transform_configuration_sha256",
         "parent_record_sha256",
         "child_record_sha256",
         "cost_capture_artifact_sha256",
         "recovery_receipt_sha256",
     )
     if (
-        receipt["schema_version"] != PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION
+        receipt["schema_version"] != PROFILED_TRAINING_PAIR_RECOVERY_V2_SCHEMA_VERSION
         or receipt["symbol"] != expected_symbol
+        or receipt["capture_policy_id"]
+        != CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID
+        or receipt["capture_policy_sha256"]
+        != CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+        or receipt["transform_configuration_sha256"]
+        != AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
         or receipt["cost_store_root"] != str(expected_cost_store_root)
         or receipt["append_disposition"]
         != "PREPARED_BEFORE_ATOMIC_PAIR_APPEND_REQUIRES_LEDGER_READBACK"
@@ -1633,8 +1763,17 @@ class ProfiledBaseFeaturePublisherV1:
     ) -> str:
         return stable_sha256(
             {
-                "schema_version": "profiled_base_finalized_window_fingerprint_v1",
+                "schema_version": "profiled_base_finalized_window_fingerprint_v2",
                 "symbol": symbol,
+                "capture_policy_id": (
+                    CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID
+                ),
+                "capture_policy_sha256": (
+                    CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+                ),
+                "transform_configuration_sha256": (
+                    AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+                ),
                 "timeframes": [
                     {
                         "timeframe": timeframe,
@@ -1941,9 +2080,16 @@ class ProfiledBaseFeaturePublisherV1:
                 "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_ACCOUNTING_INVALID",
             )
         unsigned: dict[str, Any] = {
-            "schema_version": PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION,
+            "schema_version": PROFILED_TRAINING_PAIR_RECOVERY_V2_SCHEMA_VERSION,
             "symbol": symbol,
             "window_fingerprint_sha256": window_fingerprint_sha256,
+            "capture_policy_id": CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_ID,
+            "capture_policy_sha256": (
+                CANONICAL_OHLCV_MULTITIMEFRAME_CAPTURE_SET_V1_POLICY_SHA256
+            ),
+            "transform_configuration_sha256": (
+                AUTHENTICATED_OHLCV_PROFILE_TRANSFORM_V1_CONFIGURATION_SHA256
+            ),
             "parent_durable_snapshot_id": pair.parent_durable_snapshot_id,
             "parent_record_sha256": pair.parent_record_sha256,
             "child_durable_snapshot_id": pair.child_durable_snapshot_id,
@@ -2111,6 +2257,9 @@ class ProfiledBaseFeaturePublisherV1:
             or sample.append_transaction_id != child.append_transaction_id
             or sample.append_receipt_sha256 != child.append_receipt_sha256
             or sample.postcommit_receipt_sha256 != child.postcommit_receipt_sha256
+            or type(attestation) is not dict
+            or attestation.get("transform_configuration_sha256")
+            != receipt["transform_configuration_sha256"]
             or type(cost_binding) is not dict
             or cost_binding.get("cost_capture_artifact_sha256")
             != receipt["cost_capture_artifact_sha256"]
@@ -2132,6 +2281,9 @@ class ProfiledBaseFeaturePublisherV1:
             "parent_record_sha256": sample.parent_record_sha256,
             "cost_capture_artifact_sha256": receipt["cost_capture_artifact_sha256"],
             "cost_store_root": str(enrichment_store.root_path),
+            "legacy_recovery_receipt_observation": (
+                _observe_legacy_pair_recovery_receipt(self.data_root, symbol)
+            ),
             "feature_append": {
                 "transaction_id": sample.append_transaction_id,
                 "inserted_rows": 0,
@@ -2434,6 +2586,9 @@ class ProfiledBaseFeaturePublisherV1:
             "parent_record_sha256": pair.parent_record_sha256,
             "cost_capture_artifact_sha256": pair.cost_capture_artifact_sha256,
             "cost_store_root": str(enrichment_store.root_path),
+            "legacy_recovery_receipt_observation": (
+                _observe_legacy_pair_recovery_receipt(self.data_root, symbol)
+            ),
             "source_lineage_sha256": validation.source_lineage_sha256,
             "physical_model_vector_sha256": validation.physical_model_vector_sha256,
             "logical_model_vector_sha256": (validation.logical_projection.model_vector_sha256),
