@@ -19,3 +19,14 @@ ai-bot-v2-continuous-offline-gpu-trainer.service
 ai-bot-v2-adaptive-capital-productivity.service
 ai-bot-v2-edge-replay-factory.service
 ai-bot-v2-continuous-edge-guardian.service
+
+# Codex containment 2026-07-21: autonomous Claude/Codex execution is paused
+# while the operator-led recovery goal owns the dirty worktree.  These units
+# can dispatch headless model sessions or recreate their dispatch control
+# plane, consuming quota and racing reviewed changes.  This hold is scoped to
+# AI automation only; it does not stop trainer observers, ingestors, paper
+# trading, market-data services, or safety/health monitors.
+ai-bot-v2-worker-porting-orchestrator.service
+ai-bot-v2-agent-supervisor.service
+ai-bot-v2-parallel-scheduler.service
+ai-bot-v2-codex-watchdog.service
