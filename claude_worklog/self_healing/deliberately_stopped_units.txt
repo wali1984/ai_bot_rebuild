@@ -15,7 +15,6 @@ ai-bot-v2-production-replacement-runtime-guard.service
 # attempting starts that systemd is explicitly configured to refuse.  Remove
 # each entry together with its drop-in only after that component's evidence
 # and bounded-resource release gate passes.
-ai-bot-v2-native-cuda-trainer-persistent.service
 ai-bot-v2-continuous-offline-gpu-trainer.service
 ai-bot-v2-adaptive-capital-productivity.service
 ai-bot-v2-edge-replay-factory.service
