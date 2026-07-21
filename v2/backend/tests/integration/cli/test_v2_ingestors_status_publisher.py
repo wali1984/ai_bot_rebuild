@@ -277,6 +277,39 @@ def test_source_event_clock_does_not_become_an_operational_artifact_clock() -> N
     assert entry["last_generated_utc"] is None
 
 
+def test_dynamic_discovery_uses_its_provider_safe_availability_envelope(
+    monkeypatch,
+) -> None:
+    now = datetime.now(UTC)
+    generated = _utc_text(now - timedelta(hours=6, minutes=15))
+    key = "v2:symbol_universe:dynamic_discovery_status"
+    redis = FakeRedis(
+        {
+            key: {
+                "generated_utc": generated,
+                "producer_interval_seconds": 21_600,
+                "redis_retention_seconds": 28_800,
+                "redis_retention_headroom_seconds": 7_200,
+                "redis_retention_is_storage_availability_not_event_freshness": True,
+            }
+        },
+        pttls={key: 6_000_000},
+    )
+    monkeypatch.setattr(publisher, "_connect_redis", lambda: redis)
+    monkeypatch.setattr(publisher, "_read_public_status", lambda _name: None)
+
+    payload = publisher.run_once()
+    dynamic = next(
+        row for row in payload["ingestors"] if row["name"] == "Dynamic Symbol Discovery"
+    )
+
+    assert dynamic["heartbeat_max_age_seconds"] == (
+        publisher.DYNAMIC_DISCOVERY_REDIS_RETENTION_SECONDS
+    )
+    assert dynamic["heartbeat_current"] is True
+    assert dynamic["heartbeat_ttl_is_storage_retention_only"] is True
+
+
 def test_optional_provider_absence_does_not_degrade_current_core_heartbeats(
     monkeypatch,
 ) -> None:

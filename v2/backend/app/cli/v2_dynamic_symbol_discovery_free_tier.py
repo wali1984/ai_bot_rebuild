@@ -51,6 +51,16 @@ SURF_BASE = "https://api.asksurf.ai/gateway/v1"
 COINGLASS_BASE = "https://open-api-v4.coinglass.com"
 
 DEFAULT_INTERVAL_SECONDS = 21_600
+# Retention must exceed the provider-call cadence.  Keeping both values equal
+# created a deterministic availability gap whenever one discovery cycle took
+# non-zero time: the previous universe expired while the next provider reads
+# were still running.  The extra one-third cadence is storage/fetch headroom,
+# not permission to call a provider more frequently or to treat an old market
+# event as current.
+DEFAULT_REDIS_RETENTION_SECONDS = DEFAULT_INTERVAL_SECONDS * 4 // 3
+DEFAULT_REDIS_RETENTION_HEADROOM_SECONDS = (
+    DEFAULT_REDIS_RETENTION_SECONDS - DEFAULT_INTERVAL_SECONDS
+)
 DEFAULT_MAX_SYMBOLS = 80
 DEFAULT_COINGECKO_MARKET_ROWS = 100
 DEFAULT_SURF_SYMBOL_LIMIT = 3
@@ -143,7 +153,13 @@ def _connect_redis():
         return None
 
 
-def _safe_redis_set(redis_client: Any, key: str, payload: Any, *, ex: int = 21_600) -> bool:
+def _safe_redis_set(
+    redis_client: Any,
+    key: str,
+    payload: Any,
+    *,
+    ex: int = DEFAULT_REDIS_RETENTION_SECONDS,
+) -> bool:
     if redis_client is None:
         return False
     if not isinstance(key, str) or not key.startswith(V2_REDIS_PREFIX):
@@ -1037,6 +1053,10 @@ def run_once(
         "auto_update_ingestors": True,
         "auto_update_feature_pipeline": True,
         "auto_update_trainer_symbols": True,
+        "producer_interval_seconds": DEFAULT_INTERVAL_SECONDS,
+        "redis_retention_seconds": DEFAULT_REDIS_RETENTION_SECONDS,
+        "redis_retention_headroom_seconds": DEFAULT_REDIS_RETENTION_HEADROOM_SECONDS,
+        "redis_retention_is_storage_availability_not_event_freshness": True,
         "free_tier_only": True,
         "paid_tier_enabled": False,
         "live_gate": "blocked_human_only",

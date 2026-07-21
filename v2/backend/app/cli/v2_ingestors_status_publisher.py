@@ -17,6 +17,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
+from v2.backend.app.cli.v2_dynamic_symbol_discovery_free_tier import (
+    DEFAULT_REDIS_RETENTION_SECONDS as DYNAMIC_DISCOVERY_REDIS_RETENTION_SECONDS,
+)
+
 V2_REDIS_PREFIX = "v2:"
 REPO_ROOT = Path(__file__).resolve().parents[4]
 PUBLIC_ROOT = REPO_ROOT / "v2/frontend/public"
@@ -914,7 +918,13 @@ def run_once() -> JsonObject:
             r,
             control_group="symbol_universe",
             requirement_class=REQUIREMENT_DERIVED_OBSERVABILITY,
-            heartbeat_max_age_seconds=900,
+            # This source intentionally refreshes on the provider-safe six-hour
+            # cadence.  Its source-owned Redis availability contract retains
+            # one-third-cadence fetch headroom; a generic 15-minute heartbeat
+            # envelope falsely reported it dead for most of every healthy
+            # cycle.  PTTL remains storage evidence only and never becomes an
+            # event-time freshness assertion.
+            heartbeat_max_age_seconds=DYNAMIC_DISCOVERY_REDIS_RETENTION_SECONDS,
         ),
     ]
 
