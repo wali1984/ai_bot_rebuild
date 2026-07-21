@@ -290,6 +290,34 @@ def test_binary_replay_rejects_ambiguous_or_mismatched_tensor_descriptors(
         )
 
 
+@pytest.mark.parametrize(
+    ("shape", "reason"),
+    (
+        (
+            [1] * (checkpoint_module.MAX_PROFILED_TENSOR_RANK + 1),
+            "PROFILED_CHECKPOINT_BINARY_TENSOR_SHAPE_RESOURCE_LIMIT_EXCEEDED",
+        ),
+        (
+            [2] * checkpoint_module.MAX_PROFILED_TENSOR_RANK,
+            "PROFILED_CHECKPOINT_BINARY_TENSOR_PAYLOAD_LIMIT_EXCEEDED",
+        ),
+    ),
+)
+def test_binary_decoder_rejects_shape_resource_attacks_before_giant_product(
+    adapter_evidence: dict[str, Any],
+    shape: list[int],
+    reason: str,
+) -> None:
+    result = _build(adapter_evidence)
+    header, frames = _binary_parts(result.checkpoint_bytes)
+    header["payload_frames"][0]["shape"] = shape
+
+    with pytest.raises(ProfiledSupervisedCheckpointInventoryV1Error, match=reason):
+        decode_and_validate_profiled_supervised_checkpoint_binary_v2(
+            _reencode_binary(header, frames)
+        )
+
+
 def test_manifest_witness_projection_rows_targets_and_artifacts_are_bound(
     adapter_evidence: dict[str, Any],
 ) -> None:
@@ -365,6 +393,34 @@ def test_malformed_tensor_input_types_are_normalized_to_checkpoint_error(
             stage="BEFORE_OPTIMIZATION",
             captured_at=_BEFORE_CAPTURED_AT,
             model_tensors=(malformed_item,),  # type: ignore[arg-type]
+            optimizer_tensors=(),
+            resource_budget_bytes=_STATE_RESOURCE_BUDGET,
+        )
+
+
+@pytest.mark.parametrize(
+    ("shape", "reason"),
+    (
+        (
+            (2,) * (checkpoint_module.MAX_PROFILED_TENSOR_RANK + 1),
+            "PROFILED_CHECKPOINT_TENSOR_SHAPE_RESOURCE_LIMIT_EXCEEDED",
+        ),
+        (
+            (1 << 100_000,),
+            "PROFILED_CHECKPOINT_TENSOR_PAYLOAD_LIMIT_EXCEEDED",
+        ),
+        ((0,), "PROFILED_CHECKPOINT_TENSOR_SHAPE_INVALID"),
+    ),
+)
+def test_direct_tensor_shape_product_is_checked_before_unbounded_multiplication(
+    shape: tuple[int, ...],
+    reason: str,
+) -> None:
+    with pytest.raises(ProfiledSupervisedCheckpointInventoryV1Error, match=reason):
+        capture_profiled_supervised_optimization_state_snapshot_v1(
+            stage="BEFORE_OPTIMIZATION",
+            captured_at=_BEFORE_CAPTURED_AT,
+            model_tensors=(("weight", "float32", shape, struct.pack("<f", 1.0)),),
             optimizer_tensors=(),
             resource_budget_bytes=_STATE_RESOURCE_BUDGET,
         )
