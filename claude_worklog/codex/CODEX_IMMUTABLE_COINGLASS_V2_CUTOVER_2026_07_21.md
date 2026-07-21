@@ -144,3 +144,43 @@ tail <CoinGlass stdout/stderr files>
 The failed encrypted-credential attempt created no credential artifact. The
 unrelated `systemd-analyze` warning concerned the pre-existing report-center
 indexer unit, not the CoinGlass service.
+
+## Follow-on immutable confluence cutover
+
+After the CoinGlass producer proved fresh V2 rows, the confluence publisher was
+cut over to the newer pushed release
+`b69383d336b2df0adb1573f506c6fc5337261d39` at:
+
+`/home/wali/ai_bot_local_data/deployments/ai_bot_rebuild/b69383d336b2df0adb1573f506c6fc5337261d39`
+
+Installed reversible drop-in:
+
+`/home/wali/.config/systemd/user/ai-bot-v2-altdata-confluence-loop.service.d/90-immutable-release.conf`
+
+The exact-release confluence/bridge/boundary suite passed `95` tests before
+restart. Post-restart evidence:
+
+- PID `2458826`, started `2026-07-21 15:30:25 EDT`;
+- `active/running`, `NRestarts=0`;
+- exact release CWD, `PYTHONPATH`, and `AI_BOT_CODE_SHA`;
+- release mount read-only in the service namespace;
+- BTC, ETH, and SOL all published `actual_payload_present=true` and
+  `decision_time_safe=true`;
+- each row used `providers_present=["coinglass"]` with causal feature cutoff;
+- CoinAnk and Moralis remained explicitly missing and were not zero-filled.
+
+Additional commands:
+
+```text
+git worktree add --detach <confluence-release-path> b69383d336b2df0adb1573f506c6fc5337261d39
+PYTHONPATH=<release>:<release>/v2/backend <shared-venv-python> -m pytest -q <four confluence/bridge/boundary modules>
+install -d -m 700 <confluence-unit-drop-in-directory>
+systemd-analyze --user verify ai-bot-v2-altdata-confluence-loop.service
+systemctl --user daemon-reload
+systemctl --user restart ai-bot-v2-altdata-confluence-loop.service
+systemctl --user show ai-bot-v2-altdata-confluence-loop.service <scoped properties>
+readlink -f /proc/<pid>/cwd
+<name-only process-environment inspection>
+rg -F <release-path> /proc/<pid>/mountinfo
+redis-cli GET <scoped confluence keys> | jq <non-secret contract fields>
+```
