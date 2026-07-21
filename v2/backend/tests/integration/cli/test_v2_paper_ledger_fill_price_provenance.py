@@ -7,7 +7,7 @@ from __future__ import annotations
 import importlib
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import patch
 
 
@@ -37,6 +37,103 @@ class FakeRedis:
 
 def _mod():
     return importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
+
+
+def _force_binding_preemptive_allow(monkeypatch, mod) -> None:
+    """Isolate fill-provenance tests from preemptive model calibration."""
+
+    def allowed(candidate, **_kwargs):
+        return {
+            "preemptive_decision_id": f"pec_test_{candidate.get('signal_id')}",
+            "preemptive_decision": "ALLOW",
+            "preemptive_action": "ALLOW_A_PLUS_CANDIDATE",
+            "preemptive_decision_reasons": [],
+            "preemptive_allowed": True,
+            "pre_trade_loss_probability": 0.20,
+            "allow_paper_fill": True,
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+
+    monkeypatch.setattr(mod, "evaluate_preemptive_candidate", allowed)
+
+
+def _binding_pit_fields() -> dict[str, object]:
+    """Return a closed-candle lineage ordered before the test decision."""
+
+    decision = datetime.now(UTC)
+    current_15m_open = decision.replace(
+        minute=(decision.minute // 15) * 15,
+        second=0,
+        microsecond=0,
+    )
+    feature_cutoff = current_15m_open - timedelta(minutes=15)
+    available_at = decision - timedelta(seconds=2)
+    return {
+        "decision_time": decision.isoformat().replace("+00:00", "Z"),
+        "entry_feature_decision_time": decision.isoformat().replace("+00:00", "Z"),
+        "feature_cutoff": feature_cutoff.isoformat().replace("+00:00", "Z"),
+        "entry_feature_cutoff": feature_cutoff.isoformat().replace("+00:00", "Z"),
+        "available_at": available_at.isoformat().replace("+00:00", "Z"),
+        "entry_feature_available_at": available_at.isoformat().replace("+00:00", "Z"),
+        "entry_feature_candle_closed_confirmed": True,
+        "expected_funding_bps": 0.0,
+    }
+
+
+def _seed_binding_runtime_evidence(
+    r: FakeRedis,
+    *,
+    symbol: str,
+    price: float,
+    pit: dict[str, object],
+) -> None:
+    """Seed complete, point-in-time-safe cost evidence for an admitted fill."""
+
+    available_at = str(pit["available_at"])
+    decision_time = str(pit["decision_time"])
+    bid = price * 0.99999
+    ask = price * 1.00001
+    r.store[f"v2:orderbook:features:binance:{symbol}"] = json.dumps(
+        {
+            "best_bid": bid,
+            "best_ask": ask,
+            "bids": [[bid, 10.0]],
+            "asks": [[ask, 10.0]],
+            "estimated_price_impact_bps": 0.1,
+            "available_at": available_at,
+            "received_at": available_at,
+            "event_time": available_at,
+        }
+    )
+    r.store[f"v2:microstructure:trust_score:{symbol}:15m"] = json.dumps(
+        {
+            "microstructure_trust_score": 0.90,
+            "orderbook_trust_score": 0.90,
+            "orderbook_trust_tier": "HIGH_TRUST",
+            "microstructure_action": "ALLOW",
+            "adaptive_minimum": 0.65,
+            "orderbook_latency_ms": 10.0,
+            "book_sequence_gap": False,
+            "book_depth_persistence_score": 0.90,
+            "book_cancel_pressure_score": 0.10,
+            "trade_tape_confirmation_score": 0.80,
+            "cross_venue_confirmation_score": 0.80,
+            "sweep_risk_score": 0.10,
+            "available_at": available_at,
+            "generated_at": available_at,
+            "decision_time": decision_time,
+        }
+    )
+    r.store[f"v2:market:funding:{symbol}"] = json.dumps(
+        {
+            "markPrice": price,
+            "indexPrice": price,
+            "fundingRate": 0.0,
+            "time": available_at,
+        }
+    )
 
 
 def test_read_v2_market_price_pulls_lastprice_from_v2_market_prices() -> None:
@@ -576,7 +673,9 @@ def test_attach_entry_price_provenance_without_price_emits_missing_blocker() -> 
 
 def test_run_once_writes_v2_paper_positions_with_provenance_when_market_available(monkeypatch) -> None:
     mod = _mod()
+    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
+    pit = _binding_pit_fields()
     r.store["v2:signals:paper"] = json.dumps([
         {
             "symbol": "BTCUSDT",
@@ -598,6 +697,7 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
             "valid_for_paper": True,
             "paper_major_move_candidate": True,
             "major_move_evidence_score": 0.75,
+            **pit,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -609,6 +709,7 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
         "available_margin": 10000.0,
         "wallet_balance": 10000.0,
     })
+    _seed_binding_runtime_evidence(r, symbol="BTCUSDT", price=55000.0, pit=pit)
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
     monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
     monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
@@ -705,7 +806,9 @@ def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monk
 
 def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_present(monkeypatch) -> None:
     mod = _mod()
+    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
+    pit = _binding_pit_fields()
     r.store["v2:signals:paper"] = json.dumps([
         {
             "symbol": "BTCUSDT",
@@ -730,6 +833,7 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
             "valid_for_paper": True,
             "paper_major_move_candidate": True,
             "major_move_evidence_score": 0.75,
+            **pit,
         }
     ])
     r.store["v2:market:prices:BTCUSDT"] = json.dumps({
@@ -741,6 +845,7 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
         "available_margin": 10000.0,
         "wallet_balance": 10000.0,
     })
+    _seed_binding_runtime_evidence(r, symbol="BTCUSDT", price=55000.0, pit=pit)
     monkeypatch.setattr(mod, "_connect_redis", lambda: r)
     monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
     monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})

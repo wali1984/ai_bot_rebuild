@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import copy
+import inspect
 import json
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
@@ -150,6 +152,24 @@ def _admission_intent(decision: dict[str, Any]) -> dict[str, Any]:
         "paper_opportunity_tier": paper_loop.PAPER_TIER_A_GRADE_EXECUTION,
         "preemptive_edge_control": decision,
         "pre_trade_loss_probability": decision["pre_trade_loss_probability"],
+    }
+
+
+def _binding_intent(decision: dict[str, Any] | None = None) -> dict[str, Any]:
+    preemptive = copy.deepcopy(decision or _decision(None))
+    return {
+        **_admission_intent(preemptive),
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "side": "long",
+        "confidence_calibrated": 0.99,
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+        "paper_fill_allowed": True,
+        "paper_sizing_complete": True,
+        "paper_directional_collapse_guard": {"allowed": True},
+        "notional": 50.0,
     }
 
 
@@ -501,4 +521,230 @@ def test_plain_sha_identity_is_observational_not_authentication() -> None:
         paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
             falsely_authoritative
         )
+    )
+
+
+@pytest.mark.parametrize("block_action", ["BLOCK", "BLOCK_NO_EDGE"])
+def test_preemptive_block_action_is_binding_for_every_paper_tier(
+    block_action: str,
+) -> None:
+    intent = _binding_intent()
+    preemptive = intent["preemptive_edge_control"]
+    preemptive["preemptive_decision"] = "NO_TRADE"
+    preemptive["preemptive_action"] = block_action
+    intent["preemptive_decision"] = "NO_TRADE"
+    intent["preemptive_action"] = block_action
+    intent["paper_opportunity_tier"] = (
+        paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+    )
+    intent["paper_risk_controller_exploration_eligible"] = True
+
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    )
+
+    assert f"PREEMPTIVE_BLOCK_ACTION_BINDING:{block_action}" in reasons
+
+
+def test_reduce_size_action_requires_proven_adaptive_economic_haircut() -> None:
+    intent = _binding_intent()
+    preemptive = intent["preemptive_edge_control"]
+    preemptive["preemptive_decision"] = "REDUCE_SIZE_PAPER_ONLY"
+    preemptive["preemptive_action"] = "ALLOW_REDUCE_SIZE_PAPER"
+    intent.update(
+        {
+            "preemptive_decision": "REDUCE_SIZE_PAPER_ONLY",
+            "preemptive_action": "ALLOW_REDUCE_SIZE_PAPER",
+            "paper_opportunity_tier": (
+                paper_loop.PAPER_TIER_RISK_CONTROLLER_EXPLORATION
+            ),
+            "mandatory_size_haircut": True,
+            "risk_budget_fraction_of_normal_adaptive": 0.05,
+            "normal_adaptive_target_notional_usdt": 1_000.0,
+            "notional": 50.0,
+            "target_notional_usd": 50.0,
+        }
+    )
+
+    assert (
+        paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+            intent
+        )
+        == []
+    )
+
+    unproven = copy.deepcopy(intent)
+    unproven.pop("normal_adaptive_target_notional_usdt")
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        unproven
+    )
+    assert "PREEMPTIVE_REDUCE_SIZE_NORMAL_NOTIONAL_MISSING" in reasons
+
+    inconsistent = copy.deepcopy(intent)
+    inconsistent["gross_notional_usd"] = 1_000.0
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        inconsistent
+    )
+    assert "PREEMPTIVE_REDUCE_SIZE_ACTUAL_NOTIONAL_ALIASES_INCONSISTENT" in reasons
+    assert "PREEMPTIVE_REDUCE_SIZE_NOTIONAL_EXCEEDS_ADAPTIVE_CAP" in reasons
+
+    direct_action = copy.deepcopy(intent)
+    direct_action["preemptive_decision"] = "ALLOW"
+    direct_action["preemptive_action"] = "REDUCE_SIZE"
+    direct_action["preemptive_edge_control"]["preemptive_decision"] = "ALLOW"
+    direct_action["preemptive_edge_control"]["preemptive_action"] = "REDUCE_SIZE"
+    assert (
+        paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+            direct_action
+        )
+        == []
+    )
+
+
+def test_require_hedge_blocks_entry_until_a_binding_executor_exists() -> None:
+    base = datetime.now(UTC)
+    redis = FakeRedis()
+    redis.set_payload("v2:features:coinglass:BTCUSDT:1m", _coinglass_payload(base))
+    altdata, lineage = paper_loop._paper_canonical_altdata_context(  # noqa: SLF001
+        redis,
+        symbol="BTCUSDT",
+        timeframe="1m",
+    )
+    decision = _decision(altdata)
+    decision.update(lineage)
+    decision["altdata_hedge_required"] = True
+    decision["preemptive_action"] = "REQUIRE_HEDGE"
+    decision["preemptive_decision_reasons"] = ["ALTDATA_HEDGE_REQUIRED"]
+    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
+    intent = _binding_intent(decision)
+
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    )
+    assert "ALTDATA_REQUIRE_HEDGE_BINDING_EXECUTOR_UNAVAILABLE" in reasons
+    paper_loop._apply_preemptive_admission_block(intent, reasons)  # noqa: SLF001
+    feedback, _status = (  # noqa: SLF001
+        paper_loop._build_preemptive_blocked_counterfactual_feedback(
+            [intent],
+            paper_session_id="paper-session-1",
+            generated_utc=_utc(base),
+        )
+    )
+    assert feedback["row_count"] == 1
+    assert feedback["rows"][0]["reason_blocked"] == (
+        "ALTDATA_REQUIRE_HEDGE_BINDING_EXECUTOR_UNAVAILABLE"
+    )
+
+    protective = copy.deepcopy(intent)
+    protective.update(
+        {
+            "paper_hedge_fill": True,
+            "hedge_intent": True,
+            "hedge_parent_id": "paper-parent-1",
+        }
+    )
+    protective_reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        protective,
+        protective_hedge_fill=True,
+    )
+    assert "ALTDATA_REQUIRE_HEDGE_BINDING_EXECUTOR_UNAVAILABLE" not in (
+        protective_reasons
+    )
+
+
+def test_single_binding_append_path_blocks_freeze_sizing_and_write_bypasses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = inspect.getsource(paper_loop)
+    tree = ast.parse(source)
+    accepted_appends = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "append"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "accepted"
+    ]
+    assert len(accepted_appends) == 1
+    assert paper_loop.LEGACY_HIGH_CONFIDENCE_PAPER_FAST_PATH_ENABLED is False
+
+    monkeypatch.setattr(
+        paper_loop,
+        "validate_paper_fill_write_invariant",
+        lambda *_args, **_kwargs: {"valid": True, "reasons": []},
+    )
+    frozen = _binding_intent()
+    accepted: list[dict[str, Any]] = []
+    reasons = paper_loop._admit_and_append_paper_fill(  # noqa: SLF001
+        accepted,
+        frozen,
+        paper_entry_freeze={
+            "paper_new_entries_halted": True,
+            "reason": "PORTFOLIO_TRUTH_UNTRUSTED",
+        },
+    )
+    assert accepted == []
+    assert "PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE" in reasons
+
+    incomplete = _binding_intent()
+    incomplete["paper_sizing_complete"] = False
+    reasons = paper_loop._admit_and_append_paper_fill(  # noqa: SLF001
+        accepted,
+        incomplete,
+        paper_entry_freeze={"paper_new_entries_halted": False},
+    )
+    assert accepted == []
+    assert "PAPER_ACCEPTANCE_SIZING_INCOMPLETE" in reasons
+
+    invalid_write = _binding_intent()
+    monkeypatch.setattr(
+        paper_loop,
+        "validate_paper_fill_write_invariant",
+        lambda *_args, **_kwargs: {
+            "valid": False,
+            "reasons": ["MISSING_RISK_DECISION_ID"],
+        },
+    )
+    reasons = paper_loop._admit_and_append_paper_fill(  # noqa: SLF001
+        accepted,
+        invalid_write,
+        paper_entry_freeze={"paper_new_entries_halted": False},
+    )
+    assert accepted == []
+    assert "PAPER_FILL_WRITE_INVARIANT_BLOCKED" in reasons
+    assert "PAPER_FILL_WRITE_INVARIANT:MISSING_RISK_DECISION_ID" in reasons
+
+
+def test_single_binding_append_path_rechecks_canonical_lineage_and_can_admit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "validate_paper_fill_write_invariant",
+        lambda *_args, **_kwargs: {"valid": True, "reasons": []},
+    )
+    accepted: list[dict[str, Any]] = []
+    forged = _binding_intent()
+    forged["altdata_confluence_present"] = True
+    forged["preemptive_edge_control"]["altdata_confluence_present"] = True
+    reasons = paper_loop._admit_and_append_paper_fill(  # noqa: SLF001
+        accepted,
+        forged,
+        paper_entry_freeze={"paper_new_entries_halted": False},
+    )
+    assert accepted == []
+    assert "ALTDATA_CANONICAL_RECONSTRUCTION_ADMITTED_NOT_TRUE" in reasons
+
+    valid = _binding_intent()
+    reasons = paper_loop._admit_and_append_paper_fill(  # noqa: SLF001
+        accepted,
+        valid,
+        paper_entry_freeze={"paper_new_entries_halted": False},
+    )
+    assert reasons == []
+    assert accepted == [valid]
+    assert valid["paper_binding_admission_passed"] is True
+    assert valid["paper_binding_admission_path"] == (
+        "CANONICAL_PREEMPTIVE_NEW_ENTRY_WRITE_BOUNDARY"
     )

@@ -664,6 +664,12 @@ POSITIVE_EDGE_PROBATION_MIN_EXIT_FEASIBILITY = 0.55
 PAPER_RISK_CONTROLLER_EXPLORATION_MAX_RISK_FRACTION_OF_NORMAL = 0.05
 PAPER_RISK_CONTROLLER_EXPLORATION_LOSS_PROBABILITY_BOUND = 0.72
 PAPER_RISK_CONTROLLER_EXPLORATION_MIN_EXIT_FEASIBILITY = 0.50
+# Permanently retired: these legacy branches appended high-confidence fills
+# before tier classification, sizing, freeze, canonical/preemptive admission,
+# and the write invariant. Keep the guard explicit while their diagnostic
+# scaffolding remains in this large loop; no runtime or environment can enable
+# it. Every acceptance now goes through _admit_and_append_paper_fill.
+LEGACY_HIGH_CONFIDENCE_PAPER_FAST_PATH_ENABLED = False
 B_GRADE_MODEL_QUALITY_BUCKET_LIMIT = 250
 B_GRADE_BUCKET_PROMOTION_MIN_SAMPLE_COUNT = 30
 B_GRADE_BUCKET_PROMOTION_MIN_WIN_RATE = 0.90
@@ -15456,39 +15462,219 @@ def _preemptive_decision_rejection_reason_for_tier(
         }:
             return None
         if decision == "NO_TRADE":
-            return "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE"
+            return "PREEMPTIVE_DECISION_NO_TRADE_BINDING"
         return f"PREEMPTIVE_DECISION_DENIES_PAPER_RISK_CONTROLLER_EXPLORATION:{decision or 'MISSING'}"
     if decision == "ALLOW":
         return None
     return f"PREEMPTIVE_DECISION_DENIES_ENTRY:{decision or 'MISSING'}"
 
 
-def _paper_preemptive_admission_rejection_reasons(intent: dict[str, Any], redis_client: Any = None) -> list[str]:
+def _paper_reduced_size_binding_rejection_reasons(
+    intent: Mapping[str, Any],
+) -> list[str]:
+    """Prove that a preemptive reduce-size action changed economic size.
+
+    A label such as ``mandatory_size_haircut`` is not sufficient evidence.
+    Admission requires the adaptive fraction, its pre-haircut baseline, and
+    the resulting notional to agree. Missing proof fails closed.
+    """
+
+    preemptive = (
+        intent.get("preemptive_edge_control")
+        if isinstance(intent.get("preemptive_edge_control"), Mapping)
+        else {}
+    )
+    action = str(
+        _first_present(
+            preemptive.get("preemptive_action"),
+            intent.get("preemptive_action"),
+        )
+        or ""
+    ).upper()
+    decision = str(
+        _first_present(
+            preemptive.get("preemptive_decision"),
+            intent.get("preemptive_decision"),
+        )
+        or ""
+    ).upper()
+    if action not in {"ALLOW_REDUCE_SIZE_PAPER", "REDUCE_SIZE"} and decision not in {
+        "REDUCE_SIZE_PAPER_ONLY",
+        "REDUCE_SIZE",
+    }:
+        return []
+
+    reasons: list[str] = []
+    if intent.get("mandatory_size_haircut") is not True:
+        reasons.append("PREEMPTIVE_REDUCE_SIZE_HAIRCUT_FLAG_MISSING")
+    fraction = _coerce_float(intent.get("risk_budget_fraction_of_normal_adaptive"))
+    if fraction is None or not 0.0 < fraction < 1.0:
+        reasons.append("PREEMPTIVE_REDUCE_SIZE_ADAPTIVE_FRACTION_INVALID")
+
+    actual_values: list[tuple[str, float]] = []
+    for field in (
+        "notional",
+        "notional_usdt",
+        "notional_usd",
+        "target_notional_usdt",
+        "target_notional_usd",
+        "gross_notional_usd",
+        "order_size",
+        "order_size_usd",
+    ):
+        raw_value = intent.get(field)
+        if raw_value in (None, ""):
+            continue
+        value = _coerce_float(raw_value)
+        if value is None or value <= 0.0:
+            reasons.append(f"PREEMPTIVE_REDUCE_SIZE_ACTUAL_NOTIONAL_INVALID:{field}")
+            continue
+        actual_values.append((field, value))
+    quantity = _coerce_float(
+        _first_present(
+            intent.get("quantity"),
+            intent.get("target_quantity"),
+        )
+    )
+    fill_price = _coerce_float(
+        _first_present(
+            intent.get("fill_price"),
+            intent.get("entry_price"),
+            intent.get("latest_price"),
+        )
+    )
+    if quantity is not None and quantity > 0.0 and fill_price is not None and fill_price > 0.0:
+        actual_values.append(("quantity_x_fill_price", quantity * fill_price))
+
+    normal_values: list[tuple[str, float]] = []
+    for field in (
+        "normal_adaptive_target_notional_usdt",
+        "normal_adaptive_target_notional_usd",
+        "normal_adaptive_gross_notional_usd",
+    ):
+        raw_value = intent.get(field)
+        if raw_value in (None, ""):
+            continue
+        value = _coerce_float(raw_value)
+        if value is None or value <= 0.0:
+            reasons.append(f"PREEMPTIVE_REDUCE_SIZE_NORMAL_NOTIONAL_INVALID:{field}")
+            continue
+        normal_values.append((field, value))
+    normal_quantity = _coerce_float(intent.get("normal_adaptive_target_quantity"))
+    if (
+        normal_quantity is not None
+        and normal_quantity > 0.0
+        and fill_price is not None
+        and fill_price > 0.0
+    ):
+        normal_values.append(
+            ("normal_adaptive_target_quantity_x_fill_price", normal_quantity * fill_price)
+        )
+
+    actual_notional = max((value for _field, value in actual_values), default=None)
+    normal_notional = min((value for _field, value in normal_values), default=None)
+    if actual_notional is None:
+        reasons.append("PREEMPTIVE_REDUCE_SIZE_ACTUAL_NOTIONAL_MISSING")
+    if normal_notional is None:
+        reasons.append("PREEMPTIVE_REDUCE_SIZE_NORMAL_NOTIONAL_MISSING")
+    if len(actual_values) > 1:
+        actual_floor = min(value for _field, value in actual_values)
+        if actual_notional - actual_floor > max(1e-8, actual_notional * 1e-9):
+            reasons.append("PREEMPTIVE_REDUCE_SIZE_ACTUAL_NOTIONAL_ALIASES_INCONSISTENT")
+    if len(normal_values) > 1:
+        normal_ceiling = max(value for _field, value in normal_values)
+        if normal_ceiling - normal_notional > max(1e-8, normal_ceiling * 1e-9):
+            reasons.append("PREEMPTIVE_REDUCE_SIZE_NORMAL_NOTIONAL_ALIASES_INCONSISTENT")
+    if (
+        actual_notional is not None
+        and actual_notional > 0.0
+        and normal_notional is not None
+        and normal_notional > 0.0
+    ):
+        if actual_notional >= normal_notional:
+            reasons.append("PREEMPTIVE_REDUCE_SIZE_NOTIONAL_NOT_REDUCED")
+        if fraction is not None and 0.0 < fraction < 1.0:
+            expected_cap = normal_notional * fraction
+            if actual_notional > expected_cap * (1.0 + 1e-9):
+                reasons.append("PREEMPTIVE_REDUCE_SIZE_NOTIONAL_EXCEEDS_ADAPTIVE_CAP")
+    return sorted(set(reasons))
+
+
+def _paper_preemptive_admission_rejection_reasons(
+    intent: dict[str, Any],
+    redis_client: Any = None,
+    *,
+    protective_hedge_fill: bool = False,
+) -> list[str]:
     reasons: list[str] = []
     paper_tier = str(intent.get("paper_opportunity_tier") or "").strip().upper()
+    preemptive = (
+        intent.get("preemptive_edge_control")
+        if isinstance(intent.get("preemptive_edge_control"), dict)
+        else {}
+    )
     tier_rejection = _preemptive_decision_rejection_reason_for_tier(
-        intent.get("preemptive_edge_control"),
+        preemptive,
         paper_tier=paper_tier,
     )
-    if (
-        tier_rejection
-        and not (
-            paper_tier == PAPER_TIER_RISK_CONTROLLER_EXPLORATION
-            and tier_rejection
-            == "PREEMPTIVE_DECISION_NO_TRADE_REQUIRES_EXPLORATION_POLICY_OVERRIDE"
-            and intent.get("paper_risk_controller_exploration_eligible") is True
-        )
-    ):
+    if tier_rejection:
         reasons.append(tier_rejection)
+    action = str(
+        _first_present(
+            preemptive.get("preemptive_action"),
+            intent.get("preemptive_action"),
+        )
+        or ""
+    ).upper()
+    decision = str(
+        _first_present(
+            preemptive.get("preemptive_decision"),
+            intent.get("preemptive_decision"),
+        )
+        or ""
+    ).upper()
+    if action == "BLOCK" or action.startswith("BLOCK_") or decision in {
+        "BLOCK",
+        "NO_TRADE",
+    }:
+        reasons.append(f"PREEMPTIVE_BLOCK_ACTION_BINDING:{action or decision}")
+    if action in {"SHADOW_ONLY", "CLOSE_OR_REDUCE_ONLY"} or decision in {
+        "SHADOW_ONLY",
+        "CLOSE_OR_REDUCE_ONLY",
+    }:
+        reasons.append(f"PREEMPTIVE_NON_ENTRY_ACTION_BINDING:{action or decision}")
+    hedge_required = (
+        action == "REQUIRE_HEDGE"
+        or decision == "REQUIRE_HEDGE"
+        or preemptive.get("altdata_hedge_required") is True
+        or intent.get("altdata_hedge_required") is True
+        or "ALTDATA_HEDGE_REQUIRED"
+        in {
+            str(reason).upper()
+            for reason in (
+                preemptive.get("preemptive_decision_reasons")
+                or intent.get("preemptive_decision_reasons")
+                or []
+            )
+        }
+    )
+    if hedge_required:
+        hedge_fulfillment = bool(
+            protective_hedge_fill
+            and intent.get("paper_hedge_fill") is True
+            and intent.get("hedge_intent") is True
+            and intent.get("hedge_parent_id") not in (None, "")
+        )
+        if not hedge_fulfillment:
+            # There is no same-decision, binding hedge executor in the paper
+            # entry path. An asynchronous later-cycle hedge cannot authorize
+            # an entry that was unhedged when admitted, so the safe paper-only
+            # behavior is to retain the candidate as blocked feedback.
+            reasons.append("ALTDATA_REQUIRE_HEDGE_BINDING_EXECUTOR_UNAVAILABLE")
+    reasons.extend(_paper_reduced_size_binding_rejection_reasons(intent))
     loss_probability = _coerce_float(intent.get("pre_trade_loss_probability"))
     if loss_probability is None:
-        # Adaptive: instead of fail-closed, allow if confidence is sufficiently high
-        # (e.g., trainer hasn't calculated loss probability yet, but model confidence is strong)
-        confidence = _coerce_float(intent.get("confidence_calibrated"))
-        if confidence is not None and confidence >= 0.75:
-            pass  # High confidence overrides missing loss probability
-        else:
-            reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING_ALLOW_HIGH_CONFIDENCE_ONLY")
+        reasons.append("PRE_TRADE_LOSS_PROBABILITY_MISSING_FAIL_CLOSED")
     else:
         adaptive_loss_prob_threshold = 0.80
         if redis_client:
@@ -15706,7 +15892,11 @@ def _build_preemptive_blocked_counterfactual_feedback(
             )
             or ""
         ).upper()
-        if decision not in {"NO_TRADE", "SHADOW_ONLY"}:
+        binding_admission_blocked = bool(
+            intent.get("preemptive_admission_blocked") is True
+            or intent.get("paper_binding_admission_blocked") is True
+        )
+        if decision not in {"NO_TRADE", "SHADOW_ONLY"} and not binding_admission_blocked:
             continue
         decision_id = _first_present(
             preemptive.get("preemptive_decision_id"),
@@ -15715,7 +15905,9 @@ def _build_preemptive_blocked_counterfactual_feedback(
         if not decision_id:
             continue
         reasons = list(
-            preemptive.get("preemptive_decision_reasons")
+            intent.get("paper_binding_admission_block_reasons")
+            or intent.get("preemptive_admission_block_reasons")
+            or preemptive.get("preemptive_decision_reasons")
             or intent.get("preemptive_decision_reasons")
             or intent.get("paper_fill_gate_block_reasons")
             or []
@@ -17184,7 +17376,11 @@ def _classify_paper_opportunity_tier(
             "routes_to_live": False,
             "places_real_order": False,
         }
-    if paper_fill_allowed_upstream and local_trade_gates_pass:
+    if (
+        paper_fill_allowed_upstream
+        and local_trade_gates_pass
+        and preemptive_state in {"ALLOW", "REDUCE_SIZE_PAPER_ONLY"}
+    ):
         if preemptive_state == "REDUCE_SIZE_PAPER_ONLY":
             return {
                 **base,
@@ -17228,7 +17424,11 @@ def _classify_paper_opportunity_tier(
         return _apply_continuous_edge_guardian_gate(
             a_grade_classification, continuous_edge_guardian_gate
         )
-    if explicit_tier == PAPER_TIER_A_GRADE_EXECUTION and local_trade_gates_pass:
+    if (
+        explicit_tier == PAPER_TIER_A_GRADE_EXECUTION
+        and local_trade_gates_pass
+        and preemptive_state in {"ALLOW", "REDUCE_SIZE_PAPER_ONLY"}
+    ):
         if preemptive_state == "REDUCE_SIZE_PAPER_ONLY":
             return {
                 **base,
@@ -19486,6 +19686,148 @@ def _paper_apply_churn_equity_bleed_rejection(
     ))
     intent["paper_fill_allowed"] = False
     intent["paper_churn_equity_bleed_governor_allowed"] = False
+
+
+def _paper_fill_binding_admission_rejection_reasons(
+    intent: dict[str, Any],
+    *,
+    redis_client: Any = None,
+    paper_entry_freeze: Mapping[str, Any] | None = None,
+    prior_current_accepted_rows: list[dict[str, Any]] | None = None,
+    protective_hedge_fill: bool = False,
+) -> list[str]:
+    """Return every reason a paper fill cannot cross the final boundary.
+
+    This is deliberately repeated at the last mutation point. Earlier tier,
+    risk, sizing, and freeze checks are useful for telemetry, but none of them
+    authorizes an accepted fill unless this binding boundary also passes.
+    Protective hedge fills use the same canonical/preemptive and write path;
+    only new-entry directional, freeze, and churn checks are inapplicable.
+    """
+
+    reasons = _paper_preemptive_admission_rejection_reasons(
+        intent,
+        redis_client=redis_client,
+        protective_hedge_fill=protective_hedge_fill,
+    )
+    if intent.get("paper_only") is not True:
+        reasons.append("PAPER_ACCEPTANCE_REQUIRES_EXPLICIT_PAPER_ONLY")
+    for field in (
+        "routes_to_live",
+        "places_real_order",
+        "live_order",
+        "test_order",
+        "order_submitted",
+        "test_order_submitted",
+        "leverage_mutated",
+        "margin_mutated",
+    ):
+        if intent.get(field) is True:
+            reasons.append(f"PAPER_ACCEPTANCE_LIVE_MUTATION_FORBIDDEN:{field}")
+    if intent.get("paper_fill_allowed") is not True:
+        reasons.append("PAPER_ACCEPTANCE_FILL_ALLOWED_NOT_TRUE")
+    if intent.get("paper_sizing_complete") is not True:
+        reasons.append("PAPER_ACCEPTANCE_SIZING_INCOMPLETE")
+    tier = str(intent.get("paper_opportunity_tier") or "").strip().upper()
+    if tier not in PAPER_OPPORTUNITY_TIERS or tier in NON_EXECUTABLE_PAPER_TIERS:
+        reasons.append(f"PAPER_ACCEPTANCE_TIER_NOT_EXECUTABLE:{tier or 'MISSING'}")
+
+    if protective_hedge_fill:
+        if (
+            intent.get("paper_hedge_fill") is not True
+            or intent.get("hedge_intent") is not True
+            or intent.get("hedge_parent_id") in (None, "")
+        ):
+            reasons.append("PAPER_PROTECTIVE_HEDGE_BINDING_LINEAGE_MISSING")
+        return sorted(set(reasons))
+
+    directional_guard = intent.get("paper_directional_collapse_guard")
+    if (
+        not isinstance(directional_guard, Mapping)
+        or directional_guard.get("allowed") is not True
+    ):
+        reasons.append("PAPER_ACCEPTANCE_DIRECTIONAL_GUARD_NOT_ALLOWED")
+    freeze = paper_entry_freeze if isinstance(paper_entry_freeze, Mapping) else {}
+    if freeze.get("paper_new_entries_halted") is True and not (
+        _paper_risk_controller_exploration_can_override_entry_freeze(
+            intent=intent,
+            paper_entry_freeze=freeze,
+        )
+    ):
+        reasons.append("PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE")
+    reasons.extend(
+        _paper_churn_current_entry_rejection_reasons(
+            intent,
+            prior_current_accepted_rows or [],
+        )
+    )
+    return sorted(set(reasons))
+
+
+def _admit_and_append_paper_fill(
+    accepted: list[dict[str, Any]],
+    intent: dict[str, Any],
+    *,
+    redis_client: Any = None,
+    paper_entry_freeze: Mapping[str, Any] | None = None,
+    protective_hedge_fill: bool = False,
+) -> list[str]:
+    """Append through the sole binding paper-fill acceptance path."""
+
+    reasons = _paper_fill_binding_admission_rejection_reasons(
+        intent,
+        redis_client=redis_client,
+        paper_entry_freeze=paper_entry_freeze,
+        prior_current_accepted_rows=accepted,
+        protective_hedge_fill=protective_hedge_fill,
+    )
+    if reasons:
+        _apply_preemptive_admission_block(intent, reasons)
+        intent["paper_binding_admission_blocked"] = True
+        intent["paper_binding_admission_block_reasons"] = reasons
+        return reasons
+
+    write_invariant_status = validate_paper_fill_write_invariant(
+        intent,
+        mark_price=_coerce_float(
+            _first_present(
+                intent.get("fill_price"),
+                intent.get("entry_price"),
+                intent.get("latest_price"),
+            )
+        ),
+        mark_source=str(
+            _first_present(
+                intent.get("fill_price_source"),
+                intent.get("entry_price_source"),
+                intent.get("latest_price_source"),
+                "PAPER_ACCEPTED_FILL_WRITE_INVARIANT",
+            )
+        ),
+        mark_age_seconds=0.0,
+    )
+    intent["paper_fill_write_invariant_status"] = write_invariant_status
+    if write_invariant_status.get("valid") is not True:
+        invariant_reasons = [
+            f"PAPER_FILL_WRITE_INVARIANT:{reason}"
+            for reason in (write_invariant_status.get("reasons") or [])
+        ] or ["PAPER_FILL_WRITE_INVARIANT:UNKNOWN_FAILURE"]
+        reasons = ["PAPER_FILL_WRITE_INVARIANT_BLOCKED", *invariant_reasons]
+        _apply_preemptive_admission_block(intent, reasons)
+        intent["paper_binding_admission_blocked"] = True
+        intent["paper_binding_admission_block_reasons"] = reasons
+        return reasons
+
+    intent["paper_binding_admission_passed"] = True
+    intent["paper_binding_admission_path"] = (
+        "CANONICAL_PREEMPTIVE_PROTECTIVE_HEDGE_WRITE_BOUNDARY"
+        if protective_hedge_fill
+        else "CANONICAL_PREEMPTIVE_NEW_ENTRY_WRITE_BOUNDARY"
+    )
+    intent["paper_binding_admission_blocked"] = False
+    intent["paper_binding_admission_block_reasons"] = []
+    accepted.append(intent)
+    return []
 
 
 def _paper_filter_post_backfill_current_churn_duplicates(
@@ -25051,6 +25393,10 @@ def _synthesize_adaptive_hedge_fills(
         hedge_side = str(directive.get("hedge_side") or "").lower()
         hedge_quantity = _coerce_float(directive.get("hedge_quantity"))
         mark_price = _coerce_float(directive.get("mark_price"))
+        mark_source = str(
+            directive.get("mark_price_source") or "PAPER_HEDGE_DIRECTIVE_MARK_PRICE"
+        )
+        mark_utc = str(directive.get("mark_price_utc") or "")
         if not symbol or hedge_side not in ("long", "short") or not hedge_quantity or hedge_quantity <= 0:
             status["skipped"].append({"symbol": symbol, "reason": "DIRECTIVE_FIELDS_INVALID"})
             continue
@@ -25076,13 +25422,27 @@ def _synthesize_adaptive_hedge_fills(
             status["skipped"].append({"symbol": symbol, "reason": "PARENT_ENTRY_FILL_NOT_FOUND"})
             continue
         if mark_price is None or mark_price <= 0:
-            mark_price, _px_source, _px_utc = _read_v2_market_price(r, symbol)
+            mark_price, mark_source, mark_utc = _read_v2_market_price(r, symbol)
         if mark_price is None or mark_price <= 0:
             status["skipped"].append({"symbol": symbol, "reason": "HEDGE_MARK_PRICE_UNAVAILABLE"})
             continue
         directive_ts = str(directive.get("generated_utc") or generated_utc)
+        mark_source = str(mark_source or "PAPER_HEDGE_DIRECTIVE_MARK_PRICE")
+        mark_utc = str(mark_utc or directive_ts)
         hedge_fill_id = f"{parent_position_id}:hedge:{directive_ts}"
         hedge_notional = abs(hedge_quantity * mark_price)
+        hedge_leverage = _coerce_float(
+            _first_present(
+                parent_fill.get("effective_leverage"),
+                parent_fill.get("recommended_leverage"),
+                parent_fill.get("leverage"),
+            )
+        )
+        hedge_margin = (
+            round(hedge_notional / hedge_leverage, 8)
+            if hedge_leverage is not None and hedge_leverage > 0.0
+            else None
+        )
         hedge_fill = dict(parent_fill)
         hedge_fill.update(
             {
@@ -25092,9 +25452,27 @@ def _synthesize_adaptive_hedge_fills(
                 "selected_action": hedge_side,
                 "quantity": hedge_quantity,
                 "fill_price": mark_price,
+                "entry_price": mark_price,
+                "recorded_fill_price": mark_price,
+                "mark_price_at_fill": mark_price,
+                "entry_fill_price": mark_price,
+                "fill_price_source": mark_source,
+                "entry_price_source": mark_source,
+                "fill_price_utc": mark_utc,
+                "fill_time_utc": mark_utc,
+                "entry_time": mark_utc,
+                "entry_time_utc": mark_utc,
                 "price": mark_price,
                 "notional": hedge_notional,
+                "notional_usdt": hedge_notional,
                 "notional_usd": hedge_notional,
+                "gross_notional_usd": hedge_notional,
+                "allocated_margin_usd": hedge_margin,
+                "paper_sizing_complete": bool(
+                    hedge_leverage is not None
+                    and hedge_leverage > 0.0
+                    and hedge_margin is not None
+                ),
                 "hedge_intent": True,
                 "hedge_parent_id": parent_position_id,
                 "hedge_child_id": hedge_fill_id,
@@ -25121,7 +25499,21 @@ def _synthesize_adaptive_hedge_fills(
             paper_session_id=paper_session_id,
             starting_equity_usd=starting_equity_usd,
         )
-        accepted.append(hedge_fill)
+        hedge_admission_reasons = _admit_and_append_paper_fill(
+            accepted,
+            hedge_fill,
+            redis_client=r,
+            protective_hedge_fill=True,
+        )
+        if hedge_admission_reasons:
+            status["skipped"].append(
+                {
+                    "symbol": symbol,
+                    "reason": "HEDGE_BINDING_ADMISSION_BLOCKED",
+                    "reasons": hedge_admission_reasons,
+                }
+            )
+            continue
         status["synthesized"] += 1
     try:
         r.delete(HEDGE_DIRECTIVES_REDIS_KEY)
@@ -30498,7 +30890,8 @@ def run_once() -> dict:
                         "position_entry_atr_bps": _rev_pos_stop_bps,
                     }
         if (
-            local_trade_gates_pass
+            LEGACY_HIGH_CONFIDENCE_PAPER_FAST_PATH_ENABLED
+            and local_trade_gates_pass
             and not _fast_path_no_trade_verdict
             and not _fp_reversal_block
             and conf is not None
@@ -30597,7 +30990,12 @@ def run_once() -> dict:
                             )
                     except Exception:
                         pass
-                accepted.append(accepted_intent)
+                _admit_and_append_paper_fill(
+                    accepted,
+                    accepted_intent,
+                    redis_client=r,
+                    paper_entry_freeze=paper_entry_freeze,
+                )
 
                 # Log execution
                 global _debug_fastpath_fills
@@ -31027,7 +31425,12 @@ def run_once() -> dict:
                         f.write(json.dumps({"symbol": symbol, "conf": conf, "will_accept": (conf is not None and conf >= 0.65)}) + "\n")
             except:
                 pass
-        if local_trade_gates_pass and conf is not None and conf >= 0.65:
+        if (
+            LEGACY_HIGH_CONFIDENCE_PAPER_FAST_PATH_ENABLED
+            and local_trade_gates_pass
+            and conf is not None
+            and conf >= 0.65
+        ):
             # Direct path to execution for high-confidence paper trades
             accepted_intent = _with_paper_session_metadata(
                 intent,
@@ -31037,7 +31440,12 @@ def run_once() -> dict:
             accepted_intent["decision"] = "ACCEPTED_PAPER_FILL"
             accepted_intent["paper_fill_allowed"] = True
             accepted_intent["paper_fast_path_override"] = True
-            accepted.append(accepted_intent)
+            _admit_and_append_paper_fill(
+                accepted,
+                accepted_intent,
+                redis_client=r,
+                paper_entry_freeze=paper_entry_freeze,
+            )
             try:
                 global _debug_fastpath_count
                 if "_debug_fastpath_count" not in globals():
@@ -31082,32 +31490,8 @@ def run_once() -> dict:
                     f.write("YES - reached paper_tier logic\n")
         except:
             pass
-        # ADAPTIVE FIX: Allow high-confidence intents despite tier restrictions in paper mode
-        # Paper learning requires exploration - strict tier gates prevent learning
-        adaptive_paper_tier_override = (
-            not paper_fill_allowed_upstream
-            and not paper_tier_local_fill_allowed
-            and local_trade_gates_pass
-            and _coerce_float(confidence_calibrated) is not None
-            and _coerce_float(confidence_calibrated) >= 0.70
-        )
-        if adaptive_paper_tier_override:
-            # Override tier restriction for high-confidence intents in paper mode
-            paper_tier_local_fill_allowed = True
-            try:
-                global _debug_tier_override_count
-                if "_debug_tier_override_count" not in globals():
-                    _debug_tier_override_count = 0
-                _debug_tier_override_count += 1
-                if _debug_tier_override_count <= 20:
-                    with open("/tmp/paper_tier_overrides.log", "a") as f:
-                        f.write(json.dumps({
-                            "symbol": symbol,
-                            "confidence": _coerce_float(confidence_calibrated),
-                            "override": "APPLIED"
-                        }) + "\n")
-            except:
-                pass
+        # Confidence is evidence for tier classification, never authority to
+        # bypass a non-executable tier at the final paper-fill boundary.
         # DEBUG: Log all intents after paper_tier check
         try:
             global _debug_paper_tier_check_count
@@ -31159,9 +31543,8 @@ def run_once() -> dict:
             )
             shadow_observations.append(shadow_intent)
             continue
-        # ADAPTIVE FIX: Allow high-confidence intents despite directional guard
         conf = _coerce_float(confidence_calibrated)
-        if directional_guard.get("allowed") is not True and (conf is None or conf < 0.70):
+        if directional_guard.get("allowed") is not True:
             reason = str(directional_guard.get("block_reason") or DIRECTIONAL_COLLAPSE_BLOCK_REASON)
             intent["paper_fill_block_reason"] = reason
             intent["paper_fill_gate_block_reasons"] = sorted(set(
@@ -31173,8 +31556,7 @@ def run_once() -> dict:
             ))
             blocked.append(intent)
             continue
-        # ADAPTIVE FIX: Allow high-confidence intents despite allocator sizing issues
-        if intent.get("paper_sizing_complete") is not True and (conf is None or conf < 0.70):
+        if intent.get("paper_sizing_complete") is not True:
             intent["paper_fill_block_reason"] = intent.get("paper_fill_block_reason") or "ADAPTIVE_ALLOCATOR_BLOCKED"
             allocator_reason = str(intent.get("paper_allocation_block_reason") or "ADAPTIVE_SIZE_INCOMPLETE")
             intent["local_block_reasons"] = sorted(set(
@@ -31187,8 +31569,7 @@ def run_once() -> dict:
             intent,
             accepted,
         )
-        # ADAPTIVE FIX: Allow high-confidence intents despite churn rejection
-        if current_cycle_churn_rejection_reasons and (conf is None or conf < 0.70):
+        if current_cycle_churn_rejection_reasons:
             _paper_apply_churn_equity_bleed_rejection(
                 intent,
                 current_cycle_churn_rejection_reasons,
@@ -31217,16 +31598,6 @@ def run_once() -> dict:
         except:
             pass
 
-        # ADAPTIVE FIX: Allow high-confidence intents during entry freeze
-        # Static freezes block learning entirely. Adaptive: high-confidence
-        # intents bypass freeze to enable continuous model improvement.
-        confidence = _coerce_float(intent.get("confidence_calibrated"))
-        adaptive_high_confidence_entry_freeze_override = (
-            paper_entry_freeze.get("paper_new_entries_halted") is True
-            and confidence is not None
-            and confidence >= 0.70
-            and not risk_controller_entry_freeze_override
-        )
         # DEBUG: Log entry freeze override evaluation
         if paper_entry_freeze.get("paper_new_entries_halted") is True:
             try:
@@ -31238,20 +31609,17 @@ def run_once() -> dict:
                     with open("/tmp/entry_freeze_evaluation.log", "a") as f:
                         f.write(json.dumps({
                             "symbol": intent.get("symbol"),
-                            "confidence": confidence,
+                            "confidence": _coerce_float(intent.get("confidence_calibrated")),
                             "freeze_active": True,
                             "tier": intent.get("paper_opportunity_tier"),
                             "risk_override": risk_controller_entry_freeze_override,
-                            "passes_adaptive": adaptive_high_confidence_entry_freeze_override
+                            "passes_adaptive": False,
                         }) + "\n")
             except:
                 pass
         if (
             paper_entry_freeze.get("paper_new_entries_halted") is True
-            and intent.get("paper_opportunity_tier")
-            != PAPER_TIER_POSITIVE_EDGE_PROBATION
             and not risk_controller_entry_freeze_override
-            and not adaptive_high_confidence_entry_freeze_override
         ):
             intent["paper_fill_block_reason"] = "PAPER_NEW_ENTRIES_HALTED_BY_PORTFOLIO_TRUTH_FREEZE"
             intent["paper_entry_freeze"] = paper_entry_freeze
@@ -31266,25 +31634,12 @@ def run_once() -> dict:
             ))
             blocked.append(intent)
             continue
-        if adaptive_high_confidence_entry_freeze_override:
-            intent["paper_entry_freeze"] = paper_entry_freeze
-            intent["adaptive_high_confidence_entry_freeze_override"] = True
-            intent["paper_risk_controller_exploration_entry_freeze_override_reason"] = (
-                "ADAPTIVE_HIGH_CONFIDENCE_ENTRY_OVERRIDE_DURING_PORTFOLIO_FREEZE"
-            )
         if risk_controller_entry_freeze_override:
             intent["paper_entry_freeze"] = paper_entry_freeze
             intent["paper_risk_controller_exploration_overrode_entry_freeze"] = True
             intent["paper_risk_controller_exploration_entry_freeze_override_reason"] = (
                 "GLOBAL_OR_BROAD_PERFORMANCE_FREEZE_ADVISORY_FOR_BUCKET_CLEAN_PAPER_EXPLORATION"
             )
-        if (
-            paper_entry_freeze.get("paper_new_entries_halted") is True
-            and intent.get("paper_opportunity_tier")
-            == PAPER_TIER_POSITIVE_EDGE_PROBATION
-        ):
-            intent["paper_entry_freeze"] = paper_entry_freeze
-            intent["probation_overrode_global_entry_freeze"] = True
         # DEBUG: Log intents reaching preemptive admission check
         try:
             global _debug_preempt_check_count
@@ -31364,42 +31719,6 @@ def run_once() -> dict:
         accepted_intent["economic_fill_candidate"] = bool(intent.get("paper_sizing_complete"))
         if not accepted_intent["economic_fill_candidate"]:
             accepted_intent["paper_accounting_blocker"] = "PAPER_SIZING_OR_PRICE_INCOMPLETE"
-        write_invariant_status = validate_paper_fill_write_invariant(
-            accepted_intent,
-            mark_price=_coerce_float(
-                _first_present(
-                    accepted_intent.get("fill_price"),
-                    accepted_intent.get("entry_price"),
-                    accepted_intent.get("latest_price"),
-                )
-            ),
-            mark_source=str(
-                _first_present(
-                    accepted_intent.get("fill_price_source"),
-                    accepted_intent.get("entry_price_source"),
-                    accepted_intent.get("latest_price_source"),
-                    "PAPER_ACCEPTED_FILL_WRITE_INVARIANT",
-                )
-            ),
-            mark_age_seconds=0.0,
-        )
-        accepted_intent["paper_fill_write_invariant_status"] = write_invariant_status
-        if write_invariant_status.get("valid") is not True:
-            accepted_intent["paper_fill_block_reason"] = "PAPER_FILL_WRITE_INVARIANT_BLOCKED"
-            accepted_intent["paper_fill_allowed"] = False
-            accepted_intent["paper_fill_gate_block_reasons"] = sorted(set(
-                list(accepted_intent.get("paper_fill_gate_block_reasons") or [])
-                + list(write_invariant_status.get("reasons") or [])
-            ))
-            accepted_intent["local_block_reasons"] = sorted(set(
-                list(accepted_intent.get("local_block_reasons") or [])
-                + [
-                    f"paper_fill_write_invariant:{reason}"
-                    for reason in (write_invariant_status.get("reasons") or [])
-                ]
-            ))
-            blocked.append(accepted_intent)
-            continue
         # PPO on-policy lineage: capture ENTRY-TIME policy outputs from the
         # signal/prediction that produced this fill. Never fabricated and
         # never recomputed post-hoc: if the entry forward pass did not publish
@@ -31476,7 +31795,15 @@ def run_once() -> dict:
                 if accepted_intent.get("strategy_supply_hypothesis") is True
                 else "OUTCOME_SUPERVISED_PAPER"
             )
-        accepted.append(accepted_intent)
+        binding_admission_reasons = _admit_and_append_paper_fill(
+            accepted,
+            accepted_intent,
+            redis_client=r,
+            paper_entry_freeze=paper_entry_freeze,
+        )
+        if binding_admission_reasons:
+            blocked.append(accepted_intent)
+            continue
     # Same-cycle opposite-side intent collapse: the fast-path reversal
     # hysteresis reads OPEN positions from the ledger, but two opposite
     # intents admitted in the SAME cycle (the model emitting both sides of
