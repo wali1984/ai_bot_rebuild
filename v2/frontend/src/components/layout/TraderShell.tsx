@@ -141,7 +141,7 @@ function MarketTickerStrip(): JSX.Element {
         const pct = row.change_24h == null ? null : (Math.abs(row.change_24h) <= 1 ? row.change_24h * 100 : row.change_24h);
         const tone = pct == null ? 'var(--text-muted)' : pct >= 0 ? 'var(--buy, #10b981)' : 'var(--sell, #ef4444)';
         return (
-          <span key={row.symbol} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+          <span key={row.symbol} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', flexShrink: 0 }}>
             <strong style={{ color: 'var(--text-primary)' }}>{row.symbol.replace('USDT', '')}</strong>
             <span>{formatTickerPrice(row.last_price)}</span>
             <span style={{ color: tone }}>{formatTickerChange(row.change_24h)}</span>

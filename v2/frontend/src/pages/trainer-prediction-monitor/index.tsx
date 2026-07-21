@@ -145,13 +145,16 @@ function AccuracyBadge({ cell }: { cell: SignalPredictionAccuracyCell | null }):
 }
 
 function KPICard({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }): JSX.Element {
+  // Long mono identifiers (e.g. V2_LOCAL_TRAINED_RL_MASA_PPO_CUDA) must wrap
+  // inside the card instead of bleeding under the neighbouring KPI card.
+  const isLongValue = value.length > 16;
   return (
     <div className="glass" style={{
-      padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
+      padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, overflow: 'hidden',
     }}>
       <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</span>
-      <span style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)' }}>{value}</span>
-      {sub && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</span>}
+      <span title={value} style={{ fontSize: isLongValue ? 13 : 20, lineHeight: 1.3, fontWeight: 700, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', overflowWrap: 'anywhere', minWidth: 0 }}>{value}</span>
+      {sub && <span style={{ fontSize: 11, color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{sub}</span>}
     </div>
   );
 }

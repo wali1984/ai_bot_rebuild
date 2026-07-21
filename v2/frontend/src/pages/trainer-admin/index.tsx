@@ -170,10 +170,17 @@ export default function TrainerAdminPage(): JSX.Element {
         <KV label="Features" value={loading ? '…' : String(data?.feature_count ?? '—')} />
         <KV label="Input Dim" value={loading ? '…' : String(data?.input_dim ?? '—')} />
         <KV label="Schema" value={loading ? '…' : (data?.feature_schema_status ?? '—')} color={data?.feature_schema_status === 'ALIGNED' ? 'var(--buy)' : 'var(--warn)'} />
+        {/* Temporal encoder: null/absent = no evidence either way — honest dash, never assert single-frame. */}
         <KV
           label="Temporal Encoder"
-          value={loading ? '…' : (data?.temporal_encoder_enabled ? `${data?.temporal_encoder ?? 'on'} × ${data?.temporal_seq_len ?? '—'}` : 'single-frame')}
-          color={data?.temporal_encoder_enabled ? 'var(--buy)' : 'var(--text-secondary)'}
+          value={loading ? '…' : (
+            data?.temporal_encoder_enabled == null
+              ? '—'
+              : data.temporal_encoder_enabled
+                ? `${data.temporal_encoder ?? 'on'} × ${data.temporal_seq_len ?? '—'}`
+                : 'single-frame'
+          )}
+          color={data?.temporal_encoder_enabled ? 'var(--buy)' : data?.temporal_encoder_enabled == null ? 'var(--text-muted)' : 'var(--text-secondary)'}
         />
         <KV
           label="Offline Pretrain"

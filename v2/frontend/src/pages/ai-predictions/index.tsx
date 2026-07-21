@@ -788,7 +788,12 @@ function TrainerBrainSummary(): JSX.Element {
           ['Checkpoint ID', publicRuntimeId(trainerData?.checkpoint_id)?.slice(0, 24) ?? 'pending'],
           ['Tensor input dim', countText(trainerData?.input_dim)],
           ['Feature count', countText(trainerData?.feature_count)],
-          ['Temporal encoder', trainerData?.temporal_encoder_enabled ? `${trainerData?.temporal_encoder ?? 'on'} × ${trainerData?.temporal_seq_len ?? '—'} frames` : 'single-frame'],
+          // null/absent = no evidence either way — show an honest dash, never assert single-frame.
+          ['Temporal encoder', trainerData?.temporal_encoder_enabled == null
+            ? '—'
+            : trainerData.temporal_encoder_enabled
+              ? `${trainerData.temporal_encoder ?? 'on'} × ${trainerData.temporal_seq_len ?? '—'} frames`
+              : 'single-frame'],
         ].map(([label, value]) => (
           <div key={label} style={{ padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-base)' }}>
             <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 3 }}>{label}</div>
@@ -884,6 +889,11 @@ function TrainerDeepTelemetry(): JSX.Element | null {
   const learningStr = boolCell(learn.weights_updating ?? d.weights_updating, 'UPDATING', 'IDLE');
   const winRate = edge.win_rate;
   const dirAcc = holdout.directional_accuracy;
+  // Redis-evidence staleness is independent of API delivery freshness: the API can
+  // deliver a stale v2:trainer:hybrid_cuda:status snapshot in 18ms and the badge
+  // would still read "Live". Surface the underlying evidence age explicitly.
+  const redisEvidenceStale = (d.state ?? '').toUpperCase().includes('STALE')
+    || (typeof d.staleness_seconds === 'number' && d.staleness_seconds > 600);
 
   return (
     <section
@@ -894,10 +904,22 @@ function TrainerDeepTelemetry(): JSX.Element | null {
         <div>
           <strong style={{ fontSize: 12, color: 'var(--text-primary)' }}>Trainer deep telemetry</strong>
           <span style={{ display: 'block', marginTop: 2, fontSize: 10.5, color: 'var(--text-muted)' }}>
-            Live RTX runtime, online-learning, model edge, architecture and live-readiness — read-only from v2:trainer:hybrid_cuda:status.
+            {redisEvidenceStale
+              ? `RTX runtime, online-learning, model edge, architecture and live-readiness — Redis evidence (v2:trainer:hybrid_cuda:status) is ${fmtAge(d.staleness_seconds)} old; the delivery badge reflects API transport only.`
+              : 'Live RTX runtime, online-learning, model edge, architecture and live-readiness — read-only from v2:trainer:hybrid_cuda:status.'}
           </span>
         </div>
-        <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {redisEvidenceStale ? (
+            <span
+              data-testid="ai-trainer-deep-telemetry-staleness"
+              style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#f59e0b', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 999, padding: '2px 8px' }}
+            >
+              {(d.state ?? 'STALE_REDIS_EVIDENCE').replace(/_/g, ' ')} · evidence {fmtAge(d.staleness_seconds)} old
+            </span>
+          ) : null}
+          <FreshnessBadge status={envelope.freshness_status} lagMs={envelope.lag_ms} />
+        </div>
       </div>
 
       <TSection title="Runtime & online learning" accent="#26c281">
@@ -1122,15 +1144,22 @@ export default function AIPredictionsPage(): JSX.Element {
     return order.filter((tf) => agg[tf]?.n).map((tf) => ({ label: tf, value: (agg[tf].sum / agg[tf].n) * 100 }));
   }, [rows]);
   const accByTf = useMemo(() => {
-    const bt = (accuracyStatus?.by_timeframe ?? {}) as Record<string, { accuracy?: number; overall_accuracy?: number }>;
+    // API contract: by_timeframe is a LIST of { timeframe, accuracy, ... } rows
+    // (SignalPredictionTimeframeSummary[]); tolerate a legacy Record keyed by tf.
+    const raw = accuracyStatus?.by_timeframe;
+    const byTf = new Map<string, { accuracy?: number | null }>();
+    if (Array.isArray(raw)) {
+      for (const row of raw) {
+        if (row?.timeframe) byTf.set(row.timeframe, row);
+      }
+    } else if (raw && typeof raw === 'object') {
+      for (const [tf, row] of Object.entries(raw as Record<string, { accuracy?: number | null }>)) byTf.set(tf, row);
+    }
     const order = ['1m', '5m', '15m', '1h', '4h'];
     return order
-      .filter((tf) => bt[tf] != null)
-      .map((tf) => {
-        const raw = bt[tf].accuracy ?? bt[tf].overall_accuracy ?? 0;
-        return { label: tf, value: (Math.abs(raw) <= 1 ? raw * 100 : raw) };
-      })
-      .filter((d) => Number.isFinite(d.value));
+      .map((tf) => ({ tf, acc: byTf.get(tf)?.accuracy }))
+      .filter((entry): entry is { tf: string; acc: number } => entry.acc != null && Number.isFinite(entry.acc))
+      .map(({ tf, acc }) => ({ label: tf, value: Math.abs(acc) <= 1 ? acc * 100 : acc }));
   }, [accuracyStatus]);
 
   const canonicalSignal = selectActiveSignal(traderSnapshot);
