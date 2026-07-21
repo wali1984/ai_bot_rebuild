@@ -15,7 +15,7 @@ import { TradeIntelligenceBar } from './TradeIntelligenceBar';
 import { TradingChartPanel } from './TradingChartPanel';
 import { AdaptiveCapitalTelemetryPanel } from '../trading/AdaptiveCapitalTelemetryPanel';
 import { useAdaptiveCapitalDashboard } from '../../data/adaptiveCapitalProductivity';
-import { selectAccountMetric, selectSectionMetric } from '../../selectors/accountSelectors';
+import { selectAccountMetric, selectSectionMetric, type CanonicalMetric } from '../../selectors/accountSelectors';
 import { selectMarketBySymbol, selectMarketMetric } from '../../selectors/marketSelectors';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
 import { selectRiskStatus } from '../../selectors/riskSelectors';
@@ -58,6 +58,24 @@ export function TradeTerminal(): JSX.Element {
     confidence: state.signal.confidence,
   };
   const signalMetric = (fieldId: string) => selectSignalMetric(traderSnapshot, canonicalSignal ?? signalFallbackRow, fieldId);
+  // Same never-disagree rule as the signal cells above, applied to prices: the
+  // SymbolHeader renders the live market lane (stream merged over /api/v2 market
+  // detail), while the trader-snapshot market row is a slower poll lane — the two
+  // visibly diverge for the same symbol on the same screen. Prefer the live-lane
+  // value in the strip and only fall back to the snapshot row when the live lane
+  // has no value, so the strip and the header can never disagree.
+  const livePriceMetric = (metric: CanonicalMetric, liveValue: unknown): CanonicalMetric => {
+    if (typeof liveValue !== 'number' || !Number.isFinite(liveValue)) return metric;
+    return {
+      ...metric,
+      value: liveValue,
+      source: state.market.sources.ticker ?? metric.source,
+      sourceType: 'realtime_market_lane',
+      timestamp: null,
+      ageMs: null,
+      quality: 'valid',
+    };
+  };
   const riskMetric = selectSectionMetric(
     traderSnapshot,
     'risk',
@@ -156,15 +174,15 @@ export function TradeTerminal(): JSX.Element {
         </div>
         <div>
           <span>Last Price</span>
-          <strong><CanonicalMetricValue metric={marketMetric('market.last_price')} /></strong>
+          <strong><CanonicalMetricValue metric={livePriceMetric(marketMetric('market.last_price'), state.market.lastPrice)} /></strong>
         </div>
         <div>
           <span>Mark Price</span>
-          <strong><CanonicalMetricValue metric={marketMetric('market.mark_price')} /></strong>
+          <strong><CanonicalMetricValue metric={livePriceMetric(marketMetric('market.mark_price'), state.market.markPrice)} /></strong>
         </div>
         <div>
           <span>Index Price</span>
-          <strong><CanonicalMetricValue metric={marketMetric('market.index_price')} /></strong>
+          <strong><CanonicalMetricValue metric={livePriceMetric(marketMetric('market.index_price'), state.market.indexPrice)} /></strong>
         </div>
         <div>
           <span>Mode</span>

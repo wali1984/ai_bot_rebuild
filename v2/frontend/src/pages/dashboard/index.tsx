@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-} from 'recharts';
 import { EquityAreaChart, PnLBars, Donut, DonutLegend, RadialGauge, ChartFrame } from '../../components/charts/NervyxCharts';
 import { fmtUsd as chartUsd } from '../../components/charts/nervyxChartTheme';
 import { usePaperActivityStream } from '../../hooks/usePaperActivityStream';
@@ -23,15 +20,11 @@ import {
   formatAdaptiveBps,
   formatAdaptiveMoney,
   formatAdaptivePercent,
-  missingAccuracyCellCount,
-  pnlWindow,
   type CapitalProductivityRuntimeStatus,
-  type PnlHistoryStatus,
-  type SignalPredictionAccuracyStatus,
   useAdaptiveCapitalDashboard,
 } from '../../data/adaptiveCapitalProductivity';
 import { NERVYX_BRAND } from '../../brand/nervyxBrand';
-import type { ValidatedDataEnvelope } from '../../types/dataContract';
+import type { FreshnessStatus, ValidatedDataEnvelope } from '../../types/dataContract';
 import { selectAccountMetric, selectSectionMetric, type CanonicalMetric } from '../../selectors/accountSelectors';
 import { selectActiveSignal, selectSignalMetric } from '../../selectors/signalSelectors';
 import { selectRiskStatus } from '../../selectors/riskSelectors';
@@ -884,10 +877,31 @@ function ActiveSignalPanel({
 
 // ─── Orchestrator Feed ────────────────────────────────────────────────────────
 
-function OrchestratorPanel({ proposals, heartbeat }: {
+function OrchestratorPanel({ proposals, heartbeat, freshness }: {
   proposals: OrchestratorProposal[];
   heartbeat: OrchestratorHeartbeat | null;
+  freshness?: FreshnessStatus;
 }): JSX.Element {
+  // Footer label must reflect actual stream freshness — a heartbeat object alone
+  // does not prove the orchestrator stream is realtime.
+  const streamLabel =
+    freshness === 'fresh'
+      ? 'Realtime data'
+      : freshness === 'delayed'
+        ? 'Delayed data'
+        : freshness === 'stale'
+          ? 'Stale data'
+          : freshness === 'offline' || freshness === 'unavailable'
+            ? 'Stream offline'
+            : 'Freshness unknown';
+  const streamColor =
+    freshness === 'fresh'
+      ? 'var(--buy,#10b981)'
+      : freshness === 'delayed'
+        ? '#f59e0b'
+        : freshness === 'stale' || freshness === 'offline' || freshness === 'unavailable'
+          ? 'var(--sell,#ef4444)'
+          : 'var(--text-muted)';
   return (
     <Panel>
       <PanelHead
@@ -921,7 +935,7 @@ function OrchestratorPanel({ proposals, heartbeat }: {
         {heartbeat && (
           <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)', fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', justifyContent: 'space-between' }}>
             <span>{heartbeat.proposals_arbitrated ?? 0} arbitrated</span>
-          <span style={{ color: 'var(--buy,#10b981)' }}>Realtime data</span>
+            <span style={{ color: streamColor }}>{streamLabel}</span>
           </div>
         )}
       </div>
@@ -1270,91 +1284,6 @@ function MarketPulsePanel({ tickers }: { tickers: TickerRow[] }): JSX.Element {
   );
 }
 
-// ─── Equity + Runtime Stats Mini-chart ───────────────────────────────────────
-
-function EquityPanel({ equity, realized, unrealized, startingCapital, pnlHistory }: {
-  equity: number | null;
-  realized: number | null;
-  unrealized: number | null;
-  startingCapital: number | null;
-  pnlHistory?: PnlHistoryStatus | null;
-}): JSX.Element {
-  const startValue = startingCapital ?? equity;
-  const chartData = equity == null
-    ? []
-    : [
-      { t: 'Start', value: startValue ?? equity },
-      { t: 'Now', value: equity },
-    ];
-  const pnlTotal = (realized ?? 0) + (unrealized ?? 0);
-  const windows = [
-    { label: '1D', row: pnlWindow(pnlHistory, '1d') },
-    { label: '1W', row: pnlWindow(pnlHistory, '7d') },
-    { label: '30D', row: pnlWindow(pnlHistory, '30d') },
-  ];
-
-  return (
-    <Panel>
-      <PanelHead title="Account Equity" to="/portfolio" />
-      <div style={{ padding: '10px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
-          <span style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
-            {equity == null ? '—' : '$' + equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>equity</span>
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 10, fontSize: 12, fontFamily: 'var(--font-mono)' }}>
-          <div>
-            <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block' }}>REALIZED PNL</span>
-            <span style={{ color: pnlColor(realized), fontWeight: 700 }}>{f$(realized)}</span>
-          </div>
-          <div>
-            <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block' }}>UNREALIZED PNL</span>
-            <span style={{ color: pnlColor(unrealized), fontWeight: 700 }}>{f$(unrealized)}</span>
-          </div>
-          <div>
-            <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block' }}>TOTAL PNL</span>
-            <span style={{ color: pnlColor(pnlTotal), fontWeight: 700 }}>{pnlTotal >= 0 ? '+' : ''}{f$(pnlTotal)}</span>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
-          {windows.map(({ label, row }) => (
-            <div key={label} style={{ padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-elevated)' }}>
-              <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', marginBottom: 2 }}>{label} PNL</span>
-              <span style={{ display: 'block', fontSize: 12, fontWeight: 800, fontFamily: 'var(--font-mono)', color: pnlColor(row?.realized_pnl_usd) }}>
-                {formatAdaptiveMoney(row?.realized_pnl_usd)}
-              </span>
-              <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', marginTop: 1 }}>
-                {row ? `${row.closed_trade_count} closes` : 'No window'}
-              </span>
-            </div>
-          ))}
-        </div>
-        {chartData.length ? (
-          <div data-chart-mode="FALLBACK_STATIC_CHART" aria-label="Execution-restricted account equity chart">
-            <ResponsiveContainer width="100%" height={60}>
-              <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="eqGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--accent,#3b82f6)" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="var(--accent,#3b82f6)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="value" stroke="var(--accent,#3b82f6)" strokeWidth={2} fill="url(#eqGrad)" dot={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        ) : (
-          <div className="nervyx-dashboard-chart-empty" data-chart-mode="FALLBACK_STATIC_CHART">Awaiting account stream…</div>
-        )}
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--font-mono)' }}>
-          Starting capital: {startingCapital == null ? 'not reported' : f$(startingCapital)} · Execution-restricted telemetry
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
 function CapitalProductivityPanel({ capital }: { capital: CapitalProductivityRuntimeStatus | null | undefined }): JSX.Element {
   const blockers = capital?.capital_productivity_blocker_reasons ?? [];
   const diagnostics = capital?.positive_edge_non_a_grade_diagnostics;
@@ -1386,39 +1315,6 @@ function CapitalProductivityPanel({ capital }: { capital: CapitalProductivityRun
         <div style={{ fontSize: 10, color: blockers.length ? 'var(--sell,#ef4444)' : 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           {blockers.length ? blockers.slice(0, 3).map(publicDashboardText).join(' · ') : 'No capital productivity blockers reported'}
         </div>
-      </div>
-    </Panel>
-  );
-}
-
-function AccuracySummaryPanel({ accuracy }: { accuracy: SignalPredictionAccuracyStatus | null | undefined }): JSX.Element {
-  const evaluatedCells = accuracy?.evaluated_symbol_timeframe_cell_count;
-  const totalCells = accuracy?.symbol_timeframe_cell_count ?? accuracy?.required_symbol_timeframe_cell_count;
-  const missingCells = missingAccuracyCellCount(accuracy);
-  return (
-    <Panel>
-      <PanelHead
-        title="Signal Accuracy"
-        to="/signals"
-        badge={accuracy?.status ?? 'Pending'}
-        badgeTone={accuracy?.status === 'READY' ? 'ok' : 'warn'}
-      />
-      <div style={{ padding: '10px 16px 14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-        {[
-          ['Accuracy', formatAdaptivePercent(accuracy?.overall_accuracy), adaptiveStatusColor(accuracy?.status)],
-          ['Evaluated', String(accuracy?.evaluated_row_count ?? 0), 'var(--text-primary)'],
-          ['Correct', String(accuracy?.correct_count ?? 0), 'var(--buy,#10b981)'],
-          ['Incorrect', String(accuracy?.incorrect_count ?? 0), 'var(--sell,#ef4444)'],
-          ['Universe', String(accuracy?.symbol_universe_count ?? 0), 'var(--text-primary)'],
-          ['TF Cells', `${evaluatedCells ?? 0}/${totalCells ?? 0}`, 'var(--text-primary)'],
-          ['Missing Cells', String(missingCells ?? 0), (missingCells ?? 0) > 0 ? 'var(--sell,#ef4444)' : 'var(--buy,#10b981)'],
-          ['Unevaluated', String(accuracy?.unevaluated_row_count ?? 0), '#f59e0b'],
-        ].map(([label, value, color]) => (
-          <div key={label} style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{label}</span>
-            <span style={{ display: 'block', fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color }}>{value}</span>
-          </div>
-        ))}
       </div>
     </Panel>
   );
@@ -1655,7 +1551,6 @@ export default function DashboardPage(): JSX.Element {
   const tickers = marketData?.tickers ?? [];
   const surfaces = healthData?.surfaces ?? [];
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
-  const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
   const accuracyStatus = adaptiveCapital.data?.signal_prediction_accuracy_status ?? capitalStatus?.signal_prediction_accuracy_status ?? null;
 
   // ── Chart-ready derivations (real closed-trade equity curve) ──────────────
@@ -1835,7 +1730,7 @@ export default function DashboardPage(): JSX.Element {
           signalIdMetric={signalMetric('signal.id')}
           signalConfidenceMetric={signalMetric('signal.confidence')}
         />
-        <OrchestratorPanel proposals={proposals} heartbeat={orchHeartbeat} />
+        <OrchestratorPanel proposals={proposals} heartbeat={orchHeartbeat} freshness={orchStream.envelope.freshness_status} />
         <RiskPanel profile={riskProfile} latestResult={latestRiskResult} heartbeat={riskHeartbeat} />
       </div>
 

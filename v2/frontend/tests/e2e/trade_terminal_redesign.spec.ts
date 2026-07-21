@@ -899,7 +899,7 @@ test.describe('trade terminal redesign', () => {
     expect(executionsText).not.toMatch(/Fill live|Cancel live|Place live|live order submitted/i);
 
     await page.getByRole('tab', { name: 'Signal Evidence' }).click();
-    await expect(page.getByTestId('signal-evidence-panel')).toContainText(/Trader-scoped signal source|Signal source connecting|Execution activity stream|Current forecast evidence/i);
+    await expect(page.getByTestId('signal-evidence-panel')).toContainText(/Trader-scoped signal source|Signal source connecting|Execution activity stream|Current forecast evidence|Stale signal content|Stale signal data/i);
     await expect(page.getByTestId('paper-audit-events')).toContainText('Execution audit events');
     await expect(page.getByTestId('paper-audit-events')).toContainText(/Order filled|Execution repository audit|runtime|No execution audit events/i);
     await expect(page.getByTestId('paper-audit-events')).not.toContainText(/paper_order_filled_local|paper_repository/i);

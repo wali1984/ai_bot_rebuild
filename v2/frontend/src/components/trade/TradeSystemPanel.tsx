@@ -1,6 +1,7 @@
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import type { TradeTerminalState } from '../../hooks/useTradeTerminal';
 import { tradeCopy } from '../../lib/tradeCopy';
+import { formatAge } from '../../lib/tradeFormatters';
 
 interface PipelineStatus {
   live_gate?: string;
@@ -82,10 +83,19 @@ export function TradeSystemPanel({ state }: { state: TradeTerminalState }): JSX.
   const gateOpen = p?.live_gate === 'open';
   const gateTone = gateOpen ? 'ok' : p?.live_gate ? 'block' : 'neutral' as 'ok' | 'warn' | 'block';
 
+  // Signal-content freshness must drive the badge: the signal envelope is re-published
+  // every cycle, so a days-old signal can still arrive with a fresh key write. Mirror
+  // SymbolHeader/TradeIntelligenceBar, which already honor source_freshness.
+  const hasActiveSignal = state.signal.direction !== 'Signal connecting';
+  const signalContentStale = hasActiveSignal && String(state.signal.sourceFreshness ?? '').toUpperCase() === 'STALE';
+  const signalAge = signalContentStale && state.signal.marketAgeSeconds !== null ? formatAge(state.signal.marketAgeSeconds) : null;
+  const signalBadge = !hasActiveSignal ? 'NONE' : signalContentStale ? (signalAge ? `STALE ${signalAge}` : 'STALE') : 'LIVE';
+  const signalBadgeTone = !hasActiveSignal ? undefined : signalContentStale ? ('warn' as const) : ('ok' as const);
+
   return (
     <div style={{ padding: '4px 12px 16px', fontSize: 13, minHeight: 200 }}>
       {/* Signal summary */}
-      <SectionHead title="Active Signal" badge={state.signal.direction !== 'Signal connecting' ? 'LIVE' : 'NONE'} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : undefined} />
+      <SectionHead title="Active Signal" badge={signalBadge} tone={signalBadgeTone} />
       <Row label="Symbol" value={state.symbol} />
       <Row label="AI Direction" value={String(state.signal.direction).toUpperCase()} tone={state.signal.direction !== 'Signal connecting' ? 'ok' : 'neutral'} />
       <Row

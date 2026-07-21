@@ -5,7 +5,7 @@ import { usePaperActivityStream } from './usePaperActivityStream';
 import { useTraderContext } from './useTraderContext';
 import { useMarketDataStream, type MarketDataStreamState } from './useMarketDataStream';
 import { useRealtimeResource } from './useRealtimeResource';
-import { finite } from '../lib/tradeFormatters';
+import { finite, formatAge } from '../lib/tradeFormatters';
 import type { AccountReadinessData, ApiV2Envelope, AuditEventsData, ExchangeReadOnlyAccountData, ExecutionsData, MarketDepthData, MarketTickerData, OrdersData, PortfolioData, PositionsData, RecentTradesData, SignalData } from '../types/apiV2';
 import type { ValidatedDataEnvelope } from '../types/dataContract';
 
@@ -594,16 +594,27 @@ export function useTradeTerminal() {
         ? 'Current forecast evidence source'
         : 'Signal source connecting'
     : 'Signal source connecting';
+  // Signal-content freshness (source_freshness/market_age_seconds inside the payload)
+  // must override envelope key-write freshness: the Redis key is re-published every
+  // cycle, so the envelope can look fresh while the signal itself is days old.
+  const signalContentStale = hasSignal && String(signal.source_freshness ?? '').toUpperCase() === 'STALE';
+  const signalContentAgeSeconds = typeof signal.market_age_seconds === 'number' && Number.isFinite(signal.market_age_seconds)
+    ? signal.market_age_seconds
+    : null;
   const signalFreshness = hasSignal
     ? typedSignals?.stale
       ? 'Stale signal data'
-      : scopedSignalAvailable
-        ? 'Trader-scoped signal source'
-        : redisPaperSignalAvailable
-          ? 'Current forecast evidence'
-          : typedSignals?.source_type === 'static_payload'
-            ? 'Fallback signal data'
-            : 'Signal source connecting'
+      : signalContentStale
+        ? signalContentAgeSeconds !== null
+          ? `Stale signal content · ${formatAge(signalContentAgeSeconds)}`
+          : 'Stale signal content'
+        : scopedSignalAvailable
+          ? 'Trader-scoped signal source'
+          : redisPaperSignalAvailable
+            ? 'Current forecast evidence'
+            : typedSignals?.source_type === 'static_payload'
+              ? 'Fallback signal data'
+              : 'Signal source connecting'
     : 'Signal source connecting';
   const risk: Record<string, unknown> = {};
   const lastPrice = finite(typedTicker?.last_price);
@@ -871,9 +882,7 @@ export function useTradeTerminal() {
       // Signal-content freshness from the API payload itself (distinct from key-write
       // freshness): the signal may be re-published every cycle yet be days old.
       sourceFreshness: typeof signal.source_freshness === 'string' ? signal.source_freshness : null,
-      marketAgeSeconds: typeof signal.market_age_seconds === 'number' && Number.isFinite(signal.market_age_seconds)
-        ? signal.market_age_seconds
-        : null,
+      marketAgeSeconds: signalContentAgeSeconds,
       generatedAt: typeof signal.generated_at === 'string' ? signal.generated_at : null,
     },
   };
