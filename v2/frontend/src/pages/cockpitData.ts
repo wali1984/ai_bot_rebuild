@@ -103,6 +103,7 @@ export interface SettingRow {
 }
 
 export interface QuarantinePayload {
+  generated_at?: string;
   go_no_go?: string;
   live_gate_status?: string;
   summary?: Record<string, string | number | boolean>;

@@ -49,8 +49,21 @@ function titleCase(value: string): string {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+/**
+ * Admin/system operator surfaces (routes under /admin) must render raw API
+ * values: the public-site copy mask rewrites audit-critical markers
+ * ('blocked_human_only' -> 'approval required', 'operator' -> 'approval',
+ * 'PAPER_EDGE_PROVEN' -> 'execution_edge_PROVEN', ...) which made rendered
+ * values diverge from API values on evidence pages (final field audit).
+ */
+export function isOperatorTruthSurface(pathname?: string): boolean {
+  const path = pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '');
+  return path === '/admin' || path.startsWith('/admin/');
+}
+
 export function publicRuntimeCopy(value: unknown, fallback = '—'): string {
   if (value === null || value === undefined || value === '') return fallback;
+  if (isOperatorTruthSurface()) return value.toString();
   return value
     .toString()
     .replace(/\bPaper Fill\b/gi, 'Execution Fill')

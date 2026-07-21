@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { TradingViewWidget } from '../components/charts/TradingViewWidget';
-import { publicRuntimeCopy } from '../lib/tradeCopy';
+import { isOperatorTruthSurface, publicRuntimeCopy } from '../lib/tradeCopy';
 import type { AutonomousGovernorPayload, Candle, CockpitPayload, DecisionRow, ExchangeConnector, Freshness, MonitorRow, Phase3cRuntimeMonitorPayload, QuarantinePayload, RedisExportCapacityPayload, RedisFullExportPayload, RedisHumanApprovalPayload, RedisMemoryPressurePayload, RedisSafeTrimPacketPayload, SettingRow, SystemAtlasGapRemediationPayload, SystemAtlasPayload } from './cockpitData';
 import { statusClass, valueText } from './cockpitData';
 
@@ -23,6 +23,9 @@ export function SafetyTopBar({ payload }: { payload: CockpitPayload }): JSX.Elem
 export function publicRuntimeText(value: unknown): string {
   const raw = valueText(value);
   if (/^unavailable$/i.test(raw)) return 'Unavailable';
+  // Operator/admin evidence surfaces render raw API values — the public copy
+  // mask must never rewrite audit-critical markers there (final field audit).
+  if (isOperatorTruthSurface()) return raw;
   return publicRuntimeCopy(raw, 'Evidence pending')
     .replace(/paper/gi, 'runtime')
     .replace(/read[_\s-]*only/gi, 'account access')
@@ -318,10 +321,43 @@ export function ConfigTable({ rows }: { rows: SettingRow[] }): JSX.Element {
   );
 }
 
+// Static-proof quarantine payloads can be weeks old; without an age chip the
+// operator can read the position rows as current runtime state (final field
+// audit). Anything older than a day is flagged as a stale snapshot.
+const QUARANTINE_STALE_AFTER_MS = 24 * 3_600_000;
+
+function quarantineAge(iso: string | null | undefined): { text: string; stale: boolean } {
+  if (!iso) return { text: 'generated_at missing', stale: true };
+  const ageMs = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(ageMs)) return { text: 'generated_at invalid', stale: true };
+  const days = Math.floor(ageMs / 86_400_000);
+  const text = days >= 1 ? `${days}d old` : ageMs >= 3_600_000 ? `${Math.floor(ageMs / 3_600_000)}h old` : `${Math.max(0, Math.floor(ageMs / 60_000))}m old`;
+  return { text, stale: ageMs > QUARANTINE_STALE_AFTER_MS };
+}
+
 export function QuarantinePanel({ payload }: { payload: QuarantinePayload | null }): JSX.Element {
   const rows = payload?.ownership_rows ?? [];
+  const generatedAt = payload?.generated_at;
+  const age = quarantineAge(generatedAt);
   return (
-    <Panel id="external-manual-position-quarantine" title="External / Manual Position Quarantine">
+    <Panel
+      id="external-manual-position-quarantine"
+      title="External / Manual Position Quarantine"
+      right={(
+        <span
+          className={statusClass(age.stale ? 'stale' : 'fresh')}
+          title={generatedAt ? `Payload generated_at: ${generatedAt}` : 'Payload carries no generated_at timestamp'}
+          data-testid="quarantine-generated-at"
+        >
+          {age.stale ? 'STALE SNAPSHOT' : 'Snapshot'} · {age.text}{generatedAt ? ` (${generatedAt})` : ''}
+        </span>
+      )}
+    >
+      {age.stale ? (
+        <p className="cockpit-evidence-gap" role="note">
+          Static proof snapshot — rows below reflect the payload generated at {generatedAt ?? 'an unknown time'}, not current runtime state.
+        </p>
+      ) : null}
       <div className="cockpit-analytics-grid">
         <Metric label="Gate" value={payload?.go_no_go ?? 'Evidence missing'} />
         <Metric label="Quarantined" value={payload?.summary?.quarantined_count ?? 'Evidence missing'} />
