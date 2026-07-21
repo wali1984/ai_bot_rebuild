@@ -618,6 +618,10 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
         "sampled_payloads": sampled,
         "upstream_error_payloads": upstream_errors,
         "newest_event_age_seconds": round(age, 1) if age is not None else None,
+        # Per-feed liveness threshold so UIs grade freshness against the feed's
+        # real write cadence instead of a hardcoded 60s (moralis polls every 300s).
+        "live_within_seconds": live_within,
+        "stale_within_seconds": stale_within,
         "status": status,
         "provider_current": provider_current,
         "provider_usable": provider_usable,

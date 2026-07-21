@@ -192,6 +192,8 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
     endpoint_status = _read_json(client, f"v2:provider:{provider}:endpoint_status")
     metric_status = _read_json(client, f"v2:provider:{provider}:metric_status")
     watchlist = _read_json(client, "v2:moralis:wallet_watchlist_status") if provider == "moralis" else {}
+    cu_budget = _read_json(client, "v2:provider:moralis:cu_budget_status") if provider == "moralis" else {}
+    cu_ledger = usage.get("persistent_cu_ledger") if isinstance(usage.get("persistent_cu_ledger"), dict) else {}
     token_map = _read_json(client, "v2:moralis:token_map_status") if provider == "moralis" else {}
 
     feature_count = _count(_first(
@@ -283,18 +285,37 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
             rate.get("rate_limit_remaining_minute"),
             usage.get("remaining"),
         ),
-        "daily_quota_used": _first(usage.get("daily_used"), usage.get("cu_used_today"), usage.get("used_today")),
-        "monthly_quota_used": _first(usage.get("monthly_used"), usage.get("cu_used_month"), usage.get("used_month")),
+        # The durable CU-ledger rework nests spend under persistent_cu_ledger /
+        # the dedicated cu_budget_status key; the old flat fields no longer exist.
+        "daily_quota_used": _first(
+            usage.get("daily_used"), usage.get("cu_used_today"), usage.get("used_today"),
+            cu_ledger.get("day_spent_cu"), cu_budget.get("day_spent_cu"),
+        ),
+        "monthly_quota_used": _first(
+            usage.get("monthly_used"), usage.get("cu_used_month"), usage.get("used_month"),
+            cu_ledger.get("month_spent_cu"), cu_budget.get("month_spent_cu"),
+        ),
         "endpoints_active": active_endpoints,
         "endpoints_disabled": disabled_endpoints,
         "provider_family_status": family_status,
         "cu_usage": usage if provider == "moralis" else {},
+        "cu_budget": {
+            "day_spent_cu": cu_budget.get("day_spent_cu"),
+            "month_spent_cu": cu_budget.get("month_spent_cu"),
+            "remaining_today_cu": cu_budget.get("remaining_today_cu"),
+            "remaining_month_cu": cu_budget.get("remaining_month_cu"),
+            "provider_polling_blocked": cu_budget.get("provider_polling_blocked"),
+        } if provider == "moralis" and cu_budget else None,
         "heartbeat_only": heartbeat_only,
         "actual_payload_present": actual_payload_count > 0,
         "raw_key_exposed": False,
         "routes_to_live": False,
         "places_real_order": False,
-        "watchlist_count": watchlist.get("watchlist_count") if provider == "moralis" else None,
+        # wallet_watchlist_status has a 6h TTL and the reworked bootstrap no
+        # longer refreshes it; the resident loop's health key carries the count.
+        "watchlist_count": _first(
+            watchlist.get("watchlist_count"), health.get("wallet_watchlist_count"),
+        ) if provider == "moralis" else None,
         "smart_wallet_candidate_count": _first(
             watchlist.get("candidate_smart_wallet_count"),
             watchlist.get("candidate_count"),
