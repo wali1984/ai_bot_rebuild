@@ -187,6 +187,10 @@ TA_CONSUMER_HOLD_REASON = "TA_FULL_FINALIZED_INPUT_RECEIPT_NOT_BOUND"
 
 # Immutable resource bounds; neither value selects markets or grants admission.
 MAX_CENSUS_JSON_SOURCE_BYTES = 1024 * 1024
+MAX_CENSUS_JSON_DEPTH = 64
+MAX_CENSUS_JSON_NODES = 65_536
+MAX_CENSUS_JSON_CONTAINER_ITEMS = 16_384
+MAX_CENSUS_JSON_STRING_BYTES = 256 * 1024
 MAX_CENSUS_PAYLOAD_BYTES = 16 * 1024 * 1024
 MAX_CENSUS_SYMBOLS = 4096
 MAX_CENSUS_SYMBOL_ENTRY_BYTES = 64 * 1024
@@ -268,6 +272,49 @@ def _bounded_metadata_token(value: Any) -> str | None:
     ):
         return "UNTRUSTED_METADATA_TOKEN"
     return value
+
+
+def _json_shape_within_resource_bounds(value: Any) -> bool:
+    """Validate decoded JSON iteratively so hostile depth cannot recurse."""
+
+    stack: list[tuple[Any, int]] = [(value, 0)]
+    node_count = 0
+    while stack:
+        current, depth = stack.pop()
+        node_count += 1
+        if depth > MAX_CENSUS_JSON_DEPTH or node_count > MAX_CENSUS_JSON_NODES:
+            return False
+        if isinstance(current, dict):
+            if len(current) > MAX_CENSUS_JSON_CONTAINER_ITEMS:
+                return False
+            for key, child in current.items():
+                if type(key) is not str:
+                    return False
+                try:
+                    if len(key.encode("utf-8", errors="strict")) > MAX_CENSUS_JSON_STRING_BYTES:
+                        return False
+                except UnicodeError:
+                    return False
+                stack.append((child, depth + 1))
+        elif isinstance(current, list):
+            if len(current) > MAX_CENSUS_JSON_CONTAINER_ITEMS:
+                return False
+            stack.extend((child, depth + 1) for child in current)
+        elif isinstance(current, str):
+            try:
+                if len(current.encode("utf-8", errors="strict")) > MAX_CENSUS_JSON_STRING_BYTES:
+                    return False
+            except UnicodeError:
+                return False
+        elif type(current) in (int, float):
+            try:
+                if not math.isfinite(float(current)):
+                    return False
+            except (OverflowError, ValueError):
+                return False
+        elif current is not None and type(current) not in (bool, int, float):
+            return False
+    return True
 
 
 def _bounded_secondary_family_summary(value: Any) -> dict[str, Any]:
@@ -358,13 +405,19 @@ def _read_json(r: redis.Redis, key: str) -> Any:
         return None
     if not raw:
         return None
-    raw_byte_count = len(raw.encode("utf-8")) if isinstance(raw, str) else len(raw)
+    try:
+        raw_byte_count = (
+            len(raw.encode("utf-8", errors="strict")) if isinstance(raw, str) else len(raw)
+        )
+    except (TypeError, UnicodeError):
+        return None
     if raw_byte_count > MAX_CENSUS_JSON_SOURCE_BYTES:
         return None
     try:
-        return json.loads(raw, parse_constant=_reject_json_constant)
-    except (TypeError, ValueError, UnicodeError):
+        decoded = json.loads(raw, parse_constant=_reject_json_constant)
+    except (TypeError, ValueError, UnicodeError, RecursionError):
         return None
+    return decoded if _json_shape_within_resource_bounds(decoded) else None
 
 
 def _parse_ts_seconds(value: Any) -> float | None:
@@ -397,6 +450,25 @@ def _parse_ts_seconds(value: Any) -> float | None:
         return parsed if math.isfinite(parsed) and parsed > 0 else None
     except (ValueError, OverflowError, OSError):
         return None
+
+
+def _explicit_iso_epoch_us(value: Any) -> int | None:
+    """Parse one timezone-explicit ISO clock without float precision loss."""
+
+    if type(value) is not str or not value or value != value.strip():
+        return None
+    text = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(text)
+    except (ValueError, OverflowError):
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    utc_value = parsed.astimezone(UTC)
+    epoch = datetime(1970, 1, 1, tzinfo=UTC)
+    delta = utc_value - epoch
+    epoch_us = ((delta.days * 86_400) + delta.seconds) * 1_000_000 + delta.microseconds
+    return epoch_us if epoch_us > 0 else None
 
 
 def _payload_age_seconds(payload: Any, *fields: str) -> float | None:
@@ -719,28 +791,207 @@ def _open_interest_content_rejections(payload: Any, symbol: str) -> tuple[str, .
     return tuple(sorted(set(reasons)))
 
 
-def _ta_content_rejections(payload: Any, symbol: str, timeframe: str) -> tuple[str, ...]:
+def _ta_content_rejections(
+    payload: Any,
+    symbol: str,
+    timeframe: str,
+    *,
+    census_as_of_ns: int | None = None,
+) -> tuple[str, ...]:
     if not isinstance(payload, dict):
         return ("TA_PAYLOAD_OBJECT_REQUIRED",)
     reasons: list[str] = []
-    if payload.get("schema_version") != "v2_full_talib_ta_payload_v1":
+    if payload.get("schema_version") != "v2_full_talib_ta_closed_candidate_v1":
         reasons.append("TA_SCHEMA_IDENTITY_INVALID")
     if payload.get("symbol") != symbol or payload.get("timeframe") != timeframe:
         reasons.append("TA_MARKET_IDENTITY_INVALID")
+    expected_candidate_key = f"v2:features:ta_closed:{symbol}:{timeframe}"
+    expected_publication_key = f"v2:features:ta_full:{symbol}:{timeframe}"
+    if (
+        payload.get("compatibility_view") is not True
+        or payload.get("compatibility_unsafe_for_trainer") is not True
+        or payload.get("canonical_candidate_key") != expected_candidate_key
+        or payload.get("publication_key") != expected_publication_key
+        or payload.get("source_label") != "V2_FULL_TALIB_TA_CLOSED_COMPATIBILITY_VIEW"
+    ):
+        reasons.append("TA_COMPATIBILITY_VIEW_IDENTITY_INVALID")
+    if payload.get("classification") != "V2_FULL_TALIB_TA_CLOSED_CANDIDATE_NONCONSUMABLE":
+        reasons.append("TA_CLASSIFICATION_INVALID")
+    if (
+        payload.get("computation_classification") != "V2_FULL_TALIB_TA_OK"
+        or payload.get("source_schema_version") != "trainer_ohlcv_closed_window_v1"
+    ):
+        reasons.append("TA_COMPUTATION_CLASSIFICATION_INVALID")
+    for field_name in (
+        "exact_source_schema_validated",
+        "producer_finality_contract_validated",
+        "closed_candles_only",
+        "candle_closed_confirmed",
+        "v2_only",
+        "no_zero_fill",
+    ):
+        if payload.get(field_name) is not True:
+            reasons.append("TA_FINALIZED_SOURCE_CONTRACT_INVALID")
+            break
+    for field_name in (
+        "publication_committed",
+        "consumer_eligible",
+        "trainer_consumable",
+        "trainer_admission_granted",
+        "immutable_cas_captured",
+        "redis_read_receipt_emitted",
+        "live_execution_authorized",
+        "exchange_action_taken",
+        "places_real_order",
+        "writes_legacy_redis",
+    ):
+        if payload.get(field_name) is not False:
+            reasons.append("TA_NONCONSUMABLE_AUTHORITY_INVALID")
+            break
+    for field_name in (
+        "publication_authority",
+        "trainer_authority",
+        "prediction_authority",
+        "risk_authority",
+        "orchestrator_authority",
+        "allocator_authority",
+        "paper_authority",
+        "live_authority",
+        "valid_for_trainer",
+        "valid_for_prediction",
+        "valid_for_risk",
+        "valid_for_orchestrator",
+        "valid_for_allocator",
+        "valid_for_paper",
+        "valid_for_live",
+    ):
+        # The current producer does not emit these optional authority fields.
+        # Their absence is fail-closed; if a future or hostile payload adds
+        # one, only an explicit false value preserves the nonconsumable ABI.
+        if field_name in payload and payload.get(field_name) is not False:
+            reasons.append("TA_NONCONSUMABLE_AUTHORITY_INVALID")
+            break
+    if (
+        payload.get("available_at") is not None
+        or payload.get("publication_observed_at") is not None
+    ):
+        reasons.append("TA_UNAUTHENTICATED_AVAILABLE_AT_FORBIDDEN")
+    if payload.get("live_gate") != "blocked_human_only" or payload.get("live_symbols") != []:
+        reasons.append("TA_NONCONSUMABLE_AUTHORITY_INVALID")
     indicators = payload.get("indicators")
     indicator_mapping = indicators if isinstance(indicators, dict) else {}
-    if not indicator_mapping or any(not _finite(value) for value in indicator_mapping.values()):
-        reasons.append("TA_INDICATOR_VALUES_INVALID")
-    if type(payload.get("indicator_count")) is not int or payload.get("indicator_count") != len(
-        indicator_mapping
+    indicator_count = payload.get("indicator_count")
+    field_count = payload.get("field_count")
+    if (
+        not indicator_mapping
+        or type(indicator_count) is not int
+        or type(field_count) is not int
+        or indicator_count != len(indicator_mapping)
+        or field_count != indicator_count
+        # Producer completeness invariant, not a market-selection threshold.
+        or indicator_count < 150
+        or any(type(name) is not str or not name for name in indicator_mapping)
+        or any(not _finite(value) for value in indicator_mapping.values())
     ):
-        reasons.append("TA_INDICATOR_COUNT_INVALID")
+        reasons.append("TA_INDICATOR_VALUES_INVALID")
     last_candle_ts_ms = payload.get("last_candle_ts_ms")
     if type(last_candle_ts_ms) is not int or last_candle_ts_ms <= 0:
         reasons.append("TA_SOURCE_CANDLE_CLOCK_INVALID")
     source_key = payload.get("source_ohlcv_key")
-    if not isinstance(source_key, str) or not source_key.startswith("v2:market:"):
+    if source_key != f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}":
         reasons.append("TA_SOURCE_KEY_IDENTITY_INVALID")
+    duration_ms = TIMEFRAME_DURATION_MS.get(timeframe)
+    latest_open_ms = payload.get("latest_closed_candle_open_ts_ms")
+    latest_close_ms = payload.get("latest_closed_candle_close_ts_ms")
+    if (
+        type(duration_ms) is not int
+        or type(latest_open_ms) is not int
+        or type(latest_close_ms) is not int
+        or latest_open_ms <= 0
+        or latest_close_ms != latest_open_ms + duration_ms - 1
+        or last_candle_ts_ms != latest_open_ms
+    ):
+        reasons.append("TA_SOURCE_CANDLE_CLOCK_INVALID")
+    else:
+        observed_ns = time.time_ns() if census_as_of_ns is None else census_as_of_ns
+        if type(observed_ns) is not int or observed_ns <= 0:
+            reasons.append("TA_CENSUS_AS_OF_CLOCK_INVALID")
+        else:
+            expected_latest_close_ms = ((observed_ns // 1_000_000) // duration_ms) * duration_ms - 1
+            if latest_close_ms != expected_latest_close_ms:
+                reasons.append("TA_LATEST_FINALIZED_CANDLE_UNAVAILABLE")
+
+        cutoff_us = _explicit_iso_epoch_us(payload.get("feature_cutoff"))
+        event_us = _explicit_iso_epoch_us(payload.get("source_economic_event_time"))
+        source_event_us = _explicit_iso_epoch_us(payload.get("source_event_time"))
+        producer_us = _explicit_iso_epoch_us(payload.get("source_producer_event_time"))
+        available_us = _explicit_iso_epoch_us(payload.get("source_available_at"))
+        ingested_us = _explicit_iso_epoch_us(payload.get("source_ingested_at"))
+        generated_us = _explicit_iso_epoch_us(payload.get("generated_at"))
+        generated_utc_us = _explicit_iso_epoch_us(payload.get("generated_utc"))
+        exact_close_us = latest_close_ms * 1_000
+        latest_producer_ms = payload.get("latest_candle_producer_event_time_ms")
+        latest_ingested_ms = payload.get("latest_candle_ingested_at_ms")
+        latest_available_ms = payload.get("latest_candle_available_at_ms")
+        clock_aliases = {
+            "source_economic_event_time_ms": latest_close_ms,
+            "source_producer_event_time_ms": (
+                None if producer_us is None or producer_us % 1_000 else producer_us // 1_000
+            ),
+            "source_ingested_at_ms": (
+                None if ingested_us is None or ingested_us % 1_000 else ingested_us // 1_000
+            ),
+            "source_available_at_ms": (
+                None if available_us is None or available_us % 1_000 else available_us // 1_000
+            ),
+        }
+        if (
+            cutoff_us != exact_close_us
+            or event_us != exact_close_us
+            or source_event_us != exact_close_us
+            or producer_us is None
+            or ingested_us is None
+            or available_us is None
+            or generated_us is None
+            or generated_utc_us != generated_us
+            or payload.get("generated_utc") != payload.get("generated_at")
+            or not (event_us <= producer_us <= ingested_us <= available_us <= generated_us)
+            or type(latest_producer_ms) is not int
+            or type(latest_ingested_ms) is not int
+            or type(latest_available_ms) is not int
+            or not (
+                exact_close_us
+                <= latest_producer_ms * 1_000
+                <= latest_ingested_ms * 1_000
+                <= latest_available_ms * 1_000
+                <= generated_us
+            )
+            # The source clocks are full-window maxima. They may legitimately
+            # exceed the latest candle's clocks when an older row was ingested
+            # late, but they may never precede their latest-row counterpart.
+            or latest_producer_ms * 1_000 > producer_us
+            or latest_ingested_ms * 1_000 > ingested_us
+            or latest_available_ms * 1_000 > available_us
+            or generated_us * 1_000 > observed_ns
+            or any(
+                expected is None
+                or type(payload.get(alias)) is not int
+                or payload.get(alias) != expected
+                for alias, expected in clock_aliases.items()
+            )
+        ):
+            reasons.append("TA_CAUSAL_CLOCK_ORDER_INVALID")
+    source_payload_byte_count = payload.get("source_exact_payload_byte_count")
+    source_payload_sha256 = payload.get("source_exact_payload_sha256")
+    if (
+        type(source_payload_byte_count) is not int
+        or source_payload_byte_count <= 0
+        or source_payload_byte_count > MAX_SOURCE_PAYLOAD_BYTES
+        or type(source_payload_sha256) is not str
+        or len(source_payload_sha256) != 64
+        or any(character not in "0123456789abcdef" for character in source_payload_sha256)
+    ):
+        reasons.append("TA_EXACT_SOURCE_PAYLOAD_IDENTITY_INVALID")
     return tuple(sorted(set(reasons)))
 
 
@@ -840,7 +1091,7 @@ def _finite(value: Any) -> bool:
         return False
     try:
         v = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return False
     return math.isfinite(v)
 
@@ -1034,6 +1285,7 @@ def _census_symbol(
     symbol: str,
     *,
     ohlcv_r: RawRedisSourceClient,
+    census_as_of_ns: int,
 ) -> dict[str, Any]:
     families: dict[str, Any] = {
         "ohlcv_closed": _check_ohlcv_closed(ohlcv_r, symbol),
@@ -1077,6 +1329,7 @@ def _census_symbol(
                 payload,
                 symbol,
                 timeframe,
+                census_as_of_ns=census_as_of_ns,
             ),
             consumer_bound=TA_FINALITY_CONSUMER_BOUND,
             consumer_hold_reason=TA_CONSUMER_HOLD_REASON,
@@ -1113,6 +1366,7 @@ def build_census(
     *,
     ohlcv_r: RawRedisSourceClient,
 ) -> dict[str, Any]:
+    census_as_of_ns = time.time_ns()
     symbol_snapshot = tuple(symbols[: MAX_CENSUS_SYMBOLS + 1])
     if not 1 <= len(symbol_snapshot) <= MAX_CENSUS_SYMBOLS:
         raise ValueError("universe_coverage_symbol_count_resource_limit")
@@ -1123,7 +1377,12 @@ def build_census(
     per_symbol: dict[str, Any] = {}
     aggregate_entry_bytes = 0
     for symbol in symbol_snapshot:
-        entry = _census_symbol(r, symbol, ohlcv_r=ohlcv_r)
+        entry = _census_symbol(
+            r,
+            symbol,
+            ohlcv_r=ohlcv_r,
+            census_as_of_ns=census_as_of_ns,
+        )
         serialized_entry = _bounded_canonical_json(
             entry,
             max_bytes=MAX_CENSUS_SYMBOL_ENTRY_BYTES,
@@ -1162,6 +1421,7 @@ def build_census(
         "schema_version": SCHEMA_VERSION,
         "worker_id": WORKER_ID,
         "generated_utc": _utc_iso(),
+        "census_as_of_utc": _utc_iso(census_as_of_ns / 1_000_000_000),
         "universe_count": len(symbol_snapshot),
         "universe_source": _bounded_metadata_token(provenance.get("source_path")),
         "universe_profile": _bounded_metadata_token(provenance.get("symbol_profile")),

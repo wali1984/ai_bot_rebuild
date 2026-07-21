@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Any, NoReturn, cast
 
 import pytest
@@ -221,6 +222,90 @@ def _payload(rows: list[object]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     ).encode("ascii")
+
+
+def _iso_ms(value_ms: int) -> str:
+    return (
+        datetime.fromtimestamp(value_ms / 1000.0, tz=UTC)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _valid_ta_payload(*, now_s: float, timeframe: str = TIMEFRAME) -> dict[str, Any]:
+    duration_ms = TIMEFRAME_DURATION_MS[timeframe]
+    latest_close_ms = ((int(now_s * 1000) // duration_ms) * duration_ms) - 1
+    latest_open_ms = latest_close_ms - duration_ms + 1
+    latest_producer_ms = latest_close_ms + 100
+    latest_ingested_ms = latest_close_ms + 200
+    latest_available_ms = latest_close_ms + 250
+    # Aggregate source-window maxima can exceed the latest row clocks when an
+    # older candle was delivered late. Keep the fixture faithful to that ABI.
+    producer_ms = latest_producer_ms
+    ingested_ms = latest_close_ms + 300
+    available_ms = latest_close_ms + 400
+    economic_event = _iso_ms(latest_close_ms)
+    producer_event = _iso_ms(producer_ms)
+    source_available = _iso_ms(available_ms)
+    generated = coverage._utc_iso(now_s)
+    indicators = {f"ta_probe_{index}": float(index) for index in range(150)}
+    return {
+        "schema_version": "v2_full_talib_ta_closed_candidate_v1",
+        "source_schema_version": "trainer_ohlcv_closed_window_v1",
+        "symbol": SYMBOL,
+        "timeframe": timeframe,
+        "generated_at": generated,
+        "generated_utc": generated,
+        "source_ohlcv_key": f"v2:market:ohlcv_closed:binance:{SYMBOL}:{timeframe}",
+        "source_exact_payload_byte_count": 128,
+        "source_exact_payload_sha256": "a" * 64,
+        "source_economic_event_time": economic_event,
+        "source_economic_event_time_ms": latest_close_ms,
+        "source_event_time": economic_event,
+        "source_producer_event_time": producer_event,
+        "source_producer_event_time_ms": producer_ms,
+        "source_available_at": source_available,
+        "source_available_at_ms": available_ms,
+        "source_ingested_at": _iso_ms(ingested_ms),
+        "source_ingested_at_ms": ingested_ms,
+        "latest_candle_producer_event_time_ms": latest_producer_ms,
+        "latest_candle_ingested_at_ms": latest_ingested_ms,
+        "latest_candle_available_at_ms": latest_available_ms,
+        "feature_cutoff": economic_event,
+        "available_at": None,
+        "publication_observed_at": None,
+        "last_candle_ts_ms": latest_open_ms,
+        "latest_closed_candle_open_ts_ms": latest_open_ms,
+        "latest_closed_candle_close_ts_ms": latest_close_ms,
+        "indicator_count": len(indicators),
+        "field_count": len(indicators),
+        "indicators": indicators,
+        "compatibility_view": True,
+        "compatibility_unsafe_for_trainer": True,
+        "canonical_candidate_key": f"v2:features:ta_closed:{SYMBOL}:{timeframe}",
+        "publication_key": f"v2:features:ta_full:{SYMBOL}:{timeframe}",
+        "source_label": "V2_FULL_TALIB_TA_CLOSED_COMPATIBILITY_VIEW",
+        "classification": "V2_FULL_TALIB_TA_CLOSED_CANDIDATE_NONCONSUMABLE",
+        "computation_classification": "V2_FULL_TALIB_TA_OK",
+        "exact_source_schema_validated": True,
+        "producer_finality_contract_validated": True,
+        "closed_candles_only": True,
+        "candle_closed_confirmed": True,
+        "publication_committed": False,
+        "consumer_eligible": False,
+        "trainer_consumable": False,
+        "trainer_admission_granted": False,
+        "immutable_cas_captured": False,
+        "redis_read_receipt_emitted": False,
+        "live_execution_authorized": False,
+        "exchange_action_taken": False,
+        "places_real_order": False,
+        "writes_legacy_redis": False,
+        "live_gate": "blocked_human_only",
+        "live_symbols": [],
+        "v2_only": True,
+        "no_zero_fill": True,
+    }
 
 
 def _entry(
@@ -586,6 +671,28 @@ def test_non_ohlcv_json_reads_are_cap_plus_one_bounded() -> None:
     assert client.range_calls == [(key, 0, coverage.MAX_CENSUS_JSON_SOURCE_BYTES)]
 
 
+def test_non_ohlcv_json_reads_fail_closed_on_deep_or_invalid_unicode_payloads() -> None:
+    deep_key = "v2:test:deep"
+    unicode_key = "v2:test:unicode"
+    client = _DecodedRedis(
+        {
+            deep_key: ("[" * 1_100) + "0" + ("]" * 1_100),
+            unicode_key: '"\ud800"',
+        }
+    )
+
+    assert coverage._read_json(cast(Any, client), deep_key) is None
+    assert coverage._read_json(cast(Any, client), unicode_key) is None
+
+
+def test_non_ohlcv_json_reads_fail_closed_on_float_overflow_integer() -> None:
+    key = "v2:test:oversized-integer"
+    client = _DecodedRedis({key: '{"value":' + ("9" * 1_000) + "}"})
+
+    assert coverage._read_json(cast(Any, client), key) is None
+    assert coverage._finite(10**1_000) is False
+
+
 def test_bounded_canonical_json_rejects_before_retaining_an_oversized_payload() -> None:
     assert (
         coverage._bounded_canonical_json(
@@ -888,21 +995,16 @@ def test_orderbook_validator_accepts_each_published_quantity_schema(
 def test_valid_ta_payload_remains_held_until_finalized_input_receipt_is_bound(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    now_s = 1_800_000_000.0
+    now_s = 1_800_000_001.0
     monkeypatch.setattr(coverage.time, "time", lambda: now_s)
+    monkeypatch.setattr(
+        "v2.backend.app.cli.v2_universe_coverage_sync.time.time_ns",
+        lambda: int(now_s * 1_000_000_000),
+    )
     values: dict[str, str] = {}
     for timeframe in coverage.REQUIRED_DECISION_TIMEFRAMES:
         values[f"v2:features:ta_full:{SYMBOL}:{timeframe}"] = json.dumps(
-            {
-                "schema_version": "v2_full_talib_ta_payload_v1",
-                "symbol": SYMBOL,
-                "timeframe": timeframe,
-                "generated_utc": now_s,
-                "source_ohlcv_key": (f"v2:market:ohlcv_closed:binance:{SYMBOL}:{timeframe}"),
-                "last_candle_ts_ms": int(now_s * 1000),
-                "indicator_count": 1,
-                "indicators": {"rsi_14": 50.0},
-            }
+            _valid_ta_payload(now_s=now_s, timeframe=timeframe)
         )
     client = _DecodedRedis(values)
 
@@ -925,6 +1027,246 @@ def test_valid_ta_payload_remains_held_until_finalized_input_receipt_is_bound(
     assert result["ok_tfs"] == 0
     assert result["held_tfs"] == len(coverage.REQUIRED_DECISION_TIMEFRAMES)
     assert all(entry["reason"] == "consumer_held" for entry in result["tfs"].values())
+
+
+def test_ta_compatibility_view_cannot_claim_consumer_authority() -> None:
+    now_s = 1_800_000_001.0
+    payload = _valid_ta_payload(now_s=now_s)
+    census_as_of_ns = int(now_s * 1_000_000_000)
+
+    assert (
+        coverage._ta_content_rejections(
+            payload,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+        == ()
+    )
+    for field, forged_value in (
+        ("trainer_consumable", True),
+        ("publication_observed_at", _iso_ms(int(now_s * 1_000) - 1)),
+        ("exchange_action_taken", True),
+        ("places_real_order", True),
+        ("writes_legacy_redis", True),
+        ("live_gate", "enabled"),
+        ("live_symbols", [SYMBOL]),
+        ("v2_only", False),
+        ("no_zero_fill", False),
+        ("publication_authority", True),
+        ("trainer_authority", True),
+        ("prediction_authority", True),
+        ("risk_authority", True),
+        ("orchestrator_authority", True),
+        ("allocator_authority", True),
+        ("paper_authority", True),
+        ("live_authority", True),
+        ("valid_for_trainer", True),
+        ("valid_for_prediction", True),
+        ("valid_for_risk", True),
+        ("valid_for_orchestrator", True),
+        ("valid_for_allocator", True),
+        ("valid_for_paper", True),
+        ("valid_for_live", True),
+    ):
+        forged = dict(payload)
+        forged[field] = forged_value
+        assert coverage._ta_content_rejections(
+            forged,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+
+
+def test_ta_accepts_distinct_latest_row_and_source_window_clocks() -> None:
+    now_s = 1_800_000_001.0
+    census_as_of_ns = int(now_s * 1_000_000_000)
+    payload = _valid_ta_payload(now_s=now_s)
+    indicators = {f"actual_ta_probe_{index}": float(index) for index in range(219)}
+    payload["indicators"] = indicators
+    payload["indicator_count"] = len(indicators)
+    payload["field_count"] = len(indicators)
+
+    assert payload["latest_candle_ingested_at_ms"] < payload["source_ingested_at_ms"]
+    assert payload["latest_candle_available_at_ms"] < payload["source_available_at_ms"]
+    assert (
+        coverage._ta_content_rejections(
+            payload,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+        == ()
+    )
+
+
+def test_ta_latest_close_uses_one_explicit_census_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    census_as_of_s = 1_800_000_001.0
+    payload = _valid_ta_payload(now_s=census_as_of_s)
+
+    monkeypatch.setattr(
+        "v2.backend.app.cli.v2_universe_coverage_sync.time.time_ns",
+        lambda: int((census_as_of_s + 120.0) * 1_000_000_000),
+    )
+    assert (
+        coverage._ta_content_rejections(
+            payload,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=int(census_as_of_s * 1_000_000_000),
+        )
+        == ()
+    )
+    assert "TA_LATEST_FINALIZED_CANDLE_UNAVAILABLE" in coverage._ta_content_rejections(
+        payload,
+        SYMBOL,
+        TIMEFRAME,
+    )
+
+
+def test_ta_rejects_incomplete_computation_and_wrong_compatibility_identity() -> None:
+    now_s = 1_800_000_001.0
+    census_as_of_ns = int(now_s * 1_000_000_000)
+
+    for field, value in (
+        ("computation_classification", "BLOCKED_INSUFFICIENT_TA_OUTPUT"),
+        ("computation_classification", None),
+        ("source_label", "V2_FULL_TALIB_TA_EXACT_CLOSED_CANDIDATE"),
+    ):
+        payload = _valid_ta_payload(now_s=now_s)
+        if value is None:
+            payload.pop(field)
+        else:
+            payload[field] = value
+        reasons = coverage._ta_content_rejections(
+            payload,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+        assert reasons
+
+
+def test_ta_rejects_clock_order_future_clocks_and_generated_alias_mismatch() -> None:
+    now_s = 1_800_000_001.0
+    census_as_of_ns = int(now_s * 1_000_000_000)
+    payload = _valid_ta_payload(now_s=now_s)
+    close_ms = cast(int, payload["latest_closed_candle_close_ts_ms"])
+
+    payload["source_available_at"] = _iso_ms(close_ms + 150)
+    payload["source_available_at_ms"] = close_ms + 150
+    payload["latest_candle_available_at_ms"] = close_ms + 150
+    assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+        payload,
+        SYMBOL,
+        TIMEFRAME,
+        census_as_of_ns=census_as_of_ns,
+    )
+
+    payload = _valid_ta_payload(now_s=now_s)
+    future_producer_ms = int(now_s * 1_000) + 100
+    future_ingested_ms = future_producer_ms + 100
+    future_available_ms = future_ingested_ms + 100
+    for text_field, ms_field, value_ms in (
+        ("source_producer_event_time", "source_producer_event_time_ms", future_producer_ms),
+        ("source_ingested_at", "source_ingested_at_ms", future_ingested_ms),
+        ("source_available_at", "source_available_at_ms", future_available_ms),
+    ):
+        payload[text_field] = _iso_ms(value_ms)
+        payload[ms_field] = value_ms
+    payload["latest_candle_producer_event_time_ms"] = future_producer_ms
+    payload["latest_candle_ingested_at_ms"] = future_ingested_ms
+    payload["latest_candle_available_at_ms"] = future_available_ms
+    future_generated = _iso_ms(future_available_ms + 100)
+    payload["generated_at"] = future_generated
+    payload["generated_utc"] = future_generated
+    assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+        payload,
+        SYMBOL,
+        TIMEFRAME,
+        census_as_of_ns=census_as_of_ns,
+    )
+
+    payload = _valid_ta_payload(now_s=now_s)
+    payload["generated_utc"] = _iso_ms(int(now_s * 1_000) - 1)
+    assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+        payload,
+        SYMBOL,
+        TIMEFRAME,
+        census_as_of_ns=census_as_of_ns,
+    )
+
+
+def test_ta_rejects_nonexact_close_clocks_and_lineage_aliases() -> None:
+    now_s = 1_800_000_001.0
+    census_as_of_ns = int(now_s * 1_000_000_000)
+
+    for clock_field in (
+        "feature_cutoff",
+        "source_economic_event_time",
+        "source_event_time",
+    ):
+        payload = _valid_ta_payload(now_s=now_s)
+        close_ms = cast(int, payload["latest_closed_candle_close_ts_ms"])
+        payload[clock_field] = _iso_ms(close_ms + 1)
+        assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+            payload,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+
+    for alias in (
+        "source_economic_event_time_ms",
+        "source_producer_event_time_ms",
+        "source_ingested_at_ms",
+        "source_available_at_ms",
+    ):
+        missing = _valid_ta_payload(now_s=now_s)
+        missing.pop(alias)
+        assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+            missing,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+
+        conflicting = _valid_ta_payload(now_s=now_s)
+        conflicting[alias] = cast(int, conflicting[alias]) + 1
+        assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+            conflicting,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+
+    for alias in (
+        "latest_candle_producer_event_time_ms",
+        "latest_candle_ingested_at_ms",
+        "latest_candle_available_at_ms",
+    ):
+        missing = _valid_ta_payload(now_s=now_s)
+        missing.pop(alias)
+        assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+            missing,
+            SYMBOL,
+            TIMEFRAME,
+            census_as_of_ns=census_as_of_ns,
+        )
+
+    payload = _valid_ta_payload(now_s=now_s)
+    payload["latest_candle_producer_event_time_ms"] = cast(
+        int, payload["latest_candle_ingested_at_ms"]
+    ) + 1
+    assert "TA_CAUSAL_CLOCK_ORDER_INVALID" in coverage._ta_content_rejections(
+        payload,
+        SYMBOL,
+        TIMEFRAME,
+        census_as_of_ns=census_as_of_ns,
+    )
 
 
 def _heal_census(*timeframes: str) -> dict[str, Any]:
