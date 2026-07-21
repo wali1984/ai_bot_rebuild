@@ -880,6 +880,40 @@ def _per_symbol_missing_features(prediction: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _deconflict_telemetry_payload(
+    result: Any,
+    *,
+    scope: str,
+) -> dict[str, Any]:
+    """Serialize deconfliction lineage without granting routing authority."""
+
+    selected_signal = getattr(result, "selected_signal", None)
+    return {
+        "scope": scope,
+        "telemetry_only": True,
+        "controls_publication": False,
+        "selected_side": getattr(result, "selected_side", None),
+        "selected_signal_id": getattr(selected_signal, "signal_id", None),
+        "selected_source_prediction_id": getattr(
+            selected_signal,
+            "source_prediction_id",
+            None,
+        ),
+        "conflict_reason": getattr(result, "conflict_reason", None),
+        "long_aggregate_confidence": getattr(
+            result,
+            "long_aggregate_confidence",
+            0.0,
+        ),
+        "short_aggregate_confidence": getattr(
+            result,
+            "short_aggregate_confidence",
+            0.0,
+        ),
+        "considered_count": getattr(result, "considered_count", 0),
+    }
+
+
 def run_once() -> dict:
     from v2.backend.app.services.orchestrator_arbitration import (
         OrchestratorArbitrationService, Proposal, validate_signal,
@@ -1120,6 +1154,22 @@ def run_once() -> dict:
     service = OrchestratorArbitrationService(max_age_seconds=300)
     arb = service.arbitrate(proposals)
     deconflict = deconflict_signals(signals)
+    legacy_global_deconflict = _deconflict_telemetry_payload(
+        deconflict,
+        scope="GLOBAL_CROSS_SYMBOL_LEGACY_DIAGNOSTIC_ONLY",
+    )
+    signals_by_symbol: dict[str, list[Any]] = {}
+    for signal in signals:
+        symbol = str(getattr(signal, "symbol", "") or "").upper()
+        if symbol:
+            signals_by_symbol.setdefault(symbol, []).append(signal)
+    deconflict_by_symbol = {
+        symbol: _deconflict_telemetry_payload(
+            deconflict_signals(signals_by_symbol[symbol]),
+            scope="PER_SYMBOL_TELEMETRY_ONLY",
+        )
+        for symbol in sorted(signals_by_symbol)
+    }
     keys_written: list[str] = []
     canonical_record_status_counts = {
         "CREATED": 0,
@@ -1236,9 +1286,27 @@ def run_once() -> dict:
             "considered_count": arb.considered_count,
             "bucket_winners": bucket_winners,
             "stale_proposal_ids": list(arb.stale_proposal_ids),
-            "deconflict_reason": getattr(deconflict, "conflict_reason", None),
-            "deconflict_selected_side": getattr(deconflict, "selected_side", None),
-            "deconflict_selected_signal_id": getattr(deconflict, "selected_signal_id", None),
+            # Preserve the historical cross-symbol fields as labelled
+            # diagnostics only.  The per-symbol map is the accurate telemetry;
+            # neither view filters winners or grants paper/live authority.
+            "deconflict_reason": legacy_global_deconflict["conflict_reason"],
+            "deconflict_selected_side": legacy_global_deconflict["selected_side"],
+            "deconflict_selected_signal_id": legacy_global_deconflict[
+                "selected_signal_id"
+            ],
+            "deconflict_selected_source_prediction_id": (
+                legacy_global_deconflict["selected_source_prediction_id"]
+            ),
+            "deconflict_scope": "PER_SYMBOL_TELEMETRY_ONLY",
+            "deconflict_scope_applies_to": "deconflict_by_symbol",
+            "deconflict_by_symbol_scope": "PER_SYMBOL_TELEMETRY_ONLY",
+            "deconflict_controls_publication": False,
+            "deconflict_by_symbol": deconflict_by_symbol,
+            "legacy_global_deconflict": legacy_global_deconflict,
+            "legacy_global_deconflict_flat_fields_preserved": True,
+            "legacy_global_deconflict_flat_fields_scope": (
+                "GLOBAL_CROSS_SYMBOL_LEGACY_DIAGNOSTIC_ONLY"
+            ),
             "held_by_paper_fill_gate": held_by_gate,
             "held_by_paper_fill_gate_count": len(held_by_gate),
             "skipped_malformed_predictions": skipped_malformed[:200],
@@ -1387,8 +1455,24 @@ def run_once() -> dict:
         "canonical_record_status_counts": canonical_record_status_counts,
         "canonical_record_blocked_winner_ids": canonical_record_blocked_winner_ids,
         "stale_proposal_count": len(arb.stale_proposal_ids),
-        "deconflict_reason": getattr(deconflict, "conflict_reason", None),
-        "deconflict_selected_side": getattr(deconflict, "selected_side", None),
+        "deconflict_reason": legacy_global_deconflict["conflict_reason"],
+        "deconflict_selected_side": legacy_global_deconflict["selected_side"],
+        "deconflict_selected_signal_id": legacy_global_deconflict[
+            "selected_signal_id"
+        ],
+        "deconflict_selected_source_prediction_id": legacy_global_deconflict[
+            "selected_source_prediction_id"
+        ],
+        "deconflict_scope": "PER_SYMBOL_TELEMETRY_ONLY",
+        "deconflict_scope_applies_to": "deconflict_by_symbol",
+        "deconflict_by_symbol_scope": "PER_SYMBOL_TELEMETRY_ONLY",
+        "deconflict_controls_publication": False,
+        "deconflict_by_symbol": deconflict_by_symbol,
+        "legacy_global_deconflict": legacy_global_deconflict,
+        "legacy_global_deconflict_flat_fields_preserved": True,
+        "legacy_global_deconflict_flat_fields_scope": (
+            "GLOBAL_CROSS_SYMBOL_LEGACY_DIAGNOSTIC_ONLY"
+        ),
         "v2_orchestrator_keys_written": keys_written,
         "v2_orchestrator_keys_written_count": len(keys_written),
         "classification": classification,
