@@ -326,6 +326,17 @@ class ProviderFeatureBridge:
         if not actual:
             excluded.append(f"{provider}:heartbeat_only_or_empty_payload")
         excluded.extend(temporal.reasons)
+        if provider == "moralis":
+            # Moralis producer fields and causal-looking Redis bytes are not
+            # consumer authority.  This compatibility bridge has no resolver
+            # for the content-addressed raw artifact, aggregate CAS bytes, or
+            # a durable post-commit read receipt bound to each admitted slot.
+            # Keep Moralis optional and visible in diagnostics, but never
+            # translate self-declared ``*_bound`` booleans into features.
+            excluded.append(
+                "moralis:consumer_receipt_contract:"
+                "exact_retained_artifact_resolver_unwired"
+            )
         stale_reasons = [
             f"{provider}:stale_payload_flag:{field}"
             for field in ("stale", "is_stale")
