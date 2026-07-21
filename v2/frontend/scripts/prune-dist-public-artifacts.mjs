@@ -14,6 +14,11 @@ const KEEP_TOP_LEVEL = new Set([
   'index.html',
   'manifest.webmanifest',
   'service-worker.js',
+  // Curated payload copy made by vite.config.ts copyCuratedPublicAssets —
+  // pruning it here silently undid that fix on every build. It is only a
+  // build-time fallback: the preview server's serve-public-evidence-payloads
+  // middleware serves the fresh copy from public/ at request time.
+  'v2_report_center',
 ]);
 
 function shouldPruneTopLevel(entry) {
