@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import shutil
 import struct
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -128,6 +129,7 @@ def _cost_evidence(
     auxiliary_values: list[float],
     *,
     cost_store: ImmutableSourcePayloadStore,
+    feature_snapshot_identity: str,
     symbol: str = "BTCUSDT",
     decision: datetime = DECISION,
     feature_cutoff: datetime = CUTOFF,
@@ -137,12 +139,72 @@ def _cost_evidence(
     capture_available: datetime = COST_CAPTURE_AVAILABLE,
     auxiliary_available: datetime = AUXILIARY_AVAILABLE,
     auxiliary_locator_type: str = "FILE_CONTENT_ADDRESS",
+    holding_horizon_seconds: int = 900,
+    direct_receipt_mutator: Any | None = None,
+    corrupt_direct_receipt_self_hash_role: str | None = None,
+    compact_orderbook_payload_clocks: bool = False,
+    orderbook_payload_event_offset: timedelta | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], list[str], dict[str, Any]]:
+    orderbook_mid = 100.0
+    orderbook_best_bid = 99.9875
+    orderbook_best_ask = 100.0125
+    orderbook_clocks = {
+        "event_time": _utc(feature_cutoff),
+        "received_at": _utc(source_available),
+        "available_at": _utc(source_available),
+        "generated_at": _utc(source_available),
+    }
+    orderbook_payload_clocks = dict(orderbook_clocks)
+    if orderbook_payload_event_offset is not None:
+        orderbook_payload_clocks["event_time"] = _utc(
+            feature_cutoff + orderbook_payload_event_offset
+        )
+    if compact_orderbook_payload_clocks:
+        orderbook_payload_clocks = {
+            name: value[:-1].rstrip("0").rstrip(".") + "Z"
+            for name, value in orderbook_payload_clocks.items()
+        }
+    orderbook_depth_payload = json.dumps(
+        {
+            "ask_levels": 1,
+            "asks": [{"price": orderbook_best_ask, "quantity": 100.0}],
+            "best_ask": orderbook_best_ask,
+            "best_bid": orderbook_best_bid,
+            "bid_ask_mid": orderbook_mid,
+            "bid_levels": 1,
+            "bids": [{"price": orderbook_best_bid, "quantity": 100.0}],
+            "exchange": "binance",
+            "event_time": orderbook_payload_clocks["event_time"],
+            "generated_at": orderbook_payload_clocks["generated_at"],
+            "mid": orderbook_mid,
+            "received_at": orderbook_payload_clocks["received_at"],
+            "schema_version": "direct_orderbook_depth_v1",
+            "sequence_gap": False,
+            "sequence_gap_flag": 0,
+            "sequence_id": 123456,
+            "source": "direct_binance",
+            "spread_bps": 2.5,
+            "symbol": symbol,
+            "available_at": orderbook_payload_clocks["available_at"],
+        },
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    source_payloads = {
+        role: (
+            orderbook_depth_payload
+            if role == "orderbook_depth"
+            else f"source:{role}".encode()
+        )
+        for role in loader_v1.PROFILED_TRAINING_COST_CAPTURE_RECEIPT_CHILD_ROLES
+    }
     source_receipts: dict[str, dict[str, Any]] = {}
     for role in loader_v1.PROFILED_TRAINING_COST_CAPTURE_RECEIPT_CHILD_ROLES:
         source_receipts[role] = _receipt(
             label=f"causal_cost:{role}",
-            payload=f"source:{role}".encode(),
+            payload=source_payloads[role],
             available=source_available,
             observed=source_observed,
             event=feature_cutoff,
@@ -171,13 +233,92 @@ def _cost_evidence(
             "relative_path": address.relative_path,
         }
 
-    market_sources = {
-        role: {
+    market_sources: dict[str, dict[str, Any]] = {}
+    for role in ("mark_price", "orderbook_depth", "orderbook_features"):
+        receipt = source_receipts[role]
+        source_key = f"unit-test:{role}:{symbol}"
+        market_sources[role] = {
+            "source_key": source_key,
+            "source_key_sha256": hashlib.sha256(source_key.encode("ascii")).hexdigest(),
+            "payload_sha256": receipt["payload_sha256"],
+            "payload_byte_count": receipt["read_evidence"]["payload_byte_count"],
             "payload_cas_address": receipt_payload_address(role),
-            "direct_read_receipt_cas_address": address_mapping(f"original-receipt:{role}".encode()),
+            "source_schema_version": (
+                "direct_orderbook_depth_v1"
+                if role == "orderbook_depth"
+                else f"unit_{role}_v1"
+            ),
+            "source_transport": "UNIT_TEST_CONTENT_ADDRESS",
+            "atomic_batch_id": f"unit-atomic-batch:{symbol}",
+            "atomic_batch_material_sha256": hashlib.sha256(
+                f"unit-atomic-batch:{symbol}".encode("ascii")
+            ).hexdigest(),
+            "source_sequence_id": 123456,
+            "source_sequence_gap": False,
+            "atomic_server_observed_at": _utc(source_observed),
+            "redis_pttl_ms": 60_000,
+            "redis_pttl_expiry_projection_at": _utc(
+                source_observed + timedelta(seconds=60)
+            ),
+            "expiry_evidence_kind": "REDIS_PTTL_AT_ATOMIC_READ",
+            "clocks": dict(orderbook_clocks),
         }
-        for role in ("mark_price", "orderbook_depth", "orderbook_features")
-    }
+        direct_material = {
+            "schema_version": loader_v1.CAUSAL_COST_SOURCE_RECEIPT_V1_SCHEMA_VERSION,
+            "receipt_kind": "DIRECT_READ",
+            "source_role": role,
+            "source_key": market_sources[role]["source_key"],
+            "source_key_sha256": market_sources[role]["source_key_sha256"],
+            "source_schema_version": market_sources[role]["source_schema_version"],
+            "source_transport": market_sources[role]["source_transport"],
+            "symbol": symbol,
+            "feature_snapshot_identity": feature_snapshot_identity,
+            "payload_sha256": market_sources[role]["payload_sha256"],
+            "payload_byte_count": market_sources[role]["payload_byte_count"],
+            "payload_cas_address": market_sources[role]["payload_cas_address"],
+            "atomic_batch_id": market_sources[role]["atomic_batch_id"],
+            "atomic_batch_material_sha256": market_sources[role][
+                "atomic_batch_material_sha256"
+            ],
+            "atomic_server_observed_at": market_sources[role][
+                "atomic_server_observed_at"
+            ],
+            "redis_pttl_ms": market_sources[role]["redis_pttl_ms"],
+            "redis_pttl_expiry_projection_at": market_sources[role][
+                "redis_pttl_expiry_projection_at"
+            ],
+            "expiry_evidence_kind": market_sources[role]["expiry_evidence_kind"],
+            "consumer_static_age_threshold_applied": False,
+            "source_sequence_id": market_sources[role]["source_sequence_id"],
+            "source_sequence_gap": False,
+            **orderbook_clocks,
+            "decision_time": _utc(decision),
+            "available_at_not_after_decision": True,
+            "producer_schema_semantics_rederived": True,
+            "upstream_transport_cryptographic_authenticity_attested": False,
+            "authorization": dict(loader_v1._MARKET_DIRECT_READ_AUTHORIZATION),
+        }
+        if direct_receipt_mutator is not None:
+            direct_receipt_mutator(role, direct_material)
+        direct_receipt = {
+            **direct_material,
+            "receipt_sha256": stable_sha256(direct_material),
+        }
+        if role == corrupt_direct_receipt_self_hash_role:
+            direct_receipt["receipt_sha256"] = "f" * 64
+        direct_receipt_bytes = json.dumps(
+            direct_receipt,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+        market_sources[role]["direct_read_receipt_sha256"] = direct_receipt[
+            "receipt_sha256"
+        ]
+        market_sources[role]["direct_read_receipt_cas_address"] = address_mapping(
+            direct_receipt_bytes
+        )
     fee_source = {
         "artifact_cas_address": receipt_payload_address("authoritative_fee_schedule"),
         "input_receipt_cas_address": address_mapping(b"original-fee-receipt"),
@@ -189,9 +330,21 @@ def _cost_evidence(
     }
     artifact = json.dumps(
         {
+            "counterfactual_holding_horizon_seconds": holding_horizon_seconds,
+            "counterfactual_horizon_end": _utc(
+                decision + timedelta(seconds=holding_horizon_seconds)
+            ),
+            "decision_time": _utc(decision),
             "fee_source": fee_source,
+            "implementation_id": loader_v1.CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_ID,
+            "implementation_sha256": (
+                loader_v1.CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_SHA256
+            ),
             "market_sources": market_sources,
             "notional_source": notional_source,
+            "schema_version": loader_v1.CAUSAL_COST_EVIDENCE_V1_SCHEMA_VERSION,
+            "symbol": symbol,
+            "feature_snapshot_identity": feature_snapshot_identity,
         },
         allow_nan=False,
         ensure_ascii=True,
@@ -256,7 +409,7 @@ def _cost_evidence(
         "parent_model_feature_cutoff": _utc(parent_model_cutoff or feature_cutoff),
         "ppo_feature_cutoff_semantics": loader_v1.PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS,
         "available_at": _utc(auxiliary_available),
-        "expected_holding_horizon_seconds": 900,
+        "expected_holding_horizon_seconds": holding_horizon_seconds,
         "cost_capture_artifact_sha256": hashlib.sha256(artifact).hexdigest(),
         "cost_capture_artifact_byte_count": len(artifact),
         "cost_capture_receipt_sha256": cost_receipt["receipt_sha256"],
@@ -341,6 +494,11 @@ def _child_record(
     cost_binding_mutator: Any | None = None,
     attestation_mutator: Any | None = None,
     auxiliary_locator_type: str = "FILE_CONTENT_ADDRESS",
+    holding_horizon_seconds: int = 900,
+    direct_receipt_mutator: Any | None = None,
+    corrupt_direct_receipt_self_hash_role: str | None = None,
+    compact_orderbook_payload_clocks: bool = False,
+    orderbook_payload_event_offset: timedelta | None = None,
 ) -> dict[str, Any]:
     parent_envelope = parent["frozen_envelope"]
     parent_decision = _parse(parent_envelope["tensor_decision_time"])
@@ -358,6 +516,7 @@ def _child_record(
     cost_receipts, cost_labels, cost_roots, cost_binding = _cost_evidence(
         auxiliary_values,
         cost_store=cost_store,
+        feature_snapshot_identity=parent["durable_snapshot_id"],
         symbol=parent_envelope["symbol"],
         decision=parent_decision,
         feature_cutoff=parent_cutoff,
@@ -367,6 +526,13 @@ def _child_record(
         capture_available=capture_available,
         auxiliary_available=auxiliary_available,
         auxiliary_locator_type=auxiliary_locator_type,
+        holding_horizon_seconds=holding_horizon_seconds,
+        direct_receipt_mutator=direct_receipt_mutator,
+        corrupt_direct_receipt_self_hash_role=(
+            corrupt_direct_receipt_self_hash_role
+        ),
+        compact_orderbook_payload_clocks=compact_orderbook_payload_clocks,
+        orderbook_payload_event_offset=orderbook_payload_event_offset,
     )
     parent_claim = _parent_binding(parent)
     if parent_claim_mutator is not None:
@@ -582,6 +748,49 @@ def test_loads_only_atomic_authenticated_39_and_reconstructs_exact_446_1784(
     assert sample.trainer_admission_authorized is True
     assert sample.prediction_authorized is False
     assert sample.live_execution_authorized is False
+
+
+def test_accepts_producer_clock_precision_after_authenticated_normalization(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        compact_orderbook_payload_clocks=True,
+    )
+
+    batch = loader_v1.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+        training_observed_at=_observation(),
+    )
+
+    assert [sample.durable_snapshot_id for sample in batch.samples] == [
+        child["durable_snapshot_id"]
+    ]
+
+
+def test_rejects_orderbook_payload_clock_instant_substitution(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        compact_orderbook_payload_clocks=True,
+        orderbook_payload_event_offset=timedelta(microseconds=1),
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_COST_ORDERBOOK_CLOCK_BINDING_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
 
 
 def test_nonadjacent_parent_child_in_same_transaction_fails_closed(
@@ -950,6 +1159,116 @@ def test_orderbook_features_cost_root_substitution_fails_closed(
             ledger=ledger,
             trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
+        )
+
+
+def test_pinned_cost_implementation_rejects_unversioned_horizon_change(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        holding_horizon_seconds=(
+            loader_v1.CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS + 1
+        ),
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_COST_BINDING_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_market_direct_receipt_payload_substitution_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    def substitute_depth_payload(role: str, direct: dict[str, Any]) -> None:
+        if role == "orderbook_depth":
+            direct["payload_sha256"] = "0" * 64
+
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        direct_receipt_mutator=substitute_depth_payload,
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_COST_DIRECT_RECEIPT_BINDING_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_market_direct_receipt_self_hash_substitution_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        corrupt_direct_receipt_self_hash_role="orderbook_depth",
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_COST_DIRECT_RECEIPT_BINDING_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_direct_reopen_rejects_ledger_rollback_below_signed_frontier(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger, _parent, child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+    )
+    rolled_path = tmp_path / "rolled-feature-ledger.sqlite3"
+    shutil.copy2(ledger.path, rolled_path)
+    rolled_ledger = DurableFeatureSnapshotLedger(rolled_path)
+    suffix = _generic_same_width_record(suffix="signed-frontier-suffix")
+    result = _append_after_latest_decision(ledger, [suffix])
+    assert result.inserted_rows == 1
+    observation = _observation()
+    batch = loader_v1.load_profiled_training_ledger_v1(
+        ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+        training_observed_at=observation,
+    )
+    sample = next(
+        item
+        for item in batch.samples
+        if item.durable_snapshot_id == child["durable_snapshot_id"]
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_DIRECT_REOPEN_LEDGER_READ_FAILED",
+    ):
+        loader_v1.reopen_profiled_training_ledger_sample_v1(
+            ledger=rolled_ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            fixed_observation_high_water=batch.high_water,
+            training_observed_at=observation,
+            durable_snapshot_id=sample.durable_snapshot_id,
+            expected_sequence=sample.sequence,
+            expected_record_sha256=sample.record_sha256,
         )
 
 

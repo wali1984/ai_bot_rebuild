@@ -5706,6 +5706,135 @@ class DurableFeatureSnapshotLedger:
                 connection.rollback()
             connection.close()
 
+    def iter_fixed_cutoff_pages(
+        self,
+        *,
+        decision_time_cutoff: str,
+        training_observed_at: str,
+        maximum_sequence: int,
+        page_size: int,
+        after_sequence: int = 0,
+    ) -> Iterator[tuple[FixedCutoffFeatureSnapshot, ...]]:
+        """Stream attested keyset pages from one immutable read transaction.
+
+        Ledger-wide snapshot attestation is performed exactly once.  Each
+        yielded page receives a fresh bounded proof cache/read budget, so the
+        caller never accumulates the full record inventory and repeated pages
+        do not repeat ledger-wide aggregate scans.  ``maximum_sequence`` is an
+        independently authenticated frontier supplied by the caller.
+        """
+
+        bounded_page_size = self._validated_limit(
+            page_size,
+            maximum=MAX_QUERY_ROWS,
+            reason="feature_snapshot_stream_page_size_invalid",
+        )
+        bounded_after_sequence = self._validated_after_sequence(
+            after_sequence,
+            reason="feature_snapshot_stream_after_sequence_invalid",
+        )
+        bounded_maximum_sequence = self._validated_after_sequence(
+            maximum_sequence,
+            reason="feature_snapshot_stream_maximum_sequence_invalid",
+        )
+        if bounded_after_sequence > bounded_maximum_sequence:
+            raise FeatureSnapshotLedgerError(
+                "feature_snapshot_stream_after_sequence_beyond_maximum"
+            )
+        decision_cutoff_us = _epoch_us(decision_time_cutoff)
+        observed_us = _epoch_us(training_observed_at)
+        if decision_cutoff_us is None:
+            raise FeatureSnapshotLedgerError("decision_time_cutoff_invalid")
+        if observed_us is None:
+            raise FeatureSnapshotLedgerError("training_observed_at_invalid")
+        if decision_cutoff_us > observed_us:
+            raise FeatureSnapshotLedgerError(
+                "decision_time_cutoff_after_training_observed_at"
+            )
+        connection = self._connect_readonly()
+        try:
+            self._begin_query_snapshot(connection)
+            self._validate_schema(connection)
+            self._attest_query_snapshot(
+                connection,
+                cache=_QueryProofCache.empty(),
+                budget=_QueryReadBudget(),
+            )
+            page_after_sequence = bounded_after_sequence
+            while True:
+                page_cache = _QueryProofCache.empty()
+                page_budget = _QueryReadBudget()
+                row_cursor = connection.execute(
+                    """
+                    SELECT record.sequence
+                    FROM feature_snapshot_records AS record
+                    JOIN feature_snapshot_postcommit_receipts AS post
+                      ON post.transaction_id = record.append_transaction_id
+                    WHERE record.strict_training_eligible = 1
+                      AND record.sequence > ?
+                      AND record.sequence <= ?
+                      AND record.ppo_decision_time_us <= ?
+                      AND post.postcommit_readback_at_us <= ?
+                    ORDER BY record.sequence
+                    LIMIT ?
+                    """,
+                    (
+                        page_after_sequence,
+                        bounded_maximum_sequence,
+                        decision_cutoff_us,
+                        observed_us,
+                        bounded_page_size,
+                    ),
+                )
+                page: list[FixedCutoffFeatureSnapshot] = []
+                for sequence_row in row_cursor:
+                    if type(sequence_row["sequence"]) is not int:
+                        raise FeatureSnapshotReadbackError(
+                            "feature_snapshot_stream_sequence_invalid"
+                        )
+                    material = self._load_query_record(
+                        connection,
+                        sequence=int(sequence_row["sequence"]),
+                        cache=page_cache,
+                        budget=page_budget,
+                    )
+                    validated, receipt, post, _projection = (
+                        self._validate_query_evidence(
+                            connection,
+                            material,
+                            training_observed_at_us=observed_us,
+                            cache=page_cache,
+                            budget=page_budget,
+                        )
+                    )
+                    envelope = validated["record"]["frozen_envelope"]
+                    if envelope["provenance_classification"] != PROVENANCE_CANONICAL_V3:
+                        raise FeatureSnapshotReadbackError(
+                            "legacy_feature_snapshot_entered_strict_stream"
+                        )
+                    row = material.row
+                    page.append(
+                        FixedCutoffFeatureSnapshot(
+                            sequence=int(row["sequence"]),
+                            record=dict(validated["record"]),
+                            append_transaction_id=str(row["append_transaction_id"]),
+                            append_receipt_sha256=str(receipt["receipt_sha256"]),
+                            postcommit_receipt_sha256=str(
+                                post["readback_receipt_sha256"]
+                            ),
+                            postcommit_readback_at=str(post["postcommit_readback_at"]),
+                        )
+                    )
+                if not page:
+                    break
+                page_after_sequence = page[-1].sequence
+                yield tuple(page)
+            connection.rollback()
+        finally:
+            if connection.in_transaction:
+                connection.rollback()
+            connection.close()
+
     def get_snapshot(self, durable_snapshot_id: str) -> FixedCutoffFeatureSnapshot | None:
         if (
             type(durable_snapshot_id) is not str
@@ -5755,6 +5884,191 @@ class DurableFeatureSnapshotLedger:
                 connection,
                 material,
                 training_observed_at_us=postcommit_us,
+                cache=cache,
+                budget=budget,
+            )
+            row = material.row
+            connection.rollback()
+            return FixedCutoffFeatureSnapshot(
+                sequence=int(row["sequence"]),
+                record=dict(validated["record"]),
+                append_transaction_id=str(row["append_transaction_id"]),
+                append_receipt_sha256=str(receipt["receipt_sha256"]),
+                postcommit_receipt_sha256=str(post["readback_receipt_sha256"]),
+                postcommit_readback_at=str(post["postcommit_readback_at"]),
+            )
+        finally:
+            if connection.in_transaction:
+                connection.rollback()
+            connection.close()
+
+    def get_snapshot_bounded(
+        self,
+        *,
+        durable_snapshot_id: str,
+        expected_sequence: int | None,
+        expected_record_sha256: str | None,
+        training_observed_at: str,
+        maximum_sequence: int,
+        expected_frontier_head_sequence: int,
+        expected_frontier_record_count: int,
+        expected_frontier_archive_chain_sha256: str,
+    ) -> FixedCutoffFeatureSnapshot | None:
+        """Directly reopen one receipt-bound row without a ledger-wide scan.
+
+        This method is for callers that already authenticated an immutable
+        ledger frontier.  It verifies the exact row, predecessor chain edge,
+        append transaction, postcommit receipt, and projection in one bounded
+        direct-read transaction.  The supplied identities are constraints,
+        never authority by themselves.
+        """
+
+        if (
+            type(durable_snapshot_id) is not str
+            or _DURABLE_ID_RE.fullmatch(durable_snapshot_id) is None
+            or (
+                expected_record_sha256 is not None
+                and _valid_sha256(expected_record_sha256) is None
+            )
+        ):
+            raise FeatureSnapshotLedgerError("bounded_snapshot_identity_invalid")
+        bounded_sequence = (
+            self._validated_after_sequence(
+                expected_sequence,
+                reason="bounded_snapshot_sequence_invalid",
+            )
+            if expected_sequence is not None
+            else None
+        )
+        bounded_maximum = self._validated_after_sequence(
+            maximum_sequence,
+            reason="bounded_snapshot_maximum_sequence_invalid",
+        )
+        bounded_frontier_head = self._validated_after_sequence(
+            expected_frontier_head_sequence,
+            reason="bounded_snapshot_frontier_head_sequence_invalid",
+        )
+        bounded_frontier_records = self._validated_after_sequence(
+            expected_frontier_record_count,
+            reason="bounded_snapshot_frontier_record_count_invalid",
+        )
+        observed_us = _epoch_us(training_observed_at)
+        if (
+            (bounded_sequence is not None and bounded_sequence <= 0)
+            or (
+                bounded_sequence is not None
+                and bounded_sequence > bounded_maximum
+            )
+            or observed_us is None
+            or bounded_frontier_records != bounded_maximum
+            or _valid_sha256(expected_frontier_archive_chain_sha256) is None
+            or (
+                bounded_frontier_head == 0
+                and (
+                    bounded_frontier_records != 0
+                    or expected_frontier_archive_chain_sha256
+                    != _GENESIS_CHAIN_SHA256
+                )
+            )
+            or (bounded_frontier_head > 0 and bounded_frontier_records <= 0)
+        ):
+            raise FeatureSnapshotLedgerError("bounded_snapshot_frontier_invalid")
+        connection = self._connect_readonly()
+        cache = _QueryProofCache.empty()
+        budget = _QueryReadBudget()
+        try:
+            self._begin_query_snapshot(connection)
+            self._validate_schema(connection)
+            if bounded_frontier_head > 0:
+                frontier_head = self._load_query_head_by_sequence(
+                    connection,
+                    head_sequence=bounded_frontier_head,
+                    cache=cache,
+                    budget=budget,
+                )
+                frontier_proof = self._load_query_transaction_proof(
+                    connection,
+                    transaction_id=str(frontier_head["transaction_id"]),
+                    cache=cache,
+                    budget=budget,
+                )
+                frontier_tail = self._load_query_record(
+                    connection,
+                    sequence=bounded_frontier_records,
+                    cache=cache,
+                    budget=budget,
+                )
+                self._validate_query_record_chain(connection, frontier_tail)
+                frontier_postcommit_us = _epoch_us(
+                    frontier_proof.postcommit["postcommit_readback_at"]
+                )
+                if (
+                    frontier_head["total_unique_rows"]
+                    != bounded_frontier_records
+                    or frontier_head["archive_chain_sha256"]
+                    != expected_frontier_archive_chain_sha256
+                    or frontier_proof.receipt["total_unique_rows"]
+                    != bounded_frontier_records
+                    or frontier_proof.receipt["archive_chain_sha256"]
+                    != expected_frontier_archive_chain_sha256
+                    or frontier_tail.row["record_chain_sha256"]
+                    != expected_frontier_archive_chain_sha256
+                    or frontier_postcommit_us is None
+                    or frontier_postcommit_us > observed_us
+                ):
+                    raise FeatureSnapshotReadbackError(
+                        "bounded_snapshot_authenticated_frontier_mismatch"
+                    )
+            sequence_row = connection.execute(
+                """
+                SELECT sequence, record_sha256
+                FROM feature_snapshot_records
+                WHERE durable_snapshot_id = ?
+                """,
+                (durable_snapshot_id,),
+            ).fetchone()
+            if sequence_row is None:
+                connection.rollback()
+                return None
+            actual_sequence = sequence_row["sequence"]
+            if (
+                type(actual_sequence) is not int
+                or actual_sequence <= 0
+                or actual_sequence > bounded_maximum
+                or (
+                    bounded_sequence is not None
+                    and actual_sequence != bounded_sequence
+                )
+                or (
+                    expected_record_sha256 is not None
+                    and sequence_row["record_sha256"]
+                    != expected_record_sha256
+                )
+            ):
+                raise FeatureSnapshotReadbackError(
+                    "bounded_snapshot_identity_mismatch"
+                )
+            material = self._load_query_record(
+                connection,
+                sequence=actual_sequence,
+                cache=cache,
+                budget=budget,
+            )
+            if (
+                material.row["durable_snapshot_id"] != durable_snapshot_id
+                or (
+                    expected_record_sha256 is not None
+                    and material.row["record_sha256"]
+                    != expected_record_sha256
+                )
+            ):
+                raise FeatureSnapshotReadbackError(
+                    "bounded_snapshot_record_mismatch"
+                )
+            validated, receipt, post, _projection = self._validate_query_evidence(
+                connection,
+                material,
+                training_observed_at_us=observed_us,
                 cache=cache,
                 budget=budget,
             )

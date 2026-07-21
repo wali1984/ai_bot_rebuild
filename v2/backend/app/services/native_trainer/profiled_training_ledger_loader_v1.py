@@ -28,7 +28,7 @@ import json
 import math
 import re
 import struct
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -50,6 +50,7 @@ from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
     CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_SHA256,
     CAUSAL_COST_EVIDENCE_V1_SCHEMA_VERSION,
     CAUSAL_COST_ORDERED_FEATURE_NAMES,
+    CAUSAL_COST_SOURCE_RECEIPT_V1_SCHEMA_VERSION,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     MAX_QUERY_ROWS,
@@ -69,6 +70,7 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_sample_
     FEATURE_HIGH_WATER_SCHEMA_VERSION,
     TrainingSampleIdentityError,
     feature_ledger_fixed_observation_high_water,
+    stable_json_sha256,
 )
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
@@ -102,6 +104,9 @@ from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
 )
 
 PROFILED_TRAINING_LEDGER_LOADER_V1_SCHEMA_VERSION: Final = "profiled_training_ledger_loader_v1"
+PROFILED_TRAINING_FIXED_OBSERVATION_V1_SCHEMA_VERSION: Final = (
+    "profiled_training_ledger_fixed_observation_v1"
+)
 PROFILED_TRAINING_PAGE_CURSOR_V1_SCHEMA_VERSION: Final = "profiled_training_ledger_page_cursor_v1"
 PROFILED_TRAINING_PAGE_INTEGRITY_SEMANTICS: Final = (
     "FULL_LEDGER_STREAMING_AND_FIXED_OBSERVATION_HIGH_WATER_BEFORE_AND_AFTER_EVERY_PAGE"
@@ -191,11 +196,14 @@ PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256: Final = stable_sha256(
 )
 
 MAX_PROFILED_TRAINING_SCAN_ROWS: Final = 250_000
+# Factory memory bound only; never a sample-selection or market threshold.
+MAX_PROFILED_TRAINING_STREAM_PAGE_ROWS: Final = 32
 _MODEL_VECTOR_HASH_DOMAIN = b"canonical_feature_model_vector_v3\0"
 _AUXILIARY_VECTOR_HASH_DOMAIN = b"profiled_training_auxiliary_float32_v1\0"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 _RESULT_TOKEN = object()
 _BATCH_TOKEN = object()
+_FIXED_OBSERVATION_TOKEN = object()
 _LEDGER_RESERVED_LINEAGE_FIELDS = frozenset(
     {
         "feature_abi_sha256",
@@ -371,6 +379,47 @@ _SOURCE_TIMEFRAME_BINDING_FIELDS = frozenset(
     }
 )
 _IMMUTABLE_COST_LOCATORS = frozenset({"FILE_CONTENT_ADDRESS", "SQLITE_IMMUTABLE_ROW"})
+_MARKET_DIRECT_READ_RECEIPT_FIELDS = frozenset(
+    {
+        "schema_version",
+        "receipt_kind",
+        "source_role",
+        "source_key",
+        "source_key_sha256",
+        "source_schema_version",
+        "source_transport",
+        "symbol",
+        "feature_snapshot_identity",
+        "payload_sha256",
+        "payload_byte_count",
+        "payload_cas_address",
+        "atomic_batch_id",
+        "atomic_batch_material_sha256",
+        "atomic_server_observed_at",
+        "redis_pttl_ms",
+        "redis_pttl_expiry_projection_at",
+        "expiry_evidence_kind",
+        "consumer_static_age_threshold_applied",
+        "source_sequence_id",
+        "source_sequence_gap",
+        "event_time",
+        "received_at",
+        "available_at",
+        "generated_at",
+        "decision_time",
+        "available_at_not_after_decision",
+        "producer_schema_semantics_rederived",
+        "upstream_transport_cryptographic_authenticity_attested",
+        "authorization",
+        "receipt_sha256",
+    }
+)
+_MARKET_DIRECT_READ_AUTHORIZATION = {
+    "profiled_39_record_built": False,
+    "trainer_admission_authorized": False,
+    "paper_execution_authorized": False,
+    "live_execution_authorized": False,
+}
 
 
 class ProfiledTrainingLedgerLoaderV1Error(RuntimeError):
@@ -418,6 +467,35 @@ def _clock(value: object, *, reason: str) -> datetime:
 
 def _canonical_clock(value: datetime) -> str:
     return value.astimezone(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _producer_payload_clock(value: object, *, reason: str) -> datetime:
+    """Parse the direct-market producer's UTC wire clock before normalization.
+
+    Direct market payloads permit a ``Z`` timestamp with fewer than six
+    fractional digits.  The causal-cost producer normalizes that same instant
+    to microseconds in its authenticated source and direct-read receipts.  The
+    loader must bind the instant, not require the payload's lexical precision
+    to equal the normalized receipt spelling.
+    """
+
+    if (
+        type(value) is not str
+        or not value.endswith("Z")
+        or not value
+        or value != value.strip()
+    ):
+        _fail(reason)
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except (OverflowError, ValueError):
+        _fail(reason)
+    if parsed.tzinfo is None or parsed.utcoffset() != timedelta(0):
+        _fail(reason)
+    normalized = parsed.astimezone(UTC)
+    if normalized <= datetime(1970, 1, 1, tzinfo=UTC):
+        _fail(reason)
+    return normalized
 
 
 def _canonical_json(value: object) -> str:
@@ -1051,8 +1129,11 @@ def _reopen_cost_cas(
     *,
     binding: Mapping[str, Any],
     receipts: Sequence[Mapping[str, Any]],
+    auxiliary_values: Sequence[float],
+    decision_time: datetime,
+    parent_durable_snapshot_id: str,
     trusted_immutable_cost_store_root: Path,
-) -> None:
+) -> dict[str, Any]:
     root_value = binding.get("immutable_cost_store_root")
     trusted_root_text = str(trusted_immutable_cost_store_root)
     if (
@@ -1151,6 +1232,33 @@ def _reopen_cost_cas(
         _fail("PROFILED_TRAINING_COST_ARTIFACT_CAS_JSON_INVALID")
     if _canonical_json(artifact).encode("ascii", errors="strict") != artifact_bytes:
         _fail("PROFILED_TRAINING_COST_ARTIFACT_CAS_JSON_NOT_CANONICAL")
+    horizon_seconds = binding.get("expected_holding_horizon_seconds")
+    if (
+        artifact.get("schema_version") != CAUSAL_COST_EVIDENCE_V1_SCHEMA_VERSION
+        or artifact.get("implementation_id")
+        != CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_ID
+        or artifact.get("implementation_sha256")
+        != CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_SHA256
+        or artifact.get("symbol") != binding.get("symbol")
+        or artifact.get("feature_snapshot_identity")
+        != parent_durable_snapshot_id
+        or artifact.get("decision_time") != binding.get("decision_time")
+        or type(horizon_seconds) is not int
+        or horizon_seconds != CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS
+        or artifact.get("counterfactual_holding_horizon_seconds")
+        != horizon_seconds
+    ):
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_IDENTITY_INVALID")
+    try:
+        expected_horizon_end = decision_time + timedelta(
+            seconds=cast(int, horizon_seconds)
+        )
+    except (OverflowError, TypeError, ValueError):
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_HORIZON_INVALID")
+    if artifact.get("counterfactual_horizon_end") != _canonical_clock(
+        expected_horizon_end
+    ):
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_HORIZON_END_MISMATCH")
 
     expected_inventory = dict(receipt_objects)
     expected_inventory[cast(str, artifact_sha)] = cast(
@@ -1206,16 +1314,329 @@ def _reopen_cost_cas(
     if inventory != expected_inventory:
         _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_EXACT")
 
+    direct_market_receipts: dict[str, dict[str, Any]] = {}
+    for role in ("mark_price", "orderbook_depth", "orderbook_features"):
+        source = cast(dict[str, Any], market_sources[role])
+        direct_address = source.get("direct_read_receipt_cas_address")
+        if type(direct_address) is not dict:
+            _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPT_ADDRESS_INVALID")
+        direct_payload = objects.get(
+            cast(str, direct_address.get("payload_sha256"))
+        )
+        if (
+            direct_payload is None
+            or direct_address.get("payload_byte_count") != len(direct_payload)
+        ):
+            _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPT_CAS_BINDING_INVALID")
+        try:
+            direct_value = json.loads(direct_payload.decode("ascii", errors="strict"))
+        except (json.JSONDecodeError, RecursionError, UnicodeError, ValueError) as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_COST_DIRECT_RECEIPT_JSON_INVALID"
+            ) from exc
+        direct = _exact_dict(
+            direct_value,
+            _MARKET_DIRECT_READ_RECEIPT_FIELDS,
+            reason="PROFILED_TRAINING_COST_DIRECT_RECEIPT_FIELDS_INVALID",
+        )
+        if _canonical_json(direct).encode("ascii", errors="strict") != direct_payload:
+            _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPT_JSON_NOT_CANONICAL")
+        claimed_direct_sha256 = direct.get("receipt_sha256")
+        unsigned_direct = {
+            name: value
+            for name, value in direct.items()
+            if name != "receipt_sha256"
+        }
+        mirrored_fields = (
+            "source_key",
+            "source_key_sha256",
+            "source_schema_version",
+            "source_transport",
+            "payload_sha256",
+            "payload_byte_count",
+            "payload_cas_address",
+            "atomic_batch_id",
+            "atomic_batch_material_sha256",
+            "atomic_server_observed_at",
+            "redis_pttl_ms",
+            "redis_pttl_expiry_projection_at",
+            "expiry_evidence_kind",
+            "source_sequence_id",
+            "source_sequence_gap",
+        )
+        clocks = source.get("clocks")
+        ledger_receipt_sha256 = binding.get(f"{role}_receipt_sha256")
+        ledger_receipt = next(
+            (
+                receipt
+                for receipt in receipts
+                if receipt.get("receipt_sha256") == ledger_receipt_sha256
+            ),
+            None,
+        )
+        if (
+            direct.get("schema_version")
+            != CAUSAL_COST_SOURCE_RECEIPT_V1_SCHEMA_VERSION
+            or direct.get("receipt_kind") != "DIRECT_READ"
+            or direct.get("source_role") != role
+            or direct.get("symbol") != binding.get("symbol")
+            or direct.get("feature_snapshot_identity")
+            != parent_durable_snapshot_id
+            or direct.get("decision_time") != binding.get("decision_time")
+            or not _valid_sha256(claimed_direct_sha256)
+            or claimed_direct_sha256 != stable_sha256(unsigned_direct)
+            or source.get("direct_read_receipt_sha256")
+            != claimed_direct_sha256
+            or any(direct.get(name) != source.get(name) for name in mirrored_fields)
+            or type(clocks) is not dict
+            or type(ledger_receipt) is not dict
+            or ledger_receipt.get("payload_sha256")
+            != direct.get("payload_sha256")
+            or ledger_receipt.get("read_evidence", {}).get("payload_byte_count")
+            != direct.get("payload_byte_count")
+            or ledger_receipt.get("event_time") != direct.get("event_time")
+            or ledger_receipt.get("available_at") != direct.get("available_at")
+            or ledger_receipt.get("consumer_observed_at")
+            != direct.get("atomic_server_observed_at")
+            or ledger_receipt.get("feature_cutoff") != direct.get("event_time")
+            or any(
+                direct.get(name) != clocks.get(name)
+                for name in ("event_time", "received_at", "available_at", "generated_at")
+            )
+            or direct.get("consumer_static_age_threshold_applied") is not False
+            or direct.get("available_at_not_after_decision") is not True
+            or direct.get("producer_schema_semantics_rederived") is not True
+            or direct.get("upstream_transport_cryptographic_authenticity_attested")
+            is not False
+            or direct.get("authorization") != _MARKET_DIRECT_READ_AUTHORIZATION
+        ):
+            _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPT_BINDING_INVALID")
+        direct_clocks = [
+            _clock(
+                direct.get(name),
+                reason="PROFILED_TRAINING_COST_DIRECT_RECEIPT_CLOCK_INVALID",
+            )
+            for name in ("event_time", "received_at", "available_at", "generated_at")
+        ]
+        direct_observed = _clock(
+            direct.get("atomic_server_observed_at"),
+            reason="PROFILED_TRAINING_COST_DIRECT_RECEIPT_CLOCK_INVALID",
+        )
+        if (
+            direct_clocks != sorted(direct_clocks)
+            or direct_clocks[-1] > direct_observed
+            or direct_observed > decision_time
+        ):
+            _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPT_TEMPORAL_ORDER_INVALID")
+        direct_market_receipts[role] = direct
+    if len({item["receipt_sha256"] for item in direct_market_receipts.values()}) != 3:
+        _fail("PROFILED_TRAINING_COST_DIRECT_RECEIPTS_NOT_DISTINCT")
+
+    depth_source = cast(dict[str, Any], market_sources["orderbook_depth"])
+    depth_direct_receipt = direct_market_receipts["orderbook_depth"]
+    depth_address = depth_source.get("payload_cas_address")
+    if type(depth_address) is not dict:
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_ADDRESS_INVALID")
+    depth_payload_sha256 = depth_address.get("payload_sha256")
+    depth_payload = objects.get(cast(str, depth_payload_sha256))
+    depth_receipt_sha256 = binding.get("orderbook_depth_receipt_sha256")
+    depth_receipt = next(
+        (
+            receipt
+            for receipt in receipts
+            if receipt.get("receipt_sha256") == depth_receipt_sha256
+        ),
+        None,
+    )
+    if (
+        depth_payload is None
+        or type(depth_receipt) is not dict
+        or depth_receipt.get("payload_sha256") != depth_payload_sha256
+        or depth_source.get("payload_sha256") != depth_payload_sha256
+        or depth_source.get("payload_byte_count") != len(depth_payload)
+        or depth_source.get("source_schema_version") != "direct_orderbook_depth_v1"
+        or depth_source.get("source_sequence_gap") is not False
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_PAYLOAD_BINDING_INVALID")
+    try:
+        depth = json.loads(depth_payload.decode("ascii", errors="strict"))
+    except (json.JSONDecodeError, RecursionError, UnicodeError, ValueError) as exc:
+        raise ProfiledTrainingLedgerLoaderV1Error(
+            "PROFILED_TRAINING_COST_ORDERBOOK_JSON_INVALID"
+        ) from exc
+    if (
+        type(depth) is not dict
+        or _canonical_json(depth).encode("ascii", errors="strict") != depth_payload
+        or depth.get("schema_version") != "direct_orderbook_depth_v1"
+        or depth.get("source") != "direct_binance"
+        or depth.get("exchange") != "binance"
+        or depth.get("symbol") != binding.get("symbol")
+        or depth.get("sequence_gap") is not False
+        or type(depth.get("sequence_gap_flag")) not in {int, float}
+        or float(cast(int | float, depth.get("sequence_gap_flag"))) != 0.0
+        or type(depth.get("sequence_id")) is not int
+        or depth.get("sequence_id") <= 0
+        or depth_source.get("source_sequence_id") != depth.get("sequence_id")
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_IDENTITY_INVALID")
+
+    def levels(value: object, *, side: str) -> tuple[tuple[float, float], ...]:
+        if type(value) is not list or not 1 <= len(cast(list[object], value)) <= 500:
+            _fail(f"PROFILED_TRAINING_COST_ORDERBOOK_{side.upper()}_INVALID")
+        resolved: list[tuple[float, float]] = []
+        for row in cast(list[object], value):
+            if type(row) is not dict or set(row) != {"price", "quantity"}:
+                _fail(f"PROFILED_TRAINING_COST_ORDERBOOK_{side.upper()}_INVALID")
+            price = row.get("price")
+            quantity = row.get("quantity")
+            if type(price) not in {int, float} or type(quantity) not in {int, float}:
+                _fail(f"PROFILED_TRAINING_COST_ORDERBOOK_{side.upper()}_INVALID")
+            price_value = float(cast(int | float, price))
+            quantity_value = float(cast(int | float, quantity))
+            if (
+                not math.isfinite(price_value)
+                or not math.isfinite(quantity_value)
+                or price_value <= 0.0
+                or quantity_value <= 0.0
+            ):
+                _fail(f"PROFILED_TRAINING_COST_ORDERBOOK_{side.upper()}_INVALID")
+            resolved.append((price_value, quantity_value))
+        prices = [price for price, _ in resolved]
+        if prices != sorted(prices, reverse=side == "bids") or len(set(prices)) != len(
+            prices
+        ):
+            _fail(f"PROFILED_TRAINING_COST_ORDERBOOK_{side.upper()}_ORDER_INVALID")
+        return tuple(resolved)
+
+    bids = levels(depth.get("bids"), side="bids")
+    asks = levels(depth.get("asks"), side="asks")
+    best_bid = bids[0][0]
+    best_ask = asks[0][0]
+    if (
+        best_ask <= best_bid
+        or depth.get("bid_levels") != len(bids)
+        or depth.get("ask_levels") != len(asks)
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_CROSSED_OR_LEVEL_COUNT_INVALID")
+    mid = (best_bid + best_ask) / 2.0
+    full_spread_bps = (best_ask - best_bid) / mid * 10_000.0
+
+    def numbers_equal(left: object, right: float) -> bool:
+        if type(left) not in {int, float}:
+            return False
+        value = float(cast(int | float, left))
+        return math.isfinite(value) and math.isclose(
+            value,
+            right,
+            rel_tol=1e-12,
+            abs_tol=1e-12,
+        )
+
+    if (
+        not numbers_equal(depth.get("best_bid"), best_bid)
+        or not numbers_equal(depth.get("best_ask"), best_ask)
+        or not numbers_equal(depth.get("mid"), mid)
+        or not numbers_equal(depth.get("bid_ask_mid"), mid)
+        or not numbers_equal(depth.get("spread_bps"), full_spread_bps)
+        or len(auxiliary_values) != len(AUXILIARY_LABEL_ONLY_FEATURE_NAMES)
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_DERIVATION_MISMATCH")
+    try:
+        spread_float32 = float(
+            struct.unpack(">f", struct.pack(">f", full_spread_bps))[0]
+        )
+    except (OverflowError, struct.error):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_SPREAD_FLOAT32_INVALID")
+    if spread_float32 != auxiliary_values[1]:
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_SPREAD_AUXILIARY_MISMATCH")
+
+    source_clocks = depth_source.get("clocks")
+    if type(source_clocks) is not dict:
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_CLOCK_BINDING_INVALID")
+    clock_names = ("event_time", "received_at", "available_at", "generated_at")
+    parsed_clocks = [
+        _producer_payload_clock(
+            depth.get(name),
+            reason=f"PROFILED_TRAINING_COST_ORDERBOOK_{name.upper()}_INVALID",
+        )
+        for name in clock_names
+    ]
+    if any(
+        source_clocks.get(name) != _canonical_clock(parsed)
+        for name, parsed in zip(clock_names, parsed_clocks, strict=True)
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_CLOCK_BINDING_INVALID")
+    receipt_event = _clock(
+        depth_receipt.get("event_time"),
+        reason="PROFILED_TRAINING_COST_ORDERBOOK_RECEIPT_EVENT_TIME_INVALID",
+    )
+    receipt_available = _clock(
+        depth_receipt.get("available_at"),
+        reason="PROFILED_TRAINING_COST_ORDERBOOK_RECEIPT_AVAILABLE_AT_INVALID",
+    )
+    receipt_cutoff = _clock(
+        depth_receipt.get("feature_cutoff"),
+        reason="PROFILED_TRAINING_COST_ORDERBOOK_RECEIPT_FEATURE_CUTOFF_INVALID",
+    )
+    receipt_observed = _clock(
+        depth_receipt.get("consumer_observed_at"),
+        reason="PROFILED_TRAINING_COST_ORDERBOOK_RECEIPT_OBSERVED_AT_INVALID",
+    )
+    if (
+        parsed_clocks != sorted(parsed_clocks)
+        or receipt_event != parsed_clocks[0]
+        or receipt_available != parsed_clocks[2]
+        or receipt_cutoff != parsed_clocks[0]
+        or depth_source.get("atomic_server_observed_at")
+        != depth_receipt.get("consumer_observed_at")
+        or parsed_clocks[-1] > receipt_observed
+        or receipt_observed > decision_time
+    ):
+        _fail("PROFILED_TRAINING_COST_ORDERBOOK_TEMPORAL_ORDER_INVALID")
+    reference_available_at = _canonical_clock(
+        max(*parsed_clocks, receipt_available, receipt_observed)
+    )
+    reference_material = {
+        "schema_version": "profiled_training_decision_reference_price_v1",
+        "price_source": "AUTHENTICATED_CAUSAL_COST_ORDERBOOK_DEPTH_CAS_MID",
+        "symbol": binding.get("symbol"),
+        "decision_time": binding.get("decision_time"),
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "decision_reference_price": mid,
+        "full_spread_bps": full_spread_bps,
+        "full_spread_bps_float32": spread_float32,
+        "orderbook_depth_payload_sha256": depth_payload_sha256,
+        "orderbook_depth_payload_byte_count": len(depth_payload),
+        "orderbook_depth_receipt_sha256": depth_receipt_sha256,
+        "orderbook_depth_direct_read_receipt_sha256": depth_direct_receipt[
+            "receipt_sha256"
+        ],
+        "event_time": depth.get("event_time"),
+        "received_at": depth.get("received_at"),
+        "available_at": depth.get("available_at"),
+        "generated_at": depth.get("generated_at"),
+        "consumer_observed_at": depth_receipt.get("consumer_observed_at"),
+        "decision_reference_price_available_at": reference_available_at,
+    }
+    return {
+        **reference_material,
+        "decision_reference_price_binding_sha256": stable_sha256(
+            reference_material
+        ),
+    }
+
 
 def _validate_cost_binding(
     value: object,
     *,
     envelope: Mapping[str, Any],
     parent_envelope: Mapping[str, Any],
+    parent_durable_snapshot_id: str,
     physical_values: Sequence[float],
     decision_time: datetime,
     trusted_immutable_cost_store_root: Path,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     binding = _exact_dict(
         value,
         _COST_BINDING_FIELDS,
@@ -1387,16 +1808,19 @@ def _validate_cost_binding(
         )
     if not auxiliary_available_times or binding_available != max(auxiliary_available_times):
         _fail("PROFILED_TRAINING_COST_AVAILABLE_AT_BINDING_INVALID")
-    _reopen_cost_cas(
+    decision_reference = _reopen_cost_cas(
         binding=binding,
         receipts=[
             *(receipts[cast(str, value)] for value in child_claims.values()),
             cost_receipt,
             *auxiliary_receipts,
         ],
+        auxiliary_values=auxiliary_values,
+        decision_time=decision_time,
+        parent_durable_snapshot_id=parent_durable_snapshot_id,
         trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
     )
-    return binding
+    return binding, decision_reference
 
 
 @dataclass(frozen=True, slots=True)
@@ -1416,6 +1840,22 @@ class ProfiledTrainingLedgerSampleV1:
     parent_durable_snapshot_id: str
     parent_record_sha256: str
     parent_lineage_binding_sha256: str
+    cost_capture_binding_sha256: str
+    cost_capture_artifact_sha256: str
+    cost_capture_receipt_sha256: str
+    cost_cas_object_inventory_sha256: str
+    auxiliary_feature_receipt_sha256s: tuple[str, ...]
+    expected_holding_horizon_seconds: int
+    cost_evidence_available_at: str
+    decision_reference_price: float
+    decision_reference_best_bid: float
+    decision_reference_best_ask: float
+    decision_reference_full_spread_bps: float
+    decision_reference_price_source: str
+    decision_reference_price_available_at: str
+    decision_reference_price_binding_sha256: str
+    decision_reference_price_payload_sha256: str
+    decision_reference_price_receipt_sha256: str
     physical_feature_values: tuple[float, ...]
     auxiliary_label_values: tuple[float, ...]
     logical_feature_names: tuple[str, ...]
@@ -1448,6 +1888,40 @@ class ProfiledTrainingLedgerSampleV1:
             or len(self.physical_feature_values) != PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT
             or len(self.logical_feature_values) != LOGICAL_MODEL_FEATURE_COUNT
             or len(self.logical_model_vector) != LOGICAL_MODEL_INPUT_COUNT
+            or len(self.auxiliary_feature_receipt_sha256s)
+            != len(AUXILIARY_LABEL_ONLY_FEATURE_NAMES)
+            or type(self.expected_holding_horizon_seconds) is not int
+            or self.expected_holding_horizon_seconds <= 0
+            or not all(
+                _valid_sha256(value)
+                for value in (
+                    self.cost_capture_binding_sha256,
+                    self.cost_capture_artifact_sha256,
+                    self.cost_capture_receipt_sha256,
+                    self.cost_cas_object_inventory_sha256,
+                    self.decision_reference_price_binding_sha256,
+                    self.decision_reference_price_payload_sha256,
+                    self.decision_reference_price_receipt_sha256,
+                    *self.auxiliary_feature_receipt_sha256s,
+                )
+            )
+            or self.decision_reference_price_source
+            != "AUTHENTICATED_CAUSAL_COST_ORDERBOOK_DEPTH_CAS_MID"
+            or any(
+                not math.isfinite(value) or value <= 0.0
+                for value in (
+                    self.decision_reference_price,
+                    self.decision_reference_best_bid,
+                    self.decision_reference_best_ask,
+                )
+            )
+            or not math.isfinite(self.decision_reference_full_spread_bps)
+            or self.decision_reference_full_spread_bps < 0.0
+            or not (
+                self.decision_reference_best_bid
+                < self.decision_reference_price
+                < self.decision_reference_best_ask
+            )
             or self.trainer_admission_authorized is not True
             or any(
                 value is not False
@@ -1460,6 +1934,22 @@ class ProfiledTrainingLedgerSampleV1:
             )
         ):
             _fail("PROFILED_TRAINING_SAMPLE_RESULT_INVARIANT_INVALID")
+        if _clock(
+            self.cost_evidence_available_at,
+            reason="PROFILED_TRAINING_SAMPLE_COST_AVAILABLE_AT_INVALID",
+        ) > _clock(
+            self.decision_time,
+            reason="PROFILED_TRAINING_SAMPLE_DECISION_TIME_INVALID",
+        ):
+            _fail("PROFILED_TRAINING_SAMPLE_COST_AVAILABLE_AFTER_DECISION")
+        if _clock(
+            self.decision_reference_price_available_at,
+            reason="PROFILED_TRAINING_SAMPLE_REFERENCE_AVAILABLE_AT_INVALID",
+        ) > _clock(
+            self.decision_time,
+            reason="PROFILED_TRAINING_SAMPLE_DECISION_TIME_INVALID",
+        ):
+            _fail("PROFILED_TRAINING_SAMPLE_REFERENCE_AVAILABLE_AFTER_DECISION")
 
 
 @dataclass(frozen=True, slots=True)
@@ -1573,6 +2063,80 @@ class ProfiledTrainingLedgerBatchV1:
         return cast(dict[str, Any], json.loads(self.high_water_json))
 
 
+@dataclass(frozen=True, slots=True)
+class ProfiledTrainingLedgerFixedObservationV1:
+    """Complete strict-row inventory under one authenticated high-water."""
+
+    schema_version: str
+    training_observed_at: str
+    strict_prior_observation: str
+    high_water_json: str = field(repr=False)
+    high_water_sha256: str
+    source_page_size: int
+    scanned_record_count: int
+    scanned_start_sequence: int | None
+    scanned_end_sequence: int | None
+    admitted_sample_count: int
+    exclusion_count: int
+    maximum_resident_page_row_count: int
+    authenticated_prefix_head_sequence: int
+    authenticated_prefix_record_count: int
+    archive_chain_sha256: str
+    append_postcommit_high_water_verified: bool
+    complete_fixed_observation_inventory: bool
+    runtime_wired: bool
+    _construction_token: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if (
+            self._construction_token is not _FIXED_OBSERVATION_TOKEN
+            or self.schema_version
+            != PROFILED_TRAINING_FIXED_OBSERVATION_V1_SCHEMA_VERSION
+            or type(self.source_page_size) is not int
+            or not 0 < self.source_page_size <= MAX_QUERY_ROWS
+            or type(self.scanned_record_count) is not int
+            or type(self.admitted_sample_count) is not int
+            or type(self.exclusion_count) is not int
+            or self.scanned_record_count
+            != self.admitted_sample_count + self.exclusion_count
+            or self.scanned_record_count < 0
+            or type(self.maximum_resident_page_row_count) is not int
+            or not 0
+            <= self.maximum_resident_page_row_count
+            <= self.source_page_size
+            or self.append_postcommit_high_water_verified is not True
+            or self.complete_fixed_observation_inventory is not True
+            or self.runtime_wired is not False
+        ):
+            _fail("PROFILED_TRAINING_FIXED_OBSERVATION_RESULT_INVALID")
+        if self.scanned_record_count == 0:
+            if self.scanned_start_sequence is not None or self.scanned_end_sequence is not None:
+                _fail("PROFILED_TRAINING_FIXED_OBSERVATION_EMPTY_RANGE_INVALID")
+        elif (
+            type(self.scanned_start_sequence) is not int
+            or type(self.scanned_end_sequence) is not int
+            or self.scanned_start_sequence <= 0
+            or self.scanned_end_sequence < self.scanned_start_sequence
+        ):
+            _fail("PROFILED_TRAINING_FIXED_OBSERVATION_RANGE_INVALID")
+        try:
+            high_water = json.loads(self.high_water_json)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            _fail("PROFILED_TRAINING_FIXED_OBSERVATION_HIGH_WATER_JSON_INVALID")
+        if (
+            type(high_water) is not dict
+            or high_water.get("high_water_sha256") != self.high_water_sha256
+            or high_water.get("training_observed_at") != self.training_observed_at
+            or high_water.get("strict_prior_observation")
+            != self.strict_prior_observation
+        ):
+            _fail("PROFILED_TRAINING_FIXED_OBSERVATION_HIGH_WATER_BINDING_INVALID")
+
+    @property
+    def high_water(self) -> dict[str, Any]:
+        return cast(dict[str, Any], json.loads(self.high_water_json))
+
+
 def _profile_attestation(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
     core = _core_lineage(envelope)
     value = core.get(PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY)
@@ -1659,7 +2223,33 @@ def _admit_item(
     parent_id = parent_claim.get("durable_snapshot_id")
     if type(parent_id) is not str:
         _fail("PROFILED_TRAINING_PARENT_ID_INVALID")
-    parent = ledger.get_snapshot(parent_id)
+    high_water_maximum = high_water.get("verified_records")
+    high_water_head_sequence = high_water.get("authenticated_prefix_head_sequence")
+    high_water_archive_chain = high_water.get("archive_chain_sha256")
+    high_water_observed = high_water.get("strict_prior_observation")
+    if (
+        type(high_water_maximum) is not int
+        or high_water_maximum <= 0
+        or type(high_water_head_sequence) is not int
+        or high_water_head_sequence <= 0
+        or not _valid_sha256(high_water_archive_chain)
+        or type(high_water_observed) is not str
+        or item.sequence <= 1
+    ):
+        _fail("PROFILED_TRAINING_PARENT_BOUNDED_REOPEN_CONTEXT_INVALID")
+    parent = ledger.get_snapshot_bounded(
+        durable_snapshot_id=parent_id,
+        expected_sequence=None,
+        expected_record_sha256=None,
+        training_observed_at=high_water_observed,
+        maximum_sequence=high_water_maximum,
+        expected_frontier_head_sequence=high_water_head_sequence,
+        expected_frontier_record_count=high_water_maximum,
+        expected_frontier_archive_chain_sha256=cast(
+            str,
+            high_water_archive_chain,
+        ),
+    )
     if parent is None:
         _fail("PROFILED_TRAINING_PARENT_LEDGER_RECORD_MISSING")
     parent_material = _validate_parent_model_record(parent)
@@ -1726,10 +2316,14 @@ def _admit_item(
         "ppo_feature_cutoff"
     ) != envelope.get("feature_cutoff"):
         _fail("PROFILED_TRAINING_CHILD_RECORD_WIDE_CUTOFF_INVALID")
-    _validate_cost_binding(
+    cost_binding, decision_reference = _validate_cost_binding(
         attestation.get("cost_capture_binding"),
         envelope=envelope,
         parent_envelope=parent_envelope,
+        parent_durable_snapshot_id=cast(
+            str,
+            parent_material["record"]["durable_snapshot_id"],
+        ),
         physical_values=physical_values,
         decision_time=decision,
         trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
@@ -1768,6 +2362,56 @@ def _admit_item(
         parent_durable_snapshot_id=cast(str, parent_id),
         parent_record_sha256=cast(str, parent_material["record"]["record_sha256"]),
         parent_lineage_binding_sha256=parent_binding_sha,
+        cost_capture_binding_sha256=stable_sha256(cost_binding),
+        cost_capture_artifact_sha256=cast(
+            str,
+            cost_binding["cost_capture_artifact_sha256"],
+        ),
+        cost_capture_receipt_sha256=cast(
+            str,
+            cost_binding["cost_capture_receipt_sha256"],
+        ),
+        cost_cas_object_inventory_sha256=stable_sha256(
+            cost_binding["immutable_cost_object_inventory"]
+        ),
+        auxiliary_feature_receipt_sha256s=tuple(
+            cast(list[str], cost_binding["auxiliary_feature_receipt_sha256s"])
+        ),
+        expected_holding_horizon_seconds=cast(
+            int,
+            cost_binding["expected_holding_horizon_seconds"],
+        ),
+        cost_evidence_available_at=cast(str, cost_binding["available_at"]),
+        decision_reference_price=cast(
+            float,
+            decision_reference["decision_reference_price"],
+        ),
+        decision_reference_best_bid=cast(float, decision_reference["best_bid"]),
+        decision_reference_best_ask=cast(float, decision_reference["best_ask"]),
+        decision_reference_full_spread_bps=cast(
+            float,
+            decision_reference["full_spread_bps"],
+        ),
+        decision_reference_price_source=cast(
+            str,
+            decision_reference["price_source"],
+        ),
+        decision_reference_price_available_at=cast(
+            str,
+            decision_reference["decision_reference_price_available_at"],
+        ),
+        decision_reference_price_binding_sha256=cast(
+            str,
+            decision_reference["decision_reference_price_binding_sha256"],
+        ),
+        decision_reference_price_payload_sha256=cast(
+            str,
+            decision_reference["orderbook_depth_payload_sha256"],
+        ),
+        decision_reference_price_receipt_sha256=cast(
+            str,
+            decision_reference["orderbook_depth_receipt_sha256"],
+        ),
         physical_feature_values=physical_values,
         auxiliary_label_values=physical_values[PHYSICAL_MODEL_FEATURE_COUNT:],
         logical_feature_names=tuple(LOGICAL_ORDERED_FEATURE_NAMES),
@@ -1793,6 +2437,206 @@ def _admit_item(
         live_execution_authorized=False,
         runtime_wired=False,
         _construction_token=_RESULT_TOKEN,
+    )
+
+
+def load_profiled_training_ledger_fixed_observation_v1(
+    *,
+    ledger: DurableFeatureSnapshotLedger,
+    trusted_immutable_cost_store_root: Path,
+    training_observed_at: str,
+    page_size: int = MAX_QUERY_ROWS,
+    observation_consumer: Callable[[Mapping[str, Any]], None],
+    page_consumer: Callable[
+        [
+            tuple[ProfiledTrainingLedgerSampleV1, ...],
+            tuple[ProfiledTrainingLedgerExclusionV1, ...],
+        ],
+        None,
+    ],
+) -> ProfiledTrainingLedgerFixedObservationV1:
+    """Read every strict row under one fixed, before/after-authenticated frontier.
+
+    ``page_size`` is only a query resource bound.  It never truncates or
+    selects the observation inventory.  All keyset pages are read against the
+    same observation clock and the same immutable ledger high-water, which is
+    reproduced once before and once after the complete scan.
+    """
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_LEDGER_EXACT_TYPE_REQUIRED")
+    if (
+        type(trusted_immutable_cost_store_root) is not type(Path())
+        or not trusted_immutable_cost_store_root.is_absolute()
+        or ".." in trusted_immutable_cost_store_root.parts
+        or "\x00" in str(trusted_immutable_cost_store_root)
+    ):
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_COST_STORE_ROOT_INVALID")
+    if (
+        type(page_size) is not int
+        or not 0 < page_size <= MAX_PROFILED_TRAINING_SCAN_ROWS
+    ):
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_PAGE_SIZE_INVALID")
+    if not callable(observation_consumer) or not callable(page_consumer):
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_CONSUMER_INVALID")
+    effective_page_size = min(
+        page_size,
+        MAX_QUERY_ROWS,
+        MAX_PROFILED_TRAINING_STREAM_PAGE_ROWS,
+    )
+    observed = _clock(
+        training_observed_at,
+        reason="PROFILED_TRAINING_FIXED_OBSERVATION_CLOCK_INVALID",
+    )
+    observed_text = _canonical_clock(observed)
+    try:
+        strict_prior = observed - timedelta(microseconds=1)
+    except OverflowError:
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_CLOCK_INVALID")
+    strict_prior_text = _canonical_clock(strict_prior)
+    try:
+        before_report = ledger.verify_integrity_streaming()
+        before_high_water = feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=before_report,
+            observation_cutoff=observed,
+            scan_limit=max(
+                before_report.verified_records,
+                before_report.verified_append_receipts,
+                1,
+            ),
+        )
+        if (
+            before_report.integrity_verified is not True
+            or before_high_water.get("schema_version")
+            != FEATURE_HIGH_WATER_SCHEMA_VERSION
+            or before_high_water.get("postcommit_readback_verified") is not True
+            or before_high_water.get("receipt_backed") is not True
+            or before_high_water.get("fixed_observation_prefix_only") is not True
+            or before_high_water.get("training_observed_at") != observed_text
+            or before_high_water.get("strict_prior_observation")
+            != strict_prior_text
+            or type(before_high_water.get("verified_records")) is not int
+            or before_high_water["verified_records"] < 0
+            or not _valid_sha256(before_high_water.get("high_water_sha256"))
+        ):
+            _fail("PROFILED_TRAINING_FIXED_OBSERVATION_HIGH_WATER_INVALID")
+        prefix_records = cast(int, before_high_water["verified_records"])
+        observation_consumer(dict(before_high_water))
+        scanned_record_count = 0
+        scanned_start_sequence: int | None = None
+        scanned_end_sequence: int | None = None
+        admitted_sample_count = 0
+        exclusion_count = 0
+        maximum_resident_page_row_count = 0
+        after_sequence = 0
+        page_iterator = ledger.iter_fixed_cutoff_pages(
+            decision_time_cutoff=strict_prior_text,
+            training_observed_at=strict_prior_text,
+            maximum_sequence=prefix_records,
+            page_size=effective_page_size,
+        )
+        try:
+            for page in page_iterator:
+                if (
+                    page[0].sequence <= after_sequence
+                    or page[-1].sequence <= after_sequence
+                    or page[-1].sequence > prefix_records
+                    or any(
+                        left.sequence >= right.sequence
+                        for left, right in zip(page, page[1:], strict=False)
+                    )
+                ):
+                    _fail("PROFILED_TRAINING_FIXED_OBSERVATION_PAGE_ORDER_INVALID")
+                samples: list[ProfiledTrainingLedgerSampleV1] = []
+                exclusions: list[ProfiledTrainingLedgerExclusionV1] = []
+                for item in page:
+                    admitted = _admit_item(
+                        ledger=ledger,
+                        item=item,
+                        high_water=before_high_water,
+                        trusted_immutable_cost_store_root=(
+                            trusted_immutable_cost_store_root
+                        ),
+                    )
+                    if admitted is None:
+                        exclusions.append(
+                            ProfiledTrainingLedgerExclusionV1(
+                                sequence=item.sequence,
+                                durable_snapshot_id=cast(
+                                    str,
+                                    item.record.get("durable_snapshot_id", ""),
+                                ),
+                                reason=(
+                                    "NOT_AUTHENTICATED_PROFILED_TRAINING_ENRICHMENT"
+                                ),
+                            )
+                        )
+                    else:
+                        samples.append(admitted)
+                page_consumer(tuple(samples), tuple(exclusions))
+                if scanned_start_sequence is None:
+                    scanned_start_sequence = page[0].sequence
+                scanned_end_sequence = page[-1].sequence
+                scanned_record_count += len(page)
+                admitted_sample_count += len(samples)
+                exclusion_count += len(exclusions)
+                maximum_resident_page_row_count = max(
+                    maximum_resident_page_row_count,
+                    len(page),
+                )
+                after_sequence = page[-1].sequence
+        finally:
+            page_iterator.close()
+        after_report = ledger.verify_integrity_streaming()
+        after_high_water = feature_ledger_fixed_observation_high_water(
+            ledger=ledger,
+            report=after_report,
+            observation_cutoff=observed,
+            scan_limit=max(
+                after_report.verified_records,
+                after_report.verified_append_receipts,
+                1,
+            ),
+        )
+    except ProfiledTrainingLedgerLoaderV1Error:
+        raise
+    except (FeatureSnapshotLedgerError, TrainingSampleIdentityError, OSError, ValueError) as exc:
+        raise ProfiledTrainingLedgerLoaderV1Error(
+            "PROFILED_TRAINING_FIXED_OBSERVATION_READ_FAILED:"
+            f"{type(exc).__name__}"
+        ) from exc
+    if before_high_water != after_high_water:
+        _fail("PROFILED_TRAINING_FIXED_OBSERVATION_HIGH_WATER_MOVED")
+    return ProfiledTrainingLedgerFixedObservationV1(
+        schema_version=PROFILED_TRAINING_FIXED_OBSERVATION_V1_SCHEMA_VERSION,
+        training_observed_at=observed_text,
+        strict_prior_observation=strict_prior_text,
+        high_water_json=_canonical_json(before_high_water),
+        high_water_sha256=cast(str, before_high_water["high_water_sha256"]),
+        source_page_size=effective_page_size,
+        scanned_record_count=scanned_record_count,
+        scanned_start_sequence=scanned_start_sequence,
+        scanned_end_sequence=scanned_end_sequence,
+        admitted_sample_count=admitted_sample_count,
+        exclusion_count=exclusion_count,
+        maximum_resident_page_row_count=maximum_resident_page_row_count,
+        authenticated_prefix_head_sequence=cast(
+            int,
+            before_high_water["authenticated_prefix_head_sequence"],
+        ),
+        authenticated_prefix_record_count=cast(
+            int,
+            before_high_water["verified_records"],
+        ),
+        archive_chain_sha256=cast(
+            str,
+            before_high_water["archive_chain_sha256"],
+        ),
+        append_postcommit_high_water_verified=True,
+        complete_fixed_observation_inventory=True,
+        runtime_wired=False,
+        _construction_token=_FIXED_OBSERVATION_TOKEN,
     )
 
 
@@ -1987,14 +2831,156 @@ def load_profiled_training_ledger_v1(
     )
 
 
+def reopen_profiled_training_ledger_sample_v1(
+    *,
+    ledger: DurableFeatureSnapshotLedger,
+    trusted_immutable_cost_store_root: Path,
+    fixed_observation_high_water: Mapping[str, Any],
+    training_observed_at: str,
+    durable_snapshot_id: str,
+    expected_sequence: int,
+    expected_record_sha256: str,
+) -> ProfiledTrainingLedgerSampleV1:
+    """Reopen one manifest-bound sample without a full-ledger rescan.
+
+    This is the bounded consumer counterpart of
+    :func:`load_profiled_training_ledger_v1`.  The caller must first
+    authenticate an immutable observation manifest that contains the exact
+    fixed-observation high-water object and sample identity supplied here.
+    This function does not treat those caller values as authority by
+    themselves: it verifies the high-water digest and clocks, reopens the
+    ledger row through the ledger's receipt-attested direct read, and reruns
+    the complete parent/cost/source-lineage admission contract.
+
+    It deliberately does not reproduce the whole ledger high-water.  Doing so
+    would turn every runtime page into O(total ledger) work and defeat the
+    observation manifest boundary.  It grants no serving or execution
+    authority.
+    """
+
+    if type(ledger) is not DurableFeatureSnapshotLedger:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_LEDGER_EXACT_TYPE_REQUIRED")
+    if (
+        type(trusted_immutable_cost_store_root) is not type(Path())
+        or not trusted_immutable_cost_store_root.is_absolute()
+        or ".." in trusted_immutable_cost_store_root.parts
+        or "\x00" in str(trusted_immutable_cost_store_root)
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_COST_STORE_ROOT_INVALID")
+    if type(fixed_observation_high_water) is not dict:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_HIGH_WATER_INVALID")
+    high_water = cast(dict[str, Any], fixed_observation_high_water)
+    claimed_high_water_sha256 = high_water.get("high_water_sha256")
+    unsigned_high_water = {
+        key: value for key, value in high_water.items() if key != "high_water_sha256"
+    }
+    if (
+        high_water.get("schema_version") != FEATURE_HIGH_WATER_SCHEMA_VERSION
+        or high_water.get("fixed_observation_prefix_only") is not True
+        or high_water.get("receipt_backed") is not True
+        or high_water.get("postcommit_readback_verified") is not True
+        or high_water.get("full_ledger_integrity_verified_at_reproduction") is not True
+        or not _valid_sha256(claimed_high_water_sha256)
+        or claimed_high_water_sha256 != stable_json_sha256(unsigned_high_water)
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_HIGH_WATER_INVALID")
+    observed = _clock(
+        training_observed_at,
+        reason="PROFILED_TRAINING_DIRECT_REOPEN_OBSERVED_AT_INVALID",
+    )
+    if high_water.get("training_observed_at") != _canonical_clock(observed):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_OBSERVATION_BINDING_INVALID")
+    if (
+        type(durable_snapshot_id) is not str
+        or not durable_snapshot_id
+        or type(expected_sequence) is not int
+        or expected_sequence <= 0
+        or not _valid_sha256(expected_record_sha256)
+        or type(high_water.get("verified_records")) is not int
+        or type(high_water.get("authenticated_prefix_head_sequence")) is not int
+        or high_water.get("authenticated_prefix_head_sequence") <= 0
+        or not _valid_sha256(high_water.get("archive_chain_sha256"))
+        or type(high_water.get("strict_prior_observation")) is not str
+        or expected_sequence > high_water["verified_records"]
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_SAMPLE_BINDING_INVALID")
+    try:
+        item = ledger.get_snapshot_bounded(
+            durable_snapshot_id=durable_snapshot_id,
+            expected_sequence=expected_sequence,
+            expected_record_sha256=expected_record_sha256,
+            training_observed_at=cast(str, high_water.get("strict_prior_observation")),
+            maximum_sequence=cast(int, high_water.get("verified_records")),
+            expected_frontier_head_sequence=cast(
+                int,
+                high_water.get("authenticated_prefix_head_sequence"),
+            ),
+            expected_frontier_record_count=cast(
+                int,
+                high_water.get("verified_records"),
+            ),
+            expected_frontier_archive_chain_sha256=cast(
+                str,
+                high_water.get("archive_chain_sha256"),
+            ),
+        )
+    except (FeatureSnapshotLedgerError, OSError, ValueError) as exc:
+        raise ProfiledTrainingLedgerLoaderV1Error(
+            f"PROFILED_TRAINING_DIRECT_REOPEN_LEDGER_READ_FAILED:{type(exc).__name__}"
+        ) from exc
+    if item is None:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_SAMPLE_MISSING")
+    if (
+        item.sequence != expected_sequence
+        or item.record.get("durable_snapshot_id") != durable_snapshot_id
+        or item.record.get("record_sha256") != expected_record_sha256
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_SAMPLE_IDENTITY_MISMATCH")
+    try:
+        strict_prior = observed - timedelta(microseconds=1)
+    except OverflowError:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_OBSERVED_AT_INVALID")
+    if high_water.get("strict_prior_observation") != _canonical_clock(strict_prior):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_STRICT_PRIOR_BINDING_INVALID")
+    postcommit = _clock(
+        item.postcommit_readback_at,
+        reason="PROFILED_TRAINING_DIRECT_REOPEN_POSTCOMMIT_CLOCK_INVALID",
+    )
+    envelope = item.record.get("frozen_envelope")
+    decision = _clock(
+        envelope.get("ppo_decision_time") if type(envelope) is dict else None,
+        reason="PROFILED_TRAINING_DIRECT_REOPEN_DECISION_TIME_INVALID",
+    )
+    if postcommit > strict_prior or decision > strict_prior:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_AFTER_FIXED_OBSERVATION")
+    admitted = _admit_item(
+        ledger=ledger,
+        item=item,
+        high_water=high_water,
+        trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+    )
+    if admitted is None:
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_NOT_PROFILED_SAMPLE")
+    if (
+        admitted.sequence != expected_sequence
+        or admitted.durable_snapshot_id != durable_snapshot_id
+        or admitted.record_sha256 != expected_record_sha256
+        or admitted.ledger_high_water_sha256 != claimed_high_water_sha256
+    ):
+        _fail("PROFILED_TRAINING_DIRECT_REOPEN_RESULT_BINDING_INVALID")
+    return admitted
+
+
 __all__ = [
     "MAX_PROFILED_TRAINING_SCAN_ROWS",
+    "MAX_PROFILED_TRAINING_STREAM_PAGE_ROWS",
     "PROFILED_TRAINING_COST_BINDING_V1_SCHEMA_VERSION",
     "PROFILED_TRAINING_COST_CAPTURE_RECEIPT_CHILD_ROLES",
     "PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_CLASSIFICATION",
     "PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY",
     "PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_SCHEMA_VERSION",
     "PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_STATUS",
+    "PROFILED_TRAINING_FIXED_OBSERVATION_V1_SCHEMA_VERSION",
     "PROFILED_TRAINING_LEDGER_LOADER_V1_SCHEMA_VERSION",
     "PROFILED_TRAINING_PAGE_CURSOR_V1_SCHEMA_VERSION",
     "PROFILED_TRAINING_PAGE_INTEGRITY_SEMANTICS",
@@ -2008,7 +2994,10 @@ __all__ = [
     "PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION",
     "ProfiledTrainingLedgerBatchV1",
     "ProfiledTrainingLedgerExclusionV1",
+    "ProfiledTrainingLedgerFixedObservationV1",
     "ProfiledTrainingLedgerLoaderV1Error",
     "ProfiledTrainingLedgerSampleV1",
+    "load_profiled_training_ledger_fixed_observation_v1",
     "load_profiled_training_ledger_v1",
+    "reopen_profiled_training_ledger_sample_v1",
 ]
