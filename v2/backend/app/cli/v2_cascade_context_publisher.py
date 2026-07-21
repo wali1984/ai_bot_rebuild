@@ -18,9 +18,14 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from v2.backend.app.services.microstructure_trust.cascade_context import (
-    build_cascade_context,
+from app.services.altdata.altdata_confluence_engine import build_confluence
+
+from v2.backend.app.services.altdata.provider_feature_bridge import (
+    load_coinank_input,
+    load_coinglass_input,
+    load_moralis_input,
 )
+from v2.backend.app.services.microstructure_trust.cascade_context import build_cascade_context
 from v2.backend.app.services.microstructure_trust.feed_quality import (
     iso_now,
     parse_time_ms,
@@ -96,6 +101,113 @@ def _safe_set_json(redis_client: Any, key: str, payload: Mapping[str, Any], *, t
 
 def _as_dict(payload: Any) -> dict[str, Any] | None:
     return dict(payload) if isinstance(payload, Mapping) else None
+
+
+def _admitted_provider_payload(
+    provider_input: Any,
+    *,
+    provider: str,
+    symbol: str,
+    timeframe: str,
+) -> dict[str, Any] | None:
+    """Translate only a canonical fresh ProviderInput into detector context."""
+
+    if provider_input.present is not True or provider_input.stale is not False:
+        return None
+    return {
+        "schema_version": "validated_provider_input_v1",
+        "provider": provider,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "feature_cutoff": provider_input.feature_cutoff,
+        "available_at": provider_input.available_at,
+        "generated_at": provider_input.generated_at,
+        "features": dict(provider_input.features),
+    }
+
+
+def _provider_input_lineage(
+    provider_input: Any,
+    *,
+    admitted: bool,
+) -> dict[str, Any]:
+    return {
+        "canonical_loader_present": provider_input.present is True,
+        "canonical_loader_stale": provider_input.stale is True,
+        "admitted_to_fast_squeeze": admitted,
+        "feature_cutoff": provider_input.feature_cutoff,
+        "available_at": provider_input.available_at,
+        "generated_at": provider_input.generated_at,
+    }
+
+
+def _validated_fast_squeeze_provider_context(
+    redis_client: Any,
+    *,
+    symbol: str,
+    timeframe: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Resolve provider inputs once through the canonical PIT boundaries.
+
+    The old path passed raw Redis JSON to the detector.  This helper also
+    reconstructs confluence from those validated inputs so a stale or forged
+    cached confluence envelope cannot reintroduce the same provider bypass.
+    """
+
+    cycle_started_at = iso_now()
+    coinglass_input = load_coinglass_input(redis_client, symbol, timeframe)
+    moralis_input = load_moralis_input(redis_client, symbol, timeframe)
+    coinank_input = load_coinank_input(redis_client, symbol, timeframe)
+    coinglass = _admitted_provider_payload(
+        coinglass_input,
+        provider="coinglass",
+        symbol=symbol,
+        timeframe=timeframe,
+    )
+    moralis = _admitted_provider_payload(
+        moralis_input,
+        provider="moralis",
+        symbol=symbol,
+        timeframe=timeframe,
+    )
+    confluence = build_confluence(
+        symbol=symbol,
+        timeframe=timeframe,
+        coinglass=coinglass_input,
+        moralis=moralis_input,
+        coinank=coinank_input,
+        generated_utc=cycle_started_at,
+    )
+    confluence_admitted = bool(
+        confluence.get("schema_version") == "altdata_confluence_v1"
+        and confluence.get("symbol") == symbol
+        and confluence.get("timeframe") == timeframe
+        and confluence.get("actual_payload_present") is True
+        and confluence.get("decision_time_safe") is True
+    )
+    contexts = {
+        "coinglass": coinglass,
+        "moralis": moralis,
+        "confluence": confluence if confluence_admitted else None,
+    }
+    lineage = {
+        "coinglass": _provider_input_lineage(
+            coinglass_input,
+            admitted=coinglass is not None,
+        ),
+        "moralis": _provider_input_lineage(
+            moralis_input,
+            admitted=moralis is not None,
+        ),
+        "confluence": {
+            "reconstructed_from_canonical_inputs": True,
+            "admitted_to_fast_squeeze": confluence_admitted,
+            "feature_cutoff": confluence.get("feature_cutoff"),
+            "generated_at": confluence.get("generated_at"),
+            "providers_present": list(confluence.get("providers_present") or []),
+        },
+    }
+    return contexts, lineage
 
 
 def _first_dict(redis_client: Any, keys: Iterable[str]) -> dict[str, Any] | None:
@@ -799,6 +911,14 @@ def publish_once(
         # key so every downstream consumer gets squeeze probability/direction,
         # trap score and the block/hedge/reduce recommendations for free.
         try:
+            provider_context, provider_lineage = (
+                _validated_fast_squeeze_provider_context(
+                    redis_client,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
+            )
+            context["fast_squeeze_provider_input_lineage"] = provider_lineage
             squeeze = detect_squeeze(
                 symbol=symbol,
                 timeframe=timeframe,
@@ -812,9 +932,9 @@ def publish_once(
                     "microstructure": derive_tape_imbalance(
                         _safe_get_json(redis_client, f"v2:market:agg_trades:{symbol}")
                     ),
-                    "confluence": _safe_get_json(redis_client, f"v2:altdata:confluence:{symbol}:{timeframe}"),
-                    "moralis": _safe_get_json(redis_client, f"v2:features:moralis:{symbol}:{timeframe}"),
-                    "coinglass": _safe_get_json(redis_client, f"v2:features:coinglass:{symbol}:{timeframe}"),
+                    "confluence": provider_context["confluence"],
+                    "moralis": provider_context["moralis"],
+                    "coinglass": provider_context["coinglass"],
                     "mark_index": derive_mark_index_divergence(
                         _safe_get_json(redis_client, f"v2:market:funding:{symbol}")
                     ),

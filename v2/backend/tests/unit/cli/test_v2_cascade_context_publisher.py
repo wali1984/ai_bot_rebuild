@@ -1,21 +1,113 @@
 """Cascade-context publisher: squeeze-detector input derivation (raw book/tape/premium)."""
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
 import pytest
 
 
 class FakeRedis:
-    def __init__(self, values: dict[str, object] | None = None) -> None:
-        import json
-
-        self.values = {
-            key: json.dumps(value) for key, value in (values or {}).items()
+    def __init__(self, payloads: dict[str, object] | None = None) -> None:
+        self.data = {
+            key: json.dumps(value)
+            for key, value in (payloads or {}).items()
         }
         self.get_calls: list[str] = []
 
-    def get(self, key: str):
+    def get(self, key: str) -> str | None:
         self.get_calls.append(key)
-        return self.values.get(key)
+        return self.data.get(key)
+
+    def set(self, key: str, value: str, ex: int | None = None) -> bool:  # noqa: ARG002
+        self.data[key] = value
+        return True
+
+
+def _utc(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat(timespec="microseconds").replace(
+        "+00:00", "Z"
+    )
+
+
+def _coinglass_v2_payload() -> dict[str, Any]:
+    now = datetime.now(UTC)
+    return {
+        "schema_version": "coinglass_aggregated_feature_payload_v2",
+        "provider": "coinglass",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": _utc(now - timedelta(seconds=30)),
+        "available_at": _utc(now - timedelta(seconds=2)),
+        "generated_at": _utc(now - timedelta(seconds=1)),
+        "actual_payload_present": True,
+        "provider_ready": True,
+        "decision_time_safe": True,
+        "temporal_contract_valid": True,
+        "features": {
+            "coinglass_trade_imbalance_usd": 2_000_000.0,
+            "coinglass_liquidation_imbalance_usd": 8_000_000.0,
+        },
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+    }
+
+
+def _moralis_self_declared_payload() -> dict[str, Any]:
+    now = datetime.now(UTC)
+    return {
+        "schema_version": "moralis_feature_bridge_v1",
+        "provider": "moralis",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": _utc(now - timedelta(seconds=30)),
+        "available_at": _utc(now - timedelta(seconds=2)),
+        "generated_at": _utc(now - timedelta(seconds=1)),
+        "actual_payload_present": True,
+        "provider_ready": True,
+        "feature_bridge_ready": True,
+        "decision_time_safe": True,
+        "temporal_contract_valid": True,
+        "source_temporal_contract_valid": True,
+        "trainer_isolation_active": False,
+        "trainer_consumption_prerequisites_bound": True,
+        "consumer_receipts_bound": True,
+        "features": {"moralis_net_exchange_flow_usd": 50_000_000.0},
+        "missing_feature_flags": [],
+        "stale_feature_flags": [],
+    }
+
+
+def _forged_raw_confluence() -> dict[str, Any]:
+    return {
+        "schema_version": "altdata_confluence_v1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "actual_payload_present": True,
+        "decision_time_safe": True,
+        "features": {"altdata_liquidation_sweep_risk_score": 1.0},
+    }
+
+
+def _publish_one(
+    redis: FakeRedis,
+    *,
+    goal_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    from app.cli import v2_cascade_context_publisher as publisher
+
+    monkeypatch.setattr(publisher, "_detect_existing_paper_loop_pid", lambda: None)
+    publisher.publish_once(
+        redis_client=redis,
+        pairs=[("BTCUSDT", "1m")],
+        coverage={"symbols": ["BTCUSDT"], "timeframes": ["1m"]},
+        goal_dir=goal_dir,
+        ttl_seconds=180,
+    )
+    return json.loads(redis.data["v2:microstructure:cascade_context:BTCUSDT:1m"])
 
 
 def test_derive_orderbook_squeeze_inputs_from_raw_depth() -> None:
@@ -272,3 +364,132 @@ def test_cross_asset_fallback_uses_only_finalized_candle_clocks() -> None:
     assert source["major_coverage_complete"] is False
     assert "generated_at" not in source
     assert "generated_utc" not in source
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "legacy_v1",
+        "stale",
+        "future",
+        "symbol_mismatch",
+        "timeframe_mismatch",
+        "forged_boolean",
+        "nan_feature",
+    ],
+)
+def test_raw_coinglass_cannot_bypass_canonical_fast_squeeze_gate(
+    mutation: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _coinglass_v2_payload()
+    if mutation == "legacy_v1":
+        payload["schema_version"] = "coinglass_aggregated_feature_payload_v1"
+    elif mutation == "stale":
+        now = datetime.now(UTC)
+        payload.update(
+            {
+                "feature_cutoff": _utc(now - timedelta(minutes=12)),
+                "available_at": _utc(now - timedelta(minutes=11)),
+                "generated_at": _utc(now - timedelta(minutes=10)),
+            }
+        )
+    elif mutation == "future":
+        now = datetime.now(UTC)
+        payload.update(
+            {
+                "feature_cutoff": _utc(now + timedelta(seconds=30)),
+                "available_at": _utc(now + timedelta(seconds=31)),
+                "generated_at": _utc(now + timedelta(seconds=32)),
+            }
+        )
+    elif mutation == "symbol_mismatch":
+        payload["symbol"] = "ETHUSDT"
+    elif mutation == "timeframe_mismatch":
+        payload["timeframe"] = "5m"
+    elif mutation == "forged_boolean":
+        payload["decision_time_safe"] = 1
+    elif mutation == "nan_feature":
+        payload["features"] = {"coinglass_trade_imbalance_usd": float("nan")}
+
+    raw_confluence_key = "v2:altdata:confluence:BTCUSDT:1m"
+    redis = FakeRedis(
+        {
+            "v2:features:coinglass:BTCUSDT:1m": payload,
+            raw_confluence_key: _forged_raw_confluence(),
+        }
+    )
+
+    context = _publish_one(redis, goal_dir=tmp_path, monkeypatch=monkeypatch)
+
+    assert context["fast_squeeze_squeeze_probability"] == 0.0
+    assert context["fast_squeeze_squeeze_direction"] == "unclear"
+    assert context["fast_squeeze_entry_block_required"] is False
+    assert context["fast_squeeze_provider_input_lineage"]["coinglass"][
+        "admitted_to_fast_squeeze"
+    ] is False
+    assert raw_confluence_key not in redis.get_calls
+
+
+def test_self_declared_moralis_release_stays_absent_from_fast_squeeze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_confluence_key = "v2:altdata:confluence:BTCUSDT:1m"
+    redis = FakeRedis(
+        {
+            "v2:features:moralis:BTCUSDT:1m": _moralis_self_declared_payload(),
+            raw_confluence_key: _forged_raw_confluence(),
+        }
+    )
+
+    context = _publish_one(redis, goal_dir=tmp_path, monkeypatch=monkeypatch)
+
+    assert context["fast_squeeze_squeeze_probability"] == 0.0
+    assert context["fast_squeeze_squeeze_direction"] == "unclear"
+    assert context["fast_squeeze_provider_input_lineage"]["moralis"] == {
+        "canonical_loader_present": False,
+        "canonical_loader_stale": False,
+        "admitted_to_fast_squeeze": False,
+        "feature_cutoff": None,
+        "available_at": None,
+        "generated_at": None,
+    }
+    assert raw_confluence_key not in redis.get_calls
+
+
+def test_fresh_exact_coinglass_v2_flows_with_causal_clocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _coinglass_v2_payload()
+    raw_confluence_key = "v2:altdata:confluence:BTCUSDT:1m"
+    redis = FakeRedis(
+        {
+            "v2:features:coinglass:BTCUSDT:1m": payload,
+            # This opposite raw value is deliberately ignored; confluence is
+            # rebuilt in process from the admitted ProviderInput.
+            raw_confluence_key: _forged_raw_confluence(),
+        }
+    )
+
+    context = _publish_one(redis, goal_dir=tmp_path, monkeypatch=monkeypatch)
+    lineage = context["fast_squeeze_provider_input_lineage"]
+
+    assert context["fast_squeeze_squeeze_probability"] > 0.0
+    assert context["fast_squeeze_squeeze_direction"] == "up"
+    assert context["fast_squeeze_entry_block_required"] is True
+    assert lineage["coinglass"] == {
+        "canonical_loader_present": True,
+        "canonical_loader_stale": False,
+        "admitted_to_fast_squeeze": True,
+        "feature_cutoff": payload["feature_cutoff"],
+        "available_at": payload["available_at"],
+        "generated_at": payload["generated_at"],
+    }
+    assert lineage["confluence"]["reconstructed_from_canonical_inputs"] is True
+    assert lineage["confluence"]["admitted_to_fast_squeeze"] is True
+    assert lineage["confluence"]["feature_cutoff"] == payload["feature_cutoff"]
+    assert lineage["confluence"]["providers_present"] == ["coinglass"]
+    assert raw_confluence_key not in redis.get_calls
