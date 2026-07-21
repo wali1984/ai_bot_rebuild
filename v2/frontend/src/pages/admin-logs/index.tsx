@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRealtimeResource } from '../../hooks/useRealtimeResource';
 import { FreshnessBadge } from '../../components/data/FreshnessBadge';
+import { MissingSourceIncident } from '../../components/data/MissingSourceIncident';
 import { relativeAge } from '../../data/adminFieldRegistry';
 
 const LOGS_ENDPOINT = '/api/v2/admin/logs/recent';
@@ -22,11 +23,15 @@ function levelColor(level: string) {
 
 export default function AdminLogsPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Events');
-  const { envelope, loading } = useRealtimeResource<LogsPayload>({ url: LOGS_ENDPOINT, source: 'admin-logs', pollIntervalMs: 10_000 });
+  const { envelope, loading, error } = useRealtimeResource<LogsPayload>({ url: LOGS_ENDPOINT, source: 'admin-logs', pollIntervalMs: 10_000 });
   const data = envelope.data;
   const entries = data?.entries || [];
   const errors = entries.filter(e => e.level.toLowerCase() === 'error');
   const shown = tab === 'Errors' ? errors : entries;
+  // A failed fetch (403 insufficient_role, backend down) must never render the
+  // affirmative "✓ No errors" empty state — that is a fake-healthy signal on a
+  // log surface (final field audit). Only a real payload earns the checkmark.
+  const sourceUnavailable = !loading && (Boolean(error) || envelope.errors.length > 0 || !data);
 
   return (
     <div data-testid="admin-logs-page" style={{ display: 'flex', flexDirection: 'column', gap: 18, background: 'radial-gradient(44% 28% at 15% 0%, rgba(124,92,255,0.12), transparent 70%), radial-gradient(38% 30% at 90% 4%, rgba(59,130,246,0.08), transparent 72%), var(--bg-base)' }}>
@@ -68,6 +73,15 @@ export default function AdminLogsPage(): JSX.Element {
 
       {loading && !data ? (
         <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: '12px 0' }}>Loading logs…</div>
+      ) : sourceUnavailable ? (
+        <MissingSourceIncident
+          page="Logs"
+          component={tab === 'Errors' ? 'ErrorList' : 'EventList'}
+          source={LOGS_ENDPOINT}
+          owner="v2-admin-logs"
+          remediation={error ? `Fetch failed: ${error}. Check backend session role and that the API is up.` : 'Log payload missing. Check /api/v2/admin/logs/recent and backend session role.'}
+          adminOnly
+        />
       ) : shown.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           {shown.slice(0, 50).map((entry, i) => (
