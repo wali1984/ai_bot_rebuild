@@ -175,12 +175,10 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
 
     assert status["places_real_order"] is False
     assert status["test_order_submitted"] is False
-    assert status["positive_hypothesis_count"] > 0
+    assert status["positive_hypothesis_count"] == 0
+    assert status["gate_clean_positive_hypothesis_count"] == 0
     assert status["ttl_seconds"] == 123
-    assert status["status"] in {
-        "GREEN_PUBLISHING_GATE_CLEAN_POSITIVES",
-        "YELLOW_POSITIVE_HYPOTHESES_STAGE_REJECTED",
-    }
+    assert status["status"] == "GRAY_MICROSTRUCTURE_MISSING_OR_WEAK"
     assert ("v2:strategy_supply:hypotheses:BTCUSDT:1m", 123) in client.set_calls
     assert ("v2:strategy_supply:positive_hypotheses:BTCUSDT:1m", 123) in client.set_calls
     assert ("v2:strategy_supply:gate_clean_positive_hypotheses:BTCUSDT:1m", 123) in client.set_calls
@@ -193,17 +191,20 @@ def test_strategy_supply_publish_writes_redis_contract_and_artifacts(tmp_path: P
     assert all(row.get("hypothesis_id") for row in directional)
     assert all(row.get("feature_vector_hash") for row in directional)
     assert all(isinstance(row.get("provider_feature_hashes"), dict) for row in directional)
+    assert all(row.get("consumer_eligible") is False for row in directional)
+    assert all(row.get("trainer_consumable") is False for row in directional)
+    assert all(row.get("available_at") is None for row in directional)
+    assert all(
+        row.get("output_postcommit_readback_receipt_emitted") is False
+        for row in directional
+    )
     positive_payload = json.loads(client.data["v2:strategy_supply:positive_hypotheses:BTCUSDT:1m"])
-    assert all(row["expected_net_pnl_usd"] > 0 for row in positive_payload["rows"])
-    for row in positive_payload["rows"]:
-        if row.get("side") == "short":
-            assert row["expected_move_after_cost_bps"] < 0
-            assert row["expected_short_net_edge_bps"] > 0
+    assert positive_payload["rows"] == []
     assert (tmp_path / "strategy_supply_publish_status.json").exists()
     positive_rows = (tmp_path / "strategy_supply_positive_hypotheses.jsonl").read_text(
         encoding="utf-8"
     ).splitlines()
-    assert positive_rows
+    assert positive_rows == []
 
 
 def test_strategy_supply_publish_rejects_inconsistent_selected_side_positive() -> None:

@@ -230,9 +230,18 @@ def test_funding_squeeze_hypothesis_generated_with_usd_economics():
         assert row["strategy_subtype"]
         assert row["feature_vector_hash"].startswith("strategy_supply_")
         assert row["feature_cutoff"] <= row["decision_time"]
-        assert row["available_at"] <= row["decision_time"]
+        assert row["input_available_at"] <= row["decision_time"]
+        assert row["decision_time"] <= row["generated_at"]
+        assert row["available_at"] is None
+        assert row["output_postcommit_readback_receipt_emitted"] is False
+        assert row["output_available_at_unavailable_until_postcommit_receipt"] is True
+        assert row["consumer_eligible"] is False
+        assert row["trainer_consumable"] is False
+        assert row["trainer_admission_granted"] is False
         assert row["ta_temporal_contract_valid"] is True
         assert isinstance(row["provider_feature_hashes"], dict)
+        assert row["signal_context"] == row["strategy_subtype"]
+        assert row["signal_context"] not in row["provider_features_used"]
         assert row["current_price"] == 60000.0
         assert row["reason_if_rejected"] == row["why_rejected"]
         assert row["places_real_order"] is False
@@ -458,215 +467,7 @@ def test_strategy_supply_caps_reference_notional_to_live_risk_profile() -> None:
     assert all(row["expected_gross_pnl_usd"] < 200.0 for row in directional)
 
 
-def test_strategy_supply_uses_existing_microstructure_trust_key():
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:microstructure:trust_score:BTCUSDT:1m"] = {
-        "composite_microstructure_trust_score": 0.74,
-        "trade_tape_confirmation_score": 0.71,
-        "available_at": "2026-07-09T05:59:00Z",
-        "generated_at": "2026-07-09T05:59:00Z",
-    }
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-    assert directional
-    assert all(row["microstructure_trust_score"] == 0.74 for row in directional)
-    assert all(row["composite_microstructure_trust_score"] == 0.74 for row in directional)
-    assert all(row["market_state_integrity_score"] == 74.0 for row in directional)
-    assert all(row["market_state_integrity_minimum_score"] == 70.0 for row in directional)
-    assert all(row["trade_tape_confirmation_score"] == 0.71 for row in directional)
-    assert all(row["microstructure_trust_source"] == "v2:microstructure:trust_score:BTCUSDT:1m" for row in directional)
-
-
-def test_strategy_supply_emits_regime_liquidation_context_and_buffer_proxy():
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:liquidations:levels:BTCUSDT:1m"] = {
-        "liquidation_is_stale": 0,
-        "liquidation_levels_count_long": 3,
-        "liquidation_levels_count_short": 2,
-        "liquidation_cascade_risk": 0.12,
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(row["strategy_market_regime"] for row in directional)
-    assert all(row["market_regime_at_entry"] == row["strategy_market_regime"] for row in directional)
-    assert all(row["coinank_context"] for row in directional)
-    assert all(row["coinank_context_missing_reason"] is None for row in directional)
-    assert all(row["expected_liquidation_buffer_usd"] > 0 for row in directional)
-    assert all(row["liquidation_buffer_signed_read_verified"] is False for row in directional)
-    assert all(row["live_liquidation_buffer_requires_signed_read"] is True for row in directional)
-    assert all(row["liquidation_buffer_source"] == "paper_strategy_stop_distance_proxy_not_signed_cross_margin" for row in directional)
-
-
-def test_strategy_supply_accepts_fresh_no_event_liquidation_context():
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:liquidations:levels:BTCUSDT:1m"] = {
-        "liquidation_is_stale": 1,
-        "liquidation_no_events": 1,
-        "liquidation_levels_json": json.dumps({"no_events_reason": "no_liquidation_events_in_window"}),
-        "liquidation_updated_ts": int(time.time() * 1000),
-        "liquidation_current_price": 60000.0,
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(row["coinank_context"] for row in directional)
-    assert all(row["coinank_context_missing_reason"] is None for row in directional)
-    assert {
-        row["coinank_context"].get("liquidation_context_status") for row in directional
-    } == {"FRESH_NO_LIQUIDATION_EVENTS_IN_WINDOW"}
-
-
-def test_strategy_supply_rejects_expired_no_event_liquidation_context():
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:liquidations:levels:BTCUSDT:1m"] = {
-        "liquidation_is_stale": 1,
-        "liquidation_no_events": 1,
-        "liquidation_levels_json": json.dumps({"no_events_reason": "no_liquidation_events_in_window"}),
-        "liquidation_updated_ts": int(time.time() * 1000) - 3_600_000,
-        "liquidation_current_price": 60000.0,
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(
-        row["coinank_context_missing_reason"] == "LIQUIDATION_CONTEXT_STALE_NO_EVENTS_OBSERVATION_EXPIRED"
-        for row in directional
-    )
-
-
-def test_strategy_supply_accepts_recent_recomputed_aged_levels_when_sweep_passed():
-    now_ms = int(time.time() * 1000)
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:microstructure:trust_score:BTCUSDT:1m"].update({
-        "liquidation_sweep_risk_acceptable": True,
-    })
-    keys["v2:liquidations:levels:BTCUSDT:1m"] = {
-        "liquidation_is_stale": 1,
-        "liquidation_no_events": 0,
-        "liquidation_updated_ts": now_ms,
-        "liquidation_last_event_ts": now_ms - 3_600_000,
-        "liquidation_staleness_ms": 3_600_000,
-        "liquidation_current_price": 60000.0,
-        "liquidation_levels_count_long": 1,
-        "liquidation_levels_count_short": 1,
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(row["coinank_context"] for row in directional)
-    assert {
-        row["coinank_context"].get("liquidation_context_status") for row in directional
-    } == {"FRESHLY_RECOMPUTED_AGED_LEVELS_SWEEP_ACCEPTED"}
-
-
-def test_strategy_supply_rejects_aged_levels_when_sweep_detector_did_not_accept():
-    now_ms = int(time.time() * 1000)
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:microstructure:trust_score:BTCUSDT:1m"].update({
-        "liquidation_sweep_risk_acceptable": False,
-    })
-    keys["v2:liquidations:levels:BTCUSDT:1m"] = {
-        "liquidation_is_stale": 1,
-        "liquidation_no_events": 0,
-        "liquidation_updated_ts": now_ms,
-        "liquidation_last_event_ts": now_ms - 3_600_000,
-        "liquidation_staleness_ms": 3_600_000,
-        "liquidation_current_price": 60000.0,
-        "liquidation_levels_count_long": 1,
-        "liquidation_levels_count_short": 1,
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(
-        row["coinank_context_missing_reason"] == "LIQUIDATION_CONTEXT_STALE_SWEEP_DETECTOR_NOT_ACCEPTED"
-        for row in directional
-    )
-
-
-def test_strategy_supply_derives_trust_from_top_book_and_trade_tape_when_explicit_absent():
-    keys = _base_keys()
-    keys.pop("v2:microstructure:trust_score:BTCUSDT:1m")
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:orderbook:top:binance:BTCUSDT"].update({
-        "best_bid_size": 0.20,
-        "best_ask_size": 0.19,
-    })
-    keys["v2:market:trade_tape_features:BTCUSDT"] = {
-        "trade_imbalance": 0.64,
-        "trade_tape_confirmation_score": 0.82,
-        "available_at": "2026-07-09T05:59:00Z",
-    }
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-    assert directional
-    assert all(row["microstructure_trust_score"] is not None for row in directional)
-    assert all(row["orderbook_depth_usd"] is not None and row["orderbook_depth_usd"] > 0 for row in directional)
-    assert all(row["trade_tape_confirmation_score"] == 0.82 for row in directional)
-
-
-def test_strategy_supply_rejects_low_microstructure_trust_before_positive_supply():
-    keys = _base_keys()
-    keys["v2:market:prices:BTCUSDT"] = {
-        "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
-                         "closeTime": 4102444800000},
-    }
-    keys["v2:microstructure:trust_score:BTCUSDT:1m"] = {
-        "composite_microstructure_trust_score": 0.59,
-        "trade_tape_confirmation_score": 0.75,
-        "available_at": "2026-07-09T05:59:00Z",
-    }
-
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    directional = [row for row in rows if row.get("side")]
-
-    assert directional
-    assert all(
-        row["why_rejected"] == "MICROSTRUCTURE_TRUST_BELOW_ALLOCATOR_MINIMUM"
-        for row in directional
-    )
-    assert all(row["expected_net_pnl_usd"] is not None for row in directional)
-
-
-def test_strategy_supply_lifts_capped_trust_only_with_execution_grade_evidence():
+def test_strategy_supply_masks_self_declared_microstructure_trust_key():
     keys = _base_keys()
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
@@ -702,11 +503,196 @@ def test_strategy_supply_lifts_capped_trust_only_with_execution_grade_evidence()
     directional = [row for row in rows if row.get("side")]
 
     assert directional
-    assert all(row["microstructure_trust_score"] >= 0.70 for row in directional)
-    assert all(row["market_state_integrity_score"] >= 70.0 for row in directional)
     assert all(
-        row["why_rejected"] != "MICROSTRUCTURE_TRUST_BELOW_ALLOCATOR_MINIMUM"
+        row["why_rejected"]
+        == "MICROSTRUCTURE_TRUST_EXACT_RETAINED_ARTIFACT_CONSUMER_RESOLVER_UNWIRED"
         for row in directional
+    )
+    assert all(row["microstructure_trust_score"] is None for row in directional)
+    assert all(row["market_state_integrity_score"] is None for row in directional)
+    assert all(row["trade_tape_confirmation_score"] is None for row in directional)
+    assert all(row["microstructure_trust_source"] is None for row in directional)
+    assert all("microstructure_trust" not in row["provider_features_used"] for row in directional)
+    assert all("microstructure_trust" not in row["provider_feature_hashes"] for row in directional)
+    status = directional[0]["optional_input_status"]
+    assert status["boundary_state"] == "MASKED"
+    assert status["retained_artifact_authenticated"] is False
+    assert status["postcommit_readback_receipt_verified"] is False
+    assert set(status["admitted_clocks"].values()) == {None}
+    assert status["by_input"]["microstructure_trust"]["state"] == "MASKED"
+
+
+@pytest.mark.parametrize(
+    "liquidation_payload",
+    [
+        {
+            "liquidation_is_stale": 0,
+            "liquidation_levels_count_long": 3,
+            "liquidation_levels_count_short": 2,
+            "liquidation_cascade_risk": 0.12,
+        },
+        {
+            "liquidation_is_stale": 1,
+            "liquidation_no_events": 1,
+            "liquidation_levels_json": json.dumps(
+                {"no_events_reason": "no_liquidation_events_in_window"}
+            ),
+            "liquidation_updated_ts": int(time.time() * 1000),
+            "liquidation_current_price": 60000.0,
+        },
+        {
+            "liquidation_is_stale": 1,
+            "liquidation_no_events": 0,
+            "liquidation_updated_ts": int(time.time() * 1000),
+            "liquidation_last_event_ts": int(time.time() * 1000) - 3_600_000,
+            "liquidation_staleness_ms": 3_600_000,
+            "liquidation_current_price": 60000.0,
+            "liquidation_levels_count_long": 1,
+            "liquidation_levels_count_short": 1,
+        },
+    ],
+)
+def test_unreceipted_liquidation_payload_cannot_satisfy_context_gate(
+    liquidation_payload: dict,
+) -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
+    }
+    keys["v2:microstructure:trust_score:BTCUSDT:1m"][
+        "liquidation_sweep_risk_acceptable"
+    ] = True
+    keys["v2:liquidations:levels:BTCUSDT:1m"] = liquidation_payload
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+    directional = [row for row in rows if row.get("side")]
+
+    assert directional
+    assert all(row["coinank_context"] is None for row in directional)
+    assert all(
+        row["coinank_context_missing_reason"]
+        == "LIQUIDATION_LEVELS_EXACT_RETAINED_ARTIFACT_CONSUMER_RESOLVER_UNWIRED"
+        for row in directional
+    )
+    assert all(row["liquidation_context_source"] is None for row in directional)
+    assert all("liquidation_levels" not in row["provider_feature_hashes"] for row in directional)
+    assert all("coinank_liquidations" not in row["provider_features_used"] for row in directional)
+    assert all(row["expected_liquidation_buffer_usd"] > 0 for row in directional)
+    assert all(row["liquidation_buffer_signed_read_verified"] is False for row in directional)
+
+
+@pytest.mark.parametrize(
+    ("key", "payload", "forbidden_family", "context_field"),
+    [
+        (
+            "v2:market:fvg:BTCUSDT:1m",
+            {"bullish_fvg_present": True},
+            "fvg_retest",
+            "fvg_context",
+        ),
+        (
+            "v2:market:sweep_risk:BTCUSDT:1m",
+            {"sweep_risk_long_side": 1.0},
+            "liquidity_sweep_reversal",
+            None,
+        ),
+        (
+            "v2:orderbook:features:binance:BTCUSDT",
+            {"depth_imbalance": 1.0, "orderbook_depth_usd": 1_000_000.0},
+            "orderbook_absorption",
+            "orderbook_context",
+        ),
+        (
+            "v2:market:microstructure:BTCUSDT",
+            {"tape_imbalance": 1.0, "trade_tape_confirmation_score": 1.0},
+            "microstructure_momentum",
+            "microstructure_context",
+        ),
+        (
+            "v2:market:trade_tape_features:BTCUSDT",
+            {"trade_imbalance": 1.0, "trade_tape_confirmation_score": 1.0},
+            "microstructure_momentum",
+            "trade_tape_context",
+        ),
+        (
+            "v2:microstructure:trade_tape_confirmation:BTCUSDT",
+            {"trade_imbalance": 1.0, "trade_tape_confirmation_score": 1.0},
+            "microstructure_momentum",
+            "trade_tape_context",
+        ),
+    ],
+)
+def test_unreceipted_optional_payload_cannot_create_strategy_family(
+    key: str,
+    payload: dict,
+    forbidden_family: str,
+    context_field: str | None,
+) -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
+    }
+    keys[key] = payload
+
+    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
+
+    assert forbidden_family not in {row.get("strategy_family") for row in rows}
+    if context_field is not None:
+        assert all(row.get(context_field) is not True for row in rows)
+    optional_labels = {
+        "fvg",
+        "liquidity_zones",
+        "liquidation_levels",
+        "sweep_risk",
+        "microstructure",
+        "microstructure_trust",
+        "orderbook",
+        "orderbook_top",
+        "orderbook_rest",
+        "trade_tape",
+        "trade_tape_confirmation",
+    }
+    assert all(optional_labels.isdisjoint(row["provider_feature_hashes"]) for row in rows)
+
+
+def test_optional_strategy_boundary_does_not_read_raw_compatibility_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    keys = _base_keys()
+    candidate_keys = edge_generator._optional_raw_input_source_keys(
+        "BTCUSDT",
+        "1m",
+    )
+    for raw_key in {key for values in candidate_keys.values() for key in values}:
+        keys[raw_key] = {
+            "consumer_eligible": True,
+            "retained_artifact_authenticated": True,
+            "postcommit_readback_receipt_verified": True,
+            "available_at": "2026-07-09T05:59:00Z",
+            "feature_cutoff": "2026-07-09T05:58:00Z",
+        }
+    monkeypatch.setattr(
+        edge_generator,
+        "resolve_current_price",
+        lambda _client, _symbol: {
+            "price": 60_000.0,
+            "source": "test_price_boundary",
+            "available_at": "2026-07-09T05:59:00Z",
+        },
+    )
+    client = FakeRedis(keys)
+
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
+
+    assert rows
+    raw_keys = {key for values in candidate_keys.values() for key in values}
+    assert raw_keys.isdisjoint(client.read_keys)
+    assert all(
+        row["optional_input_status"][
+            "source_payload_consumed_as_optional_strategy_evidence"
+        ]
+        is False
+        for row in rows
     )
 
 

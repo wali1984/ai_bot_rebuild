@@ -70,6 +70,13 @@ STRATEGY_FAMILIES = (
     "volatility_expansion",
 )
 
+OPTIONAL_INPUT_STATUS_SCHEMA_VERSION = (
+    "strategy_supply_optional_input_status_v1"
+)
+OPTIONAL_INPUT_MASK_REASON = (
+    "EXACT_RETAINED_ARTIFACT_CONSUMER_RESOLVER_UNWIRED"
+)
+
 
 def _utc_now() -> str:
     return (
@@ -104,12 +111,93 @@ def _read_json(client: Any, key: str) -> Any:
         return None
 
 
-def _read_first_json(client: Any, keys: list[str]) -> tuple[Any, str | None]:
-    for key in keys:
-        payload = _read_json(client, key)
-        if isinstance(payload, Mapping):
-            return payload, key
-    return None, None
+def _optional_raw_input_source_keys(
+    symbol: str,
+    timeframe: str,
+) -> dict[str, tuple[str, ...]]:
+    """Describe raw compatibility surfaces that are not evidence inputs.
+
+    These keys are useful operator projections, but none currently has an
+    independent retained-artifact resolver that authenticates the exact
+    bytes read by this process. Listing them here makes the hold explicit;
+    it does not read or trust any of them.
+    """
+
+    trust_timeframes = tuple(
+        dict.fromkeys(
+            candidate
+            for candidate in (timeframe, "1m", "5m", "15m")
+            if candidate in {"1m", "5m", "15m", "1h", "4h"}
+        )
+    )
+    return {
+        "fvg": (f"v2:market:fvg:{symbol}:{timeframe}",),
+        "liquidity_zones": (f"v2:market:liquidity_zones:{symbol}",),
+        "liquidation_levels": (
+            f"v2:liquidations:levels:{symbol}:{timeframe}",
+            f"v2:market:liquidations:aggregate:{symbol}",
+            f"v2:coinank:liquidations:{symbol}",
+            f"v2:market:coinank:liquidation_levels:{symbol}:{timeframe}",
+            f"v2:market:coinank:liquidation_levels:{symbol}",
+            f"v2:market:liquidation_levels:{symbol}",
+        ),
+        "sweep_risk": (f"v2:market:sweep_risk:{symbol}:{timeframe}",),
+        "microstructure": (f"v2:market:microstructure:{symbol}",),
+        "microstructure_trust": tuple(
+            f"v2:microstructure:trust_score:{symbol}:{candidate}"
+            for candidate in trust_timeframes
+        ),
+        "orderbook": (f"v2:orderbook:features:binance:{symbol}",),
+        "orderbook_top": (f"v2:orderbook:top:binance:{symbol}",),
+        "orderbook_rest": (f"v2:market:orderbook:binance:{symbol}",),
+        "trade_tape": (f"v2:market:trade_tape_features:{symbol}",),
+        "trade_tape_confirmation": (
+            f"v2:microstructure:trade_tape_confirmation:{symbol}",
+        ),
+    }
+
+
+def _masked_optional_input_status(
+    symbol: str,
+    timeframe: str,
+) -> dict[str, Any]:
+    """Return the fail-closed contract for unreceipted optional inputs."""
+
+    sources = _optional_raw_input_source_keys(symbol, timeframe)
+    return {
+        "schema_version": OPTIONAL_INPUT_STATUS_SCHEMA_VERSION,
+        "boundary_state": "MASKED",
+        "boundary_rejection_reason": OPTIONAL_INPUT_MASK_REASON,
+        "all_listed_inputs_masked": True,
+        "exact_binary_source_read_for_optional_evidence": False,
+        "retained_artifact_authenticated": False,
+        "postcommit_readback_receipt_verified": False,
+        "source_payload_consumed_as_optional_strategy_evidence": False,
+        "zero_fill_used": False,
+        "trainer_admission_granted": False,
+        "live_execution_authorized": False,
+        "admitted_clocks": {
+            "event_time": None,
+            "ingested_at": None,
+            "available_at": None,
+            "generated_at": None,
+            "feature_cutoff": None,
+            "decision_time": None,
+        },
+        "by_input": {
+            name: {
+                "state": "MASKED",
+                "rejection_reason": (
+                    f"{name}:{OPTIONAL_INPUT_MASK_REASON.lower()}"
+                ),
+                "candidate_source_keys": list(keys),
+                "source_payload_consumed_as_optional_strategy_evidence": (
+                    False
+                ),
+            }
+            for name, keys in sources.items()
+        },
+    }
 
 
 def _dig(payload: Any, *names: str) -> Any:
@@ -127,26 +215,7 @@ def _dig(payload: Any, *names: str) -> Any:
 
 
 def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
-    trust_timeframes = [timeframe, "1m", "5m", "15m"]
-    trust_payload = None
-    trust_source = None
-    for tf in dict.fromkeys(tf for tf in trust_timeframes if tf in {"1m", "5m", "15m", "1h", "4h"}):
-        key = f"v2:microstructure:trust_score:{symbol}:{tf}"
-        trust_payload = _read_json(client, key)
-        if isinstance(trust_payload, Mapping):
-            trust_source = key
-            break
-    liquidation_context, liquidation_context_source = _read_first_json(
-        client,
-        [
-            f"v2:liquidations:levels:{symbol}:{timeframe}",
-            f"v2:market:liquidations:aggregate:{symbol}",
-            f"v2:coinank:liquidations:{symbol}",
-            f"v2:market:coinank:liquidation_levels:{symbol}:{timeframe}",
-            f"v2:market:coinank:liquidation_levels:{symbol}",
-            f"v2:market:liquidation_levels:{symbol}",
-        ],
-    )
+    optional_input_status = _masked_optional_input_status(symbol, timeframe)
     # The TA publisher's compatibility snapshots intentionally carry
     # consumer_eligible=false.  Rebuild TA in this process from one exact
     # binary read of the canonical closed window; invalid/missing input is an
@@ -217,22 +286,27 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         "ta": ta_context,
         "ta_input_status": ta_input_status,
         "ta_source_key": f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}",
-        "fvg": _read_json(client, f"v2:market:fvg:{symbol}:{timeframe}"),
-        "liquidity_zones": _read_json(client, f"v2:market:liquidity_zones:{symbol}"),
-        "liquidation_levels": liquidation_context,
-        "liquidation_levels_source": liquidation_context_source,
-        "sweep_risk": _read_json(client, f"v2:market:sweep_risk:{symbol}:{timeframe}"),
+        # Mutable compatibility projections are deliberately not read here.
+        # A self-declared clock/hash/boolean inside the same payload cannot
+        # authenticate its own retained bytes. Each field remains optional
+        # and masked until its independent exact-artifact resolver is wired.
+        "fvg": None,
+        "liquidity_zones": None,
+        "liquidation_levels": None,
+        "liquidation_levels_source": None,
+        "sweep_risk": None,
         "coinglass": coinglass_context,
         "confluence": confluence_context,
         "moralis": moralis_features,
-        "microstructure": _read_json(client, f"v2:market:microstructure:{symbol}"),
-        "microstructure_trust": trust_payload,
-        "microstructure_trust_source": trust_source,
-        "orderbook": _read_json(client, f"v2:orderbook:features:binance:{symbol}"),
-        "orderbook_top": _read_json(client, f"v2:orderbook:top:binance:{symbol}"),
-        "orderbook_rest": _read_json(client, f"v2:market:orderbook:binance:{symbol}"),
-        "trade_tape": _read_json(client, f"v2:market:trade_tape_features:{symbol}"),
-        "trade_tape_confirmation": _read_json(client, f"v2:microstructure:trade_tape_confirmation:{symbol}"),
+        "microstructure": None,
+        "microstructure_trust": None,
+        "microstructure_trust_source": None,
+        "orderbook": None,
+        "orderbook_top": None,
+        "orderbook_rest": None,
+        "trade_tape": None,
+        "trade_tape_confirmation": None,
+        "optional_input_status": optional_input_status,
     }
 
 
@@ -278,10 +352,8 @@ def _provider_feature_hashes(ctx: Mapping[str, Any]) -> dict[str, str]:
     return hashes
 
 
-def _provider_features_used(ctx: Mapping[str, Any], *, signal_context: Any = None) -> list[str]:
+def _provider_features_used(ctx: Mapping[str, Any]) -> list[str]:
     labels: list[str] = []
-    if signal_context not in (None, ""):
-        labels.append(str(signal_context))
     for label, key in (
         ("native_closed_ohlcv_ta", "ta"),
         ("fvg", "fvg"),
@@ -301,6 +373,19 @@ def _provider_features_used(ctx: Mapping[str, Any], *, signal_context: Any = Non
         if ctx.get(key) not in (None, "", [], {}):
             labels.append(label)
     return list(dict.fromkeys(labels))
+
+
+def _optional_input_rejection_reason(
+    ctx: Mapping[str, Any],
+    name: str,
+    fallback: str,
+) -> str:
+    status = ctx.get("optional_input_status")
+    by_input = status.get("by_input") if isinstance(status, Mapping) else None
+    row = by_input.get(name) if isinstance(by_input, Mapping) else None
+    if isinstance(row, Mapping) and row.get("state") == "MASKED":
+        return f"{name.upper()}_{OPTIONAL_INPUT_MASK_REASON}"
+    return fallback
 
 
 def _parse_utc(value: Any) -> datetime | None:
@@ -430,6 +515,12 @@ def _contract_base(
         ctx,
         price_payload=price_payload,
     )
+    optional_input_status = (
+        ctx.get("optional_input_status")
+        if isinstance(ctx.get("optional_input_status"), Mapping)
+        else {}
+    )
+    hypothesis_generated_at = _utc_now()
     return {
         "schema_version": "edge_hypothesis_v1",
         "hypothesis_id": hypothesis_id,
@@ -439,11 +530,17 @@ def _contract_base(
         "symbol": symbol,
         "timeframe": timeframe,
         "side": side,
-        "generated_utc": generated,
-        "generated_at": generated,
+        "generated_utc": hypothesis_generated_at,
+        "generated_at": hypothesis_generated_at,
         "feature_cutoff": feature_cutoff,
         "decision_time": generated,
-        "available_at": input_available_at,
+        # This row has not crossed a post-commit readback boundary yet. The
+        # latest admitted input clock is retained separately; presenting it
+        # as the hypothesis' own availability would pre-date the computation.
+        "available_at": None,
+        "input_available_at": input_available_at,
+        "output_postcommit_readback_receipt_emitted": False,
+        "output_available_at_unavailable_until_postcommit_receipt": True,
         "entry_feature_candle_closed_confirmed": candle_closed_confirmed,
         "candle_closed_confirmed": candle_closed_confirmed,
         "last_closed_candle_open_ts_ms": ta_ctx.get("last_closed_candle_open_ts_ms"),
@@ -474,8 +571,12 @@ def _contract_base(
         "price_source": (price_payload or {}).get("source"),
         "price_available_at": (price_payload or {}).get("available_at"),
         "feature_vector_hash": feature_hash,
-        "provider_features_used": _provider_features_used(ctx, signal_context=signal_context),
+        "provider_features_used": _provider_features_used(ctx),
         "provider_feature_hashes": provider_hashes,
+        "signal_context": (
+            str(signal_context) if signal_context not in (None, "") else None
+        ),
+        "optional_input_status": optional_input_status,
         "reason_if_rejected": reason_if_rejected,
         "why_rejected": reason_if_rejected,
         "counts_as_a_plus": False,
@@ -484,6 +585,9 @@ def _contract_base(
         "routes_to_live": False,
         "places_real_order": False,
         "paper_only": True,
+        "consumer_eligible": False,
+        "trainer_consumable": False,
+        "trainer_admission_granted": False,
     }
 
 
@@ -1108,7 +1212,11 @@ def _aged_liquidation_levels_still_actionable(
 def _fresh_liquidation_context(ctx: Mapping[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
     payload = ctx.get("liquidation_levels")
     if not isinstance(payload, Mapping):
-        return None, "LIQUIDATION_CONTEXT_MISSING"
+        return None, _optional_input_rejection_reason(
+            ctx,
+            "liquidation_levels",
+            "LIQUIDATION_CONTEXT_MISSING",
+        )
     if _truthy(payload.get("liquidation_is_stale") or payload.get("is_stale") or payload.get("stale")):
         no_events_observed = _liquidation_no_events_observed(payload)
         updated_ts = _float(payload.get("liquidation_updated_ts") or payload.get("updated_ts"))
@@ -1391,11 +1499,19 @@ def generate_hypotheses(client: Any, symbol: str, timeframe: str) -> list[dict[s
         )
         why_rejected = None
         if trust_score is None:
-            why_rejected = "MICROSTRUCTURE_TRUST_MISSING"
+            why_rejected = _optional_input_rejection_reason(
+                ctx,
+                "microstructure_trust",
+                "MICROSTRUCTURE_TRUST_MISSING",
+            )
         elif market_state_integrity_score is None or market_state_integrity_score < ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE:
             why_rejected = "MICROSTRUCTURE_TRUST_BELOW_ALLOCATOR_MINIMUM"
         elif tape_score is None:
-            why_rejected = "TRADE_TAPE_CONFIRMATION_MISSING"
+            why_rejected = _optional_input_rejection_reason(
+                ctx,
+                "trade_tape_confirmation",
+                "TRADE_TAPE_CONFIRMATION_MISSING",
+            )
         elif tape_score < MIN_TRADE_TAPE_CONFIRMATION_SCORE:
             why_rejected = "TRADE_TAPE_CONFIRMATION_WEAK"
         elif MIN_COINANK_CONTEXT_REQUIRED and coinank_context is None:
