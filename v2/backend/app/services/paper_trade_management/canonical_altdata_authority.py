@@ -204,6 +204,12 @@ def _normalized_lineage(
         mask_reason = "canonical_reconstruction_not_decision_time_safe"
     else:
         mask_reason = None
+    # A canonical reconstruction may legitimately emit engine timestamps for
+    # an absence result.  Those describe the reconstruction attempt, not an
+    # available market feature.  Publish only the dedicated consumer lookup
+    # clock for masked/absent results so downstream code cannot mistake an
+    # engine clock for provider ``available_at`` provenance.
+    admitted_source = payload if admitted else {}
     return {
         "provider_features_used": sorted(
             name for name, value in feature_map.items() if value is not None
@@ -227,13 +233,13 @@ def _normalized_lineage(
         "altdata_provider_hash_source": _IDENTITY_SOURCE,
         "altdata_schema_version": payload.get("schema_version"),
         "altdata_boundary_schema_version": payload.get("boundary_schema_version"),
-        "altdata_feature_cutoff": payload.get("feature_cutoff"),
-        "altdata_observed_at": payload.get("observed_at"),
-        "altdata_confluence_engine_generated_at": payload.get(
+        "altdata_feature_cutoff": admitted_source.get("feature_cutoff"),
+        "altdata_observed_at": admitted_source.get("observed_at"),
+        "altdata_confluence_engine_generated_at": admitted_source.get(
             "confluence_engine_generated_at"
         ),
-        "altdata_generated_at": payload.get("generated_at"),
-        "altdata_available_at": payload.get("available_at"),
+        "altdata_generated_at": admitted_source.get("generated_at"),
+        "altdata_available_at": admitted_source.get("available_at"),
         "altdata_actual_payload_present": actual_payload_present,
         "altdata_decision_time_safe": decision_time_safe,
         "altdata_canonical_reconstruction_attempted": True,

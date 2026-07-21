@@ -14,7 +14,13 @@ import pytest
 
 from v2.backend.app.cli import v2_trade_management_paper_loop as paper_loop
 from v2.backend.app.services.paper_trade_management import canonical_altdata_authority
-from v2.backend.app.services.preemptive_edge_control import decision as decision_module
+from v2.backend.app.services.paper_trade_management.preemptive_edge_control import (
+    evaluate_paper_candidate,
+    replay_paper_preemptive_decision,
+)
+from v2.backend.app.services.preemptive_edge_control.decision import (
+    canonical_preemptive_input_hash,
+)
 
 
 class FakeRedis:
@@ -124,8 +130,12 @@ def _winning_history() -> list[dict[str, Any]]:
     ]
 
 
-def _decision(altdata: dict[str, Any] | None) -> dict[str, Any]:
-    return decision_module.evaluate_candidate(
+def _decision(
+    altdata: dict[str, Any] | None,
+    *,
+    decision_time: str | None = None,
+) -> dict[str, Any]:
+    return evaluate_paper_candidate(
         _candidate(),
         closed_rows=_winning_history(),
         continuous_edge_guardian_gate={
@@ -139,6 +149,7 @@ def _decision(altdata: dict[str, Any] | None) -> dict[str, Any]:
             "adaptive_loss_probability_threshold": 0.80,
             "adaptive_microstructure_trust_threshold": 0.50,
         },
+        decision_time=decision_time or _utc(datetime.now(UTC)),
     )
 
 
@@ -201,6 +212,9 @@ def test_forged_cached_confluence_and_raw_provider_bytes_never_gain_authority() 
     assert lineage["altdata_cached_confluence_consumed"] is False
     assert lineage["altdata_canonical_reconstruction_admitted"] is False
     assert lineage["provider_features_used"] == []
+    assert _parse(lineage["altdata_lookup_observed_at"]).tzinfo is not None
+    assert lineage["altdata_feature_cutoff"] is None
+    assert lineage["altdata_available_at"] is None
     assert decision["preemptive_decision"] == "ALLOW"
     assert decision["altdata_confluence_present"] is False
     assert (
@@ -257,6 +271,9 @@ def test_stale_future_identity_nan_and_malformed_sources_are_explicitly_masked(
         "no_fresh_contributing_provider"
     )
     assert lineage["provider_features_used"] == []
+    assert _parse(lineage["altdata_lookup_observed_at"]).tzinfo is not None
+    assert lineage["altdata_observed_at"] is None
+    assert lineage["altdata_available_at"] is None
     assert decision["preemptive_decision"] == "ALLOW"
     assert decision["altdata_confluence_present"] is False
     assert (
@@ -300,9 +317,18 @@ def test_boundary_exception_masks_altdata_without_reading_any_fallback(
     assert lineage["altdata_boundary_error_masked"] is True
     assert lineage["altdata_canonical_reconstruction_valid"] is False
     assert lineage["altdata_raw_provider_fallback_consumed"] is False
+    assert _parse(lineage["altdata_lookup_observed_at"]).tzinfo is not None
+    assert lineage["altdata_feature_cutoff"] is None
+    assert lineage["altdata_available_at"] is None
     assert lineage["altdata_reconstruction_mask_reason"] == (
         "canonical_confluence_contract_error_masked"
     )
+
+
+def test_obsolete_full_provider_payload_hash_contract_is_absent() -> None:
+    obsolete = "FULL_CANONICAL_PROVIDER_PAYLOAD_SHA256_V1"
+    assert obsolete not in inspect.getsource(paper_loop)
+    assert obsolete not in inspect.getsource(canonical_altdata_authority)
 
 
 def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -> None:
@@ -315,9 +341,8 @@ def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -
         symbol="BTCUSDT",
         timeframe="1m",
     )
-    decision = _decision(altdata)
+    decision = _decision(altdata, decision_time=_utc(datetime.now(UTC)))
     decision.update(lineage)
-    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
 
     assert altdata is not None
     assert decision["altdata_confluence_present"] is True
@@ -339,10 +364,26 @@ def test_fresh_canonical_confluence_carries_causal_non_authoritative_lineage() -
             "altdata_confluence_engine_generated_at",
             "altdata_generated_at",
             "altdata_available_at",
+            "altdata_lookup_observed_at",
         )
     ]
     assert clocks == sorted(clocks)
     assert clocks[-1] <= _parse(decision["preemptive_decision_time"])
+    input_material = decision["preemptive_input_material"]
+    assert (
+        input_material["clocks"]["preemptive_decision_time"]
+        == decision["preemptive_decision_time"]
+    )
+    assert canonical_preemptive_input_hash(input_material) == decision[
+        "preemptive_input_hash"
+    ]
+    replayed = replay_paper_preemptive_decision(
+        input_material,
+        expected_input_hash=decision["preemptive_input_hash"],
+    )
+    assert replayed["preemptive_decision_id"] == decision[
+        "preemptive_decision_id"
+    ]
     assert (
         paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
             decision
@@ -368,7 +409,8 @@ def test_runtime_revalidation_never_reuses_a_pre_altdata_candidate_clock() -> No
     )
     candidate = _candidate()
     candidate["decision_time"] = _utc(base - timedelta(hours=1))
-    decision = decision_module.evaluate_candidate(
+    runtime_decision_time = _utc(datetime.now(UTC))
+    decision = evaluate_paper_candidate(
         candidate,
         closed_rows=_winning_history(),
         continuous_edge_guardian_gate={
@@ -377,6 +419,7 @@ def test_runtime_revalidation_never_reuses_a_pre_altdata_candidate_clock() -> No
             "new_entries_allowed": True,
         },
         altdata_confluence=altdata,
+        decision_time=runtime_decision_time,
     )
     decision.update(lineage)
 
@@ -388,11 +431,13 @@ def test_runtime_revalidation_never_reuses_a_pre_altdata_candidate_clock() -> No
         candidate["decision_time"]
     )
 
-    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
-
     assert _parse(decision["altdata_available_at"]) <= _parse(
         decision["preemptive_decision_time"]
     )
+    assert decision["preemptive_decision_time"] == runtime_decision_time
+    assert decision["preemptive_input_material"]["clocks"][
+        "preemptive_decision_time"
+    ] == decision["preemptive_decision_time"]
     assert (
         paper_loop._paper_altdata_admission_rejection_reasons(  # noqa: SLF001
             decision
@@ -469,9 +514,8 @@ def test_admission_rejects_noncanonical_and_missing_runtime_decision_clocks() ->
         symbol="BTCUSDT",
         timeframe="1m",
     )
-    decision = _decision(altdata)
+    decision = _decision(altdata, decision_time=_utc(datetime.now(UTC)))
     decision.update(lineage)
-    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
 
     malformed = copy.deepcopy(decision)
     malformed["altdata_observed_at"] = malformed["altdata_observed_at"].replace(
@@ -501,9 +545,8 @@ def test_plain_sha_identity_is_observational_not_authentication() -> None:
         symbol="BTCUSDT",
         timeframe="1m",
     )
-    decision = _decision(altdata)
+    decision = _decision(altdata, decision_time=_utc(datetime.now(UTC)))
     decision.update(lineage)
-    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
 
     observational = copy.deepcopy(decision)
     observational["altdata_content_identity"]["digest"] = "0" * 64
@@ -610,12 +653,11 @@ def test_require_hedge_blocks_entry_until_a_binding_executor_exists() -> None:
         symbol="BTCUSDT",
         timeframe="1m",
     )
-    decision = _decision(altdata)
+    decision = _decision(altdata, decision_time=_utc(datetime.now(UTC)))
     decision.update(lineage)
     decision["altdata_hedge_required"] = True
     decision["preemptive_action"] = "REQUIRE_HEDGE"
     decision["preemptive_decision_reasons"] = ["ALTDATA_HEDGE_REQUIRED"]
-    paper_loop._stamp_paper_runtime_preemptive_decision_time(decision)  # noqa: SLF001
     intent = _binding_intent(decision)
 
     reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
@@ -652,21 +694,61 @@ def test_require_hedge_blocks_entry_until_a_binding_executor_exists() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("decision", "action", "binding_reason"),
+    [
+        ("ALLOW", "BLOCK_NO_EDGE", "PREEMPTIVE_BLOCK_ACTION_BINDING:BLOCK_NO_EDGE"),
+        ("NO_TRADE", "ALLOW_A_PLUS_CANDIDATE", "PREEMPTIVE_BLOCK_ACTION_BINDING:NO_TRADE"),
+    ],
+)
+def test_contradictory_preemptive_action_and_decision_fail_closed(
+    decision: str,
+    action: str,
+    binding_reason: str,
+) -> None:
+    intent = _binding_intent()
+    intent["preemptive_decision"] = decision
+    intent["preemptive_action"] = action
+    intent["preemptive_edge_control"]["preemptive_decision"] = decision
+    intent["preemptive_edge_control"]["preemptive_action"] = action
+
+    reasons = paper_loop._paper_preemptive_admission_rejection_reasons(  # noqa: SLF001
+        intent
+    )
+
+    assert (
+        f"PREEMPTIVE_ACTION_DECISION_INCOHERENT:decision={decision}:action={action}"
+        in reasons
+    )
+    assert binding_reason in reasons
+
+
 def test_single_binding_append_path_blocks_freeze_sizing_and_write_bypasses(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     source = inspect.getsource(paper_loop)
     tree = ast.parse(source)
-    accepted_appends = [
+    append_owners: list[tuple[str, str]] = []
+    for function in (
         node
         for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "append"
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "accepted"
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ):
+        for node in ast.walk(function):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "append"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id in {"accepted", "accepted_rows"}
+            ):
+                append_owners.append((function.name, node.func.value.id))
+    assert append_owners == [
+        ("_paper_append_accepted_with_halted_probe_finalization", "accepted_rows"),
+        ("_paper_append_accepted_with_halted_probe_finalization", "accepted_rows"),
     ]
-    assert len(accepted_appends) == 1
+    admit_signature = inspect.signature(paper_loop._admit_and_append_paper_fill)  # noqa: SLF001
+    assert "require_final_admission_contract" not in admit_signature.parameters
     assert paper_loop.LEGACY_HIGH_CONFIDENCE_PAPER_FAST_PATH_ENABLED is False
 
     monkeypatch.setattr(
@@ -716,7 +798,7 @@ def test_single_binding_append_path_blocks_freeze_sizing_and_write_bypasses(
     assert "PAPER_FILL_WRITE_INVARIANT:MISSING_RISK_DECISION_ID" in reasons
 
 
-def test_single_binding_append_path_rechecks_canonical_lineage_and_can_admit(
+def test_single_binding_append_path_rechecks_lineage_and_requires_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -742,9 +824,7 @@ def test_single_binding_append_path_rechecks_canonical_lineage_and_can_admit(
         valid,
         paper_entry_freeze={"paper_new_entries_halted": False},
     )
-    assert reasons == []
-    assert accepted == [valid]
-    assert valid["paper_binding_admission_passed"] is True
-    assert valid["paper_binding_admission_path"] == (
-        "CANONICAL_PREEMPTIVE_NEW_ENTRY_WRITE_BOUNDARY"
-    )
+    assert accepted == []
+    assert reasons == ["PAPER_RUNTIME_FINAL_ADMISSION_AUTHORITY_UNAVAILABLE"]
+    assert valid["paper_binding_admission_passed"] is False
+    assert valid["paper_binding_admission_blocked"] is True

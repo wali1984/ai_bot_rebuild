@@ -1425,6 +1425,33 @@ def test_golden_a_grade_passes_real_final_admission_contract(
     assert "paper-golden-local-evidence-auth-key" not in json.dumps(contract)
 
 
+def test_final_admission_rejects_post_seal_top_level_decision_clock_mutation(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    preemptive = intent["preemptive_edge_control"]
+    assert isinstance(preemptive, dict)
+    sealed_clock = preemptive["preemptive_input_material"]["clocks"][
+        "preemptive_decision_time"
+    ]
+    assert intent["preemptive_decision_time"] == sealed_clock
+    intent["preemptive_decision_time"] = "2026-07-17T12:00:07.500000Z"
+
+    contract = paper_loop._paper_final_admission_point_in_time_contract(  # noqa: SLF001
+        intent,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    assert contract["status"] == "BLOCKED"
+    assert "PREEMPTIVE_DECISION_TIME_TOP_LEVEL_MISMATCH" in contract[
+        "rejection_reasons"
+    ]
+    assert preemptive["preemptive_input_material"]["clocks"][
+        "preemptive_decision_time"
+    ] == sealed_clock
+
+
 def test_adaptive_tuning_consumer_rejects_legacy_unsealed_payload() -> None:
     receipt = paper_loop._paper_adaptive_tuning_semantic_validation(  # noqa: SLF001
         {
@@ -1598,6 +1625,180 @@ def test_golden_a_grade_passes_real_append_and_persistence_boundaries(
     assert quarantined == []
     assert len(persisted) == 1
     assert persisted[0]["paper_persisted_ledger_status"] == "PASS"
+
+def test_golden_a_grade_economic_materialization_is_finalized_then_stamped(
+    golden_a_grade_final_admission,
+    monkeypatch,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    intent.update(
+        {
+            "decision_time": "2026-07-17T12:00:05Z",
+            "entry_feature_decision_time": "2026-07-17T12:00:05Z",
+            "fill_price_observed_at": "2026-07-17T12:00:02.500000Z",
+            "fill_price_utc": "2026-07-17T12:00:02.500000Z",
+            "entry_price_utc": "2026-07-17T12:00:02.500000Z",
+            "paper_fill_write_invariant_status": {"valid": True, "reasons": []},
+        }
+    )
+    events: list[str] = []
+    real_final_contract = paper_loop._paper_final_admission_point_in_time_contract  # noqa: SLF001
+    real_stamp = paper_loop._paper_stamp_fill_materialization_time  # noqa: SLF001
+
+    def observed_final_contract(*args, **kwargs):
+        events.append(
+            "economic_final_contract"
+            if kwargs.get("economic_materialization") is True
+            else "candidate_final_contract"
+        )
+        return real_final_contract(*args, **kwargs)
+
+    def observed_stamp(row):
+        events.append("materialization_stamp")
+        return real_stamp(row)
+
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_final_admission_point_in_time_contract",
+        observed_final_contract,
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_stamp_fill_materialization_time",
+        observed_stamp,
+    )
+
+    candidate_rows: list[dict[str, object]] = []
+    candidate_appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        candidate_rows,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+    assert candidate_appended is True, intent.get("paper_fill_gate_block_reasons")
+    economic_rows: list[dict[str, object]] = []
+    economic_appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        economic_rows,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+        economic_materialization=True,
+    )
+    assert economic_appended is True, intent.get("paper_fill_gate_block_reasons")
+
+    assert economic_rows == [intent]
+    assert events == [
+        "candidate_final_contract",
+        "economic_final_contract",
+        "materialization_stamp",
+    ]
+    assert intent["paper_economic_final_admission_status"] == "PASS"
+    assert intent["paper_economic_revocable_control_commit_revalidation_status"] == "PASS"
+    assert intent["paper_economic_fill_materialized"] is True
+    receipt = intent["paper_fill_materialization_receipt"]
+    assert isinstance(receipt, dict)
+    assert receipt["paper_fill_materialized_at"] == intent["entry_time"]
+    assert receipt["paper_fill_materialized_at"] == intent["execution_time"]
+    receipt_without_hash = dict(receipt)
+    receipt_hash = receipt_without_hash.pop("receipt_hash")
+    assert receipt_hash == paper_loop._paper_canonical_sha256(receipt_without_hash)  # noqa: SLF001
+
+    persisted, quarantined, _status = paper_loop._split_invalid_admission_accepted_rows(  # noqa: SLF001
+        economic_rows
+    )
+    assert quarantined == []
+    assert len(persisted) == 1
+    assert persisted[0]["paper_persisted_ledger_status"] == "PASS"
+
+    tampered = deepcopy(intent)
+    tampered["paper_fill_write_invariant_status"] = {
+        "valid": False,
+        "reasons": ["POST_STAMP_MUTATION"],
+    }
+    assert "PERSISTED_ADMISSION_MATERIALIZATION_RECEIPT_INVALID" in (
+        paper_loop._paper_persisted_admission_rejection_reasons(tampered)  # noqa: SLF001
+    )
+
+
+def test_control_flip_after_candidate_admission_blocks_economic_materialization(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, redis, bracket_security_context = golden_a_grade_final_admission
+    intent.update(
+        {
+            "decision_time": "2026-07-17T12:00:05Z",
+            "entry_feature_decision_time": "2026-07-17T12:00:05Z",
+            "fill_price_observed_at": "2026-07-17T12:00:02.500000Z",
+            "fill_price_utc": "2026-07-17T12:00:02.500000Z",
+            "entry_price_utc": "2026-07-17T12:00:02.500000Z",
+            "paper_fill_write_invariant_status": {"valid": True, "reasons": []},
+        }
+    )
+    candidate_rows: list[dict[str, object]] = []
+    assert paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        candidate_rows,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+    )
+
+    redis.set(
+        paper_loop.CONTINUOUS_EDGE_GUARDIAN_GATE_REDIS_KEY,
+        json.dumps(
+            {
+                "status": "A_GRADE_HALTED",
+                "a_grade_new_entries_allowed": False,
+                "new_entries_allowed": False,
+            }
+        ),
+    )
+    economic_rows: list[dict[str, object]] = []
+    appended = paper_loop._paper_append_accepted_with_halted_probe_finalization(  # noqa: SLF001
+        economic_rows,
+        intent,
+        None,
+        redis_client=redis,
+        maintenance_bracket_security_context=bracket_security_context,
+        economic_materialization=True,
+    )
+
+    assert appended is False
+    assert economic_rows == []
+    assert intent["paper_economic_final_admission_status"] == "BLOCKED"
+    assert intent.get("paper_economic_fill_materialized") is not True
+    assert "paper_fill_materialization_receipt" not in intent
+    assert "entry_time" not in intent
+    assert "execution_time" not in intent
+    assert "PAPER_ECONOMIC_FINAL_ADMISSION_CONTRACT_BLOCKED" in intent[
+        "paper_fill_gate_block_reasons"
+    ]
+
+
+def test_fill_materialization_cannot_stamp_before_economic_final_receipt(
+    golden_a_grade_final_admission,
+) -> None:
+    intent, _redis, _bracket_security_context = golden_a_grade_final_admission
+    intent.update(
+        {
+            "decision_time": "2026-07-17T12:00:05Z",
+            "fill_price_observed_at": "2026-07-17T12:00:02.500000Z",
+            "paper_fill_write_invariant_status": {"valid": True, "reasons": []},
+        }
+    )
+
+    reasons = paper_loop._paper_stamp_fill_materialization_time(  # noqa: SLF001
+        intent,
+        materialized_at="2026-07-17T12:00:10Z",
+    )
+
+    assert "ECONOMIC_FINAL_ADMISSION_RECEIPT_NOT_PASS" in reasons
+    assert "ECONOMIC_REVOCABLE_CONTROL_COMMIT_NOT_PASS" in reasons
+    assert "paper_fill_materialization_receipt" not in intent
+    assert "entry_time" not in intent
+    assert "execution_time" not in intent
 
 
 def test_append_rejects_cycle_accepted_prefix_change(
@@ -8840,6 +9041,7 @@ def test_positive_edge_probation_admission_can_pass_halted_guardian() -> None:
             "preemptive_edge_control": {
                 "preemptive_decision_id": "pec_probation",
                 "preemptive_decision": "POSITIVE_EDGE_PROBATION_PAPER",
+                "preemptive_action": "ALLOW_PROBATION_PAPER",
             },
             "pre_trade_loss_probability": 0.45,
             "continuous_edge_guardian_status": "HALTED_PERFORMANCE",
@@ -9249,6 +9451,7 @@ def test_halted_probe_downstream_rejection_releases_token_for_next_candidate(
             accepted,
             second,
             probe_context,
+            redis_client=object(),
         )
         is True
     )
@@ -9324,6 +9527,7 @@ def test_halted_probe_pending_token_is_candidate_identity_bound() -> None:
             accepted,
             impostor,
             probe_context,
+            redis_client=object(),
         )
         is False
     )
@@ -9387,6 +9591,7 @@ def test_halted_probe_materialized_count_never_exceeds_adaptive_slots(monkeypatc
                     accepted,
                     intent,
                     probe_context,
+                    redis_client=object(),
                 )
                 is True
             )

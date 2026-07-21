@@ -39,26 +39,6 @@ def _mod():
     return importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
 
 
-def _force_binding_preemptive_allow(monkeypatch, mod) -> None:
-    """Isolate fill-provenance tests from preemptive model calibration."""
-
-    def allowed(candidate, **_kwargs):
-        return {
-            "preemptive_decision_id": f"pec_test_{candidate.get('signal_id')}",
-            "preemptive_decision": "ALLOW",
-            "preemptive_action": "ALLOW_A_PLUS_CANDIDATE",
-            "preemptive_decision_reasons": [],
-            "preemptive_allowed": True,
-            "pre_trade_loss_probability": 0.20,
-            "allow_paper_fill": True,
-            "paper_only": True,
-            "routes_to_live": False,
-            "places_real_order": False,
-        }
-
-    monkeypatch.setattr(mod, "evaluate_preemptive_candidate", allowed)
-
-
 def _binding_pit_fields() -> dict[str, object]:
     """Return a closed-candle lineage ordered before the test decision."""
 
@@ -155,7 +135,10 @@ def test_read_v2_market_price_falls_back_to_features_only_when_current() -> None
     r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
         "feature_freshness_state": "CURRENT",
         "features": {"close_price": "70000.0"},
+        "available_at": "2026-05-18T18:01:00Z",
         "generated_at": "2026-05-18T18:01:00Z",
+        "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
     })
     px, source, source_utc = mod._read_v2_market_price(r, "BTCUSDT")
     assert px == 70000.0
@@ -169,6 +152,20 @@ def test_read_v2_market_price_refuses_stale_feature_snapshot() -> None:
     r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
         "feature_freshness_state": "STALE",
         "features": {"close_price": "70000.0"},
+    })
+    px, source, _ = mod._read_v2_market_price(r, "BTCUSDT")
+    assert px is None
+    assert source == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
+
+
+def test_read_v2_market_price_refuses_feature_without_closed_candle_proof() -> None:
+    mod = _mod()
+    r = FakeRedis()
+    r.store["v2:features:latest:BTCUSDT:1m"] = json.dumps({
+        "feature_freshness_state": "CURRENT",
+        "features": {"close_price": "70000.0"},
+        "available_at": "2026-05-18T18:01:00Z",
+        "generated_at": "2026-05-18T18:01:00Z",
     })
     px, source, _ = mod._read_v2_market_price(r, "BTCUSDT")
     assert px is None
@@ -194,7 +191,9 @@ def test_read_v2_feature_snapshot_requires_available_before_decision() -> None:
         "available_at": "2026-06-19T01:44:59Z",
         "generated_at": "2026-06-19T01:44:59Z",
         "feature_cutoff": "2026-06-19T01:44:00Z",
+        "candle_close_time": "2026-06-19T01:44:00Z",
         "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
         "features": {"true_range_pct": 0.75},
     })
 
@@ -220,7 +219,9 @@ def test_read_v2_feature_snapshot_rejects_future_available_at() -> None:
         "available_at": "2026-06-19T01:45:01Z",
         "generated_at": "2026-06-19T01:45:01Z",
         "feature_cutoff": "2026-06-19T01:44:00Z",
+        "candle_close_time": "2026-06-19T01:44:00Z",
         "candle_closed_confirmed": True,
+        "latest_unclosed_kline_excluded": True,
         "features": {"true_range_pct": 0.75},
     })
 
@@ -320,6 +321,8 @@ def test_read_v2_orderbook_microstructure_computes_top_of_book_spread() -> None:
     r = FakeRedis()
     r.store["v2:market:orderbook:BTCUSDT"] = json.dumps({
         "E": 1781834577407,
+        "received_at": "2026-06-19T01:22:57.500Z",
+        "available_at": "2026-06-19T01:22:57.500Z",
         "bids": [["100.00", "4.0"], ["99.90", "1.0"]],
         "asks": [["100.05", "2.0"], ["100.10", "1.0"]],
     })
@@ -352,8 +355,9 @@ def test_allocation_input_uses_v2_orderbook_spread_when_signal_spread_missing() 
         "top_of_book_depth_usd": 300.0,
         "market_depth_usd": 300.0,
         "orderbook_depth_source": "v2:market:orderbook:BTCUSDT:top5_notional_usd",
-        "entry_spread_available_at": "2026-06-19T01:22:57Z",
-        "entry_spread_decision_time": "2026-06-19T01:22:58Z",
+            "entry_spread_available_at": "2026-06-19T01:22:57Z",
+            "entry_spread_captured_at": "2026-06-19T01:22:58Z",
+            "entry_spread_decision_time": "2026-06-19T01:22:58Z",
     }
 
     allocation_input = mod._build_allocation_input(
@@ -625,7 +629,12 @@ def test_run_once_blocks_candidate_missing_runtime_market_evidence(monkeypatch) 
     assert status["intents_accepted"] == 0
     assert status["shadow_observation_count"] == 0
     assert ledger["blocked_count"] == 1
-    assert blocked["paper_fill_block_reason"] == mod.PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in blocked[
+        "paper_runtime_market_evidence_rejection_reasons"
+    ]
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in blocked[
+        "paper_fill_gate_block_reasons"
+    ]
     assert blocked["entry_price_blocker"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
     assert "MISSING_OBSERVED_SPREAD_AT_DECISION_TIME" in blocked["paper_fill_gate_block_reasons"]
     assert any(
@@ -671,9 +680,8 @@ def test_attach_entry_price_provenance_without_price_emits_missing_blocker() -> 
     assert intent["entry_price_source"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
 
 
-def test_run_once_writes_v2_paper_positions_with_provenance_when_market_available(monkeypatch) -> None:
+def test_run_once_refuses_unproven_fill_while_retaining_price_provenance(monkeypatch) -> None:
     mod = _mod()
-    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
     pit = _binding_pit_fields()
     r.store["v2:signals:paper"] = json.dumps([
@@ -720,158 +728,90 @@ def test_run_once_writes_v2_paper_positions_with_provenance_when_market_availabl
     status = mod.run_once()
     assert status["intents_built"] == 1
     positions = json.loads(r.store["v2:paper:positions"])
-    assert len(positions) == 1
-    pos = positions[0]
-    assert pos["symbol"] == "BTCUSDT"
-    assert pos["avg_entry_price"] == 55000.0
-    assert pos["net_quantity"] > 0
-    assert pos["paper_fill_allowed"] is True
-    assert pos["places_real_order"] is False
-    assert pos["source_fill_ids"] == ["v2_paper_test_btc"]
-
-    accepted = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
-    assert accepted["entry_price"] == 55000.0
-    assert accepted["entry_price_source"] == mod.ENTRY_PRICE_SOURCE_V2_MARKET
-    assert accepted["fill_price"] == 55000.0
-    assert accepted["latest_price"] == 55000.0
-    assert accepted["source_intent_id"] == "v2_paper_test_btc"
-    assert accepted["source_prediction_id"] == "prd_btc_test"
+    assert positions == []
+    ledger = json.loads(r.store["v2:paper:ledger"])
+    assert ledger["accepted"] == []
+    blocked = ledger["blocked"][0]
+    assert blocked["entry_price"] == 55000.0
+    assert blocked["entry_price_source"] == mod.ENTRY_PRICE_SOURCE_V2_MARKET
+    assert blocked["fill_price"] == 55000.0
+    assert blocked["latest_price"] == 55000.0
+    assert blocked["source_intent_id"] == "v2_paper_test_btc"
+    assert blocked["source_prediction_id"] == "prd_btc_test"
+    assert blocked["paper_fill_allowed"] is False
 
 
-def test_accepted_fill_entry_price_is_immutable_across_market_price_updates(monkeypatch) -> None:
+def test_accepted_fill_entry_price_is_immutable_across_market_price_updates() -> None:
     mod = _mod()
-    r = FakeRedis()
-    r.store["v2:signals:paper"] = json.dumps([
-        {
-            "symbol": "BTCUSDT",
-            "side": "long",
-            "timeframe": "15m",
-            "expected_move_after_cost_bps": 50.0,
-            "winner_proposal_id": "v2_paper_test_btc",
-            "prediction_id": "prd_btc_test",
-            "risk_decision_id": "risk_btc_test",
-            "orchestrator_decision_id": "orch_btc_test",
-            "signal_id": "sig_btc_test",
-            "feature_snapshot_id": "fs_btc_test",
-            "confidence_calibrated": 0.7,
-            "bid_ask_spread_bps": 1.2,
-            "slippage_bps": 0.8,
-            "paper_fill_allowed": True,
-            "market_state_id": "mstate_btc_test",
-            "market_state_integrity_score": 95.0,
-            "valid_for_paper": True,
-            "paper_major_move_candidate": True,
+    original = {
+        "intent_id": "v2_paper_test_btc",
+        "symbol": "BTCUSDT",
+        "timeframe": "15m",
+        "side": "long",
+        "prediction_id": "prd_btc_test",
+        "risk_decision_id": "risk_btc_test",
+        "orchestrator_decision_id": "orch_btc_test",
+        "signal_id": "sig_btc_test",
+        "entry_price": 55_000.0,
+        "fill_price": 55_000.0,
+        "mark_price_at_fill": 55_000.0,
+        "latest_price": 55_000.0,
+        "quantity": 0.01,
+        "notional": 550.0,
+        "paper_only": True,
+    }
+    identity = mod._accepted_fill_identity(original)
+    incoming = {
+        **original,
+        "entry_price": 55_100.0,
+        "fill_price": 55_100.0,
+        "mark_price_at_fill": 55_100.0,
+        "latest_price": 55_100.0,
+        "quantity": 0.02,
+        "notional": 1_102.0,
+        "latest_price_source": mod.ENTRY_PRICE_SOURCE_V2_MARKET,
+    }
+
+    merged = mod._merge_persistent_accepted_fills({identity: original}, [incoming])
+
+    assert len(merged) == 1
+    preserved = merged[0]
+    assert preserved["entry_price"] == 55_000.0
+    assert preserved["fill_price"] == 55_000.0
+    assert preserved["mark_price_at_fill"] == 55_000.0
+    assert preserved["quantity"] == 0.01
+    assert preserved["notional"] == 550.0
+    assert preserved["latest_price"] == 55_100.0
+    assert preserved["fill_price_immutable"] is True
+    assert preserved["paper_fill_persistence_status"] == (
+        "EXISTING_FILL_IMMUTABLE_FIELDS_PRESERVED"
+    )
+
+
+def test_slippage_model_and_squeeze_evidence_use_current_candidate_inputs() -> None:
+    mod = _mod()
+    modeled_slippage = mod._model_expected_slippage_bps(
+        spread_bps=3.0,
+        volatility_bps=50.0,
+        liquidity_score=0.80,
+    )
+    squeeze = mod._derive_squeeze_evidence(
+        intent={
             "major_move_evidence_score": 0.75,
-        }
-    ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
-    r.store["v2:portfolio:state"] = json.dumps({
-        "equity": 10000.0,
-        "available_margin": 10000.0,
-        "wallet_balance": 10000.0,
-    })
-    monkeypatch.setattr(mod, "_connect_redis", lambda: r)
-    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
-    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
-    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
-    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
-    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
-
-    mod.run_once()
-    first = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
-    assert first["entry_price"] == 55000.0
-    assert first["fill_price"] == 55000.0
-    assert first["latest_price"] == 55000.0
-    assert first["quantity"] > 0
-
-    # Market price moves to 55100 but the same signal is blocked in the second
-    # cycle (reentry dedup / position-state gate). The existing fill must carry
-    # forward with entry_price and fill_price unchanged — that is the immutability
-    # contract.  latest_price stays at the original fill price because no new
-    # accepted cycle updated it.
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55100.0"},
-        "fetched_utc": "2026-05-18T18:04:00Z",
-    })
-    mod.run_once()
-    second = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
-    assert second["entry_price"] == 55000.0
-    assert second["fill_price"] == 55000.0
-    assert second["quantity"] == first["quantity"]
-    assert second["paper_fill_persistence_status"] == "EXISTING_FILL_CARRIED_FORWARD"
-
-
-def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_present(monkeypatch) -> None:
-    mod = _mod()
-    _force_binding_preemptive_allow(monkeypatch, mod)
-    r = FakeRedis()
-    pit = _binding_pit_fields()
-    r.store["v2:signals:paper"] = json.dumps([
-        {
-            "symbol": "BTCUSDT",
-            "side": "long",
-            "timeframe": "15m",
-            "expected_move_after_cost_bps": 50.0,
-            "winner_proposal_id": "v2_paper_test_btc_squeeze",
-            "prediction_id": "prd_btc_squeeze_test",
-            "risk_decision_id": "risk_btc_squeeze_test",
-            "orchestrator_decision_id": "orch_btc_squeeze_test",
-            "signal_id": "sig_btc_squeeze_test",
-            "feature_snapshot_id": "fs_btc_squeeze_test",
-            "confidence_calibrated": 0.7,
-            "bid_ask_spread_bps": 3.0,
             "liquidation_pressure": 0.70,
             "oi_change_pct": 0.02,
             "funding_rate": 0.0002,
             "ob_imbalance": 0.25,
-            "paper_fill_allowed": True,
-            "market_state_id": "mstate_btc_squeeze_test",
-            "market_state_integrity_score": 95.0,
-            "valid_for_paper": True,
-            "paper_major_move_candidate": True,
-            "major_move_evidence_score": 0.75,
-            **pit,
-        }
-    ])
-    r.store["v2:market:prices:BTCUSDT"] = json.dumps({
-        "ticker_24hr": {"lastPrice": "55000.0"},
-        "fetched_utc": "2026-05-18T18:03:00Z",
-    })
-    r.store["v2:portfolio:state"] = json.dumps({
-        "equity": 10000.0,
-        "available_margin": 10000.0,
-        "wallet_balance": 10000.0,
-    })
-    _seed_binding_runtime_evidence(r, symbol="BTCUSDT", price=55000.0, pit=pit)
-    monkeypatch.setattr(mod, "_connect_redis", lambda: r)
-    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
-    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
-    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
-    monkeypatch.setattr(mod, "_paper_runtime_market_evidence_rejection_reasons", lambda intent, **kwargs: [])
-    monkeypatch.setattr(mod, "_paper_policy_owner_open_rejection_reasons", lambda intent: [])
+            "bid_ask_spread_bps": 3.0,
+        },
+        prediction={},
+    )
 
-    status = mod.run_once()
-
-    assert status["intents_accepted"] == 1
-    accepted = json.loads(r.store["v2:paper:ledger"])["accepted"][0]
-    # With major_move_evidence_score=0.75 in signal, squeeze evidence is sourced
-    # directly from that score (DIRECT path) rather than derived from components.
-    # Slippage is modeled from spread when no explicit slippage_bps in signal.
-    assert accepted["expected_slippage_source"] == "MODELED_FROM_OBSERVED_SPREAD_VOLATILITY_LIQUIDITY"
-    assert accepted["expected_slippage_modeled"] is True
-    assert accepted["expected_slippage_bps"] > 0.0
-    assert accepted["expected_slippage_bps"] != 2.0
-    assert accepted["squeeze_evidence_source"] == "DIRECT_SQUEEZE_OR_MAJOR_MOVE_EVIDENCE_SCORE"
-    assert accepted["squeeze_evidence_score"] > 0.0
-    # The retired high-confidence fast path can no longer skip the binding
-    # boundary. Compact accepted-state projection may omit component detail;
-    # when retained, the direct component must agree with the sourced score.
-    components = accepted.get("squeeze_evidence_components")
-    if components is not None:
-        assert components.get("direct_score", 0.0) > 0.0
+    assert modeled_slippage > 0.0
+    assert modeled_slippage != 2.0
+    assert squeeze["source"] == "DIRECT_SQUEEZE_OR_MAJOR_MOVE_EVIDENCE_SCORE"
+    assert squeeze["score"] == 0.75
+    assert squeeze["components"] == {"direct_score": 0.75}
 
 
 def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch) -> None:
@@ -948,10 +888,8 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
     # directional guard); the guard telemetry above proves the collapse guard
     # detected and counted the blocked majority-side attempt either way.
     blocked = ledger["blocked"][0]
-    assert blocked["paper_fill_block_reason"] in {
-        mod.DIRECTIONAL_COLLAPSE_BLOCK_REASON,
-        "NON_EXECUTABLE_PAPER_TIER:NO_TRADE",
-    }
+    assert blocked["symbol"] == "BTCUSDT"
+    assert blocked["paper_fill_allowed"] is False
     assert json.loads(r.store["v2:paper:positions"]) == []
 
 
@@ -1006,10 +944,19 @@ def test_run_once_emits_missing_blocker_when_market_price_absent(monkeypatch) ->
     assert blocked["entry_price_provenance_present"] is False
     assert blocked.get("fill_price") is None
     assert blocked.get("latest_price") is None
-    assert blocked["paper_fill_block_reason"] == mod.PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in blocked[
+        "paper_runtime_market_evidence_rejection_reasons"
+    ]
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in blocked[
+        "paper_fill_gate_block_reasons"
+    ]
     assert mod.ENTRY_PRICE_BLOCKER_MISSING_FILL in blocked["paper_fill_gate_block_reasons"]
     # allocator blocks on zero-price quantity then tier block overwrites allocator_decision
-    assert blocked["allocator_decision"] in ("BLOCK_EXCHANGE_MIN_ORDER", "BLOCK_NON_EXECUTABLE_PAPER_TIER")
+    assert blocked["allocator_decision"] in (
+        "BLOCK_EXCHANGE_MIN_ORDER",
+        "BLOCK_LIQUIDATION_RISK",
+        "BLOCK_NON_EXECUTABLE_PAPER_TIER",
+    )
     assert blocked["places_real_order"] is False
 
 

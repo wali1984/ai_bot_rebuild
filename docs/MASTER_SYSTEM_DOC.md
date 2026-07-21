@@ -12,6 +12,24 @@ This is the repository-level entrypoint. The complete current audit is [AI_BOT_V
 
 Older June/July documents remain historical snapshots. They are not current when they claim one trainer, read-only V2 APIs, operational SQL persistence, risk as final paper authority, no order transport, or the earlier service/module/test counts.
 
+### Paper final-fill remediation reconciliation (2026-07-21 source only)
+
+An isolated, undeployed paper-only repair now separates provisional candidate
+admission from economic fill materialization. Cumulative margin/economic
+reservation precedes a fresh final PIT and revocable-control reread; the paper
+fill write invariant is rechecked, then a hash-bound materialization receipt
+stamps `entry_time`/`execution_time` immediately before the sole economic-list
+append. Missing final authority, a same-key control flip, a pre-seal stamp,
+receipt mutation, or persistence mismatch fails closed. The preemptive runtime
+clock is captured once after canonical alt-data lookup and is sealed in its
+input material; canonical optional-altdata absence/error carries a consumer
+`altdata_lookup_observed_at` without inventing producer clocks. Missing thesis
+timeframe is row-local and no longer terminates the cycle. Exact-zero loss
+semantics are isolated to an authenticated paper adapter; shared/live evaluator
+defaults are unchanged. This is source/test evidence only: no service was
+restarted and no Redis or exchange state was changed. Static policy debt is
+classified in [PAPER_RUNTIME_STATIC_THRESHOLD_DEBT_2026-07-21.md](system_audit_2026_master/PAPER_RUNTIME_STATIC_THRESHOLD_DEBT_2026-07-21.md); no threshold semantics were relaxed in this slice.
+
 ## System identity
 
 AI Bot V2 is a Redis-centered distributed crypto trading research platform. On the audited workstation it comprises market/provider ingestion, temporal feature assembly, a native GPU policy/trainer, prediction/signal publication, orchestration, risk records, paper execution/lifecycle/accounting, portfolio/guardian/feedback loops, a FastAPI backend, React/Vite web client, SwiftUI/watch/CLI clients and a large autonomous operations/evidence layer.

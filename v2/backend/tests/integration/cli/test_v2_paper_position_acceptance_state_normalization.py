@@ -39,26 +39,6 @@ def _mod():
     return importlib.import_module("v2.backend.app.cli.v2_trade_management_paper_loop")
 
 
-def _force_binding_preemptive_allow(monkeypatch, mod) -> None:
-    """Isolate accepted-state tests from preemptive model calibration."""
-
-    def allowed(candidate, **_kwargs):
-        return {
-            "preemptive_decision_id": f"pec_test_{candidate.get('signal_id')}",
-            "preemptive_decision": "ALLOW",
-            "preemptive_action": "ALLOW_A_PLUS_CANDIDATE",
-            "preemptive_decision_reasons": [],
-            "preemptive_allowed": True,
-            "pre_trade_loss_probability": 0.20,
-            "allow_paper_fill": True,
-            "paper_only": True,
-            "routes_to_live": False,
-            "places_real_order": False,
-        }
-
-    monkeypatch.setattr(mod, "evaluate_preemptive_candidate", allowed)
-
-
 def _binding_pit_fields() -> dict[str, object]:
     decision = datetime.now(UTC)
     current_15m_open = decision.replace(
@@ -155,9 +135,8 @@ def _signal(symbol: str, paper_fill_allowed: bool, em: float = 80.0, side: str =
     }
 
 
-def test_accepted_position_requires_paper_fill_allowed_true(monkeypatch) -> None:
+def test_upstream_fill_flag_cannot_bypass_missing_canonical_authority(monkeypatch) -> None:
     mod = _mod()
-    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
     sig = {**_signal("BTCUSDT", paper_fill_allowed=True), "paper_major_move_candidate": True}
     r.store["v2:signals:paper"] = json.dumps([sig])
@@ -172,13 +151,12 @@ def test_accepted_position_requires_paper_fill_allowed_true(monkeypatch) -> None
     monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
     mod.run_once()
     positions = json.loads(r.store["v2:paper:positions"])
-    assert len(positions) == 1
-    pos = positions[0]
-    assert pos["paper_fill_allowed"] is True
-    assert pos["decision"] == "ACCEPTED_PAPER_FILL"
-    assert pos["net_quantity"] > 0
-    assert pos["notional"] > 0
-    assert pos["places_real_order"] is False
+    ledger = json.loads(r.store["v2:paper:ledger"])
+    assert positions == []
+    assert ledger["accepted"] == []
+    assert ledger["blocked_count"] == 1
+    assert ledger["blocked"][0]["paper_fill_allowed"] is False
+    assert ledger["blocked"][0]["places_real_order"] is False
 
 
 def test_paper_fill_allowed_false_goes_to_shadow_observations_not_positions(monkeypatch) -> None:
@@ -241,7 +219,47 @@ def test_missing_market_price_blocks_instead_of_shadow_observation(monkeypatch) 
     # entry_price is not in COMPACT_ACCEPTED_FILL_FIELDS; verify via provenance fields instead.
     assert s["entry_price_provenance_present"] is False
     assert s["entry_price_blocker"] == mod.ENTRY_PRICE_BLOCKER_MISSING_FILL
-    assert s["paper_fill_block_reason"] == mod.PAPER_RUNTIME_EVIDENCE_BLOCK_REASON
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in s[
+        "paper_runtime_market_evidence_rejection_reasons"
+    ]
+    assert "MISSING_V2_MARKET_PRICE_FOR_FILL" in s[
+        "paper_fill_gate_block_reasons"
+    ]
+
+
+def test_missing_timeframe_blocks_only_its_row_and_cycle_continues(monkeypatch) -> None:
+    mod = _mod()
+    r = FakeRedis()
+    missing_timeframe = _signal("BTCUSDT", paper_fill_allowed=True)
+    missing_timeframe.pop("timeframe")
+    following = _signal("ETHUSDT", paper_fill_allowed=True)
+    r.store["v2:signals:paper"] = json.dumps([missing_timeframe, following])
+    r.store["v2:portfolio:state"] = json.dumps(
+        {
+            "equity": 10_000.0,
+            "available_margin": 8_000.0,
+            "wallet_balance": 10_000.0,
+        }
+    )
+    monkeypatch.setattr(mod, "_connect_redis", lambda: r)
+    monkeypatch.setattr(mod, "_read_lifecycle_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_accepted_fill_state_file", lambda path=None: {})
+    monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda _r: {})
+
+    status = mod.run_once()
+    ledger = json.loads(r.store["v2:paper:ledger"])
+
+    assert status["intents_built"] == 2
+    assert {row["symbol"] for row in ledger["blocked"]} == {
+        "BTCUSDT",
+        "ETHUSDT",
+    }
+    missing_row = next(
+        row for row in ledger["blocked"] if row["symbol"] == "BTCUSDT"
+    )
+    assert mod.MISSING_THESIS_TIMEFRAME_BLOCK_REASON in (
+        missing_row["paper_fill_gate_block_reasons"]
+    )
 
 
 def test_local_gate_failure_goes_to_blocked_not_positions_or_shadow(monkeypatch) -> None:
@@ -293,7 +311,6 @@ def test_held_by_orchestrator_gate_never_in_positions(monkeypatch) -> None:
 
 def test_ledger_carries_three_lists_plus_counts(monkeypatch) -> None:
     mod = _mod()
-    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
     btc_sig = {**_signal("BTCUSDT", paper_fill_allowed=True), "paper_major_move_candidate": True}
     # em=0.0 forces NO_TRADE tier for ETH (edge not favorable), triggering the
@@ -321,13 +338,12 @@ def test_ledger_carries_three_lists_plus_counts(monkeypatch) -> None:
     monkeypatch.setattr(mod, "_read_continuous_edge_guardian_gate", lambda r: {})
     mod.run_once()
     ledger = json.loads(r.store["v2:paper:ledger"])
-    assert ledger["accepted_position_count"] == 1
-    # non_executable_shadow fires for every signal satisfying the shadow conditions,
-    # including the accepted BTC fill — so count can be > 1 (ETH no-trade + BTC).
-    assert ledger["shadow_observation_count"] >= 1
+    assert ledger["accepted_position_count"] == 0
+    assert ledger["blocked_count"] == 2
+    assert ledger["shadow_observation_count"] == 2
     assert ledger["held_position_count"] == 1
-    assert isinstance(ledger["accepted_intents"], list) and len(ledger["accepted_intents"]) == 1
-    assert isinstance(ledger["shadow_observations"], list) and len(ledger["shadow_observations"]) >= 1
+    assert isinstance(ledger["accepted_intents"], list) and ledger["accepted_intents"] == []
+    assert isinstance(ledger["shadow_observations"], list) and len(ledger["shadow_observations"]) == 2
     assert isinstance(ledger["held_by_paper_fill_gate"], list) and len(ledger["held_by_paper_fill_gate"]) == 1
     split = ledger["schema_split"]
     assert split["accepted_positions_must_have_paper_fill_allowed_true"] is True
@@ -338,14 +354,13 @@ def test_ledger_carries_three_lists_plus_counts(monkeypatch) -> None:
 
 def test_strict_gate_threshold_unchanged_no_unsafe_fill(monkeypatch) -> None:
     """No matter how many shadow observations arrive, the strict
-    paper-fill gate threshold is the same: only paper_fill_allowed=true
-    plus all local pre-trade / fee / churn gates passes = accepted.
+    paper-fill contract is unchanged: an upstream flag cannot substitute for
+    authenticated tuning, decision, allocation, and final-admission evidence.
     """
     mod = _mod()
-    _force_binding_preemptive_allow(monkeypatch, mod)
     r = FakeRedis()
     # BTC: paper_fill_allowed=False, em=0.0 → NO_TRADE tier → shadow row only.
-    # ETH: paper_fill_allowed=True, paper_major_move_candidate=True → A_GRADE → accepted.
+    # ETH claims paper_fill_allowed=True but still lacks canonical authority.
     btc_sig = _signal("BTCUSDT", paper_fill_allowed=False, em=0.0)
     eth_sig = {**_signal("ETHUSDT", paper_fill_allowed=True), "paper_major_move_candidate": True}
     r.store["v2:signals:paper"] = json.dumps([btc_sig, eth_sig])
@@ -366,16 +381,12 @@ def test_strict_gate_threshold_unchanged_no_unsafe_fill(monkeypatch) -> None:
     assert all(p["symbol"] != "BTCUSDT" for p in positions)
     # BTC appears as a shadow observation (NO_TRADE non_executable_shadow path).
     assert any(s["symbol"] == "BTCUSDT" for s in shadow)
-    # ETH was paper_fill_allowed=true → accepted fill in positions.
-    assert any(p["symbol"] == "ETHUSDT" and p["paper_fill_allowed"] is True for p in positions)
-    # non_executable_shadow fires for every evaluated signal including accepted ones,
-    # so ETH may appear in shadow too — what matters is that it is NEVER accepted FROM shadow.
+    assert positions == []
+    assert any(s["symbol"] == "ETHUSDT" for s in shadow)
     assert all(s["decision"] != "ACCEPTED_PAPER_FILL" for s in shadow)
-    # Strict gate was NOT loosened: BTC, which the upstream withheld,
-    # is NOT in v2:paper:positions.
-    for p in positions:
-        assert p["paper_fill_allowed"] is True
-        assert p["decision"] == "ACCEPTED_PAPER_FILL"
+    blocked = json.loads(r.store["v2:paper:ledger"])["blocked"]
+    assert {row["symbol"] for row in blocked} == {"BTCUSDT", "ETHUSDT"}
+    assert all(row["paper_fill_allowed"] is False for row in blocked)
 
 
 def test_writer_only_writes_v2_prefixed_keys_after_normalization(monkeypatch) -> None:

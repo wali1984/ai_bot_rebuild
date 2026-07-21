@@ -2119,8 +2119,6 @@ PAPER_FINAL_ADMISSION_DURABLE_FIELDS = (
     "paper_revocable_control_commit_revalidation",
     "paper_revocable_control_commit_revalidation_receipt_hash",
     "paper_revocable_control_commit_revalidation_status",
-    "paper_economic_revocable_control_commit_revalidation_receipt_hash",
-    "paper_economic_revocable_control_commit_revalidation_status",
     "ordinary_scale_free_paper_admission_revalidated",
     "ordinary_scale_free_paper_admission_rejection_reasons",
     "ordinary_paper_admission_evidence",
@@ -8472,7 +8470,12 @@ def _read_v2_market_price(r, symbol: str) -> tuple[float | None, str, str | None
             payload = json.loads(raw)
         except (ValueError, TypeError):
             payload = None
-        if isinstance(payload, dict) and payload.get("feature_freshness_state") == "CURRENT":
+        if (
+            isinstance(payload, dict)
+            and payload.get("feature_freshness_state") == "CURRENT"
+            and payload.get("candle_closed_confirmed") is True
+            and payload.get("latest_unclosed_kline_excluded") is True
+        ):
             feats = payload.get("features") if isinstance(payload.get("features"), dict) else {}
             for key in ("close_price", "last_price", "lastPrice"):
                 px = _coerce_float(feats.get(key))
@@ -19470,7 +19473,10 @@ def _paper_preemptive_admission_rejection_reasons(
         or ""
     ).upper()
     coherent_actions_by_decision = {
-        "ALLOW": {"ALLOW_A_PLUS_CANDIDATE"},
+        # A direct REDUCE_SIZE action is a stricter economic instruction than
+        # the ordinary A+ allow action.  Preserve that fail-safer override
+        # while still rejecting every contradictory or missing action pair.
+        "ALLOW": {"ALLOW_A_PLUS_CANDIDATE", "REDUCE_SIZE"},
         "PAPER_RISK_CONTROLLER_EXPLORATION": {
             "ALLOW_PAPER_RISK_CONTROLLER_EXPLORATION"
         },
@@ -27188,9 +27194,8 @@ def _paper_stamp_fill_materialization_time(
         accepted_intent.get("decision_time"),
         accepted_intent.get("entry_feature_decision_time"),
     )
-    final_decision_time = _first_present(
-        accepted_intent.get("paper_economic_final_admission_decision_time"),
-        accepted_intent.get("paper_final_admission_decision_time"),
+    final_decision_time = accepted_intent.get(
+        "paper_economic_final_admission_decision_time"
     )
     price_observed_at = _first_present(
         accepted_intent.get("fill_price_observed_at"),
@@ -27198,6 +27203,40 @@ def _paper_stamp_fill_materialization_time(
         accepted_intent.get("entry_price_utc"),
     )
     reasons: list[str] = []
+    economic_contract = accepted_intent.get(
+        "paper_economic_final_admission_contract"
+    )
+    economic_receipt_hash = accepted_intent.get(
+        "paper_economic_final_admission_receipt_hash"
+    )
+    economic_revocable = accepted_intent.get(
+        "paper_economic_revocable_control_commit_revalidation"
+    )
+    economic_revocable_hash = accepted_intent.get(
+        "paper_economic_revocable_control_commit_revalidation_receipt_hash"
+    )
+    write_invariant = accepted_intent.get("paper_fill_write_invariant_status")
+    if (
+        accepted_intent.get("paper_economic_final_admission_status") != "PASS"
+        or not isinstance(economic_contract, Mapping)
+        or economic_contract.get("status") != "PASS"
+        or not _paper_valid_sha256(economic_receipt_hash)
+        or economic_contract.get("receipt_hash") != economic_receipt_hash
+    ):
+        reasons.append("ECONOMIC_FINAL_ADMISSION_RECEIPT_NOT_PASS")
+    if (
+        accepted_intent.get(
+            "paper_economic_revocable_control_commit_revalidation_status"
+        )
+        != "PASS"
+        or not isinstance(economic_revocable, Mapping)
+        or economic_revocable.get("status") != "PASS"
+        or not _paper_valid_sha256(economic_revocable_hash)
+        or economic_revocable.get("receipt_hash") != economic_revocable_hash
+    ):
+        reasons.append("ECONOMIC_REVOCABLE_CONTROL_COMMIT_NOT_PASS")
+    if not isinstance(write_invariant, Mapping) or write_invariant.get("valid") is not True:
+        reasons.append("PAPER_FILL_WRITE_INVARIANT_NOT_PASS_AT_MATERIALIZATION")
     parsed_clocks: dict[str, datetime | None] = {
         "decision_time": _strict_aware_utc_time(decision_time),
         "paper_final_admission_decision_time": _strict_aware_utc_time(final_decision_time),
@@ -27234,6 +27273,10 @@ def _paper_stamp_fill_materialization_time(
         "economic_final_admission_decision_time": str(final_decision_time),
         "economic_final_admission_receipt_hash": accepted_intent.get(
             "paper_economic_final_admission_receipt_hash"
+        ),
+        "economic_revocable_control_commit_receipt_hash": economic_revocable_hash,
+        "paper_fill_write_invariant_status_hash": _paper_canonical_sha256(
+            write_invariant
         ),
         "paper_fill_materialized_at": str(observed_at),
         "entry_time": str(observed_at),
@@ -35679,6 +35722,8 @@ PAPER_PERSISTED_ADMISSION_CRITICAL_FIELDS = (
     "paper_cycle_reservation_commit_status",
     "paper_revocable_control_commit_revalidation_receipt_hash",
     "paper_revocable_control_commit_revalidation_status",
+    "paper_economic_revocable_control_commit_revalidation_receipt_hash",
+    "paper_economic_revocable_control_commit_revalidation_status",
     "maintenance_bracket_evidence_checksum_sha256",
     "maintenance_bracket_evidence_hmac_sha256",
     "maintenance_bracket_id",
@@ -35799,10 +35844,17 @@ def _paper_persisted_admission_rejection_reasons(
                         "economic_final_admission_receipt_hash",
                         "paper_economic_final_admission_receipt_hash",
                     ),
+                    (
+                        "economic_revocable_control_commit_receipt_hash",
+                        "paper_economic_revocable_control_commit_revalidation_receipt_hash",
+                    ),
                     ("paper_fill_materialized_at", "paper_fill_materialized_at"),
                     ("entry_time", "entry_time"),
                     ("execution_time", "execution_time"),
                 )
+            )
+            write_invariant_hash = _paper_canonical_sha256(
+                row.get("paper_fill_write_invariant_status")
             )
             if (
                 materialization_receipt.get("schema_version")
@@ -35815,6 +35867,10 @@ def _paper_persisted_admission_rejection_reasons(
                 != _paper_canonical_sha256(materialization_material)
                 or materialization_hash
                 != row.get("paper_fill_materialization_receipt_hash")
+                or materialization_receipt.get(
+                    "paper_fill_write_invariant_status_hash"
+                )
+                != write_invariant_hash
                 or not materialization_aliases_match
             ):
                 reasons.append("PERSISTED_ADMISSION_MATERIALIZATION_RECEIPT_INVALID")
@@ -43688,7 +43744,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     # actionable signal has component-proven liquidity and regime context;
     # missing coverage or generic signal timestamps cannot raise the envelope.
     _envelope_decision_dt = datetime.now(timezone.utc)
-    _envelope_decision_time = _envelope_decision_dt.isoformat(timespec="microseconds").replace(
+    # All paper-loop wall clocks are persisted at millisecond precision.  Keep
+    # the captured decision on that same precision so a later computed_at
+    # cannot appear a few microseconds earlier merely because _utc_iso()
+    # truncates its value.
+    _envelope_decision_time = _envelope_decision_dt.isoformat(timespec="milliseconds").replace(
         "+00:00", "Z"
     )
     _envelope_market_context = _paper_dynamic_envelope_market_context(
@@ -47621,6 +47681,10 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
     for reserved_candidate in reserved_candidates_in_prefix_order:
         reserved_identity = _accepted_fill_identity(reserved_candidate)
         authority = paper_final_authority_by_fill_identity.get(reserved_identity, {})
+        protective_hedge_fill = bool(
+            reserved_candidate.get("paper_hedge_fill") is True
+            and reserved_candidate.get("hedge_intent") is True
+        )
         economic_reasons = _admit_and_append_paper_fill(
             economically_materialized_accepted,
             reserved_candidate,
@@ -47649,6 +47713,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             authoritative_current_position_state=authority.get(
                 "current_position_state"
             ),
+            protective_hedge_fill=protective_hedge_fill,
             economic_materialization=True,
         )
         for published_intent in intents:
