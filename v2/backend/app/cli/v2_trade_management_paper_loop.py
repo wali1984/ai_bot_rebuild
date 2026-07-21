@@ -22,7 +22,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, TextIO
 from zoneinfo import ZoneInfo
@@ -15409,6 +15409,26 @@ def _apply_preemptive_decision_context(
             )
 
 
+def _stamp_paper_runtime_preemptive_decision_time(
+    preemptive_decision: dict[str, Any],
+) -> None:
+    """Stamp when this paper-loop recomputation actually finished.
+
+    The generic preemptive schema preserves an upstream candidate clock when
+    one exists.  That clock remains useful source lineage, but it predates the
+    paper loop's in-process alt-data reconstruction and therefore cannot be
+    reused as this runtime decision's causal boundary.
+    """
+
+    decision_time = (
+        datetime.now(UTC)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    preemptive_decision["preemptive_decision_time"] = decision_time
+    preemptive_decision["preemptive_decision_time_et"] = _operator_et_iso(decision_time)
+
+
 def _preemptive_decision_rejection_reason_for_tier(
     preemptive_decision: dict[str, Any] | None,
     *,
@@ -29994,6 +30014,7 @@ def run_once() -> dict:
             altdata_confluence=_canonical_altdata,
         )
         preemptive_decision.update(_canonical_altdata_lineage)
+        _stamp_paper_runtime_preemptive_decision_time(preemptive_decision)
         _apply_preemptive_decision_context(
             intent=intent,
             allocation=allocation_payload,

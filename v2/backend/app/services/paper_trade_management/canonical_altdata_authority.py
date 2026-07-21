@@ -8,6 +8,7 @@ Content hashes are observational identity only, never authentication.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
@@ -22,6 +23,11 @@ from v2.backend.app.services.altdata.canonical_confluence_consumer import (
 _PROVIDERS = ("coinglass", "moralis", "coinank")
 _PROVIDER_SET = set(_PROVIDERS)
 _IDENTITY_SOURCE = "canonical_confluence_boundary_non_authoritative_content_identity"
+_STRICT_UTC_RFC3339 = re.compile(
+    r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+    r"(?:\.[0-9]{1,6})?(?:Z|\+00:00)$",
+    re.ASCII,
+)
 
 CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS = (
     "altdata_feature_cutoff",
@@ -60,7 +66,7 @@ CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS = (
 
 
 def _canonical_utc(value: Any) -> datetime | None:
-    if type(value) is not str or "T" not in value or not value.endswith(("Z", "+00:00")):
+    if type(value) is not str or _STRICT_UTC_RFC3339.fullmatch(value) is None:
         return None
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
@@ -222,7 +228,9 @@ def _normalized_lineage(
         "altdata_boundary_schema_version": payload.get("boundary_schema_version"),
         "altdata_feature_cutoff": payload.get("feature_cutoff"),
         "altdata_observed_at": payload.get("observed_at"),
-        "altdata_confluence_engine_generated_at": payload.get("confluence_engine_generated_at"),
+        "altdata_confluence_engine_generated_at": payload.get(
+            "confluence_engine_generated_at"
+        ),
         "altdata_generated_at": payload.get("generated_at"),
         "altdata_available_at": payload.get("available_at"),
         "altdata_actual_payload_present": actual_payload_present,
@@ -237,7 +245,9 @@ def _normalized_lineage(
         "altdata_reconstruction_mask_reason": mask_reason,
         "altdata_content_identity": content_identity or None,
         "altdata_identity_hash_role": content_identity.get("role"),
-        "altdata_identity_hash_authenticates_source": content_identity.get("authenticates_source"),
+        "altdata_identity_hash_authenticates_source": content_identity.get(
+            "authenticates_source"
+        ),
         "altdata_identity_hash_authorizes_consumption": content_identity.get(
             "authorizes_consumption"
         ),
@@ -327,13 +337,16 @@ def paper_altdata_admission_rejection_reasons(
 
     identity = intent.get("altdata_content_identity")
     reasons.extend(_identity_rejection_reasons(identity, prefix="ALTDATA_CONFLUENCE"))
-    if isinstance(identity, Mapping) and intent.get("altdata_confluence_hash") != identity.get(
-        "digest"
-    ):
+    if isinstance(identity, Mapping) and intent.get(
+        "altdata_confluence_hash"
+    ) != identity.get("digest"):
         reasons.append("ALTDATA_CONFLUENCE_IDENTITY_ALIAS_MISMATCH")
 
     provider_lineage = intent.get("altdata_provider_lineage")
-    if not isinstance(provider_lineage, Mapping) or set(provider_lineage) != _PROVIDER_SET:
+    if (
+        not isinstance(provider_lineage, Mapping)
+        or set(provider_lineage) != _PROVIDER_SET
+    ):
         reasons.append("ALTDATA_CANONICAL_PROVIDER_LINEAGE_INVALID")
     else:
         for provider in _PROVIDERS:
@@ -362,4 +375,9 @@ def paper_altdata_admission_rejection_reasons(
         ordered_clocks = [value for value in clocks if value is not None]
         if ordered_clocks != sorted(ordered_clocks):
             reasons.append("ALTDATA_CANONICAL_CLOCK_ORDER_INVALID")
+        decision_time = _canonical_utc(intent.get("preemptive_decision_time"))
+        if decision_time is None:
+            reasons.append("ALTDATA_PREEMPTIVE_DECISION_TIME_MISSING_OR_INVALID")
+        elif ordered_clocks[-1] > decision_time:
+            reasons.append("ALTDATA_AVAILABLE_AFTER_PREEMPTIVE_DECISION")
     return sorted(set(reasons))
