@@ -1197,7 +1197,7 @@ def test_feedback_batch_uses_realized_after_cost_reward() -> None:
     assert result.metrics["outcome_supervised_update_used"] is True
 
 
-def test_snapshot_backed_feedback_uses_verified_durable_feature_snapshot(
+def test_legacy_snapshot_without_authenticated_source_clocks_is_rejected(
     tmp_path: Path,
 ) -> None:
     close_event, outcome_label = _close_and_outcome(action="short")
@@ -1228,28 +1228,13 @@ def test_snapshot_backed_feedback_uses_verified_durable_feature_snapshot(
 
     examples = loader.load_training_examples(symbols=[], timeframes=[], limit=4, trusted_only=True)
 
-    assert len(examples) == 1
-    trust_row = examples[0].trust_row or {}
-    assert trust_row["learning_mode"] == "outcome_supervised"
-    assert trust_row["snapshot_backed_closed_trade_feedback"] is True
-    assert trust_row["realized_reward_source"] == "realized_net_pnl_bps_after_cost"
-    assert trust_row["uses_expected_move_as_realized_reward"] is False
-    assert trust_row["candle_closed_confirmed"] is True
-    assert trust_row["candle_close_time"] == FEATURE_CUTOFF
-    # Decision-time lineage is canonical: the snapshot's explicit
-    # missing_feature_flags say nothing was missing, so the two dropped
-    # features are tensor-reconstruction gaps, preserved separately.
-    assert trust_row["missing_feature_names"] == []
-    assert trust_row["missing_feature_lineage_source"] == "feature_snapshot_decision_time_flags"
-    assert {"best_bid_size", "estimated_price_impact_bps"}.issubset(
-        set(trust_row["tensor_unreconstructed_feature_names"])
-    )
-    assert trust_row["tensor_missing_mask_preserved"] is True
-    assert examples[0].tensor.feature_snapshot_id == "feat_1"
-    model = V2HybridPolicyModel(input_dim=len(examples[0].tensor.model_vector))
-    accepted, summary = V2HybridPPOTrainer(model=model)._filter_trusted_training_rows(examples)  # noqa: SLF001
-    assert accepted == examples
-    assert summary["training_trusted_rows"] == 1
+    # The legacy archive proves immutable bytes but does not carry the
+    # authenticated per-source availability receipts now required by the
+    # tensor builder.  It also omits two REQUIRED order-book values while
+    # declaring no missing features.  Neither the aggregate snapshot clock nor
+    # the producer's trainer_consumable boolean may upgrade that row.
+    assert examples == []
+    assert loader.last_closed_trade_load["examples_built"] == 0
 
 
 def test_snapshot_with_explicit_missing_critical_source_still_blocks_training(
