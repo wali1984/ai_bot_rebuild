@@ -1,0 +1,33 @@
+[Unit]
+Description=AI Bot V2 authenticated quarantined base-feature publisher (no trading authority)
+After=network-online.target redis.service ai-bot-v2-binance-kline-wss-loop.service
+Wants=network-online.target
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
+Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment=LIVE_GATE=blocked_human_only
+Environment=PROFILED_BASE_PUBLISHER_CYCLE_SECONDS=300
+Environment=PROFILED_BASE_PUBLISHER_RESOURCE_HORIZON_SECONDS=7776000
+UMask=0077
+ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-profiled-base-feature-publisher'
+ExecStartPre=/usr/bin/install -d -m 0700 "/home/wali/Desktop/AI BOT REBUILD/.local_data/v2_native_trainer/profiled_base_publisher_v1"
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_profiled_base_feature_publisher
+Restart=always
+RestartSec=15
+TimeoutStopSec=30
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+CPUQuota=200%
+MemoryHigh=2G
+MemoryMax=4G
+TasksMax=128
+StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-profiled-base-feature-publisher.log
+StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-profiled-base-feature-publisher.err
+
+[Install]
+WantedBy=default.target
