@@ -35,3 +35,4 @@ ai-bot-v2-codex-watchdog.service
 # legacy CoinGlass v1 bytes and could emit false fast-squeeze block/hedge advice.
 # Keep it held until the causal provider-loader gate is released and verified.
 ai-bot-v2-cascade-context-publisher.service
+ai-bot-v2-strategy-supply-publisher.service
