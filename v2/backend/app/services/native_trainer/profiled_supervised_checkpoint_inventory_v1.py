@@ -32,7 +32,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import math
 import re
 import secrets
 import struct
@@ -114,6 +113,8 @@ MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES: Final = 512 * 1024 * 1024
 PROFILED_STATE_ITEM_ACCOUNTING_BYTES: Final = 1024
 PROFILED_OPTIMIZER_ROW_ACCOUNTING_BYTES: Final = 2048
 PROFILED_CHECKPOINT_FIXED_ACCOUNTING_BYTES: Final = 16 * 1024
+MAX_PROFILED_TENSOR_RANK: Final = 4096
+MAX_PROFILED_TENSOR_SHAPE_METADATA_BYTES: Final = MAX_PROFILED_TENSOR_RANK * 32
 
 _TENSOR_ITEM_TOKEN = object()
 _STATE_SNAPSHOT_TOKEN = object()
@@ -141,6 +142,13 @@ _CHECKPOINT_IMPLEMENTATION_CONTRACT: Final = {
     "strict_binary_semantic_replay": True,
     "caller_serialization_budget_required": True,
     "immutable_serialization_ceiling_bytes": MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES,
+    "tensor_shape_resource_contract": {
+        "maximum_rank": MAX_PROFILED_TENSOR_RANK,
+        "maximum_accounted_shape_metadata_bytes": (MAX_PROFILED_TENSOR_SHAPE_METADATA_BYTES),
+        "checked_product_before_multiply": True,
+        "rank_zero_scalar_element_count": 1,
+        "zero_dimension_forbidden": True,
+    },
     "optimizer_lane": "OUTCOME_SUPERVISED_ONLY_NO_BEHAVIOR_POLICY_TERMS",
     "retrospective_execution_proof": False,
     "writes_files": False,
@@ -254,11 +262,69 @@ def _resource_budget(value: object, *, reason: str) -> int:
     return cast(int, value)
 
 
+def _checked_tensor_element_count(
+    *,
+    shape: object,
+    dtype: object,
+    maximum_payload_bytes: object,
+    metadata_budget_bytes: object,
+    invalid_reason: str,
+    resource_reason: str,
+    payload_reason: str,
+) -> int:
+    """Return a bounded element count without ever creating an oversized product."""
+
+    if type(shape) not in {tuple, list} or type(dtype) is not str:
+        _fail(invalid_reason)
+    width = _DTYPE_BYTE_WIDTH.get(dtype)
+    if width is None:
+        _fail(invalid_reason)
+    if (
+        type(maximum_payload_bytes) is not int
+        or maximum_payload_bytes <= 0
+        or type(metadata_budget_bytes) is not int
+        or metadata_budget_bytes <= 0
+    ):
+        _fail(resource_reason)
+    payload_ceiling = min(
+        maximum_payload_bytes,
+        MAX_PROFILED_STATE_ITEM_BYTES,
+        MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES,
+    )
+    metadata_ceiling = min(
+        metadata_budget_bytes,
+        MAX_PROFILED_STATE_ITEM_BYTES,
+        MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES,
+        MAX_PROFILED_TENSOR_SHAPE_METADATA_BYTES,
+    )
+    dimensions = cast(tuple[object, ...] | list[object], shape)
+    rank = len(dimensions)
+    if rank > MAX_PROFILED_TENSOR_RANK or rank > metadata_ceiling // 32:
+        _fail(resource_reason)
+    maximum_element_count = payload_ceiling // width
+    if maximum_element_count <= 0:
+        _fail(payload_reason)
+
+    # ``()`` is the canonical one-element scalar.  Any explicit zero
+    # dimension is a zero-element tensor and fails below.
+    element_count = 1
+    for dimension in dimensions:
+        if type(dimension) is not int or dimension <= 0:
+            _fail(invalid_reason)
+        # Check the division bound before multiplication.  Neither the running
+        # product nor the final required byte count can exceed the cap.
+        if dimension > maximum_element_count or element_count > maximum_element_count // dimension:
+            _fail(payload_reason)
+        element_count *= dimension
+    return element_count
+
+
 def _validated_tensor_input(
     *,
     role: object,
     value: object,
-) -> tuple[str, str, tuple[int, ...], bytes, int]:
+    resource_budget_bytes: int = MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES,
+) -> tuple[str, str, tuple[int, ...], bytes, int, int]:
     if type(role) is not str or role not in _STATE_ROLES:
         _fail("PROFILED_CHECKPOINT_TENSOR_ROLE_INVALID")
     if type(value) is not tuple or len(value) != 4:
@@ -268,17 +334,22 @@ def _validated_tensor_input(
         _fail("PROFILED_CHECKPOINT_TENSOR_NAME_INVALID")
     if type(dtype) is not str or dtype not in _DTYPE_BYTE_WIDTH:
         _fail("PROFILED_CHECKPOINT_TENSOR_DTYPE_INVALID")
-    if type(shape) is not tuple or any(
-        type(dimension) is not int or dimension < 0 for dimension in shape
-    ):
+    if type(shape) is not tuple:
         _fail("PROFILED_CHECKPOINT_TENSOR_SHAPE_INVALID")
     if type(payload) is not bytes:
         _fail("PROFILED_CHECKPOINT_TENSOR_PAYLOAD_EXACT_BYTES_REQUIRED")
-    element_count = math.prod(shape)
+    element_count = _checked_tensor_element_count(
+        shape=shape,
+        dtype=dtype,
+        maximum_payload_bytes=resource_budget_bytes,
+        metadata_budget_bytes=resource_budget_bytes,
+        invalid_reason="PROFILED_CHECKPOINT_TENSOR_SHAPE_INVALID",
+        resource_reason="PROFILED_CHECKPOINT_TENSOR_SHAPE_RESOURCE_LIMIT_EXCEEDED",
+        payload_reason="PROFILED_CHECKPOINT_TENSOR_PAYLOAD_LIMIT_EXCEEDED",
+    )
     expected_byte_count = element_count * _DTYPE_BYTE_WIDTH[dtype]
     if (
-        element_count <= 0
-        or not payload
+        not payload
         or len(payload) != expected_byte_count
         or len(payload) > MAX_PROFILED_STATE_ITEM_BYTES
         or len(payload) > MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES
@@ -291,7 +362,7 @@ def _validated_tensor_input(
         + len(shape) * 32
         + len(payload)
     )
-    return name, dtype, shape, payload, accounted_bytes
+    return name, dtype, shape, payload, accounted_bytes, element_count
 
 
 def _prevalidate_state_inputs_and_budget(
@@ -336,9 +407,10 @@ def _prevalidate_state_inputs_and_budget(
         ("OPTIMIZER", typed_optimizer, validated_optimizer),
     ):
         for raw_item in source:
-            name, dtype, shape, payload, item_accounted = _validated_tensor_input(
+            name, dtype, shape, payload, item_accounted, _element_count = _validated_tensor_input(
                 role=role,
                 value=raw_item,
+                resource_budget_bytes=budget,
             )
             # The base per-item amount was counted before iteration so a huge
             # tuple fails before any tensor factory work.  Add only the exact
@@ -505,13 +577,12 @@ class ProfiledSupervisedTensorStateItemV1:
     _construction_token: object = field(repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        name, dtype, shape, payload, _accounted = _validated_tensor_input(
+        name, dtype, shape, payload, _accounted, element_count = _validated_tensor_input(
             role=self.role,
             value=(self.name, self.dtype, self.shape, self.payload),
         )
         role = cast(str, self.role)
         width = _DTYPE_BYTE_WIDTH[dtype]
-        element_count = math.prod(shape)
         coordinate = _tensor_coordinate_material(
             role=role,
             name=name,
@@ -561,7 +632,7 @@ class ProfiledSupervisedTensorStateItemV1:
 def _build_tensor_item(
     *, role: str, value: tuple[str, str, tuple[int, ...], bytes]
 ) -> ProfiledSupervisedTensorStateItemV1:
-    name, dtype, shape, payload, _accounted = _validated_tensor_input(
+    name, dtype, shape, payload, _accounted, _element_count = _validated_tensor_input(
         role=role,
         value=value,
     )
@@ -1404,6 +1475,7 @@ def _validate_decoded_tensor_descriptor(
     value: object,
     *,
     expected_index: int,
+    resource_budget_bytes: int,
 ) -> dict[str, Any]:
     descriptor = _decoded_object(
         value,
@@ -1436,10 +1508,6 @@ def _validate_decoded_tensor_descriptor(
         or type(descriptor["dtype"]) is not str
         or descriptor["dtype"] not in _DTYPE_BYTE_WIDTH
         or type(descriptor["shape"]) is not list
-        or any(
-            type(dimension) is not int or dimension < 0
-            for dimension in cast(list[object], descriptor["shape"])
-        )
         or descriptor["byte_order"] != "LITTLE_ENDIAN"
         or descriptor["layout"] != "CONTIGUOUS_C_ORDER"
     ):
@@ -1447,15 +1515,23 @@ def _validate_decoded_tensor_descriptor(
     role = cast(str, descriptor["role"])
     name = cast(str, descriptor["name"])
     dtype = cast(str, descriptor["dtype"])
+    element_count = _checked_tensor_element_count(
+        shape=descriptor["shape"],
+        dtype=dtype,
+        maximum_payload_bytes=resource_budget_bytes,
+        metadata_budget_bytes=resource_budget_bytes,
+        invalid_reason="PROFILED_CHECKPOINT_BINARY_TENSOR_DESCRIPTOR_INVALID",
+        resource_reason=("PROFILED_CHECKPOINT_BINARY_TENSOR_SHAPE_RESOURCE_LIMIT_EXCEEDED"),
+        payload_reason="PROFILED_CHECKPOINT_BINARY_TENSOR_PAYLOAD_LIMIT_EXCEEDED",
+    )
     shape = tuple(cast(list[int], descriptor["shape"]))
     byte_count = _decoded_positive_int(
         descriptor["byte_count"],
         reason="PROFILED_CHECKPOINT_BINARY_TENSOR_DESCRIPTOR_INVALID",
     )
-    expected_byte_count = math.prod(shape) * _DTYPE_BYTE_WIDTH[dtype]
+    expected_byte_count = element_count * _DTYPE_BYTE_WIDTH[dtype]
     if (
-        math.prod(shape) <= 0
-        or byte_count != expected_byte_count
+        byte_count != expected_byte_count
         or byte_count > MAX_PROFILED_CHECKPOINT_SERIALIZATION_BYTES
         or descriptor["frame_name"] != f"{role}:{name}"
     ):
@@ -2111,6 +2187,10 @@ def decode_and_validate_profiled_supervised_checkpoint_binary_v2(
             _validate_decoded_tensor_descriptor(
                 raw_descriptor,
                 expected_index=frame_index,
+                resource_budget_bytes=cast(
+                    int,
+                    after_state["resource_budget_bytes"],
+                ),
             )
         )
     artifact_names = (

@@ -247,10 +247,18 @@ byte length and content identity against the declared dtype and shape.
 
 ### 7.3 Shape and byte count
 
-- Shape must be an exact tuple of non-negative exact integers.
+- Shape must be an exact tuple of positive exact integers, except that the
+  rank-zero scalar form `()` is valid.
 - A scalar uses shape `()` and has one element.
 - A zero-sized dimension is rejected because state items must contain a
   non-empty payload.
+- Rank is capped at 4,096 and accounted shape metadata at 128 KiB before any
+  dimension multiplication or iteration.
+- Element count is accumulated iteratively. Before every multiplication, the
+  factory checks `running_count <= maximum_elements // next_dimension`, where
+  `maximum_elements` is derived from the narrowest immutable, per-item, and
+  caller resource payload ceiling divided by dtype width. The running product
+  therefore never becomes a giant integer.
 - `byte_count` must equal `product(shape) * dtype_byte_width`.
 - `byte_count` must equal the actual payload length.
 
@@ -518,6 +526,8 @@ quality thresholds:
 | Immutable whole-envelope/state ceiling | 512 MiB |
 | Syntactic state-item count ceiling | 1,000,000 |
 | Per-item accounting charge before construction | 1,024 bytes plus exact variable material |
+| Tensor rank | 4,096 |
+| Accounted tensor-shape metadata | 128 KiB |
 | Per-corpus-row checkpoint accounting charge | 2,048 bytes |
 | Fixed checkpoint accounting charge | 16 KiB |
 | Legacy per-tensor syntactic ceiling | 2 GiB, subordinate to the 512 MiB effective ceiling |
@@ -536,6 +546,11 @@ all artifact bytes before constructing the canonical header or any binary
 frame. After header generation it computes the exact encoded size before
 allocating the output buffer. It never builds a list of full frame-byte copies
 and joins it.
+
+The bytes-only decoder applies the same iterative checked element-count helper
+before copying a descriptor shape into a tuple or deriving its byte count. A
+high-rank descriptor and a `(2, 2, ...)` product attack are therefore rejected
+at a deterministic resource reason before an oversized product exists.
 
 These limits do not select symbols, observations, labels, regimes, leverage,
 margin, edge, loss, confidence, or optimizer hyperparameters.
@@ -568,6 +583,8 @@ The focused suite covers:
 - reordered, duplicated, truncated, trailing, and payload-tampered frames;
 - ambiguous, malformed, and mismatched tensor descriptors;
 - exact snapshot and checkpoint resource-budget preflight before builders;
+- direct and decoded-header high-rank/giant-product shape attacks rejected
+  before unbounded integer multiplication;
 - bytes names, `shape=None`, wrong tuple arity, and malformed member counts
   normalized to `ProfiledSupervisedCheckpointInventoryV1Error`;
 - equal, out-of-order, and non-canonical clocks;
@@ -651,7 +668,7 @@ this branch as follows:
 
 Verification at this point in the branch:
 
-- 80 admission, corpus, checkpoint, and new adversarial tests passed;
+- 85 admission, corpus, checkpoint, and new adversarial tests passed;
 - both modified implementation modules passed `py_compile`;
 - all modified Python files passed full Ruff and fatal-rule Ruff; and
 - `git diff --check` passed.
