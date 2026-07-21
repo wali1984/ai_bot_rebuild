@@ -38,6 +38,16 @@ def test_process_mark_price_message_writes_requested_symbols_only() -> None:
     assert payload["index_price"] == 60001.0
     assert payload["source"] == "binance_usdm_wss_mark_price_all_symbols"
     assert payload["transport"] == "websocket_primary"
+    assert payload["generated_at"] <= payload["available_at"]
+    assert payload["cadence_policy_version"] == (
+        "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+    )
+    assert payload["freshness_budget_seconds"] == 1.0
+    assert payload["exchange_source_authenticated"] is True
+    assert payload["authentication_boundary"] == (
+        "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+    )
+    assert payload["evidence_sha256"] == seeder._payload_sha256(payload)  # noqa: SLF001
     assert payload["places_real_order"] is False
     assert payload["test_orders"] is False
     assert payload["leverage_mutation"] is False
@@ -74,3 +84,14 @@ def test_safe_set_rejects_non_market_keys() -> None:
         assert "refused_non_market_key" in str(exc)
     else:
         raise AssertionError("expected non-market key to be rejected")
+
+
+def test_clockless_exchange_row_is_not_promoted_to_mark_authority() -> None:
+    result = seeder.process_mark_price_message(
+        [{"s": "BTCUSDT", "p": "60000.0", "i": "60001.0"}],
+        symbols={"BTCUSDT"},
+        redis_client=None,
+    )
+
+    assert result["observed_count"] == 0
+    assert result["symbols_observed"] == []

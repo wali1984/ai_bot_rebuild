@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from v2.backend.app.services.risk.cross_margin_liquidation import (
     build_portfolio_liquidation_snapshot,
+    seal_adaptive_stress_envelope,
 )
 from v2.backend.app.services.risk.fast_squeeze_detector import detect_squeeze
 from v2.backend.app.services.risk.hedge_first_controller import evaluate_hedge_first
@@ -53,11 +54,120 @@ def test_calm_market_no_squeeze():
 
 
 def _snap_with_negative():
-    account = {"totalWalletBalance": 500.0, "totalUnrealizedProfit": -80.0,
-               "totalMarginBalance": 420.0, "totalMaintMargin": 60.0, "availableBalance": 200.0}
-    positions = [{"symbol": "SOLUSDT", "positionAmt": 30.0, "markPrice": 150.0, "leverage": 10,
-                  "maintMarginRatio": 0.01, "unRealizedProfit": -80.0}]
-    return build_portfolio_liquidation_snapshot(account=account, positions=positions, generated_utc=NOW)
+    account = {
+        "status": "PASS", "accounting_complete": True,
+        "account_balance_components_complete": True,
+        "wallet_balance_source": "SAME_LEDGER_STARTING_EQUITY_PLUS_REALIZED_NET_PNL",
+        "equity_source": "SAME_LEDGER_WALLET_BALANCE_PLUS_CURRENT_UNREALIZED_PNL",
+        "paper_session_id": "paper-session-fixture",
+        "equity_usd": 420.0, "wallet_balance_usd": 500.0,
+        "unrealized_pnl_usd": -80.0,
+        "used_margin_usd": 458.0,
+        "margin_base_usd": 420.0,
+        "newly_reserved_margin_usd": 0.0,
+        "newly_reserved_included_in_used_margin": True,
+        "free_margin_usd": 0.0,
+        "cross_wallet_balance_usd": 500.0,
+        "cross_unrealized_pnl_usd": -80.0,
+        "cross_equity_usd": 420.0,
+        "paper_only": True, "routes_to_live": False, "places_real_order": False,
+    }
+    quantity, entry, mark, leverage, rate = 30.0, 152.66666666666666, 150.0, 10.0, 0.01
+    position = {
+        "position_id": "paper_pos_SOLUSDT_fixture", "position_generation_id": "fixture-generation",
+        "paper_session_id": "paper-session-fixture",
+        "symbol": "SOLUSDT", "side": "long", "net_quantity": quantity,
+        "avg_entry_price": entry, "last_mark_price": mark,
+        "effective_leverage": leverage, "gross_notional_usd": quantity * entry,
+        "maintenance_margin_rate": rate, "maintenance_margin_cum": 0.0,
+        "maintenance_margin_mark_price": mark, "maintenance_margin_mark_time": NOW,
+        "maintenance_margin_mark_event_time": NOW,
+        "maintenance_margin_mark_generated_at": NOW,
+        "maintenance_margin_mark_available_at": NOW,
+        "maintenance_margin_mark_decision_time": NOW,
+        "maintenance_margin_mark_source": "UNIT_AUTHENTICATED_MARK",
+        "maintenance_margin_mark_evidence_sha256": "a" * 64,
+        "maintenance_margin_mark_contract_authoritative": True,
+        "maintenance_margin_mark_freshness_budget_seconds": 1.0,
+        "maintenance_margin_mark_cadence_policy_version": "UNIT_MARK_CADENCE_V1",
+        "maintenance_margin_mark_consumer_validation_boundary": (
+            "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+        ),
+        "margin_mode_simulated": "cross_paper_simulated",
+        "maintenance_margin_notional_usd": quantity * mark,
+        "maintenance_margin_estimate": quantity * mark * rate,
+        "unrealized_pnl": -80.0, "unrealized_pnl_bps": -80.0 / (quantity * entry) * 10_000.0,
+        "paper_only": True, "routes_to_live": False, "places_real_order": False,
+    }
+    margin = {
+        "row_id": position["position_id"],
+        "position_generation_id": position["position_generation_id"],
+        "paper_session_id": "paper-session-fixture",
+        "symbol": "SOLUSDT", "accounting_scope": "OPEN_EXECUTED_POSITION", "valid": True,
+        "effective_leverage": leverage, "canonical_notional_usd": quantity * entry,
+        "canonical_margin_usd": quantity * entry / leverage,
+        "maintenance_margin_rate": rate, "maintenance_margin_cum": 0.0,
+        "maintenance_margin_mark_price": mark, "maintenance_margin_mark_time": NOW,
+        "maintenance_margin_mark_event_time": NOW,
+        "maintenance_margin_mark_generated_at": NOW,
+        "maintenance_margin_mark_available_at": NOW,
+        "maintenance_margin_mark_decision_time": NOW,
+        "maintenance_margin_mark_source": "UNIT_AUTHENTICATED_MARK",
+        "maintenance_margin_mark_evidence_sha256": "a" * 64,
+        "maintenance_margin_mark_contract_authoritative": True,
+        "maintenance_margin_mark_freshness_budget_seconds": 1.0,
+        "maintenance_margin_mark_cadence_policy_version": "UNIT_MARK_CADENCE_V1",
+        "maintenance_margin_mark_consumer_validation_boundary": (
+            "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1"
+        ),
+        "margin_mode_simulated": "cross_paper_simulated",
+        "maintenance_margin_notional_usd": quantity * mark,
+        "maintenance_margin_estimate": quantity * mark * rate,
+        "unrealized_pnl_usd": -80.0, "unrealized_pnl_bps": position["unrealized_pnl_bps"],
+        "paper_only": True, "routes_to_live": False, "places_real_order": False,
+    }
+    stress_symbols = {"SOLUSDT", "BTCUSDT", "ETHUSDT", "TOP5_BASKET"}
+    adaptive_stress = seal_adaptive_stress_envelope(
+        {
+            "schema_version": "adaptive_portfolio_stress_v1",
+            "authority_complete": True,
+            "paper_session_id": "paper-session-fixture",
+            "stress_policy_version": "UNIT_STRESS_V1",
+            "cadence_policy_version": "UNIT_CADENCE_V1",
+            "producer": "adaptive_portfolio_stress_controller",
+            "auth_boundary": "PAPER_ADAPTIVE_STRESS_PIT_V1",
+            "source_observations_sha256": "b" * 64,
+            "generated_at": NOW,
+            "available_at": NOW,
+            "decision_time": NOW,
+            "freshness_budget_seconds": 1.0,
+            "guard_lifetime_seconds": 1.0,
+            "recovery_reserve_usd": 0.0,
+            "hedge_candidate_maintenance": {
+                symbol: {
+                    "authority_complete": True,
+                    "source": "AUTHENTICATED_BINANCE_USDM_LEVERAGE_BRACKET",
+                    "maintenance_margin_rate": 0.005,
+                    "maintenance_margin_cum": 0.0,
+                    "evidence_sha256": "c" * 64,
+                }
+                for symbol in stress_symbols
+            },
+            "scenarios": [
+                {
+                    "scenario_id": "adaptive_down",
+                    "symbol_moves": {symbol: -0.02 for symbol in stress_symbols},
+                }
+            ],
+        }
+    )
+    return build_portfolio_liquidation_snapshot(
+        account=account,
+        positions=[position],
+        position_margin_rows=[margin],
+        generated_utc=NOW,
+        adaptive_stress_envelope=adaptive_stress,
+    )
 
 
 def test_negative_position_gets_hedge_evaluation():
@@ -69,7 +179,7 @@ def test_negative_position_gets_hedge_evaluation():
     assert out["recommended_action"] in {"HEDGE", "PARTIAL_DERISK_CLOSE"}
     # every candidate is evaluated; none may worsen buffer and still be chosen
     if out["hedge_required"]:
-        assert out["liquidation_buffer_after_usd"] <= out["liquidation_buffer_before_usd"]
+        assert out["liquidation_buffer_after_usd"] >= out["liquidation_buffer_before_usd"]
         assert out["liquidation_buffer_after_usd"] > 0
         assert out["portfolio_risk_after"] < out["portfolio_risk_before"]
         assert out["hedge_exit_plan"] is not None

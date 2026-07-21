@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -26,10 +27,18 @@ REDIS_KEY_TEMPLATE = "v2:market:mark_price:{symbol}"
 STATUS_KEY = "v2:market:mark_price_wss_status"
 DEFAULT_TTL_SECONDS = 180
 LIVE_GATE = "blocked_human_only"
+MARK_CADENCE_POLICY_VERSION = "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
+EXPECTED_UPDATE_INTERVAL_SECONDS = 1.0
+FRESHNESS_BUDGET_SECONDS = 1.0
+MARK_AUTHENTICATION_BOUNDARY = "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def _iso_from_ms(value: Any) -> str | None:
@@ -78,6 +87,12 @@ def _safe_set(client: Any, key: str, payload: Mapping[str, Any], *, ttl_seconds:
     return True
 
 
+def _payload_sha256(payload: Mapping[str, Any]) -> str:
+    material = {key: value for key, value in payload.items() if key != "evidence_sha256"}
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _rows_from_message(raw: Any) -> list[Mapping[str, Any]]:
     if isinstance(raw, str):
         raw = json.loads(raw)
@@ -90,14 +105,23 @@ def _rows_from_message(raw: Any) -> list[Mapping[str, Any]]:
     return []
 
 
-def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, Any] | None:
+def _normalize_row(
+    row: Mapping[str, Any],
+    *,
+    generated_at: str,
+    available_at: str,
+) -> dict[str, Any] | None:
     symbol = str(row.get("s") or row.get("symbol") or "").upper()
     mark_price = _float(row.get("p") or row.get("markPrice") or row.get("mark_price"))
     index_price = _float(row.get("i") or row.get("indexPrice") or row.get("index_price"))
     if not symbol or mark_price is None or mark_price <= 0:
         return None
-    event_time = _iso_from_ms(row.get("E") or row.get("event_time_ms")) or available_at
-    return {
+    event_time = _iso_from_ms(row.get("E") or row.get("event_time_ms"))
+    if event_time is None:
+        # Receipt time is not exchange event time.  A clockless row cannot be
+        # promoted to maintenance/liquidation authority by substituting it.
+        return None
+    payload = {
         "schema_version": "binance_usdm_mark_price_wss_v1",
         "symbol": symbol,
         "mark_price": mark_price,
@@ -108,9 +132,19 @@ def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, An
         "last_funding_rate": _float(row.get("r") or row.get("lastFundingRate")),
         "next_funding_time_ms": row.get("T") or row.get("nextFundingTime"),
         "event_time": event_time,
+        "generated_at": generated_at,
         "available_at": available_at,
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "transport": "websocket_primary",
+        "stream_name": STREAM_NAME,
+        "exchange_source_authenticated": True,
+        "authentication_boundary": MARK_AUTHENTICATION_BOUNDARY,
+        "cadence_policy_version": MARK_CADENCE_POLICY_VERSION,
+        "expected_update_interval_seconds": EXPECTED_UPDATE_INTERVAL_SECONDS,
+        "freshness_budget_seconds": FRESHNESS_BUDGET_SECONDS,
+        "event_time_semantics": "BINANCE_USDM_WEBSOCKET_EVENT_TIME_E",
+        "generated_at_semantics": "LOCAL_NORMALIZATION_COMPLETION_TIME",
+        "available_at_semantics": "LOCAL_REDIS_PUBLICATION_RELEASE_TIME",
         "live_gate": LIVE_GATE,
         "places_real_order": False,
         "test_orders": False,
@@ -119,6 +153,8 @@ def _normalize_row(row: Mapping[str, Any], *, available_at: str) -> dict[str, An
         "transfer_or_withdrawal": False,
         "raw_credentials_exposed": False,
     }
+    payload["evidence_sha256"] = _payload_sha256(payload)
+    return payload
 
 
 def process_mark_price_message(
@@ -129,11 +165,16 @@ def process_mark_price_message(
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
 ) -> dict[str, Any]:
     wanted = {str(symbol).upper() for symbol in symbols or set() if symbol}
-    available_at = _utc_now()
     rows: list[dict[str, Any]] = []
     written_keys: list[str] = []
     for row in _rows_from_message(raw):
-        payload = _normalize_row(row, available_at=available_at)
+        generated_at = _utc_now()
+        available_at = _utc_now()
+        payload = _normalize_row(
+            row,
+            generated_at=generated_at,
+            available_at=available_at,
+        )
         if payload is None:
             continue
         symbol = str(payload["symbol"])

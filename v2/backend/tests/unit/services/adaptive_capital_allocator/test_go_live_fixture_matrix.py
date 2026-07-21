@@ -43,6 +43,56 @@ _GEN = "2026-07-11T18:00:00Z"
 _FILTERS = {"tick_size": 0.1, "step_size": 0.001, "min_qty": 0.001, "min_notional": 5.0}
 
 
+def _authoritative_hedge_snapshot() -> dict:
+    worst_buffer = 120.0
+    return {
+        "schema_version": "cross_margin_liquidation_v2",
+        "generated_utc": _GEN,
+        "portfolio_snapshot_sha256": "a" * 64,
+        "adaptive_stress_authority_complete": True,
+        "adaptive_stress_evidence_sha256": "b" * 64,
+        "hedge_candidate_maintenance": {
+            symbol: {
+                "authority_complete": True,
+                "source": "AUTHENTICATED_BINANCE_USDM_LEVERAGE_BRACKET",
+                "maintenance_margin_rate": 0.005,
+                "maintenance_margin_cum": 0.0,
+                "evidence_sha256": "c" * 64,
+            }
+            for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT", "TOP5_BASKET")
+        },
+        "portfolio_liquidation_buffer_usd": 150.0,
+        "worst_case_liquidation_buffer_usd": worst_buffer,
+        "worst_case_liquidation_breached": False,
+        "worst_case_scenario": "btc_down_20pct",
+        "correlated_shock_scenarios": {
+            "btc_down_20pct": {
+                "btc_move": -0.2,
+                "symbol_moves": {
+                    "BTCUSDT": -0.2,
+                    "ETHUSDT": -0.18,
+                    "SOLUSDT": -0.22,
+                    "TOP5_BASKET": -0.19,
+                },
+                "portfolio_pnl_delta_usd": -25.0,
+                "shocked_margin_balance_usd": 125.0,
+                "shocked_maintenance_margin_usd": 5.0,
+                "shocked_liquidation_buffer_usd": worst_buffer,
+                "liquidation_breached": False,
+            }
+        },
+        "open_position_count": 1,
+        "authority_complete": True,
+        "portfolio_level_computed": True,
+        "per_position_only": False,
+        "risk_decision_blocked": False,
+        "block_reasons": [],
+        "paper_only": True,
+        "routes_to_live": False,
+        "places_real_order": False,
+    }
+
+
 # --------------------------------------------------------------------------- #
 # builders
 # --------------------------------------------------------------------------- #
@@ -232,7 +282,7 @@ def test_hedge_required_for_negative_adverse_position() -> None:
             "notional_usd": 100.0,
             "unrealized_pnl_usd": -25.0,
         },
-        snapshot={"portfolio_liquidation_buffer_usd": 150.0, "worst_case_liquidation_buffer_usd": 120.0},
+        snapshot=_authoritative_hedge_snapshot(),
         hedge_mode=True,
         generated_utc=_GEN,
     )
