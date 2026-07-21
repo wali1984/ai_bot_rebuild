@@ -25,6 +25,9 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
 TRAINER_FEEDBACK_REDIS_KEY = "v2:trainer:feedback:outcomes"
 MATURATION_STATUS_REDIS_KEY = "v2:trainer:strategy_supply_feedback_maturation_status"
 FEEDBACK_SOURCE = "V2_STRATEGY_SUPPLY_SHADOW_OUTCOME"
+PROFILED_TRAINER_ADMISSION_BLOCK_REASON = (
+    "STRATEGY_SUPPLY_SHADOW_ROW_REQUIRES_AUTHENTICATED_PROFILED_CORPUS"
+)
 
 
 def utc_iso(now: datetime | None = None) -> str:
@@ -758,6 +761,39 @@ def enforce_canonical_exit_lineage(row: dict[str, Any]) -> list[str]:
     return reasons
 
 
+def enforce_profiled_trainer_admission_boundary(row: dict[str, Any]) -> None:
+    """Keep valid shadow outcomes out of the authenticated trainer lane.
+
+    Canonical exit-label evidence makes a row useful for strategy research,
+    but it does not authenticate the entry feature snapshot, immutable source
+    CAS, profiled ledger append, fixed-observation manifest, or external
+    witness. Those contracts belong to the separate profiled trainer pipeline.
+    """
+
+    row["accepted_for_training"] = False
+    row["valid_for_training"] = False
+    existing_reasons = row.get("reject_reasons")
+    normalized_reasons = (
+        [str(reason) for reason in existing_reasons]
+        if isinstance(existing_reasons, list)
+        else []
+    )
+    row["reject_reasons"] = sorted(
+        set([*normalized_reasons, PROFILED_TRAINER_ADMISSION_BLOCK_REASON])
+    )
+    existing_quarantine = row.get("quarantine_reasons")
+    normalized_quarantine = (
+        [str(reason) for reason in existing_quarantine]
+        if isinstance(existing_quarantine, list)
+        else []
+    )
+    row["quarantine_reasons"] = sorted(
+        set([*normalized_quarantine, PROFILED_TRAINER_ADMISSION_BLOCK_REASON])
+    )
+    if row.get("quarantine_reason") in (None, "", "NONE"):
+        row["quarantine_reason"] = "UNAUTHENTICATED_STRATEGY_SUPPLY_SHADOW_ROW"
+
+
 def trainer_feedback_row_for_publish(record: Mapping[str, Any]) -> dict[str, Any] | None:
     row = record.get("trainer_feedback_row")
     if not isinstance(row, Mapping):
@@ -767,6 +803,7 @@ def trainer_feedback_row_for_publish(record: Mapping[str, Any]) -> dict[str, Any
     feedback_row["entry_feature_snapshot"] = entry_snapshot
     apply_trainer_gate_fields(feedback_row, entry_snapshot=entry_snapshot)
     enforce_canonical_exit_lineage(feedback_row)
+    enforce_profiled_trainer_admission_boundary(feedback_row)
     missing_feedback, missing_trust = feedback_missing_fields(feedback_row)
     feedback_row["missing_feedback_fields"] = missing_feedback
     feedback_row["missing_trust_fields"] = missing_trust
@@ -1043,6 +1080,7 @@ def build_feedback_row(
     row.update(contexts)
     apply_trainer_gate_fields(row, entry_snapshot=entry_snapshot)
     enforce_canonical_exit_lineage(row)
+    enforce_profiled_trainer_admission_boundary(row)
     missing_feedback, missing_trust = feedback_missing_fields(row)
     row["missing_feedback_fields"] = missing_feedback
     row["missing_trust_fields"] = missing_trust

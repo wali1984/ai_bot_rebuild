@@ -11,12 +11,6 @@ from v2.backend.app.cli import v2_strategy_supply_feedback_maturation as feedbac
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_rest,
 )
-from v2.backend.app.services.market_state_integrity.sample_rejection import classify_training_sample
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.data_loader import (
-    V2HybridTrainerDataLoader,
-    _trainer_feedback_row_usable,
-)
-from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.safety import V2OnlyJsonIO
 from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.tensor_builder import FEATURE_SPEC
 from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     TIMEFRAME_DURATION_MS,
@@ -67,6 +61,8 @@ def _pending_row(**overrides: Any) -> dict[str, Any]:
         "decision_time": "2026-06-21T12:00:00Z",
         "feature_cutoff": "2026-06-21T11:59:50Z",
         "available_at": "2026-06-21T11:59:59Z",
+        "candle_open_time": "2026-06-21T11:58:50Z",
+        "candle_close_time": "2026-06-21T11:59:50Z",
         "expected_net_pnl_usd": 8.5,
         "expected_gross_pnl_usd": 10.0,
         "expected_cost_usd": 1.0,
@@ -89,6 +85,8 @@ def _pending_row(**overrides: Any) -> dict[str, Any]:
             "available_at": "2026-06-21T11:59:59Z",
             "generated_at": "2026-06-21T11:59:59Z",
             "feature_cutoff": "2026-06-21T11:59:50Z",
+            "candle_open_time": "2026-06-21T11:58:50Z",
+            "candle_close_time": "2026-06-21T11:59:50Z",
             "feature_freshness_state": "CURRENT",
             "candle_closed_confirmed": True,
             "features": feature_values,
@@ -183,7 +181,9 @@ def _write_pending(path: Path, row: dict[str, Any]) -> None:
     maturation.append_jsonl(path, row)
 
 
-def test_strategy_supply_feedback_maturation_publishes_trainer_consumable_row(tmp_path: Path) -> None:
+def test_strategy_supply_feedback_maturation_keeps_shadow_row_out_of_profiled_trainer(
+    tmp_path: Path,
+) -> None:
     pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
     matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
     rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
@@ -204,10 +204,12 @@ def test_strategy_supply_feedback_maturation_publishes_trainer_consumable_row(tm
     assert status["matured_rows"] == 1
     assert status["positive_outcomes"] == 1
     assert status["future_leakage_violations"] == 0
-    assert status["trainer_feedback_rows_ready"] == 1
-    assert status["trainer_feedback_rows_published_to_redis"] == 1
-    payload = json.loads(redis.payloads[maturation.TRAINER_FEEDBACK_REDIS_KEY])
-    feedback_row = payload[0]
+    assert status["trainer_feedback_rows_ready"] == 0
+    assert status["trainer_feedback_rows_published_to_redis"] == 0
+    assert maturation.TRAINER_FEEDBACK_REDIS_KEY not in redis.payloads
+    matured = maturation.load_jsonl(matured_path)
+    assert len(matured) == 1
+    feedback_row = matured[0]["trainer_feedback_row"]
     assert feedback_row["trainer_feedback_source"] == maturation.FEEDBACK_SOURCE
     assert feedback_row["directional_outcome"] == "UP"
     assert feedback_row["future_labels_used_as_features"] is False
@@ -215,22 +217,14 @@ def test_strategy_supply_feedback_maturation_publishes_trainer_consumable_row(tm
     assert feedback_row["entry_feature_snapshot"]["missing_feature_count"] == 0
     assert feedback_row["features"]["bid_ask_spread_bps"] == 3.0
     assert feedback_row["features"]["funding_rate"] == 0.00025
-    assert feedback_row["accepted_for_training"] is True
-    assert feedback_row["reject_reasons"] == []
-    assert _trainer_feedback_row_usable(feedback_row) is True
-    loader = V2HybridTrainerDataLoader(io=V2OnlyJsonIO(client=redis))
-    examples = loader.load_training_examples(
-        symbols=[],
-        timeframes=[],
-        trusted_only=True,
-        closed_trade_only=True,
-        limit=10,
+    assert feedback_row["accepted_for_training"] is False
+    assert feedback_row["trainer_consumable"] is False
+    assert feedback_row["reject_reasons"] == [
+        maturation.PROFILED_TRAINER_ADMISSION_BLOCK_REASON
+    ]
+    assert feedback_row["quarantine_reason"] == (
+        "UNAUTHENTICATED_STRATEGY_SUPPLY_SHADOW_ROW"
     )
-    assert len(examples) == 1
-    assert examples[0].row_classification == "TRAINABLE"
-    sample = classify_training_sample(dict(examples[0].trust_row))
-    assert sample["accepted_for_training"] is True
-    assert sample["reject_reasons"] == []
 
 
 def test_strategy_supply_feedback_maturation_rejects_future_leaking_entry_snapshot(tmp_path: Path) -> None:
@@ -281,7 +275,7 @@ def test_strategy_supply_feedback_maturation_waits_for_label_window(tmp_path: Pa
     assert not matured_path.exists()
 
 
-def test_strategy_supply_feedback_maturation_republishes_existing_matured_rows(
+def test_strategy_supply_feedback_maturation_does_not_republish_shadow_rows(
     tmp_path: Path,
 ) -> None:
     pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
@@ -312,12 +306,17 @@ def test_strategy_supply_feedback_maturation_republishes_existing_matured_rows(
     assert first_status["matured_rows"] == 1
     assert second_status["matured_rows"] == 1
     assert second_status["new_matured_rows_appended"] == 0
-    assert second_status["existing_matured_trainer_feedback_rows_ready"] == 1
-    assert second_status["trainer_feedback_rows_published_to_redis"] == 1
+    assert second_status["existing_matured_trainer_feedback_rows_ready"] == 0
+    assert second_status["trainer_feedback_rows_published_to_redis"] == 0
     payload = json.loads(redis.payloads[maturation.TRAINER_FEEDBACK_REDIS_KEY])
-    assert payload[0]["trainer_feedback_source"] == maturation.FEEDBACK_SOURCE
-    assert payload[0]["accepted_for_training"] is True
-    assert payload[0]["reject_reasons"] == []
+    assert payload == []
+    matured = maturation.load_jsonl(matured_path)
+    feedback_row = matured[0]["trainer_feedback_row"]
+    assert feedback_row["accepted_for_training"] is False
+    assert (
+        maturation.PROFILED_TRAINER_ADMISSION_BLOCK_REASON
+        in feedback_row["reject_reasons"]
+    )
 
 
 def test_feedback_maturation_ignores_forged_latest_feature_snapshot(
