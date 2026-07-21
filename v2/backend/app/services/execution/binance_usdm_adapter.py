@@ -63,6 +63,20 @@ SIGNED_READ_ENDPOINTS = (
     "/fapi/v3/positionRisk",
 )
 
+# Binance assigns the user commission endpoint an IP request weight of 20.
+# Most existing adapter callers rely on the historical weight-1 fallback
+# reservation, so only endpoints with a separately verified non-default weight
+# are overridden here.  Commission reads also require the host-shared Redis
+# budget because the exchange limit is per IP, not per publisher process.
+SIGNED_READ_REQUEST_WEIGHT_OVERRIDES = {
+    "/fapi/v1/commissionRate": 20,
+}
+SIGNED_READ_SHARED_BUDGET_ENDPOINTS = frozenset(
+    {
+        "/fapi/v1/commissionRate",
+    }
+)
+
 PUBLIC_ENDPOINTS = (
     "/fapi/v1/exchangeInfo",
     "/fapi/v1/time",
@@ -188,10 +202,14 @@ class BinanceUSDMAdapter:
         allowed = path in SIGNED_READ_ENDPOINTS
         signed = self.sign_params(params) if self.has_credentials else {**dict(params or {}), "timestamp": _now_ms(), "signature": "<missing-credentials>"}
         redacted_params = {**signed, "signature": "<redacted>"}
+        request_weight = SIGNED_READ_REQUEST_WEIGHT_OVERRIDES.get(path, 1)
+        shared_budget_required = path in SIGNED_READ_SHARED_BUDGET_ENDPOINTS
         fallback = binance_rest_fallback_decision(
             endpoint=f"GET {path}",
             fallback_reason=fallback_reason,
             role="signed_read_recovery",
+            request_weight=request_weight,
+            require_shared_budget=shared_budget_required,
         )
         rest_fallback_allowed = bool(fallback["request_allowed"])
         return {
@@ -207,6 +225,8 @@ class BinanceUSDMAdapter:
             "rest_fallback_allowed": rest_fallback_allowed,
             "rest_fallback_reason": fallback_reason,
             "rest_fallback_blocked_reason": fallback["rest_fallback_blocked_reason"],
+            "rest_fallback_request_weight": request_weight,
+            "rest_fallback_shared_budget_required": shared_budget_required,
             "rest_used_as_primary": False,
             "would_call": bool(allowed and self.has_credentials and rest_fallback_allowed),
             "api_secret_exposed": False,
@@ -297,6 +317,12 @@ def endpoint_contract_matrix() -> dict[str, Any]:
         "base_url": DEFAULT_BASE_URL,
         "testnet_base_url": TESTNET_BASE_URL,
         "signed_rest_fallback_endpoints": list(SIGNED_READ_ENDPOINTS),
+        "signed_rest_request_weight_overrides": dict(
+            SIGNED_READ_REQUEST_WEIGHT_OVERRIDES
+        ),
+        "signed_rest_shared_budget_endpoints": sorted(
+            SIGNED_READ_SHARED_BUDGET_ENDPOINTS
+        ),
         "public_rest_fallback_endpoints": list(PUBLIC_ENDPOINTS),
         "mutation_endpoints_blocked_by_default": list(MUTATION_ENDPOINTS),
         "uses_direct_hmac_httpx_adapter": True,
