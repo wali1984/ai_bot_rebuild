@@ -54,6 +54,7 @@ def _feature_record(
     unfinished_timeframe: str | None = None,
     non_interval_timeframe: str | None = None,
     inexact_interval_timeframe: str | None = None,
+    optional_event_missing: bool = False,
 ) -> dict[str, object]:
     receipts: list[dict[str, object]] = []
     finality_by_timeframe: dict[str, dict[str, object]] = {}
@@ -118,6 +119,37 @@ def _feature_record(
         "closed_1h_source_value": 100.0,
         "closed_4h_source_value": 100.0,
     }
+    if optional_event_missing:
+        missing_payload = json.dumps(
+            {
+                "reason": "NO_OPEN_PAPER_POSITION",
+                "symbol": "BTCUSDT",
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        receipts.append(
+            build_source_read_receipt(
+                source_label="v2:paper:positions",
+                payload_type="declared_typed_missing_paper_position",
+                payload_sha256=hashlib.sha256(missing_payload).hexdigest(),
+                payload_byte_count=len(missing_payload),
+                event_time=_iso(BASE),
+                available_at=_iso(BASE),
+                consumer_observed_at=_iso(BASE),
+                feature_cutoff=_iso(BASE),
+                read_locator_type="IN_MEMORY_IMMUTABLE_OBJECT",
+                read_locator=(
+                    f"unit-fixture:{snapshot_id}:paper-position-typed-missing"
+                ),
+                read_locator_version="unit_declared_typed_missing_v1",
+                finality_type="VERSIONED_SNAPSHOT",
+                finality_cutoff=_iso(BASE),
+                finality_verified_at=_iso(BASE),
+                finality_verifier="unit_test",
+            )
+        )
+        features["paper_position_present"] = 0.0
     feature_names = list(features)
     receipt_by_label = {
         str(receipt["source_label"]): receipt for receipt in receipts
@@ -133,6 +165,13 @@ def _feature_record(
         "canonical_ohlcv:1h",
         "canonical_ohlcv:4h",
     ]
+    if optional_event_missing:
+        source_labels.append("v2:paper:positions")
+    missing_mask = [
+        int(name == "paper_position_present" and optional_event_missing)
+        for name in feature_names
+    ]
+    source_availability_mask = [1 - flag for flag in missing_mask]
     return build_feature_snapshot_record(
         provenance_classification=PROVENANCE_CANONICAL_V3,
         legacy_v1_snapshot_id=None,
@@ -143,9 +182,9 @@ def _feature_record(
         temporal_rejection_reasons=[],
         ordered_feature_names=feature_names,
         feature_values=list(features.values()),
-        missing_mask=[0] * len(feature_names),
+        missing_mask=missing_mask,
         stale_mask=[0] * len(feature_names),
-        source_availability_mask=[1] * len(feature_names),
+        source_availability_mask=source_availability_mask,
         ordered_feature_source_labels=source_labels,
         feature_source_receipt_sha256s=[
             str(receipt_by_label[source_label]["receipt_sha256"])
@@ -391,6 +430,66 @@ def test_authenticated_holdout_is_exact_deterministic_and_cursor_free(
         assert first[field] == second[field]
         assert len(str(first[field])) == 64
     assert cursor.read_bytes() == cursor_before
+
+
+def test_receipt_bound_declared_optional_event_absence_remains_trainable(
+    tmp_path: Path,
+) -> None:
+    manifest, _ledger, _archive = _scenario(
+        tmp_path,
+        records=[_feature_record(optional_event_missing=True)],
+    )
+
+    result = _evaluate(tmp_path, manifest)
+
+    assert result["status"] == (
+        "VERIFIED_CURSOR_FREE_TRUSTED_REPLAY_HOLDOUT_EXAMPLES"
+    )
+    assert len(result["examples"]) == 1
+    example = result["examples"][0]
+    optional_index = example.tensor.feature_names.index(
+        "paper_position_present"
+    )
+    assert example.tensor.values[optional_index] == 0.0
+    assert example.tensor.missing_mask[optional_index] == 1
+    assert example.tensor.stale_mask[optional_index] == 0
+    assert example.tensor.source_availability[optional_index] == 0
+    assert example.tensor.source_availability_vector[optional_index] == 0
+    assert example.tensor.missing_feature_names == (
+        "paper_position_present",
+    )
+    assert example.tensor.data_coverage_percent < 100.0
+    assert example.trust_row["missing_feature_names"] == [
+        "paper_position_present"
+    ]
+    assert example.trust_row["missing_feature_count"] == 1
+    assert example.trust_row["stale_feature_names"] == []
+    assert example.trust_row["stale_feature_count"] == 0
+
+
+def test_holdout_consumer_rejects_attacker_reclassification_of_required_slot() -> None:
+    record = _feature_record(optional_event_missing=True)
+    envelope = record["frozen_envelope"]
+    assert isinstance(envelope, dict)
+    forged_abi = json.loads(json.dumps(envelope["feature_abi"]))
+    close_index = envelope["ordered_feature_names"].index("close")
+    forged_abi["ordered_feature_requirement_classes"][close_index] = (
+        "OPTIONAL_EVENT_DEPENDENT"
+    )
+
+    contract, reasons = runtime._exact_feature_requirement_contract(  # noqa: SLF001
+        ordered_feature_names=envelope["ordered_feature_names"],
+        missing_mask=envelope["missing_mask"],
+        stale_mask=envelope["stale_mask"],
+        source_availability_mask=envelope["source_availability_mask"],
+        feature_abi=forged_abi,
+        feature_source_receipt_sha256s=envelope[
+            "feature_source_receipt_sha256s"
+        ],
+    )
+
+    assert contract is None
+    assert "FEATURE_REQUIREMENT_CLASSES_POLICY_MISMATCH" in reasons
 
 
 def test_holdout_rejects_label_path_gap(tmp_path: Path) -> None:

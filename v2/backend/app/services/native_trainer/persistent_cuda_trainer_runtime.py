@@ -51,13 +51,17 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_archive imp
     load_snapshot as load_durable_feature_snapshot,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
-    MAX_QUERY_ROWS as FEATURE_LEDGER_MAX_QUERY_ROWS,
-)
-from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    FEATURE_REQUIREMENT_POLICY_ID,
     DurableFeatureSnapshotLedger,
     FeatureSnapshotIntegrityReport,
     FeatureSnapshotLedgerError,
+    FeatureSnapshotValidationError,
     FixedCutoffFeatureSnapshot,
+    feature_abi_contract,
+    feature_requirement_classes_for_names,
+)
+from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
+    MAX_QUERY_ROWS as FEATURE_LEDGER_MAX_QUERY_ROWS,
 )
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     default_ledger_path as default_feature_snapshot_ledger_path,
@@ -1231,6 +1235,206 @@ def _exact_timeframe_finality_contract(
     return {**proof, "timeframe_finality_sha256": _stable_json_sha256(proof)}, []
 
 
+def _exact_feature_requirement_contract(
+    *,
+    ordered_feature_names: Any,
+    missing_mask: Any,
+    stale_mask: Any,
+    source_availability_mask: Any,
+    feature_abi: Any,
+    feature_source_receipt_sha256s: Any,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Verify the code-owned ABI and structural receipt bindings.
+
+    This does not authenticate an external source's semantics. Production
+    callers reach it only after the fixed-cutoff durable-ledger query has
+    validated the complete receipt graph and its append/postcommit chain.
+    """
+
+    reasons: list[str] = []
+    if (
+        type(ordered_feature_names) is not list
+        or not ordered_feature_names
+        or any(
+            type(feature_name) is not str or not feature_name
+            for feature_name in ordered_feature_names
+        )
+        or len(set(ordered_feature_names)) != len(ordered_feature_names)
+    ):
+        return None, ["ORDERED_FEATURE_NAMES_INVALID"]
+    names = list(ordered_feature_names)
+
+    def binary_vector(value: Any, *, reason: str) -> list[int] | None:
+        if type(value) is not list or len(value) != len(names):
+            reasons.append(f"{reason}_DIMENSION_MISMATCH")
+            return None
+        if any(type(flag) is not int or flag not in (0, 1) for flag in value):
+            reasons.append(f"{reason}_NOT_BINARY")
+            return None
+        return list(value)
+
+    missing = binary_vector(missing_mask, reason="MISSING_MASK")
+    stale = binary_vector(stale_mask, reason="STALE_MASK")
+    availability = binary_vector(
+        source_availability_mask,
+        reason="SOURCE_AVAILABILITY_MASK",
+    )
+    if type(feature_source_receipt_sha256s) is not list or len(
+        feature_source_receipt_sha256s
+    ) != len(names):
+        reasons.append("FEATURE_SOURCE_RECEIPT_SHA256S_DIMENSION_MISMATCH")
+        bindings: list[str | None] = []
+    else:
+        bindings = list(feature_source_receipt_sha256s)
+        if any(
+            binding is not None
+            and (
+                type(binding) is not str
+                or _valid_sha256_text(binding) != binding
+            )
+            for binding in bindings
+        ):
+            reasons.append("FEATURE_SOURCE_RECEIPT_SHA256_INVALID")
+    if type(feature_abi) is not dict:
+        reasons.append("FEATURE_ABI_CONTRACT_INVALID")
+        abi: dict[str, Any] = {}
+    else:
+        abi = dict(feature_abi)
+    policy_id = abi.get("feature_requirement_policy_id")
+    if policy_id != FEATURE_REQUIREMENT_POLICY_ID:
+        reasons.append("FEATURE_REQUIREMENT_POLICY_ID_MISMATCH")
+    requirements = abi.get("ordered_feature_requirement_classes")
+    if type(requirements) is not list or len(requirements) != len(names):
+        reasons.append("FEATURE_REQUIREMENT_CLASSES_DIMENSION_MISMATCH")
+        requirement_classes: list[str] = []
+    else:
+        requirement_classes = list(requirements)
+    try:
+        expected_requirements = list(feature_requirement_classes_for_names(names))
+    except FeatureSnapshotValidationError as exc:
+        reasons.extend(exc.reasons)
+        return None, sorted(set(reasons))
+    try:
+        expected_abi = feature_abi_contract(
+            names,
+            feature_requirement_policy_id=(
+                policy_id if type(policy_id) is str else ""
+            ),
+            ordered_feature_requirement_classes=requirement_classes,
+        )
+    except FeatureSnapshotValidationError as exc:
+        reasons.extend(exc.reasons)
+        expected_abi = None
+    if requirement_classes != expected_requirements:
+        reasons.append("FEATURE_REQUIREMENT_CLASSES_POLICY_MISMATCH")
+    if expected_abi is None or abi != expected_abi:
+        reasons.append("FEATURE_ABI_CONTRACT_MISMATCH")
+    if (
+        missing is not None
+        and availability is not None
+        and any(
+            available != 1 - missing_flag
+            for available, missing_flag in zip(
+                availability,
+                missing,
+                strict=True,
+            )
+        )
+    ):
+        reasons.append("SOURCE_AVAILABILITY_MISSING_MASK_MISMATCH")
+    if reasons:
+        return None, sorted(set(reasons))
+    assert missing is not None
+    assert stale is not None
+    assert availability is not None
+    required_missing_names = [
+        name
+        for name, flag, requirement in zip(
+            names, missing, expected_requirements, strict=True
+        )
+        if flag == 1 and requirement == "REQUIRED"
+    ]
+    optional_missing_names = [
+        name
+        for name, flag, requirement in zip(
+            names, missing, expected_requirements, strict=True
+        )
+        if flag == 1 and requirement == "OPTIONAL_EVENT_DEPENDENT"
+    ]
+    stale_names = [
+        name for name, flag in zip(names, stale, strict=True) if flag == 1
+    ]
+    if any(
+        flag == 1
+        and requirement == "OPTIONAL_EVENT_DEPENDENT"
+        and binding is None
+        for flag, requirement, binding in zip(
+            missing, expected_requirements, bindings, strict=True
+        )
+    ):
+        return None, ["OPTIONAL_FEATURE_SOURCE_EVIDENCE_MISSING"]
+    return {
+        "ordered_feature_names": names,
+        "missing_mask": missing,
+        "stale_mask": stale,
+        "source_availability_mask": availability,
+        "feature_abi": abi,
+        "feature_requirement_policy_id": FEATURE_REQUIREMENT_POLICY_ID,
+        "ordered_feature_requirement_classes": expected_requirements,
+        "feature_source_receipt_sha256s": bindings,
+        "required_missing_names": required_missing_names,
+        "optional_missing_names": optional_missing_names,
+        "stale_names": stale_names,
+    }, []
+
+
+def _snapshot_feature_requirement_contract(
+    snapshot: Mapping[str, Any],
+) -> tuple[dict[str, Any] | None, list[str]]:
+    names = snapshot.get("ordered_feature_names")
+    if (
+        type(names) is not list
+        or not names
+        or any(type(name) is not str or not name for name in names)
+        or len(set(names)) != len(names)
+    ):
+        return None, ["ORDERED_FEATURE_NAMES_INVALID"]
+
+    def ordered_binary_map(value: Any) -> list[int] | None:
+        if type(value) is not dict or set(value) != set(names):
+            return None
+        ordered: list[int] = []
+        for name in names:
+            flag = value.get(name)
+            if type(flag) is not bool:
+                return None
+            ordered.append(int(flag))
+        return ordered
+
+    missing = ordered_binary_map(snapshot.get("missing_mask"))
+    stale = ordered_binary_map(snapshot.get("stale_mask"))
+    availability = ordered_binary_map(snapshot.get("source_availability"))
+    map_reasons: list[str] = []
+    if missing is None:
+        map_reasons.append("FEATURE_MISSING_MASK_INVALID")
+    if stale is None:
+        map_reasons.append("FEATURE_STALE_MASK_INVALID")
+    if availability is None:
+        map_reasons.append("FEATURE_SOURCE_AVAILABILITY_MASK_INVALID")
+    if map_reasons:
+        return None, map_reasons
+    return _exact_feature_requirement_contract(
+        ordered_feature_names=names,
+        missing_mask=missing,
+        stale_mask=stale,
+        source_availability_mask=availability,
+        feature_abi=snapshot.get("feature_abi"),
+        feature_source_receipt_sha256s=snapshot.get(
+            "feature_source_receipt_sha256s"
+        ),
+    )
+
+
 def _snapshot_from_feature_ledger_item(
     item: FixedCutoffFeatureSnapshot,
 ) -> tuple[dict[str, Any] | None, FeatureTensorRecord | None, list[str]]:
@@ -1241,27 +1445,57 @@ def _snapshot_from_feature_ledger_item(
     )
     if finality_proof is None:
         return None, None, finality_reasons
-    names = list(envelope.get("ordered_feature_names") or ())
-    values = list(envelope.get("feature_values") or ())
-    missing = list(envelope.get("missing_mask") or ())
-    stale = list(envelope.get("stale_mask") or ())
-    availability = list(envelope.get("source_availability_mask") or ())
-    source_labels = list(envelope.get("ordered_feature_source_labels") or ())
-    vector_lengths = {
-        len(names),
-        len(values),
-        len(missing),
-        len(stale),
-        len(availability),
-        len(source_labels),
-    }
-    if not names or len(vector_lengths) != 1:
+    requirement_contract, requirement_reasons = (
+        _exact_feature_requirement_contract(
+            ordered_feature_names=envelope.get("ordered_feature_names"),
+            missing_mask=envelope.get("missing_mask"),
+            stale_mask=envelope.get("stale_mask"),
+            source_availability_mask=envelope.get(
+                "source_availability_mask"
+            ),
+            feature_abi=envelope.get("feature_abi"),
+            feature_source_receipt_sha256s=envelope.get(
+                "feature_source_receipt_sha256s"
+            ),
+        )
+    )
+    if requirement_contract is None:
+        return None, None, requirement_reasons
+    if (
+        envelope.get("strict_training_eligible") is not True
+        or envelope.get("strict_training_ineligibility_reasons") != []
+    ):
+        return None, None, ["FEATURE_LEDGER_STRICT_TRAINING_ELIGIBILITY_INVALID"]
+    names = requirement_contract["ordered_feature_names"]
+    missing = requirement_contract["missing_mask"]
+    stale = requirement_contract["stale_mask"]
+    availability = requirement_contract["source_availability_mask"]
+    values_raw = envelope.get("feature_values")
+    source_labels_raw = envelope.get("ordered_feature_source_labels")
+    if (
+        type(values_raw) is not list
+        or type(source_labels_raw) is not list
+        or len(values_raw) != len(names)
+        or len(source_labels_raw) != len(names)
+        or any(
+            type(source_label) is not str
+            for source_label in source_labels_raw
+        )
+    ):
         return None, None, ["FEATURE_LEDGER_TENSOR_DIMENSION_MISMATCH"]
-    if any(int(flag) != 0 for flag in missing):
+    parsed_values = [finite_float(value) for value in values_raw]
+    if any(value is None for value in parsed_values):
+        return None, None, ["FEATURE_LEDGER_VALUE_NONFINITE"]
+    values = [float(value) for value in parsed_values if value is not None]
+    source_labels = list(source_labels_raw)
+    if requirement_contract["required_missing_names"]:
         return None, None, ["FEATURE_LEDGER_REQUIRED_INPUT_MISSING"]
-    if any(int(flag) != 0 for flag in stale):
+    if requirement_contract["stale_names"]:
         return None, None, ["FEATURE_LEDGER_INPUT_STALE"]
-    features = {str(name): float(value) for name, value in zip(names, values, strict=True)}
+    optional_missing_names = list(
+        requirement_contract["optional_missing_names"]
+    )
+    features = dict(zip(names, values, strict=True))
     snapshot: dict[str, Any] = {
         "snapshot_id": record.get("durable_snapshot_id"),
         "feature_snapshot_id": envelope.get("feature_snapshot_id"),
@@ -1278,6 +1512,28 @@ def _snapshot_from_feature_ledger_item(
             str(name): bool(flag)
             for name, flag in zip(names, availability, strict=True)
         },
+        "ordered_feature_names": list(names),
+        "feature_abi": dict(requirement_contract["feature_abi"]),
+        "feature_requirement_policy_id": requirement_contract[
+            "feature_requirement_policy_id"
+        ],
+        "ordered_feature_requirement_classes": list(
+            requirement_contract["ordered_feature_requirement_classes"]
+        ),
+        "feature_requirement_by_name": dict(
+            zip(
+                names,
+                requirement_contract[
+                    "ordered_feature_requirement_classes"
+                ],
+                strict=True,
+            )
+        ),
+        "feature_source_receipt_sha256s": list(
+            requirement_contract["feature_source_receipt_sha256s"]
+        ),
+        "required_missing_feature_names": [],
+        "optional_missing_feature_names": optional_missing_names,
         "feature_cutoff": envelope.get("feature_cutoff"),
         "masa_feature_cutoff": envelope.get("masa_feature_cutoff"),
         "ppo_feature_cutoff": envelope.get("ppo_feature_cutoff"),
@@ -1317,9 +1573,11 @@ def _snapshot_from_feature_ledger_item(
         source_availability=tuple(int(value) for value in availability),
         feature_names=tuple(str(value) for value in names),
         source_labels=tuple(str(value) for value in source_labels),
-        missing_feature_names=(),
+        missing_feature_names=tuple(optional_missing_names),
         stale_feature_names=(),
-        data_coverage_percent=100.0,
+        data_coverage_percent=(
+            100.0 * (len(names) - sum(missing)) / len(names)
+        ),
         source_availability_vector=tuple(int(value) for value in availability),
         decision_time=str(envelope.get("tensor_decision_time") or ""),
         source_lineage_hash=str(envelope.get("source_lineage_sha256") or ""),
@@ -1393,15 +1651,17 @@ def _holdout_snapshot_clock_contract(
         "source_hashes"
     ):
         reasons.append("FEATURE_SOURCE_HASHES_MISSING")
-    missing_mask = snapshot.get("missing_mask")
-    stale_mask = snapshot.get("stale_mask")
-    if not isinstance(missing_mask, Mapping) or not missing_mask:
-        reasons.append("FEATURE_MISSING_MASK_INVALID")
-    elif any(bool(flag) for flag in missing_mask.values()):
+    requirement_contract, requirement_reasons = (
+        _snapshot_feature_requirement_contract(snapshot)
+    )
+    if requirement_contract is None:
+        reasons.extend(requirement_reasons)
+    elif requirement_contract["required_missing_names"]:
         reasons.append("FEATURE_MISSING_AT_DECISION")
-    if not isinstance(stale_mask, Mapping) or not stale_mask:
-        reasons.append("FEATURE_STALE_MASK_INVALID")
-    elif any(bool(flag) for flag in stale_mask.values()):
+    if (
+        requirement_contract is not None
+        and requirement_contract["stale_names"]
+    ):
         reasons.append("FEATURE_STALE_AT_DECISION")
     if reasons:
         return None, sorted(set(reasons))
@@ -1457,6 +1717,11 @@ def _holdout_example_from_verified_sources(
     symbol = str(snapshot.get("symbol") or "").upper()
     timeframe = str(snapshot.get("timeframe") or "")
     tensor_reasons: list[str] = []
+    requirement_contract, requirement_reasons = (
+        _snapshot_feature_requirement_contract(snapshot)
+    )
+    if requirement_contract is None:
+        tensor_reasons.extend(requirement_reasons)
     if not tensor.values or len(
         {
             len(tensor.values),
@@ -1469,12 +1734,33 @@ def _holdout_example_from_verified_sources(
         }
     ) != 1:
         tensor_reasons.append("FEATURE_TENSOR_SHAPE_OR_CONTENT_INVALID")
-    if any(int(flag) != 0 for flag in tensor.missing_mask):
-        tensor_reasons.append("FEATURE_TENSOR_HAS_MISSING_REQUIRED_INPUT")
-    if any(int(flag) != 0 for flag in tensor.stale_mask):
-        tensor_reasons.append("FEATURE_TENSOR_HAS_STALE_INPUT")
+    elif requirement_contract is not None:
+        if (
+            tuple(requirement_contract["ordered_feature_names"])
+            != tensor.feature_names
+            or tuple(requirement_contract["missing_mask"])
+            != tensor.missing_mask
+            or tuple(requirement_contract["stale_mask"])
+            != tensor.stale_mask
+            or tuple(requirement_contract["source_availability_mask"])
+            != tensor.source_availability
+            or tensor.source_availability != tensor.source_availability_vector
+            or tuple(requirement_contract["optional_missing_names"])
+            != tensor.missing_feature_names
+            or tuple(requirement_contract["stale_names"])
+            != tensor.stale_feature_names
+        ):
+            tensor_reasons.append("FEATURE_TENSOR_REQUIREMENT_BINDING_MISMATCH")
+        if requirement_contract["required_missing_names"]:
+            tensor_reasons.append("FEATURE_TENSOR_HAS_MISSING_REQUIRED_INPUT")
+        if requirement_contract["stale_names"]:
+            tensor_reasons.append("FEATURE_TENSOR_HAS_STALE_INPUT")
     if tensor_reasons:
         return None, sorted(set(tensor_reasons))
+    assert requirement_contract is not None
+    optional_missing_names = list(
+        requirement_contract["optional_missing_names"]
+    )
     action_index = target_action_index(replay_row.get("target_action"))
     if action_index is None:
         return None, ["ADAPTIVE_TARGET_ACTION_INVALID"]
@@ -1494,8 +1780,8 @@ def _holdout_example_from_verified_sources(
             "holdout_sample_identity_sha256": (
                 holdout_sample_identity_sha256
             ),
-            "missing_feature_names": [],
-            "missing_feature_count": 0,
+            "missing_feature_names": optional_missing_names,
+            "missing_feature_count": len(optional_missing_names),
             "stale_feature_names": [],
             "stale_feature_count": 0,
             "source_lineage": {
