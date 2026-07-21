@@ -18,11 +18,12 @@ interface RiskPayload {
   live_gate?: string; live_blocked?: boolean; fail_closed?: boolean;
   active_profile?: { profile_id?: string; profile_name?: string };
   recent_decisions?: RiskDecision[];
-  heartbeat?: { decisions_processed_total?: number; finished_at?: string };
+  heartbeat?: { decisions_processed_total?: number; finished_at?: string; fail_closed?: boolean; live_gate?: string; live_blocked?: boolean };
   data?: {
     latest_gateway_result?: { symbol?: string; side?: string; risk_action?: string; risk_reason_code?: string; generated_at?: string };
     active_profile?: { profile_name?: string; profile_id?: string };
-    heartbeat?: { decisions_processed_total?: number; finished_at?: string };
+    heartbeat?: { decisions_processed_total?: number; finished_at?: string; fail_closed?: boolean; live_gate?: string; live_blocked?: boolean };
+    fail_closed_reason?: string;
   };
 }
 
@@ -156,13 +157,19 @@ function RiskRuntimeTruthPanel(): JSX.Element {
 export default function AdminRiskPage(): JSX.Element {
   const [tab, setTab] = useState<Tab>('Decisions');
   const [openControlId, setOpenControlId] = useState<string | null>(null);
-  const { envelope, loading } = useRealtimeResource<RiskPayload>({ url: RISK_ENDPOINT, source: 'admin-risk', pollIntervalMs: 10_000 });
+  // unwrapEnvelopeData: false — /api/v2/risk/status carries the safety-posture
+  // fields (fail_closed, live_gate, live_blocked) on the contract envelope
+  // itself, not inside .data; the default unwrap stripped them and the
+  // FAIL CLOSED tile rendered a wrong 'NO' while the gateway WAS fail-closed.
+  const { envelope, loading } = useRealtimeResource<RiskPayload>({ url: RISK_ENDPOINT, source: 'admin-risk', pollIntervalMs: 10_000, unwrapEnvelopeData: false });
   const raw = envelope.data;
   const data = raw?.data ?? raw;
   const decisions = raw?.recent_decisions || [];
   const heartbeat = (data as RiskPayload)?.heartbeat ?? raw?.heartbeat;
   const profile = (data as RiskPayload)?.active_profile ?? raw?.active_profile;
   const liveBlocked = raw?.live_blocked !== false;
+  const liveGate = raw?.live_gate ?? heartbeat?.live_gate;
+  const failClosed = (raw?.fail_closed ?? heartbeat?.fail_closed) === true;
   const decisionsTotal = heartbeat?.decisions_processed_total ?? 0;
 
   return (
@@ -180,10 +187,10 @@ export default function AdminRiskPage(): JSX.Element {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
         {[
           { label: 'LIVE EXECUTION', value: liveBlocked ? 'BLOCKED' : 'ENABLED', accent: liveBlocked ? SC.error : SC.ok },
-          { label: 'GATE', value: (raw?.live_gate || '—').replace(/_/g, ' '), accent: raw?.live_gate?.includes('blocked') ? SC.error : SC.ok },
+          { label: 'GATE', value: (liveGate || '—').replace(/_/g, ' '), accent: liveGate?.includes('blocked') ? SC.error : SC.ok },
           { label: 'PROFILE', value: profile?.profile_name || profile?.profile_id || '—' },
           { label: 'DECISIONS TOTAL', value: decisionsTotal.toLocaleString() },
-          { label: 'FAIL CLOSED', value: raw?.fail_closed ? 'YES' : 'NO', accent: raw?.fail_closed ? SC.warn : SC.ok },
+          { label: 'FAIL CLOSED', value: failClosed ? 'YES' : 'NO', accent: failClosed ? SC.warn : SC.ok },
         ].map(({ label, value, accent }) => (
           <div key={label} className="glass" style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
@@ -202,8 +209,8 @@ export default function AdminRiskPage(): JSX.Element {
         <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, color: liveBlocked ? SC.error : SC.ok }}>
           LIVE EXECUTION: {liveBlocked ? 'BLOCKED' : 'ENABLED'}
         </span>
-        {raw?.live_gate && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>gate: {raw.live_gate}</span>}
-        {raw?.fail_closed && <span style={{ fontSize: 11, color: SC.warn, fontFamily: 'var(--font-mono)' }}>FAIL-CLOSED</span>}
+        {liveGate && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>gate: {liveGate}</span>}
+        {failClosed && <span style={{ fontSize: 11, color: SC.warn, fontFamily: 'var(--font-mono)' }}>FAIL-CLOSED</span>}
         {profile?.profile_name && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>profile: {profile.profile_name}</span>}
         {heartbeat?.finished_at && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>heartbeat {relativeAge(heartbeat.finished_at)}</span>}
       </div>
@@ -328,7 +335,7 @@ export default function AdminRiskPage(): JSX.Element {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
             { label: 'Live gate blocked', done: liveBlocked },
-            { label: 'Fail-closed active', done: !!raw?.fail_closed },
+            { label: 'Fail-closed active', done: failClosed },
             { label: 'Risk profile loaded', done: !!profile?.profile_name },
             { label: 'Heartbeat received', done: !!heartbeat?.finished_at },
             { label: 'No decisions with allow+live_blocked=false', done: decisions.filter(d => d.risk_action === 'allow' && !d.live_blocked).length === 0 },
