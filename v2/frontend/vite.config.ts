@@ -117,6 +117,11 @@ const servePublicEvidencePayloads: Plugin = {
             : ext === ".html" ? "text/html; charset=utf-8"
             : ext === ".svg" ? "image/svg+xml"
             : ext === ".png" ? "image/png"
+            // service-worker.js / manifest live in public/ and are intercepted
+            // here; a non-JS MIME type makes the browser refuse SW registration.
+            : ext === ".js" || ext === ".mjs" ? "text/javascript; charset=utf-8"
+            : ext === ".css" ? "text/css; charset=utf-8"
+            : ext === ".webmanifest" ? "application/manifest+json; charset=utf-8"
             : "application/octet-stream";
           res.statusCode = 200;
           res.setHeader("Content-Type", contentType);

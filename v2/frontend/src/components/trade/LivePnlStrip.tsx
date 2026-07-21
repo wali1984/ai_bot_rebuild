@@ -48,7 +48,7 @@ export function LivePnlStrip({ totalPnl, realizedPnl, unrealizedPnl, openNotiona
       .join(' ');
   }
 
-  const fmt = (v: number | null) => (v == null ? '—' : `${v >= 0 ? '+' : ''}$${v.toFixed(2)}`);
+  const fmt = (v: number | null) => (v == null ? '—' : `${v < 0 ? '-' : '+'}$${Math.abs(v).toFixed(2)}`);
 
   return (
     <div

@@ -259,7 +259,8 @@ function text(value: unknown, fallback = 'not reported'): string {
 function money(value: unknown): string {
   const parsed = num(value);
   if (parsed === null) return 'not reported';
-  return `$${parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const sign = parsed < 0 ? '-' : '';
+  return `${sign}$${Math.abs(parsed).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fixed(value: unknown, digits = 2): string {

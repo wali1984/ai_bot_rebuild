@@ -286,9 +286,11 @@ interface HealthSurface {
 
 function f$(n: number | null | undefined, digits = 2): string {
   if (n == null) return '—';
-  if (Math.abs(n) >= 1e6) return '$' + (n / 1e6).toFixed(digits) + 'M';
-  if (Math.abs(n) >= 1e3) return '$' + (n / 1e3).toFixed(digits) + 'K';
-  return '$' + n.toFixed(digits);
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return sign + '$' + (abs / 1e6).toFixed(digits) + 'M';
+  if (abs >= 1e3) return sign + '$' + (abs / 1e3).toFixed(digits) + 'K';
+  return sign + '$' + abs.toFixed(digits);
 }
 function fPct(n: number | null | undefined, signed = false): string {
   if (n == null) return '—';
