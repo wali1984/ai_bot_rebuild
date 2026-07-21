@@ -27,12 +27,17 @@ interface SelfHealingStatus {
 
 const ENDPOINT = '/api/v2/self-healing/status';
 
-// Map a supervisor action -> a traffic-light tone.
-function toneFor(action: string | null, activeState: string | null): 'ok' | 'warn' | 'error' {
+type Tone = 'ok' | 'warn' | 'error' | 'stopped';
+
+// Map a supervisor action -> a traffic-light tone. Deliberately-stopped /
+// not-installed / denylisted services are NOT healthy-green: they get a
+// distinct neutral 'stopped' tone so an operator can tell them apart from
+// genuinely running services at a glance.
+function toneFor(action: string | null, activeState: string | null): Tone {
   const a = (action ?? '').toUpperCase();
   if (a === 'OK') return 'ok';
   if (a.startsWith('SKIP_DELIBERATELY') || a === 'SKIP_NOT_ENABLED' || a === 'SKIP_NOT_INSTALLED' || a === 'SKIP_DENYLISTED') {
-    return 'ok';
+    return 'stopped';
   }
   if (a === 'RESTART_DEAD' || a === 'RESTART_STALE' || a === 'STALE_PENDING') return 'warn';
   if (a === 'SKIP_RATE_LIMITED' || a.startsWith('ALERT')) return 'error';
@@ -41,10 +46,20 @@ function toneFor(action: string | null, activeState: string | null): 'ok' | 'war
   return 'error';
 }
 
-const TONE_COLOR: Record<'ok' | 'warn' | 'error', string> = {
+function stoppedChipLabel(action: string | null): string {
+  const a = (action ?? '').toUpperCase();
+  if (a.startsWith('SKIP_DELIBERATELY')) return 'STOPPED';
+  if (a === 'SKIP_NOT_INSTALLED') return 'NOT INSTALLED';
+  if (a === 'SKIP_NOT_ENABLED') return 'DISABLED';
+  if (a === 'SKIP_DENYLISTED') return 'DENYLISTED';
+  return 'HELD';
+}
+
+const TONE_COLOR: Record<Tone, string> = {
   ok: 'var(--ok, #10b981)',
   warn: 'var(--warn, #f59e0b)',
   error: 'var(--error, #ef4444)',
+  stopped: 'var(--text-muted, #6b7280)',
 };
 
 /**
@@ -71,7 +86,7 @@ export function SelfHealingPanel(): JSX.Element {
   const sorted = [...decisions].sort((a, b) => {
     const ta = toneFor(a.action, a.active_state);
     const tb = toneFor(b.action, b.active_state);
-    const rank = { error: 0, warn: 1, ok: 2 } as const;
+    const rank = { error: 0, warn: 1, stopped: 2, ok: 3 } as const;
     if (rank[ta] !== rank[tb]) return rank[ta] - rank[tb];
     return String(a.name).localeCompare(String(b.name));
   });
@@ -79,6 +94,7 @@ export function SelfHealingPanel(): JSX.Element {
   const healthy = data?.healthy_count ?? decisions.filter((d) => toneFor(d.action, d.active_state) === 'ok').length;
   const total = data?.component_count ?? decisions.length;
   const down = data?.unhealthy_count ?? 0;
+  const stopped = decisions.filter((d) => toneFor(d.action, d.active_state) === 'stopped').length;
 
   return (
     <section
@@ -94,6 +110,9 @@ export function SelfHealingPanel(): JSX.Element {
         <h3 style={{ margin: 0, fontSize: 15 }}>Self-Healing Services</h3>
         <span data-testid="self-healing-counts" style={{ fontSize: 12, color: 'var(--text-muted, #999)' }}>
           {healthy}/{total} healthy
+          {stopped > 0 ? (
+            <span style={{ color: TONE_COLOR.stopped }}>{` · ${stopped} stopped/held`}</span>
+          ) : null}
           {down > 0 ? (
             <span style={{ color: TONE_COLOR.error, fontWeight: 700 }}>{` · ${down} down`}</span>
           ) : null}
@@ -145,7 +164,7 @@ export function SelfHealingPanel(): JSX.Element {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {tone === 'ok' ? 'OK' : tone === 'warn' ? 'HEALING' : 'DOWN'}
+                  {tone === 'ok' ? 'OK' : tone === 'warn' ? 'HEALING' : tone === 'stopped' ? stoppedChipLabel(d.action) : 'DOWN'}
                 </span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-muted, #999)' }}>
@@ -153,6 +172,11 @@ export function SelfHealingPanel(): JSX.Element {
                 {d.criticality === 'critical' ? ' · critical' : ''}
                 {d.heartbeat_age_seconds != null ? ` · ${Math.round(d.heartbeat_age_seconds)}s` : ''}
               </span>
+              {tone === 'stopped' && d.reason ? (
+                <span style={{ fontSize: 10, color: 'var(--text-muted, #999)', fontStyle: 'italic' }}>
+                  {d.reason}
+                </span>
+              ) : null}
             </div>
           );
         })}
