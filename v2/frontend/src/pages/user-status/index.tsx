@@ -24,7 +24,7 @@ function publicStatusText(value: string | null | undefined): string {
     .replace(/operator_runtime/gi, 'status source')
     .replace(/frontend_truth_payload/gi, 'public status summary')
     .replace(/payloads?/gi, 'source')
-    .replace(/\/[A-Za-z0-9._/-]+/g, 'status source')
+    .replace(/(?<![A-Za-z0-9])\/[A-Za-z0-9._/-]+/g, 'status source')
     .replace(/\b[A-Z0-9]+_[A-Z0-9_]+\b/g, (match) => match.replaceAll('_', ' ').toLowerCase());
 }
 
