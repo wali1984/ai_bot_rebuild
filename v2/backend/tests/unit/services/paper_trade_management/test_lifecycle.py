@@ -39,6 +39,7 @@ from v2.backend.app.services.paper_trade_management.position_state import (
 from v2.backend.app.services.risk.portfolio_cascade_directive import (
     DIRECTIVE_SCHEMA_VERSION,
     GUARD_SCHEMA_VERSION,
+    canonical_sha256,
     seal_directive,
     seal_guard_payload,
 )
@@ -4837,6 +4838,8 @@ def test_admission_invalidated_position_still_stop_closes_within_one_cycle() -> 
 
 
 _GUARD_SESSION = "paper-session-lifecycle-guard"
+_PAPER_AUTH_KEY_ID = "unit-paper-v1"
+_PAPER_AUTH_KEY = b"p" * 32
 
 
 def _guard_position_fixture() -> tuple[dict, dict, dict]:
@@ -4860,6 +4863,7 @@ def _guard_position_fixture() -> tuple[dict, dict, dict]:
     ledger = {
         "paper_session_id": _GUARD_SESSION,
         "open_positions": [position],
+        "generated_utc": "2026-06-11T10:04:00Z",
     }
     return fill, ledger, position
 
@@ -4881,6 +4885,14 @@ def _sealed_lifecycle_guard(
     expires_at = parse_aware_utc(expires_utc)
     assert generated_at is not None and expires_at is not None
     adaptive_lifetime_seconds = (expires_at - generated_at).total_seconds()
+    source_ledger_sha256 = canonical_sha256(
+        {
+            "paper_session_id": _GUARD_SESSION,
+            "open_positions": [position],
+            "generated_utc": "2026-06-11T10:04:00Z",
+        }
+    )
+    assert source_ledger_sha256 is not None
     directive_material = {
         "schema_version": DIRECTIVE_SCHEMA_VERSION,
         "paper_session_id": _GUARD_SESSION,
@@ -4892,7 +4904,7 @@ def _sealed_lifecycle_guard(
         "generated_utc": generated_utc,
         "expires_utc": expires_utc,
         "source_ledger_generated_utc": "2026-06-11T10:04:00Z",
-        "source_ledger_sha256": "a" * 64,
+        "source_ledger_sha256": source_ledger_sha256,
         "portfolio_snapshot_sha256": "b" * 64,
         "position_evidence_sha256": "c" * 64,
         "portfolio_level_computed": True,
@@ -4957,7 +4969,11 @@ def _sealed_lifecycle_guard(
                 "cascade_direction_evidence_sha256": "9" * 64,
             }
         )
-    directive = seal_directive(directive_material)
+    directive = seal_directive(
+        directive_material,
+        authentication_key_id=_PAPER_AUTH_KEY_ID,
+        authentication_key=_PAPER_AUTH_KEY,
+    )
     return seal_guard_payload(
         {
             "schema_version": GUARD_SCHEMA_VERSION,
@@ -4966,7 +4982,7 @@ def _sealed_lifecycle_guard(
             "block_reasons": [],
             "paper_session_id": _GUARD_SESSION,
             "source_ledger_generated_utc": "2026-06-11T10:04:00Z",
-            "source_ledger_sha256": "a" * 64,
+            "source_ledger_sha256": source_ledger_sha256,
             "portfolio_snapshot_sha256": "b" * 64,
             "generated_utc": generated_utc,
             "expires_utc": expires_utc,
@@ -4991,7 +5007,9 @@ def _sealed_lifecycle_guard(
             "places_real_order": False,
             "leverage_mutated": False,
             "margin_mutated": False,
-        }
+        },
+        authentication_key_id=_PAPER_AUTH_KEY_ID,
+        authentication_key=_PAPER_AUTH_KEY,
     )
 
 
@@ -5000,8 +5018,10 @@ def _reconcile_with_guard(
     *,
     mark: float = 0.999,
     generated_utc: str = "2026-06-11T10:05:00Z",
+    ledger_extra: dict | None = None,
 ) -> dict:
     fill, ledger, _ = _guard_position_fixture()
+    ledger.update(ledger_extra or {})
     return reconcile_paper_lifecycle(
         existing_ledger=ledger,
         accepted_fills=[fill],
@@ -5016,6 +5036,9 @@ def _reconcile_with_guard(
         portfolio_guard=guard,
         paper_session_id=_GUARD_SESSION,
         maintenance_bracket_resolver=_bracket_resolver_from(),
+        paper_authority_authentication_keys={
+            _PAPER_AUTH_KEY_ID: _PAPER_AUTH_KEY
+        },
     )
 
 
@@ -5045,6 +5068,45 @@ def test_lifecycle_rejects_legacy_or_forged_symbol_only_close() -> None:
     status = result["portfolio_cascade_guard_lifecycle_status"]
     assert status["guard_envelope_valid"] is False
     assert "GUARD_EVIDENCE_HASH_INVALID" in status["envelope_reasons"]
+
+
+def test_lifecycle_rejects_resealed_wrong_key_guard_and_stale_ledger_replay() -> None:
+    _, _, position = _guard_position_fixture()
+    authentic = _sealed_lifecycle_guard(position)
+    wrong_key_material = {
+        key: value
+        for key, value in authentic.items()
+        if key
+        not in {
+            "guard_evidence_sha256",
+            "evidence_auth_algorithm",
+            "evidence_auth_key_id",
+            "evidence_auth_trust_domain",
+            "evidence_hmac_sha256",
+        }
+    }
+    wrong_key_material["worst_case_liquidation_buffer_usd"] = -999.0
+    wrong_key_guard = seal_guard_payload(
+        wrong_key_material,
+        authentication_key_id=_PAPER_AUTH_KEY_ID,
+        authentication_key=b"w" * 32,
+    )
+    wrong_key_result = _reconcile_with_guard(wrong_key_guard)
+    wrong_key_reasons = wrong_key_result[
+        "portfolio_cascade_guard_lifecycle_status"
+    ]["envelope_reasons"]
+    assert "GUARD_AUTH_TAG_MISMATCH" in wrong_key_reasons
+    assert "GUARD_EVIDENCE_HASH_INVALID" not in wrong_key_reasons
+
+    replayed = _reconcile_with_guard(
+        authentic,
+        ledger_extra={"portfolio_state_changed_after_guard": True},
+    )
+    replay_reasons = replayed["portfolio_cascade_guard_lifecycle_status"][
+        "envelope_reasons"
+    ]
+    assert "GUARD_SOURCE_LEDGER_SHA256_MISMATCH" in replay_reasons
+    assert replayed["new_close_events"] == []
 
 
 def test_lifecycle_rejects_stale_reopened_generation_even_with_valid_hash() -> None:

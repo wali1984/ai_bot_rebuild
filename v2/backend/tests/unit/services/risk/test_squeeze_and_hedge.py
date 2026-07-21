@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from v2.backend.app.services.risk.cross_margin_liquidation import (
+    adaptive_stress_source_observations_sha256,
     build_portfolio_liquidation_snapshot,
     seal_adaptive_stress_envelope,
 )
@@ -10,6 +11,8 @@ from v2.backend.app.services.risk.fast_squeeze_detector import detect_squeeze
 from v2.backend.app.services.risk.hedge_first_controller import evaluate_hedge_first
 
 NOW = "2026-07-09T06:00:00Z"
+PAPER_AUTH_KEY_ID = "unit-paper-v1"
+PAPER_AUTH_KEY = b"p" * 32
 
 
 def test_adverse_squeeze_on_open_long_requires_hedge_or_reduce():
@@ -136,7 +139,13 @@ def _snap_with_negative():
             "cadence_policy_version": "UNIT_CADENCE_V1",
             "producer": "adaptive_portfolio_stress_controller",
             "auth_boundary": "PAPER_ADAPTIVE_STRESS_PIT_V1",
-            "source_observations_sha256": "b" * 64,
+            "source_observations_sha256": (
+                adaptive_stress_source_observations_sha256(
+                    account=account,
+                    positions=[position],
+                    position_margin_rows=[margin],
+                )
+            ),
             "generated_at": NOW,
             "available_at": NOW,
             "decision_time": NOW,
@@ -159,7 +168,9 @@ def _snap_with_negative():
                     "symbol_moves": {symbol: -0.02 for symbol in stress_symbols},
                 }
             ],
-        }
+        },
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=PAPER_AUTH_KEY,
     )
     return build_portfolio_liquidation_snapshot(
         account=account,
@@ -167,6 +178,9 @@ def _snap_with_negative():
         position_margin_rows=[margin],
         generated_utc=NOW,
         adaptive_stress_envelope=adaptive_stress,
+        adaptive_stress_authentication_keys={
+            PAPER_AUTH_KEY_ID: PAPER_AUTH_KEY
+        },
     )
 
 

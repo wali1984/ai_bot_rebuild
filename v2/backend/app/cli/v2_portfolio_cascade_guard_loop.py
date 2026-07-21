@@ -28,6 +28,13 @@ from v2.backend.app.services.risk.portfolio_cascade_directive import (
     seal_directive,
     seal_guard_payload,
 )
+from v2.backend.app.services.security.local_evidence_hmac import (
+    LocalEvidenceAuthenticationError,
+)
+from v2.backend.app.services.security.local_evidence_runtime_credentials import (
+    RuntimeHmacKeyRing,
+    load_paper_authority_keyring_from_systemd_credentials,
+)
 
 GUARD_KEY = "v2:paper:portfolio_cascade_guard"
 LEDGER_KEY = "v2:paper:ledger"
@@ -358,6 +365,7 @@ def decide_directives(
     source_ledger_sha256: str,
     generated_utc: str,
     expires_utc: str,
+    paper_authority_keyring: RuntimeHmacKeyRing,
 ) -> list[dict[str, Any]]:
     """Build minimal, generation-bound de-risking directives.
 
@@ -524,7 +532,9 @@ def decide_directives(
                     "places_real_order": False,
                     "leverage_mutated": False,
                     "margin_mutated": False,
-                }
+                },
+                authentication_key_id=paper_authority_keyring.active_key_id,
+                authentication_key=paper_authority_keyring.signing_key,
             )
         )
         if cumulative_relief >= deficit:
@@ -539,6 +549,7 @@ def _blocked_payload(
     ledger: Mapping[str, Any],
     reasons: list[str],
     portfolio_snapshot: Mapping[str, Any] | None = None,
+    paper_authority_keyring: RuntimeHmacKeyRing,
 ) -> dict[str, Any]:
     snapshot = portfolio_snapshot or {}
     return seal_guard_payload(
@@ -583,7 +594,9 @@ def _blocked_payload(
             "places_real_order": False,
             "leverage_mutated": False,
             "margin_mutated": False,
-        }
+        },
+        authentication_key_id=paper_authority_keyring.active_key_id,
+        authentication_key=paper_authority_keyring.signing_key,
     )
 
 
@@ -665,8 +678,43 @@ def _adaptive_guard_authority_reasons(
     return list(dict.fromkeys(reasons))
 
 
-def run_once(r: Any) -> dict[str, Any]:
+def run_once(
+    r: Any,
+    *,
+    paper_authority_keyring: RuntimeHmacKeyRing | None = None,
+) -> dict[str, Any]:
     observed_utc = _utc_now()
+    if paper_authority_keyring is None:
+        payload = {
+            "schema_version": GUARD_SCHEMA_VERSION,
+            "status": "BLOCKED",
+            "directive_authority": False,
+            "block_reasons": ["PAPER_AUTHORITY_HMAC_KEYRING_UNAVAILABLE"],
+            "generated_utc": observed_utc,
+            "expires_utc": observed_utc,
+            "directives": [],
+            "paper_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+            "leverage_mutated": False,
+            "margin_mutated": False,
+            "evidence_authentication_complete": False,
+        }
+        try:
+            write_success = bool(
+                r.set(
+                    GUARD_KEY,
+                    json.dumps(
+                        payload,
+                        sort_keys=True,
+                        separators=(",", ":"),
+                        allow_nan=False,
+                    ),
+                )
+            )
+        except Exception:
+            write_success = False
+        return {**payload, "redis_write_success": write_success}
     generated_at = parse_utc(observed_utc)
     assert generated_at is not None
     expires_utc = observed_utc
@@ -678,6 +726,7 @@ def run_once(r: Any) -> dict[str, Any]:
             expires_utc=expires_utc,
             ledger=ledger,
             reasons=ledger["reasons"],
+            paper_authority_keyring=paper_authority_keyring,
         )
     else:
         try:
@@ -687,6 +736,7 @@ def run_once(r: Any) -> dict[str, Any]:
                 position_margin_rows=ledger["position_margin_rows"],
                 generated_utc=observed_utc,
                 adaptive_stress_envelope=ledger["adaptive_portfolio_stress"],
+                adaptive_stress_authentication_keys=paper_authority_keyring.keys,
             )
         except Exception as exc:  # defensive service boundary; no directive survives
             snapshot = {
@@ -712,6 +762,7 @@ def run_once(r: Any) -> dict[str, Any]:
                 ledger=ledger,
                 reasons=authority_reasons,
                 portfolio_snapshot=snapshot,
+                paper_authority_keyring=paper_authority_keyring,
             )
         else:
             guard_lifetime = finite_number(snapshot["adaptive_guard_lifetime_seconds"])
@@ -735,6 +786,7 @@ def run_once(r: Any) -> dict[str, Any]:
                 source_ledger_sha256=str(ledger["source_ledger_sha256"]),
                 generated_utc=observed_utc,
                 expires_utc=expires_utc,
+                paper_authority_keyring=paper_authority_keyring,
             )
             recovery_reserve = finite_number(snapshot["adaptive_recovery_reserve_usd"])
             worst_buffer = finite_number(snapshot["worst_case_liquidation_buffer_usd"])
@@ -750,6 +802,7 @@ def run_once(r: Any) -> dict[str, Any]:
                     ledger=ledger,
                     reasons=["ADAPTIVE_STRESS_NO_POSITIVE_MARGINAL_CLOSE_RELIEF"],
                     portfolio_snapshot=snapshot,
+                    paper_authority_keyring=paper_authority_keyring,
                 )
             else:
                 payload = seal_guard_payload(
@@ -811,7 +864,9 @@ def run_once(r: Any) -> dict[str, Any]:
                     "places_real_order": False,
                     "leverage_mutated": False,
                     "margin_mutated": False,
-                }
+                },
+                authentication_key_id=paper_authority_keyring.active_key_id,
+                authentication_key=paper_authority_keyring.signing_key,
                 )
     write_success = False
     try:
@@ -833,8 +888,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--interval-seconds", type=int, default=20)
     args = parser.parse_args(argv)
     r = _redis_client()
+    try:
+        paper_authority_keyring = (
+            load_paper_authority_keyring_from_systemd_credentials()
+        )
+    except LocalEvidenceAuthenticationError as exc:
+        payload = run_once(r, paper_authority_keyring=None)
+        payload["runtime_authentication_error"] = str(exc)
+        print(json.dumps(payload, indent=1, default=str)[:3000])
+        return 2
     while True:
-        payload = run_once(r)
+        payload = run_once(
+            r,
+            paper_authority_keyring=paper_authority_keyring,
+        )
         if args.once:
             print(json.dumps(payload, indent=1, default=str)[:3000])
             return 0

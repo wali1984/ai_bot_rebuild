@@ -19,6 +19,15 @@ from typing import Any, Mapping
 from v2.backend.app.services.binance_unified_websocket_transport import (
     BINANCE_USDM_MARKET_STREAM_URL,
 )
+from v2.backend.app.services.security.local_evidence_hmac import (
+    AUTH_FIELDS,
+    MARK_RECEIPT_TRUST_DOMAIN,
+    LocalEvidenceAuthenticationError,
+    seal_hmac_sha256,
+)
+from v2.backend.app.services.security.local_evidence_runtime_credentials import (
+    load_mark_keyring_from_systemd_credentials,
+)
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 STREAM_NAME = "!markPrice@arr@1s"
@@ -30,7 +39,10 @@ LIVE_GATE = "blocked_human_only"
 MARK_CADENCE_POLICY_VERSION = "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
 EXPECTED_UPDATE_INTERVAL_SECONDS = 1.0
 FRESHNESS_BUDGET_SECONDS = 1.0
-MARK_AUTHENTICATION_BOUNDARY = "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+MARK_TRANSPORT_SECURITY_BOUNDARY = "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+MARK_AUTHENTICATION_BOUNDARY = (
+    "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
+)
 
 
 def _utc_now() -> str:
@@ -88,7 +100,11 @@ def _safe_set(client: Any, key: str, payload: Mapping[str, Any], *, ttl_seconds:
 
 
 def _payload_sha256(payload: Mapping[str, Any]) -> str:
-    material = {key: value for key, value in payload.items() if key != "evidence_sha256"}
+    material = {
+        key: value
+        for key, value in payload.items()
+        if key != "evidence_sha256" and key not in AUTH_FIELDS
+    }
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
@@ -107,9 +123,6 @@ def _rows_from_message(raw: Any) -> list[Mapping[str, Any]]:
 
 def _normalize_row(
     row: Mapping[str, Any],
-    *,
-    generated_at: str,
-    available_at: str,
 ) -> dict[str, Any] | None:
     symbol = str(row.get("s") or row.get("symbol") or "").upper()
     mark_price = _float(row.get("p") or row.get("markPrice") or row.get("mark_price"))
@@ -121,6 +134,10 @@ def _normalize_row(
         # Receipt time is not exchange event time.  A clockless row cannot be
         # promoted to maintenance/liquidation authority by substituting it.
         return None
+    # All source parsing and numeric normalization above is complete before
+    # this clock is captured.  Publication release is captured separately,
+    # after symbol filtering and immediately before the final HMAC seal/write.
+    generated_at = _utc_now()
     payload = {
         "schema_version": "binance_usdm_mark_price_wss_v1",
         "symbol": symbol,
@@ -133,18 +150,23 @@ def _normalize_row(
         "next_funding_time_ms": row.get("T") or row.get("nextFundingTime"),
         "event_time": event_time,
         "generated_at": generated_at,
-        "available_at": available_at,
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "transport": "websocket_primary",
         "stream_name": STREAM_NAME,
-        "exchange_source_authenticated": True,
+        "exchange_source_authenticated": False,
+        "exchange_source_authentication_semantics": (
+            "PUBLIC_STREAM_HAS_NO_SIGNED_EXCHANGE_RECEIPT"
+        ),
+        "exchange_transport_security_boundary": MARK_TRANSPORT_SECURITY_BOUNDARY,
+        "local_producer_authenticated": True,
         "authentication_boundary": MARK_AUTHENTICATION_BOUNDARY,
         "cadence_policy_version": MARK_CADENCE_POLICY_VERSION,
         "expected_update_interval_seconds": EXPECTED_UPDATE_INTERVAL_SECONDS,
         "freshness_budget_seconds": FRESHNESS_BUDGET_SECONDS,
         "event_time_semantics": "BINANCE_USDM_WEBSOCKET_EVENT_TIME_E",
-        "generated_at_semantics": "LOCAL_NORMALIZATION_COMPLETION_TIME",
-        "available_at_semantics": "LOCAL_REDIS_PUBLICATION_RELEASE_TIME",
+        "generated_at_semantics": (
+            "LOCAL_NORMALIZATION_COMPLETION_TIME_BEFORE_RELEASE_BOUNDARY"
+        ),
         "live_gate": LIVE_GATE,
         "places_real_order": False,
         "test_orders": False,
@@ -153,7 +175,6 @@ def _normalize_row(
         "transfer_or_withdrawal": False,
         "raw_credentials_exposed": False,
     }
-    payload["evidence_sha256"] = _payload_sha256(payload)
     return payload
 
 
@@ -163,22 +184,38 @@ def process_mark_price_message(
     symbols: set[str] | None = None,
     redis_client: Any = None,
     ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    signing_key_id: str | None = None,
+    signing_key: bytes | bytearray | None = None,
 ) -> dict[str, Any]:
     wanted = {str(symbol).upper() for symbol in symbols or set() if symbol}
     rows: list[dict[str, Any]] = []
     written_keys: list[str] = []
+    authentication_rejections: list[str] = []
     for row in _rows_from_message(raw):
-        generated_at = _utc_now()
-        available_at = _utc_now()
-        payload = _normalize_row(
-            row,
-            generated_at=generated_at,
-            available_at=available_at,
-        )
+        payload = _normalize_row(row)
         if payload is None:
             continue
         symbol = str(payload["symbol"])
         if wanted and symbol not in wanted:
+            continue
+        # This is a producer release boundary, not a Redis commit
+        # acknowledgement.  It is captured only after normalization/filtering
+        # and immediately before the final evidence hash, HMAC, and atomic SET.
+        payload["available_at"] = _utc_now()
+        payload["available_at_semantics"] = (
+            "LOCAL_IMMEDIATE_PRE_FINAL_SEAL_AND_ATOMIC_REDIS_SET_RELEASE_"
+            "BOUNDARY_NOT_REDIS_COMMIT_ACK"
+        )
+        payload["evidence_sha256"] = _payload_sha256(payload)
+        try:
+            payload = seal_hmac_sha256(
+                payload,
+                trust_domain=MARK_RECEIPT_TRUST_DOMAIN,
+                authentication_key_id=str(signing_key_id or ""),
+                authentication_key=signing_key,  # type: ignore[arg-type]
+            )
+        except LocalEvidenceAuthenticationError as exc:
+            authentication_rejections.append(str(exc))
             continue
         key = REDIS_KEY_TEMPLATE.format(symbol=symbol)
         if _safe_set(redis_client, key, payload, ttl_seconds=ttl_seconds):
@@ -188,6 +225,10 @@ def process_mark_price_message(
         "observed_count": len(rows),
         "symbols_observed": sorted({str(row["symbol"]) for row in rows}),
         "redis_keys_written": written_keys,
+        "authentication_ready": not authentication_rejections,
+        "authentication_rejection_reasons": list(
+            dict.fromkeys(authentication_rejections)
+        ),
         "places_real_order": False,
         "test_orders": False,
         "leverage_mutation": False,
@@ -204,6 +245,8 @@ async def _run_ws(
     max_messages: int,
     min_symbols: int,
     timeout_seconds: float,
+    signing_key_id: str,
+    signing_key: bytes,
 ) -> dict[str, Any]:
     try:
         import websockets  # type: ignore
@@ -222,6 +265,8 @@ async def _run_ws(
                 symbols=symbols,
                 redis_client=redis_client,
                 ttl_seconds=ttl_seconds,
+                signing_key_id=signing_key_id,
+                signing_key=signing_key,
             )
             total_rows += int(result.get("observed_count") or 0)
             observed.update(str(symbol) for symbol in result.get("symbols_observed") or [])
@@ -266,6 +311,24 @@ def main(argv: list[str] | None = None) -> int:
         "raw_credentials_exposed": False,
     }
     try:
+        mark_keyring = load_mark_keyring_from_systemd_credentials()
+    except LocalEvidenceAuthenticationError as exc:
+        status.update(
+            {
+                "status": "BLOCKED",
+                "error": str(exc),
+                "mark_evidence_authentication_ready": False,
+                "protected_systemd_credentials_required": True,
+                "environment_secret_fallback_allowed": False,
+            }
+        )
+        if redis_client is not None:
+            _safe_set(redis_client, STATUS_KEY, status, ttl_seconds=600)
+        print(json.dumps(status, indent=2, sort_keys=True))
+        return 2
+    status.update(mark_keyring.safe_metadata())
+    status["mark_evidence_authentication_ready"] = True
+    try:
         run = asyncio.run(
             _run_ws(
                 symbols=symbols,
@@ -274,6 +337,8 @@ def main(argv: list[str] | None = None) -> int:
                 max_messages=int(args.max_messages),
                 min_symbols=int(args.min_symbols),
                 timeout_seconds=float(args.timeout_seconds),
+                signing_key_id=mark_keyring.active_key_id,
+                signing_key=mark_keyring.signing_key,
             )
         )
         status.update(run)

@@ -10,12 +10,22 @@ from v2.backend.app.services.risk.portfolio_cascade_directive import (
     verify_guard_payload,
 )
 from v2.backend.app.services.risk.cross_margin_liquidation import (
+    adaptive_stress_source_observations_sha256,
     seal_adaptive_stress_envelope,
+)
+from v2.backend.app.services.security.local_evidence_runtime_credentials import (
+    RuntimeHmacKeyRing,
 )
 
 NOW = "2026-07-09T06:00:00.000Z"
 LEDGER_AT = "2026-07-09T05:59:30.000Z"
 SESSION = "paper-session-a"
+PAPER_AUTH_KEY_ID = "unit-paper-v1"
+PAPER_AUTH_KEY = b"p" * 32
+PAPER_KEYRING = RuntimeHmacKeyRing(
+    active_key_id=PAPER_AUTH_KEY_ID,
+    keys={PAPER_AUTH_KEY_ID: PAPER_AUTH_KEY},
+)
 
 
 class FakeRedis:
@@ -115,7 +125,14 @@ def _position_and_margin(*, mark: float = 99.0, generation: str = "generation-a"
     return position, margin
 
 
-def _adaptive_stress(*, generated: str = LEDGER_AT, recovery_reserve: float = 200.0):
+def _adaptive_stress(
+    *,
+    account: dict,
+    positions: list[dict],
+    margin_rows: list[dict],
+    generated: str = LEDGER_AT,
+    recovery_reserve: float = 200.0,
+):
     return seal_adaptive_stress_envelope(
         {
             "schema_version": "adaptive_portfolio_stress_v1",
@@ -125,7 +142,13 @@ def _adaptive_stress(*, generated: str = LEDGER_AT, recovery_reserve: float = 20
             "cadence_policy_version": "UNIT_ADAPTIVE_CADENCE_V1",
             "producer": "adaptive_portfolio_stress_controller",
             "auth_boundary": "PAPER_ADAPTIVE_STRESS_PIT_V1",
-            "source_observations_sha256": "f" * 64,
+            "source_observations_sha256": (
+                adaptive_stress_source_observations_sha256(
+                    account=account,
+                    positions=positions,
+                    position_margin_rows=margin_rows,
+                )
+            ),
             "generated_at": generated,
             "available_at": generated,
             "decision_time": generated,
@@ -138,7 +161,9 @@ def _adaptive_stress(*, generated: str = LEDGER_AT, recovery_reserve: float = 20
                     "symbol_moves": {"ALTAUSDT": -0.9},
                 }
             ],
-        }
+        },
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=PAPER_AUTH_KEY,
     )
 
 
@@ -149,6 +174,7 @@ def _ledger(
     margin_rows=None,
     generated=LEDGER_AT,
     adaptive_stress=None,
+    adaptive_stress_recovery_reserve: float = 200.0,
 ):
     positions = list(positions or [])
     margin_rows = list(margin_rows or [])
@@ -206,7 +232,13 @@ def _ledger(
         "adaptive_portfolio_stress": (
             adaptive_stress
             if adaptive_stress is not None
-            else _adaptive_stress(generated=generated)
+            else _adaptive_stress(
+                account=margin,
+                positions=positions,
+                margin_rows=margin_rows,
+                generated=generated,
+                recovery_reserve=adaptive_stress_recovery_reserve,
+            )
         ),
         "generated_utc": generated,
         "paper_only": True,
@@ -249,7 +281,10 @@ def _cascade(*, status: str = "EVENT_CONFIRMED", generated_at="2026-07-09T05:59:
 
 def _run(monkeypatch, redis: FakeRedis):
     monkeypatch.setattr(guard, "_utc_now", lambda: NOW)
-    return guard.run_once(redis)
+    return guard.run_once(
+        redis,
+        paper_authority_keyring=PAPER_KEYRING,
+    )
 
 
 def test_missing_ledger_is_not_equivalent_to_explicit_empty_positions(monkeypatch) -> None:
@@ -299,6 +334,9 @@ def test_guard_reads_coherent_ledger_once_and_emits_marginal_stress_close(monkey
         {key: value for key, value in payload.items() if key != "redis_write_success"},
         expected_paper_session_id=SESSION,
         observed_utc=NOW,
+        authentication_keys=PAPER_KEYRING.keys,
+        expected_source_ledger_sha256=str(payload["source_ledger_sha256"]),
+        expected_source_ledger_generated_utc=LEDGER_AT,
     )
     assert reasons == []
     assert len(verified) == 1
@@ -312,7 +350,7 @@ def test_stale_or_absent_cascade_status_cannot_trigger(monkeypatch) -> None:
                 guard.LEDGER_KEY: _ledger(
                     positions=[position],
                     margin_rows=[margin],
-                    adaptive_stress=_adaptive_stress(recovery_reserve=0.0),
+                    adaptive_stress_recovery_reserve=0.0,
                 ),
                 f"{guard.CASCADE_PREFIX}ALTAUSDT:1m": _cascade(status=status),
             }
@@ -330,7 +368,7 @@ def test_future_or_stale_cascade_clock_cannot_trigger(monkeypatch) -> None:
             guard.LEDGER_KEY: _ledger(
                 positions=[position],
                 margin_rows=[margin],
-                adaptive_stress=_adaptive_stress(recovery_reserve=0.0),
+                adaptive_stress_recovery_reserve=0.0,
             ),
             f"{guard.CASCADE_PREFIX}ALTAUSDT:1m": future,
         }
@@ -486,6 +524,7 @@ def test_directives_are_ranked_by_positive_marginal_relief_not_current_loss() ->
         "source_ledger_sha256": "a" * 64,
         "generated_utc": NOW,
         "expires_utc": "2026-07-09T06:03:00.000Z",
+        "paper_authority_keyring": PAPER_KEYRING,
     }
     incomplete = dict(snapshot)
     incomplete.pop("portfolio_level_computed", None)

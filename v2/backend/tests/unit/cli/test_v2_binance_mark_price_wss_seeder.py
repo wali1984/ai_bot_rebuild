@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from v2.backend.app.cli import v2_binance_mark_price_wss_seeder as seeder
+from v2.backend.app.services.security.local_evidence_hmac import (
+    MARK_RECEIPT_TRUST_DOMAIN,
+    verify_hmac_sha256,
+)
+
+MARK_KEY_ID = "unit-mark-v1"
+MARK_KEY = b"m" * 32
 
 
 class FakeRedis:
@@ -27,6 +36,8 @@ def test_process_mark_price_message_writes_requested_symbols_only() -> None:
         symbols={"BTCUSDT"},
         redis_client=redis,
         ttl_seconds=77,
+        signing_key_id=MARK_KEY_ID,
+        signing_key=MARK_KEY,
     )
 
     assert result["observed_count"] == 1
@@ -43,11 +54,20 @@ def test_process_mark_price_message_writes_requested_symbols_only() -> None:
         "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
     )
     assert payload["freshness_budget_seconds"] == 1.0
-    assert payload["exchange_source_authenticated"] is True
+    assert payload["exchange_source_authenticated"] is False
+    assert payload["local_producer_authenticated"] is True
     assert payload["authentication_boundary"] == (
-        "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+        "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
     )
     assert payload["evidence_sha256"] == seeder._payload_sha256(payload)  # noqa: SLF001
+    assert verify_hmac_sha256(
+        payload,
+        expected_trust_domain=MARK_RECEIPT_TRUST_DOMAIN,
+        authentication_keys={MARK_KEY_ID: MARK_KEY},
+        reason_prefix="UNIT_MARK",
+    ) == []
+    assert "IMMEDIATE_PRE_FINAL_SEAL" in payload["available_at_semantics"]
+    assert "NOT_REDIS_COMMIT_ACK" in payload["available_at_semantics"]
     assert payload["places_real_order"] is False
     assert payload["test_orders"] is False
     assert payload["leverage_mutation"] is False
@@ -68,6 +88,8 @@ def test_process_combined_stream_payload() -> None:
         ),
         symbols={"SOLUSDT"},
         redis_client=None,
+        signing_key_id=MARK_KEY_ID,
+        signing_key=MARK_KEY,
     )
 
     assert result["observed_count"] == 1
@@ -91,7 +113,49 @@ def test_clockless_exchange_row_is_not_promoted_to_mark_authority() -> None:
         [{"s": "BTCUSDT", "p": "60000.0", "i": "60001.0"}],
         symbols={"BTCUSDT"},
         redis_client=None,
+        signing_key_id=MARK_KEY_ID,
+        signing_key=MARK_KEY,
     )
 
     assert result["observed_count"] == 0
     assert result["symbols_observed"] == []
+
+
+def test_missing_authentication_key_fails_closed_without_redis_write() -> None:
+    redis = FakeRedis()
+    result = seeder.process_mark_price_message(
+        [{"E": 1780000000000, "s": "BTCUSDT", "p": "60000.0"}],
+        symbols={"BTCUSDT"},
+        redis_client=redis,
+    )
+
+    assert result["observed_count"] == 0
+    assert result["authentication_ready"] is False
+    assert redis.writes == {}
+
+
+def test_generated_clock_precedes_honest_prepublication_release_boundary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clocks = iter(
+        (
+            "2026-07-21T12:00:00.100Z",
+            "2026-07-21T12:00:00.101Z",
+        )
+    )
+    monkeypatch.setattr(seeder, "_utc_now", lambda: next(clocks))
+    redis = FakeRedis()
+
+    result = seeder.process_mark_price_message(
+        [{"E": 1780000000000, "s": "BTCUSDT", "p": "60000.0"}],
+        symbols={"BTCUSDT"},
+        redis_client=redis,
+        signing_key_id=MARK_KEY_ID,
+        signing_key=MARK_KEY,
+    )
+
+    assert result["observed_count"] == 1
+    payload = json.loads(redis.writes["v2:market:mark_price:BTCUSDT"])
+    assert payload["generated_at"] == "2026-07-21T12:00:00.100Z"
+    assert payload["available_at"] == "2026-07-21T12:00:00.101Z"
+    assert "NOT_REDIS_COMMIT_ACK" in payload["available_at_semantics"]

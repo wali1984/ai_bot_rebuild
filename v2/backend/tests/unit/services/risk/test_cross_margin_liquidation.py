@@ -10,12 +10,15 @@ from v2.backend.app.services.paper_trade_management.margin_accounting import (
     build_paper_margin_status,
 )
 from v2.backend.app.services.risk.cross_margin_liquidation import (
+    adaptive_stress_source_observations_sha256,
     build_portfolio_liquidation_snapshot,
     marginal_liquidation_impact,
     seal_adaptive_stress_envelope,
 )
 
 NOW = "2026-07-09T06:00:00Z"
+PAPER_AUTH_KEY_ID = "unit-paper-v1"
+PAPER_AUTH_KEY = b"p" * 32
 
 
 def _account(**overrides):
@@ -139,11 +142,43 @@ def _position(
     return position, margin
 
 
-def _adaptive_stress(*pairs):
+def _adaptive_stress(*pairs, account=None):
+    if account is None:
+        wallet = 1000.0
+        pnl = sum(
+            float(value)
+            for pair in pairs
+            if isinstance((value := pair[0].get("unrealized_pnl")), int | float)
+            and not isinstance(value, bool)
+        )
+        used = sum(pair[1]["canonical_margin_usd"] for pair in pairs)
+        equity = wallet + pnl
+        account = _account(
+            wallet_balance_usd=wallet,
+            equity_usd=equity,
+            unrealized_pnl_usd=pnl,
+            used_margin_usd=used,
+            margin_base_usd=min(wallet, equity),
+            free_margin_usd=max(0.0, min(wallet, equity) - used),
+            cross_wallet_balance_usd=wallet,
+            cross_unrealized_pnl_usd=pnl,
+            cross_equity_usd=equity,
+        )
     symbols = {pair[0]["symbol"] for pair in pairs}
     # Candidate hedge symbols are explicit scenario evidence too; production
     # must derive these moves from PIT data rather than a default beta.
     symbols.update({"BTCUSDT", "ETHUSDT", "SOLUSDT", "TOP5_BASKET"})
+    try:
+        source_observations_sha256 = adaptive_stress_source_observations_sha256(
+            account=account,
+            positions=[pair[0] for pair in pairs],
+            position_margin_rows=[pair[1] for pair in pairs],
+        )
+    except ValueError:
+        # Invalid/non-finite test rows are rejected before stress authority is
+        # considered; keep the envelope serializable so that assertion reaches
+        # the intended controlling-evidence gate.
+        source_observations_sha256 = "0" * 64
     return seal_adaptive_stress_envelope(
         {
             "schema_version": "adaptive_portfolio_stress_v1",
@@ -153,7 +188,7 @@ def _adaptive_stress(*pairs):
             "cadence_policy_version": "UNIT_LEDGER_CADENCE_V1",
             "producer": "adaptive_portfolio_stress_controller",
             "auth_boundary": "PAPER_ADAPTIVE_STRESS_PIT_V1",
-            "source_observations_sha256": "f" * 64,
+            "source_observations_sha256": source_observations_sha256,
             "freshness_budget_seconds": 45.0,
             "guard_lifetime_seconds": 30.0,
             "hedge_candidate_maintenance": {
@@ -180,7 +215,9 @@ def _adaptive_stress(*pairs):
                     "symbol_moves": {symbol: 0.10 for symbol in symbols},
                 },
             ],
-        }
+        },
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=PAPER_AUTH_KEY,
     )
 
 
@@ -215,8 +252,11 @@ def _snapshot(*pairs, account=None, adaptive_stress_envelope=None):
         adaptive_stress_envelope=(
             adaptive_stress_envelope
             if adaptive_stress_envelope is not None
-            else _adaptive_stress(*pairs)
+            else _adaptive_stress(*pairs, account=account)
         ),
+        adaptive_stress_authentication_keys={
+            PAPER_AUTH_KEY_ID: PAPER_AUTH_KEY
+        },
     )
 
 
@@ -471,6 +511,49 @@ def test_missing_or_tampered_adaptive_stress_never_authorizes_breach() -> None:
     ]
 
 
+def test_recomputed_stress_self_hash_wrong_key_and_stale_source_fail_closed() -> None:
+    pair = _position()
+    original = _adaptive_stress(pair)
+    attacker_material = {
+        key: value
+        for key, value in original.items()
+        if key
+        not in {
+            "evidence_sha256",
+            "evidence_auth_algorithm",
+            "evidence_auth_key_id",
+            "evidence_auth_trust_domain",
+            "evidence_hmac_sha256",
+        }
+    }
+    attacker_material["recovery_reserve_usd"] = 999_999.0
+    wrong_key_forgery = seal_adaptive_stress_envelope(
+        attacker_material,
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=b"w" * 32,
+    )
+    forged = _snapshot(pair, adaptive_stress_envelope=wrong_key_forgery)
+    assert forged["adaptive_stress_authority_complete"] is False
+    assert "ADAPTIVE_STRESS_AUTH_TAG_MISMATCH" in forged[
+        "adaptive_stress_block_reasons"
+    ]
+    assert "ADAPTIVE_STRESS_EVIDENCE_HASH_INVALID" not in forged[
+        "adaptive_stress_block_reasons"
+    ]
+
+    changed_position = copy.deepcopy(pair[0])
+    changed_margin = copy.deepcopy(pair[1])
+    changed_position["attacker_metadata"] = "replayed-against-different-ledger"
+    replayed = _snapshot(
+        (changed_position, changed_margin),
+        adaptive_stress_envelope=original,
+    )
+    assert replayed["adaptive_stress_authority_complete"] is False
+    assert "ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_MISMATCH" in replayed[
+        "adaptive_stress_block_reasons"
+    ]
+
+
 def test_isolated_position_is_excluded_from_cross_stress_pool() -> None:
     cross = _position()
     isolated = _position(
@@ -543,7 +626,11 @@ def test_missing_mark_cadence_or_stale_stress_budget_blocks_force_authority() ->
     stale["generated_at"] = "2026-07-09T05:59:00Z"
     stale["available_at"] = "2026-07-09T05:59:00Z"
     stale["decision_time"] = "2026-07-09T05:59:00Z"
-    stale = seal_adaptive_stress_envelope(stale)
+    stale = seal_adaptive_stress_envelope(
+        stale,
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=PAPER_AUTH_KEY,
+    )
     snapshot = _snapshot(pair, adaptive_stress_envelope=stale)
     assert snapshot["adaptive_stress_authority_complete"] is False
     assert "ADAPTIVE_STRESS_STALE_AT_PORTFOLIO_DECISION" in snapshot[

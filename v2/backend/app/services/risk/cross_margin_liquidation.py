@@ -11,15 +11,26 @@ Pure computation only: no Redis, exchange, order, leverage, or margin mutation.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from v2.backend.app.services.security.local_evidence_hmac import (
+    AUTH_FIELDS,
+    PAPER_AUTHORITY_TRUST_DOMAIN,
+    seal_hmac_sha256,
+    verify_hmac_sha256,
+)
+
 SCHEMA_VERSION = "cross_margin_liquidation_v2"
 POSITION_EVIDENCE_VERSION = "cross_margin_position_evidence_v1"
 ADAPTIVE_STRESS_SCHEMA_VERSION = "adaptive_portfolio_stress_v1"
+ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_SCHEMA_VERSION = (
+    "adaptive_portfolio_stress_source_observations_v1"
+)
 _ABS_TOL = 1e-7
 _REL_TOL = 1e-9
 
@@ -76,15 +87,48 @@ def _paper_safety_valid(row: Mapping[str, Any]) -> bool:
     )
 
 
-def seal_adaptive_stress_envelope(material: Mapping[str, Any]) -> dict[str, Any]:
+def adaptive_stress_source_observations_sha256(
+    *,
+    account: Mapping[str, Any],
+    positions: Sequence[Mapping[str, Any]],
+    position_margin_rows: Sequence[Mapping[str, Any]],
+) -> str:
+    """Bind stress authority to the exact account/position input snapshot."""
+
+    digest = _sha256(
+        {
+            "schema_version": ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_SCHEMA_VERSION,
+            "account": dict(account),
+            "positions": [dict(row) for row in positions],
+            "position_margin_rows": [dict(row) for row in position_margin_rows],
+        }
+    )
+    if digest is None:
+        raise ValueError("ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_NOT_CANONICAL_JSON")
+    return digest
+
+
+def seal_adaptive_stress_envelope(
+    material: Mapping[str, Any],
+    *,
+    authentication_key_id: str,
+    authentication_key: bytes | bytearray,
+) -> dict[str, Any]:
     """Seal caller-derived PIT stress material without inventing scenarios."""
 
-    payload = dict(material)
+    payload = {
+        key: value for key, value in dict(material).items() if key not in AUTH_FIELDS
+    }
     payload.pop("evidence_sha256", None)
     evidence_hash = _sha256(payload)
     if evidence_hash is None:
         raise ValueError("ADAPTIVE_STRESS_ENVELOPE_NOT_CANONICAL_JSON")
-    return {**payload, "evidence_sha256": evidence_hash}
+    return seal_hmac_sha256(
+        {**payload, "evidence_sha256": evidence_hash},
+        trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+        authentication_key_id=authentication_key_id,
+        authentication_key=authentication_key,
+    )
 
 
 def _margin_mode(value: Any) -> str | None:
@@ -529,11 +573,15 @@ def _validated_adaptive_stress(
     generated_at: datetime,
     paper_session_id: str,
     cross_symbols: set[str],
+    authentication_keys: Mapping[str, bytes | bytearray] | None,
+    expected_source_observations_sha256: str,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     reasons: list[str] = []
     if not isinstance(envelope, Mapping):
         return None, ["ADAPTIVE_STRESS_ENVELOPE_MISSING"]
-    material = dict(envelope)
+    material = {
+        key: value for key, value in dict(envelope).items() if key not in AUTH_FIELDS
+    }
     supplied_hash = material.pop("evidence_sha256", None)
     if envelope.get("schema_version") != ADAPTIVE_STRESS_SCHEMA_VERSION:
         reasons.append("ADAPTIVE_STRESS_SCHEMA_VERSION_INVALID")
@@ -543,6 +591,14 @@ def _validated_adaptive_stress(
         reasons.append("ADAPTIVE_STRESS_PAPER_SESSION_MISMATCH")
     if supplied_hash != _sha256(material):
         reasons.append("ADAPTIVE_STRESS_EVIDENCE_HASH_INVALID")
+    reasons.extend(
+        verify_hmac_sha256(
+            envelope,
+            expected_trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+            authentication_keys=authentication_keys,
+            reason_prefix="ADAPTIVE_STRESS",
+        )
+    )
     policy_version = _exact_text(envelope, "stress_policy_version")
     cadence_version = _exact_text(envelope, "cadence_policy_version")
     producer = _exact_text(envelope, "producer")
@@ -562,6 +618,11 @@ def _validated_adaptive_stress(
         or any(character not in "0123456789abcdef" for character in source_observations_hash)
     ):
         reasons.append("ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_HASH_INVALID")
+    elif not hmac.compare_digest(
+        source_observations_hash,
+        expected_source_observations_sha256,
+    ):
+        reasons.append("ADAPTIVE_STRESS_SOURCE_OBSERVATIONS_MISMATCH")
     freshness_budget = _float(envelope.get("freshness_budget_seconds"))
     guard_lifetime = _float(envelope.get("guard_lifetime_seconds"))
     if freshness_budget is None or freshness_budget <= 0.0:
@@ -673,6 +734,9 @@ def _validated_adaptive_stress(
         "auth_boundary": auth_boundary,
         "source_observations_sha256": source_observations_hash,
         "evidence_sha256": supplied_hash,
+        "evidence_auth_key_id": envelope.get("evidence_auth_key_id"),
+        "evidence_auth_trust_domain": envelope.get("evidence_auth_trust_domain"),
+        "evidence_hmac_sha256": envelope.get("evidence_hmac_sha256"),
         "freshness_budget_seconds": freshness_budget,
         "guard_lifetime_seconds": guard_lifetime,
         "recovery_reserve_usd": recovery_reserve,
@@ -691,6 +755,9 @@ def build_portfolio_liquidation_snapshot(
     position_margin_rows: Sequence[Mapping[str, Any]] | None = None,
     generated_utc: str,
     adaptive_stress_envelope: Mapping[str, Any] | None = None,
+    adaptive_stress_authentication_keys: Mapping[
+        str, bytes | bytearray
+    ] | None = None,
 ) -> dict[str, Any]:
     """Build an authoritative portfolio snapshot or an explicit blocked result."""
 
@@ -987,11 +1054,21 @@ def build_portfolio_liquidation_snapshot(
         row["liquidation_estimate_model"] = "cross_margin_buffer_share_not_exchange_exact"
         row["liquidation_buffer_share_usd"] = round(buffer_share, 8)
 
+    try:
+        expected_stress_source_hash = adaptive_stress_source_observations_sha256(
+            account=account,
+            positions=raw_positions,
+            position_margin_rows=raw_margin_rows,
+        )
+    except ValueError:
+        expected_stress_source_hash = ""
     stress, stress_reasons = _validated_adaptive_stress(
         adaptive_stress_envelope,
         generated_at=generated_at,
         paper_session_id=paper_session_id or "",
         cross_symbols={row["symbol"] for row in cross_rows},
+        authentication_keys=adaptive_stress_authentication_keys,
+        expected_source_observations_sha256=expected_stress_source_hash,
     )
     shocks: dict[str, Any] = {}
     worst_case_buffer: float | None = None
@@ -1061,6 +1138,12 @@ def build_portfolio_liquidation_snapshot(
         "correlated_shock_scenarios": shocks,
         "adaptive_stress_evidence_sha256": (
             stress.get("evidence_sha256") if stress is not None else None
+        ),
+        "adaptive_stress_evidence_auth_key_id": (
+            stress.get("evidence_auth_key_id") if stress is not None else None
+        ),
+        "adaptive_stress_evidence_hmac_sha256": (
+            stress.get("evidence_hmac_sha256") if stress is not None else None
         ),
         "hedge_candidate_maintenance": (
             stress.get("hedge_candidate_maintenance") if stress is not None else {}

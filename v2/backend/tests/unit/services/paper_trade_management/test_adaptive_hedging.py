@@ -28,6 +28,8 @@ from v2.backend.app.services.paper_trade_management.lifecycle import (
 from v2.backend.app.services.paper_trade_management.position_state import position_from_fill
 
 _SESSION = "paper-session-adaptive-hedge-unit"
+_PAPER_AUTH_KEY_ID = "unit-paper-v1"
+_PAPER_AUTH_KEY = b"p" * 32
 
 
 def _authoritative_mark_evidence(
@@ -45,7 +47,9 @@ def _authoritative_mark_evidence(
         "generated_at": generated_at,
         "available_at": available_at,
         "source": "binance_usdm_wss_mark_price_all_symbols",
-        "authentication_boundary": "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1",
+        "authentication_boundary": (
+            "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
+        ),
         "consumer_validation_boundary": "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1",
         "cadence_policy_version": "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1",
         "freshness_budget_seconds": freshness_seconds,
@@ -295,6 +299,8 @@ def test_lifecycle_pending_hedge_uses_hashed_adaptive_expiry_across_restarts() -
         generated_utc="2026-07-16T10:00:00.000Z",
         config=_hedge_config(),
         paper_session_id=_SESSION,
+        paper_authority_signing_key_id=_PAPER_AUTH_KEY_ID,
+        paper_authority_signing_key=_PAPER_AUTH_KEY,
     )
     triggered = reconcile_paper_lifecycle(
         existing_ledger=opened,
@@ -305,6 +311,8 @@ def test_lifecycle_pending_hedge_uses_hashed_adaptive_expiry_across_restarts() -
         generated_utc="2026-07-16T10:01:00.000Z",
         config=_hedge_config(),
         paper_session_id=_SESSION,
+        paper_authority_signing_key_id=_PAPER_AUTH_KEY_ID,
+        paper_authority_signing_key=_PAPER_AUTH_KEY,
     )
 
     assert len(triggered["hedge_directives"]) == 1, {

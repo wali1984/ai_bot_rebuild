@@ -3,11 +3,19 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
+
+from v2.backend.app.services.security.local_evidence_hmac import (
+    AUTH_FIELDS,
+    PAPER_AUTHORITY_TRUST_DOMAIN,
+    seal_hmac_sha256,
+    verify_hmac_sha256,
+)
 
 GUARD_SCHEMA_VERSION = "portfolio_cascade_guard_v3"
 DIRECTIVE_SCHEMA_VERSION = "portfolio_cascade_directive_v3"
@@ -68,34 +76,54 @@ def _paper_safety_valid(value: Mapping[str, Any]) -> bool:
     )
 
 
-def seal_directive(material: Mapping[str, Any]) -> dict[str, Any]:
+def seal_directive(
+    material: Mapping[str, Any],
+    *,
+    authentication_key_id: str,
+    authentication_key: bytes | bytearray,
+) -> dict[str, Any]:
     """Return a content-bound directive; caller material is not mutated."""
 
     directive = {
         key: value
         for key, value in dict(material).items()
-        if key not in _HASH_FIELDS
+        if key not in _HASH_FIELDS and key not in AUTH_FIELDS
     }
     digest = canonical_sha256(directive)
     if digest is None:
         raise ValueError("PORTFOLIO_CASCADE_DIRECTIVE_HASH_FAILED")
-    return {
-        **directive,
-        "directive_id": f"paper-cascade:{digest}",
-        "directive_evidence_sha256": digest,
-    }
+    return seal_hmac_sha256(
+        {
+            **directive,
+            "directive_id": f"paper-cascade:{digest}",
+            "directive_evidence_sha256": digest,
+        },
+        trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+        authentication_key_id=authentication_key_id,
+        authentication_key=authentication_key,
+    )
 
 
-def seal_guard_payload(material: Mapping[str, Any]) -> dict[str, Any]:
+def seal_guard_payload(
+    material: Mapping[str, Any],
+    *,
+    authentication_key_id: str,
+    authentication_key: bytes | bytearray,
+) -> dict[str, Any]:
     payload = {
         key: value
         for key, value in dict(material).items()
-        if key != "guard_evidence_sha256"
+        if key != "guard_evidence_sha256" and key not in AUTH_FIELDS
     }
     digest = canonical_sha256(payload)
     if digest is None:
         raise ValueError("PORTFOLIO_CASCADE_GUARD_HASH_FAILED")
-    return {**payload, "guard_evidence_sha256": digest}
+    return seal_hmac_sha256(
+        {**payload, "guard_evidence_sha256": digest},
+        trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+        authentication_key_id=authentication_key_id,
+        authentication_key=authentication_key,
+    )
 
 
 def verify_directive(
@@ -104,6 +132,7 @@ def verify_directive(
     expected_paper_session_id: str,
     guard_generated_utc: str,
     guard_expires_utc: str,
+    authentication_keys: Mapping[str, bytes | bytearray] | None,
 ) -> list[str]:
     if not isinstance(directive, Mapping):
         return ["DIRECTIVE_NOT_A_MAPPING"]
@@ -111,13 +140,21 @@ def verify_directive(
     material = {
         key: value
         for key, value in dict(directive).items()
-        if key not in _HASH_FIELDS
+        if key not in _HASH_FIELDS and key not in AUTH_FIELDS
     }
     digest = canonical_sha256(material)
     if digest is None or directive.get("directive_evidence_sha256") != digest:
         reasons.append("DIRECTIVE_EVIDENCE_HASH_INVALID")
     if directive.get("directive_id") != f"paper-cascade:{digest}":
         reasons.append("DIRECTIVE_ID_INVALID")
+    reasons.extend(
+        verify_hmac_sha256(
+            directive,
+            expected_trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+            authentication_keys=authentication_keys,
+            reason_prefix="DIRECTIVE",
+        )
+    )
     if directive.get("schema_version") != DIRECTIVE_SCHEMA_VERSION:
         reasons.append("DIRECTIVE_SCHEMA_VERSION_INVALID")
     if not _paper_safety_valid(directive):
@@ -326,6 +363,9 @@ def verify_guard_payload(
     *,
     expected_paper_session_id: str,
     observed_utc: str,
+    authentication_keys: Mapping[str, bytes | bytearray] | None,
+    expected_source_ledger_sha256: str,
+    expected_source_ledger_generated_utc: str,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Verify the whole envelope before lifecycle considers any directive."""
 
@@ -335,11 +375,19 @@ def verify_guard_payload(
     material = {
         key: value
         for key, value in dict(payload).items()
-        if key != "guard_evidence_sha256"
+        if key != "guard_evidence_sha256" and key not in AUTH_FIELDS
     }
     digest = canonical_sha256(material)
     if digest is None or payload.get("guard_evidence_sha256") != digest:
         reasons.append("GUARD_EVIDENCE_HASH_INVALID")
+    reasons.extend(
+        verify_hmac_sha256(
+            payload,
+            expected_trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+            authentication_keys=authentication_keys,
+            reason_prefix="GUARD",
+        )
+    )
     if payload.get("schema_version") != GUARD_SCHEMA_VERSION:
         reasons.append("GUARD_SCHEMA_VERSION_INVALID")
     if payload.get("directive_authority") is not True:
@@ -353,6 +401,20 @@ def verify_guard_payload(
     for field in ("source_ledger_sha256", "portfolio_snapshot_sha256"):
         if not _sha256_hex(payload.get(field)):
             reasons.append(f"GUARD_{field.upper()}_INVALID")
+    if not _sha256_hex(expected_source_ledger_sha256):
+        reasons.append("CURRENT_SOURCE_LEDGER_SHA256_INVALID")
+    elif not isinstance(payload.get("source_ledger_sha256"), str) or not hmac.compare_digest(
+        str(payload.get("source_ledger_sha256")),
+        expected_source_ledger_sha256,
+    ):
+        reasons.append("GUARD_SOURCE_LEDGER_SHA256_MISMATCH")
+    if (
+        not isinstance(expected_source_ledger_generated_utc, str)
+        or not expected_source_ledger_generated_utc.strip()
+        or payload.get("source_ledger_generated_utc")
+        != expected_source_ledger_generated_utc
+    ):
+        reasons.append("GUARD_SOURCE_LEDGER_GENERATION_MISMATCH")
 
     generated_at = parse_utc(payload.get("generated_utc"))
     expires_at = parse_utc(payload.get("expires_utc"))
@@ -438,6 +500,7 @@ def verify_guard_payload(
             expected_paper_session_id=expected_paper_session_id,
             guard_generated_utc=str(payload.get("generated_utc") or ""),
             guard_expires_utc=str(payload.get("expires_utc") or ""),
+            authentication_keys=authentication_keys,
         )
         if directive_reasons:
             reasons.extend(directive_reasons)

@@ -3,15 +3,24 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from v2.backend.app.services.risk.portfolio_cascade_directive import (
+    canonical_sha256 as cascade_canonical_sha256,
+)
+from v2.backend.app.services.risk.portfolio_cascade_directive import (
     finite_number as cascade_finite_number,
 )
 from v2.backend.app.services.risk.portfolio_cascade_directive import (
     verify_guard_payload,
+)
+from v2.backend.app.services.security.local_evidence_hmac import (
+    AUTH_FIELDS,
+    PAPER_AUTHORITY_TRUST_DOMAIN,
+    seal_hmac_sha256,
 )
 
 from .accounting import coerce_float
@@ -706,11 +715,16 @@ def _hedge_position_key(symbol: str) -> str:
     return f"{str(symbol).upper()}::HEDGE"
 
 
-def _seal_hedge_directive(material: dict[str, Any]) -> dict[str, Any]:
+def _seal_hedge_directive(
+    material: dict[str, Any],
+    *,
+    authentication_key_id: str,
+    authentication_key: bytes | bytearray,
+) -> dict[str, Any]:
     payload = {
         key: value
         for key, value in dict(material).items()
-        if key != "hedge_directive_evidence_sha256"
+        if key != "hedge_directive_evidence_sha256" and key not in AUTH_FIELDS
     }
     encoded = json.dumps(
         payload,
@@ -718,10 +732,15 @@ def _seal_hedge_directive(material: dict[str, Any]) -> dict[str, Any]:
         separators=(",", ":"),
         allow_nan=False,
     ).encode("utf-8")
-    return {
-        **payload,
-        "hedge_directive_evidence_sha256": hashlib.sha256(encoded).hexdigest(),
-    }
+    return seal_hmac_sha256(
+        {
+            **payload,
+            "hedge_directive_evidence_sha256": hashlib.sha256(encoded).hexdigest(),
+        },
+        trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+        authentication_key_id=authentication_key_id,
+        authentication_key=authentication_key,
+    )
 
 
 def _is_hedge_child_row(row: dict[str, Any]) -> bool:
@@ -2238,6 +2257,11 @@ def reconcile_paper_lifecycle(
     portfolio_guard: dict[str, Any] | None = None,
     paper_session_id: str | None = None,
     maintenance_bracket_resolver: Callable[..., dict[str, Any] | None] | None = None,
+    paper_authority_authentication_keys: Mapping[
+        str, bytes | bytearray
+    ] | None = None,
+    paper_authority_signing_key_id: str | None = None,
+    paper_authority_signing_key: bytes | bytearray | None = None,
 ) -> dict[str, Any]:
     existing_ledger = existing_ledger or {}
     mark_prices = mark_prices or {}
@@ -2287,10 +2311,20 @@ def reconcile_paper_lifecycle(
         ):
             guard_envelope_reasons.append("CURRENT_AND_LEDGER_PAPER_SESSION_ID_MISMATCH")
         else:
+            current_source_ledger_sha256 = cascade_canonical_sha256(
+                existing_ledger
+            )
             verified_guard_directives, guard_envelope_reasons = verify_guard_payload(
                 portfolio_guard,
                 expected_paper_session_id=active_paper_session_id,
                 observed_utc=generated_utc,
+                authentication_keys=paper_authority_authentication_keys,
+                expected_source_ledger_sha256=(
+                    current_source_ledger_sha256 or ""
+                ),
+                expected_source_ledger_generated_utc=str(
+                    existing_ledger.get("generated_utc") or ""
+                ),
             )
     guard_directives_by_identity = {
         (
@@ -3401,6 +3435,12 @@ def reconcile_paper_lifecycle(
                     trigger.get("trigger") is True
                     and active_paper_session_id is not None
                     and directive_validity.get("authority_complete") is True
+                    and isinstance(paper_authority_signing_key_id, str)
+                    and bool(paper_authority_signing_key_id)
+                    and isinstance(
+                        paper_authority_signing_key,
+                        bytes | bytearray,
+                    )
                 ):
                     position.hedge_state = "HEDGE_PENDING"
                     position.hedge_reason = str(trigger.get("reason"))
@@ -3440,8 +3480,10 @@ def reconcile_paper_lifecycle(
                             "generated_utc": generated_utc,
                             "paper_only": True,
                             "places_real_order": False,
-                        }
-                    )
+                            },
+                            authentication_key_id=paper_authority_signing_key_id,
+                            authentication_key=paper_authority_signing_key,
+                        )
                     )
                     if _would_atr_stop:
                         # Convert the imminent full stop-out into a hedge:
@@ -3463,6 +3505,19 @@ def reconcile_paper_lifecycle(
                     if active_paper_session_id is None:
                         rejection_reasons.append(
                             "HEDGE_DIRECTIVE_ACTIVE_PAPER_SESSION_MISSING"
+                        )
+                    if not isinstance(paper_authority_signing_key_id, str) or not (
+                        paper_authority_signing_key_id
+                    ):
+                        rejection_reasons.append(
+                            "HEDGE_DIRECTIVE_AUTHENTICATION_KEY_ID_MISSING"
+                        )
+                    if not isinstance(
+                        paper_authority_signing_key,
+                        bytes | bytearray,
+                    ):
+                        rejection_reasons.append(
+                            "HEDGE_DIRECTIVE_AUTHENTICATION_KEY_MISSING"
                         )
                     hedge_directive_rejections.append(
                         {

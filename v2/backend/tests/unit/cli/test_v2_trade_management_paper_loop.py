@@ -17,6 +17,46 @@ from v2.backend.app.services.paper_trade_management.hedging import (
     build_adaptive_hedge_directive_validity,
 )
 from v2.backend.app.services.paper_trade_management import lifecycle as lifecycle_module
+from v2.backend.app.services.security.local_evidence_hmac import (
+    MARK_RECEIPT_TRUST_DOMAIN,
+    seal_hmac_sha256,
+)
+from v2.backend.app.services.security.local_evidence_runtime_credentials import (
+    RuntimeHmacKeyRing,
+)
+
+MARK_AUTH_KEY_ID = "unit-mark-v1"
+MARK_AUTH_KEY = b"m" * 32
+PAPER_AUTH_KEY_ID = "unit-paper-v1"
+PAPER_AUTH_KEY = b"p" * 32
+MARK_KEYRING = RuntimeHmacKeyRing(
+    active_key_id=MARK_AUTH_KEY_ID,
+    keys={MARK_AUTH_KEY_ID: MARK_AUTH_KEY},
+)
+PAPER_KEYRING = RuntimeHmacKeyRing(
+    active_key_id=PAPER_AUTH_KEY_ID,
+    keys={PAPER_AUTH_KEY_ID: PAPER_AUTH_KEY},
+)
+
+
+def _patch_main_evidence_authentication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        paper_loop,
+        "load_mark_keyring_from_systemd_credentials",
+        lambda: MARK_KEYRING,
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "load_paper_authority_keyring_from_systemd_credentials",
+        lambda: PAPER_KEYRING,
+    )
+    monkeypatch.setattr(
+        paper_loop,
+        "_paper_maintenance_bracket_security_context",
+        lambda: (None, {"status": "BLOCKED"}),
+    )
 
 
 class _FakeRedis:
@@ -75,9 +115,16 @@ def _authenticated_exchange_mark_payload(
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "transport": "websocket_primary",
         "stream_name": "!markPrice@arr@1s",
-        "exchange_source_authenticated": True,
-        "authentication_boundary": (
+        "exchange_source_authenticated": False,
+        "exchange_source_authentication_semantics": (
+            "PUBLIC_STREAM_HAS_NO_SIGNED_EXCHANGE_RECEIPT"
+        ),
+        "exchange_transport_security_boundary": (
             "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+        ),
+        "local_producer_authenticated": True,
+        "authentication_boundary": (
+            "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
         ),
         "cadence_policy_version": (
             "BINANCE_USDM_MARK_PRICE_STREAM_1S_CADENCE_V1"
@@ -98,7 +145,12 @@ def _authenticated_exchange_mark_payload(
     payload["evidence_sha256"] = paper_loop._exchange_mark_payload_sha256(  # noqa: SLF001
         payload
     )
-    return payload
+    return seal_hmac_sha256(
+        payload,
+        trust_domain=MARK_RECEIPT_TRUST_DOMAIN,
+        authentication_key_id=MARK_AUTH_KEY_ID,
+        authentication_key=MARK_AUTH_KEY,
+    )
 
 
 def test_exchange_mark_consumer_accepts_exact_fresh_hashed_wss_receipt() -> None:
@@ -110,6 +162,7 @@ def test_exchange_mark_consumer_accepts_exact_fresh_hashed_wss_receipt() -> None
         redis,
         "BTCUSDT",
         decision_time=decision_time,
+        authentication_keys=MARK_KEYRING.keys,
     )
 
     assert result["authority_complete"] is True
@@ -143,6 +196,7 @@ def test_exchange_mark_consumer_rejects_future_available_at_and_tamper() -> None
         redis,
         "BTCUSDT",
         decision_time=decision_time,
+        authentication_keys=MARK_KEYRING.keys,
     )
     assert future_result["authority_complete"] is False
     assert future_result["price"] is None
@@ -157,9 +211,57 @@ def test_exchange_mark_consumer_rejects_future_available_at_and_tamper() -> None
         redis,
         "BTCUSDT",
         decision_time=decision_time,
+        authentication_keys=MARK_KEYRING.keys,
     )
     assert tampered["authority_complete"] is False
     assert "EXCHANGE_MARK_EVIDENCE_SHA256_INVALID" in tampered["rejection_reasons"]
+
+
+def test_exchange_mark_recomputed_self_hash_wrong_key_and_replay_fail_closed() -> None:
+    decision = datetime.now(timezone.utc).replace(microsecond=0)
+    decision_time = _iso(decision)
+    payload = _authenticated_exchange_mark_payload(event_time=decision_time)
+    forged = dict(payload)
+    forged["mark_price"] = 12_345.0
+    forged["markPrice"] = 12_345.0
+    forged["evidence_sha256"] = paper_loop._exchange_mark_payload_sha256(  # noqa: SLF001
+        forged
+    )
+    forged_result = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        _FakeRedis({"v2:market:mark_price:BTCUSDT": forged}),
+        "BTCUSDT",
+        decision_time=decision_time,
+        authentication_keys=MARK_KEYRING.keys,
+    )
+    assert forged_result["authority_complete"] is False
+    assert "EXCHANGE_MARK_AUTH_TAG_MISMATCH" in forged_result[
+        "rejection_reasons"
+    ]
+    assert "EXCHANGE_MARK_EVIDENCE_SHA256_INVALID" not in forged_result[
+        "rejection_reasons"
+    ]
+
+    wrong_key = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        _FakeRedis({"v2:market:mark_price:BTCUSDT": payload}),
+        "BTCUSDT",
+        decision_time=decision_time,
+        authentication_keys={MARK_AUTH_KEY_ID: b"w" * 32},
+    )
+    assert wrong_key["authority_complete"] is False
+    assert "EXCHANGE_MARK_AUTH_TAG_MISMATCH" in wrong_key["rejection_reasons"]
+
+    replay_time = _iso(decision - timedelta(seconds=2))
+    replay = _authenticated_exchange_mark_payload(event_time=replay_time)
+    replayed = paper_loop._read_v2_exchange_mark_price(  # noqa: SLF001
+        _FakeRedis({"v2:market:mark_price:BTCUSDT": replay}),
+        "BTCUSDT",
+        decision_time=decision_time,
+        authentication_keys=MARK_KEYRING.keys,
+    )
+    assert replayed["authority_complete"] is False
+    assert "EXCHANGE_MARK_STALE_AT_DECISION_TIME" in replayed[
+        "rejection_reasons"
+    ]
 
 
 class _HedgeQueueRedis(_FakeRedis):
@@ -201,6 +303,7 @@ def _queue_directive(
     generated_at: datetime,
     previous_cycle_at: datetime,
     paper_session_id: str,
+    authentication_key: bytes = PAPER_AUTH_KEY,
 ) -> dict[str, object]:
     generated_utc = _iso(generated_at)
     mark_evidence = {
@@ -210,7 +313,7 @@ def _queue_directive(
         "available_at": generated_utc,
         "source": "binance_usdm_wss_mark_price_all_symbols",
         "authentication_boundary": (
-            "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
+            "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
         ),
         "consumer_validation_boundary": "PAPER_LOOP_EXCHANGE_MARK_CONSUMER_V1",
         "cadence_policy_version": (
@@ -243,7 +346,9 @@ def _queue_directive(
             "generated_utc": generated_utc,
             "paper_only": True,
             "places_real_order": False,
-        }
+        },
+        authentication_key_id=PAPER_AUTH_KEY_ID,
+        authentication_key=authentication_key,
     )
 
 
@@ -334,6 +439,8 @@ def test_hedge_queue_consumption_removes_success_and_atomically_retains_retry() 
         accepted=accepted,
         paper_session_id=session_id,
         starting_equity_usd=1_000.0,
+        mark_authentication_keys=MARK_KEYRING.keys,
+        paper_authority_authentication_keys=PAPER_KEYRING.keys,
     )
 
     assert status["synthesized"] == 1
@@ -402,6 +509,8 @@ def test_hedge_queue_expired_directive_fails_closed_and_is_deleted() -> None:
         accepted=accepted,
         paper_session_id=session_id,
         starting_equity_usd=1_000.0,
+        mark_authentication_keys=MARK_KEYRING.keys,
+        paper_authority_authentication_keys=PAPER_KEYRING.keys,
     )
 
     assert status["synthesized"] == 0
@@ -476,6 +585,8 @@ def test_hedge_queue_rechecks_expiry_immediately_before_fill_commit(
         accepted=accepted,
         paper_session_id=session_id,
         starting_equity_usd=1_000.0,
+        mark_authentication_keys=MARK_KEYRING.keys,
+        paper_authority_authentication_keys=PAPER_KEYRING.keys,
     )
 
     assert accepted == []
@@ -8553,6 +8664,7 @@ def test_main_once_routes_public_status_through_compact_writer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    _patch_main_evidence_authentication(monkeypatch)
     status = {
         "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
         "intents_built": 1,
@@ -8580,6 +8692,7 @@ def test_main_once_fails_closed_before_cycle_when_writer_lock_is_held(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    _patch_main_evidence_authentication(monkeypatch)
     monkeypatch.setattr(paper_loop, "_try_acquire_loop_lock", lambda: None)
 
     def unexpected_cycle() -> dict:
@@ -8670,6 +8783,7 @@ def test_main_loop_routes_each_public_status_through_compact_writer(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    _patch_main_evidence_authentication(monkeypatch)
     status = {
         "classification": "V2_TRADE_MANAGEMENT_PAPER_PRODUCTION_OK",
         "intents_built": 1,
@@ -17499,6 +17613,7 @@ def test_portfolio_cascade_guard_decision_core() -> None:
         "source_ledger_sha256": "2" * 64,
         "generated_utc": "2026-07-09T06:00:00Z",
         "expires_utc": "2026-07-09T06:00:20Z",
+        "paper_authority_keyring": PAPER_KEYRING,
     }
     directives = decide_directives(positions, {}, snapshot, **kwargs)
     assert [row["symbol"] for row in directives] == ["ALTBUSDT"]

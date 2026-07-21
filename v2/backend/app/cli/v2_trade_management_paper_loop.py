@@ -105,8 +105,23 @@ from v2.backend.app.services.paper_exploration import (
     exploration_paper_fill_gate,
     exploration_sizing_controls,
 )
+from v2.backend.app.services.security.local_evidence_hmac import (
+    AUTH_FIELDS,
+    MARK_RECEIPT_TRUST_DOMAIN,
+    PAPER_AUTHORITY_TRUST_DOMAIN,
+    LocalEvidenceAuthenticationError,
+    verify_hmac_sha256,
+)
+from v2.backend.app.services.security.local_evidence_runtime_credentials import (
+    RuntimeHmacKeyRing,
+    load_mark_keyring_from_systemd_credentials,
+    load_paper_authority_keyring_from_systemd_credentials,
+    require_disjoint_authentication_keys,
+)
 
 V2_REDIS_PREFIX = "v2:"
+_MARK_EVIDENCE_KEYRING: RuntimeHmacKeyRing | None = None
+_PAPER_AUTHORITY_KEYRING: RuntimeHmacKeyRing | None = None
 STRATEGY_SUPPLY_FEEDBACK_SOURCE = "V2_STRATEGY_SUPPLY_SHADOW_OUTCOME"
 PAPER_SIZING_SOURCE_ADAPTIVE = "V2_ADAPTIVE_AI_CAPITAL_ALLOCATOR"
 TRIAL_STATUS_REDIS_KEY = f"{V2_REDIS_PREFIX}paper:confidence_threshold_trial:status"
@@ -6764,6 +6779,9 @@ _EXCHANGE_MARK_SOURCE = "binance_usdm_wss_mark_price_all_symbols"
 _EXCHANGE_MARK_TRANSPORT = "websocket_primary"
 _EXCHANGE_MARK_STREAM = "!markPrice@arr@1s"
 _EXCHANGE_MARK_AUTHENTICATION_BOUNDARY = (
+    "LOCAL_MARK_PRODUCER_TO_PAPER_CONSUMER_HMAC_SHA256_V1"
+)
+_EXCHANGE_MARK_TRANSPORT_SECURITY_BOUNDARY = (
     "BINANCE_USDM_TLS_WSS_MARK_PRICE_PUBLIC_STREAM_V1"
 )
 _EXCHANGE_MARK_CADENCE_POLICY_VERSION = (
@@ -6788,7 +6806,9 @@ def _aware_utc_datetime(value: Any) -> datetime | None:
 
 def _exchange_mark_payload_sha256(payload: Mapping[str, Any]) -> str:
     material = {
-        key: value for key, value in payload.items() if key != "evidence_sha256"
+        key: value
+        for key, value in payload.items()
+        if key != "evidence_sha256" and key not in AUTH_FIELDS
     }
     encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode(
         "utf-8"
@@ -6801,6 +6821,7 @@ def _read_v2_exchange_mark_price(
     symbol: str,
     *,
     decision_time: str,
+    authentication_keys: Mapping[str, bytes | bytearray] | None = None,
 ) -> dict[str, Any]:
     """Read one exact, source-authenticated Binance USD-M mark receipt.
 
@@ -6862,13 +6883,22 @@ def _read_v2_exchange_mark_price(
         "transport": _EXCHANGE_MARK_TRANSPORT,
         "stream_name": _EXCHANGE_MARK_STREAM,
         "authentication_boundary": _EXCHANGE_MARK_AUTHENTICATION_BOUNDARY,
+        "exchange_transport_security_boundary": (
+            _EXCHANGE_MARK_TRANSPORT_SECURITY_BOUNDARY
+        ),
         "cadence_policy_version": _EXCHANGE_MARK_CADENCE_POLICY_VERSION,
     }
     for field, expected in exact_fields.items():
         if payload.get(field) != expected:
             reasons.append(f"EXCHANGE_MARK_{field.upper()}_MISMATCH")
-    if payload.get("exchange_source_authenticated") is not True:
-        reasons.append("EXCHANGE_MARK_SOURCE_NOT_AUTHENTICATED")
+    if payload.get("exchange_source_authenticated") is not False:
+        reasons.append("EXCHANGE_MARK_PUBLIC_SOURCE_AUTHENTICATION_STAMP_INVALID")
+    if payload.get("exchange_source_authentication_semantics") != (
+        "PUBLIC_STREAM_HAS_NO_SIGNED_EXCHANGE_RECEIPT"
+    ):
+        reasons.append("EXCHANGE_MARK_PUBLIC_SOURCE_SEMANTICS_INVALID")
+    if payload.get("local_producer_authenticated") is not True:
+        reasons.append("EXCHANGE_MARK_LOCAL_PRODUCER_AUTHENTICATION_STAMP_INVALID")
     if price is None or not math.isfinite(price) or price <= 0.0:
         reasons.append("EXCHANGE_MARK_PRICE_INVALID")
     if None in (event_time, generated_at, available_at, decision_at, observed_at):
@@ -6905,6 +6935,14 @@ def _read_v2_exchange_mark_price(
         or supplied_hash != _exchange_mark_payload_sha256(payload)
     ):
         reasons.append("EXCHANGE_MARK_EVIDENCE_SHA256_INVALID")
+    reasons.extend(
+        verify_hmac_sha256(
+            payload,
+            expected_trust_domain=MARK_RECEIPT_TRUST_DOMAIN,
+            authentication_keys=authentication_keys,
+            reason_prefix="EXCHANGE_MARK",
+        )
+    )
 
     result.update(
         {
@@ -6914,6 +6952,11 @@ def _read_v2_exchange_mark_price(
             "generated_at": payload.get("generated_at"),
             "available_at": payload.get("available_at"),
             "evidence_sha256": supplied_hash,
+            "evidence_auth_key_id": payload.get("evidence_auth_key_id"),
+            "evidence_auth_trust_domain": payload.get(
+                "evidence_auth_trust_domain"
+            ),
+            "evidence_hmac_sha256": payload.get("evidence_hmac_sha256"),
             "freshness_budget_seconds": freshness_budget,
             "expected_update_interval_seconds": expected_interval,
             "cadence_policy_version": payload.get("cadence_policy_version"),
@@ -25251,11 +25294,17 @@ def _adaptive_hedge_enabled(r) -> bool:
     return str(raw or "").strip().lower() in ("1", "true", "yes", "on")
 
 
-def _hedge_directive_hash_valid(value: Any) -> bool:
+def _hedge_directive_validation_reasons(
+    value: Any,
+    *,
+    authentication_keys: Mapping[str, bytes | bytearray] | None,
+) -> list[str]:
     if not isinstance(value, dict):
-        return False
+        return ["HEDGE_DIRECTIVE_NOT_A_MAPPING"]
     material = dict(value)
     supplied = material.pop("hedge_directive_evidence_sha256", None)
+    for field in AUTH_FIELDS:
+        material.pop(field, None)
     try:
         encoded = json.dumps(
             material,
@@ -25264,8 +25313,19 @@ def _hedge_directive_hash_valid(value: Any) -> bool:
             allow_nan=False,
         ).encode("utf-8")
     except (TypeError, ValueError):
-        return False
-    return supplied == hashlib.sha256(encoded).hexdigest()
+        return ["HEDGE_DIRECTIVE_NOT_CANONICAL_JSON"]
+    reasons: list[str] = []
+    if supplied != hashlib.sha256(encoded).hexdigest():
+        reasons.append("HEDGE_DIRECTIVE_EVIDENCE_SHA256_INVALID")
+    reasons.extend(
+        verify_hmac_sha256(
+            value,
+            expected_trust_domain=PAPER_AUTHORITY_TRUST_DOMAIN,
+            authentication_keys=authentication_keys,
+            reason_prefix="HEDGE_DIRECTIVE",
+        )
+    )
+    return list(dict.fromkeys(reasons))
 
 
 def _synthesize_adaptive_hedge_fills(
@@ -25276,6 +25336,10 @@ def _synthesize_adaptive_hedge_fills(
     accepted: list[dict[str, Any]],
     paper_session_id: str | None,
     starting_equity_usd: float | None,
+    mark_authentication_keys: Mapping[str, bytes | bytearray] | None = None,
+    paper_authority_authentication_keys: Mapping[
+        str, bytes | bytearray
+    ] | None = None,
 ) -> dict[str, Any]:
     """Turn prior-cycle hedge directives into tagged paper hedge fills.
 
@@ -25331,9 +25395,19 @@ def _synthesize_adaptive_hedge_fills(
     for directive in directives:
         if not isinstance(directive, dict):
             continue
-        if not _hedge_directive_hash_valid(directive):
+        directive_authentication_reasons = _hedge_directive_validation_reasons(
+            directive,
+            authentication_keys=paper_authority_authentication_keys,
+        )
+        if directive_authentication_reasons:
             status["skipped"].append(
-                {"symbol": directive.get("symbol"), "reason": "DIRECTIVE_HASH_INVALID"}
+                {
+                    "symbol": directive.get("symbol"),
+                    "reason": "DIRECTIVE_AUTHENTICATION_INVALID",
+                    "authentication_rejection_reasons": (
+                        directive_authentication_reasons
+                    ),
+                }
             )
             continue
         directive_observed_at = _utc_iso()
@@ -25415,6 +25489,7 @@ def _synthesize_adaptive_hedge_fills(
             r,
             symbol,
             decision_time=hedge_decision_time,
+            authentication_keys=mark_authentication_keys,
         )
         mark_price = _coerce_float(current_mark.get("price"))
         if (
@@ -32393,6 +32468,16 @@ def run_once() -> dict:
             accepted=accepted,
             paper_session_id=paper_session_id,
             starting_equity_usd=paper_starting_equity_usd,
+            mark_authentication_keys=(
+                _MARK_EVIDENCE_KEYRING.keys
+                if _MARK_EVIDENCE_KEYRING is not None
+                else None
+            ),
+            paper_authority_authentication_keys=(
+                _PAPER_AUTHORITY_KEYRING.keys
+                if _PAPER_AUTHORITY_KEYRING is not None
+                else None
+            ),
         )
     else:
         hedge_synthesis_status = {
@@ -32445,6 +32530,11 @@ def run_once() -> dict:
             r,
             symbol,
             decision_time=lifecycle_decision_time,
+            authentication_keys=(
+                _MARK_EVIDENCE_KEYRING.keys
+                if _MARK_EVIDENCE_KEYRING is not None
+                else None
+            ),
         )
         fallback_px, fallback_source, fallback_source_utc = _read_v2_market_price(
             r, symbol
@@ -32510,6 +32600,21 @@ def run_once() -> dict:
         ),
         portfolio_guard=_read_json_key(r, "v2:paper:portfolio_cascade_guard"),
         paper_session_id=(str(paper_session_id) if paper_session_id else None),
+        paper_authority_authentication_keys=(
+            _PAPER_AUTHORITY_KEYRING.keys
+            if _PAPER_AUTHORITY_KEYRING is not None
+            else None
+        ),
+        paper_authority_signing_key_id=(
+            _PAPER_AUTHORITY_KEYRING.active_key_id
+            if _PAPER_AUTHORITY_KEYRING is not None
+            else None
+        ),
+        paper_authority_signing_key=(
+            _PAPER_AUTHORITY_KEYRING.signing_key
+            if _PAPER_AUTHORITY_KEYRING is not None
+            else None
+        ),
         maintenance_bracket_resolver=(
             lambda **kwargs: _select_paper_maintenance_bracket_for_lifecycle(
                 r,
@@ -36375,6 +36480,8 @@ def _main_with_writer_lock(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    global _MARK_EVIDENCE_KEYRING, _PAPER_AUTHORITY_KEYRING
+
     parser = argparse.ArgumentParser(prog="v2_trade_management_paper_loop")
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--loop", action="store_true")
@@ -36384,6 +36491,43 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.loop and args.mark_forward_canary_cutover:
         parser.error("--mark-forward-canary-cutover is only valid for controlled one-shot runs")
+    try:
+        mark_keyring = load_mark_keyring_from_systemd_credentials()
+        paper_keyring = load_paper_authority_keyring_from_systemd_credentials()
+        bracket_context, _bracket_status = (
+            _paper_maintenance_bracket_security_context()
+        )
+        forbidden_keys = (
+            [bracket_context.hmac_key]
+            if bracket_context is not None
+            and isinstance(getattr(bracket_context, "hmac_key", None), bytes)
+            else []
+        )
+        require_disjoint_authentication_keys(
+            [mark_keyring, paper_keyring],
+            forbidden_keys=forbidden_keys,
+        )
+    except LocalEvidenceAuthenticationError as exc:
+        print(
+            json.dumps(
+                {
+                    "classification": (
+                        "V2_TRADE_MANAGEMENT_PAPER_EVIDENCE_AUTH_BLOCKED"
+                    ),
+                    "generated_utc": _utc_iso(),
+                    "reason": str(exc),
+                    "protected_systemd_credentials_required": True,
+                    "environment_secret_fallback_allowed": False,
+                    "paper_only": True,
+                    "places_real_order": False,
+                    "writes_legacy_redis": False,
+                },
+                sort_keys=True,
+            )
+        )
+        return 78
+    _MARK_EVIDENCE_KEYRING = mark_keyring
+    _PAPER_AUTHORITY_KEYRING = paper_keyring
     writer_lock_handle = _try_acquire_loop_lock()
     if writer_lock_handle is None:
         print(json.dumps({
