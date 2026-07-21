@@ -5,6 +5,7 @@ import subprocess
 import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -61,11 +62,27 @@ class _StaticHttpClient:
         self.response = response
         self.calls = 0
 
-    def get(self, *_args: Any, **_kwargs: Any) -> httpx.Response:
+    @contextmanager
+    def stream(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str],
+    ) -> Iterator[httpx.Response]:
         self.calls += 1
         if isinstance(self.response, Exception):
             raise self.response
-        return self.response
+        response = httpx.Response(
+            self.response.status_code,
+            headers=self.response.headers,
+            stream=httpx.ByteStream(self.response.content),
+            request=httpx.Request(method, url, headers=headers),
+        )
+        try:
+            yield response
+        finally:
+            response.close()
 
 
 class _FailingRedis:

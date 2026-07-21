@@ -656,23 +656,29 @@ def test_client_normalizes_identity_and_builds_query_without_string_injection() 
     limiter = Mock()
     limiter.allow_request.return_value = Mock(allowed=True, reservation=None)
     limiter.reconcile_response.return_value = Mock(applied=True)
-    http_client = Mock()
-    http_client.get.return_value = httpx.Response(200, json={"usdPrice": 1.0})
-    mixed_case_token = "0x" + ("Ab" * 20)
+    captured_requests: list[httpx.Request] = []
 
-    response = MoralisClient(
-        api_key="secret",  # noqa: S106 - non-secret test fixture
-        limiter=limiter,  # type: ignore[arg-type]
-        http_client=http_client,
-    ).get(spec, chain=" Ethereum ", token=mixed_case_token)
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_requests.append(request)
+        return httpx.Response(200, json={"usdPrice": 1.0})
+
+    mixed_case_token = "0x" + ("Ab" * 20)
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        response = MoralisClient(
+            api_key="secret",  # noqa: S106 - non-secret test fixture
+            limiter=limiter,  # type: ignore[arg-type]
+            http_client=http_client,
+        ).get(spec, chain=" Ethereum ", token=mixed_case_token)
 
     assert response.request_dispatched is True
     assert response.chain == "eth"
     assert response.token == mixed_case_token.lower()
-    requested_url = http_client.get.call_args.args[0]
+    assert len(captured_requests) == 1
+    requested_url = str(captured_requests[0].url)
     assert requested_url == (
         f"{MORALIS_DEEP_INDEX_BASE_URL}/erc20/{mixed_case_token.lower()}/price?chain=eth"
     )
+    assert captured_requests[0].headers["accept-encoding"] == "identity"
 
 
 def test_stream_endpoint_is_not_polled_by_client() -> None:

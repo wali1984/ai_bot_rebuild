@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -11,7 +12,10 @@ from v2.backend.app.cli import v2_moralis_provider_loop as provider_loop
 from v2.backend.app.services.smart_money_wallets.endpoint_registry import (
     MoralisEndpointSpec,
 )
-from v2.backend.app.services.smart_money_wallets.models import MoralisResponse
+from v2.backend.app.services.smart_money_wallets.models import (
+    MORALIS_RAW_RESPONSE_BYTES_SCOPE,
+    MoralisResponse,
+)
 
 BTC_TOKEN = "0x" + ("a" * 40)
 LINK_TOKEN = "0x" + ("b" * 40)
@@ -135,6 +139,36 @@ class RecordingClient:
             200,
             {"result": []},
             request_dispatched=True,
+        )
+
+
+class EvidenceRecordingClient(RecordingClient):
+    def get(
+        self,
+        spec: MoralisEndpointSpec,
+        *,
+        chain: str,
+        wallet: str | None = None,
+        token: str | None = None,
+        symbol: str | None = None,
+    ) -> MoralisResponse:
+        response = super().get(
+            spec,
+            chain=chain,
+            wallet=wallet,
+            token=token,
+            symbol=symbol,
+        )
+        raw = b'{"result":[]}'
+        return replace(
+            response,
+            raw_response_bytes=raw,
+            raw_response_sha256=hashlib.sha256(raw).hexdigest(),
+            raw_response_byte_count=len(raw),
+            raw_response_bytes_scope=MORALIS_RAW_RESPONSE_BYTES_SCOPE,
+            transport_started_at="2026-07-20T12:00:00.000001Z",
+            observed_at="2026-07-20T12:00:00.000002Z",
+            ingested_at="2026-07-20T12:00:00.000003Z",
         )
 
 
@@ -377,7 +411,7 @@ def test_verified_token_is_requested_and_published_under_its_own_symbol(monkeypa
             ("LINKUSDT", "ethereum", LINK_TOKEN),
         ],
     )
-    client = RecordingClient()
+    client = EvidenceRecordingClient()
     published: list[dict[str, Any]] = []
     _patch_single_token_endpoint(monkeypatch)
 
@@ -399,6 +433,17 @@ def test_verified_token_is_requested_and_published_under_its_own_symbol(monkeypa
 
     assert [call["symbol"] for call in client.calls] == ["LINKUSDT"]
     assert [row["symbol"] for row in published] == ["LINKUSDT"]
+    assert published[0]["raw_response_bytes"] == b'{"result":[]}'
+    assert published[0]["raw_response_sha256"] == hashlib.sha256(b'{"result":[]}').hexdigest()
+    assert published[0]["raw_response_byte_count"] == len(b'{"result":[]}')
+    assert published[0]["raw_response_bytes_scope"] == MORALIS_RAW_RESPONSE_BYTES_SCOPE
+    assert published[0]["transport_started_at"] == "2026-07-20T12:00:00.000001Z"
+    assert published[0]["observed_at"] == "2026-07-20T12:00:00.000002Z"
+    assert published[0]["ingested_at"] == "2026-07-20T12:00:00.000003Z"
+    generated_at = datetime.fromisoformat(
+        str(published[0]["generated_at"]).replace("Z", "+00:00")
+    )
+    assert generated_at.tzinfo is not None
     assert status["resolved_symbols"] == ["LINKUSDT"]
     assert status["quarantined_contract_count"] == 0
 

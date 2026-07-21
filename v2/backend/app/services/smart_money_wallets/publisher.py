@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
 import math
@@ -17,6 +19,10 @@ from app.services.smart_money_wallets.endpoint_registry import (
     MoralisEndpointSpec,
 )
 from app.services.smart_money_wallets.health import build_moralis_health
+from app.services.smart_money_wallets.models import (
+    MAX_MORALIS_RAW_RESPONSE_BYTES,
+    MORALIS_RAW_RESPONSE_BYTES_SCOPE,
+)
 from app.services.smart_money_wallets.moralis_feature_bridge import (
     DIAGNOSTIC_FEATURE_NAMES,
     FEATURE_NAMES,
@@ -79,9 +85,27 @@ def publish_moralis_result(
     authenticated_classifier_receipts: Mapping[str, Any] | None = None,
     classifier_authentication_key: bytes | None = None,
     classifier_authentication_key_id: str | None = None,
+    raw_response_bytes: bytes | None = None,
+    raw_response_sha256: str | None = None,
+    raw_response_byte_count: int | None = None,
+    raw_response_bytes_scope: str | None = None,
+    transport_started_at: str | None = None,
     observed_at: str | None = None,
+    ingested_at: str | None = None,
+    generated_at: str | None = None,
 ) -> dict[str, Any]:
-    publication_clock = observed_at or _now()
+    publication_clock = generated_at or observed_at or _now()
+    raw_response_evidence = _raw_response_evidence(
+        raw_response_bytes=raw_response_bytes,
+        claimed_sha256=raw_response_sha256,
+        claimed_byte_count=raw_response_byte_count,
+        claimed_bytes_scope=raw_response_bytes_scope,
+        transport_started_at=transport_started_at,
+        observed_at=observed_at,
+        ingested_at=ingested_at,
+        generated_at=publication_clock,
+        parsed_payload=payload,
+    )
     normalized_chain = _chain(chain)
     normalized = normalize_moralis_payload(
         spec=spec,
@@ -93,8 +117,12 @@ def publish_moralis_result(
         authenticated_classifier_receipts=authenticated_classifier_receipts,
         classifier_authentication_key=classifier_authentication_key,
         classifier_authentication_key_id=classifier_authentication_key_id,
-        observed_at=publication_clock,
+        observed_at=observed_at or publication_clock,
     )
+    # Normalization observation time and publisher generation time are
+    # intentionally distinct.  The latter is when this derived envelope was
+    # formed, never when the HTTP body first became observable.
+    normalized["generated_at"] = publication_clock
     status = _status_from_response(http_status=http_status, error_class=error_class)
     key_rejections = _publication_key_rejection_reasons(
         spec=spec,
@@ -114,6 +142,9 @@ def publish_moralis_result(
         )
     transport_actual = normalized["actual_payload_present"] is True and status == "READY"
     semantic_actual = normalized["semantic_payload_present"] is True and status == "READY"
+    raw_response_evidence_bound = raw_response_evidence["raw_response_evidence_bound"] is True
+    raw_transport_receipt_present = status == "READY" and raw_response_evidence_bound
+    source_artifact_present = transport_actual or raw_transport_receipt_present
     aggregate_key = f"v2:moralis:feature_aggregate:{symbol}:{timeframe}" if symbol else None
     bridge_keys = (
         list(moralis_feature_fanout_keys(symbol=str(symbol), timeframe=timeframe))
@@ -126,10 +157,13 @@ def publish_moralis_result(
         "v2:provider:moralis:health",
     ]
     try:
-        source_payload = _source_observation_payload(normalized)
+        source_payload = _source_observation_payload(
+            normalized,
+            raw_response_evidence=raw_response_evidence,
+        )
         source_payload_bytes = _json_bytes(source_payload)
     except (TypeError, ValueError) as exc:
-        unresolved_source = ["UNRESOLVABLE_SOURCE_ARTIFACT"] if transport_actual else []
+        unresolved_source = ["UNRESOLVABLE_SOURCE_ARTIFACT"] if source_artifact_present else []
         planned_keys = [
             *unresolved_source,
             *([aggregate_key] if aggregate_key and semantic_actual else []),
@@ -162,7 +196,7 @@ def publish_moralis_result(
             symbol=symbol,
             source_payload_sha256=source_payload_sha256,
         )
-        if transport_actual
+        if source_artifact_present
         else []
     )
     source_key = source_keys[0] if source_keys else None
@@ -223,19 +257,39 @@ def publish_moralis_result(
     )
     source_clock_rejections = _raw_source_clock_rejections(
         event_time=event_time,
+        transport_started_at=transport_started_at,
+        observed_at=observed_at,
+        ingested_at=ingested_at,
         generated_at=generated_at,
+    )
+    transport_clock_order_valid = not any(
+        reason
+        for reason in source_clock_rejections
+        if reason not in {"AVAILABLE_AT_UNBOUND", "POSTCOMMIT_RECEIPT_UNBOUND"}
     )
     envelope = {
         **source_payload,
         "timeframe": timeframe,
         "feature_cutoff": event_time,
-        # The HTTP layer did not pass a byte-receipt timestamp into this API.
-        # Assigning the later publisher clock would fabricate ingestion order.
-        "ingested_at": None,
+        "transport_started_at": transport_started_at,
+        "observed_at": observed_at,
+        "ingested_at": ingested_at,
         "available_at": None,
         "generated_at": generated_at,
         "source_clock_rejection_reasons": source_clock_rejections,
         "source_clock_order_valid": False,
+        "transport_clock_order_valid": transport_clock_order_valid,
+        "raw_response_evidence_schema_version": raw_response_evidence.get(
+            "raw_response_evidence_schema_version"
+        ),
+        "raw_response_evidence_bound": raw_response_evidence_bound,
+        "raw_response_evidence_persisted": False,
+        "raw_response_evidence_rejection_reasons": raw_response_evidence.get(
+            "raw_response_evidence_rejection_reasons"
+        ),
+        "raw_response_sha256": raw_response_evidence.get("raw_response_sha256"),
+        "raw_response_byte_count": raw_response_evidence.get("raw_response_byte_count"),
+        "raw_response_bytes_scope": raw_response_evidence.get("raw_response_bytes_scope"),
         "source_payload_canonical_json": source_payload_bytes.decode("utf-8"),
         "source_payload_sha256": source_payload_sha256,
         "source_payload_digest_algorithm": "sha256",
@@ -304,9 +358,11 @@ def publish_moralis_result(
             if source_write == "WRITTEN":
                 keys_written.append(source_key)
                 artifact_sha256[source_key] = source_payload_sha256
+                envelope["raw_response_evidence_persisted"] = raw_response_evidence_bound
             elif source_write == "EXACT_DUPLICATE_NO_REFRESH":
                 duplicate_keys.append(source_key)
                 artifact_sha256[source_key] = source_payload_sha256
+                envelope["raw_response_evidence_persisted"] = raw_response_evidence_bound
             else:
                 failed_keys.append(source_key)
                 unattempted_keys.extend(key for key in planned_keys if key != source_key)
@@ -434,7 +490,7 @@ def publish_moralis_result(
                             ),
                             event_time=aggregate_payload.get("event_time"),
                             feature_cutoff=aggregate_payload.get("feature_cutoff"),
-                            ingested_at=None,
+                            ingested_at=aggregate_payload.get("ingested_at"),
                             available_at=None,
                             ttl_seconds=feature_ttl,
                             stale_after=feature_ttl,
@@ -487,6 +543,11 @@ def publish_moralis_result(
             retained_aggregate,
             observed_at=publication_clock,
         )
+        raw_response_evidence_persisted = bool(
+            raw_response_evidence_bound
+            and source_key is not None
+            and (source_key in keys_written or source_key in duplicate_keys)
+        )
         endpoint_row = {
             "schema_version": "moralis_endpoint_status_v2",
             "provider": "moralis",
@@ -512,9 +573,24 @@ def publish_moralis_result(
             "source_payload_sha256": source_payload_sha256,
             "source_binding_sha256": binding_sha256,
             "source_identity": source_identity,
+            "raw_response_evidence_schema_version": raw_response_evidence.get(
+                "raw_response_evidence_schema_version"
+            ),
+            "raw_response_evidence_bound": raw_response_evidence_bound,
+            "raw_response_evidence_persisted": raw_response_evidence_persisted,
+            "raw_response_evidence_rejection_reasons": raw_response_evidence.get(
+                "raw_response_evidence_rejection_reasons"
+            ),
+            "raw_response_sha256": raw_response_evidence.get("raw_response_sha256"),
+            "raw_response_byte_count": raw_response_evidence.get("raw_response_byte_count"),
+            "raw_response_bytes_scope": raw_response_evidence.get("raw_response_bytes_scope"),
             "transport_status": status,
             "aggregate_update_status": update_status,
             "retained_state": retained_state,
+            "transport_started_at": transport_started_at,
+            "observed_at": observed_at,
+            "ingested_at": ingested_at,
+            "generated_at": generated_at,
             "generated_utc": generated_at,
             "available_at": None,
             "expires_at": _expires_at(generated_at, spec.ttl_seconds),
@@ -567,6 +643,15 @@ def publish_moralis_result(
                     "raw_transport_actual_endpoint_count", 0
                 ),
                 "raw_transport_record_count": endpoint_status.get("raw_transport_record_count", 0),
+                "raw_response_evidence_bound": raw_response_evidence_bound,
+                "raw_response_evidence_persisted": raw_response_evidence_persisted,
+                "raw_response_evidence_rejection_reasons": raw_response_evidence.get(
+                    "raw_response_evidence_rejection_reasons"
+                ),
+                "transport_started_at": transport_started_at,
+                "observed_at": observed_at,
+                "ingested_at": ingested_at,
+                "available_at": None,
                 "source_observation_endpoint_count": retained_aggregate.get(
                     "source_observation_endpoint_count", 0
                 ),
@@ -646,6 +731,11 @@ def publish_moralis_result(
                     break
 
     publication_complete = not failed_keys and not unattempted_keys
+    raw_response_evidence_persisted = bool(
+        raw_response_evidence_bound
+        and source_key is not None
+        and (source_key in keys_written or source_key in duplicate_keys)
+    )
     return {
         "schema_version": "moralis_publish_result_v2",
         "provider": "moralis",
@@ -661,6 +751,21 @@ def publish_moralis_result(
         "actual_payload_present": False,
         "raw_transport_actual_payload_present": bool(transport_actual),
         "raw_transport_record_count": int(normalized.get("raw_transport_record_count") or 0),
+        "raw_response_evidence_schema_version": raw_response_evidence.get(
+            "raw_response_evidence_schema_version"
+        ),
+        "raw_response_evidence_bound": raw_response_evidence_bound,
+        "raw_response_evidence_persisted": raw_response_evidence_persisted,
+        "raw_response_evidence_rejection_reasons": raw_response_evidence.get(
+            "raw_response_evidence_rejection_reasons"
+        ),
+        "raw_response_sha256": raw_response_evidence.get("raw_response_sha256"),
+        "raw_response_byte_count": raw_response_evidence.get("raw_response_byte_count"),
+        "raw_response_bytes_scope": raw_response_evidence.get("raw_response_bytes_scope"),
+        "transport_started_at": transport_started_at,
+        "observed_at": observed_at,
+        "ingested_at": ingested_at,
+        "generated_at": generated_at,
         "source_semantic_claim_count": int(normalized.get("source_semantic_claim_count") or 0),
         "admitted_feature_count": 0,
         "heartbeat_only": True,
@@ -1073,7 +1178,125 @@ def _rederived_source_identity_material(row: Mapping[str, Any]) -> dict[str, str
     }
 
 
-def _source_observation_payload(normalized: Mapping[str, Any]) -> dict[str, Any]:
+def _raw_response_evidence(
+    *,
+    raw_response_bytes: bytes | None,
+    claimed_sha256: str | None,
+    claimed_byte_count: int | None,
+    claimed_bytes_scope: str | None,
+    transport_started_at: str | None,
+    observed_at: str | None,
+    ingested_at: str | None,
+    generated_at: str,
+    parsed_payload: Any,
+) -> dict[str, Any]:
+    """Build a bounded receipt for the exact bytes parsed by the HTTP client.
+
+    The client requests and enforces identity content encoding, then reads with
+    ``httpx.Response.iter_raw``.  HTTP transfer framing has already been removed,
+    but no content decoder has transformed these exact application-body bytes.
+    The scope label keeps that boundary explicit.
+    """
+
+    reasons: list[str] = []
+    exact_bytes_base64: str | None = None
+    actual_sha256: str | None = None
+    actual_byte_count: int | None = None
+    if type(raw_response_bytes) is not bytes:
+        reasons.append("RAW_RESPONSE_BYTES_MISSING")
+    else:
+        actual_byte_count = len(raw_response_bytes)
+        if actual_byte_count > MAX_MORALIS_RAW_RESPONSE_BYTES:
+            reasons.append("RAW_RESPONSE_BYTE_LIMIT_EXCEEDED")
+        else:
+            actual_sha256 = hashlib.sha256(raw_response_bytes).hexdigest()
+            exact_bytes_base64 = base64.b64encode(raw_response_bytes).decode("ascii")
+            try:
+                parsed_exact = json.loads(
+                    raw_response_bytes,
+                    object_pairs_hook=_reject_duplicate_json_object_keys,
+                    parse_constant=_reject_nonfinite_json_constant,
+                )
+                _validate_closed_json(parsed_exact)
+                exact_canonical = _json_bytes(parsed_exact)
+                supplied_canonical = _json_bytes(parsed_payload)
+            except (RecursionError, TypeError, UnicodeError, ValueError):
+                reasons.append("RAW_RESPONSE_JSON_INVALID")
+            else:
+                if exact_canonical != supplied_canonical:
+                    reasons.append("RAW_RESPONSE_PARSED_PAYLOAD_MISMATCH")
+    if (
+        not isinstance(claimed_byte_count, int)
+        or isinstance(claimed_byte_count, bool)
+        or actual_byte_count is None
+        or claimed_byte_count != actual_byte_count
+    ):
+        reasons.append("RAW_RESPONSE_BYTE_COUNT_MISMATCH")
+    if (
+        not isinstance(claimed_sha256, str)
+        or _SHA256_RE.fullmatch(claimed_sha256) is None
+        or actual_sha256 is None
+        or claimed_sha256 != actual_sha256
+    ):
+        reasons.append("RAW_RESPONSE_SHA256_MISMATCH")
+    if claimed_bytes_scope != MORALIS_RAW_RESPONSE_BYTES_SCOPE:
+        reasons.append("RAW_RESPONSE_BYTES_SCOPE_INVALID")
+
+    clocks: dict[str, datetime] = {}
+    for name, value in (
+        ("transport_started_at", transport_started_at),
+        ("observed_at", observed_at),
+        ("ingested_at", ingested_at),
+        ("generated_at", generated_at),
+    ):
+        parsed = _parse_utc(value)
+        if parsed is None:
+            reasons.append(f"{name.upper()}_MISSING_OR_INVALID")
+        else:
+            clocks[name] = parsed
+    for earlier, later, reason in (
+        ("transport_started_at", "observed_at", "TRANSPORT_STARTED_AT_AFTER_OBSERVED_AT"),
+        ("observed_at", "ingested_at", "OBSERVED_AT_AFTER_INGESTED_AT"),
+        ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT"),
+    ):
+        if earlier in clocks and later in clocks and clocks[earlier] > clocks[later]:
+            reasons.append(reason)
+    unique_reasons = sorted(set(reasons))
+    return {
+        "raw_response_evidence_schema_version": "moralis_raw_response_evidence_v1",
+        "raw_response_bytes_scope": MORALIS_RAW_RESPONSE_BYTES_SCOPE,
+        "raw_response_body_base64": exact_bytes_base64,
+        "raw_response_byte_count": actual_byte_count,
+        "raw_response_sha256": actual_sha256,
+        "raw_response_digest_algorithm": "sha256" if actual_sha256 is not None else None,
+        "raw_response_evidence_bound": not unique_reasons,
+        "raw_response_evidence_rejection_reasons": unique_reasons,
+        "transport_started_at": transport_started_at,
+        "observed_at": observed_at,
+        "ingested_at": ingested_at,
+        "generated_at": generated_at,
+        "available_at": None,
+    }
+
+
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _source_observation_payload(
+    normalized: Mapping[str, Any],
+    *,
+    raw_response_evidence: Mapping[str, Any],
+) -> dict[str, Any]:
     fields = (
         "schema_version",
         "provider",
@@ -1110,6 +1333,8 @@ def _source_observation_payload(normalized: Mapping[str, Any]) -> dict[str, Any]
         "heartbeat_only",
     )
     payload = {field: normalized.get(field) for field in fields}
+    if raw_response_evidence.get("raw_response_evidence_bound") is True:
+        payload.update(dict(raw_response_evidence))
     payload.update(
         {
             "available_at": None,
@@ -1363,6 +1588,19 @@ def _merge_feature_payload(
         "source_payload_digest_algorithm": "sha256",
         "source_binding_canonical_json": envelope.get("source_binding_canonical_json"),
         "source_binding_sha256": envelope.get("source_binding_sha256"),
+        "raw_response_evidence_schema_version": envelope.get(
+            "raw_response_evidence_schema_version"
+        ),
+        "raw_response_evidence_bound": envelope.get("raw_response_evidence_bound") is True,
+        "raw_response_evidence_persisted": (
+            envelope.get("raw_response_evidence_persisted") is True
+        ),
+        "raw_response_evidence_rejection_reasons": list(
+            envelope.get("raw_response_evidence_rejection_reasons") or []
+        ),
+        "raw_response_sha256": envelope.get("raw_response_sha256"),
+        "raw_response_byte_count": envelope.get("raw_response_byte_count"),
+        "raw_response_bytes_scope": envelope.get("raw_response_bytes_scope"),
         "source_artifact_expires_at": envelope.get("source_artifact_expires_at"),
         "raw_provenance_ttl_seconds": envelope.get("raw_provenance_ttl_seconds"),
         "classifier_authentication_key_id": envelope.get("classifier_authentication_key_id"),
@@ -1382,7 +1620,9 @@ def _merge_feature_payload(
         "diagnostic_origins": dict(envelope.get("diagnostic_origins") or {}),
         "event_time": envelope.get("event_time"),
         "feature_cutoff": envelope.get("feature_cutoff"),
-        "ingested_at": None,
+        "transport_started_at": envelope.get("transport_started_at"),
+        "observed_at": envelope.get("observed_at"),
+        "ingested_at": envelope.get("ingested_at"),
         "generated_at": envelope.get("generated_at"),
         "available_at": None,
         "expires_at": _expires_at(envelope.get("generated_at"), spec.ttl_seconds),
@@ -1393,6 +1633,13 @@ def _merge_feature_payload(
         "publication_atomic": False,
         "postcommit_receipt_bound": False,
         "publication_status": "NON_AUTHORITATIVE_POSTCOMMIT_RECEIPT_UNBOUND",
+        "trainer_authority": False,
+        "prediction_authority": False,
+        "risk_authority": False,
+        "orchestrator_authority": False,
+        "allocator_authority": False,
+        "paper_authority": False,
+        "live_authority": False,
         "status": status,
         "ttl_seconds": spec.ttl_seconds,
         "admission_rejection_reasons": admission_rejections,
@@ -1486,6 +1733,25 @@ def _merge_feature_payload(
         [str(row["generated_at"]) for row in endpoint_payloads.values() if row.get("generated_at")],
         microseconds=True,
     )
+    transport_started_at = _latest_strict_utc(
+        [
+            str(row["transport_started_at"])
+            for row in endpoint_payloads.values()
+            if row.get("transport_started_at")
+        ],
+        microseconds=True,
+    )
+    response_observed_at = _latest_strict_utc(
+        [str(row["observed_at"]) for row in endpoint_payloads.values() if row.get("observed_at")],
+        microseconds=True,
+    )
+    ingested_at = _latest_strict_utc(
+        [str(row["ingested_at"]) for row in endpoint_payloads.values() if row.get("ingested_at")],
+        microseconds=True,
+    )
+    raw_response_evidence_bound_endpoint_count = sum(
+        row.get("raw_response_evidence_bound") is True for row in endpoint_payloads.values()
+    )
     feature_rejection_reasons = _merge_feature_rejection_reasons(endpoint_payloads)
     for name in feature_conflicts:
         feature_rejection_reasons[name] = ["FEATURE_CONFLICT_QUARANTINED"]
@@ -1506,7 +1772,7 @@ def _merge_feature_payload(
         actual_payload_present=bool(merged_features or merged_diagnostics),
         event_time=event_time,
         feature_cutoff=feature_cutoff,
-        ingested_at=None,
+        ingested_at=ingested_at,
         available_at=None,
         ttl_seconds=ttl,
         stale_after=ttl,
@@ -1523,7 +1789,9 @@ def _merge_feature_payload(
             "token": envelope.get("token"),
             "event_time": event_time,
             "feature_cutoff": feature_cutoff,
-            "ingested_at": None,
+            "transport_started_at": transport_started_at,
+            "observed_at": response_observed_at,
+            "ingested_at": ingested_at,
             "generated_at": generated_at or aggregate.get("generated_at"),
             "expires_at": aggregate_expires_at,
             "source_provenance_expires_at": source_provenance_expires_at,
@@ -1545,6 +1813,11 @@ def _merge_feature_payload(
             "source_state_reasons": source_state_reasons,
             "endpoint_payloads": endpoint_payloads,
             "source_observation_endpoint_count": len(endpoint_payloads),
+            "raw_response_evidence_bound_endpoint_count": (
+                raw_response_evidence_bound_endpoint_count
+            ),
+            "all_endpoint_raw_response_evidence_bound": bool(endpoint_payloads)
+            and raw_response_evidence_bound_endpoint_count == len(endpoint_payloads),
             "raw_transport_record_count": raw_transport_record_count,
             "source_feature_claim_count": source_feature_claim_count,
             "source_diagnostic_claim_count": source_diagnostic_claim_count,
@@ -1726,8 +1999,8 @@ def _monotonic_source_update_status(
     prior = peers[0]
     prior_clock = _parse_utc(prior.get("event_time"))
     new_clock = _parse_utc(row.get("event_time"))
-    prior_digest = prior.get("source_payload_sha256")
-    new_digest = row.get("source_payload_sha256")
+    prior_digest = _source_event_content_digest(prior)
+    new_digest = _source_event_content_digest(row)
     if prior_clock is None or new_clock is None:
         return "SOURCE_EVENT_CLOCK_INVALID"
     if new_clock < prior_clock:
@@ -1737,6 +2010,13 @@ def _monotonic_source_update_status(
             return "EXACT_DUPLICATE_NO_REFRESH"
         return "SAME_CLOCK_DIVERGENT_DIGEST_QUARANTINED"
     return "DETERMINISTIC_NEWER_SOURCE_ACCEPTED"
+
+
+def _source_event_content_digest(row: Mapping[str, Any]) -> Any:
+    raw_digest = row.get("raw_response_sha256")
+    if row.get("raw_response_evidence_bound") is True and isinstance(raw_digest, str):
+        return raw_digest
+    return row.get("source_payload_sha256")
 
 
 def _endpoint_claim_key(row: Mapping[str, Any]) -> str:
@@ -1814,6 +2094,67 @@ def _diagnostic_origins(
             "feature_cutoff": row.get("feature_cutoff"),
         }
     return origins
+
+
+def _raw_response_receipt_integrity_reasons(
+    row: Mapping[str, Any],
+    source_payload: Mapping[str, Any],
+) -> list[str]:
+    if row.get("raw_response_evidence_bound") is not True:
+        return []
+    reasons: list[str] = []
+    if source_payload.get("raw_response_evidence_schema_version") != (
+        "moralis_raw_response_evidence_v1"
+    ):
+        reasons.append("RAW_RESPONSE_EVIDENCE_SCHEMA_INVALID")
+    if source_payload.get("raw_response_bytes_scope") != MORALIS_RAW_RESPONSE_BYTES_SCOPE:
+        reasons.append("RAW_RESPONSE_BYTES_SCOPE_INVALID")
+    if source_payload.get("raw_response_digest_algorithm") != "sha256":
+        reasons.append("RAW_RESPONSE_DIGEST_ALGORITHM_INVALID")
+    if source_payload.get("available_at") is not None:
+        reasons.append("RAW_RESPONSE_AVAILABLE_AT_MUST_BE_NULL")
+    encoded = source_payload.get("raw_response_body_base64")
+    raw_bytes: bytes | None = None
+    if not isinstance(encoded, str) or not encoded:
+        reasons.append("RAW_RESPONSE_EXACT_BYTES_MISSING")
+    elif len(encoded) > ((MAX_MORALIS_RAW_RESPONSE_BYTES + 2) // 3) * 4:
+        reasons.append("RAW_RESPONSE_BASE64_LIMIT_EXCEEDED")
+    else:
+        try:
+            raw_bytes = base64.b64decode(encoded, validate=True)
+        except (binascii.Error, ValueError):
+            reasons.append("RAW_RESPONSE_BASE64_INVALID")
+    byte_count = source_payload.get("raw_response_byte_count")
+    digest = source_payload.get("raw_response_sha256")
+    if (
+        not isinstance(byte_count, int)
+        or isinstance(byte_count, bool)
+        or byte_count < 0
+        or byte_count > MAX_MORALIS_RAW_RESPONSE_BYTES
+    ):
+        reasons.append("RAW_RESPONSE_BYTE_COUNT_INVALID")
+    if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
+        reasons.append("RAW_RESPONSE_SHA256_INVALID")
+    if raw_bytes is not None:
+        if len(raw_bytes) > MAX_MORALIS_RAW_RESPONSE_BYTES:
+            reasons.append("RAW_RESPONSE_BYTE_LIMIT_EXCEEDED")
+        if byte_count != len(raw_bytes):
+            reasons.append("RAW_RESPONSE_BYTE_COUNT_MISMATCH")
+        if isinstance(digest, str) and hashlib.sha256(raw_bytes).hexdigest() != digest:
+            reasons.append("RAW_RESPONSE_SHA256_MISMATCH")
+    clock_rejections = _raw_source_clock_rejections(
+        event_time=row.get("event_time"),
+        transport_started_at=row.get("transport_started_at"),
+        observed_at=row.get("observed_at"),
+        ingested_at=row.get("ingested_at"),
+        generated_at=row.get("generated_at"),
+    )
+    reasons.extend(
+        reason
+        for reason in clock_rejections
+        if reason not in {"AVAILABLE_AT_UNBOUND", "POSTCOMMIT_RECEIPT_UNBOUND"}
+    )
+    return sorted(set(reasons))
 
 
 def _endpoint_integrity_rejection_reasons(
@@ -1948,6 +2289,44 @@ def _endpoint_integrity_rejection_reasons(
         ):
             if row.get(row_field) != source_payload.get(source_field):
                 reasons.append(reason)
+        if row.get("raw_response_evidence_bound") is True:
+            for row_field, source_field, reason in (
+                (
+                    "transport_started_at",
+                    "transport_started_at",
+                    "SOURCE_TRANSPORT_STARTED_AT_MISMATCH",
+                ),
+                ("observed_at", "observed_at", "SOURCE_OBSERVED_AT_MISMATCH"),
+                ("ingested_at", "ingested_at", "SOURCE_INGESTED_AT_MISMATCH"),
+                ("generated_at", "generated_at", "SOURCE_GENERATED_AT_MISMATCH"),
+                (
+                    "raw_response_evidence_schema_version",
+                    "raw_response_evidence_schema_version",
+                    "SOURCE_RAW_RESPONSE_EVIDENCE_SCHEMA_MISMATCH",
+                ),
+                (
+                    "raw_response_evidence_bound",
+                    "raw_response_evidence_bound",
+                    "SOURCE_RAW_RESPONSE_EVIDENCE_BOUND_MISMATCH",
+                ),
+                (
+                    "raw_response_sha256",
+                    "raw_response_sha256",
+                    "SOURCE_RAW_RESPONSE_SHA256_MISMATCH",
+                ),
+                (
+                    "raw_response_byte_count",
+                    "raw_response_byte_count",
+                    "SOURCE_RAW_RESPONSE_BYTE_COUNT_MISMATCH",
+                ),
+                (
+                    "raw_response_bytes_scope",
+                    "raw_response_bytes_scope",
+                    "SOURCE_RAW_RESPONSE_BYTES_SCOPE_MISMATCH",
+                ),
+            ):
+                if row.get(row_field) != source_payload.get(source_field):
+                    reasons.append(reason)
         for field in count_fields:
             source_label = field.removeprefix("source_").upper()
             source_count = _strict_nonnegative_count(source_payload.get(field))
@@ -2004,10 +2383,9 @@ def _endpoint_integrity_rejection_reasons(
                 reasons.append("SOURCE_IDENTITY_REDERIVATION_MISMATCH")
         if row.get("feature_cutoff") != source_payload.get("event_time"):
             reasons.append("SOURCE_FEATURE_CUTOFF_MISMATCH")
-        if row.get("ingested_at") is not None:
-            reasons.append("UNBOUND_INGESTED_AT_MUST_BE_NULL")
         if row.get("available_at") is not None:
             reasons.append("UNBOUND_AVAILABLE_AT_MUST_BE_NULL")
+        reasons.extend(_raw_response_receipt_integrity_reasons(row, source_payload))
         for row_field, source_field, reason in (
             ("features", "features", "SOURCE_FEATURES_MISMATCH"),
             (
@@ -2169,7 +2547,14 @@ def _endpoint_admission_rejection_reasons(
 ) -> list[str]:
     parsed: dict[str, datetime] = {}
     reasons: list[str] = []
-    for field in ("event_time", "feature_cutoff", "ingested_at", "generated_at"):
+    for field in (
+        "event_time",
+        "feature_cutoff",
+        "transport_started_at",
+        "observed_at",
+        "ingested_at",
+        "generated_at",
+    ):
         value = row.get(field)
         if value in (None, ""):
             reasons.append(f"{field.upper()}_MISSING")
@@ -2183,11 +2568,20 @@ def _endpoint_admission_rejection_reasons(
             reasons.append(f"{field.upper()}_AFTER_OBSERVED_AT")
     for earlier, later, reason in (
         ("event_time", "feature_cutoff", "EVENT_TIME_AFTER_FEATURE_CUTOFF"),
+        ("event_time", "observed_at", "EVENT_TIME_AFTER_OBSERVED_AT"),
+        (
+            "transport_started_at",
+            "observed_at",
+            "TRANSPORT_STARTED_AT_AFTER_OBSERVED_AT",
+        ),
+        ("observed_at", "ingested_at", "OBSERVED_AT_AFTER_INGESTED_AT"),
         ("feature_cutoff", "ingested_at", "FEATURE_CUTOFF_AFTER_INGESTED_AT"),
         ("ingested_at", "generated_at", "INGESTED_AT_AFTER_GENERATED_AT"),
     ):
         if earlier in parsed and later in parsed and parsed[earlier] > parsed[later]:
             reasons.append(reason)
+    if row.get("raw_response_evidence_bound") is not True:
+        reasons.append("RAW_RESPONSE_EVIDENCE_UNBOUND")
     reasons.extend(("AVAILABLE_AT_MISSING", "POSTCOMMIT_RECEIPT_UNBOUND"))
     return sorted(set(reasons))
 
@@ -2195,17 +2589,35 @@ def _endpoint_admission_rejection_reasons(
 def _raw_source_clock_rejections(
     *,
     event_time: Any,
+    transport_started_at: Any,
+    observed_at: Any,
+    ingested_at: Any,
     generated_at: Any,
 ) -> list[str]:
-    reasons = ["INGESTED_AT_UNBOUND", "AVAILABLE_AT_UNBOUND", "POSTCOMMIT_RECEIPT_UNBOUND"]
+    reasons = ["AVAILABLE_AT_UNBOUND", "POSTCOMMIT_RECEIPT_UNBOUND"]
     event = _parse_utc(event_time)
+    transport_started = _parse_utc(transport_started_at)
+    observed = _parse_utc(observed_at)
+    ingested = _parse_utc(ingested_at)
     generated = _parse_utc(generated_at)
     if event is None:
         reasons.append("EVENT_TIME_MISSING_OR_INVALID")
+    if transport_started is None:
+        reasons.append("TRANSPORT_STARTED_AT_MISSING_OR_INVALID")
+    if observed is None:
+        reasons.append("OBSERVED_AT_MISSING_OR_INVALID")
+    if ingested is None:
+        reasons.append("INGESTED_AT_MISSING_OR_INVALID")
     if generated is None:
         reasons.append("GENERATED_AT_MISSING_OR_INVALID")
-    if event is not None and generated is not None and event > generated:
-        reasons.append("EVENT_TIME_AFTER_GENERATED_AT")
+    for earlier, later, reason in (
+        (event, observed, "EVENT_TIME_AFTER_OBSERVED_AT"),
+        (transport_started, observed, "TRANSPORT_STARTED_AT_AFTER_OBSERVED_AT"),
+        (observed, ingested, "OBSERVED_AT_AFTER_INGESTED_AT"),
+        (ingested, generated, "INGESTED_AT_AFTER_GENERATED_AT"),
+    ):
+        if earlier is not None and later is not None and earlier > later:
+            reasons.append(reason)
     return sorted(set(reasons))
 
 

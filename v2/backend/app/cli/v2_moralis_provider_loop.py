@@ -86,7 +86,7 @@ return 1
 
 def _norm_chain(value: Any) -> str:
     v = str(value or "").strip().lower()
-    return MORALIS_EVM_CHAIN_ALIASES.get(v, v)
+    return str(MORALIS_EVM_CHAIN_ALIASES.get(v, v))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -570,6 +570,14 @@ def run_once(
             timeframe=timeframe,
             token_map_count=int(bootstrap.get("token_map_count") or 0),
             wallet_watchlist_count=int(bootstrap.get("wallet_watchlist_count") or 0),
+            raw_response_bytes=response.raw_response_bytes,
+            raw_response_sha256=response.raw_response_sha256,
+            raw_response_byte_count=response.raw_response_byte_count,
+            raw_response_bytes_scope=response.raw_response_bytes_scope,
+            transport_started_at=response.transport_started_at,
+            observed_at=response.observed_at,
+            ingested_at=response.ingested_at,
+            generated_at=_precise_now(),
         )
         if publish_symbol:
             published_symbols.add(publish_symbol)
@@ -1663,10 +1671,10 @@ def _token_map_count(redis_client: Any | None) -> int:
 
 def _cadence_seconds_for_target(spec: MoralisEndpointSpec, *, target_index: int) -> int:
     if target_index < 3:
-        return spec.cadence_seconds_tier0
+        return int(spec.cadence_seconds_tier0)
     if target_index < 10:
-        return spec.cadence_seconds_tier1
-    return spec.cadence_seconds_full_watchlist
+        return int(spec.cadence_seconds_tier1)
+    return int(spec.cadence_seconds_full_watchlist)
 
 
 def _redis_client(redis_url: str) -> Any:
@@ -1681,6 +1689,10 @@ def _csv(raw: str) -> list[str]:
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _precise_now() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 if __name__ == "__main__":
