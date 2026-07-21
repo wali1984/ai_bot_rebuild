@@ -130,6 +130,11 @@ from v2.backend.app.services.market_structure import (
     compute_volume_profile,
     compute_vwap_features,
 )
+from v2.backend.app.services.paper_trade_management.canonical_altdata_authority import (
+    CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS,
+    paper_altdata_admission_rejection_reasons as _paper_altdata_admission_rejection_reasons,
+    resolve_paper_canonical_altdata as _paper_canonical_altdata_context,
+)
 from v2.backend.app.services.paper_trade_management.exits import PAPER_EXIT_POLICY_VERSION
 from v2.backend.app.services.paper_trade_management.outcome_memory_updater import (
     rebuild_outcome_memory_from_closed_trades,
@@ -19020,18 +19025,7 @@ PREEMPTIVE_DECISION_CONTEXT_FIELDS = (
     "altdata_wallet_distribution_score",
     "altdata_liquidation_sweep_risk_score",
     "altdata_social_euphoria_risk_score",
-    "altdata_feature_cutoff",
-    "altdata_available_at",
-    "altdata_generated_at",
-    "altdata_lookup_observed_at",
-    "altdata_providers_present",
-    "provider_features_used",
-    "provider_features_missing",
-    "coinglass_feature_hash",
-    "santiment_feature_hash",
-    "moralis_feature_hash",
-    "altdata_confluence_hash",
-    "altdata_provider_hash_source",
+    *CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS,
     "preemptive_decision_id",
     "preemptive_decision_version",
     "preemptive_decision_time",
@@ -19365,6 +19359,7 @@ def _paper_preemptive_admission_rejection_reasons(
     if paper_tier == PAPER_TIER_A_PLUS_BOOTSTRAP_REDUCED_SIZE:
         if intent.get("continuous_edge_guardian_new_entries_allowed") is not True:
             reasons.append("REDUCE_SIZE_FILL_LACKS_GUARDIAN_APPROVAL")
+    reasons.extend(_paper_altdata_admission_rejection_reasons(intent))
     guardian_state = str(
         _first_present(
             intent.get("continuous_edge_guardian_status"),
@@ -42663,9 +42658,13 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         expected_container="mapping",
     )
     _adaptive_tuning_observed_at = _utc_iso()
-    # Per-cycle cache of alt-data confluence payloads (CoinGlass+Santiment+
-    # Moralis fusion) consumed by preemptive edge control; read-only.
-    _altdata_confluence_cache: dict[tuple[str, str], dict[str, Any]] = {}
+    # Reconstruct canonical provider inputs once per symbol/timeframe/cycle.
+    # A boundary failure is cached as an explicit mask; there is no cached
+    # confluence or raw-provider fallback.
+    _altdata_confluence_cache: dict[
+        tuple[str, str],
+        tuple[dict[str, Any] | None, dict[str, Any]],
+    ] = {}
     _write_paper_runtime_heartbeat(
         r,
         started_at=started,
@@ -44457,20 +44456,31 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
         intent["paper_entry_gate_snapshot_observed_at"] = entry_gate_outcome_observed_at
         intent["paper_entry_gate_snapshot_hash"] = entry_gate_snapshot["snapshot_hash"]
         intent["paper_entry_gate_snapshot"] = entry_gate_snapshot
-        _conf_symbol = str(intent.get("symbol") or "").upper()
-        _conf_timeframe = str(intent.get("timeframe") or intent.get("thesis_timeframe") or "1m")
+        _raw_conf_symbol = intent.get("symbol")
+        _conf_symbol = (
+            _raw_conf_symbol.upper() if type(_raw_conf_symbol) is str else ""
+        )
+        _raw_conf_timeframe = _first_present(
+            intent.get("timeframe"),
+            intent.get("thesis_timeframe"),
+            "1m",
+        )
+        _conf_timeframe = (
+            _raw_conf_timeframe if type(_raw_conf_timeframe) is str else ""
+        )
         _conf_cache_key = (_conf_symbol, _conf_timeframe)
         if _conf_cache_key not in _altdata_confluence_cache:
-            _altdata_confluence_cache[_conf_cache_key] = _read_json_key(
-                r, f"v2:altdata:confluence:{_conf_symbol}:{_conf_timeframe}"
+            _altdata_confluence_cache[_conf_cache_key] = (
+                _paper_canonical_altdata_context(
+                    r,
+                    symbol=_conf_symbol,
+                    timeframe=_conf_timeframe,
+                )
             )
-        candidate_altdata_lineage = _altdata_provider_lineage(
-            r,
-            symbol=_conf_symbol,
-            timeframe=_conf_timeframe,
-            confluence=_altdata_confluence_cache[_conf_cache_key],
+        _canonical_altdata, _canonical_altdata_lineage = (
+            _altdata_confluence_cache[_conf_cache_key]
         )
-        intent.update(candidate_altdata_lineage)
+        intent.update(_canonical_altdata_lineage)
         market_microstructure = _read_v2_orderbook_microstructure(r, symbol)
         long_short_evidence = _read_v2_long_short_ratio_evidence(r, symbol)
         intent["long_short_lookup_observed_at"] = _utc_iso()
@@ -44975,6 +44985,30 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             _target["paper_exploration_regime_advisory_notional_shrink_factor"] = (
                 exploration_bucket_policy["notional_shrink_factor"]
             )
+        _raw_conf_symbol = intent.get("symbol")
+        _conf_symbol = (
+            _raw_conf_symbol.upper() if type(_raw_conf_symbol) is str else ""
+        )
+        _raw_conf_timeframe = _first_present(
+            intent.get("timeframe"),
+            intent.get("thesis_timeframe"),
+            "1m",
+        )
+        _conf_timeframe = (
+            _raw_conf_timeframe if type(_raw_conf_timeframe) is str else ""
+        )
+        _conf_cache_key = (_conf_symbol, _conf_timeframe)
+        if _conf_cache_key not in _altdata_confluence_cache:
+            _altdata_confluence_cache[_conf_cache_key] = (
+                _paper_canonical_altdata_context(
+                    r,
+                    symbol=_conf_symbol,
+                    timeframe=_conf_timeframe,
+                )
+            )
+        _canonical_altdata, _canonical_altdata_lineage = (
+            _altdata_confluence_cache[_conf_cache_key]
+        )
         preemptive_runtime_decision_time = _utc_iso()
         preemptive_decision = evaluate_preemptive_candidate(
             intent,
@@ -44983,11 +45017,11 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
             bucket_quarantine_status=pre_cycle_bucket_quarantine_status,
             allow_positive_edge_probation=True,
             allow_paper_risk_controller_exploration=True,
-            altdata_confluence=_altdata_confluence_cache[_conf_cache_key] or None,
+            altdata_confluence=_canonical_altdata,
             adaptive_tuning_state=_adaptive_tuning_state,
             decision_time=preemptive_runtime_decision_time,
         )
-        preemptive_decision.update(candidate_altdata_lineage)
+        preemptive_decision.update(_canonical_altdata_lineage)
         _apply_preemptive_decision_context(
             intent=intent,
             allocation=allocation_payload,
@@ -47170,16 +47204,7 @@ def run_once(*, behavior_receipt_archive_root: Path | None = None) -> dict:
                     "altdata_wallet_distribution_score",
                     "altdata_liquidation_sweep_risk_score",
                     "altdata_social_euphoria_risk_score",
-                    "altdata_feature_cutoff",
-                    "altdata_available_at",
-                    "altdata_providers_present",
-                    "provider_features_used",
-                    "provider_features_missing",
-                    "coinglass_feature_hash",
-                    "santiment_feature_hash",
-                    "moralis_feature_hash",
-                    "altdata_confluence_hash",
-                    "altdata_provider_hash_source",
+                    *CANONICAL_ALTDATA_DECISION_CONTEXT_FIELDS,
                     "routes_to_live",
                     "places_real_order",
                     "candidate_id",
