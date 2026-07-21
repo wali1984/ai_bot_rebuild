@@ -3,7 +3,11 @@ const meta: PageMeta = {
   id: 'monitor-center',
   title: 'Monitor Center',
   surface: 'admin',
-  description: 'Every monitor script with owner, status, evidence, and rejection state per CLAUDE.md.',
+  // Honest scope: this surface covers page/route coverage, data surfaces,
+  // realtime streams, and build status. It does NOT yet carry the CLAUDE.md
+  // monitor-script inventory (no monitor-script registry payload exists) — do
+  // not promise it here until that surface ships (final field audit).
+  description: 'Page/route coverage, data-surface and realtime-stream health, and build status. Monitor-script inventory not yet wired.',
   navCategory: 'observability',
   dangerousControlIds: [],
 };
