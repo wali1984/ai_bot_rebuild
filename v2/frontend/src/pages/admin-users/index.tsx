@@ -8,8 +8,10 @@ const TABS = ['Users', 'Roles'] as const;
 type Tab = typeof TABS[number];
 const SC = { ok: '#22c55e', warn: '#f59e0b', error: '#ef4444', unknown: '#6b7280', info: '#60a5fa' };
 
-interface User { id: string; email: string; role: string; status: string; created_at: string | null; last_login_at: string | null; session_count: number; }
-interface UsersPayload { users?: User[]; total?: number; active_sessions?: number; }
+// Backend sends session_count: null honestly — auth is stateless JWT, so
+// per-user live sessions are not tracked (session_tracking flag below).
+interface User { id: string; email: string; role: string; status: string; created_at: string | null; last_login_at: string | null; session_count: number | null; }
+interface UsersPayload { users?: User[]; total?: number; active_sessions?: number | null; active_users?: number; session_tracking?: string; }
 
 const ROLE_LEVELS = ['guest', 'viewer', 'trader', 'admin', 'superadmin'] as const;
 function roleColor(role: string) {
@@ -38,11 +40,13 @@ export default function AdminUsersPage(): JSX.Element {
 
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+        {/* When the endpoint has not returned data (error/403), render '—' —
+            a zero here would falsely assert a zero-user system. */}
         {[
-          { label: 'TOTAL USERS', value: String(data?.total ?? users.length) },
-          { label: 'ACTIVE SESSIONS', value: String(data?.active_sessions ?? '—') },
-          { label: 'ADMINS', value: String(users.filter(u => u.role === 'admin' || u.role === 'superadmin').length) },
-          { label: 'ACTIVE', value: String(users.filter(u => u.status === 'active').length) },
+          { label: 'TOTAL USERS', value: data ? String(data.total ?? users.length) : '—' },
+          { label: 'ACTIVE SESSIONS', value: data?.active_sessions != null ? String(data.active_sessions) : data?.session_tracking === 'not_tracked_stateless_jwt' ? 'NOT TRACKED' : '—' },
+          { label: 'ADMINS', value: data ? String(users.filter(u => u.role === 'admin' || u.role === 'superadmin').length) : '—' },
+          { label: 'ACTIVE', value: data ? String(data.active_users ?? users.filter(u => u.status === 'active').length) : '—' },
         ].map(({ label, value }) => (
           <div key={label} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--admin-border)', display: 'flex', flexDirection: 'column', gap: 3 }}>
             <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
@@ -78,8 +82,8 @@ export default function AdminUsersPage(): JSX.Element {
                 <span style={{ padding: '2px 8px', borderRadius: 4, background: u.status === 'active' ? `${SC.ok}18` : `${SC.unknown}18`, border: `1px solid ${u.status === 'active' ? SC.ok : SC.unknown}33`, color: u.status === 'active' ? SC.ok : SC.unknown, fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
                   {u.status.toUpperCase()}
                 </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
-                  {u.session_count > 0 ? `${u.session_count} sessions` : 'no sessions'}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }} title={u.session_count == null ? (data?.session_tracking ?? 'sessions not tracked (stateless JWT)') : undefined}>
+                  {u.session_count == null ? 'sessions not tracked' : u.session_count > 0 ? `${u.session_count} sessions` : 'no sessions'}
                 </span>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   {u.last_login_at ? relativeAge(u.last_login_at) : 'never'}
