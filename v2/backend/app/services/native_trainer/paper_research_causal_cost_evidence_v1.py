@@ -29,6 +29,7 @@ import hmac
 import json
 import math
 import re
+import secrets
 import struct
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -106,6 +107,7 @@ _LABEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._/@+-]{0,511}$", re.ASCII)
 _FEE_DECIMAL_RE = re.compile(r"^(?:0|[1-9][0-9]{0,5})(?:\.[0-9]{1,12})?$", re.ASCII)
 _SIGNATURE_RE = re.compile(r"^[0-9a-f]{128}$", re.ASCII)
 _CONSTRUCTION_TOKEN = object()
+_RESULT_FACTORY_SEAL_KEY = secrets.token_bytes(32)
 # Serialization/resource and Ed25519 wire-format invariants only. These are
 # not market, edge, freshness, risk, leverage, margin, or admission thresholds.
 _MAX_SOURCE_DOCUMENT_BYTES = 2 * 1024 * 1024
@@ -836,6 +838,73 @@ def _research_composite_receipt(
     return {**material, "receipt_sha256": _sha256(material)}
 
 
+def _result_factory_seal(
+    *,
+    artifact_sha256: str,
+    artifact_json: str,
+    artifact_address: SourcePayloadAddress,
+    ordered_values: tuple[float, float, float, float],
+    ordered_receipt_sha256s: tuple[str, str, str, str],
+    store: ImmutableSourcePayloadStore,
+    exact_objects: tuple[tuple[SourcePayloadAddress, bytes], ...],
+    fee_attestation_bytes: bytes,
+    fee_material_json: str,
+    registry_public_key_bytes: bytes,
+    registry_public_key_sha256: str,
+    expected_trust_anchor_id: str,
+    expected_fee_source_revision: str,
+    notional_policy_token: CausalExpectedNotionalPolicyTokenV1,
+) -> str:
+    """Seal one ephemeral factory result against coherent in-memory replacement.
+
+    The seal is deliberately process-local and is not an external signature or
+    restart-persistent witness.  Persistent authority remains false.  Its only
+    purpose is to ensure that ``dataclasses.replace`` cannot manufacture a new
+    internally coherent result while retaining the module construction token.
+    """
+
+    notional_contract = notional_policy_token.contract
+    material = {
+        "schema_version": "paper_research_cost_result_factory_seal_v1",
+        "artifact_sha256": artifact_sha256,
+        "artifact_json_sha256": hashlib.sha256(artifact_json.encode("ascii")).hexdigest(),
+        "artifact_json_byte_count": len(artifact_json.encode("ascii")),
+        "artifact_address": _address_mapping(artifact_address),
+        "ordered_values_float_hex": [value.hex() for value in ordered_values],
+        "ordered_receipt_sha256s": list(ordered_receipt_sha256s),
+        "store_process_identity": id(store),
+        "exact_objects": [
+            {
+                "address": _address_mapping(address),
+                "retained_payload_sha256": hashlib.sha256(payload).hexdigest(),
+                "retained_payload_byte_count": len(payload),
+            }
+            for address, payload in exact_objects
+        ],
+        "fee_attestation_sha256": hashlib.sha256(fee_attestation_bytes).hexdigest(),
+        "fee_attestation_byte_count": len(fee_attestation_bytes),
+        "fee_material_json_sha256": hashlib.sha256(fee_material_json.encode("ascii")).hexdigest(),
+        "fee_material_json_byte_count": len(fee_material_json.encode("ascii")),
+        "registry_public_key_sha256_from_bytes": hashlib.sha256(
+            registry_public_key_bytes
+        ).hexdigest(),
+        "registry_public_key_byte_count": len(registry_public_key_bytes),
+        "registry_public_key_sha256": registry_public_key_sha256,
+        "expected_trust_anchor_id": expected_trust_anchor_id,
+        "expected_fee_source_revision": expected_fee_source_revision,
+        "notional_policy_token_process_identity": id(notional_policy_token),
+        "notional_policy_contract_sha256": _sha256(notional_contract),
+    }
+    return hmac.new(
+        _RESULT_FACTORY_SEAL_KEY,
+        _canonical_bytes(
+            material,
+            reason="PAPER_RESEARCH_COST_RESULT_FACTORY_SEAL_MATERIAL_INVALID",
+        ),
+        hashlib.sha256,
+    ).hexdigest()
+
+
 @dataclass(frozen=True, slots=True)
 class PaperResearchCausalCostEvidenceV1Result:
     """Factory-built research artifact; every property reopens CAS and signature."""
@@ -860,6 +929,7 @@ class PaperResearchCausalCostEvidenceV1Result:
         repr=False,
         compare=False,
     )
+    _factory_seal: str = field(repr=False, compare=False)
     _construction_token: object = field(repr=False, compare=False)
 
     @property
@@ -1268,27 +1338,48 @@ def build_paper_research_causal_cost_evidence_v1(
         artifact_bytes,
         reason="PAPER_RESEARCH_COST_ARTIFACT_CAS_FAILED",
     )
+    exact_objects = (*source_exact_objects, (artifact_address, artifact_bytes))
+    ordered_values = cast(tuple[float, float, float, float], tuple(values))
+    ordered_receipt_sha256s = cast(
+        tuple[str, str, str, str],
+        tuple(item["receipt_sha256"] for item in receipts),
+    )
+    fee_attestation_bytes = cast(bytes, fee_schedule_signed_attestation)
+    registry_public_key_bytes = cast(bytes, fee_schedule_registry_public_key_bytes)
+    registry_public_key_sha256 = cast(str, fee_schedule_registry_public_key_sha256)
+    expected_trust_anchor_id = cast(str, fee_schedule_expected_trust_anchor_id)
+    expected_fee_source_revision = cast(str, fee_schedule_expected_source_revision)
     result = PaperResearchCausalCostEvidenceV1Result(
         artifact_sha256=artifact_address.payload_sha256,
         artifact_json=artifact_bytes.decode("ascii"),
         artifact_address=artifact_address,
-        ordered_values=cast(tuple[float, float, float, float], tuple(values)),
-        ordered_receipt_sha256s=cast(
-            tuple[str, str, str, str],
-            tuple(item["receipt_sha256"] for item in receipts),
-        ),
+        ordered_values=ordered_values,
+        ordered_receipt_sha256s=ordered_receipt_sha256s,
         _store=store,
-        _exact_objects=(*source_exact_objects, (artifact_address, artifact_bytes)),
-        _fee_attestation_bytes=cast(bytes, fee_schedule_signed_attestation),
+        _exact_objects=exact_objects,
+        _fee_attestation_bytes=fee_attestation_bytes,
         _fee_material_json=fee_material_json,
-        _registry_public_key_bytes=cast(bytes, fee_schedule_registry_public_key_bytes),
-        _registry_public_key_sha256=cast(str, fee_schedule_registry_public_key_sha256),
-        _expected_trust_anchor_id=cast(str, fee_schedule_expected_trust_anchor_id),
-        _expected_fee_source_revision=cast(
-            str,
-            fee_schedule_expected_source_revision,
-        ),
+        _registry_public_key_bytes=registry_public_key_bytes,
+        _registry_public_key_sha256=registry_public_key_sha256,
+        _expected_trust_anchor_id=expected_trust_anchor_id,
+        _expected_fee_source_revision=expected_fee_source_revision,
         _notional_policy_token=notional_token,
+        _factory_seal=_result_factory_seal(
+            artifact_sha256=artifact_address.payload_sha256,
+            artifact_json=artifact_bytes.decode("ascii"),
+            artifact_address=artifact_address,
+            ordered_values=ordered_values,
+            ordered_receipt_sha256s=ordered_receipt_sha256s,
+            store=store,
+            exact_objects=exact_objects,
+            fee_attestation_bytes=fee_attestation_bytes,
+            fee_material_json=fee_material_json,
+            registry_public_key_bytes=registry_public_key_bytes,
+            registry_public_key_sha256=registry_public_key_sha256,
+            expected_trust_anchor_id=expected_trust_anchor_id,
+            expected_fee_source_revision=expected_fee_source_revision,
+            notional_policy_token=notional_token,
+        ),
         _construction_token=_CONSTRUCTION_TOKEN,
     )
     _validated_result(result)
@@ -1307,6 +1398,38 @@ def _validated_result(
         or not result._exact_objects
     ):
         _integrity("PAPER_RESEARCH_COST_RESULT_FACTORY_CONSTRUCTION_REQUIRED")
+    try:
+        expected_factory_seal = _result_factory_seal(
+            artifact_sha256=result.artifact_sha256,
+            artifact_json=result.artifact_json,
+            artifact_address=result.artifact_address,
+            ordered_values=result.ordered_values,
+            ordered_receipt_sha256s=result.ordered_receipt_sha256s,
+            store=result._store,
+            exact_objects=result._exact_objects,
+            fee_attestation_bytes=result._fee_attestation_bytes,
+            fee_material_json=result._fee_material_json,
+            registry_public_key_bytes=result._registry_public_key_bytes,
+            registry_public_key_sha256=result._registry_public_key_sha256,
+            expected_trust_anchor_id=result._expected_trust_anchor_id,
+            expected_fee_source_revision=result._expected_fee_source_revision,
+            notional_policy_token=result._notional_policy_token,
+        )
+    except (
+        AttributeError,
+        CausalExpectedNotionalPolicyV1Error,
+        PaperResearchCausalCostEvidenceV1Error,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        raise PaperResearchCausalCostEvidenceV1IntegrityError(
+            "PAPER_RESEARCH_COST_RESULT_FACTORY_SEAL_RECOMPUTE_FAILED"
+        ) from exc
+    if not _valid_sha256(result._factory_seal) or not hmac.compare_digest(
+        result._factory_seal, expected_factory_seal
+    ):
+        _integrity("PAPER_RESEARCH_COST_RESULT_FACTORY_SEAL_INVALID")
     for address, payload in result._exact_objects:
         if type(address) is not SourcePayloadAddress or type(payload) is not bytes:
             _integrity("PAPER_RESEARCH_COST_RESULT_CAS_OBJECT_BINDING_INVALID")

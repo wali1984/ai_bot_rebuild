@@ -128,8 +128,12 @@ fee, notional, and read-receipt CAS address (schema, SHA-256, byte count, and
 relative path), plus an inventory count and digest. Every result access requires
 the retained object inventory to match that artifact-bound inventory and then
 reopens every object. A caller cannot omit a damaged source object while
-retaining only the final artifact. The values are explicitly label-only and are
-never model input slots.
+retaining only the final artifact. An ephemeral keyed factory seal additionally
+binds all result fields and retained objects for that Python process, preventing
+a coherent `dataclasses.replace` reconstruction from inheriting the factory
+construction token. This seal is not a persistent signature or external
+witness and grants no downstream authority. The values are explicitly
+label-only and are never model input slots.
 
 ## Authority matrix
 
@@ -209,5 +213,6 @@ The adversarial unit suite covers:
 - account-authority and JSON boolean/integer type-confusion claims;
 - expired market-source PTTL and future mark clocks;
 - forged causal-notional factory tokens;
-- CAS mutation, source-inventory omission, and result scalar substitution; and
+- CAS mutation, source-inventory omission, scalar substitution, and coherent
+  artifact/result reconstruction; and
 - exact-type rejection by the profiled enrichment path.
