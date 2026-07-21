@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from v2.backend.app.cli.v2_strategy_supply_publish_hypotheses import (
@@ -24,6 +25,13 @@ class FakeRedis:
 
 
 def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
+    now = datetime.now(UTC)
+
+    def _utc(seconds_ago: int) -> str:
+        return (now - timedelta(seconds=seconds_ago)).isoformat(
+            timespec="microseconds"
+        ).replace("+00:00", "Z")
+
     return {
         f"v2:orderbook:top:binance:{symbol}": {
             "best_bid": 60000.0,
@@ -46,11 +54,24 @@ def _runtime_keys(symbol: str = "BTCUSDT") -> dict[str, object]:
             "atr_bps": 40.0,
         },
         f"v2:features:coinglass:{symbol}:1m": {
+            "schema_version": "coinglass_aggregated_feature_payload_v2",
+            "provider": "coinglass",
+            "symbol": symbol,
+            "timeframe": "1m",
+            "feature_cutoff": _utc(30),
+            "available_at": _utc(2),
+            "generated_at": _utc(1),
+            "actual_payload_present": True,
+            "provider_ready": True,
+            "decision_time_safe": True,
+            "temporal_contract_valid": True,
             "features": {
                 "coinglass_funding_rate_zscore": 2.4,
                 "coinglass_long_ratio": 0.72,
                 "coinglass_long_short_extreme_score": 0.8,
             },
+            "missing_feature_flags": [],
+            "stale_feature_flags": [],
         },
         f"v2:microstructure:trust_score:{symbol}:1m": {
             "microstructure_trust_score": 0.74,
