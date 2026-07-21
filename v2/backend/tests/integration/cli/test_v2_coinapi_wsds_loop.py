@@ -1755,6 +1755,11 @@ def test_invalid_ws_subscription_type_is_typed_before_session_open(
             wsds.MAX_WS_HEARTBEAT_SECONDS + 1.0,
             "INVALID_HEARTBEAT_INTERVAL_SECONDS",
         ),
+        (
+            "heartbeat_interval_seconds",
+            31.0,
+            "HEARTBEAT_INTERVAL_EXCEEDS_HALF_TTL",
+        ),
         ("max_seconds_per_session", math.inf, "INVALID_MAX_SECONDS_PER_SESSION"),
         ("max_seconds_per_session", 0.0, "INVALID_MAX_SECONDS_PER_SESSION"),
         (
@@ -2267,7 +2272,7 @@ def test_ws_retry_after_and_credential_rotation_are_bounded_and_nonsecret() -> N
     assert wsds._auth_latch_key("first-secret") != wsds._auth_latch_key("second-secret")
 
 
-def test_connected_ws_durable_provider_reprobe_never_uses_sub_30_second_window(
+def test_connected_ws_durable_reprobe_refreshes_optional_heartbeat_without_reconnect(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -2275,6 +2280,8 @@ def test_connected_ws_durable_provider_reprobe_never_uses_sub_30_second_window(
     client = StatefulRedis()
     session_calls = 0
     sleep_delays: list[float] = []
+    published_payloads: list[dict[str, Any]] = []
+    original_publish_status = wsds._publish_status
 
     async def provider_rejection(**kwargs: object) -> dict[str, Any]:
         nonlocal session_calls
@@ -2294,16 +2301,22 @@ def test_connected_ws_durable_provider_reprobe_never_uses_sub_30_second_window(
             },
         }
 
-    async def stop_after_backoff(delay: float) -> None:
+    def capture_status(payload: dict[str, Any], *args: object, **kwargs: object) -> bool:
+        published_payloads.append(json.loads(json.dumps(payload)))
+        return original_publish_status(payload, *args, **kwargs)  # type: ignore[arg-type]
+
+    async def stop_after_two_heartbeats(delay: float) -> None:
         sleep_delays.append(delay)
-        args.total_seconds = 0.0
+        if len(sleep_delays) == 2:
+            args.total_seconds = 0.0
 
     monkeypatch.delenv(wsds.AUTH_LATCH_RESET_ENV, raising=False)
     monkeypatch.delenv("COINAPI_WSDS_URL", raising=False)
     monkeypatch.delenv("COINAPI_PRIMARY_EXCHANGE_ID", raising=False)
     monkeypatch.delenv("COINAPI_SUBSCRIBE_DATA_TYPES", raising=False)
     monkeypatch.setattr(wsds, "_run_session", provider_rejection)
-    monkeypatch.setattr(wsds.asyncio, "sleep", stop_after_backoff)
+    monkeypatch.setattr(wsds, "_publish_status", capture_status)
+    monkeypatch.setattr(wsds.asyncio, "sleep", stop_after_two_heartbeats)
 
     asyncio.run(
         wsds._run_connected_loop(
@@ -2315,11 +2328,24 @@ def test_connected_ws_durable_provider_reprobe_never_uses_sub_30_second_window(
     )
 
     assert session_calls == 1
-    assert len(sleep_delays) == 1
-    assert sleep_delays[0] >= wsds.MIN_OPTIONAL_REPROBE_SECONDS - 0.1
+    assert len(sleep_delays) == 2
+    assert all(
+        0.0 < delay <= args.heartbeat_interval_seconds
+        for delay in sleep_delays
+    )
+    assert len(published_payloads) == 2
+    assert all(payload["trainer_consumable"] is False for payload in published_payloads)
+    assert all(payload["provider_data_usable"] is False for payload in published_payloads)
+    assert all(payload["typed_missing"] is True for payload in published_payloads)
+    assert published_payloads[-1]["blocked_reason"] == (
+        "AWAITING_DURABLE_OPTIONAL_REPROBE_WINDOW"
+    )
     assert len(client.auth_records) == 1
     stored = json.loads(next(iter(client.auth_records.values()))["payload"])
     assert stored["next_probe_at_ns"] - stored["revision_ns"] == 30_000_000_000
+    assert published_payloads[-1]["provider_health"]["next_probe_at_ns"] == stored[
+        "next_probe_at_ns"
+    ]
 
 
 def test_cadence_namespace_rotation_does_not_require_deleting_old_evidence() -> None:

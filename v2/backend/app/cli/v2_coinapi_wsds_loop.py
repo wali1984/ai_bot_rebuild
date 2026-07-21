@@ -667,6 +667,10 @@ def _runtime_config_error(args: argparse.Namespace) -> str | None:
     for name, value, minimum, maximum in integer_ranges:
         if type(value) is not int or not (minimum <= value <= maximum):
             return f"INVALID_{name.upper()}"
+    heartbeat_seconds = float(getattr(args, "heartbeat_interval_seconds", 30.0))
+    ttl_seconds = int(getattr(args, "ttl_seconds", 300))
+    if heartbeat_seconds > ttl_seconds / 2.0:
+        return "HEARTBEAT_INTERVAL_EXCEEDS_HALF_TTL"
     return None
 
 
@@ -4122,7 +4126,13 @@ async def _run_connected_loop(
         if backoff_seconds is not None:
             remaining = float(args.total_seconds) - (time.monotonic() - total_started)
             if remaining > 0:
-                await asyncio.sleep(min(backoff_seconds, remaining))
+                await asyncio.sleep(
+                    min(
+                        backoff_seconds,
+                        max(0.001, float(args.heartbeat_interval_seconds)),
+                        remaining,
+                    )
+                )
     return aggregate
 
 
