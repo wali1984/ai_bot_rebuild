@@ -978,6 +978,131 @@ def test_universe_sweep_only_touches_v2_keys():
     assert reader.non_v2_read_attempts == 0
 
 
+@pytest.mark.parametrize("mutation", ["stale", "future", "identity", "nan"])
+def test_universe_dataset_masks_unauthenticated_provider_bridges_without_blocking_base(
+    mutation: str,
+):
+    class _RecordingClient(_InMemoryClient):
+        def __init__(self):
+            super().__init__()
+            self.get_calls: list[str] = []
+
+        def get(self, key):
+            self.get_calls.append(key)
+            return super().get(key)
+
+    client = _RecordingClient()
+    snapshot_id = f"provider-mask-{mutation}"
+    client.set(
+        "v2:features:latest:BTCUSDT:1m",
+        json.dumps(
+            {
+                "feature_snapshot_id": snapshot_id,
+                "freshness_state": "FRESH",
+            }
+        ),
+    )
+    client.set(
+        "v2:features:ta:BTCUSDT:1m",
+        json.dumps(
+            {
+                "indicators": {
+                    "ema_9": 101.0,
+                    "ema_21": 100.0,
+                    "rsi_14": 55.0,
+                }
+            }
+        ),
+    )
+    base_altdata = {
+        "schema_version": "v2_alternative_data_symbol_score_v2",
+        "symbol": "BTCUSDT",
+        "altdata_symbol_score": 0.71,
+        "provider_available": {"public_intel": True},
+        "input_presence": {"public_intel": True},
+    }
+    client.set(
+        "v2:altdata:symbol_score:BTCUSDT",
+        json.dumps(base_altdata),
+    )
+    provider_payload = {
+        "schema_version": "raw_provider_fixture_v1",
+        "provider": "moralis",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "feature_cutoff": "2026-06-19T11:59:00Z",
+        "available_at": "2026-06-19T11:59:58Z",
+        "generated_at": "2026-06-19T11:59:59Z",
+        "features": {
+            "moralis_net_exchange_flow_usd": 999_999_999.0,
+            "altdata_trade_block_score": 1.0,
+            "altdata_confluence_long_score": 1.0,
+        },
+    }
+    if mutation == "stale":
+        provider_payload.update(
+            {
+                "feature_cutoff": "2020-01-01T00:00:00Z",
+                "available_at": "2020-01-01T00:00:01Z",
+                "generated_at": "2020-01-01T00:00:02Z",
+            }
+        )
+    elif mutation == "future":
+        provider_payload.update(
+            {
+                "feature_cutoff": "2099-01-01T00:00:00Z",
+                "available_at": "2099-01-01T00:00:01Z",
+                "generated_at": "2099-01-01T00:00:02Z",
+            }
+        )
+    elif mutation == "identity":
+        provider_payload.update(
+            {
+                "provider": "forged-provider",
+                "symbol": "ETHUSDT",
+                "timeframe": "4h",
+            }
+        )
+    elif mutation == "nan":
+        provider_payload["features"] = {
+            "moralis_net_exchange_flow_usd": float("nan"),
+            "altdata_trade_block_score": float("nan"),
+            "altdata_confluence_long_score": float("nan"),
+        }
+    client.set(
+        "v2:features:moralis:BTCUSDT:1m",
+        json.dumps(provider_payload),
+    )
+    client.set(
+        "v2:altdata:confluence:BTCUSDT:1m",
+        json.dumps(provider_payload),
+    )
+
+    label = _label_row(
+        snapshot_id,
+        "true_positive_after_cost_gain",
+        12.0,
+    )
+    result = build_dataset_for_universe(
+        reader=V2OnlyReader(client=client),
+        label_rows_by_snapshot={snapshot_id: label},
+        universe=["BTCUSDT"],
+        timeframes=["1m"],
+    )
+    row = result.rows[0]
+
+    assert row.classification == ROW_TRAINABLE
+    assert row.accepted_for_training is True
+    assert row.feature_vector["altdata_symbol_score"] == 0.71
+    assert row.feature_vector["moralis_net_exchange_flow_usd"] is None
+    assert row.feature_vector["altdata_trade_block_score"] is None
+    assert row.feature_vector["altdata_confluence_long_score"] is None
+    assert row.missing_feature_flags == []
+    assert row.altdata_context == base_altdata
+    assert "v2:features:moralis:BTCUSDT:1m" not in client.get_calls
+    assert "v2:altdata:confluence:BTCUSDT:1m" not in client.get_calls
+
+
 def test_universe_sweep_defaults_to_dynamic_symbol_resolver(monkeypatch):
     monkeypatch.setattr(
         dataset_builder_module,
