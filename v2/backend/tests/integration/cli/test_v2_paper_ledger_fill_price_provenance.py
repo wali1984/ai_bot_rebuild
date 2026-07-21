@@ -866,11 +866,9 @@ def test_run_once_models_slippage_and_derives_squeeze_evidence_when_sources_pres
     assert accepted["expected_slippage_bps"] != 2.0
     assert accepted["squeeze_evidence_source"] == "DIRECT_SQUEEZE_OR_MAJOR_MOVE_EVIDENCE_SCORE"
     assert accepted["squeeze_evidence_score"] > 0.0
-    # KNOWN GAP (2026-07-16, paper-loop owner): the high-confidence (0.65+)
-    # fast path accepts fills before the downstream squeeze enrichment runs,
-    # so squeeze_evidence_components may be absent on fast-path accepted rows
-    # even though score+source are sourced. When components ARE attached, the
-    # DIRECT path must expose a positive direct_score.
+    # The retired high-confidence fast path can no longer skip the binding
+    # boundary. Compact accepted-state projection may omit component detail;
+    # when retained, the direct component must agree with the sourced score.
     components = accepted.get("squeeze_evidence_components")
     if components is not None:
         assert components.get("direct_score", 0.0) > 0.0
@@ -906,11 +904,9 @@ def test_run_once_directional_collapse_blocks_new_majority_side_fill(monkeypatch
             "orchestrator_decision_id": "orch_directional_guard",
             "signal_id": "sig_directional_guard",
             "feature_snapshot_id": "fs_directional_guard",
-            # Below the 0.65 fast-path admission band: the high-confidence
-            # fast path (2026-07-16 execution restructure) bypasses the
-            # downstream directional-collapse guard entirely, so this test
-            # pins the guarded (non-fast-path) route. The 0.65+ bypass is a
-            # known paper-loop-owner gap tracked outside this test.
+            # Keep the original confidence fixture for regression continuity;
+            # the retired fast path can no longer bypass the directional gate
+            # at this or any higher confidence.
             "confidence_calibrated": 0.6,
             "bid_ask_spread_bps": 1.2,
             "slippage_bps": 0.8,
