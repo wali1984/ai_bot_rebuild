@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from app.services.altdata.altdata_confluence_engine import (
+from .altdata_confluence_engine import (
     FRESHNESS_SECONDS_BY_PROVIDER,
     ProviderInput,
 )

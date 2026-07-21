@@ -18,8 +18,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from app.services.altdata.altdata_confluence_engine import build_confluence
-
+from v2.backend.app.services.altdata.altdata_confluence_engine import build_confluence
 from v2.backend.app.services.altdata.provider_feature_bridge import (
     load_coinank_input,
     load_coinglass_input,

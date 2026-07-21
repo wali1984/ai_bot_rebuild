@@ -224,6 +224,43 @@ def test_coinglass_requires_exact_temporal_and_identity_contract() -> None:
     assert load_coinglass_input(redis, "BTCUSDT", "1m").present is False
 
 
+def test_provider_loader_returns_exact_engine_type_in_each_package_namespace() -> None:
+    from v2.backend.app.services.altdata import (
+        altdata_confluence_engine as v2_confluence_engine,
+    )
+    from v2.backend.app.services.altdata import (
+        provider_feature_bridge as v2_provider_bridge,
+    )
+
+    redis = FakeRedis()
+    redis.set_payload("v2:features:coinglass:BTCUSDT:1m", _coinglass_payload())
+
+    app_loaded = load_coinglass_input(redis, "BTCUSDT", "1m")
+    assert type(app_loaded) is ProviderInput
+    app_confluence = confluence_engine.build_confluence(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        coinglass=app_loaded,
+        moralis=ProviderInput(provider="moralis", present=False),
+        generated_utc=_utc(datetime.now(UTC) - timedelta(seconds=3)),
+    )
+    assert app_confluence["providers_invalid"] == []
+
+    v2_loaded = v2_provider_bridge.load_coinglass_input(redis, "BTCUSDT", "1m")
+    assert type(v2_loaded) is v2_confluence_engine.ProviderInput
+    v2_confluence = v2_confluence_engine.build_confluence(
+        symbol="BTCUSDT",
+        timeframe="1m",
+        coinglass=v2_loaded,
+        moralis=v2_confluence_engine.ProviderInput(
+            provider="moralis",
+            present=False,
+        ),
+        generated_utc=_utc(datetime.now(UTC) - timedelta(seconds=3)),
+    )
+    assert v2_confluence["providers_invalid"] == []
+
+
 def test_coinglass_rejects_malformed_feature_flag_collections() -> None:
     redis = FakeRedis()
     payload = _coinglass_payload()

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -493,3 +495,50 @@ def test_fresh_exact_coinglass_v2_flows_with_causal_clocks(
     assert lineage["confluence"]["feature_cutoff"] == payload["feature_cutoff"]
     assert lineage["confluence"]["providers_present"] == ["coinglass"]
     assert raw_confluence_key not in redis.get_calls
+
+
+def test_isolated_release_imports_one_v2_confluence_type_origin(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[5]
+    probe = f"""
+import json
+import pathlib
+import sys
+
+sys.path.insert(0, {json.dumps(str(repo_root))})
+from v2.backend.app.cli import v2_cascade_context_publisher as cascade
+from v2.backend.app.services.altdata import altdata_confluence_engine as engine
+from v2.backend.app.services.altdata import provider_feature_bridge as bridge
+
+print(json.dumps({{
+    "bridge_file": str(pathlib.Path(bridge.__file__).resolve()),
+    "engine_file": str(pathlib.Path(engine.__file__).resolve()),
+    "cascade_file": str(pathlib.Path(cascade.__file__).resolve()),
+    "provider_type_module": bridge.ProviderInput.__module__,
+    "builder_module": cascade.build_confluence.__module__,
+    "same_provider_type": bridge.ProviderInput is engine.ProviderInput,
+    "same_builder": cascade.build_confluence is engine.build_confluence,
+    "top_level_engine_loaded": (
+        "app.services.altdata.altdata_confluence_engine" in sys.modules
+    ),
+}}))
+"""
+    completed = subprocess.run(  # noqa: S603 - fixed interpreter, literal probe
+        [sys.executable, "-I", "-c", probe],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    observed = json.loads(completed.stdout)
+
+    assert observed["same_provider_type"] is True
+    assert observed["same_builder"] is True
+    assert observed["provider_type_module"] == (
+        "v2.backend.app.services.altdata.altdata_confluence_engine"
+    )
+    assert observed["builder_module"] == (
+        "v2.backend.app.services.altdata.altdata_confluence_engine"
+    )
+    assert observed["top_level_engine_loaded"] is False
+    for field in ("bridge_file", "engine_file", "cascade_file"):
+        assert Path(observed[field]).is_relative_to(repo_root)
