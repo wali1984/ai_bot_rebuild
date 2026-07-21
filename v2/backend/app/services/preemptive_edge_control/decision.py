@@ -58,6 +58,9 @@ PREEMPTIVE_INPUT_SCHEMA_VERSION = "preemptive_edge_control_input_v2"
 PREEMPTIVE_INPUT_HASH_ALGORITHM = "sha256(canonical-json-v1)"
 PAPER_RISK_CONTROLLER_EXPLORATION_TIER = "PAPER_RISK_CONTROLLER_EXPLORATION"
 CONSERVATIVE_LOSS_PROBABILITY_THRESHOLD = 0.80
+PAPER_EXACT_ZERO_LOSS_SEMANTICS_CONTROL_FLAG = (
+    "paper_exact_zero_loss_probability_semantics_v1"
+)
 
 
 class PreemptiveReplayError(ValueError):
@@ -502,6 +505,7 @@ def evaluate_candidate(
     altdata_confluence: dict[str, Any] | None = None,
     adaptive_tuning_state: Mapping[str, Any] | None = None,
     decision_time: str | datetime | None = None,
+    _paper_exact_zero_loss_semantics: bool = False,
 ) -> dict[str, Any]:
     """Return a complete pre-entry decision object.
 
@@ -537,6 +541,11 @@ def evaluate_candidate(
         "allow_paper_risk_controller_exploration": (allow_paper_risk_controller_exploration),
         "allow_reduce_or_close": allow_reduce_or_close,
     }
+    if _paper_exact_zero_loss_semantics:
+        # This flag is part of the authenticated input material.  Paper replay
+        # can therefore reproduce exact-zero handling without silently
+        # changing the shared evaluator used by live readiness and transport.
+        control_flags[PAPER_EXACT_ZERO_LOSS_SEMANTICS_CONTROL_FLAG] = True
 
     if not candidate_snapshot:
         decision = "NO_TRADE"
@@ -765,8 +774,13 @@ def evaluate_candidate(
         or (altdata_present and altdata_euphoria is not None and altdata_euphoria >= 0.70)
     )
 
-    parsed_loss_probability = _f(loss.get("pre_trade_loss_probability"))
-    loss_probability = 1.0 if parsed_loss_probability is None else parsed_loss_probability
+    if _paper_exact_zero_loss_semantics:
+        parsed_loss_probability = _f(loss.get("pre_trade_loss_probability"))
+        loss_probability = 1.0 if parsed_loss_probability is None else parsed_loss_probability
+    else:
+        # Preserve the historical shared/live behavior exactly.  Paper-only
+        # exact-zero handling is available only through the paper adapter.
+        loss_probability = _f(loss.get("pre_trade_loss_probability")) or 1.0
     confidence_risk = _f(confidence.get("confidence_overstatement_risk")) or 0.0
     exit_score = _f(exit_plan.get("exit_feasibility_score")) or 0.0
     expected_edge = _f(cost.get("expected_edge_after_cost_bps"))
@@ -995,6 +1009,7 @@ def replay_preemptive_decision(
     input_material: Mapping[str, Any],
     *,
     expected_input_hash: str | None = None,
+    _paper_exact_zero_loss_semantics: bool = False,
 ) -> dict[str, Any]:
     """Re-evaluate one decision solely from its retained immutable inputs.
 
@@ -1038,6 +1053,11 @@ def replay_preemptive_decision(
     )
     if any(type(control_flags.get(field)) is not bool for field in required_control_flags):
         raise PreemptiveReplayError("PREEMPTIVE_REPLAY_CONTROL_FLAGS_INVALID")
+    material_uses_paper_exact_zero = (
+        control_flags.get(PAPER_EXACT_ZERO_LOSS_SEMANTICS_CONTROL_FLAG) is True
+    )
+    if material_uses_paper_exact_zero != _paper_exact_zero_loss_semantics:
+        raise PreemptiveReplayError("PREEMPTIVE_REPLAY_LOSS_SEMANTICS_MISMATCH")
 
     clocks = material_snapshot.get("clocks")
     if not isinstance(clocks, Mapping):
@@ -1086,6 +1106,7 @@ def replay_preemptive_decision(
         altdata_confluence=optional_mapping("altdata_evidence"),
         adaptive_tuning_state=copy.deepcopy(dict(tuning_state)),
         decision_time=decision_time,
+        _paper_exact_zero_loss_semantics=_paper_exact_zero_loss_semantics,
     )
     replayed_material = replayed.get("preemptive_input_material")
     if not isinstance(replayed_material, Mapping):

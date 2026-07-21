@@ -99,10 +99,12 @@ from v2.backend.app.services.preemptive_edge_control.bucket_health import (
 from v2.backend.app.services.preemptive_edge_control.decision import (
     PreemptiveReplayError,
     canonical_preemptive_input_hash,
-    evaluate_candidate as evaluate_preemptive_candidate,
-    replay_preemptive_decision,
     recompute_preemptive_decision_id,
     summarize_decisions as summarize_preemptive_decisions,
+)
+from v2.backend.app.services.paper_trade_management.preemptive_edge_control import (
+    evaluate_paper_candidate as evaluate_preemptive_candidate,
+    replay_paper_preemptive_decision as replay_preemptive_decision,
 )
 from v2.backend.app.services.adaptive_capital_allocator.allocator import (
     PAPER_ALLOCATOR_LIQUIDITY_SOURCE_HASH_LINEAGE_KEY,

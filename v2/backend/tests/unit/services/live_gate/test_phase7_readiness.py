@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import v2.backend.app.services.live_gate.phase7_readiness as phase7_readiness_module
+import v2.backend.app.services.preemptive_edge_control.decision as decision_module
 from v2.backend.app.services.live_gate.phase7_readiness import (
     build_first_live_canary_operator_packet,
     build_live_pre_submit_dry_run_status,
     build_phase7_status_bundle,
 )
+
+
+def test_phase7_keeps_shared_live_preemptive_evaluator() -> None:
+    assert phase7_readiness_module.evaluate_candidate is decision_module.evaluate_candidate
 
 
 def _runtime(*, enabled: bool = True) -> dict[str, object]:

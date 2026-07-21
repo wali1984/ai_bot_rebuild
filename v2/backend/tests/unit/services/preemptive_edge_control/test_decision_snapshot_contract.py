@@ -9,6 +9,10 @@ import pytest
 import redis
 
 import v2.backend.app.services.preemptive_edge_control.decision as decision_module
+from v2.backend.app.services.paper_trade_management.preemptive_edge_control import (
+    evaluate_paper_candidate,
+    replay_paper_preemptive_decision,
+)
 from v2.backend.app.services.preemptive_edge_control.candidate_loss_risk import (
     adaptive_microstructure_trust_threshold,
     assess_candidate_loss_risk,
@@ -143,7 +147,7 @@ def _allow_decision() -> dict[str, object]:
     )
 
 
-def test_exact_zero_loss_probability_is_not_replaced_by_missing_evidence_default(
+def test_shared_live_evaluator_preserves_base_exact_zero_fail_closed_semantics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -158,8 +162,65 @@ def test_exact_zero_loss_probability_is_not_replaced_by_missing_evidence_default
     result = _allow_decision()
 
     assert result["pre_trade_loss_probability"] == 0.0
+    assert result["preemptive_decision"] == "NO_TRADE"
+    assert result["allow_paper_fill"] is False
+    assert (
+        decision_module.PAPER_EXACT_ZERO_LOSS_SEMANTICS_CONTROL_FLAG
+        not in result["preemptive_input_material"]["control_flags"]
+    )
+
+
+def test_paper_adapter_preserves_exact_zero_and_replays_same_semantics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        decision_module,
+        "assess_candidate_loss_risk",
+        lambda **_kwargs: {
+            "pre_trade_loss_probability": 0.0,
+            "pre_trade_loss_risk_reasons": [],
+        },
+    )
+
+    result = evaluate_paper_candidate(
+        _candidate(
+            expected_move_bps=70.0,
+            expected_move_after_cost_bps=60.0,
+            trade_tape_confirmation_score=0.8,
+            cross_venue_confirmation_score=0.8,
+        ),
+        bucket_health=_healthy_bucket_health(),
+        continuous_edge_guardian_gate=GUARDIAN,
+        adaptive_tuning_state=TUNING_STATE,
+        altdata_confluence=copy.deepcopy(ALTDATA),
+        decision_time=DECISION_TIME,
+    )
+
+    assert result["pre_trade_loss_probability"] == 0.0
     assert result["preemptive_decision"] == "ALLOW"
     assert result["allow_paper_fill"] is True
+    assert (
+        result["preemptive_input_material"]["control_flags"][
+            decision_module.PAPER_EXACT_ZERO_LOSS_SEMANTICS_CONTROL_FLAG
+        ]
+        is True
+    )
+
+    replayed = replay_paper_preemptive_decision(
+        result["preemptive_input_material"],
+        expected_input_hash=result["preemptive_input_hash"],
+    )
+
+    assert replayed["preemptive_decision"] == "ALLOW"
+    assert replayed["pre_trade_loss_probability"] == 0.0
+    with pytest.raises(
+        PreemptiveReplayError,
+        match="PREEMPTIVE_REPLAY_LOSS_SEMANTICS_MISMATCH",
+    ):
+        replay_preemptive_decision(
+            result["preemptive_input_material"],
+            expected_input_hash=result["preemptive_input_hash"],
+        )
 
 
 def test_explicit_aware_decision_time_overrides_candidate_model_clock() -> None:

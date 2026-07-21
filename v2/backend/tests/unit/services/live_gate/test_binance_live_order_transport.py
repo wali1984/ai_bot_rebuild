@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[6]))
 import json
 from typing import Any
 
+import v2.backend.app.services.preemptive_edge_control.decision as decision_module
 from v2.backend.app.services.live_gate.binance_live_order_transport import (
     KEY_DEDUPE,
     KEY_KILL_SWITCH,
@@ -180,6 +181,50 @@ def test_position_read_ready_does_not_accept_plain_http_200_as_primary() -> None
         )
         is True
     )
+
+
+def test_transport_uses_shared_live_preemptive_evaluator_without_paper_mode(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    _write_env(tmp_path)
+    redis = RedisLike(
+        [{"symbol": "BTCUSDT", "risk_decision_id": "risk_1", "risk_action": "allow"}]
+    )
+    calls: list[dict[str, Any]] = []
+
+    def shared_live_evaluator(candidate: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        calls.append({"candidate": candidate, "kwargs": kwargs})
+        return {
+            "preemptive_decision": "NO_TRADE",
+            "preemptive_action": "BLOCK_LOSS_PROBABILITY_TOO_HIGH",
+            "preemptive_decision_id": "pec_shared_live_exact_zero",
+            "preemptive_decision_reasons": ["LOSS_PROBABILITY_TOO_HIGH"],
+            "pre_trade_loss_probability": 0.0,
+        }
+
+    monkeypatch.setattr(decision_module, "evaluate_candidate", shared_live_evaluator)
+
+    result = evaluate_live_order_transport(
+        repo_root=tmp_path,
+        signal_status={"published_signals": [_signal()]},
+        trader_status=_trader_status(),
+        runtime_read={
+            "source": "test",
+            "payload": _runtime_payload(),
+            "validation": {"valid": True, "blockers": []},
+        },
+        redis_client=redis,
+        transport=FakeTransport(),
+        dry_run=True,
+    )
+
+    assert len(calls) == 1
+    assert "_paper_exact_zero_loss_semantics" not in calls[0]["kwargs"]
+    preemptive = result["selected_candidate"]["preemptive_edge_control"]
+    assert preemptive["preemptive_decision"] == "NO_TRADE"
+    assert preemptive["pre_trade_loss_probability"] == 0.0
+    assert "PREEMPTIVE_EDGE_CONTROL_NO_TRADE" in result["blockers"]
 
 
 def _write_env(root: Path) -> None:
