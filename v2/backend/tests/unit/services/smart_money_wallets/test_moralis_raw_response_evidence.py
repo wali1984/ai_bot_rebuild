@@ -356,6 +356,47 @@ def test_publisher_binds_exact_body_and_distinct_clocks_without_availability_aut
         assert payload["live_authority"] is False
 
 
+def test_publisher_preserves_valid_raw_json_when_optional_metadata_is_semantically_unsafe() -> None:
+    raw = (
+        b'{"result":[{"block_timestamp":"2026-07-20T11:59:59Z",'
+        b'"token_name":"unsafe\\u200bdisplay-name","value":12.5}]}'
+    )
+    response = _client_response(raw)
+    redis_client = _FakeRedis()
+
+    result = _publish_response(redis_client, response)
+
+    source_key = next(key for key in result["planned_keys"] if key.startswith("v2:moralis:raw:v2:"))
+    source = json.loads(redis_client.data[source_key])
+    endpoint_status = json.loads(redis_client.data["v2:provider:moralis:endpoint_status"])
+    endpoint = endpoint_status["endpoints"]["token_price"]
+
+    assert response.ok is True
+    assert result["raw_response_evidence_bound"] is True
+    assert result["raw_response_evidence_persisted"] is True
+    assert source["raw_response_evidence_bound"] is True
+    # The immutable source body is constructed before its write can be
+    # acknowledged.  Persistence is asserted by the post-write result and
+    # endpoint status, never self-certified inside the source artifact.
+    assert source.get("raw_response_evidence_persisted") is not True
+    assert base64.b64decode(source["raw_response_body_base64"], validate=True) == raw
+    assert source["raw_response_sha256"] == hashlib.sha256(raw).hexdigest()
+    assert source["actual_payload_present"] is False
+    assert source["semantic_payload_present"] is False
+    assert "PAYLOAD_NOT_BOUNDED_CLOSED_JSON" in source["normalization_rejection_reasons"]
+    assert endpoint["raw_response_evidence_bound"] is True
+    assert endpoint["raw_response_evidence_persisted"] is True
+    assert endpoint["source_semantic_claim_count"] == 0
+    for payload in (result, source, endpoint):
+        assert payload["publication_authority"] is False
+        assert payload["trainer_authority"] is False
+        assert payload["prediction_authority"] is False
+        assert payload["risk_authority"] is False
+        assert payload["allocator_authority"] is False
+        assert payload["paper_authority"] is False
+        assert payload["live_authority"] is False
+
+
 def test_publisher_marks_digest_mismatch_unbound_and_never_repairs_the_claim() -> None:
     response = _client_response(b'{"usdPrice":12.5,"block_timestamp":"2026-07-20T11:59:59Z"}')
     redis_client = _FakeRedis()

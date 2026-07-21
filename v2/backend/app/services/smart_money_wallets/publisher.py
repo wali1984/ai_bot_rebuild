@@ -1196,6 +1196,15 @@ def _raw_response_evidence(
     ``httpx.Response.iter_raw``.  HTTP transfer framing has already been removed,
     but no content decoder has transformed these exact application-body bytes.
     The scope label keeps that boundary explicit.
+
+    This raw-evidence boundary deliberately accepts valid JSON strings that are
+    unsafe for a semantic field, display label, Redis key, or trainer feature.
+    Provider-owned metadata can contain format/control characters (for example
+    a zero-width character in an ERC-20 token name).  Rejecting the complete
+    HTTP receipt for that optional metadata loses otherwise valid provenance.
+    The semantic normalizer remains stricter and quarantines such values before
+    they can contribute a feature.  Exact raw bytes are persisted only as
+    base64 inside an authority-false source artifact.
     """
 
     reasons: list[str] = []
@@ -1217,9 +1226,8 @@ def _raw_response_evidence(
                     object_pairs_hook=_reject_duplicate_json_object_keys,
                     parse_constant=_reject_nonfinite_json_constant,
                 )
-                _validate_closed_json(parsed_exact)
-                exact_canonical = _json_bytes(parsed_exact)
-                supplied_canonical = _json_bytes(parsed_payload)
+                exact_canonical = _transport_json_bytes(parsed_exact)
+                supplied_canonical = _transport_json_bytes(parsed_payload)
             except (RecursionError, TypeError, UnicodeError, ValueError):
                 reasons.append("RAW_RESPONSE_JSON_INVALID")
             else:
@@ -1290,6 +1298,81 @@ def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str
 
 def _reject_nonfinite_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON constant: {value}")
+
+
+def _transport_json_bytes(value: Any) -> bytes:
+    """Canonicalize bounded transport JSON without granting semantic safety.
+
+    Unlike :func:`_json_bytes`, this helper does not require NFC text or reject
+    JSON control/format characters.  It is used only to prove that the exact
+    parsed HTTP body and the client-supplied parsed payload are equal.  It must
+    never be used for Redis key material or model/feature admission.
+    """
+
+    _validate_transport_json(value)
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    ).encode("ascii", errors="strict")
+    if len(encoded) > _MAX_JSON_BYTES:
+        raise ValueError("transport JSON byte limit exceeded")
+    return encoded
+
+
+def _validate_transport_json(
+    value: Any,
+    *,
+    depth: int = 0,
+    node_budget: list[int] | None = None,
+) -> None:
+    """Validate resource/type safety while retaining exact provider metadata."""
+
+    if node_budget is None:
+        node_budget = [_MAX_JSON_TOTAL_NODES]
+    node_budget[0] -= 1
+    if node_budget[0] < 0:
+        raise ValueError("transport JSON node limit exceeded")
+    if depth > _MAX_JSON_DEPTH:
+        raise ValueError("transport JSON depth limit exceeded")
+    if value is None or isinstance(value, bool | int):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("transport JSON non-finite number")
+        return
+    if isinstance(value, str):
+        encoded = value.encode("utf-8", errors="strict")
+        if len(encoded) > _MAX_JSON_STRING_BYTES:
+            raise ValueError("transport JSON string byte limit exceeded")
+        return
+    if isinstance(value, list):
+        if len(value) > _MAX_JSON_LIST_ITEMS:
+            raise ValueError("transport JSON list cardinality exceeded")
+        for item in value:
+            _validate_transport_json(
+                item,
+                depth=depth + 1,
+                node_budget=node_budget,
+            )
+        return
+    if isinstance(value, dict):
+        if len(value) > _MAX_JSON_OBJECT_FIELDS:
+            raise ValueError("transport JSON object cardinality exceeded")
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError("transport JSON non-string object key")
+            if len(key.encode("utf-8", errors="strict")) > _MAX_JSON_STRING_BYTES:
+                raise ValueError("transport JSON object-key byte limit exceeded")
+            _validate_transport_json(
+                item,
+                depth=depth + 1,
+                node_budget=node_budget,
+            )
+        return
+    raise TypeError(f"unsupported transport JSON type {type(value).__name__}")
 
 
 def _source_observation_payload(
