@@ -1,22 +1,22 @@
-"""Derived orderbook depth-feature publisher (read-only market data, paper-safe).
+"""Canonical direct-orderbook feature-pair supervisor (paper-safe).
 
-Fills the producer gap found in the 2026-07-16 coverage census: the trainer
-tensor spec, the feature pipeline, and the strategy-supply generators all read
-``v2:orderbook:features:binance:{symbol}`` (bid_ask_mid, best_bid_size,
-best_ask_size, spread_bps, depth_5/20 USD, depth_slope,
-estimated_price_impact_bps, update_age_ms, source_latency_ms,
-sequence_gap_flag) but NOTHING ever wrote that key — 7-12 tensor features per
-symbol sat permanently missing.
+The direct recorder now atomically owns both
+``v2:orderbook:depth:binance:{symbol}`` and
+``v2:orderbook:features:binance:{symbol}``.  An older version of this worker
+attempted to derive the feature key from generic market-book echoes.  That is
+no longer safe: overwriting the direct feature half would break the exact
+schema, sequence, clock, and source pairing required by authenticated cost
+evidence.  This worker therefore validates the current pair and writes only a
+bounded summary.  It never writes a per-symbol feature key.
 
 Inputs (already-ingested raw books only; no exchange calls of any kind):
-  * ``v2:market:orderbook:binance:{symbol}``
-  * ``v2:market:orderbook:{symbol}`` (WSS transport or the public-metadata
-    ingestor's REST-depth gap-fill)
+  * ``v2:orderbook:depth:binance:{symbol}`` (canonical direct recorder)
+  * ``v2:orderbook:features:binance:{symbol}`` (same canonical recorder)
 
 Safety:
-  * writes only ``v2:orderbook:features:binance:*`` (+ one summary key)
-  * cache-echo age gate: a book older than ``--max-book-age-seconds`` is
-    skipped so a frozen upstream never masquerades as fresh features
+  * writes only ``v2:orderbook:features:summary``
+  * exact pair and clock checks keep a frozen or split update from being
+    reported healthy
   * never places/cancels orders, never mutates leverage/margin,
     never touches legacy Redis
 """
@@ -33,7 +33,6 @@ from typing import Any, Mapping
 from v2.backend.app.services.v2_symbol_runtime_universe import resolve_symbols
 
 V2_PREFIX = "v2:"
-FEATURES_KEY_TEMPLATE = "v2:orderbook:features:binance:{symbol}"
 SUMMARY_KEY = "v2:orderbook:features:summary"
 LIVE_GATE = "blocked_human_only"
 SCHEMA_VERSION = "v2_orderbook_features_v1"
@@ -47,6 +46,8 @@ DEFAULT_TTL_SECONDS = 900
 DEFAULT_MAX_BOOK_AGE_SECONDS = 900.0
 # Reference marketable notional for the price-impact estimate (USD).
 IMPACT_REFERENCE_NOTIONAL_USD = 10_000.0
+DIRECT_DEPTH_SCHEMA = "direct_orderbook_depth_v1"
+DIRECT_FEATURES_SCHEMA = "direct_orderbook_features_v1"
 
 
 def _utc_now_iso() -> str:
@@ -94,7 +95,7 @@ def _safe_get_json(client: Any, key: str) -> Any:
 
 
 def _safe_set_json(client: Any, key: str, payload: Mapping[str, Any], *, ttl_seconds: int) -> bool:
-    if client is None or not key.startswith("v2:orderbook:features:"):
+    if client is None or key != SUMMARY_KEY:
         return False
     try:
         client.set(key, json.dumps(dict(payload), separators=(",", ":"), default=str), ex=int(ttl_seconds))
@@ -121,38 +122,38 @@ def _parse_levels(rows: Any, max_levels: int = 25) -> list[tuple[float, float]]:
     return levels
 
 
+def _timestamp_ms(value: Any) -> int | None:
+    """Parse one finite UTC timestamp without conflating event/availability clocks."""
+
+    numeric = _finite(value)
+    if numeric is not None and numeric > 0:
+        # Binance event clocks are normally epoch milliseconds.  Accept epoch
+        # seconds from other already-ingested sources, but normalize once here.
+        if numeric < 100_000_000_000:
+            numeric *= 1000.0
+        return int(numeric)
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return int(parsed.astimezone(timezone.utc).timestamp() * 1000)
+
+
 def _book_event_ms(book: Mapping[str, Any]) -> int | None:
     for field in ("E", "event_time", "T", "transaction_time"):
-        value = _finite(book.get(field))
-        if value is not None and value > 0:
-            return int(value)
-    for field in ("available_at", "received_at", "fetched_utc"):
-        value = book.get(field)
-        if isinstance(value, str) and value:
-            try:
-                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return int(parsed.timestamp() * 1000)
+        if (parsed := _timestamp_ms(book.get(field))) is not None:
+            return parsed
     return None
 
 
 def _received_ms(book: Mapping[str, Any]) -> int | None:
-    for field in ("received_at", "available_at"):
-        value = book.get(field)
-        if isinstance(value, str) and value:
-            try:
-                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return int(parsed.timestamp() * 1000)
-        numeric = _finite(value)
-        if numeric is not None and numeric > 0:
-            return int(numeric)
+    for field in ("available_at", "received_at", "fetched_utc"):
+        if (parsed := _timestamp_ms(book.get(field))) is not None:
+            return parsed
     return None
 
 
@@ -237,6 +238,7 @@ def derive_orderbook_features(symbol: str, book: Mapping[str, Any], *, source_ke
     imbalance_5 = None
     if (bid_qty_5 + ask_qty_5) > 0:
         imbalance_5 = (bid_qty_5 - ask_qty_5) / (bid_qty_5 + ask_qty_5)
+    generated_at = _utc_now_iso()
     now_ms = _now_ms()
     event_ms = _book_event_ms(book)
     received_ms = _received_ms(book)
@@ -284,8 +286,8 @@ def derive_orderbook_features(symbol: str, book: Mapping[str, Any], *, source_ke
         "event_time": event_ms,
         "received_at": book.get("received_at"),
         "available_at": book.get("available_at") or book.get("received_at"),
-        "generated_at": _utc_now_iso(),
-        "generated_utc": _utc_now_iso(),
+        "generated_at": generated_at,
+        "generated_utc": generated_at,
         "paper_only": True,
         "places_real_order": False,
         "writes_legacy_redis": False,
@@ -294,67 +296,129 @@ def derive_orderbook_features(symbol: str, book: Mapping[str, Any], *, source_ke
 
 
 def _book_age_seconds(book: Mapping[str, Any]) -> float | None:
+    """Return causal event age, rejecting missing or contradictory clocks."""
+
     event_ms = _book_event_ms(book)
-    if event_ms is None:
+    available_ms = _received_ms(book)
+    now_ms = _now_ms()
+    if (
+        event_ms is None
+        or available_ms is None
+        or event_ms > available_ms
+        or available_ms > now_ms
+    ):
         return None
-    return max(0.0, (_now_ms() - event_ms) / 1000.0)
+    return (now_ms - event_ms) / 1000.0
+
+
+_PAIR_FIELDS = (
+    "source",
+    "exchange",
+    "symbol",
+    "sequence_id",
+    "previous_sequence_id",
+    "sequence_gap",
+    "sequence_gap_flag",
+    "event_time",
+    "transaction_time",
+    "received_at",
+    "available_at",
+    "generated_at",
+    "update_type",
+    "depth_level",
+    "feed_speed_ms",
+)
+
+
+def _clock_chain_valid(payload: Mapping[str, Any]) -> bool:
+    clocks = [
+        _timestamp_ms(payload.get(name))
+        for name in ("event_time", "received_at", "available_at", "generated_at")
+    ]
+    parsed = [value for value in clocks if value is not None]
+    if len(parsed) != 4:
+        return False
+    event, received, available, generated = parsed
+    return event <= received <= available <= generated <= _now_ms()
+
+
+def _canonical_pair_reason(
+    symbol: str,
+    depth: Any,
+    features: Any,
+    *,
+    max_book_age_seconds: float,
+) -> str | None:
+    if not isinstance(depth, Mapping) or not isinstance(features, Mapping):
+        return "MISSING"
+    if (
+        depth.get("schema_version") != DIRECT_DEPTH_SCHEMA
+        or features.get("schema_version") != DIRECT_FEATURES_SCHEMA
+        or any(payload.get("source") != "direct_binance" for payload in (depth, features))
+        or any(payload.get("exchange") != "binance" for payload in (depth, features))
+        or any(payload.get("symbol") != symbol for payload in (depth, features))
+    ):
+        return "IDENTITY_INVALID"
+    if not depth.get("bids") or not depth.get("asks"):
+        return "DEPTH_SHAPE_INVALID"
+    if not _clock_chain_valid(depth) or not _clock_chain_valid(features):
+        return "CLOCK_INVALID"
+    age = _book_age_seconds(depth)
+    if age is None:
+        return "CLOCK_INVALID"
+    if age > max_book_age_seconds:
+        return "STALE"
+    if any(depth.get(name) != features.get(name) for name in _PAIR_FIELDS):
+        return "PAIR_MISMATCH"
+    depth_gap_flag = _finite(depth.get("sequence_gap_flag"))
+    features_gap_flag = _finite(features.get("sequence_gap_flag"))
+    if (
+        depth.get("sequence_gap") is not False
+        or features.get("sequence_gap") is not False
+        or depth_gap_flag != 0.0
+        or features_gap_flag != 0.0
+    ):
+        return "SEQUENCE_GAP"
+    return None
 
 
 def run_cycle(client: Any, *, symbols: list[str], ttl_seconds: int, max_book_age_seconds: float) -> dict[str, Any]:
-    written = 0
-    skipped_stale = 0
-    skipped_missing = 0
+    reasons: dict[str, int] = {}
+    healthy = 0
     for symbol in symbols:
-        book = None
-        source_key = ""
-        for key in (
-            f"v2:market:orderbook:binance:{symbol}",
-            f"v2:market:orderbook:{symbol}",
-        ):
-            candidate = _safe_get_json(client, key)
-            if isinstance(candidate, Mapping) and candidate.get("bids") and candidate.get("asks"):
-                age = _book_age_seconds(candidate)
-                if age is not None and age > max_book_age_seconds:
-                    continue
-                book = candidate
-                source_key = key
-                break
-        if book is None:
-            # Distinguish "no book at all" from "book exists but stale".
-            if any(
-                isinstance(_safe_get_json(client, key), Mapping)
-                for key in (
-                    f"v2:market:orderbook:binance:{symbol}",
-                    f"v2:market:orderbook:{symbol}",
-                )
-            ):
-                skipped_stale += 1
-            else:
-                skipped_missing += 1
-            continue
-        features = derive_orderbook_features(symbol, book, source_key=source_key)
-        if features is None:
-            skipped_missing += 1
-            continue
-        if _safe_set_json(
-            client,
-            FEATURES_KEY_TEMPLATE.format(symbol=symbol),
+        depth = _safe_get_json(client, f"v2:orderbook:depth:binance:{symbol}")
+        features = _safe_get_json(client, f"v2:orderbook:features:binance:{symbol}")
+        reason = _canonical_pair_reason(
+            symbol,
+            depth,
             features,
-            ttl_seconds=ttl_seconds,
-        ):
-            written += 1
+            max_book_age_seconds=max_book_age_seconds,
+        )
+        if reason is None:
+            healthy += 1
+        else:
+            reasons[reason] = reasons.get(reason, 0) + 1
     summary = {
-        "schema_version": "v2_orderbook_features_summary_v1",
+        "schema_version": "v2_orderbook_features_supervision_summary_v2",
         "worker_id": WORKER_ID,
         "generated_utc": _utc_now_iso(),
         "symbols_total": len(symbols),
-        "features_written": written,
-        "skipped_stale_book": skipped_stale,
-        "skipped_missing_book": skipped_missing,
+        "canonical_pair_healthy": healthy,
+        "canonical_pair_unhealthy": len(symbols) - healthy,
+        "canonical_pair_reasons": dict(sorted(reasons.items())),
+        "features_written": 0,
+        "per_symbol_feature_write_authorized": False,
+        "canonical_per_symbol_owner": "v2_direct_orderbook_recorder",
+        "summary_only_supervision": True,
         "ttl_seconds": ttl_seconds,
         "max_book_age_seconds": max_book_age_seconds,
+        "trainer_admission_authorized": False,
+        "consumer_eligible": False,
+        "paper_trading_authorized": False,
+        "live_execution_authorized": False,
         "paper_only": True,
         "places_real_order": False,
+        "writes_legacy_redis": False,
         "live_gate": LIVE_GATE,
     }
     _safe_set_json(client, SUMMARY_KEY, summary, ttl_seconds=max(ttl_seconds, 600))
