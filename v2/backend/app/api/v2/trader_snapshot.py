@@ -271,6 +271,10 @@ def _canonical_markets(market_response: dict[str, Any]) -> tuple[list[dict[str, 
             "last_price": _finite_number(row.get("last_price") or row.get("lastPrice")),
             "mark_price": _finite_number(row.get("mark_price")),
             "index_price": _finite_number(row.get("index_price")),
+            # Honest provenance: mark/index come from the funding WSS cache
+            # key and can lag the ticker; expose their own update time so the
+            # snapshot chip does not imply poll-time freshness for them.
+            "mark_price_updated_utc": row.get("mark_price_updated_utc"),
             "change_1h": _finite_number(row.get("change_1h")),
             "change_4h": _finite_number(row.get("change_4h")),
             "change_24h": _finite_number(row.get("change_24h") or row.get("priceChangePercent")),

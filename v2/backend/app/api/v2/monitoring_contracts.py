@@ -51,13 +51,23 @@ _KNOWN_ROUTES = [
     {"path": "/research", "surface": "app", "owner": "market-intelligence", "expected": True},
     {"path": "/research/technical-analysis", "surface": "app", "owner": "technical-analysis", "expected": True},
     {"path": "/alerts", "surface": "app", "owner": "alerts", "expected": True},
-    {"path": "/admin", "surface": "admin", "owner": "admin-war-room", "expected": True},
-    {"path": "/admin/ingestors", "surface": "admin", "owner": "ingestors", "expected": True},
-    {"path": "/admin/trainer", "surface": "admin", "owner": "trainer-admin", "expected": True},
-    {"path": "/admin/orchestrator", "surface": "admin", "owner": "orchestrator-admin", "expected": True},
-    {"path": "/admin/risk", "surface": "admin", "owner": "risk-control", "expected": True},
-    {"path": "/admin/logs", "surface": "admin", "owner": "logs-errors", "expected": True},
-    {"path": "/admin/audit", "surface": "superadmin", "owner": "audit-ledger", "expected": True},
+    # Consolidated admin IA (canonical paths/owners; the legacy paths
+    # /admin/ingestors, /admin/trainer, /admin/orchestrator now redirect —
+    # see MERGED_LEGACY_PATHS in v2/frontend/src/pages/productNavigation.ts).
+    {"path": "/admin", "surface": "admin", "owner": "admin-overview", "expected": True},
+    {"path": "/admin/data", "surface": "admin", "owner": "admin-data", "expected": True},
+    {"path": "/admin/intelligence", "surface": "admin", "owner": "admin-intelligence", "expected": True},
+    {"path": "/admin/model-state", "surface": "admin", "owner": "admin-model-state", "expected": True},
+    {"path": "/admin/orchestration", "surface": "admin", "owner": "admin-orchestration", "expected": True},
+    {"path": "/admin/risk", "surface": "admin", "owner": "admin-risk", "expected": True},
+    {"path": "/admin/execution", "surface": "admin", "owner": "admin-execution", "expected": True},
+    {"path": "/admin/exchanges", "surface": "admin", "owner": "admin-exchanges", "expected": True},
+    {"path": "/admin/config", "surface": "admin", "owner": "admin-config", "expected": True},
+    {"path": "/admin/traders", "surface": "admin", "owner": "strategy-admin", "expected": True},
+    {"path": "/admin/reports", "surface": "admin", "owner": "admin-reports", "expected": True},
+    {"path": "/admin/tools", "surface": "admin", "owner": "admin-tools", "expected": True},
+    {"path": "/admin/logs", "surface": "admin", "owner": "admin-logs", "expected": True},
+    {"path": "/admin/audit", "surface": "superadmin", "owner": "admin-audit", "expected": True},
 ]
 
 # Known data surfaces with expected sources

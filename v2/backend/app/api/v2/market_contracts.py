@@ -1346,6 +1346,33 @@ def _strict_timeframe(timeframe: str | None) -> str | None:
     return raw if raw in MARKET_CONTRACT_TIMEFRAMES else None
 
 
+_TIMEFRAME_SECONDS: dict[str, int] = {
+    "1m": 60,
+    "3m": 180,
+    "5m": 300,
+    "15m": 900,
+    "1h": 3_600,
+    "4h": 14_400,
+    "1d": 86_400,
+    "1w": 604_800,
+}
+
+
+def _candle_freshness_windows(timeframe: str | None) -> tuple[float, float]:
+    """(fresh_max_seconds, stale_min_seconds) for closed-candle timestamps.
+
+    Candle/indicator envelopes stamp the LAST CLOSED candle close time, so a
+    perfectly healthy 5m feed is legitimately up to ~300s "old" and a 1h feed
+    up to ~3600s. The fixed 120s default made every timeframe above 1m
+    self-declare stale most of each window (chart blanked). A feed is only
+    genuinely stale once a full candle has been missed.
+    """
+    tf_seconds = _TIMEFRAME_SECONDS.get((timeframe or "").strip(), 60)
+    fresh_max = tf_seconds + 90
+    stale_min = tf_seconds * 2 + 120
+    return float(fresh_max), float(stale_min)
+
+
 def _invalid_market_symbol_response(endpoint: str) -> dict[str, Any]:
     return _unavailable(
         endpoint=endpoint,
@@ -2981,6 +3008,7 @@ def _compact_pnl_history(payload: Any) -> dict[str, Any] | None:
         (
             "status",
             "source",
+            "pnl_basis",
             "closed_trade_count",
             "timestamped_closed_trade_count",
             "untimestamped_or_future_closed_trade_count",
@@ -3183,13 +3211,32 @@ def _redis_pnl_windows() -> dict[str, Any] | None:
 
     from datetime import UTC, datetime, timedelta  # noqa: PLC0415
     now = datetime.now(UTC)
+
+    # GROSS->NET PnL truth mandate: window tiles must match the canonical net
+    # Realized PnL shown beside them (fees/slippage included). Summing gross
+    # realized_pnl_usd understated losses by ~28% (-10.42 vs the true -14.41).
+    def _window_net_pnl(t: Any) -> float:
+        v = t.get("realized_net_pnl_usd")
+        if v is None:
+            v = t.get("realized_net_pnl")
+        if v is None:
+            v = t.get("realized_pnl_usd")
+        return float(v or 0)
+
+    def _has_pnl(t: Any) -> bool:
+        return (
+            t.get("realized_net_pnl_usd") is not None
+            or t.get("realized_net_pnl") is not None
+            or t.get("realized_pnl_usd") is not None
+        )
+
     WINDOWS = [("1d", 86400), ("7d", 604800), ("30d", 2592000)]
     windows_out: list[dict[str, Any]] = []
     for wname, secs in WINDOWS:
         cutoff = now - timedelta(seconds=secs)
         bucket: list[dict[str, Any]] = []
         for t in trades:
-            if t.get("realized_pnl_usd") is None:
+            if not _has_pnl(t):
                 continue
             exit_time_raw = t.get("exit_price_utc") or t.get("close_time") or t.get("exit_time")
             if not exit_time_raw:
@@ -3202,16 +3249,22 @@ def _redis_pnl_windows() -> dict[str, Any] | None:
                     bucket.append(t)
             except Exception:
                 continue
-        pnl = sum(float(t.get("realized_pnl_usd") or 0) for t in bucket)
+        pnl = sum(_window_net_pnl(t) for t in bucket)
+        gross_pnl = sum(float(t.get("realized_pnl_usd") or 0) for t in bucket)
         wins = [t for t in bucket if t.get("winner") is True]
         losses = [t for t in bucket if t.get("winner") is False]
         win_rate = len(wins) / len(bucket) if bucket else None
-        gross_profit = sum(float(t.get("realized_pnl_usd") or 0) for t in wins)
-        gross_loss = abs(sum(float(t.get("realized_pnl_usd") or 0) for t in losses))
-        profit_factor = round(gross_profit / gross_loss, 3) if gross_loss > 0 else None
+        net_profit = sum(_window_net_pnl(t) for t in wins)
+        net_loss = abs(sum(_window_net_pnl(t) for t in losses))
+        profit_factor = round(net_profit / net_loss, 3) if net_loss > 0 else None
         windows_out.append({
             "window": wname,
+            # NET after fees/slippage — same basis as the canonical Realized
+            # PnL and the `winner` flag. Gross retained under an honest name.
             "realized_pnl_usd": round(pnl, 4),
+            "realized_net_pnl_usd": round(pnl, 4),
+            "realized_gross_pnl_usd": round(gross_pnl, 4),
+            "pnl_basis": "net_after_fees",
             "closed_trade_count": len(bucket),
             "winning_trade_count": len(wins),
             "losing_trade_count": len(losses),
@@ -3221,10 +3274,11 @@ def _redis_pnl_windows() -> dict[str, Any] | None:
 
     if not windows_out:
         return None
-    total = len([t for t in trades if t.get("realized_pnl_usd") is not None])
+    total = len([t for t in trades if _has_pnl(t)])
     return {
         "status": "READY_REDIS_LIVE",
         "source": "v2:paper:closed_trades",
+        "pnl_basis": "net_after_fees",
         "closed_trade_count": total,
         "windows": windows_out,
     }
@@ -3282,6 +3336,34 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
         row["accuracy"] = round(row["correct_count"] / c, 4) if c > 0 else None
         row["timeframe"] = tf
 
+    # Per-(symbol,timeframe) and per-symbol cells. Without these the
+    # /ai-predictions matrix and trainer-prediction-monitor grid showed
+    # "no outcomes" on every row despite 92 evaluated trades / 71 cells.
+    by_sym_tf: dict[tuple[str, str], dict[str, Any]] = {}
+    by_sym: dict[str, dict[str, Any]] = {}
+    for t in evaluated:
+        sym = str(t.get("symbol") or "").upper() or "UNKNOWN"
+        tf = str(t.get("timeframe") or "unknown").lower()
+        cell = by_sym_tf.setdefault(
+            (sym, tf),
+            {"symbol": sym, "timeframe": tf, "evaluated_count": 0, "correct_count": 0, "incorrect_count": 0, "realized_pnl_usd": 0.0},
+        )
+        srow = by_sym.setdefault(
+            sym,
+            {"symbol": sym, "evaluated_count": 0, "correct_count": 0, "incorrect_count": 0, "realized_pnl_usd": 0.0},
+        )
+        for row in (cell, srow):
+            row["evaluated_count"] += 1
+            if t.get("winner"):
+                row["correct_count"] += 1
+            else:
+                row["incorrect_count"] += 1
+            row["realized_pnl_usd"] += _net_pnl(t)
+    for row in (*by_sym_tf.values(), *by_sym.values()):
+        c = row["evaluated_count"]
+        row["accuracy"] = round(row["correct_count"] / c, 4) if c > 0 else None
+        row["realized_pnl_usd"] = round(row["realized_pnl_usd"], 4)
+
     # Universe + (symbol,timeframe) cell metadata: without these the dashboard
     # UNIVERSE / TF CELLS / MISSING CELLS cards render "-" whenever this Redis
     # fallback overrides the static accuracy file.
@@ -3307,6 +3389,11 @@ def _redis_accuracy_status() -> dict[str, Any] | None:
         "overall_accuracy": round(win_rate, 4),
         "evaluated_realized_pnl_usd": round(total_pnl, 4),
         "by_timeframe": list(by_tf.values()),
+        "by_symbol": sorted(by_sym.values(), key=lambda r: str(r.get("symbol") or "")),
+        "by_symbol_timeframe": sorted(
+            by_sym_tf.values(),
+            key=lambda r: (str(r.get("symbol") or ""), str(r.get("timeframe") or "")),
+        ),
         "profit_factor": round(gross_profit / gross_loss, 3) if gross_loss > 0 else None,
         "symbol_universe_count": len(_universe),
         "symbol_timeframe_cell_count": len(_universe) * len(_tf_grid),
@@ -3583,7 +3670,13 @@ def _overlay_live_account_state(payload: dict[str, Any]) -> str | None:
         ts = state.get("generated_utc")
         live_ts = ts if isinstance(ts, str) else None
         equity = _num(state.get("equity")) if _num(state.get("equity")) is not None else _num(state.get("paper_equity_usd"))
-        open_notional = _num(state.get("open_position_notional")) or _num(state.get("open_positions_notional"))
+        # NOTE: `or` must not be used here — a live open notional of 0.0 is
+        # falsy, which silently kept the batch file's stale $-value on screen
+        # next to "0 open positions" from the same live source.
+        open_notional = _num(state.get("open_position_notional"))
+        if open_notional is None:
+            open_notional = _num(state.get("open_positions_notional"))
+        allocated_margin = _num(state.get("used_margin_usd"))
         realized = _num(state.get("realized_net_pnl_usd"))
         if realized is None:
             realized = _num(state.get("realized_pnl_usd"))
@@ -3595,6 +3688,8 @@ def _overlay_live_account_state(payload: dict[str, Any]) -> str | None:
             cap["gross_open_notional_usd"] = open_notional
             if equity and equity > 0:
                 cap["capital_utilization_pct"] = round(open_notional / equity, 6)
+        if allocated_margin is not None:
+            cap["allocated_margin_usd"] = allocated_margin
         if realized is not None:
             cap["realized_pnl_usd"] = realized
         if unrealized is not None:
@@ -4524,6 +4619,12 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                     row["funding_rate"] = _float(funding.get("lastFundingRate"))
                     row["mark_price"] = _float(funding.get("markPrice"))
                     row["index_price"] = _float(funding.get("indexPrice"))
+                    # Provenance: mark/index freshness is that of the funding
+                    # WSS cache key, not the consumer's poll time — surface it
+                    # so cards don't imply now-freshness for lagged values.
+                    row["mark_price_updated_utc"] = (
+                        funding.get("generated_at") or funding.get("received_at") or funding.get("event_time")
+                    )
                     # Additive: settlement countdown + mark/index basis per row.
                     row["next_funding_time_ms"] = _int(funding.get("next_funding_time_ms"))
                     row["next_funding_time"] = _iso_from_ms(funding.get("next_funding_time_ms"))
@@ -4686,7 +4787,14 @@ def _redis_market_overview_rows(limit: int = MARKET_OVERVIEW_REDIS_LIMIT) -> tup
             "high_24h": None,
             "low_24h": None,
             "volume_24h": None,
-            "turnover_24h": quote_volume,
+            # The 1m current-candle quote volume must NOT be seeded into the
+            # 24h turnover column: when v2:market:prices:{symbol} expires the
+            # enrichment below cannot repoint it, and a wrong-scale value
+            # (e.g. $365 in a $26M column) leaks to the screener. Keep the 1m
+            # value under an honest name; turnover_24h stays null until the
+            # 24h ticker enrichment fills it.
+            "turnover_24h": None,
+            "quote_volume_1m": quote_volume,
             "trade_count_24h": int(_float(payload.get("num_trades") or ohlcv.get("num_trades")) or 0),
             "weighted_avg_price": None,
             "funding_rate": None,
@@ -4709,8 +4817,17 @@ def _redis_market_overview_rows(limit: int = MARKET_OVERVIEW_REDIS_LIMIT) -> tup
                 or payload.get("is_closed")
             ),
         })
-    rows.sort(key=lambda item: (_float(item.get("turnover_24h")) or 0.0, item["symbol"]), reverse=True)
+    # Enrich BEFORE sorting so the turnover sort uses real 24h turnover;
+    # rows whose prices key expired fall back to their 1m quote volume
+    # (honest degradation) instead of poisoning the 24h column.
     _enrich_overview_rows_from_redis(rows)
+    rows.sort(
+        key=lambda item: (
+            _float(item.get("turnover_24h")) or _float(item.get("quote_volume_1m")) or 0.0,
+            item["symbol"],
+        ),
+        reverse=True,
+    )
     return rows, _epoch_ms_to_utc(newest_ms) or _utc_now()
 
 
@@ -6146,6 +6263,7 @@ async def get_market_candles(
     endpoint = f"/api/v2/market/{safe_symbol}/candles"
     if safe_timeframe is None:
         return _invalid_market_timeframe_response(endpoint, safe_symbol)
+    fresh_max_seconds, stale_min_seconds = _candle_freshness_windows(safe_timeframe)
     klines, api_source, api_warning = await _binance_public_json_async(
         "/fapi/v1/klines",
         {"symbol": safe_symbol, "interval": safe_timeframe, "limit": 500},
@@ -6172,6 +6290,8 @@ async def get_market_candles(
             ],
             symbol=safe_symbol,
             mode="read_only",
+            fresh_max_seconds=fresh_max_seconds,
+            stale_min_seconds=stale_min_seconds,
         )
     payload, source = _chart_payload(safe_symbol, safe_timeframe)
     if not payload:
@@ -6198,6 +6318,8 @@ async def get_market_candles(
         warnings=["Static candle snapshot; freshness must be verified by consumer"],
         symbol=safe_symbol,
         mode="read_only",
+        fresh_max_seconds=fresh_max_seconds,
+        stale_min_seconds=stale_min_seconds,
     )
 
 
@@ -6244,6 +6366,7 @@ def _redis_indicator_response(symbol: str, timeframe: str, endpoint: str) -> dic
         *([] if bb_middle else ["bb_middle"]),
         "ai_target",
     ]
+    fresh_max_seconds, stale_min_seconds = _candle_freshness_windows(timeframe)
     return _base_response(
         endpoint=endpoint,
         data=data,
@@ -6258,6 +6381,8 @@ def _redis_indicator_response(symbol: str, timeframe: str, endpoint: str) -> dic
         ],
         symbol=symbol,
         mode="read_only",
+        fresh_max_seconds=fresh_max_seconds,
+        stale_min_seconds=stale_min_seconds,
     )
 
 
@@ -6360,6 +6485,8 @@ async def get_market_indicators(
             ],
             symbol=safe_symbol,
             mode="read_only",
+            fresh_max_seconds=_candle_freshness_windows(safe_timeframe)[0],
+            stale_min_seconds=_candle_freshness_windows(safe_timeframe)[1],
         )
     return _base_response(
         endpoint=endpoint,
@@ -6450,6 +6577,43 @@ async def get_market_depth(symbol: str) -> dict[str, Any]:
             symbol=safe_symbol,
             mode="read_only",
         )
+    # Live top-of-book fallback: the direct orderbook recorder publishes
+    # v2:orderbook:top:binance:{symbol} (sub-second freshness) with
+    # bid/ask/sizes/spread. Prefer it over the static terminal payload so the
+    # REST lane serves real book data when the Binance public call fails.
+    top_key = f"v2:orderbook:top:binance:{safe_symbol}"
+    top = _read_v2_redis_json(top_key)
+    if isinstance(top, dict):
+        top_bid = _float(top.get("bid") or top.get("best_bid"))
+        top_ask = _float(top.get("ask") or top.get("best_ask"))
+        if top_bid is not None and top_ask is not None:
+            top_bid_size = _float(top.get("bid_size") or top.get("best_bid_size"))
+            top_ask_size = _float(top.get("ask_size") or top.get("best_ask_size"))
+            top_spread = _float(top.get("spread_bps"))
+            if top_spread is None and top_bid and top_ask:
+                top_mid = (top_bid + top_ask) / 2
+                top_spread = ((top_ask - top_bid) / top_mid * 10_000) if top_mid else None
+            data = {
+                "symbol": safe_symbol,
+                "bids": [[top_bid, top_bid_size if top_bid_size is not None else 0.0]],
+                "asks": [[top_ask, top_ask_size if top_ask_size is not None else 0.0]],
+                "spread_bps": top_spread,
+                "depth_type": "top_of_book_fallback",
+            }
+            return _base_response(
+                endpoint=endpoint,
+                data=data,
+                source=f"Redis direct orderbook recorder {top_key}",
+                source_type="repository",
+                timestamp=_timestamp_from_payload(top),
+                missing_fields=(["spread"] if top_spread is None else []) + ["full_ladder"],
+                warnings=[
+                    "Live top-of-book fallback from the direct orderbook recorder; full ladder requires the WS stream",
+                    *([api_warning] if api_warning else []),
+                ],
+                symbol=safe_symbol,
+                mode="read_only",
+            )
     terminal, source = _terminal_payload()
     if not terminal:
         return _unavailable(
@@ -10006,16 +10170,18 @@ async def get_entry_gate_status(
     """Current P0 entry gate config — symbol exclusions, TF filter, mode blocks."""
     warnings: list[str] = []
     try:
-        from app.services.paper_trade_management.entry_gate import (
-            PaperEntryGateConfig,
-            _NOISY_TIMEFRAMES,
-        )
+        from app.services.paper_trade_management.entry_gate import PaperEntryGateConfig
+
         cfg = PaperEntryGateConfig()
+        # The former module-level _NOISY_TIMEFRAMES constant was inlined into
+        # evaluate_entry_gate as an empty local (_noisy_tfs = frozenset());
+        # importing it here raised ImportError on every request and hid the
+        # real runtime gate config behind empty defaults.
         data: dict[str, Any] = {
             "symbol_exclusion_list": sorted(cfg.symbol_exclusion_list),
             "allowed_entry_timeframes": sorted(cfg.allowed_entry_timeframes),
             "blocked_strategy_modes": sorted(cfg.blocked_strategy_modes),
-            "noisy_timeframes_require_override": sorted(_NOISY_TIMEFRAMES),
+            "noisy_timeframes_require_override": [],
             "min_confidence_calibrated": cfg.min_confidence_calibrated,
             "require_positive_expected_move": cfg.require_positive_expected_move,
             "major_move_override_enabled": cfg.major_move_override_enabled,

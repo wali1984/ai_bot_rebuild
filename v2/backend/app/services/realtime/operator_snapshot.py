@@ -184,6 +184,19 @@ def _live_gate_value(client: Any) -> str:
     )
 
 
+def _iso_age_seconds(value: Any) -> float | None:
+    """Age in seconds of an ISO-8601 timestamp, or None if unparseable."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return max(0.0, (datetime.now(UTC) - parsed).total_seconds())
+
+
 def _provider_card(client: Any, provider: str) -> dict[str, Any]:
     health = _read_json(client, f"v2:provider:{provider}:health")
     bridge = _read_json(client, f"v2:provider:{provider}:feature_bridge_status")
@@ -248,6 +261,27 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
         {},
     )
 
+    # Freshness/lag/last-success truth for the card footer rows. Publishers
+    # use several field names; derive missing lag from the last-success age.
+    last_success_utc = _first(
+        bridge.get("last_success_utc"),
+        health.get("last_success_utc"),
+        health.get("last_success_at"),
+        bridge.get("last_success_at"),
+    )
+    source_lag_seconds = _first(bridge.get("source_lag_seconds"), health.get("source_lag_seconds"))
+    if source_lag_seconds is None:
+        _success_age = _iso_age_seconds(last_success_utc)
+        if _success_age is not None:
+            source_lag_seconds = round(_success_age, 3)
+    health_generated_utc = _first(
+        health.get("generated_utc"),
+        bridge.get("generated_utc"),
+        health.get("generated_at"),
+        bridge.get("generated_at"),
+    )
+    health_age = _iso_age_seconds(health_generated_utc)
+
     return {
         "provider": provider,
         "display_name": provider.replace("_", " ").title(),
@@ -266,9 +300,19 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
             else _first(bridge.get("dashboard_color_reason"), health.get("dashboard_color_reason"), "provider_runtime_summary")
         ),
         "actual_payload_count": actual_payload_count,
-        "last_success_utc": _first(bridge.get("last_success_utc"), health.get("last_success_utc")),
-        "last_error_utc": _first(bridge.get("last_error_utc"), health.get("last_error_utc")),
-        "source_lag_seconds": _first(bridge.get("source_lag_seconds"), health.get("source_lag_seconds")),
+        # Field-name variants: some publishers write last_success_at /
+        # last_error_at (e.g. coinglass health) instead of *_utc; without
+        # these fallbacks the card rows rendered permanent dashes.
+        "last_success_utc": last_success_utc,
+        "last_error_utc": _first(
+            bridge.get("last_error_utc"),
+            health.get("last_error_utc"),
+            health.get("last_error_at"),
+            bridge.get("last_error_at"),
+        ),
+        "source_lag_seconds": source_lag_seconds,
+        "freshness_status": _freshness_status(health_age),
+        "health_generated_utc": health_generated_utc,
         "keys_published": [key for key in (
             f"v2:provider:{provider}:health",
             f"v2:provider:{provider}:feature_bridge_status",
@@ -278,12 +322,23 @@ def _provider_card(client: Any, provider: str) -> dict[str, Any]:
         "consumer_roles": [str(role) for role in consumer_roles],
         "symbols_covered": [str(symbol) for symbol in symbols_covered],
         "rate_limit": rate or usage,
-        "rate_limit_used": _first(rate.get("used"), rate.get("used_minute"), usage.get("used")),
+        "rate_limit_used": _first(
+            rate.get("used"),
+            rate.get("used_minute"),
+            usage.get("used"),
+            rate.get("requests_per_minute"),
+            usage.get("requests_per_minute"),
+        ),
         "rate_limit_remaining": _first(
             rate.get("remaining"),
             rate.get("remaining_minute"),
             rate.get("rate_limit_remaining_minute"),
             usage.get("remaining"),
+            # Token-bucket publishers (coinglass) expose live capacity as
+            # tokens_available; the card left this null while the nested
+            # rate_limit block carried the value one level deeper.
+            rate.get("tokens_available"),
+            usage.get("tokens_available"),
         ),
         # The durable CU-ledger rework nests spend under persistent_cu_ledger /
         # the dedicated cu_budget_status key; the old flat fields no longer exist.

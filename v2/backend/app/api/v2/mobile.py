@@ -1293,25 +1293,43 @@ def _trainer_status_from_redis(r: Any) -> dict[str, Any]:
 
 
 def _gpu_status_from_redis(r: Any) -> dict[str, Any]:
-    """Read GPU status from v2:trainer:hybrid_cuda:metrics."""
+    """Read GPU status from v2:trainer:hybrid_cuda:metrics.
+
+    Honesty: when the trainer metrics key is absent/stale (e.g. the trainer
+    status lane is held), emit nulls — NOT utilization 0.0 / vram 0/0 /
+    name "" — so consumers render dashes instead of measured-looking zeros.
+    """
     metrics = _redis_get_json(r, "v2:trainer:hybrid_cuda:metrics") or {}
+    if not metrics:
+        return {
+            "name": None,
+            "device": None,
+            "utilization_pct": None,
+            "vram_used_mb": None,
+            "vram_total_mb": None,
+            "temperature_c": None,
+            "freshness": "source_missing",
+            "source_key": "v2:trainer:hybrid_cuda:metrics",
+        }
     training = metrics.get("training") or {}
     cpu_util = metrics.get("cuda_cpu_resource_utilization") or {}
 
-    name = training.get("gpu_name") or cpu_util.get("gpu_name") or ""
-    vram_used = _safe_float(training.get("vram_allocated_mb") or cpu_util.get("current_vram_used_mb"))
-    vram_total = _safe_float(cpu_util.get("vram_target_mb") or cpu_util.get("vram_reserved_mb"))
-    util_pct = _safe_float(cpu_util.get("current_gpu_utilization"))
-    device = training.get("device") or ""
-    temp = _safe_float(cpu_util.get("temperature_c"))
+    name = training.get("gpu_name") or cpu_util.get("gpu_name") or None
+    vram_used_raw = training.get("vram_allocated_mb") or cpu_util.get("current_vram_used_mb")
+    vram_total_raw = cpu_util.get("vram_target_mb") or cpu_util.get("vram_reserved_mb")
+    util_raw = cpu_util.get("current_gpu_utilization")
+    device = training.get("device") or None
+    temp_raw = cpu_util.get("temperature_c")
 
     return {
         "name": name,
         "device": device,
-        "utilization_pct": util_pct,
-        "vram_used_mb": int(vram_used),
-        "vram_total_mb": int(vram_total),
-        "temperature_c": temp,
+        "utilization_pct": _safe_float(util_raw) if util_raw is not None else None,
+        "vram_used_mb": int(_safe_float(vram_used_raw)) if vram_used_raw is not None else None,
+        "vram_total_mb": int(_safe_float(vram_total_raw)) if vram_total_raw is not None else None,
+        "temperature_c": _safe_float(temp_raw) if temp_raw is not None else None,
+        "freshness": "reported",
+        "source_key": "v2:trainer:hybrid_cuda:metrics",
     }
 
 
@@ -2192,11 +2210,16 @@ async def get_mobile_dashboard(
             "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
+            # Numeric fields stay non-null for the released iOS Decodable
+            # contract (GPUState declares them non-optional); `freshness`
+            # distinguishes measured zeros from a missing/held trainer source.
             "name": str(gpu.get("name") or ""),
             "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
+            "freshness": str(gpu.get("freshness") or "source_missing"),
+            "source_key": str(gpu.get("source_key") or "v2:trainer:hybrid_cuda:metrics"),
         },
         "alerts_preview": alerts_preview,
         "redis_connected": r is not None,
@@ -2400,12 +2423,16 @@ async def get_mobile_health(
             "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
+            # Non-null numerics for the released iOS Decodable contract;
+            # `freshness` marks measured-vs-missing (held trainer lane).
             "name": str(gpu.get("name") or ""),
             "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
             "temperature_c": _safe_float(gpu.get("temperature_c")),
+            "freshness": str(gpu.get("freshness") or "source_missing"),
+            "source_key": str(gpu.get("source_key") or "v2:trainer:hybrid_cuda:metrics"),
         },
         "paper": {
             **account_fields,
@@ -2902,11 +2929,15 @@ async def get_mobile_admin_summary(
             "validation_loss_delta": _safe_float(trainer.get("validation_loss_delta")) if trainer.get("validation_loss_delta") is not None else None,
         },
         "gpu": {
+            # Non-null numerics for the released iOS Decodable contract;
+            # `freshness` marks measured-vs-missing (held trainer lane).
             "name": str(gpu.get("name") or ""),
             "device": str(gpu.get("device") or ""),
             "utilization_pct": _safe_float(gpu.get("utilization_pct")),
             "vram_used_mb": _safe_int(gpu.get("vram_used_mb")),
             "vram_total_mb": _safe_int(gpu.get("vram_total_mb")),
+            "freshness": str(gpu.get("freshness") or "source_missing"),
+            "source_key": str(gpu.get("source_key") or "v2:trainer:hybrid_cuda:metrics"),
         },
         "paper": {
             "classification": str(hb.get("classification") or "UNKNOWN"),

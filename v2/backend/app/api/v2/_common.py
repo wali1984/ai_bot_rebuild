@@ -159,6 +159,15 @@ AUDIT_LEDGER_STREAM_CANDIDATES: tuple[str, ...] = (
     "v2:audit:ledger",
 )
 
+# Known V2-owned audit streams that do NOT match the audit:ledger* patterns.
+# `audit:trainer:reads` is written by write_audit_trainer_read() in this very
+# module; without this exact-key check the /audit-ledger/events endpoint
+# reported "0 events" while a 10k-entry audit stream existed.
+AUDIT_LEDGER_EXACT_STREAM_KEYS: tuple[str, ...] = (
+    "audit:trainer:reads",
+    "audit:chain",
+)
+
 
 def discover_audit_ledger_streams(r: Any) -> list[str]:
     """Return the list of audit-ledger streams that actually exist in Redis.
@@ -179,10 +188,24 @@ def discover_audit_ledger_streams(r: Any) -> list[str]:
             found.append(key)
             if len(found) > 100:
                 break
+        # Exact-key candidates outside the glob patterns (bounded: TYPE per key).
+        for key in AUDIT_LEDGER_EXACT_STREAM_KEYS:
+            try:
+                key_type = r.type(key)
+            except Exception:
+                continue
+            if isinstance(key_type, bytes):
+                key_type = key_type.decode("utf-8", errors="replace")
+            if str(key_type) == "stream":
+                found.append(key)
     except Exception:
         return []
     # Stable order for predictable tests.
-    return sorted(set(found))
+    normalized = [
+        key.decode("utf-8", errors="replace") if isinstance(key, bytes) else str(key)
+        for key in found
+    ]
+    return sorted(set(normalized))
 
 
 def required_audit_fields() -> Iterable[str]:

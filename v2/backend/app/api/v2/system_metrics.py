@@ -666,6 +666,16 @@ async def get_ingestors_status() -> dict[str, Any]:
                 "stale": sum(1 for row in rows if row["status"] == "stale"),
                 "offline": sum(1 for row in rows if row["status"] == "offline"),
                 "not_started": sum(1 for row in rows if row["status"] == "not_started"),
+                # Previously omitted buckets: the chip row summed to fewer than
+                # `total` whenever a row was unknown_freshness/upstream_error.
+                "unknown_freshness": sum(1 for row in rows if row["status"] == "unknown_freshness"),
+                "upstream_error": sum(1 for row in rows if row["status"] == "upstream_error"),
+                "other": sum(
+                    1
+                    for row in rows
+                    if row["status"]
+                    not in ("live", "stale", "offline", "not_started", "unknown_freshness", "upstream_error")
+                ),
             },
         },
         "source": "redis:v2:* key freshness scan",

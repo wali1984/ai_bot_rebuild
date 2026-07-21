@@ -358,45 +358,56 @@ async def get_ai_model_state() -> dict[str, Any]:
         try:
             ta_keys = _scan_keys(r, "v2:features:ta_full:*")
             ta_keys_total = len(ta_keys or [])
+            # Coverage from ALL scanned key names (string ops only — no Redis
+            # round-trips). The previous [:200] cap structurally froze
+            # ta_keys_fresh at 200/785 (a permanent fake "stale" badge) and
+            # undercounted symbols_covered.
             symbols_seen: set[str] = set()
-            for k in (ta_keys or [])[:200]:
+            for k in (ta_keys or []):
                 key_str = k.decode("utf-8") if isinstance(k, bytes) else str(k)
                 parts = key_str.split(":")
                 if len(parts) >= 5:
-                    symbol = parts[3]
-                    symbols_seen.add(symbol)
-                try:
-                    raw = r.get(k)
-                    if raw:
-                        ta_keys_fresh += 1
-                        if key_str.endswith("BTCUSDT:1m") and sample_btc_1m is None:
-                            data = json.loads(raw)
-                            if isinstance(data, dict):
-                                # ta_full stores the real indicator values in a
-                                # nested `indicators` dict (rsi_14, macd, atr_14,
-                                # sma_20, ema_*, bb_width_pct, …) and family names in
-                                # `families_present`. The old code filtered top-level
-                                # `ta_`-prefixed scalars, which produced an EMPTY map
-                                # (all 8 Research tiles rendered "—").
-                                nested = data.get("indicators")
-                                indicators_src = nested if isinstance(nested, dict) else data
-                                families = data.get("families_present")
-                                if not isinstance(families, list):
-                                    families = [k for k in indicators_src if str(k).startswith("ta_")]
-                                sample_btc_1m = {
-                                    "symbol": "BTCUSDT",
-                                    "timeframe": "1m",
-                                    "generated_utc": data.get("generated_utc") or now,
-                                    "source_label": str(data.get("source") or "redis"),
-                                    "families_present": [str(f) for f in families][:12],
-                                    "indicators": {
-                                        k: v for k, v in indicators_src.items()
-                                        if isinstance(v, (int, float)) and not isinstance(v, bool)
-                                    },
-                                }
-                except Exception:
-                    pass
+                    symbols_seen.add(parts[3])
             symbols_covered = len(symbols_seen)
+            # Existence over ALL keys in one pipeline (cheap EXISTS, bounded by
+            # the _scan_keys cap of 2000). Same semantic the old per-key GET
+            # loop used ("fresh" = key readable), without the 200-key cap.
+            try:
+                pipe = r.pipeline()
+                for k in (ta_keys or []):
+                    pipe.exists(k)
+                exists_flags = pipe.execute()
+                ta_keys_fresh = sum(1 for flag in exists_flags if flag)
+            except Exception:
+                ta_keys_fresh = 0
+        except Exception:
+            pass
+        # Sample tile: direct GET — never dependent on SCAN ordering (the old
+        # code only found this key if it happened to be in the first 200).
+        try:
+            raw = r.get("v2:features:ta_full:BTCUSDT:1m")
+            if raw:
+                data = json.loads(raw)
+                if isinstance(data, dict):
+                    # ta_full stores the real indicator values in a nested
+                    # `indicators` dict (rsi_14, macd, atr_14, sma_20, ema_*,
+                    # bb_width_pct, …) and family names in `families_present`.
+                    nested = data.get("indicators")
+                    indicators_src = nested if isinstance(nested, dict) else data
+                    families = data.get("families_present")
+                    if not isinstance(families, list):
+                        families = [k for k in indicators_src if str(k).startswith("ta_")]
+                    sample_btc_1m = {
+                        "symbol": "BTCUSDT",
+                        "timeframe": "1m",
+                        "generated_utc": data.get("generated_utc") or now,
+                        "source_label": str(data.get("source") or "redis"),
+                        "families_present": [str(f) for f in families][:12],
+                        "indicators": {
+                            k: v for k, v in indicators_src.items()
+                            if isinstance(v, (int, float)) and not isinstance(v, bool)
+                        },
+                    }
         except Exception:
             pass
 
@@ -415,6 +426,9 @@ async def get_ai_model_state() -> dict[str, Any]:
         "symbols_fresh": symbols_covered,
         "ta_keys_total": ta_keys_total,
         "ta_keys_fresh": ta_keys_fresh,
+        # Honesty marker: fresh/symbols_fresh mean "key exists in Redis", not
+        # a per-payload timestamp check (which would need 785 large GETs).
+        "freshness_basis": "key_existence",
         "sample_btc_1m": sample_btc_1m,
         "source": "redis:v2:features:ta_full:*",
         "stale": ta_keys_fresh == 0,

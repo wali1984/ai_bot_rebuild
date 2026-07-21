@@ -158,11 +158,29 @@ def _build_admin_overview_payload() -> dict[str, Any]:
     trainer_checkpoint = None
     trainer_cuda = False
     trainer_coverage: float | None = None
+    trainer_evidence_age_s: float | None = None
     if isinstance(trainer_raw, dict):
         trainer_state = _safe_str(trainer_raw.get("state") or ("ACTIVE_REDIS_EVIDENCE" if trainer_raw.get("checkpoint_id") else None), "unknown")
         trainer_checkpoint = trainer_raw.get("checkpoint_id")
         trainer_cuda = bool(trainer_raw.get("cuda_active"))
         trainer_coverage = trainer_raw.get("data_coverage") or trainer_raw.get("data_coverage_percent")
+        # Honest freshness (mirrors /api/v2/trainer/status): the stored state
+        # string may say ACTIVE_REDIS_EVIDENCE while the underlying evidence
+        # is days old. Grade by the evidence timestamp; >1800s = stale
+        # (same threshold as trainer.py _freshness_from_age).
+        for _ts_field in ("_source_generated_utc", "generated_utc", "generated_at", "created_at"):
+            _ts_value = trainer_raw.get(_ts_field)
+            if isinstance(_ts_value, str) and _ts_value.strip():
+                try:
+                    _parsed = datetime.fromisoformat(_ts_value.replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if _parsed.tzinfo is None:
+                    _parsed = _parsed.replace(tzinfo=UTC)
+                trainer_evidence_age_s = max(0.0, (datetime.now(UTC) - _parsed.astimezone(UTC)).total_seconds())
+                break
+        if trainer_evidence_age_s is not None and trainer_evidence_age_s > 1800 and trainer_state == "ACTIVE_REDIS_EVIDENCE":
+            trainer_state = "STALE_REDIS_EVIDENCE"
 
     # ── Risk gateway ─────────────────────────────────────────────────────────
     risk_heartbeat = _redis_read("v2:risk:gateway:heartbeat")
@@ -205,7 +223,7 @@ def _build_admin_overview_payload() -> dict[str, Any]:
     # ── Assemble services list ────────────────────────────────────────────────
     trainer_svc_status = (
         "ok" if trainer_state in ("ACTIVE_REDIS_EVIDENCE", "ACTIVE") else
-        "warn" if trainer_state == "MISSING_EVIDENCE" else "unknown"
+        "warn" if trainer_state in ("MISSING_EVIDENCE", "STALE_REDIS_EVIDENCE") else "unknown"
     )
     risk_svc_status = "ok" if risk_last_at else "unknown"
     orch_svc_status = orch_status if orch_status != "unknown" else "unknown"
@@ -225,6 +243,7 @@ def _build_admin_overview_payload() -> dict[str, Any]:
             "detail": trainer_state,
             "cuda_active": trainer_cuda,
             "data_coverage": trainer_coverage,
+            "evidence_age_seconds": round(trainer_evidence_age_s, 1) if trainer_evidence_age_s is not None else None,
         },
         {
             "id": "risk-gateway",
@@ -527,25 +546,39 @@ async def get_admin_execution_fills(_: UserRecord = Depends(_REQUIRE_OPERATOR)) 
 async def get_admin_exchanges(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dict[str, Any]:
     now = _utc_now()
 
-    # Read from Redis market stream telemetry
-    stream_raw = _redis_read("v2:market:stream:btcusdt:telemetry") or _redis_read("v2:market:stream:telemetry")
+    # Canonical market-stream truth. The previous implementation read
+    # v2:market:stream:btcusdt:telemetry / v2:market:stream:telemetry, keys
+    # that have NO writer anywhere — so this page permanently reported
+    # STALE/rest_fallback while /api/v2/status market_stream was CURRENT.
     stream_stale = True
     stream_lag_ms: int | None = None
     stream_last_at: str | None = None
     stream_source = "unknown"
+    stream_status = "unknown"
+    try:
+        from app.api.v2.status_contracts import _safe_market_stream_status
 
-    if isinstance(stream_raw, dict):
-        stream_stale = bool(stream_raw.get("stale", True))
-        stream_lag_ms = stream_raw.get("lag_ms")
-        stream_last_at = stream_raw.get("last_frame_at")
-        stream_source = _safe_str(stream_raw.get("source"), "unknown")
+        stream = _safe_market_stream_status("BTCUSDT")
+        stream_stale = bool(stream.get("stale", True))
+        stream_lag_ms = stream.get("lag_ms")
+        stream_last_at = stream.get("last_frame_at")
+        stream_source = _safe_str(stream.get("source"), "unknown")
+        stream_status = _safe_str(stream.get("status"), "unknown")
+    except Exception:
+        pass
 
+    connectivity = (
+        "wss_primary" if stream_status == "current" and not stream_stale
+        else "rest_fallback" if stream_status == "rest_fallback"
+        else "rest_fallback" if stream_stale
+        else "wss_primary"
+    )
     exchanges = [
         {
             "id": "binance-usdm",
             "name": "Binance USD-M Futures",
             "status": "warn" if stream_stale else "ok",
-            "connectivity": "rest_fallback" if stream_stale else "wss_primary",
+            "connectivity": connectivity,
             "credential_status": "credential_source_pending",
             "live_trading_enabled": False,
             "read_only": True,
@@ -566,6 +599,8 @@ async def get_admin_exchanges(_: UserRecord = Depends(_REQUIRE_OPERATOR)) -> dic
         "stream_stale": stream_stale,
         "stream_last_at": stream_last_at,
         "stream_lag_ms": stream_lag_ms,
+        "stream_source": stream_source,
+        "stream_status": stream_status,
     }
 
 
@@ -1243,11 +1278,34 @@ async def get_config_current(_: UserRecord = Depends(require_auth)) -> dict[str,
     config_raw = _redis_read("v2:config:current") or _redis_read("v2:config:active")
     if isinstance(config_raw, dict):
         config_data = config_raw
+    config_persisted = bool(config_data)
 
-    version = _safe_str(config_data.get("version"), "1.0.0")
+    # Honesty: when no versioned config is persisted (v2:config:current /
+    # v2:config:active are unpopulated), do NOT fabricate version "1.0.0",
+    # last_changed_at=request-time, or last_changed_by="system" — those made
+    # the config chip always read as just-changed by system. Nulls + an
+    # explicit config_persisted flag are the truth.
+    version = _safe_str(config_data.get("version"), "") or None
     environment = _safe_str(config_data.get("environment") or os.environ.get("V2_MODE"), "paper")
-    last_changed_at = config_data.get("last_changed_at") or config_data.get("updated_at") or now
-    last_changed_by = _safe_str(config_data.get("last_changed_by") or config_data.get("updated_by"), "system")
+    last_changed_at = config_data.get("last_changed_at") or config_data.get("updated_at") or None
+    last_changed_by = config_data.get("last_changed_by") or config_data.get("updated_by") or None
+
+    # trainer_mode: report the env var only if the operator explicitly set it;
+    # otherwise surface the runtime trainer evidence instead of the "stub"
+    # default (the actual runtime is the native CUDA hybrid trainer).
+    trainer_mode_env = os.environ.get("V2_TRAINER_MODE", "").strip()
+    trainer_mode: str | None = trainer_mode_env or None
+    trainer_mode_source = "env:V2_TRAINER_MODE" if trainer_mode_env else None
+    if trainer_mode is None:
+        trainer_summary = _redis_read("v2:trainer:summary")
+        if isinstance(trainer_summary, dict):
+            runtime_mode = trainer_summary.get("runtime_mode")
+            if isinstance(runtime_mode, dict) and runtime_mode.get("effective_trainer_mode"):
+                trainer_mode = _safe_str(runtime_mode.get("effective_trainer_mode"), "") or None
+                trainer_mode_source = "redis:v2:trainer:summary.runtime_mode"
+            elif trainer_summary.get("checkpoint_id"):
+                trainer_mode = "native_cuda_hybrid"
+                trainer_mode_source = "redis:v2:trainer:summary (checkpoint evidence)"
 
     # Build visible config (no secrets)
     visible_config: dict[str, Any] = {
@@ -1256,7 +1314,8 @@ async def get_config_current(_: UserRecord = Depends(require_auth)) -> dict[str,
         "paper_trading": "ENABLED",
         "live_gate": "blocked_human_only",
         "redis_prefix": os.environ.get("V2_REDIS_PREFIX", "v2"),
-        "trainer_mode": os.environ.get("V2_TRAINER_MODE", "stub"),
+        "trainer_mode": trainer_mode,
+        "trainer_mode_source": trainer_mode_source,
         "log_level": os.environ.get("LOG_LEVEL", "INFO"),
     }
     if config_data.get("config"):
@@ -1271,6 +1330,15 @@ async def get_config_current(_: UserRecord = Depends(require_auth)) -> dict[str,
         "last_changed_at": last_changed_at,
         "last_changed_by": last_changed_by,
         "config": visible_config,
+        "config_persisted": config_persisted,
+        "config_source": (
+            "redis:v2:config:current|v2:config:active" if config_persisted
+            else "unpersisted_defaults"
+        ),
+        "warnings": (
+            [] if config_persisted
+            else ["No versioned config is persisted in Redis; env/runtime defaults shown, version/changed-at unknown"]
+        ),
     }
 
 
@@ -1294,6 +1362,47 @@ _BLOCKED_ACTIONS: frozenset[str] = frozenset({
 })
 
 
+_AUDIT_CHAIN_KEY = "audit:chain"
+_AUDIT_CHAIN_MAX_ENTRIES = 2000
+
+
+def _write_audit_chain_entry(
+    *,
+    audit_id: str,
+    actor: str,
+    action: str,
+    result: str,
+    reason: str | None = None,
+    evidence: Any = None,
+) -> bool:
+    """Persist a governance/control audit entry to the V2 admin audit chain.
+
+    GET /api/v2/admin/audit/chain reads the Redis list ``audit:chain``; until
+    this writer existed the handler docstring claimed "Every attempt is
+    audit-logged" while nothing was ever persisted. V2-owned key (same policy
+    basis as ``audit:trainer:reads`` — see app.api.v2._common). Never raises.
+    """
+    client = get_redis()
+    if client is None:
+        return False
+    entry = {
+        "audit_id": audit_id,
+        "actor": actor,
+        "action": action,
+        "result": result,
+        "reason": reason,
+        "evidence": evidence,
+        "timestamp": _utc_now(),
+        "live_gate": "blocked_human_only",
+    }
+    try:
+        client.lpush(_AUDIT_CHAIN_KEY, json.dumps(entry))
+        client.ltrim(_AUDIT_CHAIN_KEY, 0, _AUDIT_CHAIN_MAX_ENTRIES - 1)
+        return True
+    except Exception:
+        return False
+
+
 @router.post("/controls/{action_id}", dependencies=[Depends(require_admin)])
 async def execute_control_action(
     action_id: str,
@@ -1309,6 +1418,17 @@ async def execute_control_action(
     audit_id = secrets.token_hex(16)
     reason = str(body.get("reason") or "")
     actor_email = str(actor.get("email") or actor.get("username") or "unknown")
+
+    # Audit-log the attempt BEFORE rejecting so the chain records every
+    # governance action (the docstring's "audit-logged" claim was unwired).
+    _write_audit_chain_entry(
+        audit_id=audit_id,
+        actor=actor_email,
+        action=f"control:{action_id}",
+        result="blocked",
+        reason=reason or None,
+        evidence={"blocked_action": action_id in _BLOCKED_ACTIONS, "endpoint": f"/api/v2/admin/controls/{action_id}"},
+    )
 
     # Regardless of action, this system is LIVE TRADING: BLOCKED.
     raise HTTPException(
@@ -1480,6 +1600,15 @@ async def paper_session_reset(
         client.rpush(_PAPER_SESSION_RESET_AUDIT_KEY, json.dumps(audit_entry))
     except Exception:
         pass
+    # Mirror into the admin audit chain so /admin/audit shows the reset.
+    _write_audit_chain_entry(
+        audit_id=audit_id,
+        actor=actor_email,
+        action="paper_session_reset",
+        result="RESET_COMPLETE" if not errors else "RESET_PARTIAL",
+        reason=reason,
+        evidence={"cleared_keys": cleared_keys, "skipped_keys": skipped_keys, "errors": errors},
+    )
 
     result: dict[str, Any] = {
         "status": "RESET_COMPLETE" if not errors else "RESET_PARTIAL",
