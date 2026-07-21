@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import json
 import os
+import struct
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -438,7 +439,7 @@ def test_fresh_property_reverifies_signature_and_cas(
     )
     with pytest.raises(
         PaperResearchCausalCostEvidenceV1IntegrityError,
-        match="ATTESTATION_REVERIFICATION_FAILED",
+        match="FACTORY_SEAL_INVALID",
     ):
         _ = forged_key_result.contract
 
@@ -464,7 +465,7 @@ def test_result_scalar_substitution_cannot_validate(
     )
     with pytest.raises(
         PaperResearchCausalCostEvidenceV1IntegrityError,
-        match="CONTRACT_BINDING",
+        match="FACTORY_SEAL_INVALID",
     ):
         _ = forged.contract
 
@@ -482,7 +483,80 @@ def test_result_cannot_omit_contract_bound_source_cas_objects(
 
     with pytest.raises(
         PaperResearchCausalCostEvidenceV1IntegrityError,
-        match="CAS_INVENTORY_MISMATCH",
+        match="FACTORY_SEAL_INVALID",
+    ):
+        _ = forged.contract
+
+
+def test_coherent_result_artifact_replacement_cannot_bypass_factory_seal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result = build_paper_research_causal_cost_evidence_v1(**_inputs(tmp_path, monkeypatch))
+    contract = result.contract
+    forged_values = list(contract["ordered_values"])
+    forged_values[0] += 1.0
+    scalar_bytes = struct.pack("!f", forged_values[0])
+    forged_receipt = contract["ordered_receipts"][0]
+    forged_receipt["value"] = forged_values[0]
+    forged_receipt["value_float32_be_hex"] = scalar_bytes.hex()
+    forged_receipt["payload_sha256"] = hashlib.sha256(scalar_bytes).hexdigest()
+    receipt_material = {
+        key: value for key, value in forged_receipt.items() if key != "receipt_sha256"
+    }
+    forged_receipt["receipt_sha256"] = hashlib.sha256(
+        json.dumps(
+            receipt_material,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    ).hexdigest()
+    forged_receipt_sha256s = [receipt["receipt_sha256"] for receipt in contract["ordered_receipts"]]
+    contract["ordered_values"] = forged_values
+    contract["ordered_receipt_sha256s"] = forged_receipt_sha256s
+    contract_material = {
+        key: value
+        for key, value in contract.items()
+        if key not in {"evidence_id", "contract_material_sha256"}
+    }
+    contract_material_sha256 = hashlib.sha256(
+        json.dumps(
+            contract_material,
+            allow_nan=False,
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+    ).hexdigest()
+    contract["contract_material_sha256"] = contract_material_sha256
+    contract["evidence_id"] = f"paper_research_causal_cost_evidence_v1_{contract_material_sha256}"
+    artifact_bytes = json.dumps(
+        contract,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+    artifact_address = result._store.put(  # noqa: SLF001
+        artifact_bytes,
+        expected_sha256=hashlib.sha256(artifact_bytes).hexdigest(),
+        expected_byte_count=len(artifact_bytes),
+    )
+    forged = replace(
+        result,
+        artifact_sha256=artifact_address.payload_sha256,
+        artifact_json=artifact_bytes.decode("ascii"),
+        artifact_address=artifact_address,
+        ordered_values=tuple(forged_values),
+        ordered_receipt_sha256s=tuple(forged_receipt_sha256s),
+        _exact_objects=(*result._exact_objects[:-1], (artifact_address, artifact_bytes)),  # noqa: SLF001
+    )
+
+    with pytest.raises(
+        PaperResearchCausalCostEvidenceV1IntegrityError,
+        match="FACTORY_SEAL_INVALID",
     ):
         _ = forged.contract
 
