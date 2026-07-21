@@ -30,6 +30,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
     build_source_read_receipt,
     stable_sha256,
 )
+from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
+    ImmutableSourcePayloadStore,
+)
 
 BASE = datetime(2026, 7, 20, 12, 0, tzinfo=UTC)
 CUTOFF = BASE
@@ -80,7 +83,9 @@ def _receipt(
     finality_type: str = "VERSIONED_SNAPSHOT",
     kind: str = "DIRECT_READ",
     children: list[dict[str, str]] | None = None,
+    store: ImmutableSourcePayloadStore | None = None,
 ) -> dict[str, Any]:
+    address = store.put(payload) if store is not None else None
     return build_source_read_receipt(
         source_label=label,
         payload_type=payload_type,
@@ -91,7 +96,11 @@ def _receipt(
         consumer_observed_at=_utc(observed),
         feature_cutoff=_utc(feature_cutoff or event),
         read_locator_type=locator_type,
-        read_locator=f"objects/{hashlib.sha256(payload).hexdigest()}",
+        read_locator=(
+            address.relative_path
+            if address is not None
+            else f"objects/{hashlib.sha256(payload).hexdigest()}"
+        ),
         read_locator_version=hashlib.sha256(payload).hexdigest(),
         finality_type=finality_type,
         finality_cutoff=_utc(available),
@@ -118,9 +127,11 @@ def _parent_binding(parent: dict[str, Any]) -> dict[str, Any]:
 def _cost_evidence(
     auxiliary_values: list[float],
     *,
+    cost_store: ImmutableSourcePayloadStore,
     symbol: str = "BTCUSDT",
     decision: datetime = DECISION,
     feature_cutoff: datetime = CUTOFF,
+    parent_model_cutoff: datetime | None = None,
     source_available: datetime = COST_SOURCE_AVAILABLE,
     source_observed: datetime = COST_SOURCE_OBSERVED,
     capture_available: datetime = COST_CAPTURE_AVAILABLE,
@@ -135,8 +146,58 @@ def _cost_evidence(
             available=source_available,
             observed=source_observed,
             event=feature_cutoff,
+            store=cost_store,
         )
-    artifact = b"authenticated-causal-cost-capture"
+
+    def address_mapping(payload: bytes) -> dict[str, Any]:
+        address = cost_store.put(payload)
+        return {
+            "schema_version": address.schema_version,
+            "payload_sha256": address.payload_sha256,
+            "payload_byte_count": address.payload_byte_count,
+            "relative_path": address.relative_path,
+        }
+
+    def receipt_payload_address(role: str) -> dict[str, Any]:
+        receipt = source_receipts[role]
+        address = cost_store.verify(
+            receipt["payload_sha256"],
+            expected_byte_count=receipt["read_evidence"]["payload_byte_count"],
+        )
+        return {
+            "schema_version": address.schema_version,
+            "payload_sha256": address.payload_sha256,
+            "payload_byte_count": address.payload_byte_count,
+            "relative_path": address.relative_path,
+        }
+
+    market_sources = {
+        role: {
+            "payload_cas_address": receipt_payload_address(role),
+            "direct_read_receipt_cas_address": address_mapping(f"original-receipt:{role}".encode()),
+        }
+        for role in ("mark_price", "orderbook_depth", "orderbook_features")
+    }
+    fee_source = {
+        "artifact_cas_address": receipt_payload_address("authoritative_fee_schedule"),
+        "input_receipt_cas_address": address_mapping(b"original-fee-receipt"),
+        "raw_response_cas_address": address_mapping(b"raw-fee-response"),
+    }
+    notional_source = {
+        "artifact_cas_address": receipt_payload_address("expected_notional_policy"),
+        "input_receipt_cas_address": address_mapping(b"original-notional-receipt"),
+    }
+    artifact = json.dumps(
+        {
+            "fee_source": fee_source,
+            "market_sources": market_sources,
+            "notional_source": notional_source,
+        },
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
     children = [
         {
             "input_role": role,
@@ -152,6 +213,7 @@ def _cost_evidence(
         event=feature_cutoff,
         kind="COMPOSITE_DERIVATION",
         children=children,
+        store=cost_store,
     )
     labels: list[str] = []
     roots: list[str] = []
@@ -176,6 +238,7 @@ def _cost_evidence(
                     "receipt_sha256": cost_receipt["receipt_sha256"],
                 }
             ],
+            store=cost_store,
         )
         labels.append(label)
         roots.append(receipt["receipt_sha256"])
@@ -190,6 +253,8 @@ def _cost_evidence(
         "symbol": symbol,
         "decision_time": _utc(decision),
         "feature_cutoff": _utc(feature_cutoff),
+        "parent_model_feature_cutoff": _utc(parent_model_cutoff or feature_cutoff),
+        "ppo_feature_cutoff_semantics": loader_v1.PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS,
         "available_at": _utc(auxiliary_available),
         "expected_holding_horizon_seconds": 900,
         "cost_capture_artifact_sha256": hashlib.sha256(artifact).hexdigest(),
@@ -216,6 +281,49 @@ def _cost_evidence(
         "auxiliary_source_labels": labels,
         "auxiliary_feature_receipt_sha256s": roots,
         "auxiliary_values_float32_sha256": loader_v1._auxiliary_values_sha256(auxiliary_values),
+        "immutable_cost_store_root": str(cost_store.root_path),
+        "immutable_cost_store_root_sha256": hashlib.sha256(
+            str(cost_store.root_path).encode("utf-8")
+        ).hexdigest(),
+        "immutable_cost_object_inventory": [
+            {
+                "payload_sha256": digest,
+                "payload_byte_count": count,
+            }
+            for digest, count in sorted(
+                {
+                    address.payload_sha256: address.payload_byte_count
+                    for address in (
+                        *(
+                            cost_store.verify(
+                                receipt["payload_sha256"],
+                                expected_byte_count=receipt["read_evidence"]["payload_byte_count"],
+                            )
+                            for receipt in (
+                                *source_receipts.values(),
+                                cost_receipt,
+                                *auxiliary_receipts,
+                            )
+                        ),
+                        *(
+                            cost_store.verify(
+                                value["payload_sha256"],
+                                expected_byte_count=value["payload_byte_count"],
+                            )
+                            for value in (
+                                *(item["payload_cas_address"] for item in market_sources.values()),
+                                *(
+                                    item["direct_read_receipt_cas_address"]
+                                    for item in market_sources.values()
+                                ),
+                                *fee_source.values(),
+                                *notional_source.values(),
+                            )
+                        ),
+                    )
+                }.items()
+            )
+        ],
     }
     return (
         [*source_receipts.values(), cost_receipt, *auxiliary_receipts],
@@ -228,6 +336,7 @@ def _cost_evidence(
 def _child_record(
     parent: dict[str, Any],
     *,
+    cost_store_root: Path,
     parent_claim_mutator: Any | None = None,
     cost_binding_mutator: Any | None = None,
     attestation_mutator: Any | None = None,
@@ -245,11 +354,14 @@ def _child_record(
     if child_generated > parent_decision:
         raise AssertionError("parent fixture lacks causal enrichment clock budget")
     auxiliary_values = [1.5, 2.5, 3.5, -0.25]
+    cost_store = ImmutableSourcePayloadStore(cost_store_root)
     cost_receipts, cost_labels, cost_roots, cost_binding = _cost_evidence(
         auxiliary_values,
+        cost_store=cost_store,
         symbol=parent_envelope["symbol"],
         decision=parent_decision,
         feature_cutoff=parent_cutoff,
+        parent_model_cutoff=parent_cutoff,
         source_available=source_available,
         source_observed=source_observed,
         capture_available=capture_available,
@@ -326,9 +438,9 @@ def _child_record(
         source_lineage_material={
             loader_v1.PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY: attestation
         },
-        feature_cutoff=parent_envelope["feature_cutoff"],
+        feature_cutoff=cost_binding["feature_cutoff"],
         masa_feature_cutoff=parent_envelope["masa_feature_cutoff"],
-        ppo_feature_cutoff=parent_envelope["ppo_feature_cutoff"],
+        ppo_feature_cutoff=cost_binding["feature_cutoff"],
         ppo_decision_time=parent_envelope["ppo_decision_time"],
         generated_at=_utc(child_generated),
     )
@@ -378,7 +490,11 @@ def _ledger_with_pair(
     **child_kwargs: Any,
 ) -> tuple[DurableFeatureSnapshotLedger, dict[str, Any], dict[str, Any]]:
     ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
-    child = _child_record(parent, **child_kwargs)
+    child = _child_record(
+        parent,
+        cost_store_root=tmp_path / "cost-cas",
+        **child_kwargs,
+    )
     result = _append_after_latest_decision(ledger, [parent, child])
     assert result.inserted_rows == 2
     return ledger, parent, child
@@ -430,6 +546,7 @@ def test_loads_only_atomic_authenticated_39_and_reconstructs_exact_446_1784(
 
     batch = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
         training_observed_at=_observation(),
     )
 
@@ -467,6 +584,38 @@ def test_loads_only_atomic_authenticated_39_and_reconstructs_exact_446_1784(
     assert sample.live_execution_authorized is False
 
 
+def test_nonadjacent_parent_child_in_same_transaction_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
+    parent = authenticated_base_evidence.record
+    child = _child_record(
+        parent,
+        cost_store_root=tmp_path / "nonadjacent-cost-cas",
+    )
+    generic = _generic_same_width_record(suffix="between-parent-and-child")
+
+    result = _append_after_latest_decision(ledger, [parent, generic, child])
+
+    assert result.inserted_rows == 3
+    committed = [
+        ledger.get_snapshot(record["durable_snapshot_id"]) for record in (parent, generic, child)
+    ]
+    assert all(item is not None for item in committed)
+    assert [item.sequence for item in committed if item is not None] == [1, 2, 3]
+    assert len({item.append_transaction_id for item in committed if item is not None}) == 1
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_PARENT_ATOMIC_APPEND_OR_CLOCK_BINDING_INVALID",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "nonadjacent-cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
 def test_same_width_generic_record_is_explicitly_excluded(tmp_path: Path) -> None:
     ledger = DurableFeatureSnapshotLedger(tmp_path / "feature-ledger.sqlite3")
     record = _generic_same_width_record()
@@ -474,6 +623,7 @@ def test_same_width_generic_record_is_explicitly_excluded(tmp_path: Path) -> Non
 
     batch = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
         training_observed_at=_observation(),
     )
 
@@ -490,18 +640,20 @@ def test_fixed_observation_pages_are_disjoint_and_cross_small_page_limit(
     generic = _generic_same_width_record(suffix="page-prefix")
     ledger.append_snapshot(generic)
     parent = authenticated_base_evidence.record
-    child = _child_record(parent)
+    child = _child_record(parent, cost_store_root=tmp_path / "page-cost-cas")
     appended = _append_after_latest_decision(ledger, [parent, child])
     assert appended.inserted_rows == 2
     observation = _observation()
 
     first = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "page-cost-cas").absolute(),
         training_observed_at=observation,
         scan_limit=1,
     )
     second = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "page-cost-cas").absolute(),
         training_observed_at=observation,
         scan_limit=1,
         after_sequence=first.next_after_sequence,
@@ -547,6 +699,7 @@ def test_page_cursor_tamper_fails_closed(tmp_path: Path) -> None:
     observation = _observation()
     first = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
         training_observed_at=observation,
         scan_limit=1,
     )
@@ -566,6 +719,7 @@ def test_page_cursor_tamper_fails_closed(tmp_path: Path) -> None:
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
             training_observed_at=observation,
             scan_limit=1,
             after_sequence=first.next_after_sequence,
@@ -604,6 +758,7 @@ def test_concurrent_visible_append_cannot_cross_fixed_page_high_water(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
             training_observed_at=_observation(),
             scan_limit=2,
         )
@@ -642,6 +797,7 @@ def test_legacy_record_can_never_enter_profiled_training_query(tmp_path: Path) -
 
     batch = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
         training_observed_at=_observation(),
     )
 
@@ -669,6 +825,7 @@ def test_parent_hash_mismatch_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -689,6 +846,7 @@ def test_mutable_auxiliary_receipt_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -712,6 +870,37 @@ def test_late_cost_binding_claim_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
+            training_observed_at=_observation(),
+        )
+
+
+def test_cost_store_record_path_redirection_fails_closed(
+    tmp_path: Path,
+    authenticated_base_evidence: Any,
+) -> None:
+    attacker_store = ImmutableSourcePayloadStore(tmp_path / "attacker-cost-cas")
+
+    def redirect_store(binding: dict[str, Any]) -> None:
+        attacker_root = str(attacker_store.root_path)
+        binding["immutable_cost_store_root"] = attacker_root
+        binding["immutable_cost_store_root_sha256"] = hashlib.sha256(
+            attacker_root.encode("utf-8")
+        ).hexdigest()
+
+    ledger, _parent, _child = _ledger_with_pair(
+        tmp_path,
+        authenticated_base_evidence.record,
+        cost_binding_mutator=redirect_store,
+    )
+
+    with pytest.raises(
+        loader_v1.ProfiledTrainingLedgerLoaderV1Error,
+        match="PROFILED_TRAINING_COST_STORE_TRUST_ROOT_MISMATCH",
+    ):
+        loader_v1.load_profiled_training_ledger_v1(
+            ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -735,6 +924,7 @@ def test_orderbook_features_cost_root_omission_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -758,6 +948,7 @@ def test_orderbook_features_cost_root_substitution_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -791,6 +982,7 @@ def test_quarantined_caller_scalar_projection_digest_is_rejected(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -830,6 +1022,7 @@ def test_authenticated_high_water_movement_fails_closed(
     ):
         loader_v1.load_profiled_training_ledger_v1(
             ledger=ledger,
+            trusted_immutable_cost_store_root=(tmp_path / "cost-cas").absolute(),
             training_observed_at=_observation(),
         )
 
@@ -845,6 +1038,7 @@ def test_parent_35_is_never_returned_as_training_candidate(
 
     batch = loader_v1.load_profiled_training_ledger_v1(
         ledger=ledger,
+        trusted_immutable_cost_store_root=(tmp_path / "unused-cost-cas").absolute(),
         training_observed_at=_observation(),
     )
 

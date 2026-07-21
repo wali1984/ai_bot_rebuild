@@ -54,6 +54,7 @@ from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     MAX_QUERY_ROWS,
     PROVENANCE_CANONICAL_V3,
+    SOURCE_READ_LOCATOR_SCHEMA_VERSION,
     DurableFeatureSnapshotLedger,
     FeatureSnapshotLedgerError,
     FixedCutoffFeatureSnapshot,
@@ -68,6 +69,11 @@ from v2.backend.app.services.native_trainer.hybrid_cuda_trainer.training_sample_
     FEATURE_HIGH_WATER_SCHEMA_VERSION,
     TrainingSampleIdentityError,
     feature_ledger_fixed_observation_high_water,
+)
+from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
+    SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION,
+    ImmutableSourcePayloadStore,
+    SourcePayloadStoreError,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     LOGICAL_ENABLED_SLOT_ORDINALS,
@@ -114,6 +120,9 @@ PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_STATUS: Final = (
     "STRICT_TRAINING_CANDIDATE_NO_SERVING_OR_EXECUTION_AUTHORITY"
 )
 PROFILED_TRAINING_COST_BINDING_V1_SCHEMA_VERSION: Final = "causal_cost_capture_training_binding_v1"
+PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS: Final = (
+    "RECORD_WIDE_LATEST_EVIDENCE_CUTOFF_AUXILIARIES_EXCLUDED_FROM_PPO_MODEL_VECTOR"
+)
 PROFILED_TRAINING_COST_CAPTURE_RECEIPT_CHILD_ROLES: Final = (
     "authoritative_fee_schedule",
     "expected_notional_policy",
@@ -299,6 +308,8 @@ _COST_BINDING_FIELDS = frozenset(
         "symbol",
         "decision_time",
         "feature_cutoff",
+        "parent_model_feature_cutoff",
+        "ppo_feature_cutoff_semantics",
         "available_at",
         "expected_holding_horizon_seconds",
         "cost_capture_artifact_sha256",
@@ -315,6 +326,9 @@ _COST_BINDING_FIELDS = frozenset(
         "auxiliary_source_labels",
         "auxiliary_feature_receipt_sha256s",
         "auxiliary_values_float32_sha256",
+        "immutable_cost_store_root",
+        "immutable_cost_store_root_sha256",
+        "immutable_cost_object_inventory",
     }
 )
 _SOURCE_PROVENANCE_FIELDS = frozenset(
@@ -1033,12 +1047,174 @@ def _validate_causal_immutable_receipt(
         _fail(reason)
 
 
+def _reopen_cost_cas(
+    *,
+    binding: Mapping[str, Any],
+    receipts: Sequence[Mapping[str, Any]],
+    trusted_immutable_cost_store_root: Path,
+) -> None:
+    root_value = binding.get("immutable_cost_store_root")
+    trusted_root_text = str(trusted_immutable_cost_store_root)
+    if (
+        type(root_value) is not str
+        or root_value != trusted_root_text
+        or binding.get("immutable_cost_store_root_sha256")
+        != hashlib.sha256(trusted_root_text.encode("utf-8")).hexdigest()
+    ):
+        _fail("PROFILED_TRAINING_COST_STORE_TRUST_ROOT_MISMATCH")
+    try:
+        if (
+            not trusted_immutable_cost_store_root.is_dir()
+            or trusted_immutable_cost_store_root.is_symlink()
+        ):
+            _fail("PROFILED_TRAINING_COST_STORE_ROOT_MISSING_OR_UNSAFE")
+        store = ImmutableSourcePayloadStore(trusted_immutable_cost_store_root)
+    except (OSError, SourcePayloadStoreError) as exc:
+        raise ProfiledTrainingLedgerLoaderV1Error(
+            "PROFILED_TRAINING_COST_STORE_ROOT_REOPEN_FAILED"
+        ) from exc
+
+    raw_inventory = binding.get("immutable_cost_object_inventory")
+    if type(raw_inventory) is not list or not raw_inventory:
+        _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_INVALID")
+    inventory: dict[str, int] = {}
+    for raw_item in raw_inventory:
+        if type(raw_item) is not dict or set(raw_item) != {
+            "payload_sha256",
+            "payload_byte_count",
+        }:
+            _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_INVALID")
+        digest = raw_item.get("payload_sha256")
+        byte_count = raw_item.get("payload_byte_count")
+        if (
+            not _valid_sha256(digest)
+            or type(byte_count) is not int
+            or byte_count <= 0
+            or digest in inventory
+        ):
+            _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_INVALID")
+        inventory[cast(str, digest)] = byte_count
+    if [item["payload_sha256"] for item in raw_inventory] != sorted(inventory):
+        _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_CANONICAL")
+
+    objects: dict[str, bytes] = {}
+    for digest, byte_count in inventory.items():
+        try:
+            payload = store.get(digest, expected_byte_count=byte_count)
+        except SourcePayloadStoreError as exc:
+            raise ProfiledTrainingLedgerLoaderV1Error(
+                "PROFILED_TRAINING_COST_CAS_READBACK_FAILED"
+            ) from exc
+        if len(payload) != byte_count or hashlib.sha256(payload).hexdigest() != digest:
+            _fail("PROFILED_TRAINING_COST_CAS_READBACK_MISMATCH")
+        objects[digest] = payload
+
+    receipt_objects: dict[str, int] = {}
+    for receipt in receipts:
+        read = receipt.get("read_evidence")
+        payload_sha256 = receipt.get("payload_sha256")
+        if type(read) is not dict or not _valid_sha256(payload_sha256):
+            _fail("PROFILED_TRAINING_COST_CAS_RECEIPT_INVALID")
+        payload_byte_count = read.get("payload_byte_count")
+        expected_locator = f"sha256/{payload_sha256[:2]}/{payload_sha256}"
+        expected_locator_sha256 = stable_sha256(
+            {
+                "schema_version": SOURCE_READ_LOCATOR_SCHEMA_VERSION,
+                "read_locator_type": "FILE_CONTENT_ADDRESS",
+                "read_locator": expected_locator,
+                "read_locator_version": payload_sha256,
+            }
+        )
+        if (
+            read.get("read_locator_type") != "FILE_CONTENT_ADDRESS"
+            or read.get("read_locator") != expected_locator
+            or receipt.get("read_locator_sha256") != expected_locator_sha256
+            or type(payload_byte_count) is not int
+            or payload_byte_count <= 0
+        ):
+            _fail("PROFILED_TRAINING_COST_CAS_LOCATOR_BINDING_INVALID")
+        receipt_objects[cast(str, payload_sha256)] = cast(int, payload_byte_count)
+    if any(inventory.get(digest) != count for digest, count in receipt_objects.items()):
+        _fail("PROFILED_TRAINING_COST_CAS_RECEIPT_NOT_IN_INVENTORY")
+
+    artifact_sha = binding.get("cost_capture_artifact_sha256")
+    artifact_bytes = objects.get(cast(str, artifact_sha))
+    if artifact_bytes is None:
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_NOT_IN_CAS_INVENTORY")
+    try:
+        artifact = json.loads(artifact_bytes.decode("ascii", errors="strict"))
+    except (json.JSONDecodeError, RecursionError, UnicodeError, ValueError) as exc:
+        raise ProfiledTrainingLedgerLoaderV1Error(
+            "PROFILED_TRAINING_COST_ARTIFACT_CAS_JSON_INVALID"
+        ) from exc
+    if type(artifact) is not dict:
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_CAS_JSON_INVALID")
+    if _canonical_json(artifact).encode("ascii", errors="strict") != artifact_bytes:
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_CAS_JSON_NOT_CANONICAL")
+
+    expected_inventory = dict(receipt_objects)
+    expected_inventory[cast(str, artifact_sha)] = cast(
+        int, binding["cost_capture_artifact_byte_count"]
+    )
+
+    def bind_embedded_address(value: object) -> None:
+        if type(value) is not dict or set(value) != {
+            "schema_version",
+            "payload_sha256",
+            "payload_byte_count",
+            "relative_path",
+        }:
+            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
+        digest = value.get("payload_sha256")
+        byte_count = value.get("payload_byte_count")
+        if (
+            value.get("schema_version") != SOURCE_PAYLOAD_ADDRESS_SCHEMA_VERSION
+            or not _valid_sha256(digest)
+            or type(byte_count) is not int
+            or byte_count <= 0
+            or value.get("relative_path") != f"sha256/{cast(str, digest)[:2]}/{digest}"
+        ):
+            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_INVALID")
+        prior = expected_inventory.get(cast(str, digest))
+        if prior is not None and prior != byte_count:
+            _fail("PROFILED_TRAINING_COST_EMBEDDED_CAS_ADDRESS_CONFLICT")
+        expected_inventory[cast(str, digest)] = byte_count
+
+    market_sources = artifact.get("market_sources")
+    fee_source = artifact.get("fee_source")
+    notional_source = artifact.get("notional_source")
+    if (
+        type(market_sources) is not dict
+        or type(fee_source) is not dict
+        or type(notional_source) is not dict
+    ):
+        _fail("PROFILED_TRAINING_COST_ARTIFACT_SOURCE_INVENTORY_INVALID")
+    for role in ("mark_price", "orderbook_depth", "orderbook_features"):
+        source = market_sources.get(role)
+        if type(source) is not dict:
+            _fail("PROFILED_TRAINING_COST_ARTIFACT_SOURCE_INVENTORY_INVALID")
+        bind_embedded_address(source.get("payload_cas_address"))
+        bind_embedded_address(source.get("direct_read_receipt_cas_address"))
+    for address_field in (
+        "artifact_cas_address",
+        "input_receipt_cas_address",
+        "raw_response_cas_address",
+    ):
+        bind_embedded_address(fee_source.get(address_field))
+    for address_field in ("artifact_cas_address", "input_receipt_cas_address"):
+        bind_embedded_address(notional_source.get(address_field))
+    if inventory != expected_inventory:
+        _fail("PROFILED_TRAINING_COST_CAS_INVENTORY_NOT_EXACT")
+
+
 def _validate_cost_binding(
     value: object,
     *,
     envelope: Mapping[str, Any],
+    parent_envelope: Mapping[str, Any],
     physical_values: Sequence[float],
     decision_time: datetime,
+    trusted_immutable_cost_store_root: Path,
 ) -> dict[str, Any]:
     binding = _exact_dict(
         value,
@@ -1060,6 +1236,10 @@ def _validate_cost_binding(
         binding.get("feature_cutoff"),
         reason="PROFILED_TRAINING_COST_FEATURE_CUTOFF_INVALID",
     )
+    parent_model_cutoff = _clock(
+        parent_envelope.get("feature_cutoff"),
+        reason="PROFILED_TRAINING_PARENT_MODEL_FEATURE_CUTOFF_INVALID",
+    )
     if (
         binding.get("schema_version") != PROFILED_TRAINING_COST_BINDING_V1_SCHEMA_VERSION
         or type(binding.get("cost_capture_schema_version")) is not str
@@ -1070,10 +1250,15 @@ def _validate_cost_binding(
         != CAUSAL_COST_EVIDENCE_V1_IMPLEMENTATION_SHA256
         or binding.get("symbol") != envelope.get("symbol")
         or binding.get("decision_time") != envelope.get("tensor_decision_time")
+        or binding.get("parent_model_feature_cutoff") != parent_envelope.get("feature_cutoff")
+        or binding.get("ppo_feature_cutoff_semantics") != PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS
         or binding.get("expected_holding_horizon_seconds")
         != CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS
         or binding_available > decision_time
         or binding_cutoff > decision_time
+        or parent_model_cutoff > binding_cutoff
+        or binding.get("feature_cutoff") != envelope.get("feature_cutoff")
+        or binding.get("feature_cutoff") != envelope.get("ppo_feature_cutoff")
         or binding.get("auxiliary_feature_names") != list(AUXILIARY_LABEL_ONLY_FEATURE_NAMES)
         or binding.get("auxiliary_source_labels") != auxiliary_labels
         or binding.get("auxiliary_feature_receipt_sha256s") != auxiliary_roots
@@ -1139,6 +1324,15 @@ def _validate_cost_binding(
         )
         if source.get("receipt_kind") != "DIRECT_READ":
             _fail(f"PROFILED_TRAINING_COST_SOURCE_RECEIPT_KIND_INVALID:{role}")
+    source_cutoffs = [
+        _clock(
+            receipts[cast(str, receipt_sha)].get("feature_cutoff"),
+            reason=f"PROFILED_TRAINING_COST_SOURCE_CUTOFF_INVALID:{role}",
+        )
+        for role, receipt_sha in child_claims.items()
+    ]
+    if binding_cutoff != max(parent_model_cutoff, *source_cutoffs):
+        _fail("PROFILED_TRAINING_COST_RECORD_WIDE_CUTOFF_NOT_EXACT_MAX")
     if (
         receipts[cast(str, binding["fee_schedule_receipt_sha256"])].get("payload_sha256")
         != binding["authoritative_fee_schedule_sha256"]
@@ -1147,6 +1341,7 @@ def _validate_cost_binding(
     ):
         _fail("PROFILED_TRAINING_FEE_OR_NOTIONAL_POLICY_PAYLOAD_BINDING_INVALID")
     auxiliary_available_times: list[datetime] = []
+    auxiliary_receipts: list[dict[str, Any]] = []
     for name, root_sha in zip(
         AUXILIARY_LABEL_ONLY_FEATURE_NAMES,
         auxiliary_roots,
@@ -1155,6 +1350,7 @@ def _validate_cost_binding(
         root = receipts.get(cast(str, root_sha))
         if root is None:
             _fail(f"PROFILED_TRAINING_AUXILIARY_RECEIPT_MISSING:{name}")
+        auxiliary_receipts.append(root)
         _validate_causal_immutable_receipt(
             root,
             decision_time=decision_time,
@@ -1191,6 +1387,15 @@ def _validate_cost_binding(
         )
     if not auxiliary_available_times or binding_available != max(auxiliary_available_times):
         _fail("PROFILED_TRAINING_COST_AVAILABLE_AT_BINDING_INVALID")
+    _reopen_cost_cas(
+        binding=binding,
+        receipts=[
+            *(receipts[cast(str, value)] for value in child_claims.values()),
+            cost_receipt,
+            *auxiliary_receipts,
+        ],
+        trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
+    )
     return binding
 
 
@@ -1387,6 +1592,7 @@ def _admit_item(
     ledger: DurableFeatureSnapshotLedger,
     item: FixedCutoffFeatureSnapshot,
     high_water: Mapping[str, Any],
+    trusted_immutable_cost_store_root: Path,
 ) -> ProfiledTrainingLedgerSampleV1 | None:
     record = item.record
     if type(record) is not dict or type(record.get("frozen_envelope")) is not dict:
@@ -1461,7 +1667,7 @@ def _admit_item(
         _fail("PROFILED_TRAINING_PARENT_BINDING_MISMATCH")
     parent_envelope = cast(dict[str, Any], parent_material["envelope"])
     if (
-        parent.sequence >= item.sequence
+        parent.sequence + 1 != item.sequence
         or parent.append_transaction_id != item.append_transaction_id
         or parent.append_receipt_sha256 != item.append_receipt_sha256
         or parent.postcommit_receipt_sha256 != item.postcommit_receipt_sha256
@@ -1472,9 +1678,7 @@ def _admit_item(
                 "symbol",
                 "timeframe",
                 "tensor_decision_time",
-                "feature_cutoff",
                 "masa_feature_cutoff",
-                "ppo_feature_cutoff",
                 "ppo_decision_time",
             )
         )
@@ -1510,11 +1714,25 @@ def _admit_item(
         envelope.get("tensor_decision_time"),
         reason="PROFILED_TRAINING_DECISION_TIME_INVALID",
     )
+    child_cutoff = _clock(
+        envelope.get("feature_cutoff"),
+        reason="PROFILED_TRAINING_CHILD_FEATURE_CUTOFF_INVALID",
+    )
+    parent_model_cutoff = _clock(
+        parent_envelope.get("feature_cutoff"),
+        reason="PROFILED_TRAINING_PARENT_MODEL_FEATURE_CUTOFF_INVALID",
+    )
+    if not parent_model_cutoff <= child_cutoff <= decision or envelope.get(
+        "ppo_feature_cutoff"
+    ) != envelope.get("feature_cutoff"):
+        _fail("PROFILED_TRAINING_CHILD_RECORD_WIDE_CUTOFF_INVALID")
     _validate_cost_binding(
         attestation.get("cost_capture_binding"),
         envelope=envelope,
+        parent_envelope=parent_envelope,
         physical_values=physical_values,
         decision_time=decision,
+        trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
     )
     logical, model_vector = _logical_projection(
         physical_model_values=physical_values[:PHYSICAL_MODEL_FEATURE_COUNT],
@@ -1581,6 +1799,7 @@ def _admit_item(
 def load_profiled_training_ledger_v1(
     *,
     ledger: DurableFeatureSnapshotLedger,
+    trusted_immutable_cost_store_root: Path,
     training_observed_at: str,
     scan_limit: int = MAX_PROFILED_TRAINING_SCAN_ROWS,
     after_sequence: int = 0,
@@ -1590,6 +1809,13 @@ def load_profiled_training_ledger_v1(
 
     if type(ledger) is not DurableFeatureSnapshotLedger:
         _fail("PROFILED_TRAINING_LEDGER_EXACT_TYPE_REQUIRED")
+    if (
+        type(trusted_immutable_cost_store_root) is not type(Path())
+        or not trusted_immutable_cost_store_root.is_absolute()
+        or ".." in trusted_immutable_cost_store_root.parts
+        or "\x00" in str(trusted_immutable_cost_store_root)
+    ):
+        _fail("PROFILED_TRAINING_TRUSTED_COST_STORE_ROOT_INVALID")
     if type(scan_limit) is not int or not 0 < scan_limit <= MAX_PROFILED_TRAINING_SCAN_ROWS:
         _fail("PROFILED_TRAINING_SCAN_LIMIT_INVALID")
     if type(after_sequence) is not int or after_sequence < 0:
@@ -1670,6 +1896,7 @@ def load_profiled_training_ledger_v1(
                 ledger=ledger,
                 item=item,
                 high_water=before_high_water,
+                trusted_immutable_cost_store_root=trusted_immutable_cost_store_root,
             )
             if admitted is None:
                 exclusions.append(
@@ -1775,6 +2002,7 @@ __all__ = [
     "PROFILED_TRAINING_PHYSICAL_FEATURE_COUNT",
     "PROFILED_TRAINING_PHYSICAL_ORDERED_FEATURE_NAMES",
     "PROFILED_TRAINING_PHYSICAL_ORDERED_FEATURE_NAMES_SHA256",
+    "PROFILED_TRAINING_PPO_CUTOFF_SEMANTICS",
     "PROFILED_TRAINING_PROJECTION_V1_CONFIGURATION_SHA256",
     "PROFILED_TRAINING_PROJECTION_V1_IMPLEMENTATION_SHA256",
     "PROFILED_TRAINING_PROJECTION_V1_SCHEMA_VERSION",
