@@ -1701,10 +1701,12 @@ class ProfiledBaseFeaturePublisherV1:
                 float(observations["materialized_publication_elapsed_seconds"])
                 + materialized_publication_elapsed
             )
-            # The deterministic authenticated-artifact accounting is floored
-            # by the cycle's observed filesystem-free-space high-water delta.
-            # Unchanged/replay-only cycles cannot dilute the publication mean.
-            observations["materialized_publication_bytes"] += evidence_delta
+            # Unit-cost adaptation is scoped to artifacts this publisher can
+            # identify exactly.  Shared-filesystem free-space movement still
+            # enforces intra-cycle backpressure and reduces the next cycle's
+            # safe headroom, but cannot be attributed to this publisher's
+            # per-symbol mean.  Unchanged/replay-only cycles cannot dilute it.
+            observations["materialized_publication_bytes"] += materialized_cycle_evidence_bytes
         _atomic_write_json(
             self.state_path,
             state,

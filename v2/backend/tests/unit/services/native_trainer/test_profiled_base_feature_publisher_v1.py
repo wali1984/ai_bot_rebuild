@@ -625,11 +625,24 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     _seed_observed_state(tmp_path / "state.json")
     publisher = _publisher(tmp_path, _Redis(payloads))
     disk_usage_calls = 0
+    disk_total_bytes = 10**12
+    cycle_start_free_bytes = disk_total_bytes - 10**9
+    free_bytes_by_call = (
+        cycle_start_free_bytes,
+        cycle_start_free_bytes,
+        cycle_start_free_bytes,
+        cycle_start_free_bytes - 250_000_000,
+    )
 
     def counted_disk_usage(_path: Path) -> DiskUsage:
         nonlocal disk_usage_calls
+        free_bytes = free_bytes_by_call[disk_usage_calls]
         disk_usage_calls += 1
-        return DiskUsage(10**12, 10**9, 10**12 - 10**9)
+        return DiskUsage(
+            disk_total_bytes,
+            disk_total_bytes - free_bytes,
+            free_bytes,
+        )
 
     publisher.disk_usage = counted_disk_usage
 
@@ -660,9 +673,16 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     assert status["classification"] == "CYCLE_COMPLETE_RESOURCE_BACKPRESSURE_DEFERRED"
     assert disk_usage_calls == 4
     assert not hasattr(publisher, "_evidence_allocated_bytes")
+    assert status["cycle_materialized_artifact_bytes"] == 50_000_000
+    assert status["cycle_disk_consumption_high_water_bytes"] == 250_000_000
+    assert status["cycle_evidence_accounted_bytes"] == 250_000_000
     assert (
         status["cycle_evidence_accounted_bytes"]
         > status["resource_decision"]["sustainable_cycle_write_budget_bytes"]
+    )
+    persisted_state = json.loads((tmp_path / "state.json").read_text(encoding="ascii"))
+    assert persisted_state["observations"]["materialized_publication_bytes"] == (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 50_000_000
     )
 
 
