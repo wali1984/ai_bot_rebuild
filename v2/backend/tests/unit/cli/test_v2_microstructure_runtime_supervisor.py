@@ -806,19 +806,63 @@ def test_supervision_plan_shard_mode_replaces_binance_batches(tmp_path, monkeypa
         assert "--seed-symbol-filter-cache-from-rest-fallback" in command
         assert "--verify-redis-freshness" in command
         assert command[command.index("--loop-max-runs") + 1] == "0"
-    # KuCoin cross-venue children keep explicit batches and replay capture.
+    # KuCoin cross-venue children keep explicit batches but are Redis-only by
+    # default; capture is an explicit disk-cost opt-in.
     kucoin_commands = [
         command
         for command in plan["direct_commands"]
         if "--exchange" in command and command[command.index("--exchange") + 1] == "kucoin"
     ]
     assert len(kucoin_commands) == 1
-    assert "--no-replay-capture" not in kucoin_commands[0]
+    assert "--no-replay-capture" in kucoin_commands[0]
     assert "--seed-symbol-filter-cache-from-rest-fallback" not in kucoin_commands[0]
     assert kucoin_commands[0][kucoin_commands[0].index("--symbols") + 1] == "ETHUSDT,SOLUSDT"
     # Stream estimate covers the full resolver universe (one depth20 stream per
     # symbol in shard mode), not the supervisor symbol list.
     assert plan["estimated_binance_stream_count"] == 148
+
+
+def test_supervision_plan_kucoin_replay_capture_requires_explicit_opt_in(tmp_path) -> None:
+    plan = supervisor.build_supervision_plan(
+        symbols=["ETHUSDT"],
+        python_executable="/venv/python",
+        replay_root=tmp_path / "replay",
+        batch_size=8,
+        direct_max_messages=600,
+        direct_loop_max_runs=0,
+        direct_interval_seconds=0.5,
+        direct_venue_timeout_seconds=30.0,
+        direct_ws_close_timeout_seconds=1.0,
+        freshness_stale_bound_ms=1500.0,
+        binance_speed="250ms",
+        binance_include_book_ticker=False,
+        binance_include_diff_depth=False,
+        monitor_loop_max_runs=0,
+        monitor_interval_seconds=1.0,
+        monitor_ttl_seconds=300,
+        monitor_timeframe="1m",
+        monitor_exchanges="binance,kucoin",
+        kucoin_symbols=["ETHUSDT"],
+        direct_kucoin_replay_capture=True,
+    )
+
+    kucoin_command = next(
+        command
+        for command in plan["direct_commands"]
+        if command[command.index("--exchange") + 1] == "kucoin"
+    )
+    assert "--no-replay-capture" not in kucoin_command
+    assert plan["direct_kucoin_replay_capture"] is True
+
+
+def test_cli_kucoin_replay_capture_defaults_off_and_requires_opt_in() -> None:
+    assert supervisor.parse_args([]).direct_kucoin_replay_capture is False
+    assert (
+        supervisor.parse_args(
+            ["--direct-kucoin-replay-capture"]
+        ).direct_kucoin_replay_capture
+        is True
+    )
 
 
 def test_supervision_plan_shard_mode_disabled_by_default(tmp_path) -> None:

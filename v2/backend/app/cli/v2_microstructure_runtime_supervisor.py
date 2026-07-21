@@ -346,6 +346,7 @@ def build_supervision_plan(
     binance_shard_count: int = 0,
     direct_shard_max_messages: int = 25000,
     direct_shard_replay_capture: bool = False,
+    direct_kucoin_replay_capture: bool = False,
     direct_shard_partial_depth_levels: str = "20",
     seed_binance_symbol_filter_cache_from_rest_fallback: bool = False,
 ) -> dict[str, Any]:
@@ -453,6 +454,8 @@ def build_supervision_plan(
             and seed_binance_symbol_filter_cache_from_rest_fallback
         ):
             command.append("--seed-symbol-filter-cache-from-rest-fallback")
+        if exchange == "kucoin" and not direct_kucoin_replay_capture:
+            command.append("--no-replay-capture")
         if binance_include_book_ticker:
             command.append("--binance-include-book-ticker")
         if binance_include_diff_depth:
@@ -512,6 +515,7 @@ def build_supervision_plan(
         ),
         "direct_shard_max_messages": max(1, int(direct_shard_max_messages)),
         "direct_shard_replay_capture": bool(direct_shard_replay_capture),
+        "direct_kucoin_replay_capture": bool(direct_kucoin_replay_capture),
         "direct_shard_partial_depth_levels": str(direct_shard_partial_depth_levels),
         "direct_kucoin_batches": kucoin_batches,
         "direct_kucoin_batch_count": len(kucoin_batches),
@@ -1094,7 +1098,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Persist replay JSONL files for sharded Binance children. Default off: the "
             "full-universe fleet is redis-only for disk safety (orderbook_replay caused "
-            "300G/day ENOSPC incidents); KuCoin cross-venue children keep capture."
+            "300G/day ENOSPC incidents). KuCoin replay capture is controlled separately "
+            "and is also off by default."
         ),
     )
     parser.add_argument(
@@ -1105,6 +1110,15 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Default 20-only: one stream per symbol keeps per-child message rate below "
             "processing capacity (backlog otherwise inflates local latency past the "
             "adaptive feed-quality bound)."
+        ),
+    )
+    parser.add_argument(
+        "--direct-kucoin-replay-capture",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Persist KuCoin cross-venue replay JSONL files. Default off: Redis remains "
+            "the online orderbook surface and replay capture is an explicit disk-cost opt-in."
         ),
     )
     parser.add_argument("--direct-loop-max-runs", type=int, default=1)
@@ -1191,6 +1205,7 @@ def main(argv: list[str] | None = None) -> int:
         binance_shard_count=int(args.direct_binance_shard_count),
         direct_shard_max_messages=int(args.direct_shard_max_messages),
         direct_shard_replay_capture=bool(args.direct_shard_replay_capture),
+        direct_kucoin_replay_capture=bool(args.direct_kucoin_replay_capture),
         direct_shard_partial_depth_levels=str(args.direct_shard_partial_depth_levels),
         seed_binance_symbol_filter_cache_from_rest_fallback=bool(
             args.seed_binance_symbol_filter_cache_from_rest_fallback

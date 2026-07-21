@@ -18,7 +18,8 @@ ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_sa
 # per-child message rate under processing capacity so backlog never inflates
 # local latency past the adaptive feed-quality bound). Shard children run
 # redis-only (--no-replay-capture injected by the supervisor) for disk safety;
-# KuCoin cross-venue children keep paper-candidate batches + replay capture.
+# KuCoin cross-venue children keep paper-candidate batches but default to
+# redis-only; replay capture is an explicit supervisor opt-in.
 # --direct-shard-max-messages 25000 sets per-connection run length (~3 min)
 # = universe re-resolution cadence.
 ExecStart=/usr/bin/env bash -lc 'mkdir -p claude_worklog/agent_supervisor/logs/control_plane; exec ./.venv/bin/python3 -m v2.backend.app.cli.v2_microstructure_runtime_supervisor --paper-candidates --filter-provider-supported-symbols --seed-binance-symbol-filter-cache-from-rest-fallback --run-managed --managed-until-stopped --restart-exited-children --direct-loop-max-runs 0 --direct-interval-seconds 0.5 --direct-max-messages 600 --direct-binance-shard-count 4 --direct-shard-max-messages 25000 --direct-shard-partial-depth-levels 20 --binance-speed 250ms >> claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-microstructure-runtime-supervisor.log 2>&1'
