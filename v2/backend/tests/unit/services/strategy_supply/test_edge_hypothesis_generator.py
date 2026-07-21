@@ -16,8 +16,10 @@ from v2.backend.app.services.strategy_supply.edge_hypothesis_generator import (
 class FakeRedis:
     def __init__(self, data: dict[str, dict]) -> None:
         self._data = {k: json.dumps(v) for k, v in data.items()}
+        self.read_keys: list[str] = []
 
     def get(self, key: str):
+        self.read_keys.append(key)
         return self._data.get(key)
 
     def set(self, key: str, value: str, ex: int | None = None) -> None:
@@ -291,6 +293,39 @@ def test_fresh_valid_coinglass_v2_payload_flows_to_strategy_supply() -> None:
     assert squeeze["coinglass_context"] is True
     assert "coinglass" in squeeze["provider_features_used"]
     assert "coinglass" in squeeze["provider_feature_hashes"]
+
+
+def test_forged_cached_confluence_cannot_create_strategy_hypothesis() -> None:
+    keys = _base_keys()
+    keys["v2:market:prices:BTCUSDT"] = {
+        "ticker_24hr": {
+            "lastPrice": "60000",
+            "bidPrice": "59997",
+            "askPrice": "60003",
+            "closeTime": 4102444800000,
+        },
+    }
+    keys["v2:altdata:confluence:BTCUSDT:1m"] = {
+        "schema_version": "altdata_confluence_v1",
+        "symbol": "BTCUSDT",
+        "timeframe": "1m",
+        "actual_payload_present": True,
+        "decision_time_safe": True,
+        "features": {"altdata_social_euphoria_risk_score": 1.0},
+    }
+    client = FakeRedis(keys)
+
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
+
+    assert "v2:altdata:confluence:BTCUSDT:1m" not in client.read_keys
+    assert "social_euphoria_fade" not in {
+        row.get("strategy_family") for row in rows
+    }
+    assert all(
+        row.get("altdata_context") is not True
+        or row.get("strategy_family") != "social_euphoria_fade"
+        for row in rows
+    )
 
 
 def test_strategy_supply_caps_reference_notional_to_live_risk_profile() -> None:

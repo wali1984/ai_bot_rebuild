@@ -16,6 +16,10 @@ import json
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from v2.backend.app.services.altdata.canonical_confluence_consumer import (
+    CanonicalConfluenceContractError,
+    rebuild_canonical_confluence,
+)
 from v2.backend.app.services.altdata.provider_feature_bridge import (
     load_coinglass_input,
     load_moralis_input,
@@ -179,6 +183,29 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         if coinglass_input.present and not coinglass_input.stale
         else None
     )
+    # Never trust the cached composite envelope as an input to a paper-facing
+    # hypothesis.  Reconstruct it from the canonical provider loaders in this
+    # process so a writer that can mutate ``v2:altdata:confluence:*`` cannot
+    # manufacture a social/provider signal.  Optional provider absence is not
+    # a generator failure: the composite remains explicitly masked.
+    try:
+        rebuilt_confluence = rebuild_canonical_confluence(
+            client,
+            symbol=symbol,
+            timeframe="1m",
+        )
+    except CanonicalConfluenceContractError:
+        rebuilt_confluence = None
+    confluence_context = (
+        rebuilt_confluence
+        if isinstance(rebuilt_confluence, Mapping)
+        and rebuilt_confluence.get("actual_payload_present") is True
+        and rebuilt_confluence.get("decision_time_safe") is True
+        and rebuilt_confluence.get("reconstructed_from_canonical_provider_inputs")
+        is True
+        and rebuilt_confluence.get("cached_confluence_consumed") is False
+        else None
+    )
     return {
         "price": resolve_current_price(client, symbol),
         "ta": ta_closed if use_closed_ta else ta_live,
@@ -196,7 +223,7 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         "liquidation_levels_source": liquidation_context_source,
         "sweep_risk": _read_json(client, f"v2:market:sweep_risk:{symbol}:{timeframe}"),
         "coinglass": coinglass_context,
-        "confluence": _read_json(client, f"v2:altdata:confluence:{symbol}:1m"),
+        "confluence": confluence_context,
         "moralis": moralis_features,
         "microstructure": _read_json(client, f"v2:market:microstructure:{symbol}"),
         "microstructure_trust": trust_payload,
