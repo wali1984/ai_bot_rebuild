@@ -5,6 +5,7 @@ import json
 from collections import Counter, namedtuple
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -1877,15 +1878,28 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert summary["publisher_runtime_authority_granted"] is False
     assert summary["published_child_trainer_admission_authorized"] is True
     assert summary["automatic_trainer_transition_authorized"] is False
+    assert summary["credential_ref_read_only_assertion"] is True
+    assert (
+        summary["credential_ref_read_only_assertion_semantics"]
+        == "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
+    )
+    assert summary["exchange_key_permissions_proven_by_connector"] is False
     assert summary["live_execution_authorized"] is False
 
 
-def test_cli_commission_hmac_is_environment_only_and_never_rendered(
+def test_cli_protected_commission_hmac_is_never_rendered(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     secret = "publisher-test-separate-hmac-secret-never-render"  # noqa: S105
-    monkeypatch.setenv("PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET", secret)
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials",
+        lambda: SimpleNamespace(
+            commission_binding=SimpleNamespace(),
+            fingerprint_hmac_key=secret.encode(),
+        ),
+    )
 
     def fail_redis(_redis_url: str) -> object:
         raise ProfiledBaseFeaturePublisherV1Error("PROFILED_BASE_PUBLISHER_INJECTED_REDIS_FAILURE")
@@ -1907,13 +1921,18 @@ def test_cli_commission_hmac_is_environment_only_and_never_rendered(
     )
 
 
-def test_cli_missing_commission_hmac_fails_before_redis(
+def test_cli_missing_protected_credentials_fail_before_redis(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.delenv(
-        "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET",
-        raising=False,
+    monkeypatch.setattr(
+        cli_module,
+        "load_profiled_base_publisher_runtime_credentials",
+        lambda: (_ for _ in ()).throw(
+            cli_module.ProfiledBasePublisherCredentialError(
+                "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID"
+            )
+        ),
     )
     redis_called = False
 
@@ -1924,7 +1943,7 @@ def test_cli_missing_commission_hmac_fails_before_redis(
 
     monkeypatch.setattr(cli_module, "_raw_redis_client", forbidden_redis)
 
-    assert cli_module.main(["--once"]) == 1
+    assert cli_module.main(["--once"]) == 78
     captured = capsys.readouterr()
     assert redis_called is False
-    assert "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_MISSING" in (captured.err)
+    assert "PROFILED_BASE_PUBLISHER_SYSTEMD_CREDENTIALS_DIRECTORY_INVALID" in captured.err

@@ -20,14 +20,14 @@ import hmac
 import json
 import math
 import re
+import urllib.error
+import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any, Final, NoReturn, cast
 from urllib.parse import urlencode, urlsplit
-
-import httpx
 
 from v2.backend.app.services.binance_unified_websocket_transport import (
     binance_rest_fallback_decision,
@@ -164,6 +164,22 @@ class BinanceUSDMCommissionCaptureV1TransportError(BinanceUSDMCommissionCaptureV
 
 class BinanceUSDMCommissionCaptureV1RateLimitError(BinanceUSDMCommissionCaptureV1Error):
     """Binance returned 418/429 and the shared cooldown was handled."""
+
+
+@dataclass(frozen=True, slots=True)
+class _DefaultHttpResponse:
+    """Bounded response snapshot without a retained signed request object."""
+
+    status_code: int
+    content: bytes = field(repr=False)
+    headers: object = field(repr=False)
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Return redirects as HTTP responses; never forward signed material."""
+
+    def redirect_request(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -826,8 +842,45 @@ def _default_http_get(
 ) -> Any:
     if method != BINANCE_USDM_COMMISSION_METHOD:
         _integrity("COMMISSION_CAPTURE_NON_GET_TRANSPORT_FORBIDDEN")
-    with httpx.Client(timeout=timeout_seconds) as client:
-        return client.get(url, params=params, headers=headers)
+    # httpx's INFO request logger renders the full URL, which would include
+    # the signed query.  Use the non-logging stdlib transport and immediately
+    # reduce its response to a bounded snapshot with no retained request URL
+    # or headers.  The caller suppresses all transport exception detail.
+    query = urlencode(params)
+    request = urllib.request.Request(  # noqa: S310 - URL was allowlisted by _origin
+        f"{url}?{query}",
+        headers=dict(headers),
+        method=BINANCE_USDM_COMMISSION_METHOD,
+    )
+    # A user-manager proxy environment must never receive the signed URL or
+    # API-key header.  The official allowlisted origin is contacted directly.
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _NoRedirectHandler(),
+    )
+    response: Any
+    try:
+        response = opener.open(  # noqa: S310 - URL was allowlisted by _origin
+            request,
+            timeout=timeout_seconds,
+        )
+    except urllib.error.HTTPError as exc:
+        response = exc
+    try:
+        status_code = getattr(response, "status", getattr(response, "code", None))
+        content = response.read(MAX_RAW_RESPONSE_BYTES + 1)
+        raw_headers = getattr(response, "headers", {})
+        response_headers = {
+            str(key): str(value)
+            for key, value in raw_headers.items()
+        }
+    finally:
+        response.close()
+    return _DefaultHttpResponse(
+        status_code=status_code,
+        content=content,
+        headers=response_headers,
+    )
 
 
 def _response_bytes(response: object) -> tuple[int, bytes, object]:
@@ -854,6 +907,7 @@ def capture_binance_usdm_commission_rate_v1(
     refresh_policy: object,
     fallback_reason: object,
     credential_fingerprint_hmac_key: object,
+    credential_binding: object | None = None,
     base_url: object = BINANCE_USDM_MAINNET_ORIGIN,
     timeout_seconds: object = 10.0,
     now_fn: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -880,7 +934,14 @@ def capture_binance_usdm_commission_rate_v1(
     if policy_token.symbol != resolved_symbol:
         _validation("COMMISSION_CAPTURE_REFRESH_POLICY_SYMBOL_MISMATCH")
 
-    binding = resolve_binance_credential_binding()
+    # Supervised callers inject a binding loaded from systemd credentials so
+    # neither generic Binance variables nor repository env files participate.
+    # The default preserves the explicit factory contract for other callers.
+    binding = (
+        resolve_binance_credential_binding()
+        if credential_binding is None
+        else credential_binding
+    )
     if not binding.is_configured:
         _validation("COMMISSION_CAPTURE_CREDENTIAL_BINDING_NOT_CONFIGURED")
     if binding.account_specific is not True:

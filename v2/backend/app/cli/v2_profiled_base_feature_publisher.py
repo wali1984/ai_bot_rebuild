@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import signal
@@ -12,17 +13,20 @@ from pathlib import Path
 from typing import Any
 
 from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
-    MIN_CREDENTIAL_FINGERPRINT_HMAC_KEY_BYTES,
+    capture_binance_usdm_commission_rate_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
-    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1Error,
 )
+from v2.backend.app.services.native_trainer.profiled_base_publisher_runtime_credentials import (
+    ProfiledBasePublisherCredentialError,
+    load_profiled_base_publisher_runtime_credentials,
+)
 
 _STOP = False
-_COMMISSION_FINGERPRINT_HMAC_ENV = "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET"
+_CONFIG_EXIT_STATUS = 78
 
 
 def _request_stop(_signum: int, _frame: Any) -> None:
@@ -158,24 +162,6 @@ def _raw_redis_client(redis_url: str) -> object:
     return client
 
 
-def _commission_fingerprint_hmac_key_from_environment() -> bytes:
-    """Read the separate fingerprint secret without returning it to status/logs."""
-
-    raw = os.environ.get(_COMMISSION_FINGERPRINT_HMAC_ENV)
-    if raw is None:
-        raise ProfiledBaseFeaturePublisherV1Error(
-            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-            "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_MISSING",
-        )
-    encoded = raw.encode("utf-8", errors="strict")
-    if len(encoded) < MIN_CREDENTIAL_FINGERPRINT_HMAC_KEY_BYTES:
-        raise ProfiledBaseFeaturePublisherV1Error(
-            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
-            "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_INVALID",
-        )
-    return encoded
-
-
 def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[str, Any]:
     """Return a constant-shape journal record; full evidence stays in the status file."""
 
@@ -231,6 +217,11 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "publisher_runtime_authority_granted": False,
         "published_child_trainer_admission_authorized": (published_child_admission is True),
         "automatic_trainer_transition_authorized": False,
+        "credential_ref_read_only_assertion": True,
+        "credential_ref_read_only_assertion_semantics": (
+            "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
+        ),
+        "exchange_key_permissions_proven_by_connector": False,
         "prediction_authorized": False,
         "paper_trading_authorized": False,
         "live_execution_authorized": False,
@@ -240,7 +231,7 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        commission_fingerprint_hmac_key = _commission_fingerprint_hmac_key_from_environment()
+        runtime_credentials = load_profiled_base_publisher_runtime_credentials()
         client = _raw_redis_client(str(args.redis_url))
         publisher = ProfiledBaseFeaturePublisherV1(
             redis_client=client,
@@ -251,7 +242,11 @@ def main(argv: list[str] | None = None) -> int:
             cycle_period_seconds=float(args.cycle_seconds),
             resource_sustainability_horizon_seconds=float(args.resource_horizon_seconds),
             boundary_retry_limit=int(args.boundary_retries),
-            commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
+            commission_capture_function=functools.partial(
+                capture_binance_usdm_commission_rate_v1,
+                credential_binding=runtime_credentials.commission_binding,
+            ),
+            commission_fingerprint_hmac_key=(runtime_credentials.fingerprint_hmac_key),
         )
         signal.signal(signal.SIGINT, _request_stop)
         signal.signal(signal.SIGTERM, _request_stop)
@@ -281,14 +276,24 @@ def main(argv: list[str] | None = None) -> int:
                     break
                 time.sleep(min(wait, 1.0))
         return 0
-    except ProfiledBaseFeaturePublisherV1Error as exc:
+    except (ProfiledBasePublisherCredentialError, ProfiledBaseFeaturePublisherV1Error) as exc:
+        reasons = (
+            [exc.reason]
+            if isinstance(exc, ProfiledBasePublisherCredentialError)
+            else list(exc.reasons)
+        )
         payload = {
             "schema_version": "profiled_base_feature_publisher_cli_error_v1",
             "classification": "FAIL_CLOSED",
-            "reasons": list(exc.reasons),
+            "reasons": reasons,
             "publisher_runtime_authority_granted": False,
             "published_child_trainer_admission_authorized": False,
             "automatic_trainer_transition_authorized": False,
+            "credential_ref_read_only_assertion": True,
+            "credential_ref_read_only_assertion_semantics": (
+                "OPERATOR_PROVISIONING_LABEL_NOT_BINANCE_PERMISSION_PROOF"
+            ),
+            "exchange_key_permissions_proven_by_connector": False,
             "prediction_authorized": False,
             "paper_trading_authorized": False,
             "live_execution_authorized": False,
@@ -298,7 +303,11 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
             flush=True,
         )
-        return 1
+        return (
+            _CONFIG_EXIT_STATUS
+            if isinstance(exc, ProfiledBasePublisherCredentialError)
+            else 1
+        )
 
 
 if __name__ == "__main__":

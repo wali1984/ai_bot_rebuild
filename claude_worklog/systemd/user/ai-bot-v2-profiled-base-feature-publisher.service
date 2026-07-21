@@ -1,37 +1,75 @@
 [Unit]
-Description=AI Bot V2 atomic authenticated profiled-training publisher (no runtime/trading authority)
-After=network-online.target redis.service ai-bot-v2-binance-kline-wss-loop.service
+Description=AI Bot V2 atomic authenticated profiled-training publisher (read-only commission GET; no runtime/trading authority)
+Documentation=file:///home/wali/Desktop/AI%%20BOT%%20REBUILD/claude_worklog/systemd/user/ai-bot-v2-profiled-base-feature-publisher.credentials.md
+After=network-online.target ai-bot-v2-binance-kline-wss-loop.service
 Wants=network-online.target
-ConditionPathExists=/home/wali/.config/ai-bot-v2/profiled-base-feature-publisher.env
-StartLimitIntervalSec=600
-StartLimitBurst=5
+ConditionFileIsExecutable=/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-key.cred
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-secret.cred
+ConditionPathExists=%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/fingerprint-hmac.cred
+StartLimitIntervalSec=900
+StartLimitBurst=3
 
 [Service]
 Type=simple
 WorkingDirectory=/home/wali/Desktop/AI BOT REBUILD
 Environment="PYTHONPATH=/home/wali/Desktop/AI BOT REBUILD"
+Environment=PYTHONDONTWRITEBYTECODE=1
 Environment=LIVE_GATE=blocked_human_only
-EnvironmentFile=/home/wali/.config/ai-bot-v2/profiled-base-feature-publisher.env
+Environment=ALPHAFORGE_INITIAL_TRADER_ID=trader-wajidali1984
+Environment=ALPHAFORGE_INITIAL_TRADER_BINANCE_CREDENTIAL_REF=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY
+Environment=BINANCE_REST_FALLBACK_ALLOWED=true
+Environment=REDIS_URL=redis://127.0.0.1:6379/0
 Environment="PROFILED_BASE_PUBLISHER_DATA_ROOT=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1"
 Environment="PROFILED_BASE_FEATURE_LEDGER_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/durable_feature_snapshot_ledger.sqlite3"
+Environment="PROFILED_BASE_PUBLISHER_STATE_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_state_v1.json"
+Environment="PROFILED_BASE_PUBLISHER_STATUS_PATH=/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1/profiled_base_publisher_status_v1.json"
 Environment=PROFILED_BASE_PUBLISHER_CYCLE_SECONDS=300
 Environment=PROFILED_BASE_PUBLISHER_RESOURCE_HORIZON_SECONDS=7776000
+LoadCredentialEncrypted=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_KEY:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-key.cred
+LoadCredentialEncrypted=ALPHAFORGE_BINANCE_WAJIDALI1984_READONLY_API_SECRET:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/api-secret.cred
+LoadCredentialEncrypted=PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET:%h/.config/ai-bot-v2/credentials/profiled-base-feature-publisher/fingerprint-hmac.cred
 UMask=0077
 ExecStartPre=/usr/bin/env bash -lc 'exec ./claude_worklog/tools/v2_automation_safety_preflight.sh ai-bot-v2-profiled-base-feature-publisher'
-ExecStartPre=/usr/bin/install -d -m 0700 "/home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1"
-ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python" -m v2.backend.app.cli.v2_profiled_base_feature_publisher
-Restart=always
-RestartSec=15
-TimeoutStopSec=30
+ExecStartPre=/usr/bin/install -d -m 0700 /home/wali/ai_bot_local_data/v2_native_trainer/profiled_base_publisher_v1
+ExecStart="/home/wali/Desktop/AI BOT REBUILD/.venv/bin/python3" -m v2.backend.app.cli.v2_profiled_base_feature_publisher
+Restart=on-failure
+RestartPreventExitStatus=2 78
+RestartSec=60
+TimeoutStartSec=90
+TimeoutStopSec=45
 KillSignal=SIGTERM
-NoNewPrivileges=true
-PrivateTmp=true
+KillMode=mixed
 CPUQuota=200%
 MemoryHigh=2G
 MemoryMax=4G
 TasksMax=128
-StandardOutput=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-profiled-base-feature-publisher.log
-StandardError=append:/home/wali/Desktop/AI BOT REBUILD/claude_worklog/agent_supervisor/logs/control_plane/ai-bot-v2-profiled-base-feature-publisher.err
+LimitNOFILE=4096
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=read-only
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+ReadWritePaths=/home/wali/ai_bot_local_data/v2_native_trainer
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-bot-v2-profiled-base-feature-publisher
+LogRateLimitIntervalSec=60
+LogRateLimitBurst=30
 
 [Install]
 WantedBy=default.target
