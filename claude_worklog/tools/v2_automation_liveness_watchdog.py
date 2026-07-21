@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import subprocess
 import time
 from datetime import datetime, timezone
@@ -33,6 +34,9 @@ PAPER_RUNTIME_STATUS = (
 FINAL_APPROVAL = ROOT / "claude_worklog/approvals/APPROVED_FINAL_LIVE_TINY_CANARY_ONLY.md"
 REDIS_TRIM_APPROVAL = (
     ROOT / "claude_worklog/approvals/APPROVED_REDIS_LIQUIDATIONS_EVENTS_XTRIM_MINID_1777222885206_0_ONLY.md"
+)
+DELIBERATELY_STOPPED_FILE = (
+    ROOT / "claude_worklog/self_healing/deliberately_stopped_units.txt"
 )
 
 SERVICE_UNITS = [
@@ -109,11 +113,91 @@ def unit_installed(unit: str) -> bool:
 
 def unit_state(unit: str) -> dict[str, Any]:
     if not systemd_user_available():
-        return {"unit": unit, "installed": False, "active_state": "systemd_user_unavailable"}
+        return {
+            "unit": unit,
+            "installed": False,
+            "active_state": "systemd_user_unavailable",
+            "refuse_manual_start": "unknown",
+        }
     installed = unit_installed(unit)
     active = run(["systemctl", "--user", "is-active", unit]).stdout.strip() or "unknown"
     enabled = run(["systemctl", "--user", "is-enabled", unit]).stdout.strip() or "unknown"
-    return {"unit": unit, "installed": installed, "active_state": active, "enabled_state": enabled}
+    refuse_manual_start = "not_installed"
+    if installed:
+        hold = run(
+            [
+                "systemctl",
+                "--user",
+                "show",
+                unit,
+                "--property=RefuseManualStart",
+                "--value",
+            ]
+        )
+        hold_value = hold.stdout.strip().lower()
+        refuse_manual_start = (
+            hold_value
+            if hold.returncode == 0 and hold_value in {"yes", "no"}
+            else "unknown"
+        )
+    return {
+        "unit": unit,
+        "installed": installed,
+        "active_state": active,
+        "enabled_state": enabled,
+        "refuse_manual_start": refuse_manual_start,
+    }
+
+
+def deliberately_stopped_units() -> tuple[frozenset[str], str | None]:
+    """Read the local operator stop marker; uncertainty disables auto-restart."""
+
+    try:
+        marker_stat = os.lstat(DELIBERATELY_STOPPED_FILE)
+    except OSError:
+        return frozenset(), "deliberately_stopped_marker_missing"
+    if (
+        not stat.S_ISREG(marker_stat.st_mode)
+        or marker_stat.st_nlink != 1
+        or marker_stat.st_uid != os.geteuid()
+        or marker_stat.st_size > 1024 * 1024
+    ):
+        return frozenset(), "deliberately_stopped_marker_invalid"
+    try:
+        units: set[str] = set()
+        for line in DELIBERATELY_STOPPED_FILE.read_text(encoding="utf-8").splitlines():
+            value = line.strip()
+            if not value or value.startswith("#"):
+                continue
+            if not value.endswith(".service") or any(
+                character.isspace() for character in value
+            ):
+                return frozenset(), "deliberately_stopped_marker_invalid"
+            units.add(value)
+    except OSError:
+        return frozenset(), "deliberately_stopped_marker_unreadable"
+    return frozenset(units), None
+
+
+def restart_safety_block_reason(
+    unit_state_payload: dict[str, Any],
+    *,
+    deliberately_stopped: frozenset[str],
+    marker_error: str | None,
+) -> str | None:
+    """Return why an inactive service cannot be auto-restarted, if any."""
+
+    unit = unit_state_payload.get("unit")
+    if marker_error is not None:
+        return marker_error
+    if unit in deliberately_stopped:
+        return "unit_deliberately_stopped"
+    refuse_manual_start = unit_state_payload.get("refuse_manual_start")
+    if refuse_manual_start == "yes":
+        return "unit_refuses_manual_start"
+    if refuse_manual_start != "no":
+        return "unit_start_hold_state_unverified"
+    return None
 
 
 def restart_unit(unit: str) -> dict[str, Any]:
@@ -190,6 +274,9 @@ def build_status(no_restart: bool) -> dict[str, Any]:
     processes = process_snapshot()
     systemd_available = systemd_user_available()
     unit_states = [unit_state(unit) for unit in SERVICE_UNITS + TIMER_UNITS]
+    deliberately_stopped, deliberately_stopped_marker_error = (
+        deliberately_stopped_units()
+    )
     pending_reviews = pending_codex_reviews()
     supervisor_current = read_json(AGENT_CURRENT_STATUS_PATH)
 
@@ -242,11 +329,35 @@ def build_status(no_restart: bool) -> dict[str, Any]:
             unit = item["unit"]
             if not unit.endswith(".service"):
                 continue
-            if item.get("installed") and item.get("active_state") not in {"active", "activating"}:
-                if no_restart:
-                    actions.append({"unit": unit, "action": "restart_skipped_no_restart"})
+            if item.get("installed") and item.get("active_state") not in {
+                "active",
+                "activating",
+            }:
+                safety_reason = restart_safety_block_reason(
+                    item,
+                    deliberately_stopped=deliberately_stopped,
+                    marker_error=deliberately_stopped_marker_error,
+                )
+                if safety_reason is not None:
+                    actions.append(
+                        {
+                            "unit": unit,
+                            "action": "restart_skipped_safety_hold",
+                            "reason": safety_reason,
+                        }
+                    )
+                elif no_restart:
+                    actions.append(
+                        {"unit": unit, "action": "restart_skipped_no_restart"}
+                    )
                 else:
-                    actions.append({"unit": unit, "action": "restart", "result": restart_unit(unit)})
+                    actions.append(
+                        {
+                            "unit": unit,
+                            "action": "restart",
+                            "result": restart_unit(unit),
+                        }
+                    )
     elif not systemd_available:
         actions.append(
             {
@@ -264,6 +375,14 @@ def build_status(no_restart: bool) -> dict[str, Any]:
         ],
         "systemd_user_available": systemd_available,
         "service_units": unit_states,
+        "restart_safety": {
+            "deliberately_stopped_marker_path": str(
+                DELIBERATELY_STOPPED_FILE.relative_to(ROOT)
+            ),
+            "deliberately_stopped_marker_error": deliberately_stopped_marker_error,
+            "deliberately_stopped_units": sorted(deliberately_stopped),
+            "refuse_manual_start_required_clear_before_restart": True,
+        },
         "processes": processes,
         "worker_state_path": str(STATE_PATH.relative_to(ROOT)),
         "current_worker": state.get("current_worker") if isinstance(state, dict) else None,
