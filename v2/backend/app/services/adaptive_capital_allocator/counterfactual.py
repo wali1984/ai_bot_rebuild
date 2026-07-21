@@ -123,41 +123,98 @@ def _row_value(row: dict[str, Any], field: str) -> Any:
 def _parse_time(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
     try:
-        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
     return parsed.astimezone(timezone.utc)
 
 
-def _temporal_status(row: dict[str, Any]) -> tuple[bool, list[str]]:
-    decision = _parse_time(
-        _first_present(
-            row.get("decision_time"),
-            row.get("entry_feature_decision_time"),
-            row.get("entry_price_utc"),
-            row.get("generated_utc"),
-        )
-    )
-    reasons: list[str] = []
-    if decision is None:
-        return False, ["MISSING_DECISION_TIME"]
-    for label, value in (
-        ("available_at", _first_present(row.get("available_at"), row.get("entry_feature_available_at"))),
-        ("generated_at", _first_present(row.get("generated_at"), row.get("entry_feature_generated_at"))),
-        ("feature_cutoff", row.get("entry_feature_cutoff") or row.get("feature_cutoff")),
-    ):
-        parsed = _parse_time(value)
-        if parsed is None:
-            reasons.append(f"MISSING_{label.upper()}")
+def _declared_time(
+    row: dict[str, Any],
+    *,
+    label: str,
+    keys: tuple[str, ...],
+) -> tuple[datetime | None, str | None]:
+    for key in keys:
+        if key not in row:
             continue
-        if parsed > decision:
-            reasons.append(f"{label.upper()}_AFTER_DECISION_TIME")
-    candle_final = row.get("entry_feature_candle_closed_confirmed")
-    if candle_final is False:
+        parsed = _parse_time(row.get(key))
+        if parsed is None:
+            return None, f"INVALID_{label}"
+        return parsed, None
+    return None, f"MISSING_{label}"
+
+
+def _declared_decision_time(
+    row: dict[str, Any],
+) -> tuple[datetime | None, str | None]:
+    declared: list[datetime] = []
+    for key in ("decision_time", "entry_feature_decision_time"):
+        if key not in row:
+            continue
+        parsed = _parse_time(row.get(key))
+        if parsed is None:
+            return None, "INVALID_DECISION_TIME"
+        declared.append(parsed)
+    if not declared:
+        return None, "MISSING_DECISION_TIME"
+    if any(candidate != declared[0] for candidate in declared[1:]):
+        return None, "DECISION_TIME_ALIAS_CONFLICT"
+    return declared[0], None
+
+
+def _temporal_status(row: dict[str, Any]) -> tuple[bool, list[str]]:
+    decision, decision_error = _declared_decision_time(row)
+    reasons: list[str] = []
+    if decision_error is not None:
+        reasons.append(decision_error)
+
+    available, available_error = _declared_time(
+        row,
+        label="AVAILABLE_AT",
+        keys=("entry_feature_available_at", "available_at"),
+    )
+    generated, generated_error = _declared_time(
+        row,
+        label="GENERATED_AT",
+        keys=("entry_feature_generated_at", "generated_at"),
+    )
+    cutoff, cutoff_error = _declared_time(
+        row,
+        label="FEATURE_CUTOFF",
+        keys=("entry_feature_cutoff", "feature_cutoff"),
+    )
+    for error in (available_error, generated_error, cutoff_error):
+        if error is not None:
+            reasons.append(error)
+
+    if decision is not None:
+        for label, parsed in (
+            ("AVAILABLE_AT", available),
+            ("GENERATED_AT", generated),
+            ("FEATURE_CUTOFF", cutoff),
+        ):
+            if parsed is not None and parsed > decision:
+                reasons.append(f"{label}_AFTER_DECISION_TIME")
+    if cutoff is not None and available is not None and cutoff > available:
+        reasons.append("FEATURE_CUTOFF_AFTER_AVAILABLE_AT")
+    if cutoff is not None and generated is not None and cutoff > generated:
+        reasons.append("FEATURE_CUTOFF_AFTER_GENERATED_AT")
+    if generated is not None and available is not None and generated > available:
+        reasons.append("GENERATED_AT_AFTER_AVAILABLE_AT")
+
+    if "entry_feature_candle_closed_confirmed" not in row:
+        reasons.append("MISSING_CANDLE_FINALITY")
+    elif row.get("entry_feature_candle_closed_confirmed") is False:
         reasons.append("UNFINISHED_CANDLE")
+    elif row.get("entry_feature_candle_closed_confirmed") is not True:
+        reasons.append("INVALID_CANDLE_FINALITY")
     return not reasons, reasons
 
 
