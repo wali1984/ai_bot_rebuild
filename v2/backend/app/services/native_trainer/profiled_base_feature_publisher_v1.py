@@ -1,12 +1,12 @@
-"""Runtime publisher for authenticated, quarantined 35-feature profile records.
+"""Runtime publisher for atomic authenticated 35+4 profiled-training pairs.
 
 The publisher is intentionally narrower than a trainer or prediction service.
 It discovers symbols from the intersection of the canonical Binance closed
 ``5m`` and ``1h`` Redis keys, captures their exact bytes with the existing
 atomic receipt adapter, and durably records both source captures before it
-computes or publishes a feature record.  Published records use
-``profiled_model_feature_snapshot_record_v1`` and therefore grant no trainer,
-prediction, paper, or live authority.
+computes a still-unappended 35-feature parent.  A parent is published only in
+one adjacent ledger transaction with its four label-only causal-cost values;
+neither record grants prediction, paper, or live authority.
 
 Symbol coverage rotates by least-recent attempted publication, while successful
 coverage is tracked independently.  Per-cycle
@@ -39,9 +39,20 @@ from typing import Any, Final, NoReturn, cast
 from v2.backend.app.services.native_trainer.adaptive_ohlcv_feature_selection_profile_v1 import (
     ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1,
 )
+from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
+    AtomicRedisSourceReadBatch,
+    AtomicRedisSourceReadError,
+    read_atomic_redis_sources,
+)
 from v2.backend.app.services.native_trainer.authenticated_ohlcv_profile_transform_v1 import (
     AuthenticatedOhlcvProfileTransformV1Error,
     transform_authenticated_ohlcv_profile_v1,
+)
+from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
+    IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
+    BinanceUSDMCommissionCaptureV1Error,
+    build_binance_usdm_commission_refresh_policy_v1,
+    capture_binance_usdm_commission_rate_v1,
 )
 from v2.backend.app.services.native_trainer.canonical_ohlcv_atomic_receipt_adapter import (
     CanonicalOhlcvAtomicCaptureError,
@@ -53,9 +64,19 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
     canonical_ohlcv_multitimeframe_capture_set_v1_contract,
 )
+from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
+    CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS,
+    CausalCostEvidenceV1Error,
+    CausalCostEvidenceV1Result,
+    build_causal_cost_evidence_v1,
+)
+from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
+    CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+    CausalExpectedNotionalPolicyV1Error,
+    build_causal_expected_notional_policy_v1,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
-    FeatureSnapshotAppendResult,
     FeatureSnapshotLedgerError,
     stable_sha256,
 )
@@ -70,6 +91,19 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
     ProfiledModelFeatureSnapshotRecordV1Error,
     build_profiled_model_feature_snapshot_record_v1,
     validate_profiled_model_feature_snapshot_record_v1,
+)
+from v2.backend.app.services.native_trainer.profiled_training_enrichment_record_v1 import (
+    ProfiledTrainingEnrichmentPairV1,
+    ProfiledTrainingEnrichmentRecordV1Error,
+    append_profiled_training_enrichment_pair_v1,
+    build_profiled_training_enrichment_pair_v1,
+)
+from v2.backend.app.services.native_trainer.profiled_training_ledger_loader_v1 import (
+    MAX_PROFILED_TRAINING_SCAN_ROWS,
+    PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY,
+    ProfiledTrainingLedgerLoaderV1Error,
+    ProfiledTrainingLedgerSampleV1,
+    load_profiled_training_ledger_v1,
 )
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     MAX_LEDGER_BYTES,
@@ -91,6 +125,7 @@ PROFILED_BASE_FEATURE_PUBLISHER_STATUS_V1_SCHEMA_VERSION: Final = (
 PROFILED_BASE_FEATURE_PUBLISHER_RUN_ID: Final = "profiled-base-publisher-v1"
 CANONICAL_KEY_PREFIX: Final = "v2:market:ohlcv_closed:binance:"
 REQUIRED_TIMEFRAMES: Final = ("5m", "1h")
+DYNAMIC_SYMBOL_SELECTION_KEY: Final = "v2:symbol_universe:dynamic_discovered_symbols"
 
 # Resource-integrity limits only.  They never classify a market observation.
 BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL: Final = 4_900_000
@@ -103,6 +138,8 @@ MAX_STATE_BYTES: Final = 16 * 1024 * 1024
 MAX_WRITER_LOCK_METADATA_BYTES: Final = 4 * 1024
 WRITER_LOCK_FILENAME: Final = ".profiled_base_feature_publisher_v1.writer.lock"
 SOURCE_ENTRY_ACCOUNTING_OVERHEAD_BYTES: Final = 1024 * 1024
+PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER: Final = 4
+PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES: Final = 1024 * 1024
 DISK_RESERVE_PUBLICATION_UNITS: Final = 2
 DISK_RESERVE_TOTAL_FRACTION_NUMERATOR: Final = 1
 DISK_RESERVE_TOTAL_FRACTION_DENOMINATOR: Final = 5
@@ -111,6 +148,7 @@ DISK_RESERVE_POLICY_V1: Final = (
 )
 SOURCE_SHARD_RE = re.compile(r"^shard-([0-9]{8})$", re.ASCII)
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,48}$", re.ASCII)
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$", re.ASCII)
 CLOCK_FORMAT: Final = "%Y-%m-%dT%H:%M:%S.%fZ"
 BOUNDARY_REASON_FRAGMENTS: Final = (
     "STALE_OR_UNFINISHED",
@@ -122,6 +160,28 @@ BOUNDARY_REASON_FRAGMENTS: Final = (
     "SOURCE_AVAILABLE_AFTER_CONSUMER",
     "PUBLICATION_CLOCK_ORDER",
 )
+COST_TEMPORAL_RETRY_REASONS: Final = frozenset(
+    {
+        "CAUSAL_COST_ATOMIC_CAPTURE_AFTER_DECISION",
+        "EXPECTED_NOTIONAL_ATOMIC_CAPTURE_AFTER_DECISION",
+        "EXPECTED_NOTIONAL_SOURCE_EXPIRED_AT_DECISION",
+        "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+        "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WINDOW_MISSED",
+        "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+        "PROFILED_MODEL_RECORD_PUBLICATION_CLOCK_ORDER_INVALID",
+        "PROFILED_TRAINING_ENRICHMENT_PUBLICATION_CLOCK_ORDER_INVALID",
+    }
+)
+COST_SOURCE_EXPIRED_AT_DECISION_RE = re.compile(
+    r"^CAUSAL_COST_(ORDERBOOK_DEPTH|ORDERBOOK_FEATURES|MARK_PRICE)_" r"SOURCE_EXPIRED_AT_DECISION$",
+    re.ASCII,
+)
+COST_OPERATOR_BLOCKER_REASON_FRAGMENTS: Final = (
+    "CREDENTIAL",
+    "ACCOUNT_SPECIFIC",
+    "READ_ONLY_CREDENTIAL",
+    "FINGERPRINT_HMAC",
+)
 AUTHORITY_FIELDS: Final = (
     "trainer_admission_authorized",
     "prediction_authorized",
@@ -131,6 +191,35 @@ AUTHORITY_FIELDS: Final = (
 )
 DECISION_TIMEFRAME: Final = "5m"
 MAX_DECISION_WAIT_CHUNK_SECONDS: Final = 1.0
+PROFILED_TRAINING_ENRICHMENT_CAS_DIRECTORY: Final = "profiled-training-enrichment-cas"
+PROFILED_TRAINING_PAIR_RECOVERY_DIRECTORY: Final = "profiled-training-pair-recovery-receipts"
+PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION: Final = (
+    "profiled_training_pair_recovery_receipt_v1"
+)
+_PAIR_RECOVERY_FIELDS: Final = frozenset(
+    {
+        "schema_version",
+        "symbol",
+        "window_fingerprint_sha256",
+        "parent_durable_snapshot_id",
+        "parent_record_sha256",
+        "child_durable_snapshot_id",
+        "child_record_sha256",
+        "cost_capture_artifact_sha256",
+        "cost_store_root",
+        "prepared_at",
+        "append_disposition",
+        "materialized_evidence_bytes",
+        "evidence_accounting_method",
+        "recovery_receipt_sha256",
+    }
+)
+COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED: Final = (
+    "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED"
+)
+COMMISSION_REFRESH_POLICY_ID: Final = "profiled-training-commission-notional-pttl-refresh-v1"
+COMMISSION_REFRESH_POLICY_VERSION: Final = "notional-redis-pttl-server-clock-v1"
+COMMISSION_CAPTURE_FALLBACK_REASON: Final = "profiled-training-causal-cost-required"
 _EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -265,6 +354,79 @@ def wait_for_prospective_decision_v1(
             )
         observed = current
     return observed
+
+
+def pttl_derived_cost_recapture_target_v1(
+    *,
+    atomic_captures: tuple[AtomicRedisSourceReadBatch, AtomicRedisSourceReadBatch],
+    decision_at: datetime,
+) -> datetime:
+    """Derive a just-in-time recapture target only from Redis clocks/PTTLs.
+
+    The first capture is the one-key notional source and the second is the
+    three-key market source.  Half of the shortest observed persisted lifetime
+    is retained after recapture.  This is scheduling geometry over source
+    expiry evidence, not a consumer freshness or market threshold; the final
+    factories still require every recaptured expiry to cover the decision.
+    """
+
+    if (
+        type(atomic_captures) is not tuple
+        or len(atomic_captures) != 2
+        or any(type(batch) is not AtomicRedisSourceReadBatch for batch in atomic_captures)
+        or type(decision_at) is not datetime
+        or decision_at.tzinfo is not UTC
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+            "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_INPUT_INVALID",
+        )
+    server_times: list[datetime] = []
+    pttls: list[int] = []
+    for batch in atomic_captures:
+        try:
+            server_at = _EPOCH + timedelta(
+                seconds=batch.server_time_seconds,
+                microseconds=batch.server_time_microseconds,
+            )
+        except (OverflowError, TypeError, ValueError):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_SERVER_CLOCK_INVALID",
+            )
+        if (
+            server_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
+            != batch.server_observed_at
+            or server_at >= decision_at
+            or type(batch.results) is not tuple
+            or not batch.results
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_SERVER_CLOCK_INVALID",
+            )
+        server_times.append(server_at)
+        for result in batch.results:
+            if type(result.pttl_ms) is not int or result.pttl_ms <= 0:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1ConfigurationError,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_PTTL_INVALID",
+                )
+            pttls.append(result.pttl_ms)
+    if len(atomic_captures[0].results) != 1 or len(atomic_captures[1].results) != 3:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+            "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_SOURCE_SHAPE_INVALID",
+        )
+    shortest_pttl_ms = min(pttls)
+    retained_lifetime_ms = max(1, shortest_pttl_ms // 2)
+    target = decision_at - timedelta(milliseconds=retained_lifetime_ms)
+    return max(*server_times, target)
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -475,6 +637,110 @@ def _atomic_write_json(path: Path, value: object, *, failure_reason: str) -> Non
         raise ProfiledBaseFeaturePublisherV1StateError(failure_reason) from exc
 
 
+def _pair_recovery_receipt_path(data_root: Path, symbol: str) -> Path:
+    if SYMBOL_RE.fullmatch(symbol) is None:
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_SYMBOL_INVALID",
+        )
+    return data_root / PROFILED_TRAINING_PAIR_RECOVERY_DIRECTORY / f"{symbol}.json"
+
+
+def _load_pair_recovery_receipt(
+    path: Path,
+    *,
+    expected_symbol: str,
+    expected_cost_store_root: Path,
+) -> dict[str, Any] | None:
+    """Read one canonical pre-append intent without trusting it as a commit."""
+
+    try:
+        path_stat = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1StateError(
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_READ_FAILED"
+        ) from exc
+    if (
+        not stat.S_ISREG(path_stat.st_mode)
+        or stat.S_ISLNK(path_stat.st_mode)
+        or path_stat.st_uid != os.geteuid()
+        or stat.S_IMODE(path_stat.st_mode) & 0o022
+        or path_stat.st_size <= 0
+        or path_stat.st_size > MAX_STATE_BYTES
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_FILE_INVALID",
+        )
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ProfiledBaseFeaturePublisherV1StateError(
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_READ_FAILED"
+        ) from exc
+    if b"\r" in raw or not raw.endswith(b"\n"):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_FRAMING_INVALID",
+        )
+    try:
+        parsed = json.loads(raw[:-1].decode("ascii", errors="strict"))
+    except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_JSON_INVALID",
+        )
+    if (
+        type(parsed) is not dict
+        or set(parsed) != _PAIR_RECOVERY_FIELDS
+        or _canonical_json_bytes(parsed) + b"\n" != raw
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_FIELDS_INVALID",
+        )
+    receipt = cast(dict[str, Any], parsed)
+    unsigned = {key: value for key, value in receipt.items() if key != "recovery_receipt_sha256"}
+    sha_fields = (
+        "window_fingerprint_sha256",
+        "parent_record_sha256",
+        "child_record_sha256",
+        "cost_capture_artifact_sha256",
+        "recovery_receipt_sha256",
+    )
+    if (
+        receipt["schema_version"] != PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION
+        or receipt["symbol"] != expected_symbol
+        or receipt["cost_store_root"] != str(expected_cost_store_root)
+        or receipt["append_disposition"]
+        != "PREPARED_BEFORE_ATOMIC_PAIR_APPEND_REQUIRES_LEDGER_READBACK"
+        or receipt["evidence_accounting_method"]
+        != ("CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_" "AND_AUXILIARY_SQLITE_OVERHEAD")
+        or type(receipt["materialized_evidence_bytes"]) is not int
+        or receipt["materialized_evidence_bytes"] <= 0
+        or any(
+            type(receipt[name]) is not str or SHA256_RE.fullmatch(cast(str, receipt[name])) is None
+            for name in sha_fields
+        )
+        or any(
+            type(receipt[name]) is not str or not receipt[name]
+            for name in ("parent_durable_snapshot_id", "child_durable_snapshot_id")
+        )
+        or stable_sha256(unsigned) != receipt["recovery_receipt_sha256"]
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1StateError,
+            "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_BINDING_INVALID",
+        )
+    _parse_clock(
+        receipt["prepared_at"],
+        reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PREPARED_CLOCK_INVALID",
+    )
+    return receipt
+
+
 @contextmanager
 def _singleton_writer_lock(data_root: Path) -> Iterator[dict[str, Any]]:
     """Hold the sole state/shard/publication writer capability for one cycle."""
@@ -610,9 +876,14 @@ def _error_reasons(exc: BaseException) -> tuple[str, ...]:
         | CanonicalOhlcvMultitimeframeCaptureSetV1Error
         | AuthenticatedOhlcvProfileTransformV1Error
         | ProfiledModelFeatureSnapshotRecordV1Error
+        | ProfiledTrainingEnrichmentRecordV1Error
         | TrainerSourceProvenanceLedgerV4Error
         | FeatureSnapshotLedgerError
-        | SourcePayloadStoreError,
+        | SourcePayloadStoreError
+        | AtomicRedisSourceReadError
+        | CausalExpectedNotionalPolicyV1Error
+        | BinanceUSDMCommissionCaptureV1Error
+        | CausalCostEvidenceV1Error,
     ):
         text = str(exc)
         if text:
@@ -624,6 +895,15 @@ def _boundary_related(reasons: Iterable[str]) -> bool:
     normalized = tuple(reason.upper() for reason in reasons)
     return any(
         fragment in reason for reason in normalized for fragment in BOUNDARY_REASON_FRAGMENTS
+    )
+
+
+def _cost_temporal_retryable(reasons: Iterable[str]) -> bool:
+    normalized = tuple(reason.upper() for reason in reasons)
+    return any(
+        reason in COST_TEMPORAL_RETRY_REASONS
+        or COST_SOURCE_EXPIRED_AT_DECISION_RE.fullmatch(reason) is not None
+        for reason in normalized
     )
 
 
@@ -809,9 +1089,149 @@ class _Discovery:
     eligible_symbols: tuple[str, ...]
     missing_timeframes: tuple[tuple[str, tuple[str, ...]], ...]
     rejected_key_sha256s: tuple[str, ...]
+    universe_symbols: tuple[str, ...]
+    universe_excluded_symbols: tuple[str, ...]
+    universe_status: str
+    universe_reason: str | None
+    universe_server_observed_at: str | None
+    universe_pttl_ms: int | None
+    universe_rejected_symbols: tuple[str, ...]
 
 
-def discover_canonical_profile_symbols_v1(redis_client: object) -> _Discovery:
+@dataclass(frozen=True, slots=True)
+class _SelectionUniverse:
+    symbols: tuple[str, ...]
+    status: str
+    reason: str | None
+    server_observed_at: str | None
+    pttl_ms: int | None
+    rejected_symbols: tuple[str, ...]
+
+
+def _dynamic_selection_universe_v1(
+    redis_client: object,
+    *,
+    atomic_reader: Callable[..., AtomicRedisSourceReadBatch],
+) -> _SelectionUniverse:
+    """Validate the expiring universe as selection metadata, never evidence."""
+
+    try:
+        batch = atomic_reader(redis_client, (DYNAMIC_SYMBOL_SELECTION_KEY,))
+    except Exception as exc:  # noqa: BLE001 - transport detail must not escape
+        return _SelectionUniverse(
+            symbols=(),
+            status="UNAVAILABLE_HOLD",
+            reason=f"DYNAMIC_SELECTION_UNIVERSE_{type(exc).__name__.upper()}",
+            server_observed_at=None,
+            pttl_ms=None,
+            rejected_symbols=(),
+        )
+    if (
+        type(batch) is not AtomicRedisSourceReadBatch
+        or type(batch.results) is not tuple
+        or len(batch.results) != 1
+    ):
+        return _SelectionUniverse(
+            symbols=(),
+            status="MALFORMED_HOLD",
+            reason="DYNAMIC_SELECTION_UNIVERSE_ATOMIC_SHAPE_INVALID",
+            server_observed_at=None,
+            pttl_ms=None,
+            rejected_symbols=(),
+        )
+    result = batch.results[0]
+    payload = result.exact_payload_bytes
+    if (
+        result.source_key != DYNAMIC_SYMBOL_SELECTION_KEY
+        or result.redis_type != "string"
+        or result.present is not True
+        or type(payload) is not bytes
+        or not payload
+        or type(result.pttl_ms) is not int
+        or result.pttl_ms <= 0
+    ):
+        return _SelectionUniverse(
+            symbols=(),
+            status="UNAVAILABLE_HOLD",
+            reason="DYNAMIC_SELECTION_UNIVERSE_SOURCE_MISSING_OR_UNPERSISTED",
+            server_observed_at=batch.server_observed_at,
+            pttl_ms=result.pttl_ms if type(result.pttl_ms) is int else None,
+            rejected_symbols=(),
+        )
+
+    def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        parsed: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in parsed:
+                raise ValueError("duplicate")
+            parsed[key] = value
+        return parsed
+
+    try:
+        decoded = json.loads(
+            cast(bytes, payload).decode("utf-8", errors="strict"),
+            object_pairs_hook=reject_duplicates,
+            parse_constant=lambda _value: (_ for _ in ()).throw(ValueError("nonfinite")),
+        )
+        server_at = _EPOCH + timedelta(
+            seconds=batch.server_time_seconds,
+            microseconds=batch.server_time_microseconds,
+        )
+        generated_raw = decoded.get("generated_utc")
+        generated_at = datetime.strptime(generated_raw, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+    except (AttributeError, TypeError, UnicodeError, ValueError, OverflowError):
+        return _SelectionUniverse(
+            symbols=(),
+            status="MALFORMED_HOLD",
+            reason="DYNAMIC_SELECTION_UNIVERSE_PAYLOAD_INVALID",
+            server_observed_at=batch.server_observed_at,
+            pttl_ms=result.pttl_ms,
+            rejected_symbols=(),
+        )
+    raw_symbols = decoded.get("symbols")
+    if (
+        type(decoded) is not dict
+        or set(decoded) != {"generated_utc", "symbols"}
+        or type(raw_symbols) is not list
+        or any(type(symbol) is not str for symbol in raw_symbols)
+        or len(set(raw_symbols)) != len(raw_symbols)
+        or server_at.isoformat(timespec="microseconds").replace("+00:00", "Z")
+        != batch.server_observed_at
+        or generated_at > server_at
+    ):
+        return _SelectionUniverse(
+            symbols=(),
+            status="MALFORMED_HOLD",
+            reason="DYNAMIC_SELECTION_UNIVERSE_SCHEMA_OR_CLOCK_INVALID",
+            server_observed_at=batch.server_observed_at,
+            pttl_ms=result.pttl_ms,
+            rejected_symbols=(),
+        )
+    # The writer atomically publishes this payload with its own Redis expiry.
+    # A positive observed PTTL is therefore the source-owned availability
+    # contract.  Comparing payload age with *remaining* PTTL would incorrectly
+    # invalidate every healthy key halfway through its lifetime because the
+    # original TTL is not present in this receipt.
+    typed_symbols = cast(list[str], raw_symbols)
+    symbols = tuple(symbol for symbol in typed_symbols if SYMBOL_RE.fullmatch(symbol) is not None)
+    rejected_symbols = tuple(
+        symbol for symbol in typed_symbols if SYMBOL_RE.fullmatch(symbol) is None
+    )
+    return _SelectionUniverse(
+        symbols=symbols,
+        status="VALID" if symbols else "VALID_EMPTY_HOLD",
+        reason=None if symbols else "DYNAMIC_SELECTION_UNIVERSE_EMPTY",
+        server_observed_at=batch.server_observed_at,
+        pttl_ms=result.pttl_ms,
+        rejected_symbols=rejected_symbols,
+    )
+
+
+def discover_canonical_profile_symbols_v1(
+    redis_client: object,
+    *,
+    atomic_reader: Callable[..., AtomicRedisSourceReadBatch] = read_atomic_redis_sources,
+) -> _Discovery:
     """Discover the exact 5m/1h key intersection without reading feature values."""
 
     scan = getattr(redis_client, "scan_iter", None)
@@ -862,19 +1282,35 @@ def discover_canonical_profile_symbols_v1(redis_client: object) -> _Discovery:
         raise ProfiledBaseFeaturePublisherV1Error(
             "PROFILED_BASE_PUBLISHER_REDIS_DISCOVERY_FAILED"
         ) from exc
+    universe = _dynamic_selection_universe_v1(
+        redis_client,
+        atomic_reader=atomic_reader,
+    )
+    universe_set = set(universe.symbols) if universe.status == "VALID" else set()
     discovered = tuple(sorted(by_symbol))
     required = set(REQUIRED_TIMEFRAMES)
-    eligible = tuple(symbol for symbol in discovered if by_symbol[symbol] == required)
+    eligible = tuple(
+        symbol for symbol in discovered if by_symbol[symbol] == required and symbol in universe_set
+    )
     missing = tuple(
         (symbol, tuple(sorted(required - by_symbol[symbol])))
         for symbol in discovered
-        if by_symbol[symbol] != required
+        if symbol in universe_set and by_symbol[symbol] != required
     )
     return _Discovery(
         discovered_symbols=discovered,
         eligible_symbols=eligible,
         missing_timeframes=missing,
         rejected_key_sha256s=tuple(sorted(set(rejected))),
+        universe_symbols=universe.symbols,
+        universe_excluded_symbols=tuple(
+            symbol for symbol in discovered if symbol not in universe_set
+        ),
+        universe_status=universe.status,
+        universe_reason=universe.reason,
+        universe_server_observed_at=universe.server_observed_at,
+        universe_pttl_ms=universe.pttl_ms,
+        universe_rejected_symbols=universe.rejected_symbols,
     )
 
 
@@ -996,6 +1432,20 @@ class ProfiledBaseFeaturePublisherV1:
         capture_set_builder: Callable[..., Any] = (
             build_canonical_ohlcv_multitimeframe_capture_set_v1
         ),
+        cost_evidence_factory: Callable[..., CausalCostEvidenceV1Result] | None = None,
+        atomic_redis_reader: Callable[..., AtomicRedisSourceReadBatch] = (
+            read_atomic_redis_sources
+        ),
+        expected_notional_builder: Callable[..., Any] = (build_causal_expected_notional_policy_v1),
+        commission_refresh_builder: Callable[..., Any] = (
+            build_binance_usdm_commission_refresh_policy_v1
+        ),
+        commission_capture_function: Callable[..., Any] = (capture_binance_usdm_commission_rate_v1),
+        causal_cost_builder: Callable[..., CausalCostEvidenceV1Result] = (
+            build_causal_cost_evidence_v1
+        ),
+        commission_fingerprint_hmac_key: bytes | None = None,
+        cost_recapture_waiter: Callable[[datetime], datetime] | None = None,
     ) -> None:
         self.redis_client = redis_client
         self.data_root = _strict_path(
@@ -1030,6 +1480,17 @@ class ProfiledBaseFeaturePublisherV1:
             or not callable(disk_usage)
             or not callable(decision_planner)
             or (decision_waiter is not None and not callable(decision_waiter))
+            or (cost_evidence_factory is not None and not callable(cost_evidence_factory))
+            or not callable(atomic_redis_reader)
+            or not callable(expected_notional_builder)
+            or not callable(commission_refresh_builder)
+            or not callable(commission_capture_function)
+            or not callable(causal_cost_builder)
+            or (cost_recapture_waiter is not None and not callable(cost_recapture_waiter))
+            or (
+                commission_fingerprint_hmac_key is not None
+                and type(commission_fingerprint_hmac_key) is not bytes
+            )
         ):
             _fail(
                 ProfiledBaseFeaturePublisherV1ConfigurationError,
@@ -1052,6 +1513,19 @@ class ProfiledBaseFeaturePublisherV1:
         )
         self.capture_function = capture_function
         self.capture_set_builder = capture_set_builder
+        self.cost_evidence_factory = cost_evidence_factory
+        self.atomic_redis_reader = atomic_redis_reader
+        self.expected_notional_builder = expected_notional_builder
+        self.commission_refresh_builder = commission_refresh_builder
+        self.commission_capture_function = commission_capture_function
+        self.causal_cost_builder = causal_cost_builder
+        self._commission_fingerprint_hmac_key = commission_fingerprint_hmac_key
+        self.cost_recapture_waiter = cost_recapture_waiter or (
+            lambda target_at: wait_for_prospective_decision_v1(
+                target_at,
+                clock=self.clock,
+            )
+        )
 
     def _sample_clock(self, reason: str) -> tuple[datetime, str]:
         try:
@@ -1066,11 +1540,15 @@ class ProfiledBaseFeaturePublisherV1:
         ImmutableSourcePayloadStore,
         ImmutableSourcePayloadStore,
         ImmutableSourcePayloadStore,
+        ImmutableSourcePayloadStore,
     ]:
         return (
             ImmutableSourcePayloadStore(self.data_root / "atomic-capture-cas"),
             ImmutableSourcePayloadStore(self.data_root / "capture-set-cas"),
             ImmutableSourcePayloadStore(self.data_root / "profiled-model-evidence-cas"),
+            ImmutableSourcePayloadStore(
+                self.data_root / PROFILED_TRAINING_ENRICHMENT_CAS_DIRECTORY
+            ),
         )
 
     def _disk_sample(self) -> tuple[int, int, int]:
@@ -1250,6 +1728,458 @@ class ProfiledBaseFeaturePublisherV1:
             *last_reasons,
         )
 
+    @staticmethod
+    def _cost_market_keys(symbol: str) -> tuple[str, str, str]:
+        return (
+            f"v2:orderbook:depth:binance:{symbol}",
+            f"v2:orderbook:features:binance:{symbol}",
+            f"v2:market:mark_price:{symbol}",
+        )
+
+    def _read_cost_sources(
+        self,
+        *,
+        symbol: str,
+    ) -> tuple[AtomicRedisSourceReadBatch, AtomicRedisSourceReadBatch]:
+        notional = self.atomic_redis_reader(
+            self.redis_client,
+            (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,),
+        )
+        market = self.atomic_redis_reader(
+            self.redis_client,
+            self._cost_market_keys(symbol),
+        )
+        if (
+            type(notional) is not AtomicRedisSourceReadBatch
+            or type(market) is not AtomicRedisSourceReadBatch
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COST_ATOMIC_READER_RESULT_INVALID",
+            )
+        return notional, market
+
+    def _build_runtime_cost_evidence(
+        self,
+        *,
+        parent_record: dict[str, Any],
+        enrichment_store: ImmutableSourcePayloadStore,
+        decision_at: datetime,
+    ) -> tuple[CausalCostEvidenceV1Result, int]:
+        envelope = cast(dict[str, Any], parent_record["frozen_envelope"])
+        symbol = cast(str, envelope["symbol"])
+        decision_text = cast(str, envelope["tensor_decision_time"])
+        initial = self._read_cost_sources(symbol=symbol)
+        recapture_target = pttl_derived_cost_recapture_target_v1(
+            atomic_captures=initial,
+            decision_at=decision_at,
+        )
+        latest_initial_server = max(
+            _EPOCH
+            + timedelta(
+                seconds=batch.server_time_seconds,
+                microseconds=batch.server_time_microseconds,
+            )
+            for batch in initial
+        )
+        captures = initial
+        if recapture_target > latest_initial_server:
+            try:
+                waited = self.cost_recapture_waiter(recapture_target)
+            except ProfiledBaseFeaturePublisherV1Error:
+                raise
+            except Exception as exc:  # noqa: BLE001 - dependency detail is suppressed
+                raise ProfiledBaseFeaturePublisherV1Error(
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WAIT_FAILED",
+                ) from exc
+            _clock_text(
+                waited,
+                reason="PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WAIT_CLOCK_INVALID",
+            )
+            if waited < recapture_target or waited >= decision_at:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COST_RECAPTURE_WINDOW_MISSED",
+                )
+            captures = self._read_cost_sources(symbol=symbol)
+
+        notional_capture, market_capture = captures
+        notional = self.expected_notional_builder(
+            atomic_capture=notional_capture,
+            source_payload_store=enrichment_store,
+            symbol=symbol,
+            feature_snapshot_identity=parent_record["durable_snapshot_id"],
+            feature_snapshot_decision_time=decision_at,
+        )
+        policy_at, policy_clock = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_CLOCK_INVALID"
+        )
+        if policy_at >= decision_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COMMISSION_POLICY_AFTER_DECISION",
+            )
+        # This refresh receipt authenticates the notional source PTTL, so do
+        # not overclaim that it also binds the three market-source lifetimes.
+        # Their minimum remains exclusively the just-in-time recapture input.
+        notional_pttl_ms = notional_capture.results[0].pttl_ms
+        if notional_pttl_ms < 1_000:
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_NOTIONAL_PTTL_SUBSECOND_UNUSABLE",
+            )
+        refresh_interval_seconds = min(
+            IMMUTABLE_MAX_COMMISSION_EVIDENCE_SAFETY_HORIZON_SECONDS,
+            notional_pttl_ms // 1_000,
+        )
+        refresh_policy = self.commission_refresh_builder(
+            store=enrichment_store,
+            symbol=symbol,
+            policy_id=COMMISSION_REFRESH_POLICY_ID,
+            policy_version=COMMISSION_REFRESH_POLICY_VERSION,
+            refresh_interval_seconds=refresh_interval_seconds,
+            adaptive_input_receipt_sha256=notional.source_read_receipt_sha256,
+            generated_at=policy_clock,
+            available_at=policy_clock,
+            recorded_at=policy_clock,
+        )
+        commission = self.commission_capture_function(
+            store=enrichment_store,
+            symbol=symbol,
+            refresh_policy=refresh_policy,
+            fallback_reason=COMMISSION_CAPTURE_FALLBACK_REASON,
+            credential_fingerprint_hmac_key=self._commission_fingerprint_hmac_key,
+            now_fn=self.clock,
+        )
+        result = self.causal_cost_builder(
+            atomic_capture=market_capture,
+            source_payload_store=enrichment_store,
+            fee_schedule_artifact_bytes=commission.fee_artifact_bytes,
+            fee_schedule_raw_response_bytes=commission.raw_response_bytes,
+            fee_schedule_receipt=commission.fee_schedule_receipt,
+            expected_notional_usd=notional.expected_notional_usd,
+            expected_notional_policy_artifact_bytes=notional.notional_artifact_bytes,
+            expected_notional_policy_receipt=notional.notional_receipt,
+            symbol=symbol,
+            feature_snapshot_identity=parent_record["durable_snapshot_id"],
+            decision_time=decision_text,
+            counterfactual_holding_horizon_seconds=(CAUSAL_COST_COUNTERFACTUAL_HORIZON_SECONDS),
+        )
+        if type(result) is not CausalCostEvidenceV1Result:
+            _fail(
+                ProfiledBaseFeaturePublisherV1Error,
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
+            )
+        auxiliary_cas_bytes = (
+            len(refresh_policy.artifact_bytes)
+            + len(refresh_policy.receipt_bytes)
+            + len(commission.sanitized_request_identity_bytes)
+        )
+        return result, auxiliary_cas_bytes
+
+    def _cost_evidence_for_parent(
+        self,
+        *,
+        parent_record: dict[str, Any],
+        enrichment_store: ImmutableSourcePayloadStore,
+        decision_at: datetime,
+    ) -> tuple[CausalCostEvidenceV1Result, int]:
+        try:
+            if self.cost_evidence_factory is not None:
+                result = self.cost_evidence_factory(
+                    parent_record=parent_record,
+                    enrichment_store=enrichment_store,
+                    decision_at=decision_at,
+                )
+                auxiliary_cas_bytes = 0
+            else:
+                result, auxiliary_cas_bytes = self._build_runtime_cost_evidence(
+                    parent_record=parent_record,
+                    enrichment_store=enrichment_store,
+                    decision_at=decision_at,
+                )
+            if type(result) is not CausalCostEvidenceV1Result:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COST_FACTORY_RESULT_INVALID",
+                )
+            if type(auxiliary_cas_bytes) is not int or auxiliary_cas_bytes < 0:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1Error,
+                    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                    "PROFILED_BASE_PUBLISHER_COST_AUXILIARY_ACCOUNTING_INVALID",
+                )
+            return result, auxiliary_cas_bytes
+        except Exception as exc:  # noqa: BLE001 - only stable reasons leave this boundary
+            reasons = _error_reasons(exc)
+            if COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED in reasons:
+                raise
+            raise ProfiledBaseFeaturePublisherV1Error(
+                COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+                *reasons,
+            ) from None
+
+    def _write_pair_recovery_receipt(
+        self,
+        *,
+        symbol: str,
+        window_fingerprint_sha256: str,
+        pair: ProfiledTrainingEnrichmentPairV1,
+        enrichment_store: ImmutableSourcePayloadStore,
+        materialized_evidence_bytes: int,
+    ) -> None:
+        if type(materialized_evidence_bytes) is not int or materialized_evidence_bytes <= 0:
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_ACCOUNTING_INVALID",
+            )
+        unsigned: dict[str, Any] = {
+            "schema_version": PROFILED_TRAINING_PAIR_RECOVERY_V1_SCHEMA_VERSION,
+            "symbol": symbol,
+            "window_fingerprint_sha256": window_fingerprint_sha256,
+            "parent_durable_snapshot_id": pair.parent_durable_snapshot_id,
+            "parent_record_sha256": pair.parent_record_sha256,
+            "child_durable_snapshot_id": pair.child_durable_snapshot_id,
+            "child_record_sha256": pair.child_record_sha256,
+            "cost_capture_artifact_sha256": pair.cost_capture_artifact_sha256,
+            "cost_store_root": str(enrichment_store.root_path),
+            "prepared_at": pair.generated_at,
+            "append_disposition": ("PREPARED_BEFORE_ATOMIC_PAIR_APPEND_REQUIRES_LEDGER_READBACK"),
+            "materialized_evidence_bytes": materialized_evidence_bytes,
+            "evidence_accounting_method": (
+                "CONSERVATIVE_EXACT_CAS_PLUS_LEDGER_RECORD_MULTIPLIER_"
+                "AND_AUXILIARY_SQLITE_OVERHEAD"
+            ),
+        }
+        receipt = {
+            **unsigned,
+            "recovery_receipt_sha256": stable_sha256(unsigned),
+        }
+        _atomic_write_json(
+            _pair_recovery_receipt_path(self.data_root, symbol),
+            receipt,
+            failure_reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_RECEIPT_WRITE_FAILED",
+        )
+
+    @staticmethod
+    def _recovery_sample(
+        *,
+        ledger: DurableFeatureSnapshotLedger,
+        child_postcommit_readback_at: str,
+        child_durable_snapshot_id: str,
+        enrichment_store: ImmutableSourcePayloadStore,
+    ) -> ProfiledTrainingLedgerSampleV1:
+        observed = _parse_clock(
+            child_postcommit_readback_at,
+            reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_POSTCOMMIT_CLOCK_INVALID",
+        )
+        try:
+            observed += timedelta(microseconds=1)
+        except OverflowError:
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_POSTCOMMIT_CLOCK_INVALID",
+            )
+        observed_text = _clock_text(
+            observed,
+            reason="PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_OBSERVATION_CLOCK_INVALID",
+        )
+        after_sequence = 0
+        page_cursor: str | None = None
+        while True:
+            batch = load_profiled_training_ledger_v1(
+                ledger=ledger,
+                trusted_immutable_cost_store_root=enrichment_store.root_path,
+                training_observed_at=observed_text,
+                scan_limit=MAX_PROFILED_TRAINING_SCAN_ROWS,
+                after_sequence=after_sequence,
+                page_cursor=page_cursor,
+            )
+            matches = tuple(
+                sample
+                for sample in batch.samples
+                if sample.durable_snapshot_id == child_durable_snapshot_id
+            )
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1StateError,
+                    "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_CHILD_DUPLICATE",
+                )
+            if not batch.has_remaining_strict_rows:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1StateError,
+                    "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_CHILD_NOT_AUTHENTICATED",
+                )
+            after_sequence = batch.next_after_sequence
+            page_cursor = batch.next_cursor
+
+    def _recover_committed_pair(
+        self,
+        *,
+        symbol: str,
+        prior_coverage: Mapping[str, Any] | None,
+        enrichment_store: ImmutableSourcePayloadStore,
+        feature_ledger: DurableFeatureSnapshotLedger,
+    ) -> _SymbolOutcome | None:
+        receipt = _load_pair_recovery_receipt(
+            _pair_recovery_receipt_path(self.data_root, symbol),
+            expected_symbol=symbol,
+            expected_cost_store_root=enrichment_store.root_path,
+        )
+        if receipt is None or not feature_ledger.path.is_file():
+            return None
+        if (
+            prior_coverage is not None
+            and prior_coverage.get("durable_snapshot_id") == receipt["child_durable_snapshot_id"]
+        ):
+            return None
+        try:
+            parent = feature_ledger.get_snapshot(receipt["parent_durable_snapshot_id"])
+            child = feature_ledger.get_snapshot(receipt["child_durable_snapshot_id"])
+        except FeatureSnapshotLedgerError as exc:
+            raise ProfiledBaseFeaturePublisherV1StateError(
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_LEDGER_READ_FAILED"
+            ) from exc
+        if parent is None and child is None:
+            # A crash before the atomic append leaves a harmless prepared
+            # intent.  The next fresh pair may replace it.
+            return None
+        if parent is None or child is None:
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PARTIAL_PAIR_QUARANTINED",
+            )
+        if prior_coverage is not None:
+            prior_id = prior_coverage.get("durable_snapshot_id")
+            try:
+                prior = (
+                    feature_ledger.get_snapshot(cast(str, prior_id))
+                    if type(prior_id) is str
+                    else None
+                )
+            except FeatureSnapshotLedgerError as exc:
+                raise ProfiledBaseFeaturePublisherV1StateError(
+                    "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PRIOR_LEDGER_READ_FAILED"
+                ) from exc
+            if prior is None:
+                _fail(
+                    ProfiledBaseFeaturePublisherV1StateError,
+                    "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PRIOR_COVERAGE_MISSING",
+                )
+            if child.sequence <= prior.sequence:
+                return None
+        try:
+            sample = self._recovery_sample(
+                ledger=feature_ledger,
+                child_postcommit_readback_at=child.postcommit_readback_at,
+                child_durable_snapshot_id=receipt["child_durable_snapshot_id"],
+                enrichment_store=enrichment_store,
+            )
+        except ProfiledTrainingLedgerLoaderV1Error as exc:
+            raise ProfiledBaseFeaturePublisherV1StateError(
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_LOADER_AUTHENTICATION_FAILED",
+                *exc.reasons,
+            ) from exc
+        child_record = child.record
+        child_envelope = cast(dict[str, Any], child_record["frozen_envelope"])
+        lineage = cast(dict[str, Any], child_envelope["source_lineage_material"])
+        attestation = lineage.get(PROFILED_TRAINING_ENRICHMENT_LINEAGE_V1_KEY)
+        cost_binding = (
+            attestation.get("cost_capture_binding") if type(attestation) is dict else None
+        )
+        if (
+            parent.record.get("record_sha256") != receipt["parent_record_sha256"]
+            or child_record.get("record_sha256") != receipt["child_record_sha256"]
+            or parent.sequence + 1 != child.sequence
+            or parent.append_transaction_id != child.append_transaction_id
+            or parent.append_receipt_sha256 != child.append_receipt_sha256
+            or parent.postcommit_receipt_sha256 != child.postcommit_receipt_sha256
+            or parent.postcommit_readback_at != child.postcommit_readback_at
+            or sample.sequence != child.sequence
+            or sample.parent_durable_snapshot_id != receipt["parent_durable_snapshot_id"]
+            or sample.parent_record_sha256 != receipt["parent_record_sha256"]
+            or sample.record_sha256 != receipt["child_record_sha256"]
+            or sample.append_transaction_id != child.append_transaction_id
+            or sample.append_receipt_sha256 != child.append_receipt_sha256
+            or sample.postcommit_receipt_sha256 != child.postcommit_receipt_sha256
+            or type(cost_binding) is not dict
+            or cost_binding.get("cost_capture_artifact_sha256")
+            != receipt["cost_capture_artifact_sha256"]
+            or cost_binding.get("immutable_cost_store_root") != str(enrichment_store.root_path)
+        ):
+            _fail(
+                ProfiledBaseFeaturePublisherV1StateError,
+                "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_SHARED_BINDING_INVALID",
+            )
+        detail = {
+            "symbol": symbol,
+            "classification": "AUTHENTICATED_PROFILED_TRAINING_PAIR_EXACT_REPLAY",
+            "window_fingerprint_sha256": receipt["window_fingerprint_sha256"],
+            "feature_cutoff": sample.feature_cutoff,
+            "decision_time": sample.decision_time,
+            "durable_snapshot_id": sample.durable_snapshot_id,
+            "record_sha256": sample.record_sha256,
+            "parent_durable_snapshot_id": sample.parent_durable_snapshot_id,
+            "parent_record_sha256": sample.parent_record_sha256,
+            "cost_capture_artifact_sha256": receipt["cost_capture_artifact_sha256"],
+            "cost_store_root": str(enrichment_store.root_path),
+            "feature_append": {
+                "transaction_id": sample.append_transaction_id,
+                "inserted_rows": 0,
+                "duplicate_rows": 0,
+                "parent_sequence": parent.sequence,
+                "child_sequence": child.sequence,
+                "append_receipt_sha256": sample.append_receipt_sha256,
+                "postcommit_receipt_sha256": sample.postcommit_receipt_sha256,
+                "postcommit_readback_at": sample.postcommit_readback_at,
+                "transaction_committed": True,
+                "transaction_readback_verified": True,
+            },
+            "recovery": {
+                "classification": "STATE_LOSS_COMMITTED_PAIR_INDEPENDENTLY_AUTHENTICATED",
+                "recovery_receipt_sha256": receipt["recovery_receipt_sha256"],
+                "ledger_and_trusted_cost_cas_reopened": True,
+                "cost_or_commission_recapture_performed": False,
+                "feature_ledger_append_performed": False,
+                "coverage_recovered_from_commit_receipt": True,
+            },
+            "authority": {
+                "publisher_runtime_authority_granted": False,
+                "parent_trainer_admission_authorized": False,
+                "child_trainer_admission_authorized": True,
+                "trainer_candidate_in_lineage": True,
+                "prediction_authorized": False,
+                "paper_trading_authorized": False,
+                "live_execution_authorized": False,
+                "runtime_wired": False,
+            },
+            "legacy_feature_redis_write_performed": False,
+        }
+        return _SymbolOutcome(
+            symbol=symbol,
+            classification="AUTHENTICATED_PROFILED_TRAINING_PAIR_EXACT_REPLAY",
+            window_fingerprint_sha256=cast(str, receipt["window_fingerprint_sha256"]),
+            materialized_evidence_bytes=cast(int, receipt["materialized_evidence_bytes"]),
+            detail=detail,
+            coverage={
+                "last_published_at": sample.postcommit_readback_at,
+                "feature_cutoff": sample.feature_cutoff,
+                "decision_time": sample.decision_time,
+                "window_fingerprint_sha256": receipt["window_fingerprint_sha256"],
+                "durable_snapshot_id": sample.durable_snapshot_id,
+                "record_sha256": sample.record_sha256,
+            },
+        )
+
     def _publish_symbol_once(
         self,
         *,
@@ -1258,8 +2188,17 @@ class ProfiledBaseFeaturePublisherV1:
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
         artifact_store: ImmutableSourcePayloadStore,
+        enrichment_store: ImmutableSourcePayloadStore,
         feature_ledger: DurableFeatureSnapshotLedger,
     ) -> _SymbolOutcome:
+        recovered = self._recover_committed_pair(
+            symbol=symbol,
+            prior_coverage=prior_coverage,
+            enrichment_store=enrichment_store,
+            feature_ledger=feature_ledger,
+        )
+        if recovered is not None:
+            return recovered
         prior_fingerprint = (
             cast(str, prior_coverage.get("window_fingerprint_sha256"))
             if prior_coverage is not None
@@ -1353,11 +2292,65 @@ class ProfiledBaseFeaturePublisherV1:
             if feature_ledger.path.is_file()
             else None
         )
-        if existing_snapshot is not None and existing_snapshot.record != record:
+        if existing_snapshot is not None:
             _fail(
                 ProfiledBaseFeaturePublisherV1Error,
-                "PROFILED_BASE_PUBLISHER_EXISTING_SNAPSHOT_CONTENT_MISMATCH",
+                "PROFILED_BASE_PUBLISHER_EXISTING_35_PARENT_QUARANTINED_NOT_RETRO_ENRICHED",
             )
+        cost_evidence, runtime_cost_auxiliary_cas_bytes = self._cost_evidence_for_parent(
+            parent_record=record,
+            enrichment_store=enrichment_store,
+            decision_at=decision_at,
+        )
+        _, cost_artifact_available_at = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_COST_ARTIFACT_AVAILABLE_CLOCK_INVALID"
+        )
+        _, enrichment_available_at = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_ENRICHMENT_AVAILABLE_CLOCK_INVALID"
+        )
+        _, enrichment_generated_at = self._sample_clock(
+            "PROFILED_BASE_PUBLISHER_ENRICHMENT_GENERATED_CLOCK_INVALID"
+        )
+        pair = build_profiled_training_enrichment_pair_v1(
+            parent_record=record,
+            transform_result=transformed,
+            capture_set_contract=contract,
+            capture_set_store=capture_set_store,
+            parent_artifact_store=artifact_store,
+            source_provenance_ledger=source_ledger,
+            source_provenance_entries=source_entries,
+            cost_evidence=cost_evidence,
+            enrichment_store=enrichment_store,
+            cost_artifact_available_at=cost_artifact_available_at,
+            enrichment_available_at=enrichment_available_at,
+            generated_at=enrichment_generated_at,
+        )
+        child_record = pair.child_record
+        pair_record_bytes = len(_canonical_json_bytes(record)) + len(
+            _canonical_json_bytes(child_record)
+        )
+        cost_object_bytes = sum(
+            address.payload_byte_count
+            for address, _payload in cost_evidence._exact_objects  # noqa: SLF001
+        )
+        materialized_evidence_bytes = (
+            projected_pair
+            + int(capture_set.capture_set_manifest_byte_count)
+            + len(transformed.artifact_json.encode("ascii"))
+            + PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER * pair_record_bytes
+            + cost_object_bytes
+            + runtime_cost_auxiliary_cas_bytes
+            + 4 * 4
+            + sum(len(result.entry.entry_json.encode("ascii")) for result in append_results)
+            + PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES
+        )
+        self._write_pair_recovery_receipt(
+            symbol=symbol,
+            window_fingerprint_sha256=fingerprint,
+            pair=pair,
+            enrichment_store=enrichment_store,
+            materialized_evidence_bytes=materialized_evidence_bytes,
+        )
         try:
             decision_wait_completed_at = self.decision_waiter(decision_at)
         except ProfiledBaseFeaturePublisherV1Error:
@@ -1375,36 +2368,29 @@ class ProfiledBaseFeaturePublisherV1:
                 ProfiledBaseFeaturePublisherV1ConfigurationError,
                 "PROFILED_BASE_PUBLISHER_APPEND_BEFORE_PROSPECTIVE_DECISION",
             )
-        feature_append: FeatureSnapshotAppendResult = feature_ledger.append_snapshot(record)
+        feature_append = append_profiled_training_enrichment_pair_v1(
+            ledger=feature_ledger,
+            pair=pair,
+        )
         if (
             feature_append.transaction_committed is not True
             or feature_append.transaction_readback_verified is not True
             or any(getattr(validation, name) is not False for name in AUTHORITY_FIELDS)
+            or pair.prediction_authorized is not False
+            or pair.paper_trading_authorized is not False
+            or pair.live_execution_authorized is not False
+            or pair.runtime_wired is not False
+            or feature_append.runtime_wired is not False
         ):
             _fail(
                 ProfiledBaseFeaturePublisherV1Error,
                 "PROFILED_BASE_PUBLISHER_POSTCOMMIT_OR_AUTHORITY_INVALID",
             )
-        envelope = cast(dict[str, Any], record["frozen_envelope"])
-        classification = (
-            "AUTHENTICATED_QUARANTINED_BASE_INSERTED"
-            if existing_snapshot is None and feature_append.inserted_rows == 1
-            else "AUTHENTICATED_QUARANTINED_BASE_EXACT_REPLAY"
-        )
+        parent_envelope = cast(dict[str, Any], pair.parent_record["frozen_envelope"])
+        child_envelope = cast(dict[str, Any], child_record["frozen_envelope"])
+        classification = "AUTHENTICATED_PROFILED_TRAINING_PAIR_INSERTED"
         source_ledger_entries_after = len(source_ledger.read_entries())
         source_ledger_bytes_after = source_ledger.path.stat().st_size
-        materialized_evidence_bytes = (
-            projected_pair
-            + int(capture_set.capture_set_manifest_byte_count)
-            + len(transformed.artifact_json.encode("ascii"))
-            + len(_canonical_json_bytes(record))
-            + sum(len(result.entry.entry_json.encode("ascii")) for result in append_results)
-        )
-        charged_materialized_evidence_bytes = (
-            materialized_evidence_bytes
-            if classification == "AUTHENTICATED_QUARANTINED_BASE_INSERTED"
-            else 0
-        )
         source_details = [
             {
                 "timeframe": timeframe,
@@ -1428,18 +2414,26 @@ class ProfiledBaseFeaturePublisherV1:
             "ingested_at": contract["timestamps"]["ingested_at"],
             "available_at": contract["timestamps"]["available_at"],
             "capture_generated_at": contract["timestamps"]["generated_at"],
-            "feature_cutoff": envelope["feature_cutoff"],
-            "decision_time": envelope["tensor_decision_time"],
+            "feature_cutoff": child_envelope["feature_cutoff"],
+            "parent_model_feature_cutoff": parent_envelope["feature_cutoff"],
+            "decision_time": child_envelope["tensor_decision_time"],
             "decision_wait_completed_at": decision_wait_completed,
             "prospective_decision_wait_verified": True,
             "transform_available_at": transform_available_at,
-            "record_generated_at": envelope["generated_at"],
+            "parent_record_generated_at": parent_envelope["generated_at"],
+            "cost_artifact_available_at": cost_artifact_available_at,
+            "enrichment_available_at": enrichment_available_at,
+            "child_record_generated_at": child_envelope["generated_at"],
             "execution_time": contract["timestamps"]["execution_time"],
             "capture_set_sha256": validation.capture_set_sha256,
             "transform_artifact_sha256": validation.transform_artifact_sha256,
-            "durable_snapshot_id": validation.durable_snapshot_id,
-            "record_sha256": validation.record_sha256,
-            "frozen_envelope_sha256": validation.frozen_envelope_sha256,
+            "durable_snapshot_id": pair.child_durable_snapshot_id,
+            "record_sha256": pair.child_record_sha256,
+            "frozen_envelope_sha256": child_record["frozen_envelope_sha256"],
+            "parent_durable_snapshot_id": pair.parent_durable_snapshot_id,
+            "parent_record_sha256": pair.parent_record_sha256,
+            "cost_capture_artifact_sha256": pair.cost_capture_artifact_sha256,
+            "cost_store_root": str(enrichment_store.root_path),
             "source_lineage_sha256": validation.source_lineage_sha256,
             "physical_model_vector_sha256": validation.physical_model_vector_sha256,
             "logical_model_vector_sha256": (validation.logical_projection.model_vector_sha256),
@@ -1447,7 +2441,12 @@ class ProfiledBaseFeaturePublisherV1:
             "source_provenance_shard_index": shard_index,
             "source_provenance_shard_rolled": rolled,
             "source_pair_projected_ledger_bytes": projected_pair,
-            "materialized_evidence_bytes": charged_materialized_evidence_bytes,
+            "materialized_evidence_bytes": materialized_evidence_bytes,
+            "runtime_cost_auxiliary_cas_bytes": runtime_cost_auxiliary_cas_bytes,
+            "pair_ledger_record_accounting_multiplier": (PAIR_LEDGER_RECORD_ACCOUNTING_MULTIPLIER),
+            "pair_auxiliary_cas_sqlite_accounting_overhead_bytes": (
+                PAIR_AUXILIARY_CAS_SQLITE_ACCOUNTING_OVERHEAD_BYTES
+            ),
             "source_ledger_entries_after": source_ledger_entries_after,
             "source_ledger_entry_limit": MAX_LEDGER_ENTRIES,
             "source_ledger_remaining_entries": (MAX_LEDGER_ENTRIES - source_ledger_entries_after),
@@ -1457,33 +2456,41 @@ class ProfiledBaseFeaturePublisherV1:
             "source_appends": source_details,
             "feature_append": {
                 "transaction_id": feature_append.transaction_id,
-                "batch_sha256": feature_append.batch_sha256,
-                "inserted_rows": feature_append.inserted_rows,
-                "duplicate_rows": feature_append.duplicate_rows,
-                "total_unique_rows": feature_append.total_unique_rows,
-                "archive_chain_sha256": feature_append.archive_chain_sha256,
+                "inserted_rows": 2,
+                "duplicate_rows": 0,
+                "parent_sequence": feature_append.parent_sequence,
+                "child_sequence": feature_append.child_sequence,
                 "append_receipt_sha256": feature_append.append_receipt_sha256,
                 "postcommit_receipt_sha256": feature_append.postcommit_receipt_sha256,
                 "postcommit_readback_at": feature_append.postcommit_readback_at,
                 "transaction_committed": feature_append.transaction_committed,
                 "transaction_readback_verified": (feature_append.transaction_readback_verified),
             },
-            "authority": {name: False for name in AUTHORITY_FIELDS},
+            "authority": {
+                "publisher_runtime_authority_granted": False,
+                "parent_trainer_admission_authorized": False,
+                "child_trainer_admission_authorized": True,
+                "trainer_candidate_in_lineage": True,
+                "prediction_authorized": False,
+                "paper_trading_authorized": False,
+                "live_execution_authorized": False,
+                "runtime_wired": False,
+            },
             "legacy_feature_redis_write_performed": False,
         }
         coverage = {
             "last_published_at": feature_append.postcommit_readback_at,
-            "feature_cutoff": envelope["feature_cutoff"],
-            "decision_time": envelope["tensor_decision_time"],
+            "feature_cutoff": child_envelope["feature_cutoff"],
+            "decision_time": child_envelope["tensor_decision_time"],
             "window_fingerprint_sha256": fingerprint,
-            "durable_snapshot_id": validation.durable_snapshot_id,
-            "record_sha256": validation.record_sha256,
+            "durable_snapshot_id": pair.child_durable_snapshot_id,
+            "record_sha256": pair.child_record_sha256,
         }
         return _SymbolOutcome(
             symbol=symbol,
             classification=classification,
             window_fingerprint_sha256=fingerprint,
-            materialized_evidence_bytes=charged_materialized_evidence_bytes,
+            materialized_evidence_bytes=materialized_evidence_bytes,
             detail=detail,
             coverage=coverage,
         )
@@ -1496,6 +2503,7 @@ class ProfiledBaseFeaturePublisherV1:
         source_store: ImmutableSourcePayloadStore,
         capture_set_store: ImmutableSourcePayloadStore,
         artifact_store: ImmutableSourcePayloadStore,
+        enrichment_store: ImmutableSourcePayloadStore,
         feature_ledger: DurableFeatureSnapshotLedger,
     ) -> _SymbolOutcome:
         """Retry the whole finalized-window capture if a decision window is missed."""
@@ -1509,6 +2517,7 @@ class ProfiledBaseFeaturePublisherV1:
                     source_store=source_store,
                     capture_set_store=capture_set_store,
                     artifact_store=artifact_store,
+                    enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
                 )
                 return _SymbolOutcome(
@@ -1519,11 +2528,13 @@ class ProfiledBaseFeaturePublisherV1:
                     detail={**outcome.detail, "publication_attempts": attempt},
                     coverage=outcome.coverage,
                 )
-            except ProfiledModelFeatureSnapshotRecordV1Error as exc:
+            except (
+                ProfiledModelFeatureSnapshotRecordV1Error,
+                ProfiledTrainingEnrichmentRecordV1Error,
+                ProfiledBaseFeaturePublisherV1Error,
+            ) as exc:
                 last_reasons = _error_reasons(exc)
-                missed = any(
-                    "PUBLICATION_CLOCK_ORDER_INVALID" in reason.upper() for reason in last_reasons
-                )
+                missed = _cost_temporal_retryable(last_reasons)
                 if not missed or attempt >= self.boundary_retry_limit:
                     raise
         raise ProfiledBaseFeaturePublisherV1Error(
@@ -1546,7 +2557,10 @@ class ProfiledBaseFeaturePublisherV1:
         )
         monotonic_start = self.monotonic()
         state = _load_state(self.state_path)
-        discovery = discover_canonical_profile_symbols_v1(self.redis_client)
+        discovery = discover_canonical_profile_symbols_v1(
+            self.redis_client,
+            atomic_reader=self.atomic_redis_reader,
+        )
         _, discovery_completed = self._sample_clock(
             "PROFILED_BASE_PUBLISHER_DISCOVERY_CLOCK_INVALID"
         )
@@ -1568,12 +2582,12 @@ class ProfiledBaseFeaturePublisherV1:
         _, selection_at = self._sample_clock("PROFILED_BASE_PUBLISHER_SELECTION_CLOCK_INVALID")
 
         if planned_selection:
-            source_store, capture_set_store, artifact_store = self._stores()
+            source_store, capture_set_store, artifact_store, enrichment_store = self._stores()
             feature_ledger: DurableFeatureSnapshotLedger | None = DurableFeatureSnapshotLedger(
                 self.feature_ledger_path
             )
         else:
-            source_store = capture_set_store = artifact_store = None
+            source_store = capture_set_store = artifact_store = enrichment_store = None
             feature_ledger = None
         published: list[dict[str, Any]] = []
         replayed: list[dict[str, Any]] = []
@@ -1635,6 +2649,7 @@ class ProfiledBaseFeaturePublisherV1:
                     source_store is None
                     or capture_set_store is None
                     or artifact_store is None
+                    or enrichment_store is None
                     or feature_ledger is None
                 ):
                     _fail(
@@ -1648,12 +2663,23 @@ class ProfiledBaseFeaturePublisherV1:
                     source_store=source_store,
                     capture_set_store=capture_set_store,
                     artifact_store=artifact_store,
+                    enrichment_store=enrichment_store,
                     feature_ledger=feature_ledger,
                 )
                 if outcome.classification == "UNCHANGED_FINALIZED_WINDOWS":
                     skipped.append(outcome.detail)
                 elif outcome.classification.endswith("EXACT_REPLAY"):
                     replayed.append(outcome.detail)
+                    if outcome.materialized_evidence_bytes > 0:
+                        # Recover the byte/count observation lost with the
+                        # crashed state write.  The original elapsed time is
+                        # unavailable, so charge the pre-cycle adaptive
+                        # estimate.  This preserves the observed mean instead
+                        # of letting a fast readback replay manufacture extra
+                        # publication throughput.
+                        materialized_cycle_evidence_bytes += outcome.materialized_evidence_bytes
+                        materialized_cycle_publication_count += 1
+                        materialized_publication_elapsed += decision.estimated_seconds_per_symbol
                 else:
                     published.append(outcome.detail)
                     materialized = True
@@ -1663,17 +2689,43 @@ class ProfiledBaseFeaturePublisherV1:
                     coverage[symbol] = outcome.coverage
             except Exception as exc:  # noqa: BLE001 - isolate every symbol
                 reasons = _error_reasons(exc)
+                try:
+                    _failed_total, _failed_used, failed_disk_free = self._disk_sample()
+                except ProfiledBaseFeaturePublisherV1Error:
+                    failed_disk_free = current_disk_free
+                failed_materialized_bytes = max(0, current_disk_free - failed_disk_free)
+                if failed_materialized_bytes > 0:
+                    materialized = True
+                    materialized_cycle_evidence_bytes += failed_materialized_bytes
+                    materialized_cycle_publication_count += 1
+                    cycle_disk_consumption_high_water = max(
+                        cycle_disk_consumption_high_water,
+                        max(0, cycle_start_disk_free - failed_disk_free),
+                    )
                 failures.append(
                     {
                         "symbol": symbol,
-                        "stage": "AUTHENTICATED_BASE_PUBLICATION",
+                        "stage": "AUTHENTICATED_PROFILED_TRAINING_PAIR_PUBLICATION",
                         "reasons": list(reasons),
+                        "materialized_evidence_bytes": failed_materialized_bytes,
+                        "orphan_feature_ledger_record_appended": False,
+                        "coverage_advanced": False,
+                        "in_cycle_temporal_retryable": _cost_temporal_retryable(reasons),
                         "retryable": isinstance(
                             exc,
                             CanonicalOhlcvAtomicCaptureError
                             | CanonicalOhlcvMultitimeframeCaptureSetV1Error
                             | TrainerSourceProvenanceLedgerV4Error
-                            | FeatureSnapshotLedgerError,
+                            | FeatureSnapshotLedgerError
+                            | ProfiledTrainingEnrichmentRecordV1Error,
+                        )
+                        or (
+                            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED in reasons
+                            and not any(
+                                fragment in reason.upper()
+                                for reason in reasons
+                                for fragment in COST_OPERATOR_BLOCKER_REASON_FRAGMENTS
+                            )
                         ),
                         "boundary_or_finality_related": _boundary_related(reasons),
                     }
@@ -1695,18 +2747,17 @@ class ProfiledBaseFeaturePublisherV1:
         )
         observations = cast(dict[str, Any], state["observations"])
         observations["cycle_count"] += 1
-        if published:
-            observations["materialized_publication_count"] += len(published)
+        if materialized_cycle_publication_count > 0:
+            observations["materialized_publication_count"] += materialized_cycle_publication_count
             observations["materialized_publication_elapsed_seconds"] = (
                 float(observations["materialized_publication_elapsed_seconds"])
                 + materialized_publication_elapsed
             )
-            # Unit-cost adaptation is scoped to artifacts this publisher can
-            # identify exactly.  Shared-filesystem free-space movement still
-            # enforces intra-cycle backpressure and reduces the next cycle's
-            # safe headroom, but cannot be attributed to this publisher's
-            # per-symbol mean.  Unchanged/replay-only cycles cannot dilute it.
-            observations["materialized_publication_bytes"] += materialized_cycle_evidence_bytes
+            # Charge the conservative cycle evidence high-water, including
+            # auxiliary CAS objects and failed attempts visible only through
+            # filesystem consumption.  Repeated blocked attempts therefore
+            # cannot evade the next adaptive unit-cost estimate.
+            observations["materialized_publication_bytes"] += evidence_delta
         _atomic_write_json(
             self.state_path,
             state,
@@ -1759,7 +2810,9 @@ class ProfiledBaseFeaturePublisherV1:
             1 for failure in failures if failure["symbol"] in set(selected)
         )
         status_classification = (
-            "NO_ELIGIBLE_SYMBOLS"
+            f"DYNAMIC_SELECTION_UNIVERSE_{discovery.universe_status}"
+            if discovery.universe_status != "VALID"
+            else "NO_ELIGIBLE_SYMBOLS"
             if not discovery.eligible_symbols
             else "RESOURCE_HEADROOM_HOLD"
             if not selected and not resource_deferred
@@ -1788,6 +2841,28 @@ class ProfiledBaseFeaturePublisherV1:
             "discovered_symbols": list(discovery.discovered_symbols),
             "eligible_symbol_count": len(discovery.eligible_symbols),
             "eligible_symbols": list(discovery.eligible_symbols),
+            "dynamic_selection_universe": {
+                "schema_version": "profiled_base_dynamic_selection_universe_v1",
+                "source_key": DYNAMIC_SYMBOL_SELECTION_KEY,
+                "status": discovery.universe_status,
+                "reason": discovery.universe_reason,
+                "server_observed_at": discovery.universe_server_observed_at,
+                "source_pttl_ms": discovery.universe_pttl_ms,
+                "availability_contract": "POSITIVE_SOURCE_OWNED_REDIS_PTTL",
+                "symbol_count": len(discovery.universe_symbols),
+                "symbols": list(discovery.universe_symbols),
+                "rejected_symbol_count": len(discovery.universe_rejected_symbols),
+                "rejected_symbols": list(discovery.universe_rejected_symbols),
+                "rejected_symbol_reason": (
+                    "SYMBOL_FORMAT_NOT_CANONICAL_ASCII_RUNTIME_SYMBOL"
+                    if discovery.universe_rejected_symbols
+                    else None
+                ),
+                "ohlcv_discovered_excluded_count": len(discovery.universe_excluded_symbols),
+                "ohlcv_discovered_excluded_symbols": list(discovery.universe_excluded_symbols),
+                "selection_metadata_only": True,
+                "trainer_evidence_or_authority_conferred": False,
+            },
             "selected_symbol_count": len(selected),
             "selected_symbols": list(selected),
             "resource_deferred_symbol_count": len(resource_deferred),
@@ -1832,6 +2907,12 @@ class ProfiledBaseFeaturePublisherV1:
             "skips": skipped,
             "failures": failures,
             "authority": {name: False for name in AUTHORITY_FIELDS},
+            "authority_semantics": {
+                "publisher_runtime_authority_granted": False,
+                "published_child_trainer_admission_authorized": bool(published or replayed),
+                "prediction_paper_live_authority_granted": False,
+                "automatic_trainer_transition_authorized": False,
+            },
             "legacy_feature_redis_write_performed": False,
             "market_performance_thresholds_applied": False,
             "singleton_writer_lock": lock_metadata,
@@ -1849,16 +2930,19 @@ class ProfiledBaseFeaturePublisherV1:
 __all__ = [
     "BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL",
     "CANONICAL_KEY_PREFIX",
+    "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED",
     "DECISION_TIMEFRAME",
     "DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS",
     "DISK_RESERVE_POLICY_V1",
     "DISK_RESERVE_PUBLICATION_UNITS",
     "DISK_RESERVE_TOTAL_FRACTION_DENOMINATOR",
     "DISK_RESERVE_TOTAL_FRACTION_NUMERATOR",
+    "DYNAMIC_SYMBOL_SELECTION_KEY",
     "MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS",
     "PROFILED_BASE_FEATURE_PUBLISHER_STATE_V1_SCHEMA_VERSION",
     "PROFILED_BASE_FEATURE_PUBLISHER_STATUS_V1_SCHEMA_VERSION",
     "PROFILED_BASE_FEATURE_PUBLISHER_V1_SCHEMA_VERSION",
+    "PROFILED_TRAINING_ENRICHMENT_CAS_DIRECTORY",
     "ProfiledBaseFeaturePublisherV1",
     "ProfiledBaseFeaturePublisherV1ConfigurationError",
     "ProfiledBaseFeaturePublisherV1Error",
@@ -1869,6 +2953,7 @@ __all__ = [
     "discover_canonical_profile_symbols_v1",
     "least_recently_covered_symbols_v1",
     "prospective_decision_midpoint_v1",
+    "pttl_derived_cost_recapture_target_v1",
     "select_source_shard_index_v1",
     "wait_for_prospective_decision_v1",
 ]

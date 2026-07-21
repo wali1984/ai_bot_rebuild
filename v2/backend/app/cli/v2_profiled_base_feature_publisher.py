@@ -1,4 +1,4 @@
-"""CLI loop for authenticated quarantined 35-feature base publication."""
+"""CLI loop for atomic authenticated 35+4 profiled-training publication."""
 
 from __future__ import annotations
 
@@ -11,13 +11,18 @@ import time
 from pathlib import Path
 from typing import Any
 
+from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
+    MIN_CREDENTIAL_FINGERPRINT_HMAC_KEY_BYTES,
+)
 from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 import (
+    COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1Error,
 )
 
 _STOP = False
+_COMMISSION_FINGERPRINT_HMAC_ENV = "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET"
 
 
 def _request_stop(_signum: int, _frame: Any) -> None:
@@ -48,9 +53,11 @@ def _positive_int(value: str) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Publish authenticated 35-feature OHLCV profile records to the durable "
-            "quarantined evidence ledger. This command never writes legacy feature "
-            "keys and grants no trainer, prediction, paper, or live authority."
+            "Publish adjacent authenticated 35+4 profiled-training records to the durable "
+            "evidence ledger. This command never writes legacy feature "
+            "keys. An authenticated child may be trainer-admission eligible, but the "
+            "publisher grants no trainer runtime transition, prediction, paper, or live "
+            "authority."
         )
     )
     parser.add_argument(
@@ -151,6 +158,24 @@ def _raw_redis_client(redis_url: str) -> object:
     return client
 
 
+def _commission_fingerprint_hmac_key_from_environment() -> bytes:
+    """Read the separate fingerprint secret without returning it to status/logs."""
+
+    raw = os.environ.get(_COMMISSION_FINGERPRINT_HMAC_ENV)
+    if raw is None:
+        raise ProfiledBaseFeaturePublisherV1Error(
+            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+            "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_MISSING",
+        )
+    encoded = raw.encode("utf-8", errors="strict")
+    if len(encoded) < MIN_CREDENTIAL_FINGERPRINT_HMAC_KEY_BYTES:
+        raise ProfiledBaseFeaturePublisherV1Error(
+            COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED,
+            "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_INVALID",
+        )
+    return encoded
+
+
 def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[str, Any]:
     """Return a constant-shape journal record; full evidence stays in the status file."""
 
@@ -174,6 +199,12 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
             ),
             "bootstrap_observation_required": resource.get("bootstrap_observation_required"),
         }
+    authority_semantics = status.get("authority_semantics")
+    published_child_admission = (
+        authority_semantics.get("published_child_trainer_admission_authorized")
+        if type(authority_semantics) is dict
+        else False
+    )
     return {
         "schema_version": "profiled_base_feature_publisher_cli_cycle_summary_v1",
         "classification": status.get("classification"),
@@ -197,7 +228,9 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
         "resource_decision": resource_summary,
         "status_sha256": status.get("status_sha256"),
         "full_status_path": str(status_path),
-        "trainer_admission_authorized": False,
+        "publisher_runtime_authority_granted": False,
+        "published_child_trainer_admission_authorized": (published_child_admission is True),
+        "automatic_trainer_transition_authorized": False,
         "prediction_authorized": False,
         "paper_trading_authorized": False,
         "live_execution_authorized": False,
@@ -207,6 +240,7 @@ def bounded_cycle_summary(status: dict[str, Any], *, status_path: Path) -> dict[
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        commission_fingerprint_hmac_key = _commission_fingerprint_hmac_key_from_environment()
         client = _raw_redis_client(str(args.redis_url))
         publisher = ProfiledBaseFeaturePublisherV1(
             redis_client=client,
@@ -217,6 +251,7 @@ def main(argv: list[str] | None = None) -> int:
             cycle_period_seconds=float(args.cycle_seconds),
             resource_sustainability_horizon_seconds=float(args.resource_horizon_seconds),
             boundary_retry_limit=int(args.boundary_retries),
+            commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
         )
         signal.signal(signal.SIGINT, _request_stop)
         signal.signal(signal.SIGTERM, _request_stop)
@@ -251,7 +286,9 @@ def main(argv: list[str] | None = None) -> int:
             "schema_version": "profiled_base_feature_publisher_cli_error_v1",
             "classification": "FAIL_CLOSED",
             "reasons": list(exc.reasons),
-            "trainer_admission_authorized": False,
+            "publisher_runtime_authority_granted": False,
+            "published_child_trainer_admission_authorized": False,
+            "automatic_trainer_transition_authorized": False,
             "prediction_authorized": False,
             "paper_trading_authorized": False,
             "live_execution_authorized": False,

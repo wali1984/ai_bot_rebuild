@@ -1,5 +1,5 @@
 [Unit]
-Description=AI Bot V2 authenticated quarantined base-feature publisher (no trading authority)
+Description=AI Bot V2 atomic authenticated profiled-training publisher (no runtime/trading authority)
 After=network-online.target redis.service ai-bot-v2-binance-kline-wss-loop.service
 Wants=network-online.target
 ConditionPathExists=/home/wali/.config/ai-bot-v2/profiled-base-feature-publisher.env

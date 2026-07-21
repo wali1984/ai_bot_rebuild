@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter, namedtuple
 from datetime import UTC, datetime, timedelta
@@ -8,11 +9,21 @@ from typing import Any
 
 import pytest
 
+from v2.backend.app.cli import v2_profiled_base_feature_publisher as cli_module
 from v2.backend.app.cli.v2_profiled_base_feature_publisher import (
     bounded_cycle_summary,
 )
 from v2.backend.app.services.native_trainer import (
+    binance_usdm_commission_capture_v1 as commission_capture_module,
+)
+from v2.backend.app.services.native_trainer import (
     profiled_base_feature_publisher_v1 as publisher_module,
+)
+from v2.backend.app.services.native_trainer.atomic_redis_source_reader import (
+    read_atomic_redis_sources,
+)
+from v2.backend.app.services.native_trainer.binance_usdm_commission_capture_v1 import (
+    BinanceUSDMCommissionCaptureV1ValidationError,
 )
 from v2.backend.app.services.native_trainer.canonical_ohlcv_atomic_receipt_adapter import (
     CanonicalOhlcvAtomicCaptureValidationError,
@@ -22,8 +33,24 @@ from v2.backend.app.services.native_trainer.canonical_ohlcv_multitimeframe_captu
     CanonicalOhlcvMultitimeframeCaptureSetV1Error,
     build_canonical_ohlcv_multitimeframe_capture_set_v1,
 )
+from v2.backend.app.services.native_trainer.causal_cost_evidence_v1 import (
+    CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION,
+    CAUSAL_COST_FEE_RECEIPT_V1_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
+    CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
+    CausalCostEvidenceV1ValidationError,
+    build_causal_cost_evidence_v1,
+)
+from v2.backend.app.services.native_trainer.causal_expected_notional_policy_v1 import (
+    CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,
+    CausalExpectedNotionalPolicyV1ValidationError,
+)
 from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger import (
     DurableFeatureSnapshotLedger,
+)
+from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
+    ImmutableSourcePayloadStore,
+    SourcePayloadAddress,
 )
 from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
     TIMEFRAME_DURATION_MS,
@@ -32,14 +59,18 @@ from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 i
     BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL,
     DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     DISK_RESERVE_POLICY_V1,
+    DYNAMIC_SYMBOL_SELECTION_KEY,
     MINIMUM_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS,
     ProfiledBaseFeaturePublisherV1,
     ProfiledBaseFeaturePublisherV1ConfigurationError,
+    ProfiledBaseFeaturePublisherV1Error,
     ProfiledBaseFeaturePublisherV1ResourceError,
+    ProfiledBaseFeaturePublisherV1StateError,
     _singleton_writer_lock,
     adaptive_resource_decision_v1,
     least_recently_covered_symbols_v1,
     prospective_decision_midpoint_v1,
+    pttl_derived_cost_recapture_target_v1,
     select_source_shard_index_v1,
     wait_for_prospective_decision_v1,
 )
@@ -47,12 +78,25 @@ from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_reco
     PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON,
     ProfiledModelFeatureSnapshotRecordV1Error,
 )
+from v2.backend.app.services.native_trainer.profiled_training_enrichment_record_v1 import (
+    ProfiledTrainingEnrichmentRecordV1Error,
+)
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     MAX_LEDGER_BYTES,
     TrainerSourceProvenanceLedgerV4DurabilityError,
 )
+from v2.backend.app.services.orderbook_recorder import features as orderbook_features
+from v2.backend.tests.unit.services.native_trainer import (
+    test_binance_usdm_commission_capture_v1 as commission_support,
+)
 from v2.backend.tests.unit.services.native_trainer import (
     test_canonical_ohlcv_multitimeframe_capture_set_v1 as capture_support,
+)
+from v2.backend.tests.unit.services.native_trainer import (
+    test_causal_cost_evidence_v1 as cost_support,
+)
+from v2.backend.tests.unit.services.native_trainer import (
+    test_causal_expected_notional_policy_v1 as notional_support,
 )
 
 DiskUsage = namedtuple("DiskUsage", "total used free")
@@ -62,33 +106,37 @@ FIXED_CLOCK = datetime.now(UTC) - timedelta(seconds=2)
 class _Pipeline:
     def __init__(self, owner: _Redis) -> None:
         self.owner = owner
-        self.key: str | None = None
+        self.keys: list[str] = []
 
     def type(self, key: str) -> _Pipeline:
-        self.key = key
+        self.keys.append(key)
         return self
 
     def getrange(self, key: str, _start: int, _end: int) -> _Pipeline:
-        assert self.key == key
+        assert self.keys[-1] == key
         return self
 
     def pttl(self, key: str) -> _Pipeline:
-        assert self.key == key
+        assert self.keys[-1] == key
         return self
 
     def time(self) -> _Pipeline:
         return self
 
     def execute(self) -> list[object]:
-        assert self.key is not None
-        self.owner.atomic_reads[self.key] += 1
-        payload = self.owner.payloads[self.key]
-        return [
-            b"string",
-            payload,
-            600_000,
-            (int(FIXED_CLOCK.timestamp()), FIXED_CLOCK.microsecond),
-        ]
+        assert self.keys
+        self.owner.atomic_batches.append(tuple(self.keys))
+        result: list[object] = []
+        for key in self.keys:
+            self.owner.atomic_reads[key] += 1
+            result.extend((b"string", self.owner.payloads[key], self.owner.pttl_ms))
+        result.append(
+            (
+                int(self.owner.server_time.timestamp()),
+                self.owner.server_time.microsecond,
+            )
+        )
+        return result
 
     def reset(self) -> None:
         return None
@@ -98,9 +146,18 @@ class _Pipeline:
 
 
 class _Redis:
-    def __init__(self, payloads: dict[str, bytes]) -> None:
+    def __init__(
+        self,
+        payloads: dict[str, bytes],
+        *,
+        pttl_ms: int = 600_000,
+        server_time: datetime = FIXED_CLOCK,
+    ) -> None:
         self.payloads = dict(payloads)
+        self.pttl_ms = pttl_ms
+        self.server_time = server_time
         self.atomic_reads: Counter[str] = Counter()
+        self.atomic_batches: list[tuple[str, ...]] = []
         self.scan_calls = 0
 
     def get_connection_kwargs(self) -> dict[str, Any]:
@@ -139,6 +196,15 @@ def _payloads(*, stale_5m: bool = False) -> dict[str, bytes]:
         latest_5m -= TIMEFRAME_DURATION_MS["5m"]
     latest_1h = capture_support._latest_open_ms("1h", decision=FIXED_CLOCK)
     return {
+        DYNAMIC_SYMBOL_SELECTION_KEY: json.dumps(
+            {
+                "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+                "symbols": ["BTCUSDT"],
+            },
+            sort_keys=True,
+        ).encode(),
         _key("BTCUSDT", "5m"): capture_support._payload(
             capture_support._rows("5m", latest_open_ms=latest_5m)
         ),
@@ -148,6 +214,302 @@ def _payloads(*, stale_5m: bool = False) -> dict[str, bytes]:
     }
 
 
+def _canonical_bytes(value: object) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("ascii")
+
+
+def _self_hash(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        **value,
+        "receipt_sha256": hashlib.sha256(_canonical_bytes(value)).hexdigest(),
+    }
+
+
+def _address_mapping(address: SourcePayloadAddress) -> dict[str, Any]:
+    return {
+        "schema_version": address.schema_version,
+        "payload_sha256": address.payload_sha256,
+        "payload_byte_count": address.payload_byte_count,
+        "relative_path": address.relative_path,
+    }
+
+
+def _iso(value: datetime) -> str:
+    return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _runtime_cost_source_payloads(
+    *,
+    symbol: str,
+    decision_at: datetime,
+) -> dict[str, bytes]:
+    source_at = decision_at - timedelta(seconds=1)
+    source_clock = _iso(source_at)
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(orderbook_features, "utc_now_iso", lambda: source_clock)
+        orderbook = orderbook_features.build_orderbook_payloads(
+            exchange="binance",
+            symbol=symbol,
+            bids=[
+                [100.0, 50.0],
+                [99.9, 50.0],
+                [99.8, 50.0],
+                [99.7, 50.0],
+                [99.6, 50.0],
+            ],
+            asks=[
+                [100.1, 50.0],
+                [100.2, 50.0],
+                [100.3, 50.0],
+                [100.4, 50.0],
+                [100.5, 50.0],
+            ],
+            event_time_ms=int(source_at.timestamp() * 1_000),
+            transaction_time_ms=int(source_at.timestamp() * 1_000),
+            received_at=source_clock,
+            available_at=source_clock,
+            sequence_id=701,
+            previous_sequence_id=700,
+            sequence_gap=False,
+            update_type="diff_depth",
+            feed_speed_ms=100,
+            price_impact_notional_usd=1_000.0,
+        )
+    mark = {
+        "schema_version": "binance_usdm_mark_price_wss_v1",
+        "symbol": symbol,
+        "mark_price": 100.05,
+        "markPrice": 100.05,
+        "index_price": 100.04,
+        "indexPrice": 100.04,
+        "estimated_settle_price": None,
+        "last_funding_rate": 0.0001,
+        "next_funding_time_ms": int((decision_at + timedelta(seconds=600)).timestamp() * 1_000),
+        "event_time": source_clock,
+        "generated_at": source_clock,
+        "received_at": source_clock,
+        "available_at": source_clock,
+        "expected_update_interval_seconds": 1.0,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_primary",
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "test_orders": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+        "transfer_or_withdrawal": False,
+        "raw_credentials_exposed": False,
+    }
+    return {
+        f"v2:orderbook:depth:binance:{symbol}": _canonical_bytes(orderbook["depth"]),
+        f"v2:orderbook:features:binance:{symbol}": _canonical_bytes(orderbook["features"]),
+        f"v2:market:mark_price:{symbol}": _canonical_bytes(mark),
+    }
+
+
+def _test_cost_evidence_factory(
+    *,
+    parent_record: dict[str, Any],
+    enrichment_store: ImmutableSourcePayloadStore,
+    decision_at: datetime,
+):  # type: ignore[no-untyped-def]
+    envelope = parent_record["frozen_envelope"]
+    symbol = envelope["symbol"]
+    identity = parent_record["durable_snapshot_id"]
+    source_at = decision_at - timedelta(seconds=1)
+    server_at = decision_at - timedelta(milliseconds=500)
+    source_clock = _iso(source_at)
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(orderbook_features, "utc_now_iso", lambda: source_clock)
+        orderbook = orderbook_features.build_orderbook_payloads(
+            exchange="binance",
+            symbol=symbol,
+            bids=[[100.0, 50.0], [99.9, 50.0], [99.8, 50.0], [99.7, 50.0], [99.6, 50.0]],
+            asks=[
+                [100.1, 50.0],
+                [100.2, 50.0],
+                [100.3, 50.0],
+                [100.4, 50.0],
+                [100.5, 50.0],
+            ],
+            event_time_ms=int(source_at.timestamp() * 1_000),
+            transaction_time_ms=int(source_at.timestamp() * 1_000),
+            received_at=source_clock,
+            available_at=source_clock,
+            sequence_id=701,
+            previous_sequence_id=700,
+            sequence_gap=False,
+            update_type="diff_depth",
+            feed_speed_ms=100,
+            price_impact_notional_usd=1_000.0,
+        )
+    mark = {
+        "schema_version": "binance_usdm_mark_price_wss_v1",
+        "symbol": symbol,
+        "mark_price": 100.05,
+        "markPrice": 100.05,
+        "index_price": 100.04,
+        "indexPrice": 100.04,
+        "estimated_settle_price": None,
+        "last_funding_rate": 0.0001,
+        "next_funding_time_ms": int((decision_at + timedelta(seconds=600)).timestamp() * 1_000),
+        "event_time": source_clock,
+        "generated_at": source_clock,
+        "received_at": source_clock,
+        "available_at": source_clock,
+        "expected_update_interval_seconds": 1.0,
+        "source": "binance_usdm_wss_mark_price_all_symbols",
+        "transport": "websocket_primary",
+        "live_gate": "blocked_human_only",
+        "places_real_order": False,
+        "test_orders": False,
+        "leverage_mutation": False,
+        "margin_mode_mutation": False,
+        "transfer_or_withdrawal": False,
+        "raw_credentials_exposed": False,
+    }
+    depth_key = f"v2:orderbook:depth:binance:{symbol}"
+    features_key = f"v2:orderbook:features:binance:{symbol}"
+    mark_key = f"v2:market:mark_price:{symbol}"
+    market_capture = read_atomic_redis_sources(
+        cost_support._Redis(
+            {
+                depth_key: _canonical_bytes(orderbook["depth"]),
+                features_key: _canonical_bytes(orderbook["features"]),
+                mark_key: _canonical_bytes(mark),
+            },
+            pttl_ms=60_000,
+            server_time=server_at,
+        ),
+        (depth_key, features_key, mark_key),
+    )
+    effective_at = _iso(decision_at - timedelta(seconds=2))
+    expires_at = _iso(decision_at + timedelta(hours=1))
+    raw_fee = _canonical_bytes(
+        {
+            "makerCommissionRate": "0.00020000",
+            "rpiCommissionRate": "0.00010000",
+            "symbol": symbol,
+            "takerCommissionRate": "0.00040000",
+        }
+    )
+    raw_address = enrichment_store.put(raw_fee)
+    raw_sha = hashlib.sha256(raw_fee).hexdigest()
+    fee_artifact = {
+        "schema_version": CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION,
+        "capture_classification": (
+            "STRUCTURALLY_VALIDATED_DETACHED_SIGNED_COMMISSION_RESPONSE_UNWIRED"
+        ),
+        "venue": "BINANCE",
+        "market": "USD_M_PERPETUAL",
+        "symbol": symbol,
+        "liquidity_role": "TAKER",
+        "fee_semantics": "PER_SIDE_EXECUTION_FEE_NOT_ROUND_TRIP",
+        "fee_unit": "BASIS_POINTS",
+        "taker_fee_bps_per_side": 4.0,
+        "effective_at": effective_at,
+        "available_at": effective_at,
+        "expires_at": expires_at,
+        "source_key": f"v2:account:fee_schedule:{symbol}",
+        "authority_scope": "BINANCE_USDM_ACCOUNT_COMMISSION_RATE",
+        "source_revision": raw_sha,
+        "raw_response_sha256": raw_sha,
+        "raw_response_byte_count": len(raw_fee),
+        "raw_response_cas_address": _address_mapping(raw_address),
+        "sanitized_request_identity_sha256": "1" * 64,
+        "credential_binding_fingerprint_sha256": "2" * 64,
+        "http_status": 200,
+        "request_method": "GET",
+        "request_path": "/fapi/v1/commissionRate",
+        "response_observed_at": effective_at,
+        "rpi_commission_rate_decimal": "0.00010000",
+        "rpi_commission_bps": 1.0,
+    }
+    fee_artifact_bytes = _canonical_bytes(fee_artifact)
+    fee_receipt = _self_hash(
+        {
+            "schema_version": CAUSAL_COST_FEE_RECEIPT_V1_SCHEMA_VERSION,
+            "receipt_kind": "DIRECT_READ",
+            "artifact_payload_sha256": hashlib.sha256(fee_artifact_bytes).hexdigest(),
+            "artifact_payload_byte_count": len(fee_artifact_bytes),
+            "source_key": fee_artifact["source_key"],
+            "source_schema_version": CAUSAL_COST_FEE_ARTIFACT_V1_SCHEMA_VERSION,
+            "source_transport": "DETACHED_SIGNED_BINANCE_USDM_COMMISSION_RESPONSE_UNWIRED",
+            "symbol": symbol,
+            "effective_at": effective_at,
+            "available_at": effective_at,
+            "expires_at": expires_at,
+            "authority_scope": fee_artifact["authority_scope"],
+            "capture_classification": fee_artifact["capture_classification"],
+            "raw_response_sha256": raw_sha,
+            "raw_response_byte_count": len(raw_fee),
+            "raw_response_cas_address": _address_mapping(raw_address),
+            "sanitized_request_identity_sha256": "1" * 64,
+            "credential_binding_fingerprint_sha256": "2" * 64,
+            "http_status": 200,
+            "request_method": "GET",
+            "request_path": "/fapi/v1/commissionRate",
+            "response_observed_at": effective_at,
+            "rpi_commission_rate_decimal": "0.00010000",
+            "rpi_commission_bps": 1.0,
+        }
+    )
+    notional_artifact = {
+        "schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
+        "symbol": symbol,
+        "feature_snapshot_identity": identity,
+        "value_unit": "USD",
+        "expected_notional_usd": 1_000.0,
+        "policy_id": "publisher-test-causal-notional-v1",
+        "policy_version": "sha256:" + "3" * 64,
+        "policy_source_key": "v2:paper:adaptive_sizing_runtime_status",
+        "effective_at": effective_at,
+        "available_at": effective_at,
+        "expires_at": _iso(decision_at + timedelta(minutes=1)),
+        "causality_scope": "FEATURE_SNAPSHOT_DECISION_EXPECTED_EXECUTION_NOTIONAL",
+        "fallback_used": False,
+        "static_default_used": False,
+    }
+    notional_artifact_bytes = _canonical_bytes(notional_artifact)
+    notional_receipt = _self_hash(
+        {
+            "schema_version": CAUSAL_COST_NOTIONAL_RECEIPT_V1_SCHEMA_VERSION,
+            "receipt_kind": "DIRECT_READ",
+            "artifact_payload_sha256": hashlib.sha256(notional_artifact_bytes).hexdigest(),
+            "artifact_payload_byte_count": len(notional_artifact_bytes),
+            "policy_source_key": notional_artifact["policy_source_key"],
+            "source_schema_version": CAUSAL_COST_NOTIONAL_ARTIFACT_V1_SCHEMA_VERSION,
+            "source_transport": "DURABLE_CAUSAL_POLICY_LEDGER",
+            "symbol": symbol,
+            "feature_snapshot_identity": identity,
+            "effective_at": effective_at,
+            "available_at": effective_at,
+            "expires_at": notional_artifact["expires_at"],
+            "authority_scope": "FEATURE_SNAPSHOT_CAUSAL_EXPECTED_NOTIONAL",
+        }
+    )
+    return build_causal_cost_evidence_v1(
+        atomic_capture=market_capture,
+        source_payload_store=enrichment_store,
+        fee_schedule_artifact_bytes=fee_artifact_bytes,
+        fee_schedule_raw_response_bytes=raw_fee,
+        fee_schedule_receipt=fee_receipt,
+        expected_notional_usd=1_000.0,
+        expected_notional_policy_artifact_bytes=notional_artifact_bytes,
+        expected_notional_policy_receipt=notional_receipt,
+        symbol=symbol,
+        feature_snapshot_identity=identity,
+        decision_time=_iso(decision_at),
+        counterfactual_holding_horizon_seconds=900,
+    )
+
+
 def _publisher(
     tmp_path: Path,
     redis_client: _Redis,
@@ -155,6 +517,8 @@ def _publisher(
     state_name: str = "state.json",
     capture_function=capture_canonical_closed_ohlcv_atomic_receipts,  # type: ignore[no-untyped-def]
     capture_set_builder=build_canonical_ohlcv_multitimeframe_capture_set_v1,  # type: ignore[no-untyped-def]
+    cost_evidence_factory=_test_cost_evidence_factory,  # type: ignore[no-untyped-def]
+    commission_fingerprint_hmac_key: bytes | None = None,
 ) -> ProfiledBaseFeaturePublisherV1:
     return ProfiledBaseFeaturePublisherV1(
         redis_client=redis_client,
@@ -171,6 +535,8 @@ def _publisher(
         decision_waiter=lambda _decision_at: FIXED_CLOCK,
         capture_function=capture_function,
         capture_set_builder=capture_set_builder,
+        cost_evidence_factory=cost_evidence_factory,
+        commission_fingerprint_hmac_key=commission_fingerprint_hmac_key,
     )
 
 
@@ -204,6 +570,282 @@ def test_prospective_decision_is_strict_midpoint_before_next_5m_boundary() -> No
         match="PROFILED_BASE_PUBLISHER_NO_PROSPECTIVE_DECISION_WINDOW",
     ):
         prospective_decision_midpoint_v1(datetime(2026, 7, 21, 12, 4, 59, 999_999, tzinfo=UTC))
+
+
+def test_cost_recapture_target_is_derived_from_shortest_atomic_redis_pttl() -> None:
+    server_at = datetime(2026, 7, 21, 12, 0, tzinfo=UTC)
+    decision_at = server_at + timedelta(seconds=120)
+    notional_batch = read_atomic_redis_sources(
+        cost_support._Redis(
+            {"v2:paper:adaptive_sizing_runtime_status": b"{}"},
+            pttl_ms=60_000,
+            server_time=server_at,
+        ),
+        ("v2:paper:adaptive_sizing_runtime_status",),
+    )
+    market_keys = (
+        "v2:orderbook:depth:binance:BTCUSDT",
+        "v2:orderbook:features:binance:BTCUSDT",
+        "v2:market:mark_price:BTCUSDT",
+    )
+    market_batch = read_atomic_redis_sources(
+        cost_support._Redis(
+            {key: b"{}" for key in market_keys},
+            pttl_ms=30_000,
+            server_time=server_at,
+        ),
+        market_keys,
+    )
+
+    target = pttl_derived_cost_recapture_target_v1(
+        atomic_captures=(notional_batch, market_batch),
+        decision_at=decision_at,
+    )
+
+    assert target == decision_at - timedelta(seconds=15)
+
+
+def test_runtime_default_cost_chain_uses_ordered_atomic_sources_and_real_factories(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payloads = _payloads()
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(server_at - timedelta(milliseconds=100))
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(notional_status).encode("utf-8")
+    payloads.update(_runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK))
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    http_calls: list[dict[str, Any]] = []
+    refresh_tokens: list[Any] = []
+    commission_tokens: list[Any] = []
+    monkeypatch.setattr(
+        commission_capture_module,
+        "resolve_binance_credential_binding",
+        commission_support._binding,
+    )
+    monkeypatch.setattr(
+        commission_capture_module,
+        "binance_rest_fallback_decision",
+        commission_support._allowed_decision(),
+    )
+    monkeypatch.setattr(
+        commission_capture_module,
+        "report_binance_rest_response",
+        lambda **_kwargs: True,
+    )
+
+    def http_get(**kwargs: Any):  # type: ignore[no-untyped-def]
+        http_calls.append(dict(kwargs))
+        return commission_support._Response(commission_support._RAW)
+
+    def real_commission_capture(**kwargs: Any):  # type: ignore[no-untyped-def]
+        refresh_tokens.append(kwargs["refresh_policy"])
+        token = commission_capture_module.capture_binance_usdm_commission_rate_v1(
+            **kwargs,
+            http_get=http_get,
+        )
+        commission_tokens.append(token)
+        return token
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_fingerprint_hmac_key=commission_support._FINGERPRINT_KEY,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+    publisher.commission_capture_function = real_commission_capture
+    notional_tokens: list[Any] = []
+    real_notional_builder = publisher.expected_notional_builder
+
+    def observed_notional_builder(**kwargs: Any):  # type: ignore[no-untyped-def]
+        token = real_notional_builder(**kwargs)
+        notional_tokens.append(token)
+        return token
+
+    publisher.expected_notional_builder = observed_notional_builder
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == ["BTCUSDT"], status["failures"][0]["reasons"]
+    assert len(http_calls) == 1
+    assert redis_client.atomic_batches[-2:] == [
+        (CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,),
+        (
+            "v2:orderbook:depth:binance:BTCUSDT",
+            "v2:orderbook:features:binance:BTCUSDT",
+            "v2:market:mark_price:BTCUSDT",
+        ),
+    ]
+    assert len(refresh_tokens) == 1
+    refresh = refresh_tokens[0]
+    assert refresh.refresh_interval_seconds == 1
+    assert refresh.artifact["policy_id"] == (
+        "profiled-training-commission-notional-pttl-refresh-v1"
+    )
+    assert refresh.artifact["policy_version"] == ("notional-redis-pttl-server-clock-v1")
+    assert refresh.adaptive_input_receipt_sha256 == (notional_tokens[0].source_read_receipt_sha256)
+    publication = status["publications"][0]
+    assert publication["runtime_cost_auxiliary_cas_bytes"] == (
+        len(refresh.artifact_bytes)
+        + len(refresh.receipt_bytes)
+        + len(commission_tokens[0].sanitized_request_identity_bytes)
+    )
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+    def forbidden_unchanged_commission(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("unchanged finalized windows must not recapture commission")
+
+    publisher.commission_capture_function = forbidden_unchanged_commission
+    unchanged = publisher.run_cycle()
+    assert unchanged["unchanged_symbols"] == ["BTCUSDT"]
+    assert len(http_calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_reason"),
+    [
+        (
+            "hmac",
+            "COMMISSION_CAPTURE_CREDENTIAL_FINGERPRINT_HMAC_KEY_TOO_SHORT",
+        ),
+        (
+            "credential",
+            "COMMISSION_CAPTURE_ACCOUNT_SPECIFIC_CREDENTIAL_REQUIRED",
+        ),
+    ],
+)
+def test_runtime_default_hmac_and_credential_blockers_do_not_retry_or_append(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: str,
+    expected_reason: str,
+) -> None:
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(server_at - timedelta(milliseconds=100))
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(notional_status).encode("utf-8")
+    payloads.update(_runtime_cost_source_payloads(symbol="BTCUSDT", decision_at=FIXED_CLOCK))
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    binding = (
+        commission_support._binding()
+        if case == "hmac"
+        else commission_support._binding(account_specific=False)
+    )
+    monkeypatch.setattr(
+        commission_capture_module,
+        "resolve_binance_credential_binding",
+        lambda: binding,
+    )
+    http_calls = 0
+
+    def forbidden_http(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal http_calls
+        http_calls += 1
+        raise AssertionError("credential blockers must precede HTTP")
+
+    def real_commission_capture(**kwargs: Any):  # type: ignore[no-untyped-def]
+        return commission_capture_module.capture_binance_usdm_commission_rate_v1(
+            **kwargs,
+            http_get=forbidden_http,
+        )
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_fingerprint_hmac_key=(
+            None if case == "hmac" else commission_support._FINGERPRINT_KEY
+        ),
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+    publisher.commission_capture_function = real_commission_capture
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["failures"][0]["reasons"] == [
+        "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED",
+        expected_reason,
+    ]
+    assert status["failures"][0]["in_cycle_temporal_retryable"] is False
+    assert http_calls == 0
+    assert redis_client.atomic_batches.count((CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,)) == 1
+    assert (
+        redis_client.atomic_batches.count(
+            (
+                "v2:orderbook:depth:binance:BTCUSDT",
+                "v2:orderbook:features:binance:BTCUSDT",
+                "v2:market:mark_price:BTCUSDT",
+            )
+        )
+        == 1
+    )
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
+def test_runtime_default_missing_market_source_fails_before_commission_and_append(
+    tmp_path: Path,
+) -> None:
+    server_at = FIXED_CLOCK - timedelta(milliseconds=500)
+    payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": server_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+    notional_status = notional_support._status()
+    notional_status["generated_utc"] = _iso(server_at - timedelta(milliseconds=100))
+    payloads[CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY] = json.dumps(notional_status).encode("utf-8")
+    redis_client = _Redis(payloads, pttl_ms=1_501, server_time=server_at)
+    commission_calls = 0
+
+    def forbidden_commission(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal commission_calls
+        commission_calls += 1
+        raise AssertionError("missing atomic market evidence must precede commission")
+
+    publisher = _publisher(
+        tmp_path,
+        redis_client,
+        cost_evidence_factory=None,
+        commission_fingerprint_hmac_key=commission_support._FINGERPRINT_KEY,
+    )
+    publisher.clock = lambda: FIXED_CLOCK - timedelta(microseconds=100)
+    publisher.commission_capture_function = forbidden_commission
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["failures"][0]["reasons"] == [
+        "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED",
+        "atomic_redis_source_read_transport_failed",
+    ]
+    assert status["failures"][0]["in_cycle_temporal_retryable"] is False
+    assert commission_calls == 0
+    assert redis_client.atomic_batches.count((CAUSAL_EXPECTED_NOTIONAL_SOURCE_KEY,)) == 1
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
 
 
 def test_decision_wait_is_bounded_and_wall_clock_rollback_fails_closed() -> None:
@@ -246,13 +888,14 @@ def test_feature_append_occurs_only_after_decision_wait(
         return decision_at
 
     publisher.decision_waiter = waiter
-    original_append = DurableFeatureSnapshotLedger.append_snapshot
+    original_append = DurableFeatureSnapshotLedger.append_snapshots
 
-    def guarded_append(self, record, *, writer_lease=None):  # type: ignore[no-untyped-def]
+    def guarded_append(self, records, *, writer_lease=None):  # type: ignore[no-untyped-def]
         assert wait_completed is True
-        return original_append(self, record, writer_lease=writer_lease)
+        assert len(records) == 2
+        return original_append(self, records, writer_lease=writer_lease)
 
-    monkeypatch.setattr(DurableFeatureSnapshotLedger, "append_snapshot", guarded_append)
+    monkeypatch.setattr(DurableFeatureSnapshotLedger, "append_snapshots", guarded_append)
     status = publisher.run_cycle()
 
     assert status["published_symbol_count"] == 1
@@ -307,7 +950,137 @@ def test_missed_prospective_decision_recaptures_whole_pair(
     assert redis_client.atomic_reads[_key("BTCUSDT", "1h")] == 2
 
 
-def test_happy_path_publishes_only_authenticated_quarantined_base(
+def test_post_decision_cost_capture_retries_whole_prospective_record(
+    tmp_path: Path,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    calls = 0
+
+    def temporal_cost_failure(**kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise CausalCostEvidenceV1ValidationError("CAUSAL_COST_ATOMIC_CAPTURE_AFTER_DECISION")
+        return _test_cost_evidence_factory(**kwargs)
+
+    publisher.cost_evidence_factory = temporal_cost_failure
+
+    status = publisher.run_cycle()
+
+    assert calls == 2
+    assert status["published_symbols"] == ["BTCUSDT"]
+    assert status["publications"][0]["publication_attempts"] == 2
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_calls", "temporal_retryable"),
+    [
+        (
+            BinanceUSDMCommissionCaptureV1ValidationError(
+                "COMMISSION_CAPTURE_ACCOUNT_SPECIFIC_CREDENTIAL_REQUIRED"
+            ),
+            1,
+            False,
+        ),
+        (
+            BinanceUSDMCommissionCaptureV1ValidationError(
+                "COMMISSION_CAPTURE_CREDENTIAL_FINGERPRINT_HMAC_KEY_INVALID"
+            ),
+            1,
+            False,
+        ),
+        (
+            BinanceUSDMCommissionCaptureV1ValidationError(
+                "COMMISSION_CAPTURE_REST_FALLBACK_OR_SHARED_BUDGET_BLOCKED"
+            ),
+            1,
+            False,
+        ),
+        (
+            CausalExpectedNotionalPolicyV1ValidationError(
+                "EXPECTED_NOTIONAL_ZERO_CANDIDATE_SUPPLY"
+            ),
+            1,
+            False,
+        ),
+        (
+            CausalCostEvidenceV1ValidationError("CAUSAL_COST_ORDERBOOK_DEPTH_SOURCE_MISSING"),
+            1,
+            False,
+        ),
+        (
+            CausalCostEvidenceV1ValidationError(
+                "CAUSAL_COST_ORDERBOOK_DEPTH_SOURCE_EXPIRED_AT_DECISION"
+            ),
+            2,
+            True,
+        ),
+        (
+            CausalCostEvidenceV1ValidationError("CAUSAL_COST_ORDERBOOK_CROSSED_OR_ZERO_SPREAD"),
+            1,
+            False,
+        ),
+    ],
+)
+def test_cost_blockers_never_append_parent_or_advance_coverage(
+    tmp_path: Path,
+    failure: Exception,
+    expected_calls: int,
+    temporal_retryable: bool,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    calls = 0
+
+    def fail_cost(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        raise failure
+
+    publisher.cost_evidence_factory = fail_cost
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert "COST_EVIDENCE_UNAVAILABLE_PARENT_NOT_APPENDED" in status["failures"][0]["reasons"]
+    assert status["failures"][0]["coverage_advanced"] is False
+    assert status["coverage"]["BTCUSDT"]["durable_snapshot_id"] is None
+    assert calls == expected_calls
+    assert status["failures"][0]["in_cycle_temporal_retryable"] is temporal_retryable
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
+@pytest.mark.parametrize("failure_stage", ["pair_build", "pair_append"])
+def test_pair_failure_stages_never_leave_an_orphan_parent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_stage: str,
+) -> None:
+    function_name = (
+        "build_profiled_training_enrichment_pair_v1"
+        if failure_stage == "pair_build"
+        else "append_profiled_training_enrichment_pair_v1"
+    )
+
+    def fail_pair(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise ProfiledTrainingEnrichmentRecordV1Error(
+            f"PROFILED_TRAINING_INJECTED_{failure_stage.upper()}_FAILURE"
+        )
+
+    monkeypatch.setattr(publisher_module, function_name, fail_pair)
+
+    status = _publisher(tmp_path, _Redis(_payloads())).run_cycle()
+
+    assert status["published_symbols"] == []
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["failures"][0]["orphan_feature_ledger_record_appended"] is False
+    assert status["coverage"]["BTCUSDT"]["durable_snapshot_id"] is None
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
+def test_happy_path_publishes_exact_adjacent_authenticated_training_pair(
     tmp_path: Path,
 ) -> None:
     redis_client = _Redis(_payloads())
@@ -333,21 +1106,54 @@ def test_happy_path_publishes_only_authenticated_quarantined_base(
     assert publication["source_appends"][1]["durable_postcommit_readback_verified"] is True
     assert publication["feature_append"]["transaction_committed"] is True
     assert publication["feature_append"]["transaction_readback_verified"] is True
-    assert set(publication["authority"].values()) == {False}
+    assert publication["authority"] == {
+        "child_trainer_admission_authorized": True,
+        "live_execution_authorized": False,
+        "paper_trading_authorized": False,
+        "parent_trainer_admission_authorized": False,
+        "prediction_authorized": False,
+        "publisher_runtime_authority_granted": False,
+        "runtime_wired": False,
+        "trainer_candidate_in_lineage": True,
+    }
 
     ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
-    fixed = ledger.get_snapshot(publication["durable_snapshot_id"])
-    assert fixed is not None
-    envelope = fixed.record["frozen_envelope"]
-    assert len(envelope["ordered_feature_names"]) == 35
-    assert envelope["temporal_rejection_reasons"] == [
+    child = ledger.get_snapshot(publication["durable_snapshot_id"])
+    parent = ledger.get_snapshot(publication["parent_durable_snapshot_id"])
+    assert child is not None
+    assert parent is not None
+    assert parent.sequence + 1 == child.sequence
+    assert parent.append_transaction_id == child.append_transaction_id
+    assert parent.append_receipt_sha256 == child.append_receipt_sha256
+    assert parent.postcommit_receipt_sha256 == child.postcommit_receipt_sha256
+    parent_envelope = parent.record["frozen_envelope"]
+    child_envelope = child.record["frozen_envelope"]
+    assert len(parent_envelope["ordered_feature_names"]) == 35
+    assert len(child_envelope["ordered_feature_names"]) == 39
+    assert child_envelope["feature_values"][:35] == parent_envelope["feature_values"]
+    assert (
+        child_envelope["feature_source_receipt_sha256s"][:35]
+        == parent_envelope["feature_source_receipt_sha256s"]
+    )
+    assert parent_envelope["temporal_rejection_reasons"] == [
         PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON
     ]
-    assert envelope["strict_training_eligible"] is False
-    lineage = envelope["source_lineage_material"]
-    assert lineage["schema_version"] == "profiled_model_feature_snapshot_record_v1"
-    assert lineage["physical_model_feature_count"] == 35
-    assert set(lineage["authorization"].values()) == {False}
+    assert parent_envelope["strict_training_eligible"] is False
+    assert child_envelope["strict_training_eligible"] is True
+    lineage = child_envelope["source_lineage_material"][
+        "authenticated_profiled_training_enrichment_v1"
+    ]
+    assert lineage["physical_feature_count"] == 39
+    assert lineage["authorization"] == {
+        "live_execution_authorized": False,
+        "paper_trading_authorized": False,
+        "prediction_authorized": False,
+        "runtime_wired": False,
+        "trainer_admission_authorized": True,
+    }
+    assert publication["cost_store_root"] == str(
+        (tmp_path / "publisher/profiled-training-enrichment-cas").absolute()
+    )
 
 
 def test_missing_timeframe_is_ineligible_without_source_read(tmp_path: Path) -> None:
@@ -362,7 +1168,114 @@ def test_missing_timeframe_is_ineligible_without_source_read(tmp_path: Path) -> 
     assert status["selected_symbols"] == []
     assert status["failed_symbols"] == ["BTCUSDT"]
     assert status["failures"][0]["missing_timeframes"] == ["1h"]
-    assert redis_client.atomic_reads == Counter()
+    assert redis_client.atomic_reads == Counter({DYNAMIC_SYMBOL_SELECTION_KEY: 1})
+
+
+def test_dynamic_universe_intersection_excludes_stale_and_invalid_symbols(
+    tmp_path: Path,
+) -> None:
+    payloads = _payloads()
+    for symbol in ("GUSDT", "YBUSDT"):
+        payloads[_key(symbol, "5m")] = payloads[_key("BTCUSDT", "5m")]
+        payloads[_key(symbol, "1h")] = payloads[_key("BTCUSDT", "1h")]
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT", "币安人生USDT"],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+
+    status = _publisher(tmp_path, _Redis(payloads)).run_cycle()
+
+    assert status["discovered_symbols"] == ["BTCUSDT", "GUSDT", "YBUSDT"]
+    assert status["eligible_symbols"] == ["BTCUSDT"]
+    assert status["published_symbols"] == ["BTCUSDT"]
+    universe = status["dynamic_selection_universe"]
+    assert universe["ohlcv_discovered_excluded_symbols"] == ["GUSDT", "YBUSDT"]
+    assert universe["rejected_symbols"] == ["币安人生USDT"]
+    assert universe["rejected_symbol_reason"] == (
+        "SYMBOL_FORMAT_NOT_CANONICAL_ASCII_RUNTIME_SYMBOL"
+    )
+    assert universe["trainer_evidence_or_authority_conferred"] is False
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected_status"),
+    [
+        (
+            {
+                "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+                "symbols": ["BTCUSDT"],
+                "unbound_extra_field": True,
+            },
+            "MALFORMED_HOLD",
+        ),
+        (
+            {
+                "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+                "symbols": [],
+            },
+            "VALID_EMPTY_HOLD",
+        ),
+    ],
+)
+def test_malformed_or_empty_dynamic_universe_holds_without_global_crash(
+    tmp_path: Path,
+    payload: dict[str, Any],
+    expected_status: str,
+) -> None:
+    payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(payload, sort_keys=True).encode()
+
+    status = _publisher(tmp_path, _Redis(payloads)).run_cycle()
+
+    assert status["classification"] == f"DYNAMIC_SELECTION_UNIVERSE_{expected_status}"
+    assert status["selected_symbols"] == []
+    assert status["published_symbols"] == []
+    assert status["dynamic_selection_universe"]["status"] == expected_status
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
+
+
+def test_dynamic_universe_uses_positive_source_owned_pttl_until_expiry(
+    tmp_path: Path,
+) -> None:
+    payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            # Older than the remaining PTTL on purpose: remaining lifetime is
+            # not the original TTL and cannot be used as a payload-age limit.
+            "generated_utc": (FIXED_CLOCK - timedelta(seconds=601)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
+
+    status = _publisher(tmp_path, _Redis(payloads, pttl_ms=600_000)).run_cycle()
+
+    assert status["dynamic_selection_universe"]["status"] == "VALID"
+    assert status["dynamic_selection_universe"]["availability_contract"] == (
+        "POSITIVE_SOURCE_OWNED_REDIS_PTTL"
+    )
+    assert status["published_symbols"] == ["BTCUSDT"]
+
+
+def test_dynamic_universe_without_source_owned_expiry_holds_fail_closed(
+    tmp_path: Path,
+) -> None:
+    status = _publisher(tmp_path, _Redis(_payloads(), pttl_ms=-1)).run_cycle()
+
+    universe = status["dynamic_selection_universe"]
+    assert status["classification"] == "DYNAMIC_SELECTION_UNIVERSE_UNAVAILABLE_HOLD"
+    assert universe["status"] == "UNAVAILABLE_HOLD"
+    assert universe["reason"] == "DYNAMIC_SELECTION_UNIVERSE_SOURCE_MISSING_OR_UNPERSISTED"
+    assert status["published_symbols"] == []
+    assert not (tmp_path / "feature-ledger.sqlite3").exists()
 
 
 def test_stale_final_candle_retries_then_skips_without_feature_record(
@@ -433,6 +1346,13 @@ def test_source_ledger_append_failure_prevents_transform_record_and_feature_appe
 
 def test_one_symbol_failure_does_not_block_another_eligible_symbol(tmp_path: Path) -> None:
     payloads = _payloads()
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["AAAUSDT", "BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
     payloads[_key("AAAUSDT", "5m")] = payloads[_key("BTCUSDT", "5m")]
     payloads[_key("AAAUSDT", "1h")] = payloads[_key("BTCUSDT", "1h")]
     redis_client = _Redis(payloads)
@@ -461,22 +1381,167 @@ def test_one_symbol_failure_does_not_block_another_eligible_symbol(tmp_path: Pat
     assert status["classification"] == "CYCLE_COMPLETE_PARTIAL_SYMBOL_FAILURES_ISOLATED"
 
 
-def test_exact_duplicate_replay_is_idempotent_across_rotation_state_loss(
+def test_state_loss_recovers_authenticated_pair_without_recapture_or_reappend(
     tmp_path: Path,
 ) -> None:
     redis_client = _Redis(_payloads())
     first = _publisher(tmp_path, redis_client, state_name="state-one.json").run_cycle()
-    second = _publisher(tmp_path, redis_client, state_name="state-two.json").run_cycle()
+    _seed_observed_state(tmp_path / "state-two.json")
 
-    first_publication = first["publications"][0]
-    second_publication = second["publications"][0]
-    assert first_publication["durable_snapshot_id"] == second_publication["durable_snapshot_id"]
-    assert second_publication["classification"] == ("AUTHENTICATED_QUARANTINED_BASE_EXACT_REPLAY")
-    assert second["exact_replay_symbols"] == ["BTCUSDT"]
-    assert all(
-        item["disposition"] == "EXACT_REPLAY" for item in second_publication["source_appends"]
+    def forbidden_capture(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("OHLCV capture must not run during pair recovery")
+
+    def forbidden_cost(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("cost/commission capture must not run during pair recovery")
+
+    recovering = _publisher(
+        tmp_path,
+        redis_client,
+        state_name="state-two.json",
+        capture_function=forbidden_capture,
     )
-    assert second_publication["feature_append"]["total_unique_rows"] == 1
+    recovering.cost_evidence_factory = forbidden_cost
+    second = recovering.run_cycle()
+
+    assert first["published_symbols"] == ["BTCUSDT"]
+    assert second["published_symbols"] == []
+    assert second["exact_replay_symbols"] == ["BTCUSDT"]
+    assert second["failed_symbols"] == []
+    assert (
+        second["coverage"]["BTCUSDT"]["durable_snapshot_id"]
+        == first["coverage"]["BTCUSDT"]["durable_snapshot_id"]
+    )
+    recovery = second["publications"][0]["recovery"]
+    assert recovery == {
+        "classification": "STATE_LOSS_COMMITTED_PAIR_INDEPENDENTLY_AUTHENTICATED",
+        "recovery_receipt_sha256": recovery["recovery_receipt_sha256"],
+        "ledger_and_trusted_cost_cas_reopened": True,
+        "cost_or_commission_recapture_performed": False,
+        "feature_ledger_append_performed": False,
+        "coverage_recovered_from_commit_receipt": True,
+    }
+    assert second["cycle_materialized_publication_count"] == 1
+    assert second["cycle_evidence_accounted_bytes"] > 0
+    recovered_state = json.loads((tmp_path / "state-two.json").read_text(encoding="ascii"))
+    assert recovered_state["observations"]["materialized_publication_count"] == 2
+    assert recovered_state["observations"]["materialized_publication_elapsed_seconds"] == 2.0
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+    settled = _publisher(
+        tmp_path,
+        redis_client,
+        state_name="state-two.json",
+    )
+    settled.cost_evidence_factory = forbidden_cost
+    third = settled.run_cycle()
+    assert third["exact_replay_symbols"] == []
+    assert third["unchanged_symbols"] == ["BTCUSDT"]
+
+
+def test_state_write_crash_after_pair_commit_recovers_once_without_work_replay(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis_client = _Redis(_payloads())
+    publisher = _publisher(tmp_path, redis_client)
+    original_atomic_write = publisher_module._atomic_write_json
+    failed_state_write = False
+
+    def crash_state_write(path: Path, value: object, *, failure_reason: str) -> None:
+        nonlocal failed_state_write
+        if path == publisher.state_path and not failed_state_write:
+            failed_state_write = True
+            raise ProfiledBaseFeaturePublisherV1StateError(
+                "PROFILED_BASE_PUBLISHER_INJECTED_STATE_WRITE_CRASH"
+            )
+        original_atomic_write(path, value, failure_reason=failure_reason)
+
+    monkeypatch.setattr(publisher_module, "_atomic_write_json", crash_state_write)
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1StateError,
+        match="PROFILED_BASE_PUBLISHER_INJECTED_STATE_WRITE_CRASH",
+    ):
+        publisher.run_cycle()
+
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    assert ledger.verify_integrity_streaming().verified_records == 2
+    assert not publisher.state_path.exists()
+    receipt_path = tmp_path / "publisher/profiled-training-pair-recovery-receipts/BTCUSDT.json"
+    assert receipt_path.is_file()
+
+    monkeypatch.setattr(publisher_module, "_atomic_write_json", original_atomic_write)
+
+    def forbidden_capture(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("recovery must precede OHLCV recapture")
+
+    def forbidden_cost(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("recovery must precede cost/commission HTTP")
+
+    recovering = _publisher(
+        tmp_path,
+        redis_client,
+        capture_function=forbidden_capture,
+    )
+    recovering.clock = lambda: FIXED_CLOCK + timedelta(seconds=1)
+    recovering.cost_evidence_factory = forbidden_cost
+    recovered = recovering.run_cycle()
+
+    assert recovered["exact_replay_symbols"] == ["BTCUSDT"]
+    assert recovered["failed_symbols"] == []
+    assert recovered["cycle_materialized_publication_count"] == 1
+    assert recovered["cycle_evidence_accounted_bytes"] > 0
+    assert ledger.verify_integrity_streaming().verified_records == 2
+
+    settled = _publisher(tmp_path, redis_client)
+    settled.cost_evidence_factory = forbidden_cost
+    third = settled.run_cycle()
+    assert third["exact_replay_symbols"] == []
+    assert third["unchanged_symbols"] == ["BTCUSDT"]
+
+
+def test_recovery_receipt_with_only_parent_is_quarantined_without_capture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_pairs: list[Any] = []
+
+    def intercept_pair_append(*, ledger: Any, pair: Any):  # type: ignore[no-untyped-def]
+        del ledger
+        captured_pairs.append(pair)
+        raise ProfiledTrainingEnrichmentRecordV1Error("PROFILED_TRAINING_INJECTED_PRECOMMIT_STOP")
+
+    monkeypatch.setattr(
+        publisher_module,
+        "append_profiled_training_enrichment_pair_v1",
+        intercept_pair_append,
+    )
+    redis_client = _Redis(_payloads())
+    first = _publisher(tmp_path, redis_client).run_cycle()
+    assert first["failed_symbols"] == ["BTCUSDT"]
+    assert len(captured_pairs) == 1
+
+    ledger = DurableFeatureSnapshotLedger((tmp_path / "feature-ledger.sqlite3").absolute())
+    append = ledger.append_snapshots([captured_pairs[0].parent_record])
+    assert append.inserted_rows == 1
+
+    def forbidden_capture(*_args: Any, **_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("partial-pair recovery must fail before capture")
+
+    recovering = _publisher(
+        tmp_path,
+        redis_client,
+        capture_function=forbidden_capture,
+    )
+    second = recovering.run_cycle()
+
+    assert second["published_symbols"] == []
+    assert second["failed_symbols"] == ["BTCUSDT"]
+    assert second["failures"][0]["reasons"] == [
+        "PROFILED_BASE_PUBLISHER_PAIR_RECOVERY_PARTIAL_PAIR_QUARANTINED"
+    ]
+    assert second["coverage"]["BTCUSDT"]["durable_snapshot_id"] is None
+    assert ledger.verify_integrity_streaming().verified_records == 1
 
 
 def test_unchanged_window_does_not_dilute_materialized_publication_observations(
@@ -622,6 +1687,13 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
         for symbol in ("AAAUSDT", "BTCUSDT")
         for timeframe in ("5m", "1h")
     }
+    payloads[DYNAMIC_SYMBOL_SELECTION_KEY] = json.dumps(
+        {
+            "generated_utc": (FIXED_CLOCK - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "symbols": ["AAAUSDT", "BTCUSDT"],
+        },
+        sort_keys=True,
+    ).encode()
     _seed_observed_state(tmp_path / "state.json")
     publisher = _publisher(tmp_path, _Redis(payloads))
     disk_usage_calls = 0
@@ -658,7 +1730,7 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
         }
         return publisher_module._SymbolOutcome(
             symbol=symbol,
-            classification="AUTHENTICATED_QUARANTINED_BASE_INSERTED",
+            classification="AUTHENTICATED_PROFILED_TRAINING_PAIR_INSERTED",
             window_fingerprint_sha256="a" * 64,
             materialized_evidence_bytes=50_000_000,
             detail={"symbol": symbol},
@@ -682,7 +1754,49 @@ def test_intra_cycle_backpressure_stops_after_observed_write_cost_jump(
     )
     persisted_state = json.loads((tmp_path / "state.json").read_text(encoding="ascii"))
     assert persisted_state["observations"]["materialized_publication_bytes"] == (
-        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 50_000_000
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 250_000_000
+    )
+
+
+def test_failed_attempt_filesystem_cost_is_charged_to_adaptive_observations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _seed_observed_state(tmp_path / "state.json")
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    disk_total = 10**12
+    free_start = disk_total - 10**9
+    free_values = iter(
+        (
+            free_start,
+            free_start,
+            free_start - 7_000_000,
+            free_start - 7_000_000,
+        )
+    )
+
+    def disk_usage(_path: Path) -> DiskUsage:
+        free = next(free_values)
+        return DiskUsage(disk_total, disk_total - free, free)
+
+    def fail_after_materialization(**_kwargs: Any):  # type: ignore[no-untyped-def]
+        raise ProfiledTrainingEnrichmentRecordV1Error(
+            "PROFILED_TRAINING_INJECTED_FAILURE_AFTER_AUXILIARY_CAS"
+        )
+
+    publisher.disk_usage = disk_usage
+    monkeypatch.setattr(publisher, "_publish_symbol", fail_after_materialization)
+
+    status = publisher.run_cycle()
+
+    assert status["failed_symbols"] == ["BTCUSDT"]
+    assert status["failures"][0]["materialized_evidence_bytes"] == 7_000_000
+    assert status["cycle_evidence_accounted_bytes"] == 7_000_000
+    assert status["cycle_disk_consumption_high_water_bytes"] == 7_000_000
+    persisted = json.loads((tmp_path / "state.json").read_text("ascii"))
+    assert persisted["observations"]["materialized_publication_count"] == 2
+    assert persisted["observations"]["materialized_publication_bytes"] == (
+        BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL + 7_000_000
     )
 
 
@@ -730,6 +1844,12 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
         "failed_symbol_count": 1,
         "cycle_evidence_accounted_bytes": 20_000_000,
         "status_sha256": "a" * 64,
+        "authority_semantics": {
+            "publisher_runtime_authority_granted": False,
+            "published_child_trainer_admission_authorized": True,
+            "prediction_paper_live_authority_granted": False,
+            "automatic_trainer_transition_authorized": False,
+        },
         "resource_decision": {
             "estimated_evidence_bytes_per_symbol": 5_000_000,
             "estimated_seconds_per_symbol": 2.0,
@@ -754,4 +1874,57 @@ def test_cli_cycle_summary_stays_bounded_when_full_status_has_large_inventories(
     assert "discovered_symbols" not in summary
     assert "publications" not in summary
     assert "failures" not in summary
+    assert summary["publisher_runtime_authority_granted"] is False
+    assert summary["published_child_trainer_admission_authorized"] is True
+    assert summary["automatic_trainer_transition_authorized"] is False
     assert summary["live_execution_authorized"] is False
+
+
+def test_cli_commission_hmac_is_environment_only_and_never_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    secret = "publisher-test-separate-hmac-secret-never-render"  # noqa: S105
+    monkeypatch.setenv("PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET", secret)
+
+    def fail_redis(_redis_url: str) -> object:
+        raise ProfiledBaseFeaturePublisherV1Error("PROFILED_BASE_PUBLISHER_INJECTED_REDIS_FAILURE")
+
+    monkeypatch.setattr(cli_module, "_raw_redis_client", fail_redis)
+
+    assert cli_module.main(["--once"]) == 1
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert secret not in rendered
+    assert "PROFILED_BASE_PUBLISHER_INJECTED_REDIS_FAILURE" in rendered
+    option_strings = {
+        option
+        for action in cli_module.build_parser()._actions  # noqa: SLF001
+        for option in action.option_strings
+    }
+    assert not any(
+        "hmac" in option.lower() or "secret" in option.lower() for option in option_strings
+    )
+
+
+def test_cli_missing_commission_hmac_fails_before_redis(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv(
+        "PROFILED_BASE_COMMISSION_FINGERPRINT_HMAC_SECRET",
+        raising=False,
+    )
+    redis_called = False
+
+    def forbidden_redis(_redis_url: str) -> object:
+        nonlocal redis_called
+        redis_called = True
+        raise AssertionError("Redis must not be contacted without the HMAC secret")
+
+    monkeypatch.setattr(cli_module, "_raw_redis_client", forbidden_redis)
+
+    assert cli_module.main(["--once"]) == 1
+    captured = capsys.readouterr()
+    assert redis_called is False
+    assert "PROFILED_BASE_PUBLISHER_COMMISSION_FINGERPRINT_HMAC_SECRET_MISSING" in (captured.err)
