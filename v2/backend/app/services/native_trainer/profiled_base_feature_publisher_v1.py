@@ -32,7 +32,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Final, NoReturn, cast
 
@@ -62,6 +62,9 @@ from v2.backend.app.services.native_trainer.durable_feature_snapshot_ledger impo
 from v2.backend.app.services.native_trainer.immutable_source_payload_store import (
     ImmutableSourcePayloadStore,
     SourcePayloadStoreError,
+)
+from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
+    TIMEFRAME_DURATION_MS,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     ProfiledModelFeatureSnapshotRecordV1Error,
@@ -117,6 +120,7 @@ BOUNDARY_REASON_FRAGMENTS: Final = (
     "CROSS_TIMEFRAME",
     "AVAILABLE_AFTER_GENERATED",
     "SOURCE_AVAILABLE_AFTER_CONSUMER",
+    "PUBLICATION_CLOCK_ORDER",
 )
 AUTHORITY_FIELDS: Final = (
     "trainer_admission_authorized",
@@ -125,6 +129,9 @@ AUTHORITY_FIELDS: Final = (
     "live_execution_authorized",
     "runtime_wired",
 )
+DECISION_TIMEFRAME: Final = "5m"
+MAX_DECISION_WAIT_CHUNK_SECONDS: Final = 1.0
+_EPOCH: Final = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class ProfiledBaseFeaturePublisherV1Error(RuntimeError):
@@ -171,6 +178,93 @@ def _parse_clock(value: object, *, reason: str) -> datetime:
     if parsed.strftime(CLOCK_FORMAT) != value:
         _fail(ProfiledBaseFeaturePublisherV1StateError, reason)
     return parsed
+
+
+def prospective_decision_midpoint_v1(generated_at: datetime) -> datetime:
+    """Choose a future decision strictly inside the current 5m interval.
+
+    Keeping the decision before the next close means the already captured
+    finalized suffix remains the exact latest suffix at that decision.  The
+    midpoint leaves a clock-derived half-interval for transform/record
+    construction without inventing a market or performance threshold.
+    """
+
+    if type(generated_at) is not datetime or generated_at.tzinfo is not UTC:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_DECISION_PLANNER_CLOCK_INVALID",
+        )
+    interval_us = TIMEFRAME_DURATION_MS[DECISION_TIMEFRAME] * 1_000
+    elapsed = generated_at - _EPOCH
+    generated_us = (
+        elapsed.days * 86_400_000_000 + elapsed.seconds * 1_000_000 + elapsed.microseconds
+    )
+    next_boundary_us = (generated_us // interval_us + 1) * interval_us
+    remaining_us = next_boundary_us - generated_us
+    if remaining_us < 2:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_NO_PROSPECTIVE_DECISION_WINDOW",
+        )
+    decision_us = generated_us + remaining_us // 2
+    decision = _EPOCH + timedelta(microseconds=decision_us)
+    boundary = _EPOCH + timedelta(microseconds=next_boundary_us)
+    if not generated_at < decision < boundary:
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_DECISION_PLANNER_RESULT_INVALID",
+        )
+    return decision
+
+
+def wait_for_prospective_decision_v1(
+    decision_at: datetime,
+    *,
+    clock: Callable[[], datetime] = _utc_now,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> datetime:
+    """Wait in bounded chunks and reject a wall-clock rollback."""
+
+    if (
+        type(decision_at) is not datetime
+        or decision_at.tzinfo is not UTC
+        or not callable(clock)
+        or not callable(sleeper)
+    ):
+        _fail(
+            ProfiledBaseFeaturePublisherV1ConfigurationError,
+            "PROFILED_BASE_PUBLISHER_DECISION_WAIT_INPUT_INVALID",
+        )
+    try:
+        observed = clock()
+    except Exception as exc:  # noqa: BLE001 - clock detail is not evidence
+        raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+            "PROFILED_BASE_PUBLISHER_DECISION_WAIT_CLOCK_FAILED"
+        ) from exc
+    _clock_text(
+        observed,
+        reason="PROFILED_BASE_PUBLISHER_DECISION_WAIT_CLOCK_INVALID",
+    )
+    while observed < decision_at:
+        remaining = (decision_at - observed).total_seconds()
+        try:
+            sleeper(min(MAX_DECISION_WAIT_CHUNK_SECONDS, remaining))
+            current = clock()
+        except Exception as exc:  # noqa: BLE001 - wait detail is not evidence
+            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                "PROFILED_BASE_PUBLISHER_DECISION_WAIT_FAILED"
+            ) from exc
+        _clock_text(
+            current,
+            reason="PROFILED_BASE_PUBLISHER_DECISION_WAIT_CLOCK_INVALID",
+        )
+        if current < observed:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_DECISION_WAIT_CLOCK_MOVED_BACKWARDS",
+            )
+        observed = current
+    return observed
 
 
 def _canonical_json_bytes(value: object) -> bytes:
@@ -894,6 +988,8 @@ class ProfiledBaseFeaturePublisherV1:
         clock: Callable[[], datetime] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
         disk_usage: Callable[[Path], Any] = shutil.disk_usage,
+        decision_planner: Callable[[datetime], datetime] = (prospective_decision_midpoint_v1),
+        decision_waiter: Callable[[datetime], datetime] | None = None,
         capture_function: Callable[..., CanonicalOhlcvAtomicReceiptCapture] = (
             capture_canonical_closed_ohlcv_atomic_receipts
         ),
@@ -932,6 +1028,8 @@ class ProfiledBaseFeaturePublisherV1:
             or not callable(clock)
             or not callable(monotonic)
             or not callable(disk_usage)
+            or not callable(decision_planner)
+            or (decision_waiter is not None and not callable(decision_waiter))
         ):
             _fail(
                 ProfiledBaseFeaturePublisherV1ConfigurationError,
@@ -945,6 +1043,13 @@ class ProfiledBaseFeaturePublisherV1:
         self.clock = clock
         self.monotonic = monotonic
         self.disk_usage = disk_usage
+        self.decision_planner = decision_planner
+        self.decision_waiter = decision_waiter or (
+            lambda decision_at: wait_for_prospective_decision_v1(
+                decision_at,
+                clock=self.clock,
+            )
+        )
         self.capture_function = capture_function
         self.capture_set_builder = capture_set_builder
 
@@ -1080,6 +1185,7 @@ class ProfiledBaseFeaturePublisherV1:
         Any,
         dict[str, Any],
         int,
+        datetime | None,
     ]:
         last_reasons: tuple[str, ...] = ()
         for attempt in range(1, self.boundary_retry_limit + 1):
@@ -1102,11 +1208,27 @@ class ProfiledBaseFeaturePublisherV1:
                 )
                 fingerprint = self._window_fingerprint(symbol, captures)
                 if prior_fingerprint == fingerprint:
-                    return captures, fingerprint, None, {}, attempt
-                _, generated = self._sample_clock(
+                    return captures, fingerprint, None, {}, attempt, None
+                generated_at, generated = self._sample_clock(
                     "PROFILED_BASE_PUBLISHER_CAPTURE_GENERATED_CLOCK_INVALID"
                 )
-                _, decision = self._sample_clock("PROFILED_BASE_PUBLISHER_DECISION_CLOCK_INVALID")
+                try:
+                    decision_at = self.decision_planner(generated_at)
+                except ProfiledBaseFeaturePublisherV1Error:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - planner detail is suppressed
+                    raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                        "PROFILED_BASE_PUBLISHER_DECISION_PLANNER_FAILED"
+                    ) from exc
+                decision = _clock_text(
+                    decision_at,
+                    reason="PROFILED_BASE_PUBLISHER_DECISION_CLOCK_INVALID",
+                )
+                if decision_at < generated_at:
+                    _fail(
+                        ProfiledBaseFeaturePublisherV1ConfigurationError,
+                        "PROFILED_BASE_PUBLISHER_DECISION_BEFORE_CAPTURE_GENERATED",
+                    )
                 capture_set = self.capture_set_builder(
                     profile=ADAPTIVE_OHLCV_FEATURE_SELECTION_PROFILE_V1,
                     atomic_captures=captures,
@@ -1115,7 +1237,7 @@ class ProfiledBaseFeaturePublisherV1:
                     decision_time=decision,
                 )
                 contract = canonical_ohlcv_multitimeframe_capture_set_v1_contract(capture_set)
-                return captures, fingerprint, capture_set, contract, attempt
+                return captures, fingerprint, capture_set, contract, attempt, decision_at
             except (
                 CanonicalOhlcvAtomicCaptureError,
                 CanonicalOhlcvMultitimeframeCaptureSetV1Error,
@@ -1128,7 +1250,7 @@ class ProfiledBaseFeaturePublisherV1:
             *last_reasons,
         )
 
-    def _publish_symbol(
+    def _publish_symbol_once(
         self,
         *,
         symbol: str,
@@ -1144,11 +1266,13 @@ class ProfiledBaseFeaturePublisherV1:
             and type(prior_coverage.get("window_fingerprint_sha256")) is str
             else None
         )
-        captures, fingerprint, capture_set, contract, attempts = self._capture_and_build_set(
-            symbol=symbol,
-            source_store=source_store,
-            capture_set_store=capture_set_store,
-            prior_fingerprint=prior_fingerprint,
+        captures, fingerprint, capture_set, contract, attempts, decision_at = (
+            self._capture_and_build_set(
+                symbol=symbol,
+                source_store=source_store,
+                capture_set_store=capture_set_store,
+                prior_fingerprint=prior_fingerprint,
+            )
         )
         if capture_set is None:
             return _SymbolOutcome(
@@ -1164,6 +1288,11 @@ class ProfiledBaseFeaturePublisherV1:
                     "authority": {name: False for name in AUTHORITY_FIELDS},
                 },
                 coverage=None,
+            )
+        if decision_at is None:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_DECISION_MISSING_FOR_CHANGED_WINDOW",
             )
 
         source_ledger, shard_index, rolled, projected_pair = self._source_ledger(captures)
@@ -1229,6 +1358,23 @@ class ProfiledBaseFeaturePublisherV1:
                 ProfiledBaseFeaturePublisherV1Error,
                 "PROFILED_BASE_PUBLISHER_EXISTING_SNAPSHOT_CONTENT_MISMATCH",
             )
+        try:
+            decision_wait_completed_at = self.decision_waiter(decision_at)
+        except ProfiledBaseFeaturePublisherV1Error:
+            raise
+        except Exception as exc:  # noqa: BLE001 - waiter detail is suppressed
+            raise ProfiledBaseFeaturePublisherV1ConfigurationError(
+                "PROFILED_BASE_PUBLISHER_DECISION_WAITER_FAILED"
+            ) from exc
+        decision_wait_completed = _clock_text(
+            decision_wait_completed_at,
+            reason="PROFILED_BASE_PUBLISHER_DECISION_WAIT_RESULT_INVALID",
+        )
+        if decision_wait_completed_at < decision_at:
+            _fail(
+                ProfiledBaseFeaturePublisherV1ConfigurationError,
+                "PROFILED_BASE_PUBLISHER_APPEND_BEFORE_PROSPECTIVE_DECISION",
+            )
         feature_append: FeatureSnapshotAppendResult = feature_ledger.append_snapshot(record)
         if (
             feature_append.transaction_committed is not True
@@ -1284,6 +1430,8 @@ class ProfiledBaseFeaturePublisherV1:
             "capture_generated_at": contract["timestamps"]["generated_at"],
             "feature_cutoff": envelope["feature_cutoff"],
             "decision_time": envelope["tensor_decision_time"],
+            "decision_wait_completed_at": decision_wait_completed,
+            "prospective_decision_wait_verified": True,
             "transform_available_at": transform_available_at,
             "record_generated_at": envelope["generated_at"],
             "execution_time": contract["timestamps"]["execution_time"],
@@ -1338,6 +1486,49 @@ class ProfiledBaseFeaturePublisherV1:
             materialized_evidence_bytes=charged_materialized_evidence_bytes,
             detail=detail,
             coverage=coverage,
+        )
+
+    def _publish_symbol(
+        self,
+        *,
+        symbol: str,
+        prior_coverage: Mapping[str, Any] | None,
+        source_store: ImmutableSourcePayloadStore,
+        capture_set_store: ImmutableSourcePayloadStore,
+        artifact_store: ImmutableSourcePayloadStore,
+        feature_ledger: DurableFeatureSnapshotLedger,
+    ) -> _SymbolOutcome:
+        """Retry the whole finalized-window capture if a decision window is missed."""
+
+        last_reasons: tuple[str, ...] = ()
+        for attempt in range(1, self.boundary_retry_limit + 1):
+            try:
+                outcome = self._publish_symbol_once(
+                    symbol=symbol,
+                    prior_coverage=prior_coverage,
+                    source_store=source_store,
+                    capture_set_store=capture_set_store,
+                    artifact_store=artifact_store,
+                    feature_ledger=feature_ledger,
+                )
+                return _SymbolOutcome(
+                    symbol=outcome.symbol,
+                    classification=outcome.classification,
+                    window_fingerprint_sha256=outcome.window_fingerprint_sha256,
+                    materialized_evidence_bytes=outcome.materialized_evidence_bytes,
+                    detail={**outcome.detail, "publication_attempts": attempt},
+                    coverage=outcome.coverage,
+                )
+            except ProfiledModelFeatureSnapshotRecordV1Error as exc:
+                last_reasons = _error_reasons(exc)
+                missed = any(
+                    "PUBLICATION_CLOCK_ORDER_INVALID" in reason.upper() for reason in last_reasons
+                )
+                if not missed or attempt >= self.boundary_retry_limit:
+                    raise
+        raise ProfiledBaseFeaturePublisherV1Error(
+            "PROFILED_BASE_PUBLISHER_PROSPECTIVE_DECISION_RETRY_EXHAUSTED",
+            *last_reasons,
         )
 
     def run_cycle(self) -> dict[str, Any]:
@@ -1656,6 +1847,7 @@ class ProfiledBaseFeaturePublisherV1:
 __all__ = [
     "BOOTSTRAP_EVIDENCE_BYTES_PER_SYMBOL",
     "CANONICAL_KEY_PREFIX",
+    "DECISION_TIMEFRAME",
     "DEFAULT_RESOURCE_SUSTAINABILITY_HORIZON_SECONDS",
     "DISK_RESERVE_POLICY_V1",
     "DISK_RESERVE_PUBLICATION_UNITS",
@@ -1674,5 +1866,7 @@ __all__ = [
     "adaptive_resource_decision_v1",
     "discover_canonical_profile_symbols_v1",
     "least_recently_covered_symbols_v1",
+    "prospective_decision_midpoint_v1",
     "select_source_shard_index_v1",
+    "wait_for_prospective_decision_v1",
 ]

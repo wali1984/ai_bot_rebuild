@@ -39,10 +39,13 @@ from v2.backend.app.services.native_trainer.profiled_base_feature_publisher_v1 i
     _singleton_writer_lock,
     adaptive_resource_decision_v1,
     least_recently_covered_symbols_v1,
+    prospective_decision_midpoint_v1,
     select_source_shard_index_v1,
+    wait_for_prospective_decision_v1,
 )
 from v2.backend.app.services.native_trainer.profiled_model_feature_snapshot_record_v1 import (
     PROFILED_MODEL_FEATURE_SNAPSHOT_RECORD_V1_UNWIRED_REASON,
+    ProfiledModelFeatureSnapshotRecordV1Error,
 )
 from v2.backend.app.services.native_trainer.source_provenance_ledger_v4 import (
     MAX_LEDGER_BYTES,
@@ -164,6 +167,8 @@ def _publisher(
         clock=lambda: FIXED_CLOCK,
         monotonic=_Monotonic(),
         disk_usage=lambda _path: DiskUsage(10**12, 10**9, 10**12 - 10**9),
+        decision_planner=lambda _generated_at: FIXED_CLOCK,
+        decision_waiter=lambda _decision_at: FIXED_CLOCK,
         capture_function=capture_function,
         capture_set_builder=capture_set_builder,
     )
@@ -185,6 +190,121 @@ def _seed_observed_state(path: Path) -> None:
         json.dumps(state, allow_nan=False, separators=(",", ":"), sort_keys=True) + "\n",
         encoding="ascii",
     )
+
+
+def test_prospective_decision_is_strict_midpoint_before_next_5m_boundary() -> None:
+    generated = datetime(2026, 7, 21, 12, 1, 0, tzinfo=UTC)
+    decision = prospective_decision_midpoint_v1(generated)
+
+    assert decision == datetime(2026, 7, 21, 12, 3, 0, tzinfo=UTC)
+    assert generated < decision < datetime(2026, 7, 21, 12, 5, 0, tzinfo=UTC)
+
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_NO_PROSPECTIVE_DECISION_WINDOW",
+    ):
+        prospective_decision_midpoint_v1(datetime(2026, 7, 21, 12, 4, 59, 999_999, tzinfo=UTC))
+
+
+def test_decision_wait_is_bounded_and_wall_clock_rollback_fails_closed() -> None:
+    base = datetime(2026, 7, 21, 12, 0, 0, tzinfo=UTC)
+    decision = base + timedelta(seconds=2)
+    clocks = iter((base, base + timedelta(milliseconds=500), decision))
+    sleeps: list[float] = []
+
+    observed = wait_for_prospective_decision_v1(
+        decision,
+        clock=lambda: next(clocks),
+        sleeper=sleeps.append,
+    )
+
+    assert observed == decision
+    assert sleeps == [1.0, 1.0]
+
+    rollback_clocks = iter((base, base - timedelta(microseconds=1)))
+    with pytest.raises(
+        ProfiledBaseFeaturePublisherV1ConfigurationError,
+        match="PROFILED_BASE_PUBLISHER_DECISION_WAIT_CLOCK_MOVED_BACKWARDS",
+    ):
+        wait_for_prospective_decision_v1(
+            base + timedelta(seconds=1),
+            clock=lambda: next(rollback_clocks),
+            sleeper=lambda _seconds: None,
+        )
+
+
+def test_feature_append_occurs_only_after_decision_wait(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    wait_completed = False
+
+    def waiter(decision_at: datetime) -> datetime:
+        nonlocal wait_completed
+        wait_completed = True
+        return decision_at
+
+    publisher.decision_waiter = waiter
+    original_append = DurableFeatureSnapshotLedger.append_snapshot
+
+    def guarded_append(self, record, *, writer_lease=None):  # type: ignore[no-untyped-def]
+        assert wait_completed is True
+        return original_append(self, record, writer_lease=writer_lease)
+
+    monkeypatch.setattr(DurableFeatureSnapshotLedger, "append_snapshot", guarded_append)
+    status = publisher.run_cycle()
+
+    assert status["published_symbol_count"] == 1
+    assert status["publications"][0]["prospective_decision_wait_verified"] is True
+    assert (
+        status["publications"][0]["decision_wait_completed_at"]
+        >= status["publications"][0]["decision_time"]
+    )
+
+
+def test_waiter_cannot_authorize_append_before_decision(tmp_path: Path) -> None:
+    publisher = _publisher(tmp_path, _Redis(_payloads()))
+    publisher.decision_waiter = lambda decision_at: decision_at - timedelta(microseconds=1)
+
+    status = publisher.run_cycle()
+
+    assert status["published_symbol_count"] == 0
+    assert status["failed_symbol_count"] == 1
+    assert status["failures"][0]["reasons"] == [
+        "PROFILED_BASE_PUBLISHER_APPEND_BEFORE_PROSPECTIVE_DECISION"
+    ]
+
+
+def test_missed_prospective_decision_recaptures_whole_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redis_client = _Redis(_payloads())
+    publisher = _publisher(tmp_path, redis_client)
+    original_builder = publisher_module.build_profiled_model_feature_snapshot_record_v1
+    calls = 0
+
+    def fail_first_record_build(**kwargs: Any):  # type: ignore[no-untyped-def]
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise ProfiledModelFeatureSnapshotRecordV1Error(
+                "PROFILED_MODEL_RECORD_PUBLICATION_CLOCK_ORDER_INVALID"
+            )
+        return original_builder(**kwargs)
+
+    monkeypatch.setattr(
+        publisher_module,
+        "build_profiled_model_feature_snapshot_record_v1",
+        fail_first_record_build,
+    )
+    status = publisher.run_cycle()
+
+    assert status["published_symbol_count"] == 1
+    assert status["publications"][0]["publication_attempts"] == 2
+    assert redis_client.atomic_reads[_key("BTCUSDT", "5m")] == 2
+    assert redis_client.atomic_reads[_key("BTCUSDT", "1h")] == 2
 
 
 def test_happy_path_publishes_only_authenticated_quarantined_base(
