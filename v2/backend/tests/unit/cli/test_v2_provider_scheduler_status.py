@@ -498,6 +498,10 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
         first["schedule_plan"]["earned_compute_units_per_window"]
     )
     assert first["paced_cu_admission_state_available"] is True
+    assert first["status"] == (
+        first["scheduler_run_suppressed_reason"] or "READY"
+    )
+    assert first["status_scope"] == "SCHEDULER_RUN_CONTROL_STATE"
 
     second = run_moralis_once(
         redis_client,
@@ -517,6 +521,9 @@ def test_moralis_loop_honors_wallet_token_cadence(monkeypatch: Any) -> None:
         None,
         "PACED_CU_CREDIT_ACCUMULATING_FOR_NEXT_DUE_JOB",
     }
+    assert second["status"] == (
+        second["scheduler_run_suppressed_reason"] or "READY"
+    )
 
     # The production Redis lease keys expire by their adaptive cadence TTL.
     # This in-memory fake has no clock/expiry engine, so emulate that expiry

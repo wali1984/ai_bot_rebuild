@@ -320,6 +320,7 @@ def test_loop_log_report_is_bounded_and_keeps_operational_truth() -> None:
     encoded = json.dumps(compact, sort_keys=True, separators=(",", ":"))
 
     assert compact["schema_version"] == "moralis_provider_loop_log_v1"
+    assert compact["status"] == "READY"
     assert compact["actual_payload_results"] == 0
     assert compact["budget_authority"] == "DURABLE_CU_LEDGER"
     assert compact["remaining_today_compute_units"] == 31_440

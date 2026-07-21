@@ -1271,6 +1271,8 @@ def test_concurrent_scheduler_lease_suppresses_provider_dispatch(monkeypatch: An
     assert status["scheduler_run_suppressed_reason"] == (
         "CONCURRENT_SCHEDULER_RUN_ACTIVE"
     )
+    assert status["status"] == "CONCURRENT_SCHEDULER_RUN_ACTIVE"
+    assert status["status_scope"] == "SCHEDULER_RUN_CONTROL_STATE"
     assert status["durable_fair_rotation"] is False
 
 
@@ -1474,6 +1476,7 @@ def test_paced_credit_state_unavailable_fails_closed_before_dispatch(
     assert status["scheduler_run_suppressed_reason"] == (
         "PACED_CU_ADMISSION_STATE_UNAVAILABLE"
     )
+    assert status["status"] == "PACED_CU_ADMISSION_STATE_UNAVAILABLE"
     assert not any(
         key.startswith("v2:provider:moralis:cadence_claim:")
         for key in redis_client.data
@@ -1586,6 +1589,7 @@ def test_dispatched_finalize_failure_stops_new_admission_and_stays_charged(
     assert status["scheduler_run_suppressed_reason"] == (
         "PACED_CU_RESERVATION_FINALIZE_FAILED"
     )
+    assert status["status"] == "PACED_CU_RESERVATION_FINALIZE_FAILED"
     assert redis_client.paced_states[
         provider_loop.PACED_CU_ADMISSION_WINDOW_PREFIX
     ]["credit"] == pytest.approx(0.0)
