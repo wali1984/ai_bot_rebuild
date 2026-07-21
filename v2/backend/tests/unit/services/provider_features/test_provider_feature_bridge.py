@@ -127,7 +127,7 @@ def test_bridge_never_consumes_features_without_positive_ttl(
     assert context["ttl_contract_violations"]
 
 
-def test_bridge_maps_required_moralis_feature_names_to_tensor_context() -> None:
+def test_bridge_never_unmasks_self_declared_legacy_moralis_payload() -> None:
     r = FakeRedis()
     r.set(
         "v2:features:moralis:BTCUSDT:1m",
@@ -164,12 +164,69 @@ def test_bridge_maps_required_moralis_feature_names_to_tensor_context() -> None:
     )
 
     assert context["core_system_blocked"] is False
-    assert context["provider_features"]["smart_money_whale_net_flow_usd"] == 1200
-    assert context["provider_features"]["token_holder_top_concentration"] == 0.42
-    assert context["provider_features"]["token_holder_count"] == 12345
-    assert context["provider_features"]["token_holder_delta"] == 12
-    assert context["provider_features"]["onchain_risk_score"] == 0.08
-    assert context["payloads_for_tensor"]["smart_money"]["onchain_risk_score"] == 0.08
+    assert context["provider_features"] == {}
+    assert context["payloads_for_tensor"]["smart_money"] == {}
+    assert "moralis" in context["optional_provider_failures"]
+    assert any(
+        reason
+        == (
+            "moralis:consumer_receipt_contract:"
+            "exact_retained_artifact_resolver_unwired"
+        )
+        for reason in context["provider_payloads"]["moralis"]["exclusion_reasons"]
+    )
+
+
+def test_bridge_never_unmasks_forged_moralis_receipt_declarations() -> None:
+    r = FakeRedis()
+    r.set(
+        "v2:features:moralis:BTCUSDT:1m",
+        json.dumps(
+            {
+                "schema_version": "moralis_feature_bridge_v2",
+                "provider": "moralis",
+                "symbol": "BTCUSDT",
+                "timeframe": "1m",
+                "status": "READY",
+                "dashboard_color": "GREEN",
+                "feature_bridge_ready": True,
+                "provider_ready": True,
+                "actual_payload_present": True,
+                "heartbeat_only": False,
+                "event_time": "2026-07-08T11:58:00Z",
+                "feature_cutoff": "2026-07-08T11:59:00Z",
+                "ingested_at": "2026-07-08T11:59:10Z",
+                "generated_at": "2026-07-08T11:59:20Z",
+                "available_at": "2026-07-08T12:00:00Z",
+                "source_temporal_contract_valid": True,
+                "temporal_contract_valid": True,
+                "decision_time_safe": True,
+                "trainer_isolation_active": False,
+                "trainer_consumption_prerequisites_bound": True,
+                "consumer_receipts_bound": True,
+                "postcommit_receipt_bound": True,
+                "features": {"moralis_net_exchange_flow_usd": 50_000_000.0},
+            }
+        ),
+        ex=300,
+    )
+
+    context = build_provider_consumer_context(
+        r,
+        role="trainer",
+        symbol="BTCUSDT",
+        timeframe="1m",
+        decision_time="2026-07-08T12:01:00Z",
+    )
+
+    assert context["provider_features"] == {}
+    assert context["feature_source_lineage"] == {}
+    assert context["actual_provider_count"] == 0
+    assert context["core_system_blocked"] is False
+    assert (
+        "moralis:consumer_receipt_contract:exact_retained_artifact_resolver_unwired"
+        in context["provider_payloads"]["moralis"]["exclusion_reasons"]
+    )
 
 
 def test_bridge_excludes_future_leaking_provider_features() -> None:
