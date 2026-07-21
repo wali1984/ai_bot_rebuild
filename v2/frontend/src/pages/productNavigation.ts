@@ -578,6 +578,11 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   '/executions': '/portfolio/executions',
   '/admin/executions': '/portfolio/executions',
   '/admin/positions': '/portfolio',
+  // Bare trader aliases — siblings of /executions and /history above; without these
+  // a logged-in trader typing /positions or /activity dead-ends on the marketing
+  // landing page instead of the portfolio surfaces.
+  '/positions': '/portfolio',
+  '/activity': '/portfolio/executions',
   '/admin/technical-analysis': '/research',
   '/research/technical-analysis': '/research',
   '/admin/liquidation-bridge': '/derivatives',

@@ -12,6 +12,7 @@ import {
   type SignalPredictionAccuracyStatus,
   useAdaptiveCapitalDashboard,
 } from '../../data/adaptiveCapitalProductivity';
+import { capitalStatusText } from '../../lib/traderPageHelpers';
 import meta from './meta';
 import rbac from './rbac';
 import route from './route';
@@ -60,7 +61,10 @@ interface ClosedTrade {
   exit_price: number | null;
   exit_price_source?: string | null;
   realized_pnl_usd: number | null;
+  realized_net_pnl_usd?: number | null;
   realized_pnl_bps: number | null;
+  quantity?: number | null;
+  notional_usd?: number | null;
   close_reason: string | null;
   hold_time_seconds: number | null;
   fees: number | null;
@@ -111,6 +115,14 @@ interface RealTraderReadiness {
   readiness_blockers?: string[] | null;
   live_ready?: boolean | null;
   live_submit_allowed?: boolean | null;
+  live_gate?: string | null;
+  operator_flip_required?: boolean | null;
+  places_real_order?: boolean | null;
+  routes_to_live?: boolean | null;
+  leverage_mutated?: boolean | null;
+  margin_mutated?: boolean | null;
+  order_submitted?: boolean | null;
+  test_order_submitted?: boolean | null;
 }
 
 interface PaperStatus {
@@ -161,6 +173,17 @@ const fmt = {
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
     if (h > 0) return `${h}h ${m}m`;
     return `${m}m`;
+  },
+  qty: (v: number | null | undefined) => {
+    if (v == null || !Number.isFinite(v)) return '—';
+    const abs = Math.abs(v);
+    if (abs >= 1000) return v.toLocaleString('en-US', { maximumFractionDigits: 2 });
+    if (abs >= 1) return v.toFixed(2);
+    return v.toFixed(4);
+  },
+  fee: (v: number | null | undefined) => {
+    if (v == null || !Number.isFinite(v)) return '—';
+    return '$' + (Math.abs(v) < 1 ? v.toFixed(4) : v.toFixed(2));
   },
   ts: (v: string | null | undefined) => {
     if (!v) return '—';
@@ -407,7 +430,7 @@ function KpiStrip({
   const oneDay = pnlWindow(pnlHistory, '1d');
   const sevenDay = pnlWindow(pnlHistory, '7d');
   const thirtyDay = pnlWindow(pnlHistory, '30d');
-  const kpis = [
+  const kpis: Array<{ label: string; value: string; color: string; title?: string }> = [
     {
       label: 'Open Notional',
       value: fmt.usdRaw(summary.total_open_notional),
@@ -460,8 +483,10 @@ function KpiStrip({
     },
     {
       label: 'Capital Status',
-      value: capitalStatus?.status ?? '—',
+      // Humanized (same wording as /portfolio); raw enum preserved in the tooltip.
+      value: capitalStatusText(capitalStatus?.status),
       color: adaptiveStatusColor(capitalStatus?.status),
+      title: capitalStatus?.status ?? undefined,
     },
     {
       label: 'Max Leverage',
@@ -482,14 +507,16 @@ function KpiStrip({
       gap: 8,
       marginBottom: 16,
     }}>
-      {kpis.map(({ label, value, color }) => (
+      {kpis.map(({ label, value, color, title }) => (
         <div key={label} className="glass" style={{
           padding: '10px 14px',
+          minWidth: 0,
         }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
             {label}
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color, fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em' }}>
+          {/* minWidth/overflowWrap: long values must wrap inside the card, never bleed across neighbours. */}
+          <div title={title} style={{ fontSize: 18, fontWeight: 700, color, fontFamily: 'var(--font-mono)', letterSpacing: '-0.01em', minWidth: 0, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
             {value}
           </div>
         </div>
@@ -781,8 +808,12 @@ function HistoryTab({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
               <EvidenceMetric label="Entry" value={fmt.price(t.entry_price)} title={t.entry_price_source ?? undefined} />
               <EvidenceMetric label="Exit" value={fmt.price(t.exit_price)} title={t.exit_price_source ?? undefined} />
-              <EvidenceMetric label="Realized PnL" value={fmt.usd(t.realized_pnl_usd)} color={pnlColor(t.realized_pnl_usd)} />
+              {/* Canonical NET realized PnL (fees included) — matches every headline Realized PnL. */}
+              <EvidenceMetric label="Realized PnL" value={fmt.usd(t.realized_net_pnl_usd ?? t.realized_pnl_usd)} color={pnlColor(t.realized_net_pnl_usd ?? t.realized_pnl_usd)} />
               <EvidenceMetric label="PnL %" value={fmt.bpsAsPct(t.realized_pnl_bps)} color={pnlColor(t.realized_pnl_bps)} />
+              <EvidenceMetric label="Qty" value={fmt.qty(t.quantity)} />
+              <EvidenceMetric label="Notional" value={fmt.usdRaw(t.notional_usd)} />
+              <EvidenceMetric label="Fees" value={fmt.fee(t.fees)} />
               <EvidenceMetric label="Hold" value={fmt.holdTime(t.hold_time_seconds)} />
               <EvidenceMetric label="Close Reason" value={runtimeText(t.close_reason)} />
             </div>
@@ -796,7 +827,7 @@ function HistoryTab({
 
 // ── Risk Gate Tab ─────────────────────────────────────────────────────────────
 
-function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summary: Summary }) {
+function RiskGateTab({ riskProfile, summary, readiness }: { riskProfile: RiskProfile; summary: Summary; readiness: RealTraderReadiness | null }) {
   const fields = [
     ['Profile', riskProfile.profile_id ?? '—'],
     ['Max Leverage', `${riskProfile.max_leverage ?? 1}x`],
@@ -813,10 +844,23 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
   const intentsAccepted = summary.intents_accepted ?? 0;
   const intentsBlocked = summary.intents_blocked ?? 0;
   const totalIntents = intentsAccepted + intentsBlocked;
-  const blockRate = totalIntents ? ((intentsBlocked / totalIntents) * 100).toFixed(1) : '—';
+  const blockRate = totalIntents ? `${((intentsBlocked / totalIntents) * 100).toFixed(1)}%` : '—';
+
+  // Safety card is BOUND to /api/v2/paper/status real_trader_readiness — never
+  // hardcoded. A missing field or unsafe value must fail red, not assert safety.
+  const boolText = (v: boolean | null | undefined) => (v == null ? 'unreported' : String(v));
+  const safetyChecks: Array<{ text: string; ok: boolean }> = readiness ? [
+    { text: `live_gate: ${readiness.live_gate ?? 'unreported'}`, ok: readiness.live_gate === 'blocked_human_only' },
+    { text: `places_real_order: ${boolText(readiness.places_real_order)}`, ok: readiness.places_real_order === false },
+    { text: `routes_to_live: ${boolText(readiness.routes_to_live)}`, ok: readiness.routes_to_live === false },
+    { text: `leverage_mutated: ${boolText(readiness.leverage_mutated)}`, ok: readiness.leverage_mutated === false },
+    { text: `margin_mutated: ${boolText(readiness.margin_mutated)}`, ok: readiness.margin_mutated === false },
+    { text: `operator_flip_required: ${boolText(readiness.operator_flip_required)}`, ok: readiness.operator_flip_required === true },
+  ] : [];
+  const allSafetyVerified = safetyChecks.length > 0 && safetyChecks.every(c => c.ok);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
       <div className="glass" style={{ padding: '16px' }}>
         <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           Risk Profile — {riskProfile.profile_id ?? 'Unknown'}
@@ -845,7 +889,7 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
               { label: 'Signals Processed', value: summary.paper_signals_seen },
               { label: 'Intents Accepted', value: intentsAccepted, color: 'var(--buy, #22c55e)' },
               { label: 'Intents Blocked', value: intentsBlocked, color: 'var(--sell, #ef4444)' },
-              { label: 'Block Rate', value: `${blockRate}%` },
+              { label: 'Block Rate', value: blockRate },
               { label: 'Fill Count', value: summary.persistent_accepted_fill_count },
             ].map(({ label, value, color }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -858,25 +902,35 @@ function RiskGateTab({ riskProfile, summary }: { riskProfile: RiskProfile; summa
           </div>
         </div>
 
-        {/* Safety status */}
+        {/* Safety status — every line bound to real_trader_readiness; fail-red on mismatch */}
         <div style={{
           background: 'rgba(239,68,68,0.06)',
-          border: '1px solid rgba(239,68,68,0.25)',
+          border: `1px solid ${readiness == null || !allSafetyVerified ? '#ef4444' : 'rgba(239,68,68,0.25)'}`,
           borderRadius: 8,
           padding: '14px 16px',
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 8 }}>
-            Operator-gated execution workflow
+            {readiness == null
+              ? 'Operator-gated execution workflow — readiness evidence unavailable'
+              : allSafetyVerified
+                ? 'Operator-gated execution workflow'
+                : 'SAFETY EVIDENCE MISMATCH — fail closed'}
           </div>
-          {[
-            'LIVE_GATE=blocked_human_only',
-            'places_real_order: false',
-            'V2_MODE=runtime',
-            'exchange_mutation_enabled: false',
-            'Execution guard active',
-          ].map(s => (
-            <div key={s} style={{ fontSize: 11, color: 'rgba(239,68,68,0.7)', marginTop: 4 }}>
-              ✓ {s}
+          {readiness == null ? (
+            <div style={{ fontSize: 11, color: '#ef4444', fontWeight: 700 }}>
+              ✗ real_trader_readiness not loaded — execution treated as blocked (fail-closed)
+            </div>
+          ) : safetyChecks.map(({ text, ok }) => (
+            <div
+              key={text}
+              style={{
+                fontSize: 11,
+                color: ok ? 'rgba(239,68,68,0.7)' : '#ef4444',
+                fontWeight: ok ? 400 : 700,
+                marginTop: 4,
+              }}
+            >
+              {ok ? '✓' : '✗'} {text}{ok ? '' : ' — MISMATCH'}
             </div>
           ))}
         </div>
@@ -990,13 +1044,20 @@ export default function PaperTradingPage(): JSX.Element {
   const riskProfile = data?.risk_profile ?? {} as RiskProfile;
   const apiSummary = (data?.summary ?? {}) as Summary;
   const streamSummary = paperActivity.data.summary as unknown as Partial<Summary>;
+  // The activity-stream summary is session-scoped (closed_trade_count resets to 0
+  // on every worker session), so the persistent /api/v2/paper/status summary is
+  // canonical for cumulative fields; only live position/notional fields may come
+  // from the stream. Spreading the stream over the API summary made KPIs flip
+  // nondeterministically between session (0) and persistent (92) values.
   const summary = {
-    ...apiSummary,
     ...streamSummary,
+    ...apiSummary,
     realized_pnl_usd: apiSummary.realized_net_pnl_usd ?? apiSummary.realized_pnl_usd ?? streamSummary.realized_pnl_usd ?? null,
     unrealized_pnl_usd: apiSummary.unrealized_pnl_usd ?? streamSummary.unrealized_pnl_usd ?? null,
     total_pnl_usd: apiSummary.total_pnl_usd ?? streamSummary.total_pnl_usd ?? null,
-    open_position_count: streamSummary.open_position_count ?? data?.summary?.open_position_count ?? positions.length,
+    open_position_count: streamSummary.open_position_count ?? apiSummary.open_position_count ?? positions.length,
+    total_open_notional: streamSummary.total_open_notional ?? apiSummary.total_open_notional ?? null,
+    closed_trade_count: apiSummary.closed_trade_count ?? streamSummary.closed_trade_count ?? closedTrades.length,
   } as Summary;
   const capitalStatus = adaptiveCapital.data?.capital_productivity_runtime_status ?? null;
   const pnlHistory = adaptiveCapital.data?.pnl_history_status ?? capitalStatus?.pnl_history ?? null;
@@ -1016,9 +1077,9 @@ export default function PaperTradingPage(): JSX.Element {
       color: 'var(--text-primary)',
       fontFamily: 'var(--font-mono)',
     }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-        <div>
+      {/* Header — flexWrap + minWidth:0 so chips never collide or force horizontal scroll at 390px */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text-primary)' }}>
             Execution Runtime
           </h1>
@@ -1026,7 +1087,7 @@ export default function PaperTradingPage(): JSX.Element {
             Trainer-driven telemetry and approval-gated execution workflow
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minWidth: 0 }}>
           <FreshnessBadge fetchedAt={fetchedAt} />
           <button
             type="button"
@@ -1098,7 +1159,7 @@ export default function PaperTradingPage(): JSX.Element {
       {summary.worker_id && (
         <div style={{
           fontSize: 11, color: 'var(--text-muted)', marginBottom: 12,
-          display: 'flex', gap: 16,
+          display: 'flex', gap: 16, flexWrap: 'wrap',
         }}>
           <span>Worker: <strong style={{ color: 'var(--text-secondary)' }}>{summary.worker_id}</strong></span>
           {summary.finished_at && (
@@ -1108,7 +1169,7 @@ export default function PaperTradingPage(): JSX.Element {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--border)', marginBottom: 16, flexWrap: 'wrap' }}>
         {TABS.map(t => (
           <button
             key={t.key}
@@ -1144,7 +1205,7 @@ export default function PaperTradingPage(): JSX.Element {
             reasonBreakdown={reasonBreakdown}
           />
         )}
-        {tab === 'risk' && <RiskGateTab riskProfile={riskProfile} summary={summary} />}
+        {tab === 'risk' && <RiskGateTab riskProfile={riskProfile} summary={summary} readiness={data?.real_trader_readiness ?? null} />}
       </div>
     </div>
   );

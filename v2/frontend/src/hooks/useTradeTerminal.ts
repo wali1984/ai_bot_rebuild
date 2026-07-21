@@ -707,9 +707,14 @@ export function useTradeTerminal() {
         orders: paperActivityOrderRows.length ? 'Execution activity stream' : activitySourceLabel(typedOrders, typedOrdersScoped, 'Trader order source', 'Order source connecting'),
         executions: paperActivityExecutionRows.length
           ? 'Execution activity stream'
-          // Once the envelope has loaded, an empty/unscoped result is "no records", not a
-          // connection still in progress — only a null envelope is genuinely connecting.
-          : activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', typedExecutions ? 'No execution records — repository has no rows for this account' : 'Execution source connecting'),
+          // A connected activity stream with zero rows is a live source with no records —
+          // the typed fallback resource is disabled in that state, so without this branch
+          // the label would sit on "connecting" forever over an actually-connected source.
+          : paperActivityAvailable
+            ? 'Execution activity stream — no execution records for this account'
+            // Once the envelope has loaded, an empty/unscoped result is "no records", not a
+            // connection still in progress — only a null envelope is genuinely connecting.
+            : activitySourceLabel(typedExecutions, typedExecutionsScoped, 'Trader execution source', typedExecutions ? 'No execution records — repository has no rows for this account' : 'Execution source connecting'),
         auditEvents: paperActivityAuditRows.length ? 'Execution activity stream' : activitySourceLabel(typedAuditEvents, typedAuditEventsScoped, 'Execution audit source', 'Execution audit event source connecting'),
         signals: signalSource,
       },

@@ -26,3 +26,21 @@ const SOURCE_URL_LABELS: Record<string, string> = {
 export function sourceText(input: string): string {
   return SOURCE_URL_LABELS[input] ?? input;
 }
+
+/**
+ * Humanize capital-productivity status enums
+ * (e.g. NO_GO_INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE -> "Needs productivity evidence").
+ * Shared by /portfolio and /trade/paper so both render the same wording.
+ */
+export function capitalStatusText(status: string | null | undefined): string {
+  const token = status?.trim();
+  if (!token) return '—';
+  const upper = token.toUpperCase();
+  if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
+  if (upper === 'PASSED' || upper === 'READY') return 'Ready';
+  if (upper.includes('NO_GO')) return 'Needs review';
+  return token
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}

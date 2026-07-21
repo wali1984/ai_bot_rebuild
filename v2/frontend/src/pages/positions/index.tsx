@@ -17,7 +17,7 @@ import { formatMoney, formatPrice } from '../../lib/tradeFormatters';
 import { selectAccountMetric, selectSectionMetric } from '../../selectors/accountSelectors';
 import { selectPositionMetric, selectPositions } from '../../selectors/positionSelectors';
 import { selectRiskStatus } from '../../selectors/riskSelectors';
-import { sourceText } from '../../lib/traderPageHelpers';
+import { sourceText, capitalStatusText } from '../../lib/traderPageHelpers';
 import type { PortfolioData } from '../../types/apiV2';
 import type { TraderRealtimeState } from '../../stores/traderRealtimeStore';
 import meta from './meta';
@@ -49,19 +49,6 @@ function KV({ label, value, color }: { label: string; value: ReactNode; color?: 
       <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-mono)', color: color ?? 'var(--text-primary)', lineHeight: 1.2, overflowWrap: 'anywhere', whiteSpace: 'normal', wordBreak: 'break-word' }}>{value}</span>
     </div>
   );
-}
-
-function capitalStatusText(status: string | null | undefined): string {
-  const token = status?.trim();
-  if (!token) return '—';
-  const upper = token.toUpperCase();
-  if (upper.includes('INSUFFICIENT_CAPITAL_PRODUCTIVITY_EVIDENCE')) return 'Needs productivity evidence';
-  if (upper === 'PASSED' || upper === 'READY') return 'Ready';
-  if (upper.includes('NO_GO')) return 'Needs review';
-  return token
-    .toLowerCase()
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function publicPositionText(value: unknown): string {
@@ -124,6 +111,22 @@ function firstPositivePrice(...values: unknown[]): number | null {
   return null;
 }
 
+function formatHoldSeconds(value: unknown): string {
+  const n = finiteNumber(value);
+  if (n === null) return '—';
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m`;
+  return `${Math.round(n)}s`;
+}
+
+function formatFeeUsd(value: unknown): string {
+  const n = finiteNumber(value);
+  if (n === null) return '—';
+  return `$${Math.abs(n) < 1 ? n.toFixed(4) : n.toFixed(2)}`;
+}
+
 export function PositionEvidenceCard({
   row,
   mode,
@@ -147,8 +150,10 @@ export function PositionEvidenceCard({
     ? firstPositivePrice(row.exit_price, row.paper_exit_price, row.close_price, row.closing_price, row.filled_exit_price)
     : firstPositivePrice(row.mark_price, row.last_mark_price, row.current_price);
   const terminalLabel = isClosed ? 'Exit' : 'Mark';
+  // Canonical NET realized PnL first — gross realized_pnl_usd excludes fees and
+  // would disagree with every headline Realized PnL (net) on the same screens.
   const pnl = isClosed
-    ? finiteNumber(row.realized_pnl_usd ?? row.realized_pnl)
+    ? finiteNumber(row.realized_net_pnl_usd ?? row.realized_pnl_usd ?? row.realized_pnl)
     : finiteNumber(row.unrealized_pnl);
   const pnlColor = pnl == null ? 'var(--text-muted)' : pnl >= 0 ? 'var(--buy)' : 'var(--sell)';
   const markStale = row.mark_price_stale === true;
@@ -174,10 +179,24 @@ export function PositionEvidenceCard({
         ) : (
           <KV label="Mark Age" value={canonical ? <CanonicalMetricValue metric={metric('position.mark_age_ms')} /> : formatAgeSeconds(row.mark_price_age_seconds)} color={markStale ? 'var(--warn)' : undefined} />
         )}
-        <KV label="Risk" value={canonical ? <CanonicalMetricValue metric={metric('position.risk_status')} /> : publicPositionText(row.risk_status)} />
-        <KV label="Mark Source" value={canonical ? <CanonicalMetricValue metric={metric('position.mark_price_source')} /> : publicPositionText(row.mark_price_source)} />
-        <KV label="Stop" value={canonical ? <CanonicalMetricValue metric={metric('position.stop')} /> : publicPositionText(row.stop)} />
-        <KV label="Targets" value={canonical ? <CanonicalMetricValue metric={metric('position.targets')} /> : publicPositionText(row.targets)} />
+        {isClosed ? (
+          // Closed-trade schema: risk_status/mark_price_source/stop/targets never
+          // exist on closed rows (verified across all closed rows) — render the
+          // fields the API actually serves instead of permanent em-dashes.
+          <>
+            <KV label="Hold" value={formatHoldSeconds(row.hold_time_seconds)} />
+            <KV label="Notional" value={formatMoney(row.notional_usd)} />
+            <KV label="Fees" value={formatFeeUsd(row.fees)} />
+            <KV label="Close Reason" value={publicPositionText(row.close_reason)} />
+          </>
+        ) : (
+          <>
+            <KV label="Risk" value={canonical ? <CanonicalMetricValue metric={metric('position.risk_status')} /> : publicPositionText(row.risk_status)} />
+            <KV label="Mark Source" value={canonical ? <CanonicalMetricValue metric={metric('position.mark_price_source')} /> : publicPositionText(row.mark_price_source)} />
+            <KV label="Stop" value={canonical ? <CanonicalMetricValue metric={metric('position.stop')} /> : publicPositionText(row.stop)} />
+            <KV label="Targets" value={canonical ? <CanonicalMetricValue metric={metric('position.targets')} /> : publicPositionText(row.targets)} />
+          </>
+        )}
         <KV label="Signal" value={canonical ? <CanonicalMetricValue metric={metric('position.signal_id')} /> : publicPositionText(reasoning?.signal_id ?? row.signal_id)} />
         <KV label="Prediction" value={canonical ? <CanonicalMetricValue metric={metric('position.prediction_id')} /> : publicPositionText(reasoning?.prediction_id ?? row.prediction_id)} />
       </div>
@@ -188,7 +207,8 @@ export function PositionEvidenceCard({
             <KV label="Action" value={publicPositionText(reasoning.action)} />
             <KV label="Confidence" value={typeof reasoning.confidence === 'number' ? `${Math.round(reasoning.confidence * 100)}%` : '—'} />
             <KV label="Reason" value={publicPositionText(reasoning.reason ?? row.close_reason)} />
-            <KV label="Risk" value={publicPositionText(reasoning.risk_state)} />
+            {/* risk_state exists only in the open-position schema — hide on closed cards. */}
+            {!isClosed ? <KV label="Risk" value={publicPositionText(reasoning.risk_state)} /> : null}
             <KV label="Regime" value={publicPositionText(reasoning.market_regime ?? row.market_regime_at_entry)} />
             <KV label="Source" value={publicPositionText(reasoning.source)} />
           </div>
