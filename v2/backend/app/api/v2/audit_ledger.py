@@ -73,11 +73,16 @@ def _build_summary(r: Any) -> dict[str, Any]:
 
     Returns the documented shape even if Redis is unreachable. `chain_ok`
     is True iff we successfully read a last entry AND it does not carry a
-    `chain_status` of `broken` / `mismatch` / `false`. Missing key /
-    empty stream → chain_ok=False, all other fields None.
+    `chain_status` of `broken` / `mismatch` / `false`. With ZERO events
+    there is no chain to be broken: `chain_ok` is None and `chain_state`
+    is "EMPTY" (previously chain_ok=False made an empty ledger render as
+    an alarming red "Chain: BROKEN"). `chain_state` is one of
+    UNAVAILABLE / EMPTY / OK / BROKEN.
     """
     out: dict[str, Any] = {
-        "chain_ok": False,
+        "chain_ok": None,
+        "chain_state": "UNAVAILABLE",
+        "event_count_known_empty": False,
         "tail_age_ms": None,
         "last_event_id": None,
         "last_event_ts": None,
@@ -86,6 +91,8 @@ def _build_summary(r: Any) -> dict[str, Any]:
         return out
     streams = discover_audit_ledger_streams(r)
     if not streams:
+        out["chain_state"] = "EMPTY"
+        out["event_count_known_empty"] = True
         return out
 
     newest_ms: int | None = None
@@ -111,6 +118,10 @@ def _build_summary(r: Any) -> dict[str, Any]:
             newest_fields = fields if isinstance(fields, dict) else dict(fields or {})
 
     if newest_event_id is None or newest_ms is None:
+        # Streams exist but hold no readable entries — still an empty ledger,
+        # not a broken chain.
+        out["chain_state"] = "EMPTY"
+        out["event_count_known_empty"] = True
         return out
 
     now_ms = int(time.time() * 1000)
@@ -126,6 +137,8 @@ def _build_summary(r: Any) -> dict[str, Any]:
     out.update(
         {
             "chain_ok": bool(chain_ok),
+            "chain_state": "OK" if chain_ok else "BROKEN",
+            "event_count_known_empty": False,
             "tail_age_ms": int(tail_age_ms),
             "last_event_id": str(newest_event_id),
             "last_event_ts": last_event_ts,

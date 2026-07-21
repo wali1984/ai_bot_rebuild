@@ -130,6 +130,65 @@ def _redis_lrange_json(r: Any, key: str, start: int = 0, end: int = -1) -> list[
         return []
 
 
+_MOBILE_MARKET_FEED_KLINE_KEY = "v2:market:kline_current:binance:BTCUSDT:1m"
+_MOBILE_MARKET_FEED_PRICES_KEY = "v2:market:prices:BTCUSDT"
+
+
+def _mobile_market_data_freshness(r: Any | None) -> dict[str, Any]:
+    """market_data_freshness truth from the CANONICAL binance feed.
+
+    Previously derived from the OPTIONAL CoinAPI heartbeat key, which is
+    retired as a current source (Codex reclassification:
+    REQUIREMENT_OPTIONAL_ENRICHMENT) — that branded live binance/kucoin
+    feeds "MARKET FEED STALE" on the Risk/Dashboard runtime-truth cards.
+    """
+    generated_at: str | None = None
+    age_seconds: int | None = None
+    source = "binance_wss_kline_current"
+    source_pointer = f"redis:{_MOBILE_MARKET_FEED_KLINE_KEY}"
+    kline = (_redis_get_json(r, _MOBILE_MARKET_FEED_KLINE_KEY) if r is not None else None) or {}
+    event_time_ms = kline.get("event_time") or kline.get("ingested_at") or kline.get("available_at")
+    if isinstance(event_time_ms, (int, float)) and event_time_ms > 0:
+        try:
+            event_dt = datetime.fromtimestamp(float(event_time_ms) / 1000.0, tz=UTC)
+            generated_at = event_dt.isoformat().replace("+00:00", "Z")
+            age_seconds = max(0, int((datetime.now(UTC) - event_dt).total_seconds()))
+        except (OverflowError, OSError, ValueError):
+            age_seconds = None
+    if age_seconds is None and r is not None:
+        prices = _redis_get_json(r, _MOBILE_MARKET_FEED_PRICES_KEY) or {}
+        fetched = prices.get("fetched_utc")
+        if isinstance(fetched, str) and fetched:
+            try:
+                parsed = datetime.fromisoformat(fetched.replace("Z", "+00:00"))
+                generated_at = fetched
+                age_seconds = max(0, int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()))
+                source = str(prices.get("source") or "binance_public_websocket_cache_primary")
+                source_pointer = f"redis:{_MOBILE_MARKET_FEED_PRICES_KEY}"
+            except ValueError:
+                age_seconds = None
+    freshness_state = (
+        "MARKET_FEED_CURRENT"
+        if age_seconds is not None and age_seconds < 600
+        else "MARKET_FEED_STALE"
+    )
+    return {
+        "source": source,
+        "source_pointer": source_pointer,
+        "generated_at": generated_at,
+        "age_seconds": age_seconds,
+        "freshness_state": freshness_state,
+        "provider_current": freshness_state == "MARKET_FEED_CURRENT",
+        "provider_unusable_reason": None,
+        "optional_providers": {
+            "coinapi": {
+                "requirement_class": "REQUIREMENT_OPTIONAL_ENRICHMENT",
+                "current_source": False,
+            }
+        },
+    }
+
+
 def _dedupe_strings(values: list[Any]) -> list[str]:
     seen: set[str] = set()
     out: list[str] = []
@@ -782,26 +841,13 @@ def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
     freeze = (_redis_get_json(r, "v2:paper:entry_freeze") if r else None) or {}
     a_plus = (_redis_get_json(r, "v2:paper:a_plus_gate:status") if r else None) or {}
     trainer = (_redis_get_json(r, "v2:trainer:hybrid_cuda:status") if r else None) or {}
-    market_hb = (_redis_get_json(r, "v2:market:coinapi:ohlcv:heartbeat") if r else None) or {}
     closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
     realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
     top_blockers = list((freeze.get("future_gate_blockers") or []))
     for reason in (halt.get("halt_reasons") or []):
         if reason not in top_blockers:
             top_blockers.append(reason)
-    market_generated_at = (
-        market_hb.get("finished_utc")
-        or market_hb.get("generated_at")
-        or market_hb.get("generated_utc")
-        or market_hb.get("ts")
-    )
-    market_age_seconds: int | None = None
-    if isinstance(market_generated_at, str) and market_generated_at:
-        try:
-            parsed = datetime.fromisoformat(market_generated_at.replace("Z", "+00:00"))
-            market_age_seconds = max(0, int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()))
-        except ValueError:
-            market_age_seconds = None
+    market_data_freshness = _mobile_market_data_freshness(r)
     real_trader_readiness = _mobile_real_trader_readiness(r)
     readiness_blockers = real_trader_readiness.get("readiness_blockers")
     if not isinstance(readiness_blockers, list):
@@ -843,16 +889,7 @@ def _mobile_a_plus_runtime_summary(r: Any | None) -> dict[str, Any]:
             "checkpoint_id": trainer.get("checkpoint_id"),
         },
         "real_trader_readiness": real_trader_readiness,
-        "market_data_freshness": {
-            "source": market_hb.get("source") or "v2:market:coinapi:ohlcv:heartbeat",
-            "generated_at": market_generated_at,
-            "age_seconds": market_age_seconds,
-            "freshness_state": (
-                "MARKET_FEED_CURRENT"
-                if market_age_seconds is not None and market_age_seconds < 600
-                else "MARKET_FEED_STALE"
-            ),
-        },
+        "market_data_freshness": market_data_freshness,
         **_mobile_preemptive_edge_control_summary(r),
         "top_blockers": top_blockers[:6],
     }
@@ -2648,35 +2685,13 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
         or reduced_hash_chain.get("generated_utc")
     )
 
-    market_hb = _redis_get_json(r, "v2:market:coinapi:ohlcv:heartbeat") or {}
-    market_generated_at = (
-        market_hb.get("finished_utc")
-        or market_hb.get("generated_at")
-        or market_hb.get("generated_utc")
-        or market_hb.get("ts")
-    )
-    market_age_seconds: int | None = None
-    if isinstance(market_generated_at, str) and market_generated_at:
-        try:
-            parsed = datetime.fromisoformat(market_generated_at.replace("Z", "+00:00"))
-            market_age_seconds = max(
-                0,
-                int((datetime.now(UTC) - parsed.astimezone(UTC)).total_seconds()),
-            )
-        except ValueError:
-            market_age_seconds = None
-    market_freshness_state = (
-        "MARKET_FEED_CURRENT"
-        if market_age_seconds is not None and market_age_seconds < 600
-        else "MARKET_FEED_STALE"
-    )
-    market_source = market_hb.get("source") or "v2:market:coinapi:ohlcv:heartbeat"
-    if market_freshness_state != "MARKET_FEED_CURRENT" and "coinapi" in str(market_source).lower():
-        market_source = "coinapi_stale_or_unavailable_not_current_source"
-    coinapi_unusable_reason = _coinapi_provider_unusable_status(market_source)
-    if coinapi_unusable_reason:
-        market_source = "coinapi_provider_unusable_not_current_source"
-        market_freshness_state = "MARKET_FEED_PROVIDER_UNUSABLE_NOT_CURRENT"
+    # Canonical binance-feed truth; CoinAPI is annotated as an optional
+    # (not-current-source) provider instead of branding the feed stale.
+    market_data_freshness = _mobile_market_data_freshness(r)
+    coinapi_unusable_reason = _coinapi_provider_unusable_status("coinapi_rest")
+    market_data_freshness["optional_providers"]["coinapi"][
+        "provider_unusable_reason"
+    ] = coinapi_unusable_reason
 
     closed_count = _safe_int(governor.get("closed_outcome_count")) or 0
     realized_pnl_usd = _safe_float(governor.get("realized_pnl_usd"))
@@ -2746,14 +2761,7 @@ def _mobile_a_plus_runtime_truth(r: Any) -> dict[str, Any]:
             **real_trader_readiness,
             "one_flip_packet": "goal_state/V2_FABLE5_FULL_SYSTEM_A_PLUS_LIVE_READY_1000X_MACHINE_COMPLETION/real_trader_one_flip_readiness_packet.json",
         },
-        "market_data_freshness": {
-            "source": market_source,
-            "generated_at": market_generated_at,
-            "age_seconds": market_age_seconds,
-            "freshness_state": market_freshness_state,
-            "provider_current": coinapi_unusable_reason is None,
-            "provider_unusable_reason": coinapi_unusable_reason,
-        },
+        "market_data_freshness": market_data_freshness,
         **_mobile_preemptive_edge_control_truth(r),
         "top_blockers": top_blockers[:6],
     }
@@ -3010,6 +3018,64 @@ async def get_mobile_derivatives_summary(
 
     payload_generated = payload.get("generated_utc")
     age_seconds = _iso_age_seconds(payload_generated)
+
+    # Server-side fallback aggregates: the upstream publisher leaves the
+    # aggregate block null (global coinank aggregator INVALID_OR_STALE) even
+    # though the SAME payload's per-symbol rows carry real oi_usd/long_short
+    # values — compute a truthful aggregate from them instead of em-dashes.
+    aggregate_computed_fields: list[str] = []
+    total_oi_usd = _optional_float(aggregate_raw.get("total_oi_usd"))
+    if total_oi_usd is None:
+        oi_values = [
+            cell["oi_usd"]
+            for cell in per_symbol.values()
+            if isinstance(cell.get("oi_usd"), float)
+        ]
+        if oi_values:
+            total_oi_usd = round(sum(oi_values), 2)
+            aggregate_computed_fields.append("total_oi_usd")
+    aggregate_ls = _optional_float(aggregate_raw.get("aggregate_long_short_ratio"))
+    if aggregate_ls is None:
+        weighted_pairs = [
+            (cell["long_short_ratio"], cell["oi_usd"])
+            for cell in per_symbol.values()
+            if isinstance(cell.get("long_short_ratio"), float)
+            and isinstance(cell.get("oi_usd"), float)
+            and cell["oi_usd"] > 0
+        ]
+        if weighted_pairs:
+            total_weight = sum(weight for _, weight in weighted_pairs)
+            if total_weight > 0:
+                aggregate_ls = round(
+                    sum(value * weight for value, weight in weighted_pairs) / total_weight,
+                    4,
+                )
+                aggregate_computed_fields.append("aggregate_long_short_ratio")
+    avg_funding = _optional_float(aggregate_raw.get("avg_funding"))
+    if avg_funding is None:
+        funding_values = [
+            cell["funding_rate"]
+            for cell in per_symbol.values()
+            if isinstance(cell.get("funding_rate"), float)
+        ]
+        if funding_values:
+            avg_funding = sum(funding_values) / len(funding_values)
+            aggregate_computed_fields.append("avg_funding")
+    aggregate_block = (
+        {
+            "total_oi_usd": total_oi_usd,
+            # No per-symbol 24h liquidation notional exists in this payload;
+            # stays an honest null rather than a fabricated total.
+            "total_liq_24h": _optional_float(aggregate_raw.get("total_liq_24h")),
+            "avg_funding": avg_funding,
+            "aggregate_long_short_ratio": aggregate_ls,
+            "funding_positive_count": _safe_int(aggregate_raw.get("funding_positive_count")),
+            "funding_negative_count": _safe_int(aggregate_raw.get("funding_negative_count")),
+            "computed_from_per_symbol_rows": aggregate_computed_fields or None,
+        }
+        if aggregate_raw or per_symbol
+        else None
+    )
     return {
         "schema_version": "mobile_derivatives_summary_v1",
         "generated_utc": _utc_now(),
@@ -3021,18 +3087,7 @@ async def get_mobile_derivatives_summary(
         "live_gate_detail": _live_gate_status(),
         "places_real_order": False,
         "routes_to_live": False,
-        "aggregate": {
-            "total_oi_usd": _optional_float(aggregate_raw.get("total_oi_usd")),
-            "total_liq_24h": _optional_float(aggregate_raw.get("total_liq_24h")),
-            "avg_funding": _optional_float(aggregate_raw.get("avg_funding")),
-            "aggregate_long_short_ratio": _optional_float(
-                aggregate_raw.get("aggregate_long_short_ratio")
-            ),
-            "funding_positive_count": _safe_int(aggregate_raw.get("funding_positive_count")),
-            "funding_negative_count": _safe_int(aggregate_raw.get("funding_negative_count")),
-        }
-        if aggregate_raw
-        else None,
+        "aggregate": aggregate_block,
         "global_regime": {
             "market_sentiment": _optional_float(regime_raw.get("market_sentiment")),
             "avg_funding_rate": _optional_float(regime_raw.get("avg_funding_rate")),

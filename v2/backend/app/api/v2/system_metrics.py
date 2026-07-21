@@ -601,7 +601,15 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
     provider_current = status == "live"
     provider_usable = provider_current
     provider_reason = None
+    # Requirement classification (mirrors v2_ingestors_status_publisher):
+    # CoinAPI is reclassified as OPTIONAL_ENRICHMENT / not a current source,
+    # so consumers can render a calm "optional" state instead of an alarming
+    # red OFFLINE for a provider the data plane does not depend on.
+    optional_source = False
+    requirement_class = feed.get("requirement_class")
     if name.startswith("live_coinapi"):
+        optional_source = True
+        requirement_class = "OPTIONAL_ENRICHMENT"
         if upstream_errors > 0:
             provider_usable = False
             provider_current = False
@@ -627,6 +635,13 @@ def _ingestor_row(r: Any, name: str, feed: dict[str, Any], now: float) -> dict[s
         "provider_usable": provider_usable,
         "provider_unusable_reason": provider_reason,
         "must_not_label_as_current_source": bool(provider_reason),
+        "optional_source": optional_source,
+        # None = not yet classified in this API (only the publisher payload
+        # classifies every feed); never guessed here.
+        "requirement_class": requirement_class,
+        "core_data_plane_required": (
+            requirement_class == "CORE_DATA_PLANE" if requirement_class else None
+        ),
     }
 
 

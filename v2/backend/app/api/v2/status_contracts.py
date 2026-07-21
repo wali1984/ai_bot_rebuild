@@ -12,7 +12,11 @@ from fastapi import APIRouter
 from starlette.concurrency import run_in_threadpool
 
 from app.api.v2._common import get_redis
-from app.api.v2.market_contracts import _derivatives_realtime_source_evidence, _market_stream_telemetry
+from app.api.v2.market_contracts import (
+    _canonical_market_feed_truth,
+    _derivatives_realtime_source_evidence,
+    _market_stream_telemetry,
+)
 from app.api.v2.truthful_status import build_truthful_status_dimensions
 from app.services.market_stream_alert_history import market_stream_alert_history_summary
 from app.services.market_stream_alert_notifier import market_stream_alert_notifier_status
@@ -134,6 +138,29 @@ def _safe_market_stream_status(symbol: str = "BTCUSDT") -> dict[str, Any]:
         else "Data source unavailable"
     )
     stale = bool(telemetry.get("stale"))
+    if stale:
+        # The in-process adapter telemetry only tracks THIS backend's own
+        # /ws/market-data adapter, not the canonical binance ingestor feed in
+        # Redis (the one /api/v2/market/overview reports fresh). Consult the
+        # canonical feed before branding public market_data STALE while live
+        # prices tick on the same page.
+        try:
+            canonical = _canonical_market_feed_truth(get_redis())
+        except Exception:
+            canonical = {}
+        canonical_age = canonical.get("age_seconds")
+        if (
+            canonical.get("freshness_state") == "MARKET_FEED_CURRENT"
+            and isinstance(canonical_age, int)
+        ):
+            return {
+                "symbol": symbol,
+                "status": "current",
+                "source": "Redis ingestor feed (binance WSS primary)",
+                "last_frame_at": canonical.get("last_event_at"),
+                "lag_ms": canonical_age * 1000,
+                "stale": False,
+            }
     # REST fallback is intentional — do not flag it as "stale", flag as "rest_fallback"
     status = "stale" if (stale and is_wss) else "rest_fallback" if (is_rest and not stale) else "stale" if stale else "current"
     return {
@@ -271,6 +298,30 @@ def _build_v2_status_payload() -> dict[str, Any]:
     }
 
 
+async def _fallback_v2_status_with_market_truth(reason: str) -> dict[str, Any]:
+    """Fallback status that still reports honest market-data freshness.
+
+    The full status build can exceed its bounded runtime budget (it walks
+    many Redis families); the canonical market-feed check is just 1-2 GETs,
+    so give it its own small budget instead of branding market_data STALE
+    whenever the FULL build is slow — live prices tick on the same page.
+    """
+    payload = _fallback_v2_status(reason)
+    try:
+        market_stream = await _bounded_status_build(
+            _safe_market_stream_status,
+            "BTCUSDT",
+            timeout=0.4,
+        )
+    except Exception:
+        return payload
+    if isinstance(market_stream, dict) and market_stream.get("stale") is False:
+        payload["market_stream"] = market_stream
+        payload["market_stream_alert"] = _safe_market_stream_alert(market_stream)
+        payload["status_dimensions"]["market_data"] = "LIVE"
+    return payload
+
+
 @router.get("/status")
 async def get_v2_status() -> dict[str, Any]:
     try:
@@ -279,9 +330,13 @@ async def get_v2_status() -> dict[str, Any]:
             timeout=V2_STATUS_BUILD_TIMEOUT_SECONDS,
         )
     except asyncio.TimeoutError:
-        return _fallback_v2_status("Public status read exceeded bounded runtime budget")
+        return await _fallback_v2_status_with_market_truth(
+            "Public status read exceeded bounded runtime budget"
+        )
     except Exception as exc:
-        return _fallback_v2_status(f"Public status read unavailable: {type(exc).__name__}")
+        return await _fallback_v2_status_with_market_truth(
+            f"Public status read unavailable: {type(exc).__name__}"
+        )
 
 
 # ---------------------------------------------------------------------------

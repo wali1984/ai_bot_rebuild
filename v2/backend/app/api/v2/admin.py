@@ -26,6 +26,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from starlette.concurrency import run_in_threadpool
 
 from app.api.v2._common import get_redis
+from app.api.v2.codex_reviews import extract_codex_artifact_verdict
 from app.auth.security import require_admin, require_auth
 from app.auth.users import UserRecord, get_user_store
 from app.services.pipeline_control.service import build_pipeline_status
@@ -341,20 +342,29 @@ async def get_admin_users(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dict[str, 
                 "status": "active" if u.get("is_active", True) else "inactive",
                 "created_at": u.get("created_at"),
                 "last_login_at": u.get("last_login"),
-                "session_count": 1,
+                # Honest null: auth uses stateless JWTs — there is no
+                # server-side session registry, so a per-user live-session
+                # count is unknowable (was a hardcoded placeholder of 1).
+                "session_count": None,
             })
         return {
             "generated_at": now,
             "users": user_list,
             "total": len(user_list),
-            "active_sessions": len([u for u in user_list if u["status"] == "active"]),
+            # Sessions are not tracked (stateless JWT); expose the real
+            # active-USER count under its own name instead of mislabeling it.
+            "active_sessions": None,
+            "active_users": len([u for u in user_list if u["status"] == "active"]),
+            "session_tracking": "not_tracked_stateless_jwt",
         }
     except Exception as exc:
         return {
             "generated_at": now,
             "users": [],
             "total": 0,
-            "active_sessions": 0,
+            "active_sessions": None,
+            "active_users": 0,
+            "session_tracking": "not_tracked_stateless_jwt",
             "error": str(exc),
         }
 
@@ -1131,7 +1141,10 @@ async def get_admin_codex_status(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dic
     # Try Redis first
     codex_summary = _redis_read("codex:reviews:latest") or _redis_read("codex:reviews:summary")
 
-    # Scan filesystem for codex review files
+    # Scan filesystem for codex review files. Artifacts never carry flat
+    # result/verdict/pass_count keys (the table rendered 20 UNKNOWN rows);
+    # normalize their real verdict fields (burndown_review_verdict,
+    # mapping.remediation_verdict, classification, go_no_go, status).
     review_dir = _REPO_ROOT / "claude_worklog"
     if review_dir.exists():
         try:
@@ -1139,12 +1152,25 @@ async def get_admin_codex_status(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dic
                 try:
                     data = json.loads(p.read_text())
                     if isinstance(data, dict):
+                        verdict = extract_codex_artifact_verdict(data, name=p.stem)
+                        result = _safe_str(
+                            data.get("result") or data.get("verdict") or verdict["result"],
+                            "unknown",
+                        )
                         milestones.append({
                             "id": p.stem,
                             "path": str(p.relative_to(_REPO_ROOT)),
-                            "result": _safe_str(data.get("result") or data.get("verdict"), "unknown"),
-                            "pass_count": _safe_int(data.get("pass_count")),
-                            "fail_count": _safe_int(data.get("fail_count") or data.get("blocker_count")),
+                            "result": result,
+                            "verdict_field": verdict["verdict_field"],
+                            "verdict_value": verdict["verdict_value"],
+                            "pass_count": _safe_int(
+                                data.get("pass_count") or (1 if result == "pass" else 0)
+                            ),
+                            "fail_count": _safe_int(
+                                data.get("fail_count")
+                                or data.get("blocker_count")
+                                or (1 if result == "fail" else 0)
+                            ),
                             "last_reviewed_at": datetime.fromtimestamp(p.stat().st_mtime, tz=UTC).isoformat().replace("+00:00", "Z"),
                         })
                 except Exception:
@@ -1169,15 +1195,33 @@ async def get_admin_codex_status(_: UserRecord = Depends(_REQUIRE_ADMIN)) -> dic
             except Exception:
                 pass
 
+    # Redis codex:reviews:* keys are never written; when the summary is
+    # absent, derive the header fields from the normalized milestone verdicts
+    # instead of returning permanent zeros/nulls.
+    last_pass_id = (codex_summary or {}).get("last_pass_id")
+    last_fail_id = (codex_summary or {}).get("last_fail_id")
+    last_blocker_text = (codex_summary or {}).get("last_blocker_text")
+    if last_pass_id is None:
+        last_pass_id = next((m["id"] for m in milestones if m["result"] == "pass"), None)
+    if last_fail_id is None:
+        fail_row = next((m for m in milestones if m["result"] == "fail"), None)
+        if fail_row is not None:
+            last_fail_id = fail_row["id"]
+            if last_blocker_text is None and fail_row.get("verdict_value"):
+                last_blocker_text = str(fail_row["verdict_value"])[:200]
+    if not open_count:
+        open_count = sum(1 for m in milestones if m["result"] in {"pending", "blocked"})
+    if not blocker_count:
+        blocker_count = sum(1 for m in milestones if m["result"] == "blocked")
     return {
         "generated_at": now,
         "milestones": milestones,
         "total": len(milestones),
         "open_count": open_count,
         "blocker_count": blocker_count,
-        "last_pass_id": (codex_summary or {}).get("last_pass_id"),
-        "last_fail_id": (codex_summary or {}).get("last_fail_id"),
-        "last_blocker_text": (codex_summary or {}).get("last_blocker_text"),
+        "last_pass_id": last_pass_id,
+        "last_fail_id": last_fail_id,
+        "last_blocker_text": last_blocker_text,
     }
 
 

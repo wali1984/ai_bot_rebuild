@@ -457,6 +457,75 @@ def _json_object_from_redis_raw(raw: Any) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+CANONICAL_MARKET_FEED_SYMBOL = "BTCUSDT"
+CANONICAL_MARKET_FEED_KLINE_KEY = f"v2:market:kline_current:binance:{CANONICAL_MARKET_FEED_SYMBOL}:1m"
+CANONICAL_MARKET_FEED_PRICES_KEY = f"v2:market:prices:{CANONICAL_MARKET_FEED_SYMBOL}"
+
+
+def _canonical_market_feed_truth(client: Any) -> dict[str, Any]:
+    """Market-feed freshness truth from the CANONICAL binance feed.
+
+    The runtime strip previously derived market-feed freshness from the
+    OPTIONAL CoinAPI heartbeat key (``v2:market:coinapi:ohlcv:heartbeat``),
+    which is retired as a current source (Codex reclassification:
+    REQUIREMENT_OPTIONAL_ENRICHMENT). That branded every public page
+    "MARKET FEED STALE - age not reported" while live binance prices ticked
+    on the same screen. This helper reads the same canonical binance keys
+    the /api/v2/market/overview freshness contract uses.
+    """
+    last_event_at: str | None = None
+    age_ms: int | None = None
+    source = "binance_wss_kline_current"
+    source_pointer = f"redis:{CANONICAL_MARKET_FEED_KLINE_KEY}"
+    price: float | None = None
+    kline: dict[str, Any] = {}
+    if client is not None:
+        try:
+            kline = _json_object_from_redis_raw(client.get(CANONICAL_MARKET_FEED_KLINE_KEY)) or {}
+        except Exception:
+            kline = {}
+    event_time_ms = (
+        kline.get("event_time") or kline.get("ingested_at") or kline.get("available_at")
+    )
+    if isinstance(event_time_ms, (int, float)) and event_time_ms > 0:
+        try:
+            event_dt = datetime.fromtimestamp(float(event_time_ms) / 1000.0, tz=UTC)
+            last_event_at = event_dt.isoformat().replace("+00:00", "Z")
+            age_ms = max(0, int((datetime.now(UTC) - event_dt).total_seconds() * 1000))
+            close = kline.get("close")
+            if isinstance(close, (int, float)):
+                price = float(close)
+        except (OverflowError, OSError, ValueError):
+            age_ms = None
+    if age_ms is None and client is not None:
+        try:
+            prices = _json_object_from_redis_raw(client.get(CANONICAL_MARKET_FEED_PRICES_KEY)) or {}
+        except Exception:
+            prices = {}
+        fetched = prices.get("fetched_utc")
+        lag = _lag_ms(fetched if isinstance(fetched, str) else None)
+        if lag is not None:
+            last_event_at = str(fetched)
+            age_ms = lag
+            source = str(prices.get("source") or "binance_public_websocket_cache_primary")
+            source_pointer = f"redis:{CANONICAL_MARKET_FEED_PRICES_KEY}"
+    age_s = int(age_ms / 1000) if age_ms is not None else None
+    freshness_state = (
+        "MARKET_FEED_CURRENT"
+        if age_s is not None and age_s < 600
+        else "MARKET_FEED_STALE"
+    )
+    return {
+        "symbol": CANONICAL_MARKET_FEED_SYMBOL,
+        "price": price,
+        "source": source,
+        "source_pointer": source_pointer,
+        "last_event_at": last_event_at,
+        "age_seconds": age_s,
+        "freshness_state": freshness_state,
+    }
+
+
 def _compact_paper_runtime_contract(payload: dict[str, Any]) -> dict[str, Any]:
     compact: dict[str, Any] = {}
     for key, value in payload.items():
@@ -1519,6 +1588,40 @@ def _redis_trade_to_binance_recent_trade(row: Any) -> dict[str, Any] | None:
     }
 
 
+def _redis_funding_row_to_binance(row: Any, symbol: str) -> dict[str, Any] | None:
+    """Normalize a Redis funding row to the Binance /fapi/v1/fundingRate shape."""
+    if not isinstance(row, dict):
+        return None
+    rate = _float(
+        row.get("fundingRate")
+        if row.get("fundingRate") is not None
+        else row.get("funding_rate")
+        if row.get("funding_rate") is not None
+        else row.get("lastFundingRate")
+        if row.get("lastFundingRate") is not None
+        else row.get("last_funding_rate")
+        if row.get("last_funding_rate") is not None
+        else row.get("rate")
+    )
+    ts = _ms_from_any(
+        row.get("fundingTime")
+        or row.get("funding_time_ms")
+        or row.get("funding_time")
+        or row.get("settled_at_ms")
+        or row.get("time")
+        or row.get("event_time")
+        or row.get("generated_at")
+    )
+    if rate is None or ts is None:
+        return None
+    return {
+        "symbol": str(row.get("symbol") or symbol),
+        "fundingTime": ts,
+        "fundingRate": str(rate),
+        "markPrice": str(row.get("markPrice") or row.get("mark_price") or ""),
+    }
+
+
 def _binance_public_json_from_redis(path: str, params: dict[str, Any]) -> tuple[Any | None, str, str | None]:
     symbol = str(params.get("symbol") or "").upper()
     if path == "/fapi/v1/ticker/24hr" and symbol:
@@ -1578,6 +1681,36 @@ def _binance_public_json_from_redis(path: str, params: dict[str, Any]) -> tuple[
         payload = _redis_sync_get_json(f"v2:market:open_interest_hist:{symbol}:{params.get('period') or '5m'}")
         if isinstance(payload, list) and payload:
             return payload, f"redis:v2:market:open_interest_hist:{symbol}:{params.get('period') or '5m'}", "Binance open-interest history cache primary; REST not used"
+    if path == "/fapi/v1/fundingRate" and symbol:
+        # Funding-rate history was permanently "0 rows": no Redis handler
+        # existed for this path and live REST fallback is policy-blocked.
+        # Serve an ingested history family when present; otherwise surface at
+        # least the CURRENT funding-rate sample from the live mark-price feed
+        # (one real timestamped point, never fabricated history).
+        history = _redis_sync_get_json(f"v2:market:funding_history:{symbol}")
+        if isinstance(history, dict) and isinstance(history.get("rows"), list):
+            history = history.get("rows")
+        if isinstance(history, list) and history:
+            normalized_rows = [
+                converted
+                for row in history
+                if (converted := _redis_funding_row_to_binance(row, symbol)) is not None
+            ]
+            if normalized_rows:
+                return (
+                    normalized_rows,
+                    f"redis:v2:market:funding_history:{symbol}",
+                    "Funding-rate history cache primary; REST not used",
+                )
+        funding_now = _redis_sync_get_json(f"v2:market:funding:{symbol}")
+        if isinstance(funding_now, dict):
+            current_point = _redis_funding_row_to_binance(funding_now, symbol)
+            if current_point is not None:
+                return (
+                    [current_point],
+                    f"redis:v2:market:funding:{symbol}",
+                    "Funding history family not ingested yet; showing current live funding-rate sample only",
+                )
     if path == "/futures/data/globalLongShortAccountRatio" and symbol:
         payload = _redis_sync_get_json(f"v2:market:long_short:{symbol}")
         if isinstance(payload, dict):
@@ -4435,7 +4568,14 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                         _pcp = _float(ticker.get("priceChangePercent"))
                         row["change_24h"] = (_pcp / 100.0) if _pcp is not None else None
                     if row.get("volume_24h") is None:
-                        row["volume_24h"] = _float(ticker.get("quoteVolume") or ticker.get("volume"))
+                        # volume_24h is BASE-asset volume (coins), matching the
+                        # per-symbol endpoint. Quote-USD turnover already lives
+                        # in turnover_24h / volume_24h_quote_usd — mapping
+                        # quoteVolume here duplicated turnover into VOLUME.
+                        _base_vol = _float(ticker.get("volume"))
+                        row["volume_24h"] = (
+                            _base_vol if _base_vol is not None else _float(ticker.get("quoteVolume"))
+                        )
                     if row.get("high_24h") is None:
                         row["high_24h"] = _float(ticker.get("highPrice"))
                     if row.get("low_24h") is None:
@@ -4462,6 +4602,10 @@ def _enrich_overview_rows_from_redis(ticker_rows: list[dict[str, Any]]) -> None:
                             row["turnover_24h"] = _quote_24h
                         row["volume_24h_base"] = _base_24h
                         row["volume_24h_quote_usd"] = _quote_24h
+                        # Kline-builder rows carried the CURRENT 1m candle base
+                        # volume in volume_24h; repoint at the true 24h base.
+                        if _base_24h is not None:
+                            row["volume_24h"] = _base_24h
                 # Explicit unit-suffixed volume fields for REST-inventory rows,
                 # labeled from the row's own already-24h values.
                 if "display_only_current_candle" not in row:
@@ -5256,6 +5400,73 @@ def _parsed_liquidation_ladder(levels: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _trailing_change_from_1h_candles(
+    ohlcv_1h_raw: Any,
+    kline_current_payload: dict[str, Any] | None,
+    *,
+    hours: int,
+) -> float | None:
+    """Fraction change over the trailing N hours from ingested 1h candles.
+
+    Reference price is the close of the 1h candle nearest to (now - N hours,
+    tolerance 45 min); current price prefers the live 1m kline close, falling
+    back to the freshest closed 1h candle (must be < 2h old). Returns None
+    (honest null) when the series cannot support the horizon.
+    """
+    try:
+        if isinstance(ohlcv_1h_raw, bytes):
+            ohlcv_1h_raw = ohlcv_1h_raw.decode("utf-8", errors="replace")
+        rows = json.loads(str(ohlcv_1h_raw)) if ohlcv_1h_raw else None
+    except (TypeError, ValueError):
+        rows = None
+    if not isinstance(rows, list) or not rows:
+        return None
+    now_ms = time.time() * 1000.0
+    target_ms = now_ms - hours * 3_600_000.0
+    reference_close: float | None = None
+    best_diff_ms: float | None = None
+    freshest_close: float | None = None
+    freshest_close_time: float | None = None
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        close_time = _float(row.get("close_time"))
+        close = _float(row.get("close"))
+        if close_time is None or close is None or close <= 0:
+            continue
+        diff = abs(close_time - target_ms)
+        if best_diff_ms is None or diff < best_diff_ms:
+            best_diff_ms = diff
+            reference_close = close
+        if freshest_close_time is None or close_time > freshest_close_time:
+            freshest_close_time = close_time
+            freshest_close = close
+    if reference_close is None or best_diff_ms is None or best_diff_ms > 45 * 60_000:
+        return None
+    current_price: float | None = None
+    if isinstance(kline_current_payload, dict):
+        kline_close = _float(kline_current_payload.get("close"))
+        kline_event = _float(
+            kline_current_payload.get("event_time") or kline_current_payload.get("ingested_at")
+        )
+        if (
+            kline_close is not None
+            and kline_close > 0
+            and kline_event is not None
+            and now_ms - kline_event < 2 * 3_600_000.0
+        ):
+            current_price = kline_close
+    if current_price is None and (
+        freshest_close is not None
+        and freshest_close_time is not None
+        and now_ms - freshest_close_time < 2 * 3_600_000.0
+    ):
+        current_price = freshest_close
+    if current_price is None:
+        return None
+    return current_price / reference_close - 1.0
+
+
 def _market_detail_redis_enrichment(symbol: str) -> tuple[dict[str, Any], list[str]]:
     """Rich single-symbol Redis enrichment for the market detail contract.
 
@@ -5278,6 +5489,8 @@ def _market_detail_redis_enrichment(symbol: str) -> tuple[dict[str, Any], list[s
         f"v2:coinglass:funding:{symbol}",
         f"v2:market:funding:{symbol}",
         f"v2:regime:gate:{symbol}:1m",
+        f"v2:market:ohlcv:binance:{symbol}:1h",
+        f"v2:market:kline_current:binance:{symbol}:1m",
     ]
     try:
         pipe = redis_client.pipeline()
@@ -5296,7 +5509,17 @@ def _market_detail_redis_enrichment(symbol: str) -> tuple[dict[str, Any], list[s
         coinglass_funding_payload,
         funding_payload,
         regime_payload,
-    ) = [_json_dict_or_none(raw) for raw in raw_rows]
+    ) = [_json_dict_or_none(raw) for raw in raw_rows[:9]]
+    ohlcv_1h_raw = raw_rows[9] if len(raw_rows) > 9 else None
+    kline_current_payload = _json_dict_or_none(raw_rows[10]) if len(raw_rows) > 10 else None
+
+    # change_4h: trailing 4h price change from the ingested 1h candle series
+    # (was permanently null — the CoinGecko enrichment has no 4h horizon).
+    change_4h = _trailing_change_from_1h_candles(
+        ohlcv_1h_raw, kline_current_payload, hours=4
+    )
+    if change_4h is not None:
+        compact.setdefault("change_4h", change_4h)
 
     if isinstance(ta_payload, dict) and isinstance(ta_payload.get("indicators"), dict):
         compact["ta_1m"] = {
@@ -8486,6 +8709,18 @@ async def get_predictions_matrix(
             rows.append(_compact_prediction_row(sym, tf, payload))
         except Exception:
             continue
+
+    if not cache_hit and rows:
+        # Honest envelope freshness: stamp the matrix with the FRESHEST
+        # prediction's generated_at instead of request time, so stale trainer
+        # evidence (e.g. 71h-old predictions) renders a stale badge here just
+        # like /api/v2/trainer/summary — not a fake "Live" chip.
+        row_timestamps = [
+            row.get("generated_at")
+            for row in rows
+            if isinstance(row.get("generated_at"), str) and row.get("generated_at")
+        ]
+        matrix_timestamp = max(row_timestamps) if row_timestamps else None
 
     all_syms = sorted({r["symbol"] for r in rows})
     all_tfs = [tf for tf in ["1m", "5m", "15m", "1h", "4h"] if any(r["timeframe"] == tf for r in rows)]
@@ -12943,11 +13178,42 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                     t,
                     row_source="v2:paper:closed_trades",
                 ) if sym else _row_position_reasoning(t, source="v2:paper:closed_trades")
+                # Hold time: some writer rows carry hold_time_seconds=0 on
+                # multi-hour holds (e.g. TUSDT 19:24Z->22:48Z recorded as 0);
+                # recompute from the row's own timestamps when that happens.
+                # Those same rows can also carry a bogus entry_time equal to
+                # the exit moment, so fall back to decision_time when the
+                # entry-based duration is sub-second.
+                hold_time_seconds = t.get("hold_time_seconds")
+                if not hold_time_seconds:
+                    _exit_ts_ms = _ms_from_any(t.get("exit_time") or t.get("exit_price_utc"))
+                    for _entry_candidate in (t.get("entry_time"), t.get("decision_time")):
+                        _entry_ts_ms = _ms_from_any(_entry_candidate)
+                        if (
+                            _entry_ts_ms is not None
+                            and _exit_ts_ms is not None
+                            and _exit_ts_ms - _entry_ts_ms >= 1000
+                        ):
+                            hold_time_seconds = int((_exit_ts_ms - _entry_ts_ms) / 1000)
+                            break
                 trades.append({
                     "close_id": t.get("close_id"),
                     "position_id": t.get("position_id"),
                     "symbol": sym or t.get("symbol"),
                     "side": str(t.get("side", "")).upper(),
+                    # Quantity/notional existed in the Redis rows (closed_quantity,
+                    # order_size_usd) but were dropped by this projection, leaving
+                    # the QTY column permanently dashed.
+                    "quantity": (
+                        t.get("closed_quantity")
+                        if t.get("closed_quantity") is not None
+                        else t.get("quantity")
+                    ),
+                    "notional_usd": (
+                        t.get("gross_notional_usd")
+                        if t.get("gross_notional_usd") is not None
+                        else t.get("order_size_usd")
+                    ),
                     "entry_price": entry_price,
                     "entry_price_source": entry_price_source,
                     "exit_price": exit_price,
@@ -12959,7 +13225,9 @@ async def get_paper_status(actor: UserRecord | None = Depends(optional_auth)) ->
                     "realized_net_pnl_usd": t.get("realized_net_pnl_usd") if t.get("realized_net_pnl_usd") is not None else t.get("realized_net_pnl"),
                     "realized_pnl_bps": t.get("realized_pnl_bps"),
                     "close_reason": t.get("close_reason") or t.get("exit_reason"),
-                    "hold_time_seconds": t.get("hold_time_seconds"),
+                    "hold_time_seconds": hold_time_seconds,
+                    "decision_time": t.get("decision_time"),
+                    "entry_time": t.get("entry_time"),
                     "fees": t.get("fees"),
                     "slippage": t.get("slippage"),
                     "winner": t.get("winner"),
@@ -13432,23 +13700,17 @@ async def get_paper_runtime_status(
 
             hb = _read("v2:paper:heartbeat")
             tm = _read("v2:paper:trade_management:status")
-            # Market-feed truth for the runtime strip ("age not reported" fix).
-            _mkt_hb = _read("v2:market:coinapi:ohlcv:heartbeat")
-            _mkt_ts = _mkt_hb.get("finished_utc") or _mkt_hb.get("ts") or ""
-            _mkt_age_ms = _lag_ms(_mkt_ts or None)
-            _mkt_age_s = int(_mkt_age_ms / 1000) if _mkt_age_ms is not None else None
+            # Market-feed truth for the runtime strip: canonical binance feed,
+            # NOT the optional/retired CoinAPI heartbeat (false-staleness fix).
+            _canonical_feed = _canonical_market_feed_truth(client)
             _primary_market_feed = {
-                "symbol": (_mkt_hb.get("live_symbols") or ["BTCUSDT"])[0],
-                "source": _mkt_hb.get("source", "coinapi_rest"),
-                "source_pointer": "v2:market:coinapi:ohlcv:heartbeat",
-                "generated_at": _mkt_ts or now,
-                "last_event_at": _mkt_ts or None,
-                "age_seconds": _mkt_age_s,
-                "freshness_state": (
-                    "MARKET_FEED_CURRENT"
-                    if _mkt_age_s is not None and _mkt_age_s < 600
-                    else "MARKET_FEED_STALE"
-                ),
+                "symbol": _canonical_feed["symbol"],
+                "source": _canonical_feed["source"],
+                "source_pointer": _canonical_feed["source_pointer"],
+                "generated_at": _canonical_feed["last_event_at"] or now,
+                "last_event_at": _canonical_feed["last_event_at"],
+                "age_seconds": _canonical_feed["age_seconds"],
+                "freshness_state": _canonical_feed["freshness_state"],
             }
             _primary_trajectory_status, _ = _read_json(
                 "operator_runtime/v2_continuous_edge_guardian/latest/"
@@ -14051,23 +14313,19 @@ async def get_paper_runtime_status(
             hb_age = _lag_ms(hb_ts or None)
             heartbeat_fresh = hb_age is not None and hb_age < 900_000
 
-            market_hb_raw = client.get("v2:market:coinapi:ohlcv:heartbeat")
-            market_hb: dict[str, Any] = json.loads(market_hb_raw) if market_hb_raw else {}
-            market_ts = market_hb.get("finished_utc") or market_hb.get("ts") or ""
-            market_age_ms = _lag_ms(market_ts or None)
-            market_age_s = int(market_age_ms / 1000) if market_age_ms is not None else None
-            market_freshness_state = (
-                "MARKET_FEED_CURRENT"
-                if market_age_s is not None and market_age_s < 600
-                else "MARKET_FEED_STALE"
-            )
-            market_source = market_hb.get("source", "coinapi_rest")
-            if market_freshness_state != "MARKET_FEED_CURRENT" and "coinapi" in str(market_source).lower():
-                market_source = "coinapi_stale_or_unavailable_not_current_source"
-            coinapi_unusable_reason = _coinapi_provider_unusable_status(client, market_source)
-            if coinapi_unusable_reason:
-                market_source = "coinapi_provider_unusable_not_current_source"
-                market_freshness_state = "MARKET_FEED_PROVIDER_UNUSABLE_NOT_CURRENT"
+            # Canonical market-feed truth from the binance feed; the optional
+            # CoinAPI provider status is annotated separately (it must never
+            # brand the canonical feed stale — Codex reclassified CoinAPI as
+            # REQUIREMENT_OPTIONAL_ENRICHMENT / not-current-source).
+            canonical_feed = _canonical_market_feed_truth(client)
+            market_ts = canonical_feed["last_event_at"] or ""
+            market_age_s = canonical_feed["age_seconds"]
+            market_freshness_state = canonical_feed["freshness_state"]
+            market_source = canonical_feed["source"]
+            market_feed_price = canonical_feed["price"]
+            market_feed_symbol = canonical_feed["symbol"]
+            market_feed_pointer = canonical_feed["source_pointer"]
+            coinapi_unusable_reason = _coinapi_provider_unusable_status(client, "coinapi_rest")
 
             paper_event_count = int(
                 hb.get("paper_event_count")
@@ -15370,18 +15628,25 @@ async def get_paper_runtime_status(
                 "margin_mode_changes": False,
                 "redis_trim_approval_created": False,
                 "market_feed": {
-                    "symbol": market_hb.get("live_symbols", [None])[0] if market_hb.get("live_symbols") else "BTCUSDT",
-                    "price": None,
+                    "symbol": market_feed_symbol,
+                    "price": market_feed_price,
                     "source_type": "redis_live",
                     "source": market_source,
-                    "source_pointer": "v2:market:coinapi:ohlcv:heartbeat",
+                    "source_pointer": market_feed_pointer,
                     "generated_at": market_ts or now,
                     "last_event_at": market_ts or None,
                     "age_seconds": market_age_s,
                     "freshness_state": market_freshness_state,
-                    "provider_current": coinapi_unusable_reason is None,
-                    "provider_unusable_reason": coinapi_unusable_reason,
-                    "errors": [coinapi_unusable_reason] if coinapi_unusable_reason else [],
+                    "provider_current": market_freshness_state == "MARKET_FEED_CURRENT",
+                    "provider_unusable_reason": None,
+                    "errors": [],
+                    "optional_providers": {
+                        "coinapi": {
+                            "requirement_class": "REQUIREMENT_OPTIONAL_ENRICHMENT",
+                            "current_source": False,
+                            "provider_unusable_reason": coinapi_unusable_reason,
+                        }
+                    },
                 },
                 "paper_loop": {
                     "state": hb.get("cycle_state", "RUNNING_CYCLE"),
