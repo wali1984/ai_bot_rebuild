@@ -490,8 +490,12 @@ export const MERGED_LEGACY_PATHS: Record<string, string> = {
   // Orchestration consolidation
   '/admin/orchestrator': '/admin/orchestration',
   '/admin/orchestrator-admin': '/admin/orchestration',
-  '/admin/traders': '/admin/orchestration',
-  '/admin/strategy-admin': '/admin/orchestration',
+  // NOTE: '/admin/traders' must NOT appear here — it is owned by the
+  // 'strategy-admin' page module (PAGE_OVERRIDES['strategy-admin'].path). A
+  // redirect entry here shadows the page entirely because redirects are matched
+  // before page routes (same class of incident as '/trade/paper' below). The
+  // legacy '/admin/strategy-admin' alias points at that canonical page instead.
+  '/admin/strategy-admin': '/admin/traders',
 
   // Risk & Readiness consolidation
   '/admin/risk-control': '/admin/risk',
