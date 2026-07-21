@@ -17,15 +17,6 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-from v2.backend.app.services.altdata.canonical_confluence_consumer import (
-    CanonicalConfluenceContractError,
-    rebuild_canonical_confluence,
-)
-from v2.backend.app.services.altdata.provider_feature_bridge import (
-    load_coinglass_input,
-    load_moralis_input,
-)
-from v2.backend.app.services.market_data.current_price_resolver import resolve_current_price
 from v2.backend.app.services.strategy_supply.causal_native_ta import (
     load_causal_native_ta,
 )
@@ -154,6 +145,9 @@ def _optional_raw_input_source_keys(
         "trade_tape_confirmation": (
             f"v2:microstructure:trade_tape_confirmation:{symbol}",
         ),
+        "coinglass": (f"v2:features:coinglass:{symbol}:1m",),
+        "moralis": (f"v2:features:moralis:{symbol}:1m",),
+        "altdata_confluence": (f"v2:altdata:confluence:{symbol}:1m",),
     }
 
 
@@ -226,63 +220,23 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         symbol=symbol,
         timeframe=timeframe,
     )
-    # Moralis is a receipt-gated optional input.  Reading the raw Redis
-    # envelope here previously bypassed the canonical consumer boundary and
-    # allowed a legacy or forged ``features`` map to create paper hypotheses.
-    # The loader currently returns absent until an authenticated post-commit
-    # receipt verifier is implemented; when that boundary is released, this
-    # consumer will automatically receive only validated, fresh features.
-    moralis_input = load_moralis_input(client, symbol, "1m")
-    moralis_features = (
-        dict(moralis_input.features)
-        if moralis_input.present and not moralis_input.stale
-        else None
-    )
-    # CoinGlass uses the same fail-closed provider boundary.  The deployed v1
-    # aggregate lacks the exact schema and temporal contract required by this
-    # loader, so it remains optional/missing instead of creating hypotheses
-    # directly from unverified Redis bytes.  A fresh v2 payload carries its
-    # validated clocks into the feature hash for future causal audit.
-    coinglass_input = load_coinglass_input(client, symbol, "1m")
-    coinglass_context = (
-        {
-            "schema_version": "validated_provider_input_v1",
-            "provider": "coinglass",
-            "symbol": symbol,
-            "timeframe": "1m",
-            "feature_cutoff": coinglass_input.feature_cutoff,
-            "available_at": coinglass_input.available_at,
-            "generated_at": coinglass_input.generated_at,
-            "features": dict(coinglass_input.features),
-        }
-        if coinglass_input.present and not coinglass_input.stale
-        else None
-    )
-    # Never trust the cached composite envelope as an input to a paper-facing
-    # hypothesis.  Reconstruct it from the canonical provider loaders in this
-    # process so a writer that can mutate ``v2:altdata:confluence:*`` cannot
-    # manufacture a social/provider signal.  Optional provider absence is not
-    # a generator failure: the composite remains explicitly masked.
-    try:
-        rebuilt_confluence = rebuild_canonical_confluence(
-            client,
-            symbol=symbol,
-            timeframe="1m",
-        )
-    except CanonicalConfluenceContractError:
-        rebuilt_confluence = None
-    confluence_context = (
-        rebuilt_confluence
-        if isinstance(rebuilt_confluence, Mapping)
-        and rebuilt_confluence.get("actual_payload_present") is True
-        and rebuilt_confluence.get("decision_time_safe") is True
-        and rebuilt_confluence.get("reconstructed_from_canonical_provider_inputs")
-        is True
-        and rebuilt_confluence.get("cached_confluence_consumed") is False
+    # Provider payloads are optional, but optional does not mean
+    # unauthenticated.  CoinGlass, Moralis, and their confluence projection are
+    # masked until a resolver can verify the exact retained bytes and an
+    # independent post-commit receipt.  Strategy supply therefore makes no raw
+    # provider GET and keeps operating from the canonical closed-candle input.
+    reference_price_input = (
+        ta_context.get("reference_price_input")
+        if isinstance(ta_context, Mapping)
+        and isinstance(ta_context.get("reference_price_input"), Mapping)
         else None
     )
     return {
-        "price": resolve_current_price(client, symbol),
+        # Price and TA must share one exact closed-window read.  Falling back
+        # to mutable order-book, mark, trade, ticker, or compatibility keys
+        # would give the hypothesis two independently moving market states and
+        # would bypass the same retained-artifact boundary used for TA.
+        "price": reference_price_input,
         "ta": ta_context,
         "ta_input_status": ta_input_status,
         "ta_source_key": f"v2:market:ohlcv_closed:binance:{symbol}:{timeframe}",
@@ -295,9 +249,9 @@ def _context(client: Any, symbol: str, timeframe: str) -> dict[str, Any]:
         "liquidation_levels": None,
         "liquidation_levels_source": None,
         "sweep_risk": None,
-        "coinglass": coinglass_context,
-        "confluence": confluence_context,
-        "moralis": moralis_features,
+        "coinglass": None,
+        "confluence": None,
+        "moralis": None,
         "microstructure": None,
         "microstructure_trust": None,
         "microstructure_trust_source": None,
@@ -568,8 +522,51 @@ def _contract_base(
         "ta_cached_compatibility_consumed": False,
         "latest_feature_snapshot_consumed": False,
         "current_price": current_price,
+        "price_schema_version": (price_payload or {}).get("schema_version"),
         "price_source": (price_payload or {}).get("source"),
+        "price_source_ohlcv_key": (price_payload or {}).get("source_ohlcv_key"),
+        "price_source_exact_payload_sha256": (price_payload or {}).get(
+            "source_exact_payload_sha256"
+        ),
+        "price_source_exact_payload_byte_count": (price_payload or {}).get(
+            "source_exact_payload_byte_count"
+        ),
+        "price_selected_candle_id": (price_payload or {}).get(
+            "selected_candle_id"
+        ),
+        "price_selected_candle_raw_payload_hash": (price_payload or {}).get(
+            "selected_candle_raw_payload_hash"
+        ),
+        "price_selected_candle_open_ts_ms": (price_payload or {}).get(
+            "selected_candle_open_ts_ms"
+        ),
+        "price_selected_candle_close_ts_ms": (price_payload or {}).get(
+            "selected_candle_close_ts_ms"
+        ),
+        "price_selected_candle_event_time": (price_payload or {}).get(
+            "selected_candle_event_time"
+        ),
+        "price_selected_candle_ingested_at": (price_payload or {}).get(
+            "selected_candle_ingested_at"
+        ),
+        "price_selected_candle_available_at": (price_payload or {}).get(
+            "selected_candle_available_at"
+        ),
         "price_available_at": (price_payload or {}).get("available_at"),
+        "price_feature_cutoff": (price_payload or {}).get("feature_cutoff"),
+        "price_exact_binary_read_shared_with_ta": (price_payload or {}).get(
+            "exact_binary_read_shared_with_ta"
+        )
+        is True,
+        "price_second_source_read_performed": (price_payload or {}).get(
+            "second_price_source_read_performed"
+        )
+        is True,
+        "price_fallback_used": (price_payload or {}).get("fallback_used") is True,
+        "price_sizing_authority_granted": (price_payload or {}).get(
+            "sizing_authority_granted"
+        )
+        is True,
         "feature_vector_hash": feature_hash,
         "provider_features_used": _provider_features_used(ctx),
         "provider_feature_hashes": provider_hashes,

@@ -509,6 +509,72 @@ def test_feedback_redis_merge_quarantines_legacy_noncanonical_strategy_row() -> 
     assert retained == [unrelated]
 
 
+def test_feedback_redis_merge_removes_preexisting_canonical_shadow_row(
+    tmp_path: Path,
+) -> None:
+    pending_path = tmp_path / "strategy_supply_pending_evidence.jsonl"
+    matured_path = tmp_path / "strategy_supply_matured_evidence.jsonl"
+    rejected_path = tmp_path / "strategy_supply_rejected_evidence.jsonl"
+    _write_pending(pending_path, _pending_row())
+    maturation.mature_strategy_supply_feedback(
+        pending_path=pending_path,
+        matured_path=matured_path,
+        rejected_path=rejected_path,
+        redis_client=_exit_redis(),
+        now=datetime(2026, 6, 21, 12, 1, 2, tzinfo=timezone.utc),
+        publish_to_redis=False,
+    )
+    legacy = dict(
+        maturation.load_jsonl(matured_path)[0]["trainer_feedback_row"]
+    )
+    assert maturation.canonical_exit_lineage_rejection_reasons(legacy) == []
+    legacy.update(
+        {
+            "accepted_for_training": True,
+            "valid_for_training": True,
+            "trainer_consumable": True,
+            "reject_reasons": [],
+            "quarantine_reason": None,
+            "quarantine_reasons": [],
+        }
+    )
+    unrelated = {
+        "trainer_feedback_source": "OTHER_FEEDBACK_SOURCE",
+        "trainer_feedback_id": "other-1",
+    }
+    redis = FakeRedis(
+        {maturation.TRAINER_FEEDBACK_REDIS_KEY: [unrelated, legacy]}
+    )
+
+    added, quarantined = maturation.merge_feedback_rows_into_redis(redis, [])
+
+    assert added == 0
+    assert quarantined == 1
+    retained = json.loads(redis.payloads[maturation.TRAINER_FEEDBACK_REDIS_KEY])
+    assert retained == [unrelated]
+
+
+def test_feedback_redis_merge_rejects_incoming_forged_shadow_row() -> None:
+    forged = {
+        "trainer_feedback_source": maturation.FEEDBACK_SOURCE,
+        "trainer_feedback_id": "forged-shadow",
+        "accepted_for_training": True,
+        "valid_for_training": True,
+        "trainer_consumable": True,
+    }
+    redis = FakeRedis({maturation.TRAINER_FEEDBACK_REDIS_KEY: []})
+
+    added, quarantined = maturation.merge_feedback_rows_into_redis(
+        redis,
+        [forged],
+    )
+
+    assert added == 0
+    assert quarantined == 1
+    retained = json.loads(redis.payloads[maturation.TRAINER_FEEDBACK_REDIS_KEY])
+    assert retained == []
+
+
 def test_legacy_noncanonical_matured_row_does_not_block_canonical_repair(
     tmp_path: Path,
 ) -> None:

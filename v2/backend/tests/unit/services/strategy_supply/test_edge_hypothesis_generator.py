@@ -9,7 +9,6 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from v2.backend.app.services.altdata import canonical_confluence_consumer
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_rest,
 )
@@ -41,11 +40,6 @@ def _freeze_native_ta_test_clock(monkeypatch: pytest.MonkeyPatch):
     global _FROZEN_NATIVE_TA_NOW
     _FROZEN_NATIVE_TA_NOW = frozen
     monkeypatch.setattr(causal_native_ta, "_now", lambda: frozen)
-    monkeypatch.setattr(
-        canonical_confluence_consumer,
-        "_utc_now",
-        lambda: frozen,
-    )
     monkeypatch.setattr(edge_generator, "_utc_now", lambda: frozen_text)
     yield
     _FROZEN_NATIVE_TA_NOW = None
@@ -201,18 +195,21 @@ def test_price_missing_yields_exact_reason():
     assert rows[0]["places_real_order"] is False
 
 
-def test_atr_missing_yields_exact_reason():
+def test_mutable_price_alias_cannot_bypass_missing_canonical_window():
     keys = _base_keys()
     keys.pop("v2:market:ohlcv_closed:binance:BTCUSDT:1m")
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "closeTime": 4102444800000},
     }
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    assert rows[0]["why_rejected"] == "ATR_NOISE_MISSING_NO_STOP_BASIS"
+    client = FakeRedis(keys)
+
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
+
+    assert rows[0]["why_rejected"] == "PRICE_MISSING:NO_EXCHANGE_MARKET"
+    assert "v2:market:prices:BTCUSDT" not in client.read_keys
 
 
-def test_funding_squeeze_hypothesis_generated_with_usd_economics():
-    # Note: orderbook staleness depends on wall-clock; use rest fallback keys too.
+def test_canonical_closed_candle_hypotheses_include_usd_economics():
     keys = _base_keys()
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {"lastPrice": "60000", "bidPrice": "59997", "askPrice": "60003",
@@ -220,7 +217,7 @@ def test_funding_squeeze_hypothesis_generated_with_usd_economics():
     }
     rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
     families = {r["strategy_family"] for r in rows}
-    assert "funding_squeeze" in families or "long_short_imbalance_squeeze" in families
+    assert {"trend_continuation", "range_mean_reversion"} & families
     for row in rows:
         if row.get("side") is None:
             continue
@@ -251,14 +248,16 @@ def test_funding_squeeze_hypothesis_generated_with_usd_economics():
         assert row["loss_probability_calibration"]["allocator_grade_microstructure_required"] == 70.0
         assert row["approves_trade_alone"] is False
         assert "allocator" in row["must_pass_gates"]
-        # extreme positive funding => squeeze is short-side
-        if row["strategy_family"] == "funding_squeeze":
-            assert row["side"] == "short"
-            assert row["expected_move_bps"] < 0
-            assert row["expected_move_after_cost_bps"] < 0
-            assert row["expected_short_net_edge_bps"] > 0
-            assert row["short_expected_net_pnl_usd"] == row["expected_net_pnl_usd"]
-            assert row["expected_long_net_edge_bps"] is None
+        if row["side"] == "short":
+            assert row["expected_short_net_edge_bps"] is not None
+            assert row["short_expected_net_pnl_usd"] == row[
+                "expected_net_pnl_usd"
+            ]
+        if row["side"] == "long":
+            assert row["expected_long_net_edge_bps"] is not None
+            assert row["long_expected_net_pnl_usd"] == row[
+                "expected_net_pnl_usd"
+            ]
 
 
 def test_unverified_moralis_envelope_cannot_create_paper_hypothesis() -> None:
@@ -384,7 +383,7 @@ def test_adversarial_coinglass_v2_payload_is_rejected(
     assert all(row.get("coinglass_context") is not True for row in rows)
 
 
-def test_fresh_valid_coinglass_v2_payload_flows_to_strategy_supply() -> None:
+def test_fresh_valid_but_unreceipted_coinglass_v2_payload_stays_masked() -> None:
     keys = _base_keys()
     keys["v2:market:prices:BTCUSDT"] = {
         "ticker_24hr": {
@@ -396,17 +395,14 @@ def test_fresh_valid_coinglass_v2_payload_flows_to_strategy_supply() -> None:
     }
     keys["v2:features:coinglass:BTCUSDT:1m"] = _coinglass_v2_payload()
 
-    rows = generate_hypotheses(FakeRedis(keys), "BTCUSDT", "1m")
-    squeeze = next(
-        row
-        for row in rows
-        if row.get("strategy_family") == "long_short_imbalance_squeeze"
-    )
+    client = FakeRedis(keys)
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
 
-    assert squeeze["side"] == "short"
-    assert squeeze["coinglass_context"] is True
-    assert "coinglass" in squeeze["provider_features_used"]
-    assert "coinglass" in squeeze["provider_feature_hashes"]
+    assert rows
+    assert "v2:features:coinglass:BTCUSDT:1m" not in client.read_keys
+    assert all(row.get("coinglass_context") is not True for row in rows)
+    assert all("coinglass" not in row["provider_features_used"] for row in rows)
+    assert all("coinglass" not in row["provider_feature_hashes"] for row in rows)
 
 
 def test_forged_cached_confluence_cannot_create_strategy_hypothesis() -> None:
@@ -655,9 +651,7 @@ def test_unreceipted_optional_payload_cannot_create_strategy_family(
     assert all(optional_labels.isdisjoint(row["provider_feature_hashes"]) for row in rows)
 
 
-def test_optional_strategy_boundary_does_not_read_raw_compatibility_keys(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_optional_strategy_boundary_does_not_read_raw_compatibility_keys() -> None:
     keys = _base_keys()
     candidate_keys = edge_generator._optional_raw_input_source_keys(
         "BTCUSDT",
@@ -671,15 +665,6 @@ def test_optional_strategy_boundary_does_not_read_raw_compatibility_keys(
             "available_at": "2026-07-09T05:59:00Z",
             "feature_cutoff": "2026-07-09T05:58:00Z",
         }
-    monkeypatch.setattr(
-        edge_generator,
-        "resolve_current_price",
-        lambda _client, _symbol: {
-            "price": 60_000.0,
-            "source": "test_price_boundary",
-            "available_at": "2026-07-09T05:59:00Z",
-        },
-    )
     client = FakeRedis(keys)
 
     rows = generate_hypotheses(client, "BTCUSDT", "1m")
@@ -694,6 +679,67 @@ def test_optional_strategy_boundary_does_not_read_raw_compatibility_keys(
         is False
         for row in rows
     )
+
+
+def test_strategy_price_and_ta_share_one_exact_closed_window_read() -> None:
+    keys = _base_keys()
+    poison_price_keys = {
+        "v2:market:prices:BTCUSDT": {
+            "mark_price": 1.0,
+            "event_time": "2099-01-01T00:00:00Z",
+        },
+        "v2:market:mark_price:BTCUSDT": {
+            "mark_price": 2.0,
+            "available_at": "2099-01-01T00:00:00Z",
+        },
+        "v2:market:funding:BTCUSDT": {
+            "markPrice": 3.0,
+            "generated_at": "2099-01-01T00:00:00Z",
+        },
+        "v2:market:latest_trade:binance:BTCUSDT": {
+            "price": 4.0,
+            "event_time": "2099-01-01T00:00:00Z",
+        },
+        "v2:market:kline_current:binance:BTCUSDT:1m": {
+            "close": 5.0,
+            "close_time": "2099-01-01T00:00:00Z",
+        },
+        "v2:market:orderbook:binance:BTCUSDT": {
+            "bids": [["6", "1"]],
+            "asks": [["7", "1"]],
+            "available_at": "2099-01-01T00:00:00Z",
+        },
+    }
+    keys.update(poison_price_keys)
+    client = FakeRedis(keys)
+    canonical_key = "v2:market:ohlcv_closed:binance:BTCUSDT:1m"
+    canonical_bytes = keys[canonical_key]
+    assert isinstance(canonical_bytes, bytes)
+    selected = json.loads(canonical_bytes)[-1]
+
+    rows = generate_hypotheses(client, "BTCUSDT", "1m")
+
+    assert rows
+    assert client.read_keys.count(canonical_key) == 1
+    assert set(poison_price_keys).isdisjoint(client.read_keys)
+    for row in rows:
+        assert row["current_price"] == float(selected["close"])
+        assert row["price_source"] == (
+            "canonical_closed_ohlcv_latest_selected_candle"
+        )
+        assert row["price_source_ohlcv_key"] == canonical_key
+        assert row["price_source_exact_payload_sha256"] == hashlib.sha256(
+            canonical_bytes
+        ).hexdigest()
+        assert row["price_selected_candle_id"] == selected["candle_id"]
+        assert row["price_selected_candle_raw_payload_hash"] == selected[
+            "raw_payload_hash"
+        ]
+        assert row["price_exact_binary_read_shared_with_ta"] is True
+        assert row["price_second_source_read_performed"] is False
+        assert row["price_fallback_used"] is False
+        assert row["price_sizing_authority_granted"] is False
+        assert row["price_available_at"] <= row["decision_time"]
 
 
 def test_negative_economics_rejected_not_hidden():

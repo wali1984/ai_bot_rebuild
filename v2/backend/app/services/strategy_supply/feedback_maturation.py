@@ -1107,16 +1107,27 @@ def merge_feedback_rows_into_redis(
     existing_payload = read_redis_json(client, TRAINER_FEEDBACK_REDIS_KEY)
     raw_existing = list(existing_payload) if isinstance(existing_payload, list) else []
     existing: list[Any] = []
-    quarantined_noncanonical = 0
+    quarantined_shadow_rows = 0
     for item in raw_existing:
-        if (
-            isinstance(item, Mapping)
-            and item.get("trainer_feedback_source") == FEEDBACK_SOURCE
-            and canonical_exit_lineage_rejection_reasons(item)
-        ):
-            quarantined_noncanonical += 1
+        retained_item = item
+        if isinstance(item, Mapping) and item.get("trainer_feedback_source") == FEEDBACK_SOURCE:
+            # A canonical future label is still only research evidence. Re-run
+            # the complete boundary so legacy rows that once claimed
+            # trainer_consumable=true cannot remain in the authenticated
+            # trainer Redis lane merely because their exit label is sound.
+            normalized = trainer_feedback_row_for_publish(
+                {"trainer_feedback_row": item}
+            )
+            if normalized is None or normalized.get("trainer_consumable") is not True:
+                quarantined_shadow_rows += 1
+                continue
+            retained_item = normalized
+        if not isinstance(item, Mapping):
+            # Preserve unrelated legacy payload members; this function owns
+            # only strategy-supply rows and must not silently rewrite others.
+            existing.append(item)
             continue
-        existing.append(item)
+        existing.append(retained_item)
     seen = {
         str(item.get("trainer_feedback_id"))
         for item in existing
@@ -1124,15 +1135,24 @@ def merge_feedback_rows_into_redis(
     }
     added = 0
     for row in rows:
-        feedback_id = str(row.get("trainer_feedback_id") or "")
+        candidate = row
+        if row.get("trainer_feedback_source") == FEEDBACK_SOURCE:
+            normalized = trainer_feedback_row_for_publish(
+                {"trainer_feedback_row": row}
+            )
+            if normalized is None or normalized.get("trainer_consumable") is not True:
+                quarantined_shadow_rows += 1
+                continue
+            candidate = normalized
+        feedback_id = str(candidate.get("trainer_feedback_id") or "")
         if not feedback_id or feedback_id in seen:
             continue
-        existing.append(row)
+        existing.append(candidate)
         seen.add(feedback_id)
         added += 1
-    if added or quarantined_noncanonical:
+    if added or quarantined_shadow_rows:
         client.set(TRAINER_FEEDBACK_REDIS_KEY, json.dumps(existing, sort_keys=True))
-    return added, quarantined_noncanonical
+    return added, quarantined_shadow_rows
 
 
 def mature_strategy_supply_feedback(
@@ -1198,6 +1218,7 @@ def mature_strategy_supply_feedback(
         "existing_matured_trainer_feedback_rows_ready": len(feedback_rows),
         "trainer_feedback_rows_published_to_redis": 0,
         "noncanonical_existing_redis_feedback_rows_quarantined": 0,
+        "strategy_supply_shadow_redis_rows_quarantined": 0,
         "PPO_rows_consumed": 0,
         "MASA_rows_consumed": 0,
         "checkpoint_after_consumption": None,
@@ -1340,6 +1361,9 @@ def mature_strategy_supply_feedback(
         status[
             "noncanonical_existing_redis_feedback_rows_quarantined"
         ] = quarantined_count
+        status["strategy_supply_shadow_redis_rows_quarantined"] = (
+            quarantined_count
+        )
     if status_path is not None:
         status_path.parent.mkdir(parents=True, exist_ok=True)
         status_path.write_text(json.dumps(status, indent=2, sort_keys=True) + "\n")

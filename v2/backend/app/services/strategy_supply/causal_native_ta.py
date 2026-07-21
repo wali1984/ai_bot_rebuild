@@ -5,7 +5,8 @@ compatibility views: those documents intentionally carry
 ``consumer_eligible=false`` and have no post-commit availability receipt.
 This module instead performs one exact binary read of the canonical closed
 OHLCV window, validates its source ABI/finality/identity/continuity, and
-computes TA in the same process that will make the strategy decision.
+derives both TA and the strategy reference price from the same selected closed
+candle in the same process that will make the strategy decision.
 
 The returned mapping is scoped to this in-process strategy calculation.  It
 does not claim a Redis read receipt, immutable CAS capture, trainer admission,
@@ -34,6 +35,9 @@ from v2.backend.app.services.native_trainer.ohlcv_closed_window_schema import (
 
 STRATEGY_NATIVE_TA_SCHEMA_VERSION = "strategy_supply_native_closed_ta_v1"
 STRATEGY_NATIVE_TA_STATUS_SCHEMA_VERSION = "strategy_supply_native_closed_ta_status_v1"
+STRATEGY_REFERENCE_PRICE_SCHEMA_VERSION = (
+    "strategy_supply_closed_candle_reference_price_v1"
+)
 
 
 def _now() -> datetime:
@@ -79,6 +83,10 @@ def _masked_status(
         "latest_feature_snapshot_consumed": False,
         "zero_fill_used": False,
         "strategy_in_process_causal_input": False,
+        "reference_price_available": False,
+        "reference_price_source": None,
+        "reference_price_selected_candle_id": None,
+        "reference_price_selected_candle_raw_payload_hash": None,
         "redis_read_receipt_emitted": False,
         "immutable_cas_captured": False,
         "trainer_admission_granted": False,
@@ -219,6 +227,52 @@ def load_causal_native_ta(
 
     feature_cutoff = _epoch_ms_text(validated.latest_economic_close_time)
     source_available_at = _epoch_ms_text(validated.max_available_at)
+    selected_candle = validated.rows[-1]
+    reference_price = float(selected_candle.close)
+    if not math.isfinite(reference_price) or reference_price <= 0.0:
+        return None, _masked_status(
+            source_key=key,
+            reason="CANONICAL_SELECTED_CANDLE_REFERENCE_PRICE_INVALID",
+            read_observed_at=read_observed_text,
+        )
+    if (
+        candidate.get("latest_candle_id") != selected_candle.candle_id
+        or candidate.get("latest_candle_raw_payload_hash")
+        != selected_candle.raw_payload_hash
+    ):
+        return None, _masked_status(
+            source_key=key,
+            reason="REFERENCE_PRICE_TA_SELECTED_CANDLE_IDENTITY_MISMATCH",
+            read_observed_at=read_observed_text,
+        )
+    reference_price_input = {
+        "schema_version": STRATEGY_REFERENCE_PRICE_SCHEMA_VERSION,
+        "price": reference_price,
+        "source": "canonical_closed_ohlcv_latest_selected_candle",
+        "source_ohlcv_key": key,
+        "source_exact_payload_sha256": validated.exact_payload_sha256,
+        "source_exact_payload_byte_count": validated.exact_payload_byte_count,
+        "selected_candle_id": selected_candle.candle_id,
+        "selected_candle_raw_payload_hash": selected_candle.raw_payload_hash,
+        "selected_candle_open_ts_ms": selected_candle.candle_open_time,
+        "selected_candle_close_ts_ms": selected_candle.candle_close_time,
+        "selected_candle_event_time": _epoch_ms_text(selected_candle.event_time),
+        "selected_candle_ingested_at": _epoch_ms_text(selected_candle.ingested_at),
+        "selected_candle_available_at": _epoch_ms_text(selected_candle.available_at),
+        # The exact window cannot be consumed before every retained row in the
+        # validated artifact was available, even if the selected row itself
+        # arrived earlier.
+        "available_at": source_available_at,
+        "feature_cutoff": feature_cutoff,
+        "exact_binary_read_shared_with_ta": True,
+        "second_price_source_read_performed": False,
+        "fallback_used": False,
+        "sizing_authority_granted": False,
+        "consumer_eligible": False,
+        "trainer_consumable": False,
+        "trainer_admission_granted": False,
+        "live_execution_authorized": False,
+    }
     latest_completed_interval_valid_before = _epoch_ms_text(
         validated.latest_economic_close_time + duration_ms + 1
     )
@@ -244,6 +298,15 @@ def load_causal_native_ta(
         ),
         "latest_candle_id": candidate.get("latest_candle_id"),
         "latest_candle_raw_payload_hash": candidate.get("latest_candle_raw_payload_hash"),
+        "reference_price_input": reference_price_input,
+        "reference_price": reference_price,
+        "reference_price_source": reference_price_input["source"],
+        "reference_price_selected_candle_id": selected_candle.candle_id,
+        "reference_price_selected_candle_raw_payload_hash": (
+            selected_candle.raw_payload_hash
+        ),
+        "reference_price_exact_binary_read_shared_with_ta": True,
+        "reference_price_second_source_read_performed": False,
         "last_closed_candle_open_ts_ms": validated.rows[-1].candle_open_time,
         "last_closed_candle_close_ts_ms": validated.latest_economic_close_time,
         "candle_closed_confirmed": True,
@@ -255,6 +318,7 @@ def load_causal_native_ta(
         "latest_feature_snapshot_consumed": False,
         "zero_fill_used": False,
         "strategy_in_process_causal_input": True,
+        "reference_price_available": True,
         "consumer_scope": "strategy_supply_same_process_decision_only",
         "redis_read_receipt_emitted": False,
         "immutable_cas_captured": False,
@@ -292,6 +356,14 @@ def load_causal_native_ta(
         "rejection_reason": None,
         "source_ohlcv_key": key,
         "source_exact_payload_sha256": validated.exact_payload_sha256,
+        "reference_price_available": True,
+        "reference_price_source": reference_price_input["source"],
+        "reference_price_selected_candle_id": selected_candle.candle_id,
+        "reference_price_selected_candle_raw_payload_hash": (
+            selected_candle.raw_payload_hash
+        ),
+        "reference_price_exact_binary_read_shared_with_ta": True,
+        "reference_price_second_source_read_performed": False,
         "in_process_ta_content_sha256": semantic_content_sha256,
         "feature_cutoff": feature_cutoff,
         "source_available_at": source_available_at,

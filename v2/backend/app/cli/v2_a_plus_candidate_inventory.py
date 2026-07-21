@@ -15,22 +15,11 @@ import math
 import os
 import re
 from collections import Counter
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from v2.backend.app.domain.trainer_prediction_output import (
-    PREDICTION_DIRECTION_FLAT,
-    PREDICTION_DIRECTION_LONG,
-    PREDICTION_DIRECTION_SHORT,
-    PREDICTION_FRESHNESS_FRESH,
-    PREDICTION_FRESHNESS_MISSING,
-    PREDICTION_FRESHNESS_STALE,
-    TrainerPredictionRecord,
-)
 from v2.backend.app.services.allocator import build_allocator_simulation
-from v2.backend.app.services.orchestrator_decision import assemble_orchestrator_decision_record
 from v2.backend.app.services.paper_exploration import (
     PAPER_RISK_CONTROLLER_EXPLORATION_TIER,
     build_paper_exploration_exit_plan,
@@ -46,7 +35,6 @@ from v2.backend.app.services.paper_trade_management.entry_gate import (
     expected_move_after_cost_favorable_for_side,
 )
 from v2.backend.app.services.preemptive_edge_control import evaluate_candidate
-from v2.backend.app.services.risk_gateway import assemble_risk_decision_record
 
 
 SCHEMA_VERSION = "v2_a_plus_candidate_inventory_v1"
@@ -67,7 +55,6 @@ PAPER_PERFORMANCE_CIRCUIT_BREAKER_STATUS_KEY = (
 )
 PAPER_TRAINING_EVIDENCE_TTL_SECONDS = 30 * 24 * 60 * 60
 ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE = 70.0
-DEFAULT_ORCHESTRATOR_LOW_CONFIDENCE_THRESHOLD = 0.55
 PAPER_SIGNAL_STALE_SECONDS = 900
 PAPER_SIGNAL_ADAPTIVE_STALE_OPERATOR_MIN_SECONDS = 120
 PAPER_SIGNAL_ADAPTIVE_STALE_CANDLE_MULTIPLIER = 1
@@ -2137,12 +2124,62 @@ def _normalize_candidate(
         or "PAPER_RISK_CONTROLLER_EXPLORATION" in preemptive_context
         or "GUARDIAN_HALTED" in preemptive_context
     )
-    allocator_packet = build_allocator_simulation(
+    strategy_supply_observation = (
+        original_row.get("strategy_supply_hypothesis") is True
+    )
+    allocator_simulation_packet = build_allocator_simulation(
         original_row,
         prediction=prediction,
         generated_utc=generated_utc,
         recalculate_incomplete_existing_allocation=recalculate_incomplete_existing_allocation,
     )
+    allocator_packet = allocator_simulation_packet
+    if strategy_supply_observation:
+        allocator_simulation_packet = {
+            **allocator_simulation_packet,
+            "diagnostic_simulation_id": allocator_simulation_packet.get(
+                "allocator_decision_id"
+            ),
+            "allocator_decision_id": None,
+            "sizing_authority_granted": False,
+            "diagnostic_simulation_only": True,
+            "routes_to_live": False,
+            "places_real_order": False,
+        }
+        allocator_packet = {
+            "allocator_decision_id": None,
+            "allocator_decision": (
+                "BLOCK_STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED"
+            ),
+            "allocator_block_reasons": [
+                "STRATEGY_SUPPLY_OBSERVATION_NOT_CANONICAL_PREDICTION",
+                "STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED",
+            ],
+            "recommended_leverage": None,
+            "recommended_leverage_source": None,
+            "recommended_margin_mode": None,
+            "recommended_margin_mode_source": None,
+            "gross_notional_usd": None,
+            "target_notional_usd": None,
+            "target_notional_usdt": None,
+            "recommended_notional_usd": None,
+            "allocated_margin_usd": None,
+            "risk_budget_usd": None,
+            "max_loss_usd": None,
+            "expected_max_loss_usd": None,
+            "liquidation_buffer_usd": None,
+            "expected_liquidation_buffer_usd": None,
+            "liquidation_buffer_pct": None,
+            "maintenance_margin_usd": None,
+            "estimated_liquidation_price": None,
+            "distance_to_liquidation_usd": None,
+            "hedge_required": None,
+            "hedge_plan": None,
+            "signed_read_status": None,
+            "available_margin_usd": None,
+            "sizing_authority_granted": False,
+            "diagnostic_simulation_only": True,
+        }
     original_max_loss = _float(
         _first_present(
             original_row.get("expected_max_loss_usd"),
@@ -2157,7 +2194,7 @@ def _normalize_candidate(
     row = {
         **original_row,
         "allocation": allocator_packet,
-        "allocator_simulation": allocator_packet,
+        "allocator_simulation": allocator_simulation_packet,
         "allocator_decision_id": allocator_packet.get("allocator_decision_id"),
         "allocator_decision": allocator_packet.get("allocator_decision"),
         "allocator_block_reasons": allocator_packet.get("allocator_block_reasons") or allocator_packet.get("block_reasons") or [],
@@ -2359,6 +2396,15 @@ def _normalize_candidate(
         _lineage_value(row, prediction, "source_available_at"),
         _lineage_value(row, prediction, "available_at"),
     )
+    input_available_at = _first_present(
+        _lineage_value(row, prediction, "input_available_at"),
+        _lineage_value(row, prediction, "entry_input_available_at"),
+    )
+    if strategy_supply_observation:
+        # A strategy hypothesis can report when its inputs were available, but
+        # it has no retained-output availability until its owner emits and a
+        # consumer verifies an exact post-commit readback receipt.
+        available_at = None
     decision_time = _first_present(
         row.get("decision_time"),
         row.get("preemptive_decision_time"),
@@ -2625,7 +2671,32 @@ def _normalize_candidate(
     )
 
     normalized = {
-        "candidate_id": _first_present(row.get("candidate_id"), prediction.get("candidate_id"), prediction.get("decision_id"), _candidate_hash_basis(row, prediction)),
+        "candidate_id": (
+            None
+            if strategy_supply_observation
+            else _first_present(
+                row.get("candidate_id"),
+                prediction.get("candidate_id"),
+                prediction.get("decision_id"),
+                _candidate_hash_basis(row, prediction),
+            )
+        ),
+        "inventory_observation_id": (
+            "strategy_supply_observation:"
+            + str(
+                _first_present(
+                    row.get("strategy_supply_hypothesis_id"),
+                    prediction.get("strategy_supply_hypothesis_id"),
+                    row.get("hypothesis_id"),
+                    prediction.get("hypothesis_id"),
+                    row.get("strategy_id"),
+                    prediction.get("strategy_id"),
+                    "missing_hypothesis_id",
+                )
+            )
+            if strategy_supply_observation
+            else None
+        ),
         "symbol": _first_present(row.get("symbol"), prediction.get("symbol")),
         "timeframe": _first_present(row.get("timeframe"), prediction.get("timeframe")),
         "side": side,
@@ -2675,6 +2746,28 @@ def _normalize_candidate(
             prediction.get("strategy_supply_positive_net_usd"),
         ),
         "source_tier": _first_present(row.get("source_tier"), prediction.get("source_tier")),
+        "consumer_eligible": row.get("consumer_eligible") is True,
+        "trainer_consumable": row.get("trainer_consumable") is True,
+        "trainer_admission_granted": row.get("trainer_admission_granted") is True,
+        "output_postcommit_readback_receipt_emitted": (
+            row.get("output_postcommit_readback_receipt_emitted") is True
+        ),
+        "source_consumer_eligible_claim": row.get(
+            "source_consumer_eligible_claim"
+        ),
+        "source_trainer_consumable_claim": row.get(
+            "source_trainer_consumable_claim"
+        ),
+        "source_trainer_admission_claim": row.get(
+            "source_trainer_admission_claim"
+        ),
+        "source_output_postcommit_receipt_claim": row.get(
+            "source_output_postcommit_receipt_claim"
+        ),
+        "source_available_at_claim": row.get("source_available_at_claim"),
+        "source_feature_snapshot_id_claim": row.get(
+            "source_feature_snapshot_id_claim"
+        ),
         "source_runtime_key": _first_present(row.get("source_runtime_key"), prediction.get("redis_key")),
         "entry_feature_candle_closed_confirmed": _first_present(
             row.get("entry_feature_candle_closed_confirmed"),
@@ -2696,11 +2789,29 @@ def _normalize_candidate(
             row.get("ta_source_key"),
             prediction.get("ta_source_key"),
         ),
-        "prediction_id": _first_present(row.get("prediction_id"), prediction.get("prediction_id")),
-        "signal_id": _first_present(row.get("signal_id"), prediction.get("signal_id")),
-        "preemptive_decision_id": row.get("preemptive_decision_id"),
-        "trainer_prediction_id": prediction.get("prediction_id") or row.get("prediction_id"),
-        "feature_snapshot_id": feature_snapshot_id,
+        "prediction_id": (
+            None
+            if strategy_supply_observation
+            else _first_present(
+                row.get("prediction_id"), prediction.get("prediction_id")
+            )
+        ),
+        "signal_id": (
+            None
+            if strategy_supply_observation
+            else _first_present(row.get("signal_id"), prediction.get("signal_id"))
+        ),
+        "preemptive_decision_id": (
+            None if strategy_supply_observation else row.get("preemptive_decision_id")
+        ),
+        "trainer_prediction_id": (
+            None
+            if strategy_supply_observation
+            else prediction.get("prediction_id") or row.get("prediction_id")
+        ),
+        "feature_snapshot_id": (
+            None if strategy_supply_observation else feature_snapshot_id
+        ),
         "feature_vector_hash": feature_vector_hash,
         "provider_feature_hashes": _as_dict(
             _first_present(
@@ -2719,6 +2830,7 @@ def _normalize_candidate(
             )
         ),
         "feature_cutoff": feature_cutoff,
+        "input_available_at": input_available_at,
         "feature_available_at": available_at,
         "available_at": available_at,
         "decision_time": decision_time,
@@ -2844,6 +2956,19 @@ def _normalize_candidate(
         "allocator_block_reasons": _as_list(row.get("allocator_block_reasons")),
         "allocator_simulation_status": row.get("allocator_simulation_status") or allocator_packet.get("allocator_simulation_status"),
         "allocator_packet": allocator_packet,
+        "allocator_simulation_diagnostic": (
+            allocator_simulation_packet if strategy_supply_observation else None
+        ),
+        "sizing_authority_granted": (
+            not strategy_supply_observation
+            and row.get("sizing_authority_granted") is True
+        ),
+        "reference_notional_usd": _float(
+            _first_present(
+                row.get("reference_notional_usd"),
+                prediction.get("reference_notional_usd"),
+            )
+        ),
         "recommended_leverage": row.get("recommended_leverage"),
         "recommended_leverage_source": row.get("recommended_leverage_source"),
         "recommended_margin_mode": row.get("recommended_margin_mode"),
@@ -4230,139 +4355,6 @@ def _publish_materialization_queue(
     return status
 
 
-def _iso_to_epoch_ms(value: Any, *, fallback_utc: str) -> int:
-    stamp = _first_present(value, fallback_utc, _utc_now())
-    try:
-        parsed = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
-    except ValueError:
-        parsed = datetime.now(timezone.utc)
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return int(parsed.astimezone(timezone.utc).timestamp() * 1000)
-
-
-def _freshness_flag_for_projection(
-    prediction: Mapping[str, Any],
-    *,
-    generated_utc: str,
-) -> tuple[str, int | None]:
-    feature_cutoff = _first_present(prediction.get("feature_cutoff"), prediction.get("generated_at"))
-    decision_time = _first_present(prediction.get("decision_time"), prediction.get("generated_at"), generated_utc)
-    if not feature_cutoff or not decision_time:
-        return PREDICTION_FRESHNESS_MISSING, None
-    try:
-        cutoff_dt = datetime.fromisoformat(str(feature_cutoff).replace("Z", "+00:00"))
-        decision_dt = datetime.fromisoformat(str(decision_time).replace("Z", "+00:00"))
-    except ValueError:
-        return PREDICTION_FRESHNESS_MISSING, None
-    if cutoff_dt.tzinfo is None:
-        cutoff_dt = cutoff_dt.replace(tzinfo=timezone.utc)
-    if decision_dt.tzinfo is None:
-        decision_dt = decision_dt.replace(tzinfo=timezone.utc)
-    cutoff_dt = cutoff_dt.astimezone(timezone.utc)
-    decision_dt = decision_dt.astimezone(timezone.utc)
-    age_ms = max(0, int((decision_dt - cutoff_dt).total_seconds() * 1000))
-    if cutoff_dt > decision_dt:
-        return PREDICTION_FRESHNESS_STALE, age_ms
-    if age_ms > SESSION_MAX_PREDICTION_AGE_SECONDS * 1000:
-        return PREDICTION_FRESHNESS_STALE, age_ms
-    return PREDICTION_FRESHNESS_FRESH, age_ms
-
-
-def _strategy_supply_decision_projection(
-    prediction: Mapping[str, Any],
-    *,
-    generated_utc: str,
-) -> dict[str, Any]:
-    side = str(_first_present(prediction.get("selected_action"), prediction.get("side")) or "").lower()
-    if side == "long":
-        direction = PREDICTION_DIRECTION_LONG
-    elif side == "short":
-        direction = PREDICTION_DIRECTION_SHORT
-    else:
-        direction = PREDICTION_DIRECTION_FLAT
-    prediction_id = str(_first_present(prediction.get("prediction_id"), prediction.get("signal_id"), "strategy_supply_prediction"))
-    feature_hash = str(_first_present(prediction.get("feature_vector_hash"), prediction_id))
-    feature_snapshot_id = str(
-        _first_present(
-            prediction.get("feature_snapshot_id"),
-            prediction.get("entry_feature_snapshot_id"),
-            "snap_" + hashlib.sha256(feature_hash.encode("utf-8")).hexdigest()[:32],
-        )
-    )
-    confidence_calibrated = _float(prediction.get("confidence_calibrated"))
-    if confidence_calibrated is None:
-        confidence_calibrated = 0.0
-    confidence_calibrated = min(1.0, max(0.0, confidence_calibrated))
-    confidence_raw = _float(prediction.get("confidence_raw"))
-    if confidence_raw is None:
-        confidence_raw = confidence_calibrated
-    confidence_raw = min(1.0, max(0.0, confidence_raw))
-    freshness_flag, freshness_age_ms = _freshness_flag_for_projection(
-        prediction,
-        generated_utc=generated_utc,
-    )
-    feature_codes = tuple(
-        str(item)[:64]
-        for item in _as_list(prediction.get("source_labels"))
-        if str(item or "").strip()
-    )[:8]
-    if not feature_codes:
-        feature_codes = ("strategy_supply",)
-    record = TrainerPredictionRecord(
-        prediction_id=prediction_id,
-        feature_snapshot_id=feature_snapshot_id,
-        symbol=str(prediction.get("symbol") or "").upper(),
-        model_version="strategy_supply_dry_run_v1",
-        checkpoint_id="strategy_supply_hypothesis_engine",
-        prediction_ts_ms=_iso_to_epoch_ms(
-            _first_present(prediction.get("decision_time"), prediction.get("generated_at")),
-            fallback_utc=generated_utc,
-        ),
-        direction=direction,
-        confidence_raw=float(confidence_raw),
-        confidence_calibrated=float(confidence_calibrated),
-        worker_id="strategy_supply",
-        worker_health_status=str(prediction.get("worker_health_status") or "HEALTHY").upper(),
-        freshness_flag=freshness_flag,
-        source_freshness_age_ms=freshness_age_ms,
-        top_positive_feature_codes=feature_codes,
-        top_negative_feature_codes=(),
-    )
-    now_ms = _iso_to_epoch_ms(
-        _first_present(prediction.get("decision_time"), prediction.get("generated_at")),
-        fallback_utc=generated_utc,
-    )
-    orchestrator_record = assemble_orchestrator_decision_record(
-        prediction=record,
-        low_confidence_threshold=DEFAULT_ORCHESTRATOR_LOW_CONFIDENCE_THRESHOLD,
-        now_ms_clock=lambda: now_ms,
-    )
-    risk_record = assemble_risk_decision_record(
-        decision=orchestrator_record,
-        now_ms_clock=lambda: now_ms,
-    )
-    return {
-        "feature_snapshot_id": feature_snapshot_id,
-        "orchestrator_decision_id": orchestrator_record.decision_id,
-        "orchestrator_decision": orchestrator_record.decision_action,
-        "orchestrator_action": orchestrator_record.decision_action,
-        "orchestrator_decision_action": orchestrator_record.decision_action,
-        "orchestrator_reason_code": orchestrator_record.decision_reason_code,
-        "orchestrator_decision_reason_code": orchestrator_record.decision_reason_code,
-        "orchestrator_live_blocked": orchestrator_record.live_blocked,
-        "orchestrator_decision_record": asdict(orchestrator_record),
-        "risk_decision_id": risk_record.risk_decision_id,
-        "risk_decision": risk_record.risk_action,
-        "risk_action": risk_record.risk_action,
-        "risk_reason_code": risk_record.risk_reason_code,
-        "risk_live_blocked": risk_record.live_blocked,
-        "risk_decision_record": asdict(risk_record),
-        "risk_orchestrator_projection_source": "strategy_supply_inventory_dry_run",
-        "risk_orchestrator_projection_live_blocked": True,
-    }
-
-
 def _prediction_candidate(
     prediction: Mapping[str, Any],
     guardian: Mapping[str, Any] | None,
@@ -4571,9 +4563,11 @@ def build_inventory(
             _normalize_candidate(_with_price(dict(decision)), prediction=prediction, generated_utc=generated)
         )
 
-    # Strategy-supply hypotheses: positive-USD rule-based candidates that must
-    # still pass every gate (preemptive/risk/orchestrator/allocator). They can
-    # never shortcut to A+; missing bucket evidence keeps them honest.
+    # Strategy-supply hypotheses are observations, not prediction, sizing,
+    # risk, or orchestration authority.  Inventory preserves their exact
+    # fields and denial flags without manufacturing clocks, IDs, notionals, or
+    # dry-run PASS records.  A later canonical producer may separately emit
+    # authenticated prediction/decision records through their owned keys.
     hypothesis_keys: list[str] = []
     try:
         for key in client.scan_iter(match="v2:strategy_supply:hypotheses:*", count=500):
@@ -4587,8 +4581,7 @@ def build_inventory(
         for hyp in _as_list(payload.get("rows")):
             if not isinstance(hyp, Mapping) or not hyp.get("side"):
                 continue
-            entry_zone = _as_dict(hyp.get("entry_zone"))
-            notional = _float(hyp.get("reference_notional_usd")) or 200.0
+            reference_notional = _float(hyp.get("reference_notional_usd"))
             net_usd = _float(hyp.get("expected_net_pnl_usd"))
             supply_stage_rejected_reason = str(hyp.get("why_rejected") or "").strip() or None
             if supply_stage_rejected_reason and (net_usd is None or net_usd <= 0.0):
@@ -4596,10 +4589,11 @@ def build_inventory(
             target_move_bps = _float(hyp.get("debug_target_move_bps"))
             stop_move_bps = _float(hyp.get("debug_stop_move_bps"))
             hypothesis_side = str(hyp.get("side") or "").strip().lower()
-            cost_bps = (
-                _float(hyp.get("debug_cost_bps"))
-                or _float(hyp.get("debug_round_trip_cost_bps"))
-                or 10.0
+            cost_bps = _float(
+                _first_present(
+                    hyp.get("debug_cost_bps"),
+                    hyp.get("debug_round_trip_cost_bps"),
+                )
             )
             selected_side_net_edge_bps = _float(
                 _first_present(
@@ -4608,7 +4602,11 @@ def build_inventory(
                     hyp.get(f"{hypothesis_side}_expected_net_edge_bps"),
                 )
             )
-            if selected_side_net_edge_bps is None and target_move_bps is not None:
+            if (
+                selected_side_net_edge_bps is None
+                and target_move_bps is not None
+                and cost_bps is not None
+            ):
                 selected_side_net_edge_bps = target_move_bps - cost_bps
             signed_expected_move_bps = _float(hyp.get("expected_move_bps"))
             if signed_expected_move_bps is None and target_move_bps is not None:
@@ -4699,12 +4697,27 @@ def build_inventory(
                 "strategy_supply_hypothesis_id": hyp.get("hypothesis_id") or hyp.get("strategy_id"),
                 "symbol": hyp.get("symbol"),
                 "timeframe": hyp.get("timeframe"),
-                "generated_at": hyp.get("generated_utc"),
-                "decision_time": hyp.get("generated_utc"),
-                "available_at": _first_present(
-                    entry_zone.get("available_at"),
-                    hyp.get("available_at"),
-                    hyp.get("generated_utc"),
+                "generated_at": _first_present(
+                    hyp.get("generated_at"), hyp.get("generated_utc")
+                ),
+                "decision_time": hyp.get("decision_time"),
+                # This projection has no output availability authority. Keep
+                # any producer assertion as a claim and expose no effective
+                # available_at until an exact readback receipt is verified.
+                "available_at": None,
+                "source_available_at_claim": hyp.get("available_at"),
+                "input_available_at": hyp.get("input_available_at"),
+                "feature_cutoff": hyp.get("feature_cutoff"),
+                "output_postcommit_readback_receipt_emitted": hyp.get(
+                    "output_postcommit_readback_receipt_emitted"
+                ),
+                "consumer_eligible": hyp.get("consumer_eligible"),
+                "trainer_consumable": hyp.get("trainer_consumable"),
+                "trainer_admission_granted": hyp.get(
+                    "trainer_admission_granted"
+                ),
+                "price_sizing_authority_granted": hyp.get(
+                    "price_sizing_authority_granted"
                 ),
                 "selected_action": hyp.get("side"),
                 "confidence_raw": max(0.0, 1.0 - (_float(hyp.get("loss_probability")) or 1.0)),
@@ -4718,9 +4731,10 @@ def build_inventory(
                 "expected_slippage_bps": _float(hyp.get("debug_slippage_bps")) or 5.4,
                 "fee_bps": _float(hyp.get("debug_fee_bps")) or 4.0,
                 "funding_bps": _float(hyp.get("debug_funding_bps")) or 0.0,
-                "gross_notional_usd": notional,
-                "target_notional_usd": notional,
-                "notional_usd": notional,
+                "reference_notional_usd": reference_notional,
+                "gross_notional_usd": None,
+                "target_notional_usd": None,
+                "notional_usd": None,
                 "expected_net_pnl_usd": net_usd,
                 "expected_gross_pnl_usd": _float(hyp.get("expected_gross_pnl_usd")),
                 "expected_cost_usd": _float(hyp.get("expected_cost_usd")),
@@ -4758,12 +4772,18 @@ def build_inventory(
                 "short_expected_max_loss_usd": _float(hyp.get("expected_max_loss_usd")) if hypothesis_side == "short" else None,
                 "long_loss_probability": _float(hyp.get("loss_probability")) if hypothesis_side == "long" else None,
                 "short_loss_probability": _float(hyp.get("loss_probability")) if hypothesis_side == "short" else None,
-                "current_price": _float(entry_zone.get("price")),
-                "entry_price": _float(entry_zone.get("price")),
-                "price_source": _first_present(entry_zone.get("source"), hyp.get("price_source"), "strategy_supply_entry_zone"),
-                "price_available_at": _first_present(entry_zone.get("available_at"), hyp.get("generated_utc")),
-                "current_price_can_size_trade": True,
-                "can_size_trade": True,
+                "current_price": _float(hyp.get("current_price")),
+                "entry_price": _float(hyp.get("current_price")),
+                "price_source": hyp.get("price_source"),
+                "price_available_at": hyp.get("price_available_at"),
+                "current_price_can_size_trade": (
+                    hyp.get("price_sizing_authority_granted") is True
+                    and hyp.get("consumer_eligible") is True
+                ),
+                "can_size_trade": (
+                    hyp.get("price_sizing_authority_granted") is True
+                    and hyp.get("consumer_eligible") is True
+                ),
                 "liquidity_exit_depth": _float(hyp.get("expected_exit_depth_usd")),
                 "orderbook_depth_usd": _float(hyp.get("expected_exit_depth_usd")),
                 "exit_feasible": hyp.get("exit_feasible"),
@@ -4773,8 +4793,7 @@ def build_inventory(
                 "market_state_integrity_score": hypothesis_market_state_integrity,
                 "market_state_integrity_minimum_score": _float(
                     hyp.get("market_state_integrity_minimum_score")
-                )
-                or ALLOCATOR_MARKET_STATE_INTEGRITY_MIN_SCORE,
+                ),
                 "market_state_integrity_source": hyp.get("market_state_integrity_source"),
                 "trade_tape_confirmation_score": _float(hyp.get("trade_tape_confirmation_score")),
                 "advanced_indicator_context": advanced_context,
@@ -4819,17 +4838,8 @@ def build_inventory(
                     "last_closed_candle_close_ts_ms"
                 ),
                 "ta_source_key": hyp.get("ta_source_key"),
-                # Lineage: the hypothesis was built from live Redis context at
-                # generated_utc; its hash binds this exact row content.
-                "feature_cutoff": hyp.get("generated_utc"),
-                "feature_snapshot_id": "snap_"
-                + hashlib.sha256(
-                    json.dumps(dict(hyp), sort_keys=True, default=str).encode("utf-8")
-                ).hexdigest()[:32],
-                "feature_vector_hash": "strategy_supply_"
-                + hashlib.sha256(
-                    json.dumps(dict(hyp), sort_keys=True, default=str).encode("utf-8")
-                ).hexdigest()[:32],
+                "feature_snapshot_id": hyp.get("feature_snapshot_id"),
+                "feature_vector_hash": hyp.get("feature_vector_hash"),
             }
             preemptive_prediction = dict(pseudo_prediction)
             preemptive_prediction["expected_move_bps"] = preemptive_expected_move_bps
@@ -4954,19 +4964,95 @@ def build_inventory(
                     and value is not None
                 }
             )
-            try:
-                decision.update(
-                    _strategy_supply_decision_projection(
-                        pseudo_prediction,
-                        generated_utc=generated,
-                    )
+            authority_reasons = list(
+                decision.get("preemptive_decision_reasons") or []
+            )
+            authority_reasons.extend(
+                (
+                    "STRATEGY_SUPPLY_OBSERVATION_NOT_CANONICAL_PREDICTION",
+                    "STRATEGY_SUPPLY_OUTPUT_POSTCOMMIT_RECEIPT_MISSING",
+                    "STRATEGY_SUPPLY_CONSUMER_AUTHORITY_DENIED",
+                    "STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED",
                 )
-            except Exception as exc:
-                reasons = list(decision.get("preemptive_decision_reasons") or [])
-                reasons.append(f"RISK_ORCHESTRATOR_DRY_RUN_PROJECTION_FAILED:{type(exc).__name__}")
-                decision["preemptive_decision_reasons"] = reasons
-                decision["risk_orchestrator_projection_source"] = "strategy_supply_inventory_dry_run"
-                decision["risk_orchestrator_projection_error"] = type(exc).__name__
+            )
+            decision.update(
+                {
+                    "preemptive_decision": "NO_TRADE",
+                    "preemptive_action": "HOLD_STRATEGY_SUPPLY_AUTHORITY_DENIED",
+                    "preemptive_decision_reasons": list(
+                        dict.fromkeys(
+                            str(reason) for reason in authority_reasons if reason
+                        )
+                    ),
+                    "preemptive_block_reasons": list(
+                        dict.fromkeys(
+                            str(reason) for reason in authority_reasons if reason
+                        )
+                    ),
+                    "block_reasons": list(
+                        dict.fromkeys(
+                            str(reason) for reason in authority_reasons if reason
+                        )
+                    ),
+                    "preemptive_decision_time": None,
+                    "decision_time": hyp.get("decision_time"),
+                    "source_decision_time": hyp.get("decision_time"),
+                    "feature_snapshot_id": None,
+                    "orchestrator_decision_id": None,
+                    "orchestrator_decision": "BLOCKED",
+                    "orchestrator_action": "hold",
+                    "orchestrator_reason_code": (
+                        "deny_strategy_supply_not_canonical_prediction"
+                    ),
+                    "orchestrator_live_blocked": True,
+                    "orchestrator_decision_record": None,
+                    "risk_decision_id": None,
+                    "risk_decision": "DENY",
+                    "risk_action": "deny",
+                    "risk_reason_code": (
+                        "deny_strategy_supply_canonical_decision_missing"
+                    ),
+                    "risk_live_blocked": True,
+                    "risk_decision_record": None,
+                    "allocator_decision": (
+                        "BLOCK_STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED"
+                    ),
+                    "risk_orchestrator_projection_source": (
+                        "NOT_PERFORMED_INVENTORY_OBSERVES_CANONICAL_RECORDS_ONLY"
+                    ),
+                    "risk_orchestrator_projection_live_blocked": True,
+                    "risk_orchestrator_projection_error": None,
+                    "source_consumer_eligible_claim": hyp.get(
+                        "consumer_eligible"
+                    ),
+                    "source_trainer_consumable_claim": hyp.get(
+                        "trainer_consumable"
+                    ),
+                    "source_trainer_admission_claim": hyp.get(
+                        "trainer_admission_granted"
+                    ),
+                    "source_output_postcommit_receipt_claim": hyp.get(
+                        "output_postcommit_readback_receipt_emitted"
+                    ),
+                    "source_available_at_claim": hyp.get("available_at"),
+                    "source_feature_snapshot_id_claim": hyp.get(
+                        "feature_snapshot_id"
+                    ),
+                    "consumer_eligible": False,
+                    "trainer_consumable": False,
+                    "trainer_admission_granted": False,
+                    "output_postcommit_readback_receipt_emitted": False,
+                    "available_at": None,
+                    "feature_available_at": None,
+                    "source_available_at": None,
+                    "sizing_authority_granted": False,
+                    "current_price_can_size_trade": False,
+                    "can_size_trade": False,
+                    "gross_notional_usd": None,
+                    "target_notional_usd": None,
+                    "notional_usd": None,
+                }
+            )
             normalized.append(
                 _normalize_candidate(
                     _with_price(dict(decision)),

@@ -208,9 +208,16 @@ def _generator_failure_row(symbol: str, timeframe: str, generated_utc: str, exc:
         "strategy_subtype": "degraded_strategy_generator_failure",
         "generated_utc": generated_utc,
         "generated_at": generated_utc,
-        "feature_cutoff": generated_utc,
-        "decision_time": generated_utc,
-        "available_at": generated_utc,
+        "failure_observed_at": generated_utc,
+        # A caught exception does not create market evidence, a feature
+        # cutoff, or a strategy decision.  The row is not available as a
+        # retained output until a post-commit readback receipt exists.
+        "feature_cutoff": None,
+        "decision_time": None,
+        "available_at": None,
+        "input_available_at": None,
+        "output_postcommit_readback_receipt_emitted": False,
+        "output_available_at_unavailable_until_postcommit_receipt": True,
         "expected_gross_pnl_usd": None,
         "expected_cost_usd": None,
         "expected_net_pnl_usd": None,
@@ -233,6 +240,12 @@ def _generator_failure_row(symbol: str, timeframe: str, generated_utc: str, exc:
         "routes_to_live": False,
         "counts_as_a_plus": False,
         "counts_as_live_ready": False,
+        "counts_as_final_a_plus": False,
+        "consumer_eligible": False,
+        "trainer_consumable": False,
+        "trainer_admission_granted": False,
+        "paper_only": True,
+        "live_execution_authorized": False,
     }
 
 

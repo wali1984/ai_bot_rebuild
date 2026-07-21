@@ -227,6 +227,7 @@ def _install_canonical_decision_records(
 class StrategySupplyRedis(FakeRedis):
     def __init__(self) -> None:
         super().__init__()
+        decision_time = _now_iso()
         self.data["v2:continuous_edge_guardian:a_grade_execution_gate"] = {
             "status": "ACTIVE",
             "a_grade_new_entries_allowed": True,
@@ -242,7 +243,23 @@ class StrategySupplyRedis(FakeRedis):
                     "symbol": "BTCUSDT",
                     "timeframe": "1m",
                     "side": "short",
-                    "generated_utc": _now_iso(),
+                    "generated_utc": decision_time,
+                    "generated_at": decision_time,
+                    "decision_time": decision_time,
+                    "feature_cutoff": _past_iso(minutes=1),
+                    "input_available_at": _past_iso(minutes=1),
+                    "available_at": None,
+                    "output_postcommit_readback_receipt_emitted": False,
+                    "consumer_eligible": False,
+                    "trainer_consumable": False,
+                    "trainer_admission_granted": False,
+                    "price_sizing_authority_granted": False,
+                    "current_price": 65000.0,
+                    "price_source": (
+                        "canonical_closed_ohlcv_latest_selected_candle"
+                    ),
+                    "price_available_at": _past_iso(minutes=1),
+                    "feature_vector_hash": "strategy_supply_exact-hypothesis-hash",
                     "entry_zone": {
                         "price": 65000.0,
                         "source": "binance_usdm_wss_orderbook_top",
@@ -1638,17 +1655,33 @@ def test_counts_as_final_a_plus_false_blocks_a_plus_governance(tmp_path: Path) -
     assert result["summary"]["exact_no_A_plus_reason"]
 
 
-def test_strategy_supply_hypothesis_preserves_positive_usd_economics(tmp_path: Path) -> None:
+def test_strategy_supply_hypothesis_preserves_research_economics_without_authority(
+    tmp_path: Path,
+) -> None:
     result = build_inventory(client=StrategySupplyRedis(), output_dir=tmp_path, max_prediction_keys=20)
 
-    row = next(row for row in result["rows"] if row.get("prediction_id") == "hyp-test-positive-usd")
+    row = next(
+        row
+        for row in result["rows"]
+        if row.get("strategy_supply_hypothesis_id") == "hyp-test-positive-usd"
+    )
     assert row["strategy_supply_hypothesis"] is True
     assert row["strategy_supply_hypothesis_id"] == "hyp-test-positive-usd"
+    assert row["inventory_observation_id"] == (
+        "strategy_supply_observation:hyp-test-positive-usd"
+    )
+    assert row["candidate_id"] is None
+    assert row["prediction_id"] is None
+    assert row["trainer_prediction_id"] is None
+    assert row["signal_id"] is None
+    assert row["preemptive_decision_id"] is None
+    assert row["feature_snapshot_id"] is None
     assert row["strategy_family"] == "funding_squeeze"
     assert row["strategy_selected_mode"] == "funding_squeeze"
     assert row["source_tier"] == "STRATEGY_SUPPLY_HYPOTHESIS"
-    assert row["gross_notional_usd"] > 0.0
-    assert row["target_notional_usd"] > 0.0
+    assert row["reference_notional_usd"] == 200.0
+    assert row["gross_notional_usd"] is None
+    assert row["target_notional_usd"] is None
     assert row["expected_gross_pnl_usd"] == 4.0
     assert row["expected_cost_usd"] == 0.32
     assert row["expected_net_pnl_usd"] > 0.0
@@ -1672,7 +1705,9 @@ def test_strategy_supply_hypothesis_preserves_positive_usd_economics(tmp_path: P
     assert row["microstructure_trust_score"] == 0.91
     assert row["market_state_integrity_score"] == 91.0
     assert row["market_state_integrity_minimum_score"] == 70.0
-    assert row["allocator_packet"]["market_state_integrity_score"] == 91.0
+    assert row["allocator_packet"]["diagnostic_simulation_only"] is True
+    assert row["allocator_simulation_diagnostic"]["decision"] == "REJECT"
+    assert row["allocator_simulation_diagnostic"]["live_ready"] is False
     assert row["trade_tape_confirmation_score"] == 0.88
     assert row["expected_exit_depth_usd"] == 25000.0
     assert row["exit_feasible"] is True
@@ -1680,34 +1715,129 @@ def test_strategy_supply_hypothesis_preserves_positive_usd_economics(tmp_path: P
     assert row["microstructure_features_present"] is True
     assert "FEATURE_COVERAGE_MICROSTRUCTURE_MISSING" not in row["block_reasons"]
     assert "GUARDIAN_HALTED_OR_MISSING" not in row["block_reasons"]
-    assert row["orchestrator_decision"] == "PASS"
-    assert row["orchestrator_action"] == "open_short"
-    assert row["orchestrator_decision_id"] == "dec_hyp-test-positive-usd"
+    assert row["orchestrator_decision"] == "BLOCKED"
+    assert row["orchestrator_action"] == "hold"
+    assert row["orchestrator_decision_id"] is None
     assert row["orchestrator_live_blocked"] is True
-    assert row["risk_decision"] == "PASS"
-    assert row["risk_action"] == "allow"
-    assert row["risk_decision_id"] == "rd_dec_hyp-test-positive-usd"
+    assert row["risk_decision"] == "BLOCKED"
+    assert row["risk_action"] == "deny"
+    assert row["risk_decision_id"] is None
     assert row["risk_live_blocked"] is True
-    assert row["risk_orchestrator_projection_source"] == "strategy_supply_inventory_dry_run"
+    assert row["risk_orchestrator_projection_source"] == (
+        "NOT_PERFORMED_INVENTORY_OBSERVES_CANONICAL_RECORDS_ONLY"
+    )
     assert row["risk_orchestrator_projection_live_blocked"] is True
-    assert "RISK_GATEWAY_NOT_PASS" not in row["block_reasons"]
-    assert "ORCHESTRATOR_NOT_PASS" not in row["block_reasons"]
-    assert "ALLOCATOR_TARGET_NOTIONAL_USD_NON_POSITIVE" not in row["allocator_block_reasons"]
+    assert "STRATEGY_SUPPLY_CONSUMER_AUTHORITY_DENIED" in row[
+        "block_reasons"
+    ]
+    assert "STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED" in row["block_reasons"]
+    assert "RISK_GATEWAY_NOT_PASS" in row["block_reasons"]
+    assert "ORCHESTRATOR_NOT_PASS" in row["block_reasons"]
+    assert row["recommended_leverage"] is None
+    assert row["recommended_margin_mode"] is None
+    assert row["sizing_authority_granted"] is False
+    assert row["consumer_eligible"] is False
+    assert row["trainer_consumable"] is False
+    assert row["trainer_admission_granted"] is False
+    assert row["output_postcommit_readback_receipt_emitted"] is False
+    assert row["input_available_at"] is not None
+    assert row["available_at"] is None
+    assert row["feature_available_at"] is None
+    assert row["paper_exploration_paper_fill_allowed"] is False
+    assert row["A_plus_candidate"] is False
     assert row["provider_feature_hashes"] == {
         "coinglass": "hash-coinglass",
         "coinank": "hash-coinank",
     }
     assert row["source_hashes"] == row["provider_feature_hashes"]
-    queue_row = _build_materialization_queue_row(row, accepted_at=_now_iso())
-    assert queue_row["pre_trade_loss_probability"] == 0.35
-    assert queue_row["loss_probability_reason"] == "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY"
-    assert queue_row["loss_probability_reasons"] == [
-        "STRATEGY_SUPPLY_CALIBRATED_LOSS_PROBABILITY",
-        "CALIBRATION_PENALTY:microstructure_trust_below_allocator_minimum",
-    ]
-    assert queue_row["paper_signal"]["loss_probability_calibration"][
-        "adjusted_loss_probability"
-    ] == 0.35
+
+
+def test_forged_strategy_supply_authority_claims_remain_observation_only(
+    tmp_path: Path,
+) -> None:
+    client = StrategySupplyRedis()
+    hypothesis = client.data[
+        "v2:strategy_supply:hypotheses:BTCUSDT:1m"
+    ]["rows"][0]
+    hypothesis.update(
+        {
+            "consumer_eligible": True,
+            "trainer_consumable": True,
+            "trainer_admission_granted": True,
+            "output_postcommit_readback_receipt_emitted": True,
+            "price_sizing_authority_granted": True,
+            "sizing_authority_granted": True,
+            "feature_snapshot_id": "forged-snapshot",
+            "available_at": hypothesis["decision_time"],
+            "candidate_id": "forged-candidate",
+            "prediction_id": "forged-prediction",
+            "signal_id": "forged-signal",
+            "preemptive_decision_id": "forged-preemptive",
+            "risk_decision_id": "forged-risk",
+            "risk_decision": "PASS",
+            "orchestrator_decision_id": "forged-orchestrator",
+            "orchestrator_decision": "PASS",
+            "allocator_decision_id": "forged-allocator",
+            "allocator_decision": "PASS",
+            "gross_notional_usd": 999_999.0,
+            "target_notional_usd": 999_999.0,
+            "recommended_leverage": 50.0,
+            "recommended_margin_mode": "cross",
+        }
+    )
+
+    result = build_inventory(
+        client=client,
+        output_dir=tmp_path,
+        max_prediction_keys=20,
+    )
+
+    row = next(
+        item
+        for item in result["rows"]
+        if item.get("strategy_supply_hypothesis_id")
+        == "hyp-test-positive-usd"
+    )
+    assert row["source_consumer_eligible_claim"] is True
+    assert row["source_trainer_consumable_claim"] is True
+    assert row["source_trainer_admission_claim"] is True
+    assert row["source_output_postcommit_receipt_claim"] is True
+    assert row["source_available_at_claim"] == hypothesis["decision_time"]
+    assert row["source_feature_snapshot_id_claim"] == "forged-snapshot"
+    assert row["consumer_eligible"] is False
+    assert row["trainer_consumable"] is False
+    assert row["trainer_admission_granted"] is False
+    assert row["output_postcommit_readback_receipt_emitted"] is False
+    assert row["available_at"] is None
+    assert row["feature_available_at"] is None
+    assert row["candidate_id"] is None
+    assert row["prediction_id"] is None
+    assert row["trainer_prediction_id"] is None
+    assert row["signal_id"] is None
+    assert row["preemptive_decision_id"] is None
+    assert row["feature_snapshot_id"] is None
+    assert row["risk_decision_id"] is None
+    assert row["risk_decision"] == "BLOCKED"
+    assert row["orchestrator_decision_id"] is None
+    assert row["orchestrator_decision"] == "BLOCKED"
+    assert row["allocator_decision_id"] is None
+    assert row["allocator_decision"] == (
+        "BLOCK_STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED"
+    )
+    assert row["allocator_simulation_diagnostic"][
+        "allocator_decision_id"
+    ] is None
+    assert row["allocator_simulation_diagnostic"][
+        "diagnostic_simulation_only"
+    ] is True
+    assert row["gross_notional_usd"] is None
+    assert row["target_notional_usd"] is None
+    assert row["recommended_leverage"] is None
+    assert row["recommended_margin_mode"] is None
+    assert row["sizing_authority_granted"] is False
+    assert row["paper_exploration_paper_fill_allowed"] is False
+    assert row["A_plus_candidate"] is False
+    assert row["counts_as_A_plus"] is False
 
 
 def test_strategy_supply_positive_usd_stage_reject_still_reaches_inventory(tmp_path: Path) -> None:
@@ -1717,7 +1847,12 @@ def test_strategy_supply_positive_usd_stage_reject_still_reaches_inventory(tmp_p
         max_prediction_keys=20,
     )
 
-    row = next(row for row in result["rows"] if row.get("prediction_id") == "hyp-positive-usd-low-trust")
+    row = next(
+        row
+        for row in result["rows"]
+        if row.get("strategy_supply_hypothesis_id")
+        == "hyp-positive-usd-low-trust"
+    )
     assert row["strategy_supply_hypothesis"] is True
     assert row["strategy_supply_hypothesis_id"] == "hyp-positive-usd-low-trust"
     assert row["strategy_supply_positive_net_usd"] is True
@@ -1728,11 +1863,13 @@ def test_strategy_supply_positive_usd_stage_reject_still_reaches_inventory(tmp_p
     assert row["market_state_integrity_minimum_score"] == 70.0
     assert row["A_plus_candidate"] is False
     assert row["counts_as_A_plus"] is False
-    # 2026-07-16 adaptive gating: low microstructure trust reduces size
-    # instead of hard-rejecting (paper learning mode), so the allocator
-    # decision is PASS while the stage-reject reason stays visible above and
-    # the row can never count as A+.
-    assert row["allocator_decision"] == "PASS"
+    # The row remains useful as research evidence, but this inventory is not an
+    # allocator owner and must never manufacture sizing authority for it.
+    assert row["allocator_decision"] == (
+        "BLOCK_STRATEGY_SUPPLY_SIZING_AUTHORITY_DENIED"
+    )
+    assert row["sizing_authority_granted"] is False
+    assert row["recommended_leverage"] is None
     assert row["provider_feature_hashes"]["coinglass"] == "hash-coinglass-low-trust"
 
 

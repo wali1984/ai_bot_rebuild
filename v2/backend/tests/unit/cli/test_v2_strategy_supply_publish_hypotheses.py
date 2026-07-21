@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 from v2.backend.app.cli.v2_strategy_supply_publish_hypotheses import (
+    _generator_failure_row,
     _positive_net_usd,
     _redis_client,
     publish_strategy_supply,
 )
-from v2.backend.app.services.altdata import canonical_confluence_consumer
 from v2.backend.app.services.market_state_integrity.canonical_candles import (
     canonical_from_binance_rest,
 )
@@ -37,11 +37,6 @@ def _freeze_native_ta_test_clock(monkeypatch: pytest.MonkeyPatch):
     global _FROZEN_NATIVE_TA_NOW
     _FROZEN_NATIVE_TA_NOW = frozen
     monkeypatch.setattr(causal_native_ta, "_now", lambda: frozen)
-    monkeypatch.setattr(
-        canonical_confluence_consumer,
-        "_utc_now",
-        lambda: frozen,
-    )
     monkeypatch.setattr(edge_generator, "_utc_now", lambda: frozen_text)
     yield
     _FROZEN_NATIVE_TA_NOW = None
@@ -226,6 +221,30 @@ def test_strategy_supply_publish_rejects_inconsistent_selected_side_positive() -
             "expected_move_after_cost_bps": -18.0,
         }
     ) is True
+
+
+def test_generator_failure_row_does_not_fabricate_market_or_output_clocks() -> None:
+    observed_at = "2026-07-21T12:34:56.123456Z"
+
+    row = _generator_failure_row(
+        "BTCUSDT",
+        "1m",
+        observed_at,
+        RuntimeError("forced generator failure"),
+    )
+
+    assert row["failure_observed_at"] == observed_at
+    assert row["generated_at"] == observed_at
+    assert row["feature_cutoff"] is None
+    assert row["input_available_at"] is None
+    assert row["decision_time"] is None
+    assert row["available_at"] is None
+    assert row["output_postcommit_readback_receipt_emitted"] is False
+    assert row["consumer_eligible"] is False
+    assert row["trainer_consumable"] is False
+    assert row["trainer_admission_granted"] is False
+    assert row["counts_as_final_a_plus"] is False
+    assert row["live_execution_authorized"] is False
 
 
 def test_strategy_supply_runtime_redis_client_preserves_exact_bytes(
