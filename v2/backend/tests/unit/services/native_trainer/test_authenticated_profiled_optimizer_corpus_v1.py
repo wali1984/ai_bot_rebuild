@@ -10,6 +10,12 @@ import pytest
 from v2.backend.app.services.native_trainer import (
     authenticated_profiled_optimizer_admission_v1 as admission_module,
 )
+from v2.backend.app.services.native_trainer import (
+    authenticated_profiled_optimizer_corpus_v1 as corpus_module,
+)
+from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_admission_v1 import (
+    AuthenticatedProfiledOptimizerAdmissionV1Error,
+)
 from v2.backend.app.services.native_trainer.authenticated_profiled_optimizer_corpus_v1 import (
     AUTHENTICATED_PROFILED_OPTIMIZER_CORPUS_V1_SCHEMA_VERSION,
     AuthenticatedProfiledOptimizerCorpusV1Error,
@@ -56,23 +62,35 @@ def _replace_target(target: Any, **updates: Any) -> Any:
     return replace(target, **updates, target_sha256=stable_sha256(material))
 
 
-def _two_row_admissions(admitted: Any) -> tuple[Any, Any]:
-    counts = {
-        "manifest_total_profiled_samples": 2,
-        "manifest_admitted_example_count": 2,
-        "manifest_label_unavailable_count": 0,
-        "completion_consumed_entry_count": 2,
-        "completion_admitted_entry_count": 2,
-        "completion_label_unavailable_count": 0,
-    }
-    return (
-        replace(admitted, **counts, ordinal=1),
-        replace(admitted, **counts, ordinal=2),
-    )
-
-
 def _different_sha256(name: str) -> str:
     return hashlib.sha256(name.encode("ascii")).hexdigest()
+
+
+def _row_inventory_material(row: Any, **updates: Any) -> dict[str, Any]:
+    values = {
+        "ordinal": row.ordinal,
+        "symbol": row.symbol,
+        "timeframe": row.timeframe,
+        "sample_identity_sha256": row.sample_identity_sha256,
+        "label_binding_sha256": row.label_binding_sha256,
+        "tensor_binding_sha256": row.tensor_binding_sha256,
+        "logical_model_vector_sha256": row.logical_model_vector_sha256,
+        "logical_projection_sha256": row.logical_projection_sha256,
+        "model_input_float64_sha256": row.model_input_float64_sha256,
+        "supervised_target_sha256": row.supervised_target.target_sha256,
+        "target_label_value_float64_sha256": (row.supervised_target.label_value_float64_sha256),
+        "model_feature_cutoff": row.model_feature_cutoff,
+        "record_wide_evidence_cutoff": row.record_wide_evidence_cutoff,
+        "source_feature_available_at": row.source_feature_available_at,
+        "decision_feature_available_at": row.decision_feature_available_at,
+        "feature_generated_at": row.feature_generated_at,
+        "training_record_generated_at": row.training_record_generated_at,
+        "decision_time": row.decision_time,
+        "trainer_sample_available_at": row.trainer_sample_available_at,
+        "label_available_at": row.label_available_at,
+        "observation_time": row.observation_time,
+    }
+    return corpus_module._row_material(**{**values, **updates})
 
 
 def _sample_identity_variant(admitted: Any) -> Any:
@@ -191,6 +209,10 @@ def test_exact_before_after_inventory_authorizes_only_supervised_optimizer_execu
         after=after,
     )
 
+    assert before.rows is not after.rows
+    assert before.rows[0] is not after.rows[0]
+    assert before.rows[0].supervised_target is not after.rows[0].supervised_target
+    assert before.causal_clock_range is not after.causal_clock_range
     assert authorization.before_after_inventory_equality_verified is True
     assert authorization.before_ordered_admitted_inventory_sha256 == (
         authorization.after_ordered_admitted_inventory_sha256
@@ -273,58 +295,52 @@ def test_execution_authorization_cannot_grant_ppo_or_downstream_authority(
             replace(authorization, **{field_name: True})
 
 
-def test_partial_manifest_admitted_inventory_is_rejected(
+@pytest.mark.parametrize(
+    "updates",
+    (
+        {
+            "manifest_total_profiled_samples": 2,
+            "manifest_admitted_example_count": 2,
+            "completion_consumed_entry_count": 2,
+            "completion_admitted_entry_count": 2,
+        },
+        {
+            "manifest_total_profiled_samples": 3,
+            "manifest_admitted_example_count": 2,
+            "manifest_label_unavailable_count": 1,
+            "completion_consumed_entry_count": 3,
+            "completion_admitted_entry_count": 2,
+            "completion_label_unavailable_count": 1,
+            "ordinal": 3,
+        },
+        {"ordinal": 2},
+    ),
+    ids=("full-count", "label-unavailable-gap", "ordinal"),
+)
+def test_manifest_completeness_or_gap_cannot_be_fabricated_by_coherent_replace(
     adapter_evidence: dict[str, Any],
+    updates: dict[str, Any],
 ) -> None:
     admitted = _admitted(adapter_evidence)
-    first, _second = _two_row_admissions(admitted)
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match=("PROFILED_OPTIMIZER_ADMISSION_(?:RESULT|FACTORY_SEAL)_INVALID"),
+    ):
+        replace(admitted, **updates)
+
+
+def test_duplicate_factory_admission_cannot_expand_the_manifest_inventory(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    first = _admitted(adapter_evidence)
+    second = _admitted(adapter_evidence)
 
     with pytest.raises(
         AuthenticatedProfiledOptimizerCorpusV1Error,
         match="PROFILED_OPTIMIZER_CORPUS_FULL_MANIFEST_ADMITTED_COUNT_MISMATCH",
     ):
-        build_authenticated_profiled_optimizer_corpus_v1((first,))
-
-
-def test_label_unavailable_manifest_ordinal_gap_is_preserved_not_fabricated(
-    adapter_evidence: dict[str, Any],
-) -> None:
-    admitted = _admitted(adapter_evidence)
-    counts = {
-        "manifest_total_profiled_samples": 3,
-        "manifest_admitted_example_count": 2,
-        "manifest_label_unavailable_count": 1,
-        "completion_consumed_entry_count": 3,
-        "completion_admitted_entry_count": 2,
-        "completion_label_unavailable_count": 1,
-    }
-    inputs = (
-        replace(admitted, **counts, ordinal=1),
-        replace(admitted, **counts, ordinal=3),
-    )
-
-    corpus = build_authenticated_profiled_optimizer_corpus_v1(inputs)
-
-    assert corpus.manifest_total_profiled_samples == 3
-    assert corpus.manifest_admitted_example_count == 2
-    assert corpus.manifest_label_unavailable_count == 1
-    assert corpus.admitted_ordinals == (1, 3)
-
-
-@pytest.mark.parametrize("ordinals", ((2, 1), (1, 1)))
-def test_admitted_ordinals_must_be_ordered_and_unique(
-    adapter_evidence: dict[str, Any],
-    ordinals: tuple[int, int],
-) -> None:
-    admitted = _admitted(adapter_evidence)
-    first, second = _two_row_admissions(admitted)
-    inputs = (replace(first, ordinal=ordinals[0]), replace(second, ordinal=ordinals[1]))
-
-    with pytest.raises(
-        AuthenticatedProfiledOptimizerCorpusV1Error,
-        match="PROFILED_OPTIMIZER_CORPUS_ADMITTED_ORDINAL_ORDER_INVALID",
-    ):
-        build_authenticated_profiled_optimizer_corpus_v1(inputs)
+        build_authenticated_profiled_optimizer_corpus_v1((first, second))
 
 
 @pytest.mark.parametrize(
@@ -346,17 +362,30 @@ def test_admitted_ordinals_must_be_ordered_and_unique(
         "causal_clock",
     ),
 )
-def test_before_after_equality_rejects_any_row_bit_label_or_identity_change(
+def test_coherent_admission_or_target_replace_cannot_change_authenticated_material(
     adapter_evidence: dict[str, Any],
     variant: Callable[[Any], Any],
 ) -> None:
     admitted = _admitted(adapter_evidence)
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match=("PROFILED_OPTIMIZER_(?:ADMISSION|OUTCOME_TARGET)_FACTORY_SEAL_INVALID"),
+    ):
+        variant(admitted)
+
+
+def test_before_after_equality_rejects_inventory_truncation(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
     before = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
-    after = build_authenticated_profiled_optimizer_corpus_v1((variant(admitted),))
+    after = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    object.__setattr__(after, "rows", ())
 
     with pytest.raises(
         AuthenticatedProfiledOptimizerCorpusV1Error,
-        match="PROFILED_OPTIMIZER_CORPUS_BEFORE_AFTER_INVENTORY_MISMATCH",
+        match="PROFILED_OPTIMIZER_CORPUS_ROWS_REQUIRED",
     ):
         validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
             before=before,
@@ -364,44 +393,138 @@ def test_before_after_equality_rejects_any_row_bit_label_or_identity_change(
         )
 
 
-def test_before_after_equality_rejects_row_reordering(
+def test_witness_manifest_or_completion_identity_cannot_be_replaced(
     adapter_evidence: dict[str, Any],
 ) -> None:
     admitted = _admitted(adapter_evidence)
-    inputs = _two_row_admissions(admitted)
-    before = build_authenticated_profiled_optimizer_corpus_v1(inputs)
-    after = build_authenticated_profiled_optimizer_corpus_v1(inputs)
-    object.__setattr__(after, "rows", tuple(reversed(after.rows)))
 
     with pytest.raises(
-        AuthenticatedProfiledOptimizerCorpusV1Error,
-        match="PROFILED_OPTIMIZER_CORPUS_INVALID",
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match="PROFILED_OPTIMIZER_ADMISSION_FACTORY_SEAL_INVALID",
     ):
-        validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
-            before=before,
-            after=after,
+        replace(
+            admitted,
+            external_authorization_envelope_sha256=_different_sha256("different-envelope"),
         )
 
 
-def test_witness_manifest_or_completion_identity_drift_fails_equality(
+def test_coherent_row_inventory_replace_cannot_reuse_factory_token(
     adapter_evidence: dict[str, Any],
 ) -> None:
     admitted = _admitted(adapter_evidence)
-    before = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
-    changed = replace(
-        admitted,
-        external_authorization_envelope_sha256=_different_sha256("different-envelope"),
+    row = build_authenticated_profiled_optimizer_corpus_v1((admitted,)).rows[0]
+    changed_identity = _different_sha256("coherent-row-sample-substitution")
+    changed_material = _row_inventory_material(
+        row,
+        sample_identity_sha256=changed_identity,
     )
-    after = build_authenticated_profiled_optimizer_corpus_v1((changed,))
 
     with pytest.raises(
         AuthenticatedProfiledOptimizerCorpusV1Error,
-        match="PROFILED_OPTIMIZER_CORPUS_BEFORE_AFTER_INVENTORY_MISMATCH",
+        match="PROFILED_OPTIMIZER_CORPUS_ROW_FACTORY_SEAL_INVALID",
     ):
-        validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
-            before=before,
-            after=after,
+        replace(
+            row,
+            sample_identity_sha256=changed_identity,
+            row_inventory_sha256=stable_sha256(changed_material),
         )
+
+
+def test_coherent_corpus_identity_replace_cannot_reuse_factory_token(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    corpus = build_authenticated_profiled_optimizer_corpus_v1((admitted,))
+    changed_envelope = _different_sha256("coherent-corpus-envelope-substitution")
+    common = corpus._common_material()
+    common["external_authorization_envelope_sha256"] = changed_envelope
+    material = corpus_module._corpus_material(
+        common=common,
+        admitted_ordinals=corpus.admitted_ordinals,
+        ordered_admitted_inventory_sha256=corpus.ordered_admitted_inventory_sha256,
+        causal_clock_range_sha256=corpus.causal_clock_range.causal_clock_range_sha256,
+    )
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_CORPUS_FACTORY_SEAL_INVALID",
+    ):
+        replace(
+            corpus,
+            external_authorization_envelope_sha256=changed_envelope,
+            corpus_contract_sha256=stable_sha256(material),
+        )
+
+
+def test_coherent_clock_range_replace_cannot_reuse_factory_token(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    clock_range = build_authenticated_profiled_optimizer_corpus_v1((admitted,)).causal_clock_range
+    material = clock_range._as_material()
+    material["earliest_record_wide_evidence_cutoff"] = admitted.decision_time
+    material["latest_record_wide_evidence_cutoff"] = admitted.decision_time
+    material.pop("causal_clock_range_sha256")
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_CORPUS_CLOCK_RANGE_FACTORY_SEAL_INVALID",
+    ):
+        replace(
+            clock_range,
+            earliest_record_wide_evidence_cutoff=admitted.decision_time,
+            latest_record_wide_evidence_cutoff=admitted.decision_time,
+            causal_clock_range_sha256=stable_sha256(material),
+        )
+
+
+def test_coherent_execution_authorization_replace_cannot_reuse_factory_token(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    authorization = validate_authenticated_profiled_optimizer_corpus_inventory_equality_v1(
+        before=build_authenticated_profiled_optimizer_corpus_v1((admitted,)),
+        after=build_authenticated_profiled_optimizer_corpus_v1((admitted,)),
+    )
+    changed_manifest = _different_sha256("coherent-authorization-manifest-substitution")
+    material = authorization._material(include_identity=False)
+    material["manifest_id"] = changed_manifest
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerCorpusV1Error,
+        match="PROFILED_OPTIMIZER_EXECUTION_AUTHORIZATION_FACTORY_SEAL_INVALID",
+    ):
+        replace(
+            authorization,
+            manifest_id=changed_manifest,
+            inventory_equality_sha256=stable_sha256(material),
+        )
+
+
+def test_target_type_confusion_and_nonfinite_model_inputs_fail_closed(
+    adapter_evidence: dict[str, Any],
+) -> None:
+    admitted = _admitted(adapter_evidence)
+    target_material = _target_material(admitted.supervised_target)
+    target_material.update(action_index=True, target_action="long")
+
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match="PROFILED_OPTIMIZER_OUTCOME_TARGET_INVALID",
+    ):
+        replace(
+            admitted.supervised_target,
+            action_index=True,
+            target_action="long",
+            target_sha256=stable_sha256(target_material),
+        )
+
+    nonfinite = (float("nan"), *admitted.model_input[1:])
+    with pytest.raises(
+        AuthenticatedProfiledOptimizerAdmissionV1Error,
+        match="PROFILED_OPTIMIZER_MODEL_INPUT_NONFINITE",
+    ):
+        replace(admitted, model_input=nonfinite)
 
 
 def test_projection_or_logical_selection_mask_drift_is_rejected_directly(
